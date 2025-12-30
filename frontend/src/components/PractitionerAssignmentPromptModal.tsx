@@ -1,10 +1,11 @@
 import React from 'react';
 import { BaseModal } from './shared/BaseModal';
+import { useModalQueue } from '../contexts/ModalQueueContext';
 
 interface PractitionerAssignmentPromptModalProps {
-  isOpen: boolean;
-  onConfirm: () => void;
-  onCancel: () => void;
+  isOpen?: boolean; // Optional for backward compatibility during migration
+  onConfirm: () => void | Promise<void>;
+  onCancel?: () => void;
   practitionerName?: string;
 }
 
@@ -14,13 +15,40 @@ export const PractitionerAssignmentPromptModal: React.FC<PractitionerAssignmentP
   onCancel,
   practitionerName,
 }) => {
-  if (!isOpen) return null;
+  // Backward compatibility: if isOpen is provided and false, don't render
+  if (isOpen !== undefined && !isOpen) {
+    return null;
+  }
+
+  // Use queue if isOpen is undefined (queue-managed mode)
+  // In legacy mode (isOpen provided), we'll handle closing via onCancel/onConfirm
+  const isQueueManaged = isOpen === undefined;
+  const queueMethods = isQueueManaged ? useModalQueue() : null;
+
+  const handleCancel = React.useCallback(async () => {
+    if (onCancel) {
+      onCancel();
+    }
+    if (isQueueManaged && queueMethods) {
+      // Cancel the queue and close this modal
+      queueMethods.cancelQueue();
+      await queueMethods.closeCurrent();
+    }
+  }, [onCancel, isQueueManaged, queueMethods]);
+
+  const handleConfirm = React.useCallback(async () => {
+    await onConfirm();
+    // Close this modal after confirmation (next modal will be shown if queued)
+    if (isQueueManaged && queueMethods) {
+      await queueMethods.closeCurrent();
+    }
+  }, [onConfirm, isQueueManaged, queueMethods]);
 
   // Handle ESC key
   React.useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        onCancel();
+        handleCancel();
       }
     };
 
@@ -28,11 +56,11 @@ export const PractitionerAssignmentPromptModal: React.FC<PractitionerAssignmentP
     return () => {
       document.removeEventListener('keydown', handleEscape);
     };
-  }, [onCancel]);
+  }, [handleCancel]);
 
   return (
     <BaseModal
-      onClose={onCancel}
+      onClose={handleCancel}
       aria-label="負責人員確認"
       closeOnOverlayClick={false}
       showCloseButton={false}
@@ -50,14 +78,14 @@ export const PractitionerAssignmentPromptModal: React.FC<PractitionerAssignmentP
         </p>
         <div className="flex gap-3 justify-end pt-4">
           <button
-            onClick={onCancel}
+            onClick={handleCancel}
             className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
             type="button"
           >
             否
           </button>
           <button
-            onClick={onConfirm}
+            onClick={handleConfirm}
             className="px-4 py-2 bg-primary-600 text-white rounded-md text-sm font-medium hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
             type="button"
           >

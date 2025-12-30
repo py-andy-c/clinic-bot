@@ -36,9 +36,11 @@ import {
   PractitionerSelector, 
   AppointmentFormSkeleton 
 } from './form';
-import { usePractitionerAssignmentPrompt } from '../../hooks/usePractitionerAssignmentPrompt';
+import { shouldPromptForAssignment } from '../../hooks/usePractitionerAssignmentPrompt';
 import { PractitionerAssignmentPromptModal } from '../PractitionerAssignmentPromptModal';
 import { PractitionerAssignmentConfirmationModal } from '../PractitionerAssignmentConfirmationModal';
+import { useModalQueue } from '../../contexts/ModalQueueContext';
+import { useModal } from '../../contexts/ModalContext';
 
 /**
  * Helper function to convert recurring conflict status to SchedulingConflictResponse format
@@ -173,6 +175,8 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
   event,
 }) => {
   const isMobile = useIsMobile();
+  const { enqueueModal, showNext } = useModalQueue();
+  const { alert } = useModal();
   const [step, setStep] = useState<CreateStep>('form');
   
   // Duplication mode detection
@@ -253,13 +257,6 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
 
   // Assignment prompt state
   const [currentPatient, setCurrentPatient] = useState<Patient | null>(null);
-  const assignmentPrompt = usePractitionerAssignmentPrompt({
-    patient: currentPatient,
-    practitionerId: selectedPractitionerId,
-    onAssignmentAdded: (updatedPatient) => {
-      setCurrentPatient(updatedPatient);
-    },
-  });
 
   // Fetch patient data when patient is selected to get assigned practitioners
   useEffect(() => {
@@ -593,8 +590,62 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
             }
             
             // Check if we need to prompt for assignment
-            if (assignmentPrompt.checkAndPrompt()) {
-              // Prompt will be shown, don't close modal yet
+            if (shouldPromptForAssignment(patient, selectedPractitionerId)) {
+              const practitionerName = availablePractitioners.find(p => p.id === selectedPractitionerId)?.full_name || '';
+              
+              // Enqueue the assignment prompt modal (defer until this modal closes)
+              enqueueModal<React.ComponentProps<typeof PractitionerAssignmentPromptModal>>({
+                id: 'assignment-prompt',
+                component: PractitionerAssignmentPromptModal,
+                defer: true, // Don't show until CreateAppointmentModal closes
+                props: {
+                  practitionerName,
+                  onConfirm: async () => {
+                    // Handle assignment
+                    if (!patient || !selectedPractitionerId) return;
+                    
+                    try {
+                      const updatedPatient = await apiService.assignPractitionerToPatient(
+                        patient.id,
+                        selectedPractitionerId
+                      );
+                      
+                      // Get all assigned practitioners (including the newly added one)
+                      const allAssigned = updatedPatient.assigned_practitioners || [];
+                      const activeAssigned = allAssigned
+                        .filter((p) => p.is_active !== false)
+                        .map((p) => ({ id: p.id, full_name: p.full_name }));
+                      
+                      // Update patient state
+                      setCurrentPatient(updatedPatient);
+                      
+                      // Enqueue confirmation modal
+                      enqueueModal<React.ComponentProps<typeof PractitionerAssignmentConfirmationModal>>({
+                        id: 'assignment-confirmation',
+                        component: PractitionerAssignmentConfirmationModal,
+                        props: {
+                          assignedPractitioners: activeAssigned,
+                        },
+                      });
+                    } catch (err) {
+                      logger.error('Failed to add practitioner assignment:', err);
+                      const errorMessage = getErrorMessage(err) || '無法將治療師設為負責人員';
+                      await alert(errorMessage, '錯誤');
+                    }
+                  },
+                  onCancel: () => {
+                    // User declined assignment, just close
+                  },
+                },
+              });
+              
+              // Close this modal, then show the queued prompt modal
+              onClose();
+              // Delay to ensure this modal closes before showing next
+              // Using 250ms to account for close animation (200ms) + buffer
+              setTimeout(() => {
+                showNext();
+              }, 250);
               return;
             }
           } catch (err) {
@@ -1255,33 +1306,6 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
       <PatientCreationModal isOpen={isCreatePatientModalOpen} onClose={() => setIsCreatePatientModalOpen(false)} onSuccess={handlePatientCreated} />
     
       {createdPatientId && <PatientCreationSuccessModal isOpen={isSuccessModalOpen} onClose={handleSuccessModalClose} patientId={createdPatientId} patientName={createdPatientName} phoneNumber={createdPatientPhone} birthday={createdPatientBirthday} onCreateAppointment={handleCreateAppointmentFromSuccess} />}
-
-      {/* Assignment prompt modals */}
-      {selectedPractitionerId !== null && (
-        <>
-          <PractitionerAssignmentPromptModal
-            isOpen={assignmentPrompt.showPrompt}
-            onConfirm={async () => {
-              await assignmentPrompt.handleConfirm();
-            }}
-            onCancel={() => {
-              assignmentPrompt.handleCancel();
-              // Close modal after cancel
-              onClose();
-            }}
-            practitionerName={availablePractitioners.find(p => p.id === selectedPractitionerId)?.full_name || ''}
-          />
-          <PractitionerAssignmentConfirmationModal
-            isOpen={assignmentPrompt.showConfirmation}
-            onClose={() => {
-              assignmentPrompt.handleConfirmationClose();
-              // Close modal after confirmation
-              onClose();
-            }}
-            assignedPractitioners={assignmentPrompt.assignedPractitioners}
-          />
-        </>
-      )}
     </>
   );
 });

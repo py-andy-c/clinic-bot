@@ -9,6 +9,7 @@ import { CreateAppointmentModal } from '../CreateAppointmentModal';
 import { apiService } from '../../../services/api';
 import { useApiData } from '../../../hooks/useApiData';
 import { ModalProvider } from '../../../contexts/ModalContext';
+import { ModalQueueProvider } from '../../../contexts/ModalQueueContext';
 
 // Mock createPortal to render directly
 vi.mock('react-dom', async () => {
@@ -18,6 +19,11 @@ vi.mock('react-dom', async () => {
     createPortal: (node: React.ReactNode) => node,
   };
 });
+
+// Mock react-router-dom's useLocation
+vi.mock('react-router-dom', () => ({
+  useLocation: () => ({ pathname: '/test' }),
+}));
 
 // Mock apiService
 vi.mock('../../../services/api', () => ({
@@ -78,9 +84,15 @@ vi.mock('../../PatientCreationSuccessModal', () => ({
 const mockOnConfirm = vi.fn();
 const mockOnClose = vi.fn();
 
-// Helper to wrap component with ModalProvider
+// Helper to wrap component with ModalProvider and ModalQueueProvider
 const renderWithModal = (component: React.ReactElement) => {
-  return render(<ModalProvider>{component}</ModalProvider>);
+  return render(
+    <ModalProvider>
+      <ModalQueueProvider>
+        {component}
+      </ModalQueueProvider>
+    </ModalProvider>
+  );
 };
 
 describe('CreateAppointmentModal', () => {

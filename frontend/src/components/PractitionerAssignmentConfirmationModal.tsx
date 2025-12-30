@@ -1,9 +1,10 @@
 import React from 'react';
 import { BaseModal } from './shared/BaseModal';
+import { useModalQueue } from '../contexts/ModalQueueContext';
 
 interface PractitionerAssignmentConfirmationModalProps {
-  isOpen: boolean;
-  onClose: () => void;
+  isOpen?: boolean; // Optional for backward compatibility during migration
+  onClose?: () => void;
   assignedPractitioners: Array<{ id: number; full_name: string }>;
 }
 
@@ -12,11 +13,29 @@ export const PractitionerAssignmentConfirmationModal: React.FC<PractitionerAssig
   onClose,
   assignedPractitioners,
 }) => {
-  if (!isOpen) return null;
+  // Backward compatibility: if isOpen is provided and false, don't render
+  if (isOpen !== undefined && !isOpen) {
+    return null;
+  }
+
+  // Use queue if isOpen is undefined (queue-managed mode)
+  // In legacy mode (isOpen provided), we'll handle closing via onClose
+  const isQueueManaged = isOpen === undefined;
+  const queueMethods = isQueueManaged ? useModalQueue() : null;
+
+  const handleClose = React.useCallback(async () => {
+    if (onClose) {
+      onClose();
+    }
+    // Close this modal (queue will show next if available)
+    if (isQueueManaged && queueMethods) {
+      await queueMethods.closeCurrent();
+    }
+  }, [onClose, isQueueManaged, queueMethods]);
 
   return (
     <BaseModal
-      onClose={onClose}
+      onClose={handleClose}
       aria-label="負責人員確認"
       closeOnOverlayClick={true}
     >
@@ -36,7 +55,7 @@ export const PractitionerAssignmentConfirmationModal: React.FC<PractitionerAssig
         </div>
         <div className="flex justify-end pt-4">
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="px-4 py-2 bg-primary-600 text-white rounded-md text-sm font-medium hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
             type="button"
           >

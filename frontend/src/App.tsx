@@ -4,6 +4,7 @@ import { I18nextProvider } from 'react-i18next';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import { UnsavedChangesProvider } from './contexts/UnsavedChangesContext';
 import { ModalProvider } from './contexts/ModalContext';
+import { ModalQueueProvider } from './contexts/ModalQueueContext';
 import { SettingsProvider } from './contexts/SettingsContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import { LoadingSpinner } from './components/shared';
@@ -166,9 +167,11 @@ const App: React.FC = () => {
       <I18nextProvider i18n={i18n}>
         <AuthProvider>
           <ModalProvider>
-            <UnsavedChangesProvider>
-              <AppRoutes />
-            </UnsavedChangesProvider>
+            <ModalQueueProvider>
+              <UnsavedChangesProvider>
+                <AppRoutes />
+              </UnsavedChangesProvider>
+            </ModalQueueProvider>
           </ModalProvider>
         </AuthProvider>
       </I18nextProvider>
