@@ -628,6 +628,24 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
             if (shouldPromptForAssignment(patient, selectedPractitionerId)) {
               const practitionerName = availablePractitioners.find(p => p.id === selectedPractitionerId)?.full_name || '';
               
+              // Get current assigned practitioners to display
+              // Prefer assigned_practitioners array if available, otherwise use assigned_practitioner_ids
+              let currentAssigned: Array<{ id: number; full_name: string }> = [];
+              if (patient.assigned_practitioners && patient.assigned_practitioners.length > 0) {
+                currentAssigned = patient.assigned_practitioners
+                  .filter((p) => p.is_active !== false)
+                  .map((p) => ({ id: p.id, full_name: p.full_name }));
+              } else if (patient.assigned_practitioner_ids && patient.assigned_practitioner_ids.length > 0) {
+                // Use assigned_practitioner_ids and look up names from all practitioners (not just available ones)
+                // Use initialPractitioners which contains all practitioners, not filtered by appointment type
+                currentAssigned = patient.assigned_practitioner_ids
+                  .map((id) => {
+                    const practitioner = initialPractitioners.find(p => p.id === id);
+                    return practitioner ? { id: practitioner.id, full_name: practitioner.full_name } : null;
+                  })
+                  .filter((p): p is { id: number; full_name: string } => p !== null);
+              }
+              
               // Enqueue the assignment prompt modal (defer until this modal closes)
               enqueueModal<React.ComponentProps<typeof PractitionerAssignmentPromptModal>>({
                 id: 'assignment-prompt',
@@ -635,6 +653,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
                 defer: true, // Don't show until CreateAppointmentModal closes
                 props: {
                   practitionerName,
+                  currentAssignedPractitioners: currentAssigned,
                   onConfirm: async () => {
                     // Handle assignment
                     if (!patient || !selectedPractitionerId) return;
@@ -654,14 +673,22 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
                       // Update patient state
                       setCurrentPatient(updatedPatient);
                       
-                      // Enqueue confirmation modal
+                      // Enqueue confirmation modal (exclude the newly added practitioner)
+                      // Use defer: true to wait for the prompt modal to fully close
                       enqueueModal<React.ComponentProps<typeof PractitionerAssignmentConfirmationModal>>({
                         id: 'assignment-confirmation',
                         component: PractitionerAssignmentConfirmationModal,
+                        defer: true, // Wait for prompt modal to fully close
                         props: {
                           assignedPractitioners: activeAssigned,
+                          excludePractitionerId: selectedPractitionerId,
                         },
                       });
+                      
+                      // Show the confirmation modal after the prompt modal closes
+                      setTimeout(() => {
+                        showNext();
+                      }, 250);
                     } catch (err) {
                       logger.error('Failed to add practitioner assignment:', err);
                       const errorMessage = getErrorMessage(err) || '無法將治療師設為負責人員';

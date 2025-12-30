@@ -813,6 +813,25 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
             onClose();
           }}
           practitionerName={availablePractitioners.find(p => p.id === selectedPractitionerId)?.full_name || ''}
+          currentAssignedPractitioners={(() => {
+            if (!currentPatient) return [];
+            // Prefer assigned_practitioners array if available, otherwise use assigned_practitioner_ids
+            if (currentPatient.assigned_practitioners && currentPatient.assigned_practitioners.length > 0) {
+              return currentPatient.assigned_practitioners
+                .filter((p) => p.is_active !== false)
+                .map((p) => ({ id: p.id, full_name: p.full_name }));
+            } else if (currentPatient.assigned_practitioner_ids && currentPatient.assigned_practitioner_ids.length > 0) {
+              // Use assigned_practitioner_ids and look up names from all practitioners (not just available ones)
+              // Use practitioners prop which contains all practitioners, not filtered by appointment type
+              return currentPatient.assigned_practitioner_ids
+                .map((id) => {
+                  const practitioner = practitioners.find(p => p.id === id);
+                  return practitioner ? { id: practitioner.id, full_name: practitioner.full_name } : null;
+                })
+                .filter((p): p is { id: number; full_name: string } => p !== null);
+            }
+            return [];
+          })()}
         />
         <PractitionerAssignmentConfirmationModal
           isOpen={assignmentPrompt.showConfirmation}
@@ -821,6 +840,7 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
             onClose();
           }}
           assignedPractitioners={assignmentPrompt.assignedPractitioners}
+          excludePractitionerId={selectedPractitionerId}
         />
       </>
     )}

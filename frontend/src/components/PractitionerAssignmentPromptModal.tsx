@@ -7,6 +7,7 @@ interface PractitionerAssignmentPromptModalProps {
   onConfirm: () => void | Promise<void>;
   onCancel?: () => void;
   practitionerName?: string;
+  currentAssignedPractitioners?: Array<{ id: number; full_name: string }>; // Current assigned practitioners to display
 }
 
 export const PractitionerAssignmentPromptModal: React.FC<PractitionerAssignmentPromptModalProps> = ({
@@ -14,6 +15,7 @@ export const PractitionerAssignmentPromptModal: React.FC<PractitionerAssignmentP
   onConfirm,
   onCancel,
   practitionerName,
+  currentAssignedPractitioners = [],
 }) => {
   // Backward compatibility: if isOpen is provided and false, don't render
   if (isOpen !== undefined && !isOpen) {
@@ -71,11 +73,23 @@ export const PractitionerAssignmentPromptModal: React.FC<PractitionerAssignmentP
         </h2>
         <p className="text-sm text-gray-700">
           {practitionerName ? (
-            <>此治療師（{practitionerName}）並非此病患的負責人員。是否要將此治療師設為負責人員？</>
+            <>此治療師（{practitionerName}）並非此病患的負責人員。是否要將此治療師加為負責人員？</>
           ) : (
-            <>此治療師並非此病患的負責人員。是否要將此治療師設為負責人員？</>
+            <>此治療師並非此病患的負責人員。是否要將此治療師加為負責人員？</>
           )}
         </p>
+        {currentAssignedPractitioners.length > 0 && (
+          <div className="bg-gray-50 rounded-md p-3">
+            <p className="text-sm font-medium text-gray-700 mb-2">目前的負責人員列表：</p>
+            <ul className="list-disc list-inside space-y-1">
+              {currentAssignedPractitioners.map((p) => (
+                <li key={p.id} className="text-sm text-gray-900">
+                  {p.full_name}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         <div className="flex gap-3 justify-end pt-4">
           <button
             onClick={handleCancel}
