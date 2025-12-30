@@ -14,6 +14,8 @@ import AvailabilitySettings from '../components/AvailabilitySettings';
 import CompactScheduleSettings from '../components/CompactScheduleSettings';
 import PractitionerNotificationTimeSettings from '../components/PractitionerNotificationTimeSettings';
 import AdminAutoAssignedNotificationTimeSettings from '../components/AdminAutoAssignedNotificationTimeSettings';
+import AdminAppointmentChangeSubscriptionSettings from '../components/AdminAppointmentChangeSubscriptionSettings';
+import AdminDailyReminderSettings from '../components/AdminDailyReminderSettings';
 import PractitionerStepSizeSettings from '../components/PractitionerStepSizeSettings';
 import PageHeader from '../components/PageHeader';
 
@@ -156,6 +158,11 @@ interface PractitionerSettings {
   next_day_notification_time?: string;
   auto_assigned_notification_time?: string;
   step_size_minutes?: number | null;
+  // Admin-only fields
+  subscribe_to_appointment_changes?: boolean;
+  admin_daily_reminder_enabled?: boolean;
+  admin_daily_reminder_time?: string;
+  auto_assigned_notification_mode?: 'immediate' | 'scheduled';
 }
 
 interface ProfileData {
@@ -220,6 +227,10 @@ const ProfilePage: React.FC = () => {
             next_day_notification_time: settings?.next_day_notification_time || '21:00',
             auto_assigned_notification_time: settings?.auto_assigned_notification_time || '21:00',
             step_size_minutes: settings?.step_size_minutes ?? null,
+            subscribe_to_appointment_changes: settings?.subscribe_to_appointment_changes ?? false,
+            admin_daily_reminder_enabled: settings?.admin_daily_reminder_enabled ?? false,
+            admin_daily_reminder_time: settings?.admin_daily_reminder_time || '21:00',
+            auto_assigned_notification_mode: settings?.auto_assigned_notification_mode || 'scheduled',
           };
         } else {
           // Initialize with defaults if no settings exist
@@ -228,6 +239,10 @@ const ProfilePage: React.FC = () => {
             next_day_notification_time: '21:00',
             auto_assigned_notification_time: '21:00',
             step_size_minutes: null,
+            subscribe_to_appointment_changes: false,
+            admin_daily_reminder_enabled: false,
+            admin_daily_reminder_time: '21:00',
+            auto_assigned_notification_mode: 'scheduled',
           };
         }
       }
@@ -274,7 +289,11 @@ const ProfilePage: React.FC = () => {
           compact_schedule_enabled: false,
           next_day_notification_time: '21:00',
           auto_assigned_notification_time: '21:00',
-          step_size_minutes: null
+          step_size_minutes: null,
+          subscribe_to_appointment_changes: false,
+          admin_daily_reminder_enabled: false,
+          admin_daily_reminder_time: '21:00',
+          auto_assigned_notification_mode: 'scheduled',
         };
         const newSettings = data.settings;
 
@@ -283,7 +302,11 @@ const ProfilePage: React.FC = () => {
           currentSettings.compact_schedule_enabled !== newSettings.compact_schedule_enabled ||
           (currentSettings.next_day_notification_time || '21:00') !== (newSettings.next_day_notification_time || '21:00') ||
           (currentSettings.auto_assigned_notification_time || '21:00') !== (newSettings.auto_assigned_notification_time || '21:00') ||
-          currentSettings.step_size_minutes !== newSettings.step_size_minutes;
+          currentSettings.step_size_minutes !== newSettings.step_size_minutes ||
+          (currentSettings.subscribe_to_appointment_changes ?? false) !== (newSettings.subscribe_to_appointment_changes ?? false) ||
+          (currentSettings.admin_daily_reminder_enabled ?? false) !== (newSettings.admin_daily_reminder_enabled ?? false) ||
+          (currentSettings.admin_daily_reminder_time || '21:00') !== (newSettings.admin_daily_reminder_time || '21:00') ||
+          (currentSettings.auto_assigned_notification_mode || 'scheduled') !== (newSettings.auto_assigned_notification_mode || 'scheduled');
 
         if (settingsChanged) {
           profileUpdate.settings = newSettings;
@@ -380,6 +403,33 @@ const ProfilePage: React.FC = () => {
     updateData({ schedule: updatedSchedule });
   };
 
+  // Helper function to update settings while preserving all existing fields
+  const updateSettings = (updates: Partial<PractitionerSettings>) => {
+    const currentSettings: PractitionerSettings = profileData?.settings || {
+      compact_schedule_enabled: false,
+      next_day_notification_time: '21:00',
+      auto_assigned_notification_time: '21:00',
+      step_size_minutes: null,
+      subscribe_to_appointment_changes: false,
+      admin_daily_reminder_enabled: false,
+      admin_daily_reminder_time: '21:00',
+      auto_assigned_notification_mode: 'scheduled',
+    };
+    updateData({
+      settings: {
+        compact_schedule_enabled: currentSettings.compact_schedule_enabled ?? false,
+        next_day_notification_time: currentSettings.next_day_notification_time || '21:00',
+        auto_assigned_notification_time: currentSettings.auto_assigned_notification_time || '21:00',
+        step_size_minutes: currentSettings.step_size_minutes ?? null,
+        subscribe_to_appointment_changes: currentSettings.subscribe_to_appointment_changes ?? false,
+        admin_daily_reminder_enabled: currentSettings.admin_daily_reminder_enabled ?? false,
+        admin_daily_reminder_time: currentSettings.admin_daily_reminder_time || '21:00',
+        auto_assigned_notification_mode: currentSettings.auto_assigned_notification_mode || 'scheduled',
+        ...updates,
+      },
+    });
+  };
+
   if (uiState.loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -439,11 +489,8 @@ const ProfilePage: React.FC = () => {
               <div className="pt-6 border-t border-gray-200 md:pt-0 md:border-t-0">
                 <CompactScheduleSettings
                   compactScheduleEnabled={profileData?.settings?.compact_schedule_enabled || false}
-                  onToggle={(enabled) => updateData({
-                    settings: {
-                      ...profileData?.settings,
-                      compact_schedule_enabled: enabled
-                    }
+                  onToggle={(enabled) => updateSettings({
+                    compact_schedule_enabled: enabled
                   })}
                   showSaveButton={sectionChanges.settings || false}
                   onSave={saveData}
@@ -453,12 +500,8 @@ const ProfilePage: React.FC = () => {
                 <PractitionerStepSizeSettings
                   stepSizeMinutes={profileData?.settings?.step_size_minutes ?? null}
                   clinicDefaultStep={profileData?.clinicDefaultStep ?? 30}
-                  onStepSizeChange={(value: number | null) => updateData({
-                    settings: {
-                      compact_schedule_enabled: profileData?.settings?.compact_schedule_enabled ?? false,
-                      ...profileData?.settings,
-                      step_size_minutes: value
-                    }
+                  onStepSizeChange={(value: number | null) => updateSettings({
+                    step_size_minutes: value
                   })}
                   showSaveButton={sectionChanges.settings || false}
                   onSave={saveData}
@@ -502,28 +545,51 @@ const ProfilePage: React.FC = () => {
               {profile?.roles?.includes('practitioner') && (
                 <PractitionerNotificationTimeSettings
                   notificationTime={profileData?.settings?.next_day_notification_time || '21:00'}
-                  onNotificationTimeChange={(time) => updateData({
-                    settings: {
-                      compact_schedule_enabled: profileData?.settings?.compact_schedule_enabled || false,
-                      next_day_notification_time: time,
-                      auto_assigned_notification_time: profileData?.settings?.auto_assigned_notification_time || '21:00'
-                    }
+                  onNotificationTimeChange={(time) => updateSettings({
+                    next_day_notification_time: time
                   })}
                 />
               )}
 
-              {/* Admin Auto-Assigned Notification Time (Only for admins) */}
+              {/* Admin Notification Settings (Only for admins) */}
               {profile?.roles?.includes('admin') && (
-                <AdminAutoAssignedNotificationTimeSettings
-                  notificationTime={profileData?.settings?.auto_assigned_notification_time || '21:00'}
-                  onNotificationTimeChange={(time) => updateData({
-                    settings: {
-                      compact_schedule_enabled: profileData?.settings?.compact_schedule_enabled || false,
-                      next_day_notification_time: profileData?.settings?.next_day_notification_time || '21:00',
-                      auto_assigned_notification_time: time
-                    }
-                  })}
-                />
+                <>
+                  <div className="mt-6 pt-6 border-t border-gray-200">
+                    <h4 className="text-md font-medium text-gray-900 mb-4">管理員通知設定</h4>
+                    
+                    {/* Appointment Change Subscription */}
+                    <AdminAppointmentChangeSubscriptionSettings
+                      subscribed={profileData?.settings?.subscribe_to_appointment_changes ?? false}
+                      onToggle={(enabled) => updateSettings({
+                        subscribe_to_appointment_changes: enabled
+                      })}
+                    />
+
+                    {/* Daily Reminder */}
+                    <AdminDailyReminderSettings
+                      enabled={profileData?.settings?.admin_daily_reminder_enabled ?? false}
+                      reminderTime={profileData?.settings?.admin_daily_reminder_time || '21:00'}
+                      onToggle={(enabled) => updateSettings({
+                        admin_daily_reminder_enabled: enabled
+                      })}
+                      onTimeChange={(time) => updateSettings({
+                        admin_daily_reminder_time: time
+                      })}
+                    />
+
+                    {/* Auto-Assigned Notification */}
+                    <AdminAutoAssignedNotificationTimeSettings
+                      notificationTime={profileData?.settings?.auto_assigned_notification_time || '21:00'}
+                      notificationMode={profileData?.settings?.auto_assigned_notification_mode || 'scheduled'}
+                      onNotificationTimeChange={(time) => updateSettings({
+                        auto_assigned_notification_time: time
+                      })}
+                      onNotificationModeChange={(mode) => updateSettings({
+                        auto_assigned_notification_mode: mode
+                      })}
+                    />
+                  </div>
+                </>
               )}
             </div>
           </form>

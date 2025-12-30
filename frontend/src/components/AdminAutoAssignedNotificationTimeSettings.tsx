@@ -5,12 +5,16 @@ import { TimeInput } from './shared/TimeInput';
 
 interface AdminAutoAssignedNotificationTimeSettingsProps {
   notificationTime: string; // HH:MM format
+  notificationMode: 'immediate' | 'scheduled'; // New field
   onNotificationTimeChange: (time: string) => void;
+  onNotificationModeChange: (mode: 'immediate' | 'scheduled') => void;
 }
 
 const AdminAutoAssignedNotificationTimeSettings: React.FC<AdminAutoAssignedNotificationTimeSettingsProps> = ({
   notificationTime,
+  notificationMode,
   onNotificationTimeChange,
+  onNotificationModeChange,
 }) => {
   const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
 
@@ -19,7 +23,7 @@ const AdminAutoAssignedNotificationTimeSettings: React.FC<AdminAutoAssignedNotif
       <div className="mt-4">
         <div className="flex items-center gap-2 mb-2">
           <label className="block text-sm font-medium text-gray-700">
-            待審核預約提醒時間
+            待審核預約提醒
           </label>
           <button
             type="button"
@@ -32,17 +36,59 @@ const AdminAutoAssignedNotificationTimeSettings: React.FC<AdminAutoAssignedNotif
             </svg>
           </button>
         </div>
-        <TimeInput
-          value={notificationTime}
-          onChange={onNotificationTimeChange}
-          className="w-full max-w-xs"
-        />
+        
+        {/* Notification Mode Selection */}
+        <div className="mb-3">
+          <div className="flex gap-4">
+            <label className="flex items-center gap-2">
+              <input
+                type="radio"
+                name="notificationMode"
+                value="immediate"
+                checked={notificationMode === 'immediate'}
+                onChange={(e) => onNotificationModeChange(e.target.value as 'immediate' | 'scheduled')}
+                className="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+              />
+              <span className="text-sm text-gray-700">即時通知</span>
+            </label>
+            <label className="flex items-center gap-2">
+              <input
+                type="radio"
+                name="notificationMode"
+                value="scheduled"
+                checked={notificationMode === 'scheduled'}
+                onChange={(e) => onNotificationModeChange(e.target.value as 'immediate' | 'scheduled')}
+                className="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+              />
+              <span className="text-sm text-gray-700">定時通知</span>
+            </label>
+          </div>
+          <p className="text-xs text-gray-500 mt-1 ml-6">
+            {notificationMode === 'immediate' 
+              ? '當有預約被自動指派時，立即發送通知'
+              : '在設定的時間統一發送待審核的預約資訊'}
+          </p>
+        </div>
+
+        {/* Time Input (only shown for scheduled mode) */}
+        {notificationMode === 'scheduled' && (
+          <div className="ml-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              提醒時間
+            </label>
+            <TimeInput
+              value={notificationTime}
+              onChange={onNotificationTimeChange}
+              className="w-full max-w-xs"
+            />
+          </div>
+        )}
       </div>
 
       {isInfoModalOpen && (
         <BaseModal
           onClose={() => setIsInfoModalOpen(false)}
-          aria-label="待審核預約提醒時間說明"
+          aria-label="待審核預約提醒說明"
         >
           <div className="flex items-start">
             <div className="flex-shrink-0">
@@ -51,9 +97,10 @@ const AdminAutoAssignedNotificationTimeSettings: React.FC<AdminAutoAssignedNotif
               </svg>
             </div>
             <div className="ml-3 flex-1">
-              <h3 className="text-lg font-semibold text-gray-900 mb-3">待審核預約提醒時間</h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-3">待審核預約提醒</h3>
               <div className="text-sm text-gray-700 space-y-2">
-                <p>系統將在您設定的時間發送待審核的預約資訊，提醒您進行確認或重新指派。</p>
+                <p><strong>即時通知：</strong>當有預約被自動指派時，系統會立即發送通知，讓您能夠即時處理。</p>
+                <p><strong>定時通知：</strong>系統將在您設定的時間統一發送待審核的預約資訊，提醒您進行確認或重新指派。</p>
                 <p>
                   您可以在{' '}
                   <Link
