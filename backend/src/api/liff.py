@@ -646,6 +646,40 @@ async def list_patients(
             future_count = count_future_appointments_for_patient(
                 db, p.id, status="confirmed"
             )
+            
+            # Get assigned practitioners for this patient
+            assigned_practitioners = []
+            try:
+                assignments = PatientPractitionerAssignmentService.get_assignments_for_patient(
+                    db=db,
+                    patient_id=p.id,
+                    clinic_id=clinic.id
+                )
+                
+                # Get user details for each assigned practitioner
+                practitioner_ids = [assignment.user_id for assignment in assignments]
+                if practitioner_ids:
+                    # Query UserClinicAssociation to get practitioner names and active status
+                    associations = db.query(UserClinicAssociation).filter(
+                        UserClinicAssociation.user_id.in_(practitioner_ids),
+                        UserClinicAssociation.clinic_id == clinic.id
+                    ).all()
+                    
+                    # Format assigned practitioners
+                    assigned_practitioners = [
+                        {
+                            "id": association.user_id,
+                            "full_name": association.full_name if association.full_name else (
+                                association.user.email if association.user else "未知治療師"
+                            ),
+                            "is_active": association.is_active
+                        }
+                        for association in associations
+                    ]
+            except Exception as e:
+                logger.warning(f"Failed to load assigned practitioners for patient {p.id}: {e}")
+                # Continue without assigned practitioners rather than failing the request
+            
             patient_responses.append(
                 PatientResponse(
                     id=p.id,
@@ -656,7 +690,8 @@ async def list_patients(
                     notes=None,  # Notes are clinic-internal, not exposed to LINE users
                     created_at=p.created_at,
                     future_appointments_count=future_count,
-                    max_future_appointments=max_future_appointments
+                    max_future_appointments=max_future_appointments,
+                    assigned_practitioners=assigned_practitioners if assigned_practitioners else None
                 )
             )
 

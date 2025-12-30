@@ -6,7 +6,7 @@ multiple API endpoints to ensure consistency and reduce duplication.
 """
 
 from datetime import datetime, date
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any
 
 from pydantic import BaseModel
 
@@ -22,6 +22,7 @@ class PatientResponse(BaseModel):
     created_at: datetime
     future_appointments_count: Optional[int] = None  # Number of future appointments for this patient
     max_future_appointments: Optional[int] = None  # Maximum allowed future appointments for this clinic
+    assigned_practitioners: Optional[List[Dict[str, Any]]] = None  # Assigned practitioners with id, full_name, and is_active
 
 
 class PatientCreateResponse(BaseModel):

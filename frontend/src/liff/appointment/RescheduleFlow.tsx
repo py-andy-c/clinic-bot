@@ -209,14 +209,29 @@ const RescheduleFlow: React.FC = () => {
           // Edge case: No assigned practitioners - show all (including "不指定")
         }
 
-        setPractitioners(allPractitioners);
+        // Sort practitioners: assigned practitioners first, then others
+        // Only sort if we have assigned practitioner IDs (patient is known and has assignments)
+        const sortedPractitioners = assignedPractitionerIds.size > 0
+          ? [...allPractitioners].sort((a, b) => {
+              const aIsAssigned = assignedPractitionerIds.has(a.id);
+              const bIsAssigned = assignedPractitionerIds.has(b.id);
+              
+              if (aIsAssigned && !bIsAssigned) return -1; // a comes first
+              if (!aIsAssigned && bIsAssigned) return 1;  // b comes first
+              return 0; // Keep original order for same category
+            })
+          : allPractitioners;
+
+        setPractitioners(sortedPractitioners);
       } catch (err) {
         logger.error('Failed to load practitioners:', err);
       }
     };
 
     loadPractitioners();
-  }, [clinicId, appointmentDetails?.appointment_type_id, appointmentDetails?.patient_id, restrictToAssigned, assignedPractitionerIds]);
+    // Convert Set to array for dependency tracking (React doesn't detect Set changes well)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clinicId, appointmentDetails?.appointment_type_id, appointmentDetails?.patient_id, restrictToAssigned, Array.from(assignedPractitionerIds).join(',')]);
 
   // Load availability for month
   useEffect(() => {

@@ -78,6 +78,7 @@ const Step4SelectPatient: React.FC = () => {
       phone_number: patient.phone_number,
       ...(patient.birthday && { birthday: patient.birthday }),
       created_at: patient.created_at,
+      ...(patient.assigned_practitioners && { assigned_practitioners: patient.assigned_practitioners }),
     });
   };
 

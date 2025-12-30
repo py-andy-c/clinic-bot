@@ -45,6 +45,11 @@ export interface PatientSummary {
   created_at: string;
   future_appointments_count?: number;
   max_future_appointments?: number;
+  assigned_practitioners?: Array<{
+    id: number;
+    full_name: string;
+    is_active?: boolean;
+  }>; // Assigned practitioners for this patient
 }
 
 export interface PatientsResponse {
