@@ -1,6 +1,7 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useModal } from '../contexts/ModalContext';
+import { useModalQueue } from '../contexts/ModalQueueContext';
 import { apiService } from '../services/api';
 import { logger } from '../utils/logger';
 import { LoadingSpinner, ErrorMessage } from '../components/shared';
@@ -13,6 +14,10 @@ import { formatAppointmentDateTime, formatAppointmentTimeRange } from '../utils/
 import { appointmentToCalendarEvent } from '../components/patient/appointmentUtils';
 import { invalidateCacheForDate } from '../utils/availabilityCache';
 import { invalidateResourceCacheForDate } from '../utils/resourceAvailabilityCache';
+import { shouldPromptForAssignment } from '../hooks/usePractitionerAssignmentPrompt';
+import { PractitionerAssignmentPromptModal } from '../components/PractitionerAssignmentPromptModal';
+import { PractitionerAssignmentConfirmationModal } from '../components/PractitionerAssignmentConfirmationModal';
+import { getErrorMessage } from '../types/api';
 
 interface AutoAssignedAppointment {
   appointment_id: number;
@@ -34,6 +39,7 @@ interface AutoAssignedAppointment {
 const AutoAssignedAppointmentsPage: React.FC = () => {
   const { isClinicAdmin, user: currentUser, isAuthenticated, isLoading } = useAuth();
   const { alert } = useModal();
+  const { enqueueModal, showNext } = useModalQueue();
   const [selectedAppointment, setSelectedAppointment] = useState<AutoAssignedAppointment | null>(null);
   const [practitioners, setPractitioners] = useState<{ id: number; full_name: string }[]>([]);
   const [appointmentTypes, setAppointmentTypes] = useState<{ id: number; name: string; duration_minutes: number }[]>([]);
@@ -45,6 +51,12 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
   const [deadlineTimeDayBefore, setDeadlineTimeDayBefore] = useState<string | null>(null);
   const [deadlineOnSameDay, setDeadlineOnSameDay] = useState<boolean>(false);
   const [isLoadingSettings, setIsLoadingSettings] = useState(false);
+  // Store the last confirmed appointment data for assignment check after confirmation modal
+  // Use ref instead of state to ensure it's immediately available when onComplete runs
+  const lastConfirmedAppointmentDataRef = useRef<{
+    practitionerId: number | null;
+    patientId: number;
+  } | null>(null);
 
   // Scroll to top when component mounts
   useEffect(() => {
@@ -281,6 +293,8 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
         updateData.selected_resource_ids = formData.selected_resource_ids;
       }
       
+      // Don't close modal here - let EditAppointmentModal handle closing via onComplete
+      // This allows assignment check to happen before modal closes
       await apiService.editClinicAppointment(selectedAppointment.appointment_id, updateData);
 
       // Invalidate availability cache for both old and new dates
@@ -297,13 +311,14 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
         }
       }
 
-      // Close modal and refresh list
-      setIsEditModalOpen(false);
-      setSelectedAppointment(null);
-      setCalendarEvent(null);
-      await refetch();
-      
-      alert('預約已重新指派', '成功');
+      // Store appointment data for assignment check after confirmation modal
+      // Use ref to ensure data is immediately available when onComplete runs
+      lastConfirmedAppointmentDataRef.current = {
+        practitionerId: formData.practitioner_id,
+        patientId: selectedAppointment.patient_id,
+      };
+
+      // Don't show alert here - it will be shown in onComplete after modal closes
     } catch (err) {
       logger.error('Failed to update appointment:', err);
       throw err; // Let EditAppointmentModal handle the error display
@@ -521,15 +536,122 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
           practitioners={practitioners}
           appointmentTypes={appointmentTypes}
           onClose={() => {
+            // User cancellation → close modal
+            // Note: If assignment prompt was shown, onComplete will be called instead
             setIsEditModalOpen(false);
             setSelectedAppointment(null);
             setCalendarEvent(null);
+          }}
+          onComplete={async () => {
+            // Successful completion → close modal and refresh list
+            setIsEditModalOpen(false);
+            setSelectedAppointment(null);
+            setCalendarEvent(null);
+            await refetch();
+            
+            // Show confirmation alert first
+            await alert('預約已重新指派', '成功');
+            
+            // After confirmation alert closes, check for assignment prompt
+            const appointmentData = lastConfirmedAppointmentDataRef.current;
+            if (appointmentData && appointmentData.practitionerId !== null) {
+              try {
+                const patient = await apiService.getPatient(appointmentData.patientId);
+                const shouldPrompt = shouldPromptForAssignment(patient, appointmentData.practitionerId);
+                
+                if (shouldPrompt) {
+                  const practitionerName = practitioners.find(p => p.id === appointmentData.practitionerId)?.full_name || '';
+                  
+                  // Get current assigned practitioners to display
+                  let currentAssigned: Array<{ id: number; full_name: string }> = [];
+                  if (patient.assigned_practitioners && patient.assigned_practitioners.length > 0) {
+                    currentAssigned = patient.assigned_practitioners
+                      .filter((p) => p.is_active !== false)
+                      .map((p) => ({ id: p.id, full_name: p.full_name }));
+                  } else if (patient.assigned_practitioner_ids && patient.assigned_practitioner_ids.length > 0) {
+                    currentAssigned = patient.assigned_practitioner_ids
+                      .map((id) => {
+                        const practitioner = practitioners.find(p => p.id === id);
+                        return practitioner ? { id: practitioner.id, full_name: practitioner.full_name } : null;
+                      })
+                      .filter((p): p is { id: number; full_name: string } => p !== null);
+                  }
+                  
+                  // Enqueue the assignment prompt modal
+                  enqueueModal<React.ComponentProps<typeof PractitionerAssignmentPromptModal>>({
+                    id: 'assignment-prompt',
+                    component: PractitionerAssignmentPromptModal,
+                    defer: true,
+                    props: {
+                      practitionerName,
+                      currentAssignedPractitioners: currentAssigned,
+                      onConfirm: async () => {
+                        if (!patient || !appointmentData.practitionerId) return;
+                        
+                        try {
+                          const updatedPatient = await apiService.assignPractitionerToPatient(
+                            patient.id,
+                            appointmentData.practitionerId
+                          );
+                          
+                          const allAssigned = updatedPatient.assigned_practitioners || [];
+                          const activeAssigned = allAssigned
+                            .filter((p) => p.is_active !== false)
+                            .map((p) => ({ id: p.id, full_name: p.full_name }));
+                          
+                          // Enqueue confirmation modal
+                          enqueueModal<React.ComponentProps<typeof PractitionerAssignmentConfirmationModal>>({
+                            id: 'assignment-confirmation',
+                            component: PractitionerAssignmentConfirmationModal,
+                            defer: true,
+                            props: {
+                              assignedPractitioners: activeAssigned,
+                              excludePractitionerId: appointmentData.practitionerId,
+                              onClose: () => {
+                                // Assignment confirmation modal already shows success message
+                                // No need to do anything else
+                              },
+                            },
+                          });
+                          
+                          // Show the confirmation modal after the prompt modal closes
+                          setTimeout(() => {
+                            showNext();
+                          }, 250);
+                        } catch (err) {
+                          logger.error('Failed to add practitioner assignment:', err);
+                          const errorMessage = getErrorMessage(err) || '無法將治療師設為負責人員';
+                          await alert(errorMessage, '錯誤');
+                        }
+                      },
+                      onCancel: () => {
+                        // User declined assignment - nothing to do
+                      },
+                    },
+                  });
+                  
+                  // Show the assignment prompt modal after a delay to ensure alert is fully closed
+                  setTimeout(() => {
+                    showNext();
+                  }, 250);
+                }
+              } catch (err) {
+                logger.error('Failed to check for assignment prompt:', err);
+              } finally {
+                // Clear the stored data
+                lastConfirmedAppointmentDataRef.current = null;
+              }
+            } else {
+              // Clear the stored data if no assignment check needed
+              lastConfirmedAppointmentDataRef.current = null;
+            }
           }}
           onConfirm={handleEditConfirm}
           formatAppointmentTime={formatAppointmentTimeRange}
           formSubmitButtonText="下一步"
           saveButtonText="確認指派"
           allowConfirmWithoutChanges={true}
+          skipAssignmentCheck={true}
         />
       )}
 

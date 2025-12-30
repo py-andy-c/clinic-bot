@@ -38,8 +38,8 @@ export interface EditAppointmentModalProps {
   event: CalendarEvent;
   practitioners: { id: number; full_name: string }[];
   appointmentTypes: { id: number; name: string; duration_minutes: number }[];
-  onClose: () => void;
-  onCloseComplete?: () => void; // Called when modal should close completely (not return to EventModal)
+  onClose: () => void; // User cancellation → return to previous modal (if applicable)
+  onComplete?: () => void; // Successful completion → close everything completely
   onConfirm: (formData: { appointment_type_id?: number | null; practitioner_id: number | null; start_time: string; clinic_notes?: string; notification_note?: string; selected_resource_ids?: number[] }) => Promise<void>;
   formatAppointmentTime: (start: Date, end: Date) => string;
   errorMessage?: string | null; // Error message to display (e.g., from failed save)
@@ -47,6 +47,7 @@ export interface EditAppointmentModalProps {
   formSubmitButtonText?: string; // Custom text for the form submit button (default: "下一步")
   saveButtonText?: string; // Custom text for the final save button (default: "確認更動")
   allowConfirmWithoutChanges?: boolean; // If true, allow confirmation even when nothing changed (default: false)
+  skipAssignmentCheck?: boolean; // If true, skip assignment check in this modal (assignment will be handled externally) (default: false)
 }
 
 export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.memo(({
@@ -54,13 +55,14 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
   practitioners,
   appointmentTypes,
   onClose,
-  onCloseComplete,
+  onComplete,
   onConfirm,
   errorMessage: externalErrorMessage,
   showReadOnlyFields = true,
   formSubmitButtonText = '下一步',
   saveButtonText = '確認更動',
-  allowConfirmWithoutChanges: _allowConfirmWithoutChanges = false,
+  allowConfirmWithoutChanges = false,
+  skipAssignmentCheck = false,
 }) => {
   const isMobile = useIsMobile();
   const [step, setStep] = useState<EditStep>('form');
@@ -254,6 +256,21 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
         formData.selected_resource_ids = [];
       }
       await onConfirm(formData);
+      
+      // Check for assignment prompt after successful save (unless skipped)
+      if (!skipAssignmentCheck) {
+        const assignmentPromptShown = await checkAndHandleAssignment();
+        if (assignmentPromptShown) {
+          return; // Assignment flow will handle completion
+        }
+      }
+      
+      // No assignment needed - close completely
+      if (onComplete) {
+        onComplete();
+      } else {
+        onClose();
+      }
       return;
     }
 
@@ -293,6 +310,21 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
           formData.selected_resource_ids = [];
         }
         await onConfirm(formData);
+        
+        // Check for assignment prompt after successful save (unless skipped)
+        if (!skipAssignmentCheck) {
+          const assignmentPromptShown = await checkAndHandleAssignment();
+          if (assignmentPromptShown) {
+            return; // Assignment flow will handle completion
+          }
+        }
+        
+        // No assignment needed - close completely
+        if (onComplete) {
+          onComplete();
+        } else {
+          onClose();
+        }
         return;
       }
 
@@ -319,6 +351,21 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
         formData.selected_resource_ids = [];
       }
       await onConfirm(formData);
+      
+      // Check for assignment prompt after successful save (unless skipped)
+      if (!skipAssignmentCheck) {
+        const assignmentPromptShown = await checkAndHandleAssignment();
+        if (assignmentPromptShown) {
+          return; // Assignment flow will handle completion
+        }
+      }
+      
+      // No assignment needed - close completely
+      if (onComplete) {
+        onComplete();
+      } else {
+        onClose();
+      }
     }
   };
 
@@ -369,6 +416,144 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
     }
   };
 
+  // Helper function to check and handle assignment prompt after appointment is saved
+  const checkAndHandleAssignment = useCallback(async () => {
+    // Check if:
+    // 1. Practitioner changed (normal edit flow), OR
+    // 2. allowConfirmWithoutChanges is true (pending review - always check even if practitioner didn't change)
+    // AND new practitioner is not null (not "不指定")
+    const shouldCheckAssignment = (changeDetails.practitionerChanged || allowConfirmWithoutChanges) && 
+                                   selectedPractitionerId !== null && 
+                                   event.resource.patient_id;
+    
+    if (!shouldCheckAssignment || !event.resource.patient_id) {
+      return false; // No assignment check needed
+    }
+
+    try {
+      const patient = await apiService.getPatient(event.resource.patient_id);
+      setCurrentPatient(patient);
+      
+      // Check if we need to prompt for assignment
+      const shouldPrompt = shouldPromptForAssignment(patient, selectedPractitionerId);
+      
+      if (!shouldPrompt) {
+        return false; // No prompt needed
+      }
+
+      const practitionerName = availablePractitioners.find(p => p.id === selectedPractitionerId)?.full_name || '';
+      
+      // Capture callbacks in closure before component unmounts
+      const capturedOnComplete = onComplete;
+      const capturedOnClose = onClose;
+      
+      // Get current assigned practitioners to display
+      let currentAssigned: Array<{ id: number; full_name: string }> = [];
+      if (patient.assigned_practitioners && patient.assigned_practitioners.length > 0) {
+        currentAssigned = patient.assigned_practitioners
+          .filter((p) => p.is_active !== false)
+          .map((p) => ({ id: p.id, full_name: p.full_name }));
+      } else if (patient.assigned_practitioner_ids && patient.assigned_practitioner_ids.length > 0) {
+        currentAssigned = patient.assigned_practitioner_ids
+          .map((id) => {
+            const practitioner = practitioners.find(p => p.id === id);
+            return practitioner ? { id: practitioner.id, full_name: practitioner.full_name } : null;
+          })
+          .filter((p): p is { id: number; full_name: string } => p !== null);
+      }
+      
+      // Enqueue the assignment prompt modal (defer until this modal closes)
+      enqueueModal<React.ComponentProps<typeof PractitionerAssignmentPromptModal>>({
+        id: 'assignment-prompt',
+        component: PractitionerAssignmentPromptModal,
+        defer: true,
+        props: {
+          practitionerName,
+          currentAssignedPractitioners: currentAssigned,
+          onConfirm: async () => {
+            if (!patient || !selectedPractitionerId) return;
+            
+            try {
+              const updatedPatient = await apiService.assignPractitionerToPatient(
+                patient.id,
+                selectedPractitionerId
+              );
+              
+              const allAssigned = updatedPatient.assigned_practitioners || [];
+              const activeAssigned = allAssigned
+                .filter((p) => p.is_active !== false)
+                .map((p) => ({ id: p.id, full_name: p.full_name }));
+              
+              setCurrentPatient(updatedPatient);
+              
+              // Enqueue confirmation modal
+              enqueueModal<React.ComponentProps<typeof PractitionerAssignmentConfirmationModal>>({
+                id: 'assignment-confirmation',
+                component: PractitionerAssignmentConfirmationModal,
+                defer: true,
+                props: {
+                  assignedPractitioners: activeAssigned,
+                  excludePractitionerId: selectedPractitionerId,
+                  onClose: () => {
+                    // After confirmation modal closes, close everything completely
+                    // Assignment confirmation already shows success message, so we don't
+                    // need to show the "預約已重新指派" alert again
+                    if (capturedOnComplete) {
+                      capturedOnComplete();
+                    } else {
+                      // Fallback: close normally if onComplete not provided
+                      capturedOnClose();
+                    }
+                  },
+                },
+              });
+              
+              // Show the confirmation modal after the prompt modal closes
+              setTimeout(() => {
+                showNext();
+              }, 250);
+            } catch (err) {
+              logger.error('Failed to add practitioner assignment:', err);
+              const errorMessage = getErrorMessage(err) || '無法將治療師設為負責人員';
+              await alert(errorMessage, '錯誤');
+              if (capturedOnComplete) {
+                capturedOnComplete();
+              } else {
+                capturedOnClose();
+              }
+            }
+          },
+          onCancel: () => {
+            // User declined assignment, close everything completely
+            // This includes closing the EditAppointmentModal
+            if (capturedOnComplete) {
+              capturedOnComplete();
+            } else {
+              // Fallback: close normally if onComplete not provided
+              capturedOnClose();
+            }
+          },
+        },
+      });
+      
+      // Close this modal, then show the queued prompt modal
+      // Don't call onComplete here - it will be called by:
+      // 1. Assignment confirmation modal's onClose (if user confirms assignment)
+      // 2. Assignment prompt's onCancel (if user declines assignment)
+      capturedOnClose();
+      
+      // Delay to ensure this modal closes before showing next
+      setTimeout(() => {
+        showNext();
+      }, 250);
+      
+      return true; // Assignment prompt was shown
+    } catch (err) {
+      logger.error('Failed to fetch patient for assignment check:', err);
+      return false; // Continue - onConfirm already closed the modal
+    }
+  }, [changeDetails.practitionerChanged, allowConfirmWithoutChanges, selectedPractitionerId, event.resource.patient_id, availablePractitioners, practitioners, enqueueModal, showNext, onComplete, onClose, alert]);
+
   const handleSave = async () => {
     setIsSaving(true);
     setError(null);
@@ -395,124 +580,20 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
       }
       await onConfirm(formData);
       
-      // Note: onConfirm (handleConfirmEditAppointment) already sets modalState to null
-      // So we don't need to call onClose() after successful save unless we're showing assignment prompt
-      
-      // After successful appointment update, check for assignment prompt
-      // Only check if practitioner changed AND new practitioner is not null (not "不指定")
-      if (changeDetails.practitionerChanged && selectedPractitionerId !== null && event.resource.patient_id) {
-        try {
-          const patient = await apiService.getPatient(event.resource.patient_id);
-          setCurrentPatient(patient);
-          
-          // Check if we need to prompt for assignment
-          const shouldPrompt = shouldPromptForAssignment(patient, selectedPractitionerId);
-          
-          if (shouldPrompt) {
-            const practitionerName = availablePractitioners.find(p => p.id === selectedPractitionerId)?.full_name || '';
-            
-            // Get current assigned practitioners to display
-            let currentAssigned: Array<{ id: number; full_name: string }> = [];
-            if (patient.assigned_practitioners && patient.assigned_practitioners.length > 0) {
-              currentAssigned = patient.assigned_practitioners
-                .filter((p) => p.is_active !== false)
-                .map((p) => ({ id: p.id, full_name: p.full_name }));
-            } else if (patient.assigned_practitioner_ids && patient.assigned_practitioner_ids.length > 0) {
-              currentAssigned = patient.assigned_practitioner_ids
-                .map((id) => {
-                  const practitioner = practitioners.find(p => p.id === id);
-                  return practitioner ? { id: practitioner.id, full_name: practitioner.full_name } : null;
-                })
-                .filter((p): p is { id: number; full_name: string } => p !== null);
-            }
-            
-            // Enqueue the assignment prompt modal (defer until this modal closes)
-            enqueueModal<React.ComponentProps<typeof PractitionerAssignmentPromptModal>>({
-              id: 'assignment-prompt',
-              component: PractitionerAssignmentPromptModal,
-              defer: true,
-              props: {
-                practitionerName,
-                currentAssignedPractitioners: currentAssigned,
-                onConfirm: async () => {
-                  if (!patient || !selectedPractitionerId) return;
-                  
-                  try {
-                    const updatedPatient = await apiService.assignPractitionerToPatient(
-                      patient.id,
-                      selectedPractitionerId
-                    );
-                    
-                    const allAssigned = updatedPatient.assigned_practitioners || [];
-                    const activeAssigned = allAssigned
-                      .filter((p) => p.is_active !== false)
-                      .map((p) => ({ id: p.id, full_name: p.full_name }));
-                    
-                    setCurrentPatient(updatedPatient);
-                    
-                    // Enqueue confirmation modal
-                    enqueueModal<React.ComponentProps<typeof PractitionerAssignmentConfirmationModal>>({
-                      id: 'assignment-confirmation',
-                      component: PractitionerAssignmentConfirmationModal,
-                      defer: true,
-                      props: {
-                        assignedPractitioners: activeAssigned,
-                        excludePractitionerId: selectedPractitionerId,
-                        onClose: () => {
-                          // After confirmation modal closes, close everything completely
-                          // This includes closing the EditAppointmentModal
-                          if (onCloseComplete) {
-                            onCloseComplete();
-                          } else {
-                            // Fallback: close normally if onCloseComplete not provided
-                            onClose();
-                          }
-                        },
-                      },
-                    });
-                    
-                    setTimeout(() => {
-                      showNext();
-                    }, 250);
-                  } catch (err) {
-                    logger.error('Failed to add practitioner assignment:', err);
-                    const errorMessage = getErrorMessage(err) || '無法將治療師設為負責人員';
-                    await alert(errorMessage, '錯誤');
-                    if (onCloseComplete) {
-                      onCloseComplete();
-                    }
-                  }
-                },
-                onCancel: () => {
-                  // User declined assignment, close everything completely
-                  // This includes closing the EditAppointmentModal
-                  if (onCloseComplete) {
-                    onCloseComplete();
-                  } else {
-                    // Fallback: close normally if onCloseComplete not provided
-                    onClose();
-                  }
-                },
-              },
-            });
-            
-            // Don't call onClose() here - it would reopen EventModal
-            // Instead, show the queued prompt modal immediately
-            // The EditAppointmentModal will remain open but hidden behind the assignment modals
-            // We'll close it via onCloseComplete() after the assignment flow completes
-            setTimeout(() => {
-              showNext();
-            }, 0);
-            return;
-          }
-        } catch (err) {
-          logger.error('Failed to fetch patient for assignment check:', err);
-          // Continue - onConfirm already closed the modal
+      // Check for assignment prompt after successful save (unless skipped)
+      if (!skipAssignmentCheck) {
+        const assignmentPromptShown = await checkAndHandleAssignment();
+        if (assignmentPromptShown) {
+          return; // Assignment flow will handle completion
         }
       }
       
-      // Don't call onClose() here - onConfirm (handleConfirmEditAppointment) already sets modalState to null
-      // Only call onClose() if we're showing assignment prompt (handled above)
+      // Success - close completely using onComplete if provided, otherwise onClose
+      if (onComplete) {
+        onComplete();
+      } else {
+        onClose();
+      }
     } catch (err) {
       logger.error('Error saving appointment:', err);
       setError(getErrorMessage(err));

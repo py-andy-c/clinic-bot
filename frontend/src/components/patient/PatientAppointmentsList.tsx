@@ -337,38 +337,32 @@ export const PatientAppointmentsList: React.FC<
   }) => {
     if (!editingAppointment) return;
 
-    try {
-      await apiService.editClinicAppointment(
-        editingAppointment.resource.calendar_event_id,
-        formData,
-      );
+    // Don't close modal here - let EditAppointmentModal handle closing via onComplete
+    // This allows assignment check to happen before modal closes
+    await apiService.editClinicAppointment(
+      editingAppointment.resource.calendar_event_id,
+      formData,
+    );
 
-      // Refresh appointments list
-      await refreshAppointmentsList();
+    // Refresh appointments list
+    await refreshAppointmentsList();
 
-      // Invalidate availability cache for both old and new dates
-      const oldDate = moment(editingAppointment.start).format('YYYY-MM-DD');
-      const newDate = moment(formData.start_time).format('YYYY-MM-DD');
-      const practitionerId = formData.practitioner_id ?? editingAppointment.resource.practitioner_id;
-      const appointmentTypeId = editingAppointment.resource.appointment_type_id;
-      if (practitionerId && appointmentTypeId) {
-        invalidateCacheForDate(practitionerId, appointmentTypeId, oldDate);
-        invalidateResourceCacheForDate(practitionerId, appointmentTypeId, oldDate);
-        if (newDate !== oldDate) {
-          invalidateCacheForDate(practitionerId, appointmentTypeId, newDate);
-          invalidateResourceCacheForDate(practitionerId, appointmentTypeId, newDate);
-        }
+    // Invalidate availability cache for both old and new dates
+    const oldDate = moment(editingAppointment.start).format('YYYY-MM-DD');
+    const newDate = moment(formData.start_time).format('YYYY-MM-DD');
+    const practitionerId = formData.practitioner_id ?? editingAppointment.resource.practitioner_id;
+    const appointmentTypeId = editingAppointment.resource.appointment_type_id;
+    if (practitionerId && appointmentTypeId) {
+      invalidateCacheForDate(practitionerId, appointmentTypeId, oldDate);
+      invalidateResourceCacheForDate(practitionerId, appointmentTypeId, oldDate);
+      if (newDate !== oldDate) {
+        invalidateCacheForDate(practitionerId, appointmentTypeId, newDate);
+        invalidateResourceCacheForDate(practitionerId, appointmentTypeId, newDate);
       }
-
-      setEditingAppointment(null);
-      setEditErrorMessage(null);
-      await alert("預約已更新");
-    } catch (error) {
-      logger.error("Error editing appointment:", error);
-      const errorMessage = getErrorMessage(error);
-      setEditErrorMessage(errorMessage);
-      // Don't throw - let the modal handle the error display
     }
+
+    // Show success message (modal will close via onComplete)
+    await alert("預約已更新");
   };
 
   // Handle event name update from EventModal
@@ -729,6 +723,12 @@ export const PatientAppointmentsList: React.FC<
           onClose={() => {
             setEditingAppointment(null);
             setEditErrorMessage(null);
+          }}
+          onComplete={() => {
+            // Successful completion → close completely
+            setEditingAppointment(null);
+            setEditErrorMessage(null);
+            // Note: handleEditConfirm already refreshed the appointments list
           }}
           onConfirm={handleEditConfirm}
           formatAppointmentTime={formatAppointmentTimeRange}

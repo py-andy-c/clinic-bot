@@ -1774,8 +1774,8 @@ const CalendarView: React.FC<CalendarViewProps> = ({
             setEditErrorMessage(null); // Clear error when closing
             setModalState({ type: 'event', data: modalState.data });
           }}
-          onCloseComplete={() => {
-            // Close completely (used after assignment flow completes)
+          onComplete={() => {
+            // Successful completion → close everything completely
             setEditErrorMessage(null);
             setModalState({ type: null, data: null });
           }}
