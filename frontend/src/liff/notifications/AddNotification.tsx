@@ -101,7 +101,21 @@ const AddNotification: React.FC = () => {
     type => type.allow_patient_booking !== false
   );
 
-  // Auto-scroll to practitioner section when appointment type is selected
+  // Get selected appointment type object
+  const selectedAppointmentType = selectedAppointmentTypeId
+    ? appointmentTypes.find(type => type.id === selectedAppointmentTypeId)
+    : null;
+
+  // Auto-select "不指定" (null) when appointment type doesn't allow practitioner selection
+  useEffect(() => {
+    if (selectedAppointmentType && selectedAppointmentType.allow_patient_practitioner_selection === false) {
+      // Automatically set to "不指定" and mark as selected
+      setSelectedPractitionerId(null);
+      setHasSelectedPractitioner(true);
+    }
+  }, [selectedAppointmentType]);
+
+  // Auto-scroll when appointment type is selected
   useEffect(() => {
     // Only scroll when transitioning from no selection to a selection
     // or when changing selection (but not when just expanding/collapsing)
@@ -110,15 +124,25 @@ const AddNotification: React.FC = () => {
                                  selectedAppointmentTypeId !== null && 
                                  previousAppointmentTypeId !== selectedAppointmentTypeId;
 
-    if ((isNewSelection || isChangingSelection) && practitionerSectionRef.current) {
+    if (isNewSelection || isChangingSelection) {
       setIsAppointmentTypeCollapsed(true);
       
-      // Scroll to practitioner section after a short delay
+      // If practitioner selection is disabled, scroll directly to date/time section
+      // Otherwise, scroll to practitioner section
+      const skipPractitionerSelection = selectedAppointmentType && selectedAppointmentType.allow_patient_practitioner_selection === false;
+      
       setTimeout(() => {
-        practitionerSectionRef.current?.scrollIntoView({ 
-          behavior: 'smooth', 
-          block: 'start' 
-        });
+        if (skipPractitionerSelection && dateTimeSectionRef.current) {
+          dateTimeSectionRef.current.scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'start' 
+          });
+        } else if (!skipPractitionerSelection && practitionerSectionRef.current) {
+          practitionerSectionRef.current.scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'start' 
+          });
+        }
       }, 100);
 
       setPreviousAppointmentTypeId(selectedAppointmentTypeId);
@@ -126,7 +150,7 @@ const AddNotification: React.FC = () => {
       // Update previous ID even if we don't scroll
       setPreviousAppointmentTypeId(selectedAppointmentTypeId);
     }
-  }, [selectedAppointmentTypeId, previousAppointmentTypeId]);
+  }, [selectedAppointmentTypeId, previousAppointmentTypeId, selectedAppointmentType]);
 
   // Auto-scroll to date/time section when practitioner is selected
   useEffect(() => {
@@ -341,7 +365,6 @@ const AddNotification: React.FC = () => {
     );
   }
 
-  const selectedAppointmentType = activeAppointmentTypes.find(type => type.id === selectedAppointmentTypeId);
 
   return (
     <div className="px-4 py-6">
@@ -405,8 +428,8 @@ const AddNotification: React.FC = () => {
         )}
       </div>
 
-      {/* Practitioner Selection */}
-      {selectedAppointmentTypeId && (
+      {/* Practitioner Selection - Only show if appointment type allows practitioner selection */}
+      {selectedAppointmentTypeId && selectedAppointmentType && selectedAppointmentType.allow_patient_practitioner_selection !== false && (
         <div ref={practitionerSectionRef} className="mb-6">
           <label className="block text-sm font-medium text-gray-700 mb-2">
             {t('notifications.add.practitioner')}
@@ -449,7 +472,7 @@ const AddNotification: React.FC = () => {
       )}
 
       {/* Date Picker and Time Windows Selection */}
-      {selectedAppointmentTypeId && (
+      {selectedAppointmentTypeId && (hasSelectedPractitioner || (selectedAppointmentType && selectedAppointmentType.allow_patient_practitioner_selection === false)) && (
         <div ref={dateTimeSectionRef} className="mb-6">
           <label className="block text-sm font-medium text-gray-700 mb-2">
             {t('notifications.add.selectDateTime')} <span className="text-red-500">{t('notifications.add.required')}</span>
