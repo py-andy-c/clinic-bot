@@ -760,7 +760,7 @@ const RescheduleFlow: React.FC = () => {
                       className={isAssigned ? 'bg-primary-50 text-primary-900' : ''}
                     >
                       {p.full_name}
-                      {isAssigned ? ' (負責人員)' : ''}
+                      {isAssigned ? ` (${t('practitioner.assignedPractitioner')})` : ''}
                       {isOriginalPractitioner ? ` (${t('appointment.reschedule.originalPractitioner')})` : ''}
                     </option>
                   );

@@ -62,7 +62,7 @@ const Step2SelectPractitioner: React.FC = () => {
       </div>
 
       <div className="space-y-3">
-        {/* 不指定負責人員 option - only show when there are multiple practitioners */}
+        {/* 不指定治療師 option - only show when there are multiple practitioners */}
         {practitioners.length > 1 && (
           <button
             onClick={() => handlePractitionerSelect(null)}

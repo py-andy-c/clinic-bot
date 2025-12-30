@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 
 interface Practitioner {
   id: number;
@@ -26,6 +27,7 @@ export const PractitionerSelector: React.FC<PractitionerSelectorProps> = ({
   appointmentTypeSelected,
   assignedPractitionerIds,
 }) => {
+  const { t } = useTranslation();
   // Convert assignedPractitionerIds to Set for easy lookup
   const assignedIdsSet = React.useMemo(() => {
     if (!assignedPractitionerIds) return new Set<number>();
@@ -55,7 +57,7 @@ export const PractitionerSelector: React.FC<PractitionerSelectorProps> = ({
             return (
               <option key={p.id} value={p.id}>
                 {p.full_name}
-                {isAssigned ? ' (負責人員)' : ''}
+                {isAssigned ? ` (${t('practitioner.assignedPractitioner')})` : ''}
                 {isOriginal ? ' (原)' : ''}
               </option>
             );

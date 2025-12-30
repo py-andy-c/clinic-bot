@@ -382,7 +382,7 @@ const AppointmentList: React.FC = () => {
                     setReceiptError(null);
                   }}
                   className="text-gray-500 hover:text-gray-700 text-2xl leading-none"
-                  aria-label="關閉"
+                  aria-label={t('common.cancel')}
                 >
                   ✕
                 </button>

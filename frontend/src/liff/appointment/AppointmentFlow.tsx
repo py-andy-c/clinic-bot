@@ -36,7 +36,7 @@ const AppointmentFlow: React.FC = () => {
     const determineFlow = async () => {
       if (!clinicId) {
         setFlowType('error');
-        setFlowError('診所資訊未載入');
+        setFlowError(t('appointment.errors.clinicInfoNotLoaded'));
         return;
       }
 
@@ -66,7 +66,7 @@ const AppointmentFlow: React.FC = () => {
         // Default to Flow 1 on error
         setFlowType('flow1');
         setStoreFlowType('flow1');
-        setFlowError('無法載入病患資料，將使用預設流程');
+        setFlowError(t('appointment.errors.patientDataLoadFailed'));
       }
     };
 
@@ -116,7 +116,7 @@ const AppointmentFlow: React.FC = () => {
       return (
         <div className="px-4 py-8">
           <div className="bg-red-50 border border-red-200 rounded-md p-3">
-            <p className="text-sm text-red-600">{flowError || '載入錯誤'}</p>
+            <p className="text-sm text-red-600">{flowError || t('appointment.errors.loadError')}</p>
           </div>
         </div>
       );

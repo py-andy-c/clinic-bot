@@ -10,7 +10,7 @@ This feature adds a new appointment type setting that controls whether patients 
 
 - **Location**: Per appointment type (similar to `allow_patient_booking`)
 - **Default Value**: `True` (backward compatible)
-- **Label**: "開放病患指定負責人員"
+- **Label**: "開放病患指定治療師"
 - **Purpose**: When set to `False`, patients cannot specify practitioners during booking or rescheduling
 
 ## Expected Behavior
@@ -49,7 +49,7 @@ This feature adds a new appointment type setting that controls whether patients 
 ### Admin Settings UI
 
 - New checkbox in `ServiceItemsSettings.tsx`:
-  - Label: "開放病患指定負責人員"
+  - Label: "開放病患指定治療師"
   - Position: Below "開放病患自行預約" checkbox
   - Default: Checked (True)
   - Only editable by clinic admins
@@ -100,7 +100,7 @@ allow_patient_practitioner_selection: bool = True
   ```python
   HTTPException(
       status_code=status.HTTP_400_BAD_REQUEST,
-      detail="此服務類型不允許指定負責人員"
+      detail="此服務類型不允許指定治療師"
   )
   ```
 - If setting is False, force `practitioner_id = None` (auto-assignment)
@@ -244,7 +244,7 @@ Add new checkbox after "開放病患自行預約":
       className="mr-2"
       disabled={!isClinicAdmin}
     />
-    <span className="text-sm font-medium text-gray-700">開放病患指定負責人員</span>
+    <span className="text-sm font-medium text-gray-700">開放病患指定治療師</span>
     <InfoButton onClick={() => setShowAllowPractitionerSelectionModal(true)} />
   </label>
 </div>

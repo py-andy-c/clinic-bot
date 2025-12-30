@@ -155,7 +155,7 @@ const Step3SelectPractitioner: React.FC = () => {
       </div>
 
       <div className="space-y-3">
-        {/* 不指定負責人員 option - only show when there are multiple practitioners */}
+        {/* 不指定治療師 option - only show when there are multiple practitioners */}
         {practitioners.length > 1 && (
           <button
             onClick={() => handlePractitionerSelect(null)}
@@ -206,7 +206,7 @@ const Step3SelectPractitioner: React.FC = () => {
                   <div>
                     <h3 className="font-medium text-gray-900">{practitioner.full_name}</h3>
                     {isAssigned && (
-                      <p className="text-sm text-primary-600 font-medium">負責人員</p>
+                      <p className="text-sm text-primary-600 font-medium">{t('practitioner.assignedPractitioner')}</p>
                     )}
                   </div>
                 </div>

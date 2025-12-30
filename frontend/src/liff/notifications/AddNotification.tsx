@@ -357,7 +357,7 @@ const AddNotification: React.FC = () => {
               onClick={() => setIsAppointmentTypeCollapsed(false)}
               className="text-sm text-primary-600 hover:text-primary-700"
             >
-              更改
+              {t('common.edit')}
             </button>
           )}
         </div>

@@ -1793,7 +1793,7 @@ class TestLiffAvailabilityAndScheduling:
             )
             db_session.commit()
 
-            # Request availability without specifying practitioner (不指定負責人員)
+            # Request availability without specifying practitioner (不指定治療師)
             appt_type_id = appt_types[0].id  # 30-minute consultation
             response = client.get(
                 f"/api/liff/availability?date={target_date_iso}&appointment_type_id={appt_type_id}"
@@ -1880,7 +1880,7 @@ class TestLiffAvailabilityAndScheduling:
                     "appointment_type_id": appt_types[0].id,
                     "practitioner_id": None,  # 不指定
                     "start_time": start_time,
-                    "notes": "不指定負責人員"
+                    "notes": "不指定治療師"
                 }
             )
             assert response.status_code == 200
@@ -3723,7 +3723,7 @@ class TestAllowPatientPractitionerSelection:
 
             response = client.post("/api/liff/appointments", json=appointment_data)
             assert response.status_code == 400
-            assert "不允許指定負責人員" in response.json()["detail"]
+            assert "不允許指定治療師" in response.json()["detail"]
 
         finally:
             client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)

@@ -36,6 +36,7 @@ export default {
     notificationsDesc: '設定提醒，當有符合條件的空位時會通知您',
   },
   patient: {
+    label: '病患',
     form: {
       name: {
         label: '姓名',
@@ -58,6 +59,11 @@ export default {
         error: {
           required: '請輸入生日',
         },
+      },
+      gender: {
+        label: '生理性別',
+        placeholder: '請選擇生理性別',
+        display: '生理性別',
       },
     },
     management: {
@@ -93,6 +99,22 @@ export default {
     cancelConfirmTitle: '確認取消',
     cancelFailedTitle: '取消失敗',
     rescheduleFailedTitle: '無法修改',
+    errors: {
+      clinicInfoNotLoaded: '診所資訊未載入',
+      patientDataLoadFailed: '無法載入病患資料，將使用預設流程',
+      loadError: '載入錯誤',
+      loadTypes: '無法載入預約類型，請稍後再試',
+      loadPractitioners: '無法載入治療師列表，請稍後再試',
+      loadAppointments: '無法載入預約記錄',
+      cancelFailed: '取消預約失敗，請稍後再試',
+      cancelTooSoon: '預約必須在至少 {{hours}} 小時前取消',
+      rescheduleFailed: '修改失敗，請稍後再試',
+      rescheduleTooSoon: '預約必須在至少 {{hours}} 小時前修改',
+      createFailed: '建立預約失敗，請稍後再試',
+      missingAppointmentId: '缺少預約ID',
+      loadDetailsFailed: '無法載入預約詳情',
+      selectDateTime: '請選擇日期和時間',
+    },
     steps: {
       selectType: '選擇類型',
       selectPractitioner: '選擇治療師',
@@ -105,19 +127,6 @@ export default {
       title: '選擇預約類型',
       duration: '約 {{minutes}} 分鐘',
       noTypesAvailable: '目前沒有可用的預約類型',
-    },
-    errors: {
-      loadTypes: '無法載入預約類型，請稍後再試',
-      loadPractitioners: '無法載入治療師列表，請稍後再試',
-      loadAppointments: '無法載入預約記錄',
-      cancelFailed: '取消預約失敗，請稍後再試',
-      cancelTooSoon: '預約必須在至少 {{hours}} 小時前取消',
-      rescheduleFailed: '修改失敗，請稍後再試',
-      rescheduleTooSoon: '預約必須在至少 {{hours}} 小時前修改',
-      createFailed: '建立預約失敗，請稍後再試',
-      missingAppointmentId: '缺少預約ID',
-      loadDetailsFailed: '無法載入預約詳情',
-      selectDateTime: '請選擇日期和時間',
     },
     reschedule: {
       title: '修改預約',
@@ -155,8 +164,9 @@ export default {
   },
   practitioner: {
     selectTitle: '選擇治療師',
-    notSpecified: '不指定負責人員',
+    notSpecified: '不指定治療師',
     notSpecifiedDesc: '系統將自動安排最適合的治療師',
+    assignedPractitioner: '負責人員',
     noPractitioners: '目前沒有治療師提供此服務',
     noPractitionersDesc: '請返回重新選擇預約類型',
     errors: {
@@ -185,9 +195,11 @@ export default {
   },
   notes: {
     title: '備註（選填）',
+    titleRequired: '備註',
     placeholder: '如有特殊需求，請在此說明',
     charCount: '{{count}}/500 字',
     next: '下一步',
+    requiredError: '此服務項目需要填寫備註',
   },
   confirmation: {
     title: '確認預約',

@@ -69,7 +69,7 @@ const Step1SelectType: React.FC = () => {
         </h2>
         {patient && (
           <div className="bg-gray-50 rounded-md p-4 mb-4">
-            <span className="text-sm font-medium text-gray-700">病患：</span>
+            <span className="text-sm font-medium text-gray-700">{t('patient.label')}：</span>
             <span className="text-sm text-gray-900">{patient.full_name}</span>
           </div>
         )}

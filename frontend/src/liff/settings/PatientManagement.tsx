@@ -304,14 +304,14 @@ const PatientManagement: React.FC = () => {
                     {requireGender && (
                       <div className="mb-3">
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                          生理性別
+                          {t('patient.form.gender.label')}
                         </label>
                         <select
                           value={editPatientGender}
                           onChange={(e) => setEditPatientGender(e.target.value)}
                           className="w-full px-3 py-2 border border-gray-300 rounded-md"
                         >
-                          <option value="">請選擇生理性別</option>
+                          <option value="">{t('patient.form.gender.placeholder')}</option>
                           {GENDER_OPTIONS.map((option) => (
                             <option key={option.value} value={option.value}>
                               {option.label}
@@ -353,7 +353,7 @@ const PatientManagement: React.FC = () => {
                       )}
                       {patient.gender && (
                         <div className="text-sm text-gray-500 mt-1">
-                          生理性別: {getGenderLabel(patient.gender)}
+                          {t('patient.form.gender.display')}: {getGenderLabel(patient.gender)}
                         </div>
                       )}
                     </div>

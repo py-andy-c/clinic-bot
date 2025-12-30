@@ -36,6 +36,7 @@ export default {
     notificationsDesc: 'Set up notifications for available appointment slots',
   },
   patient: {
+    label: 'Patient',
     form: {
       name: {
         label: 'Name',
@@ -58,6 +59,11 @@ export default {
         error: {
           required: 'Please enter birthday',
         },
+      },
+      gender: {
+        label: 'Gender',
+        placeholder: 'Please select gender',
+        display: 'Gender',
       },
     },
     management: {
@@ -93,6 +99,22 @@ export default {
     cancelConfirmTitle: 'Confirm Cancel',
     cancelFailedTitle: 'Cancel Failed',
     rescheduleFailedTitle: 'Edit Failed',
+    errors: {
+      clinicInfoNotLoaded: 'Clinic information not loaded',
+      patientDataLoadFailed: 'Failed to load patient data, will use default flow',
+      loadError: 'Load error',
+      loadTypes: 'Failed to load appointment types. Please try again later',
+      loadPractitioners: 'Failed to load therapist list. Please try again later',
+      loadAppointments: 'Failed to load appointment records',
+      cancelFailed: 'Failed to cancel appointment. Please try again later',
+      cancelTooSoon: 'Appointment must be cancelled at least {{hours}} hours in advance',
+      rescheduleFailed: 'Failed to edit appointment. Please try again later',
+      rescheduleTooSoon: 'Appointment must be edited at least {{hours}} hours in advance',
+      createFailed: 'Failed to create appointment. Please try again later',
+      missingAppointmentId: 'Missing appointment ID',
+      loadDetailsFailed: 'Failed to load appointment details',
+      selectDateTime: 'Please select date and time',
+    },
     steps: {
       selectType: 'Select Type',
       selectPractitioner: 'Select Therapist',
@@ -105,19 +127,6 @@ export default {
       title: 'Select Appointment Type',
       duration: 'About {{minutes}} minutes',
       noTypesAvailable: 'No appointment types available',
-    },
-    errors: {
-      loadTypes: 'Failed to load appointment types. Please try again later',
-      loadPractitioners: 'Failed to load therapist list. Please try again later',
-      loadAppointments: 'Failed to load appointment records',
-      cancelFailed: 'Failed to cancel appointment. Please try again later',
-      cancelTooSoon: 'Appointment must be cancelled at least {{hours}} hours in advance',
-      rescheduleFailed: 'Failed to edit appointment. Please try again later',
-      rescheduleTooSoon: 'Appointment must be edited at least {{hours}} hours in advance',
-      createFailed: 'Failed to create appointment. Please try again later',
-      missingAppointmentId: 'Missing appointment ID',
-      loadDetailsFailed: 'Failed to load appointment details',
-      selectDateTime: 'Please select date and time',
     },
     reschedule: {
       title: 'Edit Appointment',
@@ -157,6 +166,7 @@ export default {
     selectTitle: 'Select Therapist',
     notSpecified: 'Not Specified',
     notSpecifiedDesc: 'System will automatically assign the most suitable therapist',
+    assignedPractitioner: 'Assigned Practitioner',
     noPractitioners: 'No therapists available for this service',
     noPractitionersDesc: 'Please go back and select a different appointment type',
     errors: {
@@ -185,9 +195,11 @@ export default {
   },
   notes: {
     title: 'Notes (Optional)',
+    titleRequired: 'Notes',
     placeholder: 'Please specify any special requirements here',
     charCount: '{{count}}/500 characters',
     next: 'Next',
+    requiredError: 'This service requires notes to be filled in',
   },
   confirmation: {
     title: 'Confirm Appointment',

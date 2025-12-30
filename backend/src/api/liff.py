@@ -1072,7 +1072,7 @@ async def create_appointment(
         if not appointment_type.allow_patient_practitioner_selection and request.practitioner_id is not None:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="此服務類型不允許指定負責人員"
+                detail="此服務類型不允許指定治療師"
             )
 
         # Validate notes requirement if appointment type requires it and allows patient booking

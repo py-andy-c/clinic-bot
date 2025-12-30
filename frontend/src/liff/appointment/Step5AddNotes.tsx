@@ -24,7 +24,7 @@ const Step5AddNotes: React.FC = () => {
     <div className="px-4 py-6">
       <div className="mb-6">
         <h2 className="text-xl font-semibold text-gray-900 mb-2">
-          {isNotesRequired ? '備註' : t('notes.title')}
+          {isNotesRequired ? t('notes.titleRequired') : t('notes.title')}
           {isNotesRequired && <span className="text-red-500 ml-1">*</span>}
         </h2>
         {instructionsToShow && (
@@ -57,7 +57,7 @@ const Step5AddNotes: React.FC = () => {
         />
         <div className="flex items-center justify-between mt-1">
           {isNotesRequired && !notes.trim() && (
-            <p className="text-sm text-red-600">此服務項目需要填寫備註</p>
+            <p className="text-sm text-red-600">{t('notes.requiredError')}</p>
           )}
           <p className={`text-sm ${isNotesRequired && !notes.trim() ? 'text-red-500' : 'text-gray-500'} ml-auto`}>
             {t('notes.charCount', { count: notes.length })}
