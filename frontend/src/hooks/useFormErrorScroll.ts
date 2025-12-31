@@ -31,7 +31,7 @@ export const useFormErrorScroll = () => {
       return null;
     };
 
-    const firstError = findFirstError(errors);
+    const firstError = findFirstError(errors as any);
     
     if (firstError) {
       // 1. Expand the card if it's a nested error and an expandType is provided

@@ -210,7 +210,7 @@ export const useLineAuth = (lineProfile: { userId: string; displayName: string; 
       request.picture_url = pictureUrl;
     }
 
-        const response: LiffLoginResponse = await liffApiService.liffLogin(request);
+        const response: LiffLoginResponse = await liffApiService.liffLogin(request as any);
 
     if (checkCancelled?.()) return;
 

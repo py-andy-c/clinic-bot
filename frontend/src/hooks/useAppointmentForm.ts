@@ -211,7 +211,7 @@ export const useAppointmentForm = ({
             const resourceData = fetchedResources.map((r: Resource) => ({
               id: r.id,
               resource_type_id: r.resource_type_id,
-              resource_type_name: r.resource_type_name,
+              resource_type_name: (r as any).resource_type_name || '',
               name: r.name,
             }));
             setSelectedResourceIds(ids);
@@ -233,7 +233,7 @@ export const useAppointmentForm = ({
         // Handle availability result (edit mode only)
         if (shouldFetchAvailability && availabilityResult) {
           if (availabilityResult.status === 'fulfilled') {
-            setInitialAvailability(availabilityResult.value);
+            setInitialAvailability(availabilityResult.value as any);
           } else if (availabilityResult.status === 'rejected') {
             const reason = availabilityResult.reason;
             if (reason?.name !== 'CanceledError' && reason?.name !== 'AbortError') {

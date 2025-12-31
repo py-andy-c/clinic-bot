@@ -6,6 +6,7 @@ import { LanguageSelector } from '../components/LanguageSelector';
 import { LoadingSpinner } from '../../components/shared';
 import { liffApiService } from '../../services/liffApi';
 import { logger } from '../../utils/logger';
+import { Patient } from '../../types';
 
 // Import step components
 import Step1SelectType from './Step1SelectType';

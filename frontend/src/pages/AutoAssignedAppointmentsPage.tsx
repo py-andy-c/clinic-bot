@@ -114,7 +114,7 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
       const bookingSettings = settings.booking_restriction_settings;
       
       if (bookingSettings) {
-        setMinimumBookingHoursAhead(bookingSettings.minimum_booking_hours_ahead ?? null);
+        setMinimumBookingHoursAhead(Number(bookingSettings.minimum_booking_hours_ahead) ?? null);
         setBookingRestrictionType(bookingSettings.booking_restriction_type ?? null);
         setDeadlineTimeDayBefore(bookingSettings.deadline_time_day_before ?? null);
         setDeadlineOnSameDay(bookingSettings.deadline_on_same_day ?? false);
