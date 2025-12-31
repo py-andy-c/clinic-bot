@@ -454,7 +454,13 @@ export class ApiService {
   async testChatbot(data: {
     message: string;
     session_id?: string | null;
-    chat_settings: Clinic['settings']['chat_settings'];
+    chat_settings: {
+      chat_enabled: boolean;
+      system_prompt?: string;
+      temperature?: number;
+      max_tokens?: number;
+      model?: string;
+    };
   }): Promise<{ response: string; session_id: string }> {
     // Use longer timeout for AI responses (60 seconds)
     const response = await this.client.post('/clinic/chat/test', data, {

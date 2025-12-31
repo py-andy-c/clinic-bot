@@ -189,13 +189,44 @@ const SettingsAppointmentsPage: React.FC = () => {
       settings_page_instructions: data.clinic_info_settings.settings_page_instructions?.trim() || null,
       notifications_page_instructions: data.clinic_info_settings.notifications_page_instructions?.trim() || null,
     };
-    
+
+    // Normalize numeric fields from form strings to numbers
+    const normalizedBookingSettings = {
+      ...data.booking_restriction_settings,
+      minimum_booking_hours_ahead: data.booking_restriction_settings.minimum_booking_hours_ahead !== undefined
+        ? (typeof data.booking_restriction_settings.minimum_booking_hours_ahead === 'string'
+            ? parseInt(data.booking_restriction_settings.minimum_booking_hours_ahead, 10)
+            : data.booking_restriction_settings.minimum_booking_hours_ahead)
+        : undefined,
+      step_size_minutes: data.booking_restriction_settings.step_size_minutes !== undefined
+        ? (typeof data.booking_restriction_settings.step_size_minutes === 'string'
+            ? parseInt(data.booking_restriction_settings.step_size_minutes, 10)
+            : data.booking_restriction_settings.step_size_minutes)
+        : undefined,
+      max_future_appointments: data.booking_restriction_settings.max_future_appointments !== undefined
+        ? (typeof data.booking_restriction_settings.max_future_appointments === 'string'
+            ? parseInt(data.booking_restriction_settings.max_future_appointments, 10)
+            : data.booking_restriction_settings.max_future_appointments)
+        : undefined,
+      max_booking_window_days: data.booking_restriction_settings.max_booking_window_days !== undefined
+        ? (typeof data.booking_restriction_settings.max_booking_window_days === 'string'
+            ? parseInt(data.booking_restriction_settings.max_booking_window_days, 10)
+            : data.booking_restriction_settings.max_booking_window_days)
+        : undefined,
+      minimum_cancellation_hours_before: data.booking_restriction_settings.minimum_cancellation_hours_before !== undefined
+        ? (typeof data.booking_restriction_settings.minimum_cancellation_hours_before === 'string'
+            ? parseInt(data.booking_restriction_settings.minimum_cancellation_hours_before, 10)
+            : data.booking_restriction_settings.minimum_cancellation_hours_before)
+        : undefined,
+    };
+
     // Store normalized data for comparison
     pendingFormDataRef.current = {
       ...data,
       clinic_info_settings: normalizedClinicInfo,
+      booking_restriction_settings: normalizedBookingSettings,
     };
-    
+
     try {
       // 1. Update clinic settings in context
       updateData({
@@ -203,7 +234,7 @@ const SettingsAppointmentsPage: React.FC = () => {
           ...settings?.clinic_info_settings,
           ...normalizedClinicInfo,
         },
-        booking_restriction_settings: data.booking_restriction_settings,
+        booking_restriction_settings: normalizedBookingSettings,
       });
 
       // 2. Save practitioner settings

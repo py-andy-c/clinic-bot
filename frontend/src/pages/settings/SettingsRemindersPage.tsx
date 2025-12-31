@@ -87,11 +87,23 @@ const SettingsRemindersPage: React.FC = () => {
     if (!isClinicAdmin) return;
 
     isSavingRef.current = true;
-    pendingFormDataRef.current = data;
+
+    // Normalize numeric fields from form strings to numbers
+    const normalizedData = {
+      ...data,
+      notification_settings: {
+        ...data.notification_settings,
+        reminder_hours_before: typeof data.notification_settings.reminder_hours_before === 'string'
+          ? parseInt(data.notification_settings.reminder_hours_before, 10)
+          : data.notification_settings.reminder_hours_before,
+      },
+    };
+
+    pendingFormDataRef.current = normalizedData;
     try {
       // Update context - this will trigger the useEffect above to save once state is updated
       updateData({
-        notification_settings: data.notification_settings,
+        notification_settings: normalizedData.notification_settings,
       });
     } catch (err: unknown) {
       isSavingRef.current = false;
