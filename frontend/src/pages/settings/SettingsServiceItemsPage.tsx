@@ -736,7 +736,8 @@ const SettingsServiceItemsPage: React.FC = () => {
           originalMessages = response.follow_up_messages;
         } catch (err: unknown) {
           // If service item is new, there are no original messages
-          if (err?.response?.status !== 404) {
+          const axiosError = err as { response?: { status?: number } };
+          if (axiosError?.response?.status !== 404) {
             logger.error(`Error loading original follow-up messages for ${realServiceItemId}:`, err);
           }
         }

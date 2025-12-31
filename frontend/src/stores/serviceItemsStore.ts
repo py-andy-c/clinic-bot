@@ -222,9 +222,10 @@ export const useServiceItemsStore = create<ServiceItemsState>((set, get) => ({
       });
     } catch (err: unknown) {
       logger.error(`Error loading billing scenarios for ${key}:`, err);
-      
+
       // Handle 404 gracefully (no scenarios exist yet)
-      if (err?.response?.status === 404) {
+      const axiosError = err as { response?: { status?: number } };
+      if (axiosError?.response?.status === 404) {
         set((state) => {
           const newScenarios = { ...state.billingScenarios, [key]: [] };
           const newOriginalScenarios = { ...state.originalBillingScenarios, [key]: [] };
@@ -422,7 +423,8 @@ export const useServiceItemsStore = create<ServiceItemsState>((set, get) => ({
               await apiService.deleteBillingScenario(realServiceItemId, practitionerId, originalScenario.id);
             } catch (err: unknown) {
               // Handle 404 gracefully - scenario might already be deleted
-              if (err?.response?.status === 404) {
+              const axiosError = err as { response?: { status?: number } };
+              if (axiosError?.response?.status === 404) {
                 // Don't add to errors - it's already deleted, which is what we want
               } else {
                 const errorMsg = `刪除計費方案「${originalScenario.name}」失敗：${err instanceof Error ? err.message : '未知錯誤'}`;
@@ -586,9 +588,10 @@ export const useServiceItemsStore = create<ServiceItemsState>((set, get) => ({
       });
     } catch (err: unknown) {
       logger.error(`Error loading resource requirements for ${serviceItemId}:`, err);
-      
+
       // Handle 404 gracefully (no requirements exist yet)
-      if (err?.response?.status === 404) {
+      const axiosError = err as { response?: { status?: number } };
+      if (axiosError?.response?.status === 404) {
         set((state) => {
           const newRequirements = { ...state.resourceRequirements, [serviceItemId]: [] };
           const newOriginalRequirements = { ...state.originalResourceRequirements, [serviceItemId]: [] };

@@ -270,7 +270,8 @@ const LineUsersPage: React.FC = () => {
       await refetch(); // Refresh the list
     } catch (err: unknown) {
       logger.error('Toggle AI error:', err);
-      const status = err?.response?.status;
+      const axiosError = err as { response?: { status?: number } };
+      const status = axiosError?.response?.status;
       let errorMessage = getErrorMessage(err);
       
       if (status === 403) {

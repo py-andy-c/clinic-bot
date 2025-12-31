@@ -53,13 +53,13 @@ export const ResourceTypeField: React.FC<ResourceTypeFieldProps> = ({
   const { confirm } = useModal();
 
   useEffect(() => {
-    const handleExpand = (e: React.MouseEvent) => {
+    const handleExpand = (e: CustomEvent) => {
       if (e.detail.type === 'resourceType' && e.detail.index === index) {
         setIsExpanded(true);
       }
     };
-    window.addEventListener('form-error-expand', handleExpand);
-    return () => window.removeEventListener('form-error-expand', handleExpand);
+    window.addEventListener('form-error-expand', handleExpand as EventListener);
+    return () => window.removeEventListener('form-error-expand', handleExpand as EventListener);
   }, [index]);
 
   // Load resources and service items when expanding

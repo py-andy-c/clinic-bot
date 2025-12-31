@@ -1185,10 +1185,10 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     try {
       // Conflict check - get the selected date's events and check for overlaps
       const dailyData = await apiService.getDailyCalendar(userId, dateStr);
-      const appointments = dailyData.events.filter((event: CalendarEvent) => event.resource.type === 'appointment');
-      
+      const appointments = dailyData.events.filter((event: any) => event.resource?.type === 'appointment');
+
       // Collect all conflicting appointments
-      const conflictingAppointments = appointments.filter((appointment: CalendarEvent) => {
+      const conflictingAppointments = appointments.filter((appointment: any) => {
         const startTime = appointment.start.toISOString();
         const endTime = appointment.end.toISOString();
         if (!startTime || !endTime) return false;
@@ -1308,7 +1308,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
 
   // Show delete confirmation for availability exceptions
   const handleDeleteException = async () => {
-    if (!modalState.data || !modalState.data.resource.exception_id) return;
+    if (!modalState.data || Array.isArray(modalState.data) || !modalState.data.resource.exception_id) return;
     
     if (!canEditEvent(modalState.data)) {
       await alert('您只能刪除自己的休診時段');
@@ -1350,7 +1350,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
 
   // Handle edit appointment button click
   const handleEditAppointment = async () => {
-    if (!modalState.data || !modalState.data.resource.appointment_id) return;
+    if (!modalState.data || Array.isArray(modalState.data) || !modalState.data.resource.appointment_id) return;
     
     if (!canEditEvent(modalState.data)) {
       await alert('您只能編輯自己的預約');
@@ -1410,7 +1410,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
 
   // Handle appointment edit confirmation (called from EditAppointmentModal)
   const handleConfirmEditAppointment = async (formData: EditAppointmentFormData) => {
-    if (!modalState.data) return;
+    if (!modalState.data || Array.isArray(modalState.data)) return;
 
     if (!canEditEvent(modalState.data)) {
       // Show error in edit modal
@@ -1633,9 +1633,9 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       </div>
 
       {/* Event Modal */}
-      {modalState.type === 'event' && modalState.data && (() => {
+      {modalState.type === 'event' && modalState.data && !Array.isArray(modalState.data) && (() => {
         const canEdit = canEditEvent(modalState.data);
-        
+
         return (
           <EventModal
             event={modalState.data}
@@ -1754,7 +1754,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       )}
 
       {/* Delete Confirmation Modal */}
-      {modalState.type === 'delete_confirmation' && modalState.data && canEditEvent(modalState.data) && (
+      {modalState.type === 'delete_confirmation' && modalState.data && !Array.isArray(modalState.data) && canEditEvent(modalState.data) && (
         <DeleteConfirmationModal
           event={modalState.data}
           onCancel={() => setModalState({ type: 'event', data: modalState.data })}
