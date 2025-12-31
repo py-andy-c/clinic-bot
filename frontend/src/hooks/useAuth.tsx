@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode, useMemo, useCallback } from 'react';
-import { AuthUser, AuthState, UserRole, ClinicInfo } from '../types';
+import { AuthUser, AuthState, UserRole, UserType, ClinicInfo } from '../types';
 import { logger } from '../utils/logger';
 import { authStorage } from '../utils/storage';
 import { apiService } from '../services/api';

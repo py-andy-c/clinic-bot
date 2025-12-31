@@ -27,7 +27,11 @@ const SettingsRemindersPage: React.FC = () => {
   const methods = useForm<RemindersSettingsFormData>({
     resolver: zodResolver(RemindersSettingsFormSchema),
     defaultValues: {
-      notification_settings: settings?.notification_settings || { reminder_hours_before: 24 },
+      notification_settings: {
+        reminder_hours_before: settings?.notification_settings?.reminder_hours_before != null
+          ? Number(settings.notification_settings.reminder_hours_before)
+          : 24
+      },
     },
     mode: 'onBlur',
   });
@@ -45,7 +49,11 @@ const SettingsRemindersPage: React.FC = () => {
     }
     if (settings) {
       reset({
-        notification_settings: settings.notification_settings,
+        notification_settings: {
+          reminder_hours_before: settings.notification_settings?.reminder_hours_before != null
+            ? Number(settings.notification_settings.reminder_hours_before)
+            : 24
+        },
       });
     }
   }, [settings, reset]);

@@ -253,7 +253,7 @@ export const RevenueTrendChart: React.FC<RevenueTrendChartProps> = ({
                       <p className="text-sm font-medium text-gray-900 mb-2">{displayLabel}</p>
                       <div className="space-y-1">
                         {payload.map((entry: Record<string, unknown>, index: number) => {
-                          const dataKey = entry.dataKey || entry.name;
+                          const dataKey = String(entry.dataKey || entry.name);
                           const displayName = view === 'stacked-service'
                             ? serviceNames[dataKey] || dataKey
                             : practitionerNames[dataKey] || dataKey;

@@ -1280,7 +1280,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       await apiService.cancelClinicAppointment(modalState.data.resource.appointment_id, cancellationNote.trim() || undefined);
 
       // Invalidate cache for the appointment's date
-      const appointmentDate = modalState.data.resource.date || getDateString(modalState.data.start);
+      const appointmentDate = modalState.data.date || getDateString(modalState.data.start);
       invalidateCacheForDateRange(appointmentDate, appointmentDate);
       
       // Invalidate availability cache for the appointment's date, practitioner, and appointment type
@@ -1332,7 +1332,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       await apiService.deleteAvailabilityException(userId, modalState.data.resource.exception_id);
       
       // Invalidate cache for the exception's date
-      const exceptionDate = modalState.data.resource.date || getDateString(modalState.data.start);
+      const exceptionDate = modalState.data.date || getDateString(modalState.data.start);
       invalidateCacheForDateRange(exceptionDate, exceptionDate);
       
       // Invalidate availability cache for this date (for all practitioners and appointment types)
@@ -1432,7 +1432,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       );
 
       // Invalidate cache for both old and new dates (in case appointment moved to different day)
-      const oldDate = modalState.data.resource.date || getDateString(modalState.data.start);
+      const oldDate = modalState.data.date || getDateString(modalState.data.start);
       const newDate = moment(formData.start_time).format('YYYY-MM-DD'); // Extract date from ISO datetime string
       invalidateCacheForDateRange(oldDate, oldDate);
       if (newDate !== oldDate) {
