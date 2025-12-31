@@ -2,7 +2,7 @@
  * Unit tests for ResourceSelector component
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import React from 'react';
 import ResourceSelector from '../ResourceSelector';
@@ -110,7 +110,7 @@ describe('ResourceSelector', () => {
       .mockResolvedValueOnce({ resources: [] })
       .mockResolvedValueOnce({ resources: [] });
 
-    const { container } = render(
+    render(
       <ResourceSelector
         selectedResourceIds={[]}
         onChange={mockOnChange}
@@ -287,7 +287,7 @@ describe('ResourceSelector', () => {
   });
 
   it('should close dropdown when clicking outside', async () => {
-    const { container } = render(
+    render(
       <ResourceSelector
         selectedResourceIds={[]}
         onChange={mockOnChange}
@@ -439,7 +439,7 @@ describe('ResourceSelector', () => {
   it('should handle API errors gracefully', async () => {
     vi.mocked(apiService.getResourceTypes).mockRejectedValue(new Error('API Error'));
 
-    const { container } = render(
+    render(
       <ResourceSelector
         selectedResourceIds={[]}
         onChange={mockOnChange}

@@ -491,6 +491,7 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
                           hours_after: prev.hours_after !== undefined ? prev.hours_after : 0,
                         }));
                         setFormErrors(prev => {
+                          // eslint-disable-next-line @typescript-eslint/no-unused-vars
                           const { days_after, time_of_day, ...rest } = prev;
                           return rest;
                         });
@@ -510,6 +511,7 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
                           setFormData(prev => ({ ...prev, hours_after: isNaN(value) ? 0 : value }));
                           if (formErrors.hours_after) {
                             setFormErrors(prev => {
+                              // eslint-disable-next-line @typescript-eslint/no-unused-vars
                               const { hours_after, ...rest } = prev;
                               return rest;
                             });
@@ -547,6 +549,7 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
                           time_of_day: prev.time_of_day || '21:00',
                         }));
                         setFormErrors(prev => {
+                          // eslint-disable-next-line @typescript-eslint/no-unused-vars
                           const { hours_after, ...rest } = prev;
                           return rest;
                         });
@@ -567,6 +570,7 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
                             setFormData(prev => ({ ...prev, days_after: isNaN(value) ? 0 : value }));
                             if (formErrors.days_after) {
                               setFormErrors(prev => {
+                                // eslint-disable-next-line @typescript-eslint/no-unused-vars
                                 const { days_after, ...rest } = prev;
                                 return rest;
                               });
@@ -592,6 +596,7 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
                             setFormData(prev => ({ ...prev, time_of_day: value }));
                             if (formErrors.time_of_day) {
                               setFormErrors(prev => {
+                                // eslint-disable-next-line @typescript-eslint/no-unused-vars
                                 const { time_of_day, ...rest } = prev;
                                 return rest;
                               });
@@ -643,6 +648,7 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
                     setFormData(prev => ({ ...prev, message_template: e.target.value }));
                     if (formErrors.message_template) {
                       setFormErrors(prev => {
+                        // eslint-disable-next-line @typescript-eslint/no-unused-vars
                         const { message_template, ...rest } = prev;
                         return rest;
                       });

@@ -127,8 +127,8 @@ describe('ProfileForm', () => {
   });
 
   it('does not render when profile is null', () => {
-    const { container } = render(<ProfileForm {...defaultProps} profile={null} />);
-    expect(container.firstChild).toBeNull();
+    const { container: _container } = render(<ProfileForm {...defaultProps} profile={null} />);
+    expect(_container.firstChild).toBeNull();
   });
 });
 

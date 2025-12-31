@@ -2,7 +2,7 @@
  * Unit tests for ErrorBoundary component
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { Component } from 'react';
 import ErrorBoundary from '../ErrorBoundary';
@@ -23,9 +23,7 @@ describe('ErrorBoundary', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
   });
 
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
+  // afterEach cleanup handled by vitest automatically
 
   it('should render children when there is no error', () => {
     render(
@@ -120,7 +118,7 @@ describe('ErrorBoundary', () => {
   });
 
   it('should have proper accessibility attributes', () => {
-    const { container } = render(
+    render(
       <ErrorBoundary>
         <ThrowError shouldThrow={true} />
       </ErrorBoundary>

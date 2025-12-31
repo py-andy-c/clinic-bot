@@ -9,7 +9,7 @@ import { useForm, FormProvider } from 'react-hook-form';
 import ServiceItemsSettings from '../ServiceItemsSettings';
 import { AppointmentType } from '../../types';
 import { apiService } from '../../services/api';
-import { useServiceItemsStore } from '../../stores/serviceItemsStore';
+// useServiceItemsStore is mocked but not directly used in tests
 import { ModalProvider } from '../../contexts/ModalContext';
 
 // Wrapper component to provide RHF context
@@ -81,7 +81,7 @@ describe('ServiceItemsSettings', () => {
   ];
 
   const mockOnAddType = vi.fn();
-  const mockOnUpdateType = vi.fn();
+  // mockOnUpdateType is defined but not used in current tests
   const mockOnRemoveType = vi.fn();
 
   beforeEach(() => {

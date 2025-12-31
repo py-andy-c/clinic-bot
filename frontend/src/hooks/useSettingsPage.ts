@@ -24,7 +24,7 @@ interface UseSettingsPageOptions<T> {
   skipFetch?: boolean; // If true, never fetch - only use initialData (for use with external data sources like useApiData)
 }
 
-export const useSettingsPage = <T extends Record<string, any>>(
+export const useSettingsPage = <T extends Record<string, unknown>>(
   config: SettingsPageConfig<T>,
   options?: UseSettingsPageOptions<T>
 ) => {

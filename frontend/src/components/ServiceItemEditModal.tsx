@@ -75,11 +75,11 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
   availableGroups,
   practitionerAssignments: currentPractitionerAssignments,
   billingScenarios: allBillingScenarios,
-  resourceRequirements: _currentResourceRequirements,
+  resourceRequirements: _currentResourceRequirements, // eslint-disable-line @typescript-eslint/no-unused-vars
   clinicInfoAvailability,
   onUpdatePractitionerAssignments,
   onUpdateBillingScenarios,
-  onUpdateResourceRequirements: _onUpdateResourceRequirements,
+  onUpdateResourceRequirements: _onUpdateResourceRequirements, // eslint-disable-line @typescript-eslint/no-unused-vars
 }) => {
   const {
     loadBillingScenarios,
@@ -889,6 +889,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                     setScenarioForm(prev => ({ ...prev, name: e.target.value }));
                     if (scenarioErrors.name) {
                       setScenarioErrors(prev => {
+                        // eslint-disable-next-line @typescript-eslint/no-unused-vars
                         const { name, ...rest } = prev;
                         return rest;
                       });
@@ -912,6 +913,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                       setScenarioForm(prev => ({ ...prev, amount: e.target.value }));
                       if (scenarioErrors.amount) {
                         setScenarioErrors(prev => {
+                          // eslint-disable-next-line @typescript-eslint/no-unused-vars
                           const { amount, ...rest } = prev;
                           return rest;
                         });
@@ -936,6 +938,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                       setScenarioForm(prev => ({ ...prev, revenue_share: e.target.value }));
                       if (scenarioErrors.revenue_share) {
                         setScenarioErrors(prev => {
+                          // eslint-disable-next-line @typescript-eslint/no-unused-vars
                           const { revenue_share, ...rest } = prev;
                           return rest;
                         });

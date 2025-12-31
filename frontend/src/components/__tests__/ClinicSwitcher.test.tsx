@@ -54,7 +54,7 @@ describe('ClinicSwitcher', () => {
   });
 
   it('should not render when user has no clinics', () => {
-    const { container } = render(
+    render(
       <ClinicSwitcher
         currentClinicId={null}
         availableClinics={[]}

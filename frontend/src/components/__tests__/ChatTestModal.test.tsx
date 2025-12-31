@@ -2,7 +2,7 @@
  * Unit tests for ChatTestModal component
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { ChatTestModal } from '../ChatTestModal';
 import { ChatSettings } from '../../schemas/api';
@@ -48,7 +48,7 @@ describe('ChatTestModal', () => {
   });
 
   it('should not render when isOpen is false', () => {
-    const { container } = render(
+    render(
       <ChatTestModal
         isOpen={false}
         onClose={mockOnClose}

@@ -25,7 +25,7 @@ describe('PageHeader', () => {
   });
 
   it('should apply custom className', () => {
-    const { container } = render(
+    render(
       <PageHeader title="Test Title" className="custom-class" />
     );
     const header = container.firstChild;

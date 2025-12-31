@@ -6,9 +6,9 @@ import { FieldErrors, UseFormReturn } from 'react-hook-form';
  * It finds the first error, optionally expands a collapsed section, scrolls to the field, and focuses it.
  */
 export const useFormErrorScroll = () => {
-  const onInvalid = useCallback((
-    errors: FieldErrors<any>, 
-    methods: UseFormReturn<any>,
+  const onInvalid = useCallback(<T extends Record<string, unknown>>(
+    errors: FieldErrors<T>, 
+    methods: UseFormReturn<T>,
     options: { expandType?: string; expandEventName?: string } = {}
   ) => {
     const { expandType, expandEventName = 'form-error-expand' } = options;

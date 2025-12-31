@@ -20,7 +20,7 @@ const MAX_QUEUE_SIZE = 10; // Maximum number of modals in queue to prevent memor
 /**
  * A queued modal with its component and props
  */
-export interface QueuedModal<T = any> {
+export interface QueuedModal<T = Record<string, unknown>> {
   id: string;
   component: ComponentType<T>;
   props: T;

@@ -2,7 +2,7 @@
  * Unit tests for InAppBrowserWarning component
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 import { InAppBrowserWarning } from '../InAppBrowserWarning';
 import * as browserDetection from '../../utils/browserDetection';
@@ -24,15 +24,13 @@ describe('InAppBrowserWarning', () => {
     };
   });
 
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
+  // afterEach cleanup handled by vitest automatically
 
   describe('when not in in-app browser', () => {
     it('should render children instead of warning', () => {
       vi.mocked(browserDetection.isInAppBrowser).mockReturnValue(false);
 
-      const { container } = render(
+      render(
         <InAppBrowserWarning>
           <div>Test Content</div>
         </InAppBrowserWarning>
@@ -44,7 +42,7 @@ describe('InAppBrowserWarning', () => {
     it('should render null when no children provided', () => {
       vi.mocked(browserDetection.isInAppBrowser).mockReturnValue(false);
 
-      const { container } = render(<InAppBrowserWarning />);
+      render(<InAppBrowserWarning />);
       expect(container.firstChild).toBeNull();
     });
   });
@@ -203,7 +201,7 @@ describe('InAppBrowserWarning', () => {
       vi.mocked(browserDetection.isInAppBrowser).mockReturnValue(true);
       vi.mocked(browserDetection.canOpenInBrowser).mockReturnValue(false);
 
-      const { container } = render(<InAppBrowserWarning />);
+      render(<InAppBrowserWarning />);
       const icon = container.querySelector('svg');
       expect(icon).toBeInTheDocument();
     });
