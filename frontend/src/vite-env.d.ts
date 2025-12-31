@@ -13,6 +13,10 @@ declare global {
       [key: string]: unknown;
     };
     __calendarCreateAppointment?: (date: Date) => void;
+    location?: {
+      search: string;
+      [key: string]: unknown;
+    };
   }
 }
 

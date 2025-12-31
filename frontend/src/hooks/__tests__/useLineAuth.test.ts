@@ -53,8 +53,8 @@ describe('Clinic Isolation Validation', () => {
   beforeEach(() => {
     localStorage.clear();
     // Reset window.location.search
-    delete (window as any).location;
-    (window as any).location = { search: '' };
+    delete window.location;
+    window.location = { search: '' } as Location;
   });
 
   describe('getClinicTokenFromToken', () => {
@@ -91,13 +91,13 @@ describe('Clinic Isolation Validation', () => {
 
   describe('getClinicTokenFromUrl', () => {
     it('should extract clinic_token from URL parameters', () => {
-      (window as any).location.search = '?clinic_token=token_123&mode=book';
+      window.location!.search = '?clinic_token=token_123&mode=book';
       const params = new URLSearchParams(window.location.search);
       expect(params.get('clinic_token')).toBe('token_123');
     });
 
     it('should return null if clinic_token is missing', () => {
-      (window as any).location.search = '?mode=book';
+      window.location!.search = '?mode=book';
       const params = new URLSearchParams(window.location.search);
       expect(params.get('clinic_token')).toBeNull();
     });
@@ -114,7 +114,7 @@ describe('Clinic Isolation Validation', () => {
         iat: Date.now() / 1000,
       });
 
-      (window as any).location.search = `?clinic_token=${clinicToken}`;
+      window.location!.search = `?clinic_token=${clinicToken}`;
 
       // Simulate validation logic
       const parts = token.split('.');
@@ -138,7 +138,7 @@ describe('Clinic Isolation Validation', () => {
         iat: Date.now() / 1000,
       });
 
-      (window as any).location.search = `?clinic_token=${urlClinicToken}`;
+      window.location!.search = `?clinic_token=${urlClinicToken}`;
 
       // Simulate validation logic
       const parts = token.split('.');
@@ -160,7 +160,7 @@ describe('Clinic Isolation Validation', () => {
         iat: Date.now() / 1000,
       });
 
-      (window as any).location.search = '?clinic_token=token_123';
+      window.location!.search = '?clinic_token=token_123';
 
       // Simulate validation logic
       const parts = token.split('.');
@@ -182,7 +182,7 @@ describe('Clinic Isolation Validation', () => {
         iat: Date.now() / 1000,
       });
 
-      (window as any).location.search = '?mode=book'; // No clinic_token
+      window.location!.search = '?mode=book'; // No clinic_token
 
       // Simulate validation logic
       const parts = token.split('.');
@@ -198,7 +198,7 @@ describe('Clinic Isolation Validation', () => {
 
   describe('getClinicIdentifierFromUrl', () => {
     it('should return liff_id when present (clinic-specific LIFF)', () => {
-      (window as any).location.search = '?liff_id=1234567890-abcdefgh';
+      window.location!.search = '?liff_id=1234567890-abcdefgh';
       const params = new URLSearchParams(window.location.search);
       const liffId = params.get('liff_id');
 
@@ -210,7 +210,7 @@ describe('Clinic Isolation Validation', () => {
     });
 
     it('should return clinic_token when present (shared LIFF)', () => {
-      (window as any).location.search = '?clinic_token=token_123';
+      window.location!.search = '?clinic_token=token_123';
       const params = new URLSearchParams(window.location.search);
       const token = params.get('clinic_token');
 
@@ -222,7 +222,7 @@ describe('Clinic Isolation Validation', () => {
     });
 
     it('should prefer liff_id over clinic_token when both are present', () => {
-      (window as any).location.search = '?liff_id=1234567890-abc&clinic_token=token_123';
+      window.location!.search = '?liff_id=1234567890-abc&clinic_token=token_123';
       const params = new URLSearchParams(window.location.search);
       const liffId = params.get('liff_id');
       const token = params.get('clinic_token');
@@ -234,7 +234,7 @@ describe('Clinic Isolation Validation', () => {
     });
 
     it('should return null when both identifiers are missing', () => {
-      (window as any).location.search = '?mode=book';
+      window.location!.search = '?mode=book';
       const params = new URLSearchParams(window.location.search);
       const liffId = params.get('liff_id');
       const token = params.get('clinic_token');
@@ -254,7 +254,7 @@ describe('Clinic Isolation Validation', () => {
         iat: Date.now() / 1000,
       });
 
-      (window as any).location.search = `?liff_id=${liffId}`;
+      window.location!.search = `?liff_id=${liffId}`;
 
       // Simulate validation logic
       const parts = token.split('.');
@@ -278,7 +278,7 @@ describe('Clinic Isolation Validation', () => {
         iat: Date.now() / 1000,
       });
 
-      (window as any).location.search = `?liff_id=${urlLiffId}`;
+      window.location!.search = `?liff_id=${urlLiffId}`;
 
       // Simulate validation logic
       const parts = token.split('.');
@@ -300,7 +300,7 @@ describe('Clinic Isolation Validation', () => {
         iat: Date.now() / 1000,
       });
 
-      (window as any).location.search = '?liff_id=1234567890-abc';
+      window.location!.search = '?liff_id=1234567890-abc';
 
       // Simulate validation logic
       const parts = token.split('.');
@@ -322,7 +322,7 @@ describe('Clinic Isolation Validation', () => {
         iat: Date.now() / 1000,
       });
 
-      (window as any).location.search = '?mode=book'; // No liff_id
+      window.location!.search = '?mode=book'; // No liff_id
 
       // Simulate validation logic
       const parts = token.split('.');
@@ -346,7 +346,7 @@ describe('Clinic Isolation Validation', () => {
         iat: Date.now() / 1000,
       });
 
-      (window as any).location.search = `?liff_id=${liffId}`;
+      window.location!.search = `?liff_id=${liffId}`;
 
       // Simulate validation logic
       const parts = token.split('.');

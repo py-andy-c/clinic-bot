@@ -48,7 +48,7 @@ vi.mock('../../../components/dashboard/SortableTableHeader', () => ({
 
 // Mock TimeRangePresets
 vi.mock('../../../components/dashboard/TimeRangePresets', () => ({
-  TimeRangePresets: ({ onSelect }: any) => (
+  TimeRangePresets: ({ onSelect }: { onSelect: (preset: string) => void }) => (
     <div data-testid="time-range-presets">
       <button onClick={() => onSelect('month')}>本月</button>
     </div>

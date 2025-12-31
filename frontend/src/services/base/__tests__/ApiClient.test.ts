@@ -25,7 +25,7 @@ describe('ApiClient', () => {
     vi.clearAllMocks();
 
     // Setup axios.create mock to return our mock instance
-    mockedAxios.create.mockReturnValue(mockAxiosInstance as any);
+    mockedAxios.create.mockReturnValue(mockAxiosInstance as unknown as ReturnType<typeof axios.create>);
 
     // Create a test implementation of ApiClient
     class TestApiClient extends ApiClient {
@@ -80,30 +80,30 @@ describe('ApiClient', () => {
     });
 
     it('should handle GET requests', async () => {
-      const result = await (apiClient as any).testGet();
+      const result = await (apiClient as TestApiClient).testGet();
       expect(result).toEqual({ success: true });
     });
 
     it('should handle POST requests', async () => {
       const data = { name: 'test' };
-      const result = await (apiClient as any).testPost(data);
+      const result = await (apiClient as TestApiClient).testPost(data);
       expect(result).toEqual({ success: true });
     });
 
     it('should handle PUT requests', async () => {
       const data = { name: 'test' };
-      const result = await (apiClient as any).testPut(data);
+      const result = await (apiClient as TestApiClient).testPut(data);
       expect(result).toEqual({ success: true });
     });
 
     it('should handle PATCH requests', async () => {
       const data = { name: 'test' };
-      const result = await (apiClient as any).testPatch(data);
+      const result = await (apiClient as TestApiClient).testPatch(data);
       expect(result).toEqual({ success: true });
     });
 
     it('should handle DELETE requests', async () => {
-      const result = await (apiClient as any).testDelete();
+      const result = await (apiClient as TestApiClient).testDelete();
       expect(result).toEqual({ success: true });
     });
   });
@@ -127,14 +127,14 @@ describe('ApiClient', () => {
     });
 
     it('should handle errors and throw with proper message', async () => {
-      await expect((apiClient as any).testGet()).rejects.toThrow('Test error');
+      await expect((apiClient as TestApiClient).testGet()).rejects.toThrow('Test error');
     });
 
     it('should handle errors without response', async () => {
       const networkError = new Error('Network Error');
       mockAxiosInstance.get.mockRejectedValue(networkError);
 
-      await expect((apiClient as any).testGet()).rejects.toThrow('Network Error');
+      await expect((apiClient as TestApiClient).testGet()).rejects.toThrow('Network Error');
     });
   });
 

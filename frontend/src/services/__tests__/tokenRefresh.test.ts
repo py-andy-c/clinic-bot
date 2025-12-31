@@ -26,7 +26,7 @@ describe('TokenRefreshService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     service = new TokenRefreshService();
-    mockedAxios.create.mockReturnValue(mockAxiosInstance as any);
+    mockedAxios.create.mockReturnValue(mockAxiosInstance as unknown as ReturnType<typeof axios.create>);
   });
 
   afterEach(() => {
@@ -43,7 +43,7 @@ describe('TokenRefreshService', () => {
       };
 
       mockAxiosInstance.post.mockResolvedValue(mockResponse);
-      (authStorage.getRefreshToken as any).mockReturnValue('test-refresh-token');
+      (authStorage.getRefreshToken as { mockReturnValue: (value: string | null) => void }).mockReturnValue('test-refresh-token');
 
       const result = await service.refreshToken();
 
@@ -66,7 +66,7 @@ describe('TokenRefreshService', () => {
       };
 
       mockAxiosInstance.post.mockResolvedValue(mockResponse);
-      (authStorage.getRefreshToken as any).mockReturnValue('stored-refresh-token');
+      (authStorage.getRefreshToken as { mockReturnValue: (value: string | null) => void }).mockReturnValue('stored-refresh-token');
 
       const result = await service.refreshToken();
 
@@ -84,13 +84,13 @@ describe('TokenRefreshService', () => {
       vi.clearAllMocks();
       const error = new Error('Refresh failed');
       mockAxiosInstance.post.mockRejectedValueOnce(error);
-      (authStorage.getRefreshToken as any).mockReturnValue('stored-refresh-token');
+      (authStorage.getRefreshToken as { mockReturnValue: (value: string | null) => void }).mockReturnValue('stored-refresh-token');
 
       await expect(service.refreshToken()).rejects.toThrow('Refresh failed');
     });
 
     it('should throw error if no refresh token available', async () => {
-      (authStorage.getRefreshToken as any).mockReturnValue(null);
+      (authStorage.getRefreshToken as { mockReturnValue: (value: string | null) => void }).mockReturnValue(null);
 
       await expect(service.refreshToken()).rejects.toThrow('找不到重新整理權杖');
     });
@@ -114,7 +114,7 @@ describe('TokenRefreshService', () => {
       };
 
       mockAxiosInstance.post.mockResolvedValue(mockRefreshResponse);
-      (authStorage.getRefreshToken as any).mockReturnValue('test-refresh-token');
+      (authStorage.getRefreshToken as { mockReturnValue: (value: string | null) => void }).mockReturnValue('test-refresh-token');
 
       const result = await service.refreshToken();
 
@@ -138,7 +138,7 @@ describe('TokenRefreshService', () => {
       });
 
       mockAxiosInstance.post.mockReturnValue(firstPromise);
-      (authStorage.getRefreshToken as any).mockReturnValue('test-refresh-token');
+      (authStorage.getRefreshToken as { mockReturnValue: (value: string | null) => void }).mockReturnValue('test-refresh-token');
 
       // Start first refresh (this will set refreshInProgress)
       const promise1 = service.refreshToken();
@@ -178,7 +178,7 @@ describe('TokenRefreshService', () => {
       };
 
       mockAxiosInstance.post.mockResolvedValue(mockResponse);
-      (authStorage.getRefreshToken as any).mockReturnValue('test-refresh-token');
+      (authStorage.getRefreshToken as { mockReturnValue: (value: string | null) => void }).mockReturnValue('test-refresh-token');
 
       await expect(service.refreshToken()).rejects.toThrow('重新整理權杖回應缺少存取權杖');
     });
@@ -202,7 +202,7 @@ describe('TokenRefreshService', () => {
       });
 
       mockAxiosInstance.post.mockReturnValue(refreshPromise);
-      (authStorage.getRefreshToken as any).mockReturnValue('test-refresh-token');
+      (authStorage.getRefreshToken as { mockReturnValue: (value: string | null) => void }).mockReturnValue('test-refresh-token');
 
       const refreshPromiseResult = service.refreshToken();
 
@@ -229,7 +229,7 @@ describe('TokenRefreshService', () => {
       });
 
       mockAxiosInstance.post.mockReturnValue(refreshPromise);
-      (authStorage.getRefreshToken as any).mockReturnValue('test-refresh-token');
+      (authStorage.getRefreshToken as { mockReturnValue: (value: string | null) => void }).mockReturnValue('test-refresh-token');
 
       service.refreshToken();
 

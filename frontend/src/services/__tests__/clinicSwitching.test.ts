@@ -56,8 +56,8 @@ describe('Clinic Switching API', () => {
         response: { use: vi.fn() },
       },
     };
-    mockedAxios.create.mockReturnValue(mockAxiosInstance as any);
-    (authStorage.getAccessToken as any).mockReturnValue('test-access-token');
+    mockedAxios.create.mockReturnValue(mockAxiosInstance as unknown as ReturnType<typeof axios.create>);
+    (authStorage.getAccessToken as { mockReturnValue: (value: string) => void }).mockReturnValue('test-access-token');
   });
 
   // Import apiService after mocks are set up in a separate beforeEach
