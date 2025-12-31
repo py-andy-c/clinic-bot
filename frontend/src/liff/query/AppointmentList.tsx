@@ -132,7 +132,6 @@ const AppointmentList: React.FC = () => {
   // Note: nowInTaiwan is intentionally excluded from dependencies as it changes every render
   // and would defeat the purpose of memoization. The filtered arrays will update when allAppointments changes.
   // allAppointments is a state variable (stable), so the warning about logical expression is a false positive.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   const futureAppointments = useMemo(() => allAppointments
     .filter((apt) => {
       const startTime = moment.tz(apt.start_time, TAIWAN_TIMEZONE);
@@ -144,8 +143,7 @@ const AppointmentList: React.FC = () => {
       const timeA = moment.tz(a.start_time, TAIWAN_TIMEZONE);
       const timeB = moment.tz(b.start_time, TAIWAN_TIMEZONE);
       return timeA.valueOf() - timeB.valueOf();
-    }), [allAppointments]);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    }), [allAppointments]); // eslint-disable-line react-hooks/exhaustive-deps
   const pastAppointments = useMemo(() => allAppointments
     .filter((apt) => {
       const startTime = moment.tz(apt.start_time, TAIWAN_TIMEZONE);
@@ -157,7 +155,7 @@ const AppointmentList: React.FC = () => {
       const timeA = moment.tz(a.start_time, TAIWAN_TIMEZONE);
       const timeB = moment.tz(b.start_time, TAIWAN_TIMEZONE);
       return timeB.valueOf() - timeA.valueOf();
-    }), [allAppointments]);
+    }), [allAppointments]); // eslint-disable-line react-hooks/exhaustive-deps
   const cancelledAppointments = useMemo(() => allAppointments
     .filter(
       (apt) =>
@@ -177,7 +175,6 @@ const AppointmentList: React.FC = () => {
       : activeTab === "past"
         ? pastAppointments
         : cancelledAppointments;
-
 
   const handleCancelAppointment = async (appointmentId: number, appointmentStartTime: string) => {
     // Check constraint immediately before showing confirmation
