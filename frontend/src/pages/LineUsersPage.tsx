@@ -54,20 +54,6 @@ const LineUsersPage: React.FC = () => {
   const { user: currentUser, isAuthenticated, isLoading } = useAuth();
   const activeClinicId = currentUser?.active_clinic_id;
   const { alert, confirm } = useModal();
-  
-  // If not authenticated, show a message
-  if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-900 mb-4">需要登入</h1>
-          <p className="text-gray-600">請先登入以查看LINE使用者管理頁面</p>
-        </div>
-      </div>
-    );
-  }
-
-
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Scroll to top when component mounts

@@ -64,6 +64,74 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
 
+  // Fetch auto-assigned appointments
+  const fetchAppointments = useCallback(
+    () => apiService.getAutoAssignedAppointments(),
+    []
+  );
+
+  const { data: appointmentsData, loading, error, refetch } = useApiData<{
+    appointments: AutoAssignedAppointment[];
+  }>(
+    fetchAppointments,
+    {
+      enabled: !isLoading && isAuthenticated && isClinicAdmin,
+      dependencies: [isLoading, isAuthenticated, currentUser?.active_clinic_id],
+      defaultErrorMessage: '無法載入待審核預約列表',
+      initialData: { appointments: [] },
+    }
+  );
+
+  // Fetch practitioners and appointment types when modal opens
+  React.useEffect(() => {
+    if (isEditModalOpen) {
+      const fetchData = async () => {
+        try {
+          const [practitionersData, settings] = await Promise.all([
+            apiService.getPractitioners(),
+            apiService.getClinicSettings()
+          ]);
+          setPractitioners(practitionersData);
+          setAppointmentTypes(settings.appointment_types);
+        } catch (err) {
+          logger.error('Failed to fetch practitioners or appointment types:', err);
+          alert('無法載入治療師或預約類型資料', '錯誤');
+        }
+      };
+      fetchData();
+    }
+  }, [isEditModalOpen, alert]);
+
+  // Fetch clinic settings helper function
+  const fetchClinicSettings = React.useCallback(async () => {
+    if (isLoadingSettings || (minimumBookingHoursAhead !== null && bookingRestrictionType !== null)) {
+      return;
+    }
+    
+    setIsLoadingSettings(true);
+    try {
+      const settings = await apiService.getClinicSettings();
+      const bookingSettings = settings.booking_restriction_settings;
+      
+      if (bookingSettings) {
+        setMinimumBookingHoursAhead(bookingSettings.minimum_booking_hours_ahead ?? null);
+        setBookingRestrictionType(bookingSettings.booking_restriction_type ?? null);
+        setDeadlineTimeDayBefore(bookingSettings.deadline_time_day_before ?? null);
+        setDeadlineOnSameDay(bookingSettings.deadline_on_same_day ?? false);
+      }
+    } catch (err) {
+      logger.error('Failed to fetch clinic settings:', err);
+    } finally {
+      setIsLoadingSettings(false);
+    }
+  }, [isLoadingSettings, minimumBookingHoursAhead, bookingRestrictionType]);
+
+  React.useEffect(() => {
+    if (isAuthenticated && isClinicAdmin) {
+      fetchClinicSettings();
+    }
+  }, [isAuthenticated, isClinicAdmin, fetchClinicSettings]);
+
   // If not authenticated, show a message
   if (!isAuthenticated) {
     return (
