@@ -142,6 +142,7 @@ const SystemClinicsPage: React.FC = () => {
         // Set liff_id: convert empty string to null for clearing, or use the string value
         // Type assertion needed: exactOptionalPropertyTypes doesn't allow undefined, but backend
         // accepts null (Optional[str] in Python) to clear the value
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (updateData as any).liff_id = editingClinic.liff_id.trim() === '' ? null : editingClinic.liff_id;
       }
 
