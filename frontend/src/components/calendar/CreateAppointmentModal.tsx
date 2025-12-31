@@ -1062,6 +1062,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
                           setError('無法檢查衝突，請稍後再試');
                           return;
                         }
+                        // Type assertion: conflictStatus matches Partial<SchedulingConflictResponse> structure
                         
                         const conflictInfo = convertConflictStatusToResponse(conflictStatus);
                         setOccurrences(occurrences.map(o => o.id === occ.id ? {

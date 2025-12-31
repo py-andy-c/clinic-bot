@@ -181,12 +181,6 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
     );
   }
 
-  // Fetch auto-assigned appointments
-  const fetchAppointments = useCallback(
-    () => apiService.getAutoAssignedAppointments(),
-    []
-  );
-
   const { data: appointmentsData, loading, error, refetch } = useApiData<{
     appointments: AutoAssignedAppointment[];
   }>(
