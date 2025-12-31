@@ -13,7 +13,7 @@ import { logger } from '../../utils/logger';
 import { formatCurrency } from '../../utils/currencyUtils';
 import { NumberInput } from '../shared/NumberInput';
 import { CalendarEvent } from '../../utils/calendarDataAdapter';
-import { AppointmentType, ServiceTypeGroup } from '../../types';
+import { AppointmentType, ServiceTypeGroup, BillingScenario } from '../../types';
 
 interface CheckoutItem {
   service_item_id?: number | undefined;
@@ -41,7 +41,7 @@ const normalizeScenarioValue = (value: string | number | null | undefined): numb
 };
 
 // Helper function to determine if custom amount fields should be shown (editable)
-const shouldShowCustomFields = (item: CheckoutItem, scenarios: any[]): boolean => {
+const shouldShowCustomFields = (item: CheckoutItem, scenarios: BillingScenario[]): boolean => {
   // Service item is "其他" (undefined)
   if (!item.service_item_id) {
     return true;
@@ -66,7 +66,7 @@ const shouldShowCustomFields = (item: CheckoutItem, scenarios: any[]): boolean =
 };
 
 // Helper function to determine if read-only fields should be shown
-const shouldShowReadOnlyFields = (item: CheckoutItem, scenarios: any[]): boolean => {
+const shouldShowReadOnlyFields = (item: CheckoutItem, scenarios: BillingScenario[]): boolean => {
   return !!(item.service_item_id && item.practitioner_id && scenarios.length > 0 && item.billing_scenario_id != null);
 };
 
@@ -82,7 +82,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [availableServiceItems, setAvailableServiceItems] = useState<AppointmentType[]>([]);
-  const [billingScenarios, setBillingScenarios] = useState<Record<string, any[]>>({});
+  const [billingScenarios, setBillingScenarios] = useState<Record<string, BillingScenario[]>>({});
   const [practitionersByServiceItem, setPractitionersByServiceItem] = useState<Record<number, Array<{ id: number; full_name: string }>>>({});
   const [expandedQuantityItems, setExpandedQuantityItems] = useState<Set<number>>(new Set());
   const [groups, setGroups] = useState<ServiceTypeGroup[]>([]);
@@ -139,7 +139,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       setBillingScenarios(prev => {
         const key = `${serviceItemId}-${practitionerId}`;
         const scenarios = prev[key] || [];
-        const defaultScenario = scenarios.find((s: any) => s.is_default);
+        const defaultScenario = scenarios.find((s: BillingScenario) => s.is_default);
         const selectedScenario = defaultScenario || scenarios[0] || null;
         
         setItems(prevItems => {
@@ -218,7 +218,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         setBillingScenarios(prev => {
           const key = `${appointmentTypeId}-${practitionerId}`;
           const scenarios = prev[key] || [];
-          const defaultScenario = scenarios.find((s: any) => s.is_default);
+          const defaultScenario = scenarios.find((s: BillingScenario) => s.is_default);
           const selectedScenario = defaultScenario || scenarios[0] || null;
           
           setItems([{
@@ -293,7 +293,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       setBillingScenarios(prev => {
         const key = `${appointmentTypeId}-${practitionerId}`;
         const scenarios = prev[key] || [];
-        const defaultScenario = scenarios.find((s: any) => s.is_default);
+        const defaultScenario = scenarios.find((s: BillingScenario) => s.is_default);
         const selectedScenario = defaultScenario || scenarios[0] || null;
         
         const newItem: CheckoutItem = {
@@ -343,7 +343,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     });
   };
 
-  const handleItemChange = (index: number, field: keyof CheckoutItem, value: any) => {
+  const handleItemChange = (index: number, field: keyof CheckoutItem, value: string | number | null | undefined) => {
     const newItems = [...items];
     const currentItem = newItems[index];
     if (!currentItem) return;
@@ -455,7 +455,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         // A scenario was selected - set amount and revenue_share from scenario values
         const key = `${serviceItemId}-${practitionerId}`;
         const scenarios = billingScenarios[key] || [];
-        const scenario = scenarios.find((s: any) => s.id === value);
+        const scenario = scenarios.find((s: BillingScenario) => s.id === value);
         
         if (scenario) {
           newItems[index] = {
@@ -554,7 +554,17 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       // Transform items to API format
       const apiItems = items.map((item, index) => {
         const isServiceItem = !!item.service_item_id;
-        const apiItem: any = {
+        const apiItem: {
+          item_type: 'service_item' | 'other';
+          service_item_id?: number;
+          practitioner_id?: number;
+          billing_scenario_id?: number;
+          item_name?: string;
+          amount: number;
+          revenue_share: number;
+          display_order: number;
+          quantity: number;
+        } = {
           item_type: isServiceItem ? 'service_item' : 'other',
           amount: item.amount,
           revenue_share: item.revenue_share,
@@ -590,7 +600,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       
       onSuccess();
       onClose();
-    } catch (err: any) {
+    } catch (err: unknown) {
       logger.error('Error during checkout:', err);
       setError(getErrorMessage(err) || '結帳失敗，請重試');
     } finally {
@@ -830,7 +840,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                         }}
                         className="input"
                       >
-                        {scenarios.map((s: any) => {
+                        {scenarios.map((s: BillingScenario) => {
                           const amount = typeof s.amount === 'string' ? parseFloat(s.amount) : s.amount;
                           const revenueShare = typeof s.revenue_share === 'string' ? parseFloat(s.revenue_share) : s.revenue_share;
                           return (

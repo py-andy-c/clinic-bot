@@ -48,7 +48,7 @@ import { useModal } from '../../contexts/ModalContext';
  * Helper function to convert recurring conflict status to SchedulingConflictResponse format
  */
 const convertConflictStatusToResponse = (
-  conflictStatus: any
+  conflictStatus: Partial<SchedulingConflictResponse> | null | undefined
 ): SchedulingConflictResponse | null => {
   if (!conflictStatus) {
     return null;
@@ -251,7 +251,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
     date: string;
     time: string;
     hasConflict: boolean;
-    conflictInfo?: any;
+    conflictInfo?: SchedulingConflictResponse;
   }>>([]);
   const [isCheckingConflicts, setIsCheckingConflicts] = useState<boolean>(false);
   const [editingOccurrenceId, setEditingOccurrenceId] = useState<string | null>(null);
@@ -626,7 +626,15 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
         }
       } else {
         const startTime = moment.tz(`${selectedDate}T${selectedTime}`, 'Asia/Taipei').toISOString();
-        const formData: any = {
+        const formData: {
+          patient_id: number;
+          appointment_type_id: number;
+          start_time: string;
+          practitioner_id?: number | null;
+          notes?: string;
+          clinic_notes?: string;
+          resource_ids?: number[];
+        } = {
           patient_id: selectedPatientId,
           appointment_type_id: selectedAppointmentTypeId,
           practitioner_id: selectedPractitionerId,

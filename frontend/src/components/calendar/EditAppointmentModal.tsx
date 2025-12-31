@@ -265,7 +265,14 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
 
     // No LINE user - skip notification flow entirely
     if (!hasLineUser) {
-      const formData: any = {
+      const formData: {
+        appointment_type_id?: number | null;
+        practitioner_id: number | null;
+        start_time: string;
+        clinic_notes?: string;
+        notification_note?: string;
+        selected_resource_ids?: number[];
+      } = {
         practitioner_id: selectedPractitionerId,
         start_time: newStartTimeISO,
       };
@@ -360,7 +367,14 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
       // If preview check fails, allow direct save without notification as fallback
       // This prevents blocking the user from saving their changes
       logger.warn('Preview check failed, proceeding with direct save (no notification)');
-      const formData: any = {
+      const formData: {
+        appointment_type_id?: number | null;
+        practitioner_id: number | null;
+        start_time: string;
+        clinic_notes?: string;
+        notification_note?: string;
+        selected_resource_ids?: number[];
+      } = {
         practitioner_id: selectedPractitionerId,
         start_time: newStartTimeISO,
       };
