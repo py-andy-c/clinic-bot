@@ -91,7 +91,7 @@ const NameConfirmationPage: React.FC = () => {
       
       // Redirect to dashboard
       window.location.href = response.redirect_url;
-    } catch (err: any) {
+    } catch (err: unknown) {
       logger.error('Name confirmation error:', err);
       if (err.response?.status === 400) {
         setError(err.response.data.detail || '姓名確認失敗');

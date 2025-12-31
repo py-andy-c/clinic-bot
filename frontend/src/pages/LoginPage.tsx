@@ -25,7 +25,7 @@ const LoginPage: React.FC = () => {
       // Clear any existing error message
       setErrorMessage(null);
       await login();
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error('Login failed:', error);
       
       // Handle different types of errors

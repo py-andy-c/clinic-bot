@@ -3,7 +3,7 @@ import { logger } from '../utils/logger';
 
 // Base API response schema
 export const ApiResponseSchema = z.object({
-  data: z.any().optional(),
+  data: z.unknown().optional(),
   error: z.string().optional(),
   message: z.string().optional(),
 });

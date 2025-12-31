@@ -282,7 +282,7 @@ const LineUsersPage: React.FC = () => {
       }
       
       await refetch(); // Refresh the list
-    } catch (err: any) {
+    } catch (err: unknown) {
       logger.error('Toggle AI error:', err);
       const status = err?.response?.status;
       let errorMessage = getErrorMessage(err);
