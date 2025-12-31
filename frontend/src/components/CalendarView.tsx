@@ -732,7 +732,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
           const batchData = await inFlightBatchRequestsRef.current.get(cacheKey)!;
           // Process the result from the in-flight request
           const events: ApiCalendarEvent[] = [];
-          for (const result of batchData.results) {
+          for (const result of (batchData as any).results) {
             const practitionerId = result.user_id;
             const dateStr = result.date;
             // Use practitionerMap for O(1) lookup instead of O(n) find()
@@ -781,7 +781,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
         : Promise.resolve(null);
 
       // Store practitioner promise for cache deduplication
-      inFlightBatchRequestsRef.current.set(cacheKey, practitionerPromise);
+      inFlightBatchRequestsRef.current.set(cacheKey, practitionerPromise as any);
 
       // Wait for both fetches to complete
       const [batchData, resourceBatchData] = await Promise.all([
@@ -1385,9 +1385,9 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     // Close event modal and open create appointment modal with pre-filled data
     // Resources will be fetched by useAppointmentForm in duplicate mode
     setCreateModalKey(prev => prev + 1); // Force remount to reset state
-    setModalState({ 
-      type: 'create_appointment', 
-      data: { 
+    setModalState({
+      type: 'create_appointment',
+      data: {
         patientId: patientId ?? null,
         initialDate,
         // Only include these if they have values (avoid passing undefined)
@@ -1396,7 +1396,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
         ...(initialTime && { preSelectedTime: initialTime }),
         ...(clinicNotes !== undefined && clinicNotes !== null && { preSelectedClinicNotes: clinicNotes }),
         event,
-      } 
+      } as any
     });
   }, [modalState.data, isAdmin]);
 
@@ -1691,7 +1691,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
                     ...prev.data,
                     title: _newName.trim(),
                   }
-                }));
+                } as any));
               }
               
               try {
@@ -1798,12 +1798,12 @@ const CalendarView: React.FC<CalendarViewProps> = ({
               ? undefined
               : (modalState.data as any).patient_id ?? preSelectedPatientId
           }
-          initialDate={modalState.data.initialDate || null}
-          preSelectedAppointmentTypeId={modalState.data.preSelectedAppointmentTypeId}
-          preSelectedPractitionerId={modalState.data.preSelectedPractitionerId}
-          preSelectedTime={modalState.data.preSelectedTime}
-          preSelectedClinicNotes={modalState.data.preSelectedClinicNotes}
-          event={modalState.data.event}
+          initialDate={(modalState.data as any).initialDate || null}
+          preSelectedAppointmentTypeId={(modalState.data as any).preSelectedAppointmentTypeId}
+          preSelectedPractitionerId={(modalState.data as any).preSelectedPractitionerId}
+          preSelectedTime={(modalState.data as any).preSelectedTime}
+          preSelectedClinicNotes={(modalState.data as any).preSelectedClinicNotes}
+          event={(modalState.data as any).event}
           practitioners={availablePractitioners}
           appointmentTypes={appointmentTypes}
           onClose={() => {
