@@ -278,13 +278,8 @@ class AppointmentService:
             except Exception as e:
                 logger.exception(f"Failed to schedule reminder for appointment {appointment.calendar_event_id}: {e}")
                 # Don't fail appointment creation if scheduling fails
-            
-            try:
-                from services.practitioner_notification_scheduling_service import PractitionerNotificationSchedulingService
-                PractitionerNotificationSchedulingService.schedule_notification_for_appointment(db, appointment)
-            except Exception as e:
-                logger.exception(f"Failed to schedule practitioner notification for appointment {appointment.calendar_event_id}: {e}")
-                # Don't fail appointment creation if scheduling fails
+            # Practitioner daily notifications are now handled via hourly check
+            # No pre-scheduling needed
 
             # Get related objects for response
             practitioner = db.query(User).get(assigned_practitioner_id)
@@ -1025,12 +1020,8 @@ class AppointmentService:
             logger.exception(f"Failed to cancel reminder for appointment {appointment_id}: {e}")
             # Don't fail cancellation if reminder cancellation fails
         
-        try:
-            from services.practitioner_notification_scheduling_service import PractitionerNotificationSchedulingService
-            PractitionerNotificationSchedulingService.cancel_pending_notifications(db, appointment_id)
-        except Exception as e:
-            logger.exception(f"Failed to cancel practitioner notifications for appointment {appointment_id}: {e}")
-            # Don't fail cancellation if notification cancellation fails
+        # Practitioner daily notifications are now handled via hourly check
+        # No pre-scheduling to cancel
 
         # Get clinic and practitioner for notifications
         calendar_event = appointment.calendar_event
@@ -1538,12 +1529,8 @@ class AppointmentService:
                 logger.exception(f"Failed to reschedule reminder for appointment {appointment.calendar_event_id}: {e}")
                 # Don't fail update if rescheduling fails
             
-            try:
-                from services.practitioner_notification_scheduling_service import PractitionerNotificationSchedulingService
-                PractitionerNotificationSchedulingService.reschedule_notification(db, appointment)
-            except Exception as e:
-                logger.exception(f"Failed to reschedule practitioner notification for appointment {appointment.calendar_event_id}: {e}")
-                # Don't fail update if rescheduling fails
+            # Practitioner daily notifications are now handled via hourly check
+            # No pre-scheduling to reschedule
 
         # Send notifications
         try:

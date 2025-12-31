@@ -46,11 +46,11 @@ class PractitionerSettings(BaseModel):
     )
     admin_daily_reminder_enabled: bool = Field(
         default=False,
-        description="Admin-only: Receive daily appointment reminders for all practitioners"
+        description="[DEPRECATED] Admin-only: Receive daily appointment reminders for all practitioners. Use next_day_notification_time instead."
     )
     admin_daily_reminder_time: str = Field(
         default="21:00",
-        description="Admin-only: Time to send daily appointment reminder (HH:MM format, 24-hour)"
+        description="[DEPRECATED] Admin-only: Time to send daily appointment reminder (HH:MM format, 24-hour). Use next_day_notification_time instead."
     )
     auto_assigned_notification_mode: str = Field(
         default="scheduled",
@@ -68,7 +68,7 @@ class PractitionerSettings(BaseModel):
     @field_validator('admin_daily_reminder_time')
     @classmethod
     def validate_time_format(cls, v: str) -> str:
-        """Validate that time is in HH:MM format."""
+        """[DEPRECATED] Validate that time is in HH:MM format. This field is deprecated, use next_day_notification_time instead."""
         try:
             parts = v.split(':')
             if len(parts) != 2:

@@ -38,12 +38,16 @@ from services.admin_auto_assigned_notification_service import (
     stop_admin_auto_assigned_notification_scheduler
 )
 from services.admin_daily_reminder_service import (
-    start_admin_daily_reminder_scheduler,
-    stop_admin_daily_reminder_scheduler
+    start_admin_daily_notification_scheduler,
+    stop_admin_daily_notification_scheduler
 )
 from services.scheduled_message_scheduler import (
     start_scheduled_message_scheduler,
     stop_scheduled_message_scheduler
+)
+from services.practitioner_daily_notification_service import (
+    start_practitioner_daily_notification_scheduler,
+    stop_practitioner_daily_notification_scheduler
 )
 
 # Configure logging
@@ -76,16 +80,15 @@ async def lifespan(app: FastAPI):
             # Don't re-raise - allow server to start even if scheduler fails
 
     # Start all schedulers concurrently to avoid blocking
-    # Note: Reminder and practitioner daily notification schedulers have been migrated
-    # to the unified scheduled_message_scheduler
     await asyncio.gather(
         start_scheduler_safely("Test session cleanup scheduler", start_test_session_cleanup),
         start_scheduler_safely("LINE message cleanup scheduler", start_line_message_cleanup),
         start_scheduler_safely("Availability notification scheduler", start_availability_notification_scheduler),
         start_scheduler_safely("Auto-assignment scheduler", start_auto_assignment_scheduler),
         start_scheduler_safely("Admin auto-assigned notification scheduler", start_admin_auto_assigned_notification_scheduler),
-        start_scheduler_safely("Admin daily reminder scheduler", start_admin_daily_reminder_scheduler),
-        start_scheduler_safely("Scheduled message scheduler (handles reminders, follow-ups, practitioner notifications)", start_scheduled_message_scheduler),
+        start_scheduler_safely("Admin daily notification scheduler", start_admin_daily_notification_scheduler),
+        start_scheduler_safely("Practitioner daily notification scheduler", start_practitioner_daily_notification_scheduler),
+        start_scheduler_safely("Scheduled message scheduler (handles reminders, follow-ups)", start_scheduled_message_scheduler),
         return_exceptions=True  # Don't fail if any scheduler fails
     )
     
@@ -127,12 +130,19 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.exception(f"❌ Error stopping admin auto-assigned notification scheduler: {e}")
 
-    # Stop admin daily reminder scheduler
+    # Stop admin daily notification scheduler
     try:
-        await stop_admin_daily_reminder_scheduler()
-        logger.info("🛑 Admin daily reminder scheduler stopped")
+        await stop_admin_daily_notification_scheduler()
+        logger.info("🛑 Admin daily notification scheduler stopped")
     except Exception as e:
-        logger.exception(f"❌ Error stopping admin daily reminder scheduler: {e}")
+        logger.exception(f"❌ Error stopping admin daily notification scheduler: {e}")
+
+    # Stop practitioner daily notification scheduler
+    try:
+        await stop_practitioner_daily_notification_scheduler()
+        logger.info("🛑 Practitioner daily notification scheduler stopped")
+    except Exception as e:
+        logger.exception(f"❌ Error stopping practitioner daily notification scheduler: {e}")
 
     # Stop scheduled message scheduler
     try:

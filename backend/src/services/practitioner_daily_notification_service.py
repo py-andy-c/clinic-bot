@@ -7,19 +7,22 @@ and scheduled using APScheduler.
 """
 
 import logging
-from datetime import datetime, date, timedelta
+from datetime import date, timedelta
 from typing import List, Optional
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler  # type: ignore
 from apscheduler.triggers.cron import CronTrigger  # type: ignore
+from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload
 
 from core.database import get_db_context
 from models.appointment import Appointment
+from models.appointment_type import AppointmentType
 from models.calendar_event import CalendarEvent
 from models.user_clinic_association import UserClinicAssociation
 from services.line_service import LINEService
-from utils.datetime_utils import taiwan_now, format_datetime, TAIWAN_TZ
+from utils.datetime_utils import taiwan_now, TAIWAN_TZ
+from utils.daily_notification_message_builder import DailyNotificationMessageBuilder
 
 logger = logging.getLogger(__name__)
 
@@ -28,21 +31,14 @@ class PractitionerDailyNotificationService:
     """
     Service for managing daily appointment notifications for practitioners.
     
-    **DEPRECATED**: The scheduler functionality in this service is deprecated.
-    Practitioner notifications are now handled by the unified `ScheduledMessageScheduler`
-    and `PractitionerNotificationSchedulingService` which use the `scheduled_line_messages` table.
-    
-    This class is kept for backward compatibility, but the scheduler methods
-    (`start_scheduler()`, `stop_scheduler()`, `_send_daily_notifications()`) are deprecated
-    and should not be used. The scheduler is not started in `main.py`.
+    Uses hourly check (real-time aggregation) to send notifications to practitioners
+    about their appointments for the next day. Notifications are sent via LINE messaging
+    and scheduled using APScheduler.
     """
 
     def __init__(self):
         """
         Initialize the daily notification service.
-        
-        **DEPRECATED**: Scheduler functionality is deprecated. Use `PractitionerNotificationSchedulingService`
-        and `ScheduledMessageScheduler` instead.
         
         Note: Database sessions are created fresh for each scheduler run
         to avoid stale session issues. Do not pass a session here.
@@ -57,15 +53,10 @@ class PractitionerDailyNotificationService:
 
     async def start_scheduler(self) -> None:
         """
-        **DEPRECATED**: This scheduler is no longer used.
-        
-        Practitioner notifications are now scheduled via `PractitionerNotificationSchedulingService`
-        and sent by the unified `ScheduledMessageScheduler`.
-        
-        This method is kept for backward compatibility but should not be called.
-        The scheduler is not started in `main.py`.
+        Start the background scheduler for sending practitioner daily notifications.
         
         This should be called during application startup.
+        Note: Database sessions are created fresh for each scheduler run.
         """
         if self._is_started:
             logger.warning("Practitioner daily notification scheduler is already started")
@@ -100,16 +91,11 @@ class PractitionerDailyNotificationService:
 
     async def _send_daily_notifications(self) -> None:
         """
-        **DEPRECATED**: This method is no longer used.
-        
-        Practitioner notifications are now sent via the unified `ScheduledMessageScheduler`
-        which processes messages from the `scheduled_line_messages` table.
-        
-        Original functionality:
         Check for and send daily appointment notifications to practitioners.
         
         This method is called by the scheduler every hour to check for
         practitioners who should receive notifications at this time.
+        Uses real-time aggregation (hourly check) instead of pre-scheduling.
         
         Uses a fresh database session for each run to avoid stale session issues.
         """
@@ -142,6 +128,16 @@ class PractitionerDailyNotificationService:
                 for association in associations:
                     # Check if user is a practitioner
                     if 'practitioner' not in (association.roles or []):
+                        continue
+                    
+                    # Deduplication: Skip if practitioner is also an admin
+                    # Admin-practitioners receive clinic-wide admin notification instead of personal practitioner reminder
+                    # This prevents duplicate notifications (clinic-wide + personal)
+                    if 'admin' in (association.roles or []):
+                        logger.debug(
+                            f"Practitioner {association.user_id} is also an admin in clinic {association.clinic_id}, "
+                            f"skipping personal practitioner reminder (will receive clinic-wide admin reminder instead)"
+                        )
                         continue
 
                     # Get practitioner settings
@@ -231,11 +227,22 @@ class PractitionerDailyNotificationService:
         Returns:
             List of appointments for the practitioner on the target date
         """
-        appointments = db.query(Appointment).join(CalendarEvent).filter(
+        # Filter out appointments with deleted appointment types (edge case #10)
+        appointments = db.query(Appointment).join(CalendarEvent).outerjoin(
+            AppointmentType, Appointment.appointment_type_id == AppointmentType.id
+        ).filter(
             Appointment.status == "confirmed",
+            Appointment.is_auto_assigned == False,  # Practitioners don't see auto-assigned appointments
             CalendarEvent.user_id == practitioner_id,
             CalendarEvent.clinic_id == clinic_id,
-            CalendarEvent.date == target_date
+            CalendarEvent.date == target_date,
+            # Filter out appointments with deleted appointment types
+            # If appointment_type is None, include it (legacy data)
+            # If appointment_type exists, only include if not deleted
+            or_(
+                Appointment.appointment_type_id.is_(None),
+                AppointmentType.is_deleted == False
+            )
         ).options(
             joinedload(Appointment.patient),
             joinedload(Appointment.appointment_type),
@@ -267,40 +274,28 @@ class PractitionerDailyNotificationService:
             clinic = association.clinic
             practitioner = association.user
 
-            # Build notification message
-            # target_date is in Taiwan timezone (next day from current Taiwan time)
-            date_str = target_date.strftime("%Y年%m月%d日")
-            message = f"📅 明日預約提醒 ({date_str})\n\n"
+            # Build notification message using shared utilities
+            # Get practitioner name for section header
+            from utils.practitioner_helpers import get_practitioner_display_name_with_title
+            practitioner_name = get_practitioner_display_name_with_title(
+                db, practitioner.id, clinic.id
+            )
             
-            if len(appointments) == 1:
-                message += "您有 1 個預約：\n\n"
-            else:
-                message += f"您有 {len(appointments)} 個預約：\n\n"
-
+            # Build message header
+            message = DailyNotificationMessageBuilder.build_message_header(
+                target_date, is_clinic_wide=False
+            )
+            
+            # Build practitioner section
+            message += DailyNotificationMessageBuilder.build_practitioner_section(
+                practitioner_name, appointments, is_clinic_wide=False
+            )
+            
+            # Build appointment lines
             for i, appointment in enumerate(appointments, 1):
-                # Get patient name
-                patient_name = appointment.patient.full_name if appointment.patient else "未知病患"
-                
-                # Format appointment time
-                start_datetime = datetime.combine(
-                    appointment.calendar_event.date,
-                    appointment.calendar_event.start_time
+                message += DailyNotificationMessageBuilder.build_appointment_line(
+                    appointment, i
                 )
-                formatted_time = format_datetime(start_datetime)
-                
-                # Get appointment type name
-                appointment_type_name = appointment.appointment_type.name if appointment.appointment_type else "預約"
-                
-                message += f"{i}. {formatted_time}\n"
-                message += f"   病患：{patient_name}\n"
-                message += f"   類型：{appointment_type_name}"
-                
-                if appointment.notes:
-                    message += f"\n   備註：{appointment.notes}"
-                
-                message += "\n\n"
-
-            message += "請準時為病患服務！"
 
             # Send notification via LINE with labels for tracking
             line_service = LINEService(

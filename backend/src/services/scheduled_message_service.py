@@ -340,8 +340,6 @@ class ScheduledMessageService:
                 
                 message += "\n\n"
             
-            message += "請準時為病患服務！"
-            
             # Return context with the built message
             # Note: We override the template with the built message since practitioner notifications
             # don't use the standard template system

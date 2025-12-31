@@ -7,7 +7,6 @@ interface PractitionerSettings {
   step_size_minutes?: number | null;
   // Admin-only fields
   subscribe_to_appointment_changes?: boolean;
-  admin_daily_reminder_time?: string;
   auto_assigned_notification_mode?: 'immediate' | 'scheduled';
 }
 
@@ -90,7 +89,6 @@ export const getProfileSectionChanges = (current: ProfileSettingsData, original:
     (currentSettings.auto_assigned_notification_time || '21:00') !== (originalSettings.auto_assigned_notification_time || '21:00') ||
     currentSettings.step_size_minutes !== originalSettings.step_size_minutes ||
     (currentSettings.subscribe_to_appointment_changes ?? false) !== (originalSettings.subscribe_to_appointment_changes ?? false) ||
-    (currentSettings.admin_daily_reminder_time || '21:00') !== (originalSettings.admin_daily_reminder_time || '21:00') ||
     (currentSettings.auto_assigned_notification_mode || 'scheduled') !== (originalSettings.auto_assigned_notification_mode || 'scheduled');
 
   return {

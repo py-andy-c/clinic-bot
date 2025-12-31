@@ -1,9 +1,10 @@
 """
-Admin daily appointment reminder service.
+Admin daily appointment notification service.
 
 This module handles sending daily notifications to clinic admins about
 all appointments for all practitioners scheduled for the next day.
 Notifications are sent via LINE messaging and scheduled using APScheduler.
+Uses next_day_notification_time setting (same as practitioners).
 """
 
 import logging
@@ -12,15 +13,18 @@ from typing import List, Optional, Dict
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler  # type: ignore
 from apscheduler.triggers.cron import CronTrigger  # type: ignore
+from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload
 
 from core.database import get_db_context
 from models.appointment import Appointment
+from models.appointment_type import AppointmentType
 from models.calendar_event import CalendarEvent
 from models.clinic import Clinic
 from models.user_clinic_association import UserClinicAssociation
 from services.notification_service import NotificationService
-from utils.datetime_utils import taiwan_now, format_datetime, TAIWAN_TZ
+from utils.datetime_utils import taiwan_now, TAIWAN_TZ
+from utils.daily_notification_message_builder import DailyNotificationMessageBuilder
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +33,7 @@ LINE_MESSAGE_MAX_CHARS = 5000
 LINE_MESSAGE_TARGET_CHARS = 4500  # Target with buffer
 
 
-class AdminDailyReminderService:
+class AdminDailyNotificationService:
     """
     Service for managing daily notifications to clinic admins about all appointments for the next day.
     
@@ -68,8 +72,8 @@ class AdminDailyReminderService:
         self.scheduler.add_job(  # type: ignore
             self._send_admin_reminders,
             CronTrigger(hour="*"),  # Run every hour
-            id="send_admin_daily_reminders",
-            name="Send admin daily appointment reminders",
+            id="send_admin_daily_notifications",
+            name="Send admin daily appointment notifications",
             max_instances=1,  # Prevent overlapping runs
             replace_existing=True
         )
@@ -130,37 +134,37 @@ class AdminDailyReminderService:
                         logger.debug(f"No admins found for clinic {clinic.id}")
                         continue
 
-                    # Group admins by their reminder time
+                    # Group admins by their notification time (using next_day_notification_time)
                     admins_by_time: Dict[int, List[UserClinicAssociation]] = {}
                     for admin_association in all_admins:
-                        # Get admin's reminder time setting
+                        # Get admin's notification time setting (same as practitioners)
                         try:
                             admin_settings = admin_association.get_validated_settings()
-                            reminder_time_str = admin_settings.admin_daily_reminder_time
+                            notification_time_str = admin_settings.next_day_notification_time
                         except Exception as e:
                             logger.warning(
-                                f"Error getting reminder settings for admin {admin_association.user_id} "
+                                f"Error getting notification settings for admin {admin_association.user_id} "
                                 f"in clinic {clinic.id}: {e}, using default 21:00"
                             )
-                            reminder_time_str = "21:00"
+                            notification_time_str = "21:00"
 
-                        # Parse reminder time (interpreted as Taiwan time, e.g., "21:00" = 9 PM)
+                        # Parse notification time (interpreted as Taiwan time, e.g., "21:00" = 9 PM)
                         try:
-                            reminder_hour, _ = map(int, reminder_time_str.split(':'))
+                            notification_hour, _ = map(int, notification_time_str.split(':'))
                         except (ValueError, AttributeError):
                             logger.warning(
-                                f"Invalid reminder time format '{reminder_time_str}' for admin "
+                                f"Invalid notification time format '{notification_time_str}' for admin "
                                 f"{admin_association.user_id} in clinic {clinic.id}, using default 21:00"
                             )
-                            reminder_hour = 21
+                            notification_hour = 21
 
-                        # Only process admins whose reminder time matches current hour
-                        if reminder_hour != current_hour:
+                        # Only process admins whose notification time matches current hour
+                        if notification_hour != current_hour:
                             continue
 
-                        if reminder_hour not in admins_by_time:
-                            admins_by_time[reminder_hour] = []
-                        admins_by_time[reminder_hour].append(admin_association)
+                        if notification_hour not in admins_by_time:
+                            admins_by_time[notification_hour] = []
+                        admins_by_time[notification_hour].append(admin_association)
 
                     # If no admins match current hour, skip this clinic
                     if not admins_by_time:
@@ -192,7 +196,7 @@ class AdminDailyReminderService:
 
                     # Send to all admins who match current hour (batched)
                     # All admins in admins_by_time[current_hour] get the same message(s)
-                    for reminder_hour, admins in admins_by_time.items():
+                    for notification_hour, admins in admins_by_time.items():
                         labels = {
                             'recipient_type': 'admin',
                             'event_type': 'daily_appointment_reminder',
@@ -240,13 +244,23 @@ class AdminDailyReminderService:
         next_day = (now.date() + timedelta(days=1))
         
         # Query confirmed appointments for next day
+        # Filter out appointments with deleted appointment types (edge case #10)
         appointments = db.query(Appointment).join(
             CalendarEvent, Appointment.calendar_event_id == CalendarEvent.id
+        ).outerjoin(
+            AppointmentType, Appointment.appointment_type_id == AppointmentType.id
         ).filter(
             Appointment.status == 'confirmed',
             CalendarEvent.clinic_id == clinic_id,
             CalendarEvent.date == next_day,
-            CalendarEvent.start_time.isnot(None)
+            CalendarEvent.start_time.isnot(None),
+            # Filter out appointments with deleted appointment types
+            # If appointment_type is None, include it (legacy data)
+            # If appointment_type exists, only include if not deleted
+            or_(
+                Appointment.appointment_type_id.is_(None),
+                AppointmentType.is_deleted == False
+            )
         ).options(
             joinedload(Appointment.patient),
             joinedload(Appointment.appointment_type),
@@ -326,9 +340,6 @@ class AdminDailyReminderService:
         Returns:
             List of message strings (may be multiple if splitting occurred)
         """
-        # Format date string
-        date_str = target_date.strftime("%Y年%m月%d日")
-        
         # Sort practitioners by ID for consistent ordering
         # Separate None (auto-assigned) from actual practitioner IDs
         practitioner_ids_only = [
@@ -356,34 +367,17 @@ class AdminDailyReminderService:
                     db, practitioner_id, clinic_id
                 )
             
-            # Build practitioner section
-            practitioner_section = f"治療師：{practitioner_name}\n"
-            practitioner_section += f"共有 {len(practitioner_appointments)} 個預約：\n\n"
+            # Build practitioner section using shared utility
+            practitioner_section = DailyNotificationMessageBuilder.build_practitioner_section(
+                practitioner_name, practitioner_appointments, is_clinic_wide=True
+            )
             
             appointment_lines: List[str] = []
             for i, appointment in enumerate(practitioner_appointments, 1):
-                # Get patient name
-                patient_name = appointment.patient.full_name if appointment.patient else "未知病患"
-                
-                # Format appointment time
-                start_datetime = datetime.combine(
-                    appointment.calendar_event.date,
-                    appointment.calendar_event.start_time
+                # Build appointment line using shared utility
+                appointment_line = DailyNotificationMessageBuilder.build_appointment_line(
+                    appointment, i
                 )
-                formatted_time = format_datetime(start_datetime)
-                
-                # Get appointment type name
-                appointment_type_name = appointment.appointment_type.name if appointment.appointment_type else "預約"
-                
-                # Build appointment line (matching practitioner style)
-                appointment_line = f"{i}. {formatted_time}\n"
-                appointment_line += f"   病患：{patient_name}\n"
-                appointment_line += f"   類型：{appointment_type_name}"
-                
-                if appointment.notes:
-                    appointment_line += f"\n   備註：{appointment.notes}"
-                
-                appointment_line += "\n\n"
                 appointment_lines.append(appointment_line)
             
             # Check if adding this practitioner would exceed limit
@@ -436,13 +430,15 @@ class AdminDailyReminderService:
         if current_message_parts:
             messages.append("".join(current_message_parts))
 
-        # Add headers to all messages
+        # Add headers to all messages using shared utility
         total_parts = len(messages)
         for i, msg in enumerate(messages, 1):
-            if total_parts > 1:
-                header = f"📅 明日預約總覽 ({date_str}) - 第 {i}/{total_parts} 部分\n\n"
-            else:
-                header = f"📅 明日預約總覽 ({date_str})\n\n"
+            header = DailyNotificationMessageBuilder.build_message_header(
+                target_date,
+                is_clinic_wide=True,
+                part_number=i if total_parts > 1 else None,
+                total_parts=total_parts if total_parts > 1 else None
+            )
             full_message = header + msg
             
             # Validate final message length (including header) stays under limit
@@ -460,39 +456,39 @@ class AdminDailyReminderService:
 
 
 # Global service instance
-_admin_daily_reminder_service: Optional[AdminDailyReminderService] = None
+_admin_daily_notification_service: Optional[AdminDailyNotificationService] = None
 
 
-def get_admin_daily_reminder_service() -> AdminDailyReminderService:
+def get_admin_daily_notification_service() -> AdminDailyNotificationService:
     """
     Get the global admin daily reminder service instance.
     
     Returns:
         The global service instance
     """
-    global _admin_daily_reminder_service
-    if _admin_daily_reminder_service is None:
-        _admin_daily_reminder_service = AdminDailyReminderService()
-    return _admin_daily_reminder_service
+    global _admin_daily_notification_service
+    if _admin_daily_notification_service is None:
+        _admin_daily_notification_service = AdminDailyNotificationService()
+    return _admin_daily_notification_service
 
 
-async def start_admin_daily_reminder_scheduler() -> None:
+async def start_admin_daily_notification_scheduler() -> None:
     """
-    Start the global admin daily reminder scheduler.
+    Start the global admin daily notification scheduler.
     
     This should be called during application startup.
     Note: Database sessions are created fresh for each scheduler run.
     """
-    service = get_admin_daily_reminder_service()
+    service = get_admin_daily_notification_service()
     await service.start_scheduler()
 
 
-async def stop_admin_daily_reminder_scheduler() -> None:
+async def stop_admin_daily_notification_scheduler() -> None:
     """
-    Stop the global admin daily reminder scheduler.
+    Stop the global admin daily notification scheduler.
     
     This should be called during application shutdown.
     """
-    global _admin_daily_reminder_service
-    if _admin_daily_reminder_service:
-        await _admin_daily_reminder_service.stop_scheduler()
+    global _admin_daily_notification_service
+    if _admin_daily_notification_service:
+        await _admin_daily_notification_service.stop_scheduler()

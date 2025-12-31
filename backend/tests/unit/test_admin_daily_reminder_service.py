@@ -18,7 +18,7 @@ from models.user import User
 from models.appointment_type import AppointmentType
 from models.user_clinic_association import UserClinicAssociation, PractitionerSettings
 from services.admin_daily_reminder_service import (
-    AdminDailyReminderService,
+    AdminDailyNotificationService,
     LINE_MESSAGE_MAX_CHARS,
     LINE_MESSAGE_TARGET_CHARS
 )
@@ -26,7 +26,7 @@ from utils.datetime_utils import taiwan_now
 from tests.conftest import create_calendar_event_with_clinic, create_user_with_clinic_association
 
 
-class TestAdminDailyReminderService:
+class TestAdminDailyNotificationService:
     """Test cases for admin daily reminder service."""
 
     def test_get_clinic_admins_with_daily_reminder(self, db_session):
@@ -77,7 +77,7 @@ class TestAdminDailyReminderService:
         user3_assoc.line_user_id = "user3_line_id"
         db_session.flush()
 
-        service = AdminDailyReminderService()
+        service = AdminDailyNotificationService()
         admins = service._get_clinic_admins_with_daily_reminder(db_session, clinic.id)
 
         # Should only return admin1 (has LINE account)
@@ -198,7 +198,7 @@ class TestAdminDailyReminderService:
         db_session.add(appointment3)
         db_session.flush()
 
-        service = AdminDailyReminderService()
+        service = AdminDailyNotificationService()
         appointments = [appointment1, appointment2, appointment3]
         grouped = service._group_appointments_by_practitioner(appointments)
 
@@ -268,7 +268,7 @@ class TestAdminDailyReminderService:
         db_session.add(appointment)
         db_session.flush()
 
-        service = AdminDailyReminderService()
+        service = AdminDailyNotificationService()
         appointments_by_practitioner = {practitioner.id: [appointment]}
         messages = service._build_clinic_wide_message(
             db_session, appointments_by_practitioner, appointment_date, clinic.id
@@ -377,7 +377,7 @@ class TestAdminDailyReminderService:
         db_session.add(appointment2)
         db_session.flush()
 
-        service = AdminDailyReminderService()
+        service = AdminDailyNotificationService()
         appointments_by_practitioner = {
             practitioner1.id: [appointment1],
             practitioner2.id: [appointment2]
@@ -487,7 +487,7 @@ class TestAdminDailyReminderService:
         db_session.add(appointment2)
         db_session.flush()
 
-        service = AdminDailyReminderService()
+        service = AdminDailyNotificationService()
         appointments_by_practitioner = {
             practitioner1.id: appointments1,
             practitioner2.id: [appointment2]
@@ -571,7 +571,7 @@ class TestAdminDailyReminderService:
             appointments.append(appointment)
         db_session.flush()
 
-        service = AdminDailyReminderService()
+        service = AdminDailyNotificationService()
         appointments_by_practitioner = {practitioner.id: appointments}
         messages = service._build_clinic_wide_message(
             db_session, appointments_by_practitioner, appointment_date, clinic.id
@@ -654,7 +654,7 @@ class TestAdminDailyReminderService:
         db_session.add(appointment)
         db_session.flush()
 
-        service = AdminDailyReminderService()
+        service = AdminDailyNotificationService()
         # Test with None key to simulate "不指定" grouping
         # In actual code, this would be handled by checking originally_auto_assigned
         # For this test, we'll directly test the None grouping
@@ -684,7 +684,7 @@ class TestAdminDailyReminderService:
 
         appointment_date = (taiwan_now() + timedelta(days=1)).date()
 
-        service = AdminDailyReminderService()
+        service = AdminDailyNotificationService()
         appointments_by_practitioner: Dict[Optional[int], List[Appointment]] = {}
         messages = service._build_clinic_wide_message(
             db_session, appointments_by_practitioner, appointment_date, clinic.id
@@ -752,7 +752,7 @@ class TestAdminDailyReminderService:
         db_session.add(appointment)
         db_session.flush()
 
-        service = AdminDailyReminderService()
+        service = AdminDailyNotificationService()
         appointments_by_practitioner = {practitioner.id: [appointment]}
         messages = service._build_clinic_wide_message(
             db_session, appointments_by_practitioner, appointment_date, clinic.id
@@ -785,11 +785,11 @@ class TestAdminDailyReminderService:
             is_active=True
         )
         admin_assoc.line_user_id = "admin_line_id"
-        settings = PractitionerSettings(admin_daily_reminder_time="21:00")
+        settings = PractitionerSettings(next_day_notification_time="21:00")
         admin_assoc.set_validated_settings(settings)
         db_session.flush()
 
-        service = AdminDailyReminderService()
+        service = AdminDailyNotificationService()
         
         # Mock current time to be 21:00
         with patch('services.admin_daily_reminder_service.taiwan_now') as mock_now:
@@ -834,7 +834,7 @@ class TestAdminDailyReminderService:
             is_active=True
         )
         admin1_assoc.line_user_id = "admin1_line_id"
-        settings1 = PractitionerSettings(admin_daily_reminder_time="21:00")
+        settings1 = PractitionerSettings(next_day_notification_time="21:00")
         admin1_assoc.set_validated_settings(settings1)
         db_session.flush()
 
@@ -848,7 +848,7 @@ class TestAdminDailyReminderService:
             is_active=True
         )
         admin2_assoc.line_user_id = "admin2_line_id"
-        settings2 = PractitionerSettings(admin_daily_reminder_time="20:00")
+        settings2 = PractitionerSettings(next_day_notification_time="20:00")
         admin2_assoc.set_validated_settings(settings2)
         db_session.flush()
 
@@ -898,7 +898,7 @@ class TestAdminDailyReminderService:
         db_session.add(appointment)
         db_session.flush()
 
-        service = AdminDailyReminderService()
+        service = AdminDailyNotificationService()
         
         # Mock current time to be 21:00
         with patch('services.admin_daily_reminder_service.taiwan_now') as mock_now:
@@ -992,7 +992,7 @@ class TestAdminDailyReminderService:
             appointments.append(appointment)
         db_session.flush()
 
-        service = AdminDailyReminderService()
+        service = AdminDailyNotificationService()
         appointments_by_practitioner = {practitioner.id: appointments}
         messages = service._build_clinic_wide_message(
             db_session, appointments_by_practitioner, appointment_date, clinic.id
