@@ -81,7 +81,7 @@ vi.mock('../../../components/dashboard/DashboardFilters', () => ({
     onServiceItemChange,
     onApplyFilters,
     checkbox,
-  }: any) => (
+  }: { practitionerId?: string | null; hasGroups?: boolean; groupId?: string | null; serviceItemId?: string | null; onPractitionerChange?: (value: string | null) => void; onGroupChange?: (value: string | null) => void; onServiceItemChange?: (value: string | null) => void; onApplyFilters?: () => void; checkbox?: React.ReactNode }) => (
     <div data-testid="dashboard-filters">
       <select
         data-testid="filter-practitioner"
