@@ -269,7 +269,8 @@ export const useAppointmentForm = ({
         }
 
       } catch (err: unknown) {
-        if (err?.name !== 'CanceledError' && err?.name !== 'AbortError') {
+        const error = err as { name?: string };
+        if (error?.name !== 'CanceledError' && error?.name !== 'AbortError') {
           logger.error('Error initializing appointment form:', err);
           setError(getErrorMessage(err));
         }
@@ -317,7 +318,8 @@ export const useAppointmentForm = ({
         setAvailablePractitioners(sorted);
         lastFetchedTypeIdRef.current = selectedAppointmentTypeId;
       } catch (err: unknown) {
-        if (isStale || err?.name === 'CanceledError' || err?.name === 'AbortError') return;
+        const error = err as { name?: string };
+        if (isStale || error?.name === 'CanceledError' || error?.name === 'AbortError') return;
         logger.error('Failed to fetch practitioners:', err);
         setError('無法載入治療師列表，請稍後再試');
         setAvailablePractitioners([]);
