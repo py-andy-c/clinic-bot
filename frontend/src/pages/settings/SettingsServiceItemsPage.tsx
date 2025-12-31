@@ -421,7 +421,8 @@ const SettingsServiceItemsPage: React.FC = () => {
         groupMapping[group.id] = response.id;
       } catch (err: unknown) {
         logger.error('Error creating group:', err);
-        errors.push(`建立群組「${group.name}」失敗：${err?.response?.data?.detail || err?.message || '未知錯誤'}`);
+        const axiosError = err as { response?: { data?: { detail?: string } }; message?: string };
+        errors.push(`建立群組「${group.name}」失敗：${axiosError?.response?.data?.detail || axiosError?.message || '未知錯誤'}`);
       }
     }
     
@@ -434,7 +435,8 @@ const SettingsServiceItemsPage: React.FC = () => {
         });
       } catch (err: unknown) {
         logger.error('Error updating group:', err);
-        errors.push(`更新群組「${group.name}」失敗：${err?.response?.data?.detail || err?.message || '未知錯誤'}`);
+        const axiosError = err as { response?: { data?: { detail?: string } }; message?: string };
+        errors.push(`更新群組「${group.name}」失敗：${axiosError?.response?.data?.detail || axiosError?.message || '未知錯誤'}`);
       }
     }
     
@@ -444,7 +446,8 @@ const SettingsServiceItemsPage: React.FC = () => {
         await apiService.deleteServiceTypeGroup(groupId);
       } catch (err: unknown) {
         logger.error('Error deleting group:', err);
-        errors.push(`刪除群組失敗：${err?.response?.data?.detail || err?.message || '未知錯誤'}`);
+        const axiosError = err as { response?: { data?: { detail?: string } }; message?: string };
+        errors.push(`刪除群組失敗：${axiosError?.response?.data?.detail || axiosError?.message || '未知錯誤'}`);
       }
     }
     
@@ -599,7 +602,8 @@ const SettingsServiceItemsPage: React.FC = () => {
       return { savedServiceItems, errors };
     } catch (err: unknown) {
       logger.error('Error saving service items:', err);
-      errors.push(`儲存服務項目失敗：${err?.response?.data?.detail || err?.message || '未知錯誤'}`);
+      const axiosError = err as { response?: { data?: { detail?: string } }; message?: string };
+      errors.push(`儲存服務項目失敗：${axiosError?.response?.data?.detail || axiosError?.message || '未知錯誤'}`);
       return { savedServiceItems: [], errors };
     }
   };

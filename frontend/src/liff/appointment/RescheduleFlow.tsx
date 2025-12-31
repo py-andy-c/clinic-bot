@@ -421,9 +421,10 @@ const RescheduleFlow: React.FC = () => {
       navigate('/liff?mode=query');
     } catch (err: unknown) {
       logger.error('Failed to reschedule appointment:', err);
-      
+
       // Check for structured error response
-      const errorDetail = err?.response?.data?.detail;
+      const axiosError = err as { response?: { data?: { detail?: any } } };
+      const errorDetail = axiosError?.response?.data?.detail;
       if (errorDetail && typeof errorDetail === 'object' && errorDetail.error === 'reschedule_too_soon') {
         // Use structured error response
         const hours = errorDetail.minimum_hours || 24;

@@ -443,8 +443,9 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
           setCachedAvailabilityData(finalLocalCache);
           setDatesWithSlots(finalDatesWithAvailableSlots);
         } catch (err: unknown) {
-          if (err?.name === 'CanceledError' || err?.name === 'AbortError') return;
-          const statusCode = err?.response?.status;
+          const axiosError = err as { name?: string; response?: { status?: number } };
+          if (axiosError?.name === 'CanceledError' || axiosError?.name === 'AbortError') return;
+          const statusCode = axiosError?.response?.status;
           if (statusCode === 404) {
             const practitionerErrorMessage = '此治療師不提供此預約類型';
             if (onPractitionerError) onPractitionerError(practitionerErrorMessage);

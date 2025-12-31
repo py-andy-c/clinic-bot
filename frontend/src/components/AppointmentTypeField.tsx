@@ -99,7 +99,8 @@ export const AppointmentTypeField: React.FC<AppointmentTypeFieldProps> = ({
       setNewGroupName('');
     } catch (err: unknown) {
       logger.error('Error creating group:', err);
-      alert(err?.response?.data?.detail || err?.message || '建立群組失敗');
+      const axiosError = err as { response?: { data?: { detail?: string } }; message?: string };
+      alert(axiosError?.response?.data?.detail || axiosError?.message || '建立群組失敗');
     }
   };
 

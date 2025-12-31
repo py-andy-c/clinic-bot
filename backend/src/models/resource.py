@@ -66,3 +66,4 @@ class Resource(Base):
         UniqueConstraint('resource_type_id', 'name', name='uq_resource_type_name'),
     )
 
+

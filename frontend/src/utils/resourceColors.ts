@@ -57,3 +57,4 @@ export const getResourceColor = (
   return colors[resourceIndex % colors.length] || '#6B7280';
 };
 
+

@@ -45,7 +45,8 @@ export const MessagePreviewModal: React.FC<MessagePreviewModalProps> = ({
       });
       setPreview(result);
     } catch (err: unknown) {
-      setError(err?.response?.data?.detail || '無法載入預覽');
+      const axiosError = err as { response?: { data?: { detail?: string } } };
+      setError(axiosError?.response?.data?.detail || '無法載入預覽');
     } finally {
       setLoading(false);
     }

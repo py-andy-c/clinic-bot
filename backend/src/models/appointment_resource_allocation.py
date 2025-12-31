@@ -55,3 +55,4 @@ class AppointmentResourceAllocation(Base):
         UniqueConstraint('appointment_id', 'resource_id', name='uq_appt_resource_alloc'),
     )
 
+

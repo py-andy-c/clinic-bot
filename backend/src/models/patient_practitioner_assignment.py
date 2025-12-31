@@ -65,3 +65,4 @@ class PatientPractitionerAssignment(Base):
         Index('idx_patient_practitioner_assignments_clinic', 'clinic_id'),
     )
 
+

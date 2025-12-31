@@ -112,7 +112,8 @@ export const ReceiptViewModal: React.FC<ReceiptViewModalProps> = ({
       window.URL.revokeObjectURL(url);
     } catch (err: unknown) {
       logger.error('Error downloading PDF:', err);
-      alert(`下載失敗，請重試: ${err?.response?.data?.detail || err?.message || '未知錯誤'}`);
+      const axiosError = err as { response?: { data?: { detail?: string } }; message?: string };
+      alert(`下載失敗，請重試: ${axiosError?.response?.data?.detail || axiosError?.message || '未知錯誤'}`);
     } finally {
       setIsDownloading(false);
     }

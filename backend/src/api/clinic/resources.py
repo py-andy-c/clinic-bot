@@ -842,3 +842,4 @@ async def delete_resource_requirement(
             detail="無法刪除資源需求"
         )
 
+

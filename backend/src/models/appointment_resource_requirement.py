@@ -58,3 +58,4 @@ class AppointmentResourceRequirement(Base):
         UniqueConstraint('appointment_type_id', 'resource_type_id', name='uq_appt_resource_req'),
     )
 
+
