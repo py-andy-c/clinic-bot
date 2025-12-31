@@ -24,7 +24,7 @@ export interface UseAppointmentFormProps {
 export const useAppointmentForm = ({
   mode,
   event,
-  appointmentTypes: _appointmentTypes,  
+  appointmentTypes,  
   practitioners: allPractitioners,
   initialDate,
   preSelectedPatientId,
