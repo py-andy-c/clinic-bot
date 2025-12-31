@@ -54,7 +54,7 @@ export const ReceiptListModal: React.FC<ReceiptListModalProps> = ({
       
       // Filter out failed loads and map to summary format
       type ReceiptApiResponse = { receipt_id: number; receipt_number: string; issue_date: string; void_info?: { voided: boolean; voided_at?: string; reason?: string }; total_amount?: number };
-      const validReceipts: ReceiptSummary[] = receiptData
+      const validReceipts = receiptData
         .filter((r): r is ReceiptApiResponse => r !== null)
         .map((r: ReceiptApiResponse) => ({
           receipt_id: r.receipt_id,
@@ -70,7 +70,7 @@ export const ReceiptListModal: React.FC<ReceiptListModalProps> = ({
           const dateA = moment(a.issue_date);
           const dateB = moment(b.issue_date);
           return dateB.diff(dateA);
-        });
+        }) as ReceiptSummary[];
       
       setReceipts(validReceipts);
     } catch (err: unknown) {

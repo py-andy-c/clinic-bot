@@ -444,7 +444,7 @@ const ProfilePage: React.FC = () => {
           <form onSubmit={(e) => { e.preventDefault(); saveData(); }}>
             {/* Profile Form */}
             <ProfileForm
-              profile={profile}
+              profile={profile as any}
               fullName={profileData?.fullName || ''}
               title={profileData?.title || ''}
               onFullNameChange={(name) => updateData({ fullName: name })}
