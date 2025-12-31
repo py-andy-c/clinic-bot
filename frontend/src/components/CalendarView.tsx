@@ -139,7 +139,8 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   }, []);
   const [modalState, setModalState] = useState<{
     type: 'event' | 'exception' | 'conflict' | 'delete_confirmation' | 'cancellation_note' | 'cancellation_preview' | 'edit_appointment' | 'create_appointment' | null;
-    data: CalendarEvent | ConflictAppointment[] | { patientId: number | null; initialDate: string; preSelectedAppointmentTypeId?: number; preSelectedPractitionerId?: number; preSelectedTime?: string; preSelectedClinicNotes?: string; event?: CalendarEvent } | null;
+    data: CalendarEvent | ConflictAppointment[] | null;
+    createAppointmentData?: { patientId: number | null; initialDate: string; preSelectedAppointmentTypeId?: number; preSelectedPractitionerId?: number; preSelectedTime?: string; preSelectedClinicNotes?: string; event?: CalendarEvent };
   }>({ type: null, data: null });
   const [createModalKey, setCreateModalKey] = useState(0);
   const [exceptionData, setExceptionData] = useState({
@@ -1385,9 +1386,10 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     // Close event modal and open create appointment modal with pre-filled data
     // Resources will be fetched by useAppointmentForm in duplicate mode
     setCreateModalKey(prev => prev + 1); // Force remount to reset state
-        setModalState({
+    setModalState({
       type: 'create_appointment',
-      data: {
+      data: event || null,
+      createAppointmentData: {
         patientId: patientId ?? null,
         initialDate,
         // Only include these if they have values (avoid passing undefined)
@@ -1395,7 +1397,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
         ...(practitionerId !== undefined && { preSelectedPractitionerId: practitionerId }),
         ...(initialTime && { preSelectedTime: initialTime }),
         ...(clinicNotes !== undefined && clinicNotes !== null && { preSelectedClinicNotes: clinicNotes }),
-        event,
+        ...(event && { event }),
       }
     });
   }, [modalState.data, isAdmin]);
@@ -1476,7 +1478,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     // Format current date as YYYY-MM-DD for initial date selection
     const currentDateString = getDateString(currentDate);
     // Use null to explicitly mean "no patient" (button click), undefined means "use prop" (URL-based)
-    setModalState({ type: 'create_appointment', data: { patientId: patientId ?? null, initialDate: currentDateString } });
+    setModalState({ type: 'create_appointment', data: null, createAppointmentData: { patientId: patientId ?? null, initialDate: currentDateString } });
   }, [currentDate]);
 
   // Expose create appointment handler to parent
@@ -1794,16 +1796,16 @@ const CalendarView: React.FC<CalendarViewProps> = ({
           key={`create-${createModalKey}`}
           // null from button click → undefined (no patient), number from URL → use it, undefined → fall back to prop
           preSelectedPatientId={
-            (modalState.data as any).patient_id === null
+            modalState.createAppointmentData?.patientId === null
               ? undefined
-              : (modalState.data as any).patient_id ?? preSelectedPatientId
+              : modalState.createAppointmentData?.patientId ?? preSelectedPatientId
           }
-          initialDate={(modalState.data as any).initialDate || null}
-          preSelectedAppointmentTypeId={(modalState.data as any).preSelectedAppointmentTypeId}
-          preSelectedPractitionerId={(modalState.data as any).preSelectedPractitionerId}
-          preSelectedTime={(modalState.data as any).preSelectedTime}
-          preSelectedClinicNotes={(modalState.data as any).preSelectedClinicNotes}
-          event={(modalState.data as any).event}
+          initialDate={modalState.createAppointmentData?.initialDate || null}
+          preSelectedAppointmentTypeId={modalState.createAppointmentData?.preSelectedAppointmentTypeId}
+          preSelectedPractitionerId={modalState.createAppointmentData?.preSelectedPractitionerId}
+          preSelectedTime={modalState.createAppointmentData?.preSelectedTime}
+          preSelectedClinicNotes={modalState.createAppointmentData?.preSelectedClinicNotes}
+          event={modalState.createAppointmentData?.event}
           practitioners={availablePractitioners}
           appointmentTypes={appointmentTypes}
           onClose={() => {

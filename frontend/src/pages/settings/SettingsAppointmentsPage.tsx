@@ -65,7 +65,7 @@ const SettingsAppointmentsPage: React.FC = () => {
   useUnsavedChangesDetection({ hasUnsavedChanges: () => isDirty });
 
   const onInvalid = (errors: Record<string, unknown>) => {
-    scrollOnError(errors as any, methods as any);
+    scrollOnError(errors, methods as UseFormReturn<Record<string, unknown>>);
   };
 
   // Sync form with settings data when it loads
@@ -95,7 +95,17 @@ const SettingsAppointmentsPage: React.FC = () => {
           settings_page_instructions: settings.clinic_info_settings.settings_page_instructions || '',
           notifications_page_instructions: settings.clinic_info_settings.notifications_page_instructions || '',
         },
-        booking_restriction_settings: settings.booking_restriction_settings as any,
+        booking_restriction_settings: {
+          booking_restriction_type: settings.booking_restriction_settings?.booking_restriction_type || 'minimum_hours_required',
+          minimum_booking_hours_ahead: settings.booking_restriction_settings?.minimum_booking_hours_ahead ?? 24,
+          step_size_minutes: settings.booking_restriction_settings?.step_size_minutes ?? 30,
+          max_future_appointments: settings.booking_restriction_settings?.max_future_appointments ?? 30,
+          max_booking_window_days: settings.booking_restriction_settings?.max_booking_window_days ?? 90,
+          minimum_cancellation_hours_before: settings.booking_restriction_settings?.minimum_cancellation_hours_before ?? 24,
+          deadline_time_day_before: settings.booking_restriction_settings?.deadline_time_day_before,
+          deadline_on_same_day: settings.booking_restriction_settings?.deadline_on_same_day ?? false,
+          allow_patient_deletion: settings.booking_restriction_settings?.allow_patient_deletion ?? true,
+        },
         practitioners,
       });
     }
@@ -164,7 +174,7 @@ const SettingsAppointmentsPage: React.FC = () => {
             isSavingRef.current = false;
             pendingFormDataRef.current = null;
             setSavingPractitionerSettings(false);
-            handleBackendError(err, methods as any);
+            handleBackendError(err, methods as UseFormReturn<Record<string, unknown>>);
           }
         };
         performSave();
@@ -224,7 +234,7 @@ const SettingsAppointmentsPage: React.FC = () => {
     pendingFormDataRef.current = {
       ...data,
       clinic_info_settings: normalizedClinicInfo,
-      booking_restriction_settings: normalizedBookingSettings as any,
+      booking_restriction_settings: normalizedBookingSettings,
     };
 
     try {
@@ -234,7 +244,7 @@ const SettingsAppointmentsPage: React.FC = () => {
           ...settings?.clinic_info_settings,
           ...normalizedClinicInfo,
         },
-        booking_restriction_settings: normalizedBookingSettings as any,
+        booking_restriction_settings: normalizedBookingSettings,
       });
 
       // 2. Save practitioner settings

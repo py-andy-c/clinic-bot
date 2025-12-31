@@ -78,7 +78,7 @@ const SettingsRemindersPage: React.FC = () => {
           } catch (err) {
             isSavingRef.current = false;
             pendingFormDataRef.current = null;
-            handleBackendError(err, methods as any);
+            handleBackendError(err, methods as UseFormReturn<Record<string, unknown>>);
           }
         };
         performSave();
@@ -88,7 +88,7 @@ const SettingsRemindersPage: React.FC = () => {
   }, [settings?.notification_settings]);
 
   const onInvalid = (errors: Record<string, unknown>) => {
-    scrollOnError(errors as any, methods as any);
+    scrollOnError(errors, methods as UseFormReturn<Record<string, unknown>>);
   };
 
   const onFormSubmit = async (data: RemindersSettingsFormData) => {
@@ -116,7 +116,7 @@ const SettingsRemindersPage: React.FC = () => {
     } catch (err: unknown) {
       isSavingRef.current = false;
       pendingFormDataRef.current = null;
-      if (!handleBackendError(err, methods as any)) {
+      if (!handleBackendError(err, methods as UseFormReturn<Record<string, unknown>>)) {
         const axiosError = err as { response?: { data?: { detail?: string } } };
         alert(axiosError.response?.data?.detail || '儲存設定失敗', '錯誤');
       }
