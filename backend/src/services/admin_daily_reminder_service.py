@@ -7,7 +7,7 @@ Notifications are sent via LINE messaging and scheduled using APScheduler.
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from typing import List, Optional, Dict
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler  # type: ignore
@@ -19,10 +19,14 @@ from models.appointment import Appointment
 from models.calendar_event import CalendarEvent
 from models.clinic import Clinic
 from models.user_clinic_association import UserClinicAssociation
-from services.line_service import LINEService
+from services.notification_service import NotificationService
 from utils.datetime_utils import taiwan_now, format_datetime, TAIWAN_TZ
 
 logger = logging.getLogger(__name__)
+
+# LINE message length limits
+LINE_MESSAGE_MAX_CHARS = 5000
+LINE_MESSAGE_TARGET_CHARS = 4500  # Target with buffer
 
 
 class AdminDailyReminderService:
@@ -119,15 +123,16 @@ class AdminDailyReminderService:
                         logger.debug(f"Clinic {clinic.id} has no LINE credentials, skipping")
                         continue
 
-                    # Get all clinic admins with daily reminder enabled
-                    admins = self._get_clinic_admins_with_daily_reminder(db, clinic.id)
+                    # Get all clinic admins (auto-enabled, no opt-in check)
+                    all_admins = self._get_clinic_admins_with_daily_reminder(db, clinic.id)
 
-                    if not admins:
-                        logger.debug(f"No admins with daily reminder enabled found for clinic {clinic.id}")
+                    if not all_admins:
+                        logger.debug(f"No admins found for clinic {clinic.id}")
                         continue
 
-                    # Send reminder to each admin based on their individual setting
-                    for admin_association in admins:
+                    # Group admins by their reminder time
+                    admins_by_time: Dict[int, List[UserClinicAssociation]] = {}
+                    for admin_association in all_admins:
                         # Get admin's reminder time setting
                         try:
                             admin_settings = admin_association.get_validated_settings()
@@ -149,34 +154,59 @@ class AdminDailyReminderService:
                             )
                             reminder_hour = 21
 
-                        # Check if it's time to send reminder for this admin
-                        # Compare current Taiwan time hour with reminder hour (both in Taiwan timezone)
-                        # Send if current hour matches reminder hour (within the hour window)
-                        if current_hour != reminder_hour:
+                        # Only process admins whose reminder time matches current hour
+                        if reminder_hour != current_hour:
                             continue
-                        
+
+                        if reminder_hour not in admins_by_time:
+                            admins_by_time[reminder_hour] = []
+                        admins_by_time[reminder_hour].append(admin_association)
+
+                    # If no admins match current hour, skip this clinic
+                    if not admins_by_time:
+                        continue
+
+                    # Get appointments for next day (once per clinic)
+                    next_day_appointments = self._get_next_day_appointments(db, clinic.id)
+
+                    if not next_day_appointments:
                         logger.debug(
-                            f"Admin {admin_association.user_id} reminder time matches: "
-                            f"{reminder_hour}:00 (current: {current_hour}:00)"
+                            f"No appointments for next day found for clinic {clinic.id}"
                         )
+                        continue
 
-                        # Get appointments for next day
-                        next_day_appointments = self._get_next_day_appointments(db, clinic.id)
+                    # Group appointments by practitioner
+                    appointments_by_practitioner = self._group_appointments_by_practitioner(
+                        next_day_appointments
+                    )
 
-                        if not next_day_appointments:
-                            logger.debug(
-                                f"No appointments for next day found for clinic {clinic.id}, "
-                                f"skipping reminder for admin {admin_association.user_id}"
+                    # Build message(s) with splitting
+                    target_date = (current_time.date() + timedelta(days=1))
+                    messages = self._build_clinic_wide_message(
+                        db, appointments_by_practitioner, target_date, clinic.id
+                    )
+
+                    if not messages:
+                        logger.warning(f"Failed to build messages for clinic {clinic.id}")
+                        continue
+
+                    # Send to all admins who match current hour (batched)
+                    # All admins in admins_by_time[current_hour] get the same message(s)
+                    for reminder_hour, admins in admins_by_time.items():
+                        labels = {
+                            'recipient_type': 'admin',
+                            'event_type': 'daily_appointment_reminder',
+                            'trigger_source': 'system_triggered',
+                            'notification_context': 'daily_reminder'
+                        }
+
+                        # Send each message part to all admins
+                        for message in messages:
+                            success_count = NotificationService._send_notification_to_recipients(  # type: ignore[reportPrivateUsage]
+                                db, clinic, message, admins, labels
                             )
-                            continue
-
-                        # Send reminder to this admin
-                        if await self._send_reminder_for_admin(
-                            db, admin_association, clinic, next_day_appointments, current_time
-                        ):
-                            total_sent += 1
-                        else:
-                            total_skipped += 1
+                            total_sent += success_count
+                            total_skipped += (len(admins) - success_count)
 
                 if total_sent == 0 and total_skipped == 0:
                     logger.debug("No clinics found needing admin daily reminders at this time")
@@ -231,166 +261,202 @@ class AdminDailyReminderService:
         clinic_id: int
     ) -> List[UserClinicAssociation]:
         """
-        Get all clinic admins who have daily reminder enabled and LINE accounts linked.
+        Get all clinic admins with LINE accounts linked.
         
-        Uses direct JSONB query for efficiency, similar to other notification methods.
+        Daily reminder is now auto-enabled for all admins (no opt-in check).
         
         Args:
             db: Database session
             clinic_id: ID of the clinic
             
         Returns:
-            List of UserClinicAssociation for admins with daily reminder enabled
+            List of UserClinicAssociation for all admins with LINE accounts
         """
-        # Use direct JSONB query for efficiency (similar to unified notification recipient collection)
-        # Handle both string 'true' and boolean true values in JSONB
-        from sqlalchemy import or_
-        from sqlalchemy.types import Boolean
+        # Query all admins with LINE accounts (no opt-in check)
+        # Daily reminder is auto-enabled for all admins
         admins = db.query(UserClinicAssociation).filter(
             UserClinicAssociation.clinic_id == clinic_id,
             UserClinicAssociation.is_active == True,
             UserClinicAssociation.roles.contains(['admin']),
-            or_(
-                UserClinicAssociation.settings['admin_daily_reminder_enabled'].astext == 'true',
-                UserClinicAssociation.settings['admin_daily_reminder_enabled'].astext.cast(Boolean) == True
-            ),
             UserClinicAssociation.line_user_id.isnot(None)
         ).all()
         
         return admins
 
-    async def _send_reminder_for_admin(
+    def _group_appointments_by_practitioner(
+        self,
+        appointments: List[Appointment]
+    ) -> Dict[Optional[int], List[Appointment]]:
+        """
+        Group appointments by practitioner ID.
+        
+        Args:
+            appointments: List of appointments
+            
+        Returns:
+            Dictionary mapping practitioner_id to list of appointments
+        """
+        appointments_by_practitioner: Dict[Optional[int], List[Appointment]] = {}
+        for appointment in appointments:
+            practitioner_id: Optional[int] = appointment.calendar_event.user_id if appointment.calendar_event else None
+            if practitioner_id not in appointments_by_practitioner:
+                appointments_by_practitioner[practitioner_id] = []
+            appointments_by_practitioner[practitioner_id].append(appointment)
+        return appointments_by_practitioner
+
+    def _build_clinic_wide_message(
         self,
         db: Session,
-        association: UserClinicAssociation,
-        clinic: Clinic,
-        appointments: List[Appointment],
-        current_time: datetime
-    ) -> bool:
+        appointments_by_practitioner: Dict[Optional[int], List[Appointment]],
+        target_date: date,
+        clinic_id: int
+    ) -> List[str]:
         """
-        Send daily reminder to an admin about appointments for the next day.
+        Build clinic-wide reminder message(s) with splitting if needed.
+        
+        Uses practitioner-style format but includes all practitioners' appointments.
+        Splits messages if they exceed LINE_MESSAGE_TARGET_CHARS (4500).
         
         Args:
             db: Database session
-            association: UserClinicAssociation for the admin
-            clinic: Clinic object
-            appointments: List of appointments for next day
-            current_time: Current time in Taiwan timezone
+            appointments_by_practitioner: Dictionary mapping practitioner_id to appointments
+            target_date: Date of the appointments
+            clinic_id: ID of the clinic
             
         Returns:
-            True if reminder was sent successfully, False otherwise
+            List of message strings (may be multiple if splitting occurred)
         """
-        try:
-            admin = association.user
+        # Format date string
+        date_str = target_date.strftime("%Y年%m月%d日")
+        
+        # Sort practitioners by ID for consistent ordering
+        # Separate None (auto-assigned) from actual practitioner IDs
+        practitioner_ids_only = [
+            pid for pid in appointments_by_practitioner.keys() if pid is not None
+        ]
+        sorted_practitioner_ids: List[Optional[int]] = sorted(practitioner_ids_only)  # type: ignore[assignment]
+        
+        # Handle None practitioner_id separately (auto-assigned) - append at end
+        if None in appointments_by_practitioner:
+            sorted_practitioner_ids.append(None)
 
-            # Group appointments by practitioner
-            appointments_by_practitioner: Dict[Optional[int], List[Appointment]] = {}
-            for appointment in appointments:
-                practitioner_id: Optional[int] = appointment.calendar_event.user_id if appointment.calendar_event else None
-                if practitioner_id not in appointments_by_practitioner:
-                    appointments_by_practitioner[practitioner_id] = []
-                appointments_by_practitioner[practitioner_id].append(appointment)
-            
-            # Build message
-            next_day = (current_time.date() + timedelta(days=1))
-            next_day_formatted = next_day.strftime("%Y/%m/%d")
-            
-            message = f"📅 明日預約總覽 ({next_day_formatted})\n\n"
-            
-            total_appointments = len(appointments)
-            shown_count = 0
-            max_show = 50
-            
-            # Sort practitioners by ID for consistent ordering
-            # Separate None (auto-assigned) from actual practitioner IDs
-            practitioner_ids_only = [
-                pid for pid in appointments_by_practitioner.keys() if pid is not None
-            ]
-            sorted_practitioner_ids: List[Optional[int]] = sorted(practitioner_ids_only)  # type: ignore[assignment]
-            
-            # Handle None practitioner_id separately (auto-assigned) - append at end
-            if None in appointments_by_practitioner:
-                sorted_practitioner_ids.append(None)
-            
-            for practitioner_id in sorted_practitioner_ids:
-                if shown_count >= max_show:
-                    break
-                    
-                practitioner_appointments = appointments_by_practitioner[practitioner_id]
-                
-                # Get practitioner name
-                if practitioner_id is None:
-                    practitioner_name = "不指定"
-                else:
-                    from utils.practitioner_helpers import get_practitioner_display_name_with_title
-                    practitioner_name = get_practitioner_display_name_with_title(
-                        db, practitioner_id, clinic.id
-                    )
-                
-                message += f"治療師：{practitioner_name}\n"
-                message += f"共有 {len(practitioner_appointments)} 個預約：\n"
-                
-                # Show appointments for this practitioner (up to max_show total)
-                remaining_slots = max_show - shown_count
-                appointments_to_show = practitioner_appointments[:remaining_slots]
-                
-                for i, appointment in enumerate(appointments_to_show, 1):
-                    # Get patient name
-                    patient_name = appointment.patient.full_name if appointment.patient else "未知病患"
-                    
-                    # Format appointment time
-                    start_datetime = datetime.combine(
-                        appointment.calendar_event.date,
-                        appointment.calendar_event.start_time
-                    )
-                    formatted_time = format_datetime(start_datetime)
-                    
-                    # Get appointment type name
-                    appointment_type_name = appointment.appointment_type.name if appointment.appointment_type else "預約"
-                    
-                    message += f"{shown_count + i}. {formatted_time} - {patient_name} - {appointment_type_name}\n"
-                
-                shown_count += len(appointments_to_show)
-                message += "\n"
-            
-            # If there are more appointments, append summary
-            if total_appointments > max_show:
-                remaining_count = total_appointments - max_show
-                message += f"... 還有 {remaining_count} 個預約"
+        messages: List[str] = []
+        current_message_parts: List[str] = []
+        current_length = 0
 
-            # Send notification via LINE with labels for tracking
-            line_service = LINEService(
-                channel_secret=clinic.line_channel_secret,
-                channel_access_token=clinic.line_channel_access_token
-            )
-            labels = {
-                'recipient_type': 'admin',
-                'event_type': 'daily_appointment_reminder',
-                'trigger_source': 'system_triggered',
-                'notification_context': 'daily_reminder'
-            }
-            # Type safety check: association.line_user_id is filtered to be non-null in _get_clinic_admins_with_daily_reminder,
-            # but type system doesn't know this, so we check here for type safety
-            if association.line_user_id:
-                line_service.send_text_message(
-                    association.line_user_id, 
-                    message,
-                    db=db,
-                    clinic_id=clinic.id,
-                    labels=labels
+        for practitioner_id in sorted_practitioner_ids:
+            practitioner_appointments = appointments_by_practitioner[practitioner_id]
+            
+            # Get practitioner name
+            if practitioner_id is None:
+                practitioner_name = "不指定"
+            else:
+                from utils.practitioner_helpers import get_practitioner_display_name_with_title
+                practitioner_name = get_practitioner_display_name_with_title(
+                    db, practitioner_id, clinic_id
                 )
+            
+            # Build practitioner section
+            practitioner_section = f"治療師：{practitioner_name}\n"
+            practitioner_section += f"共有 {len(practitioner_appointments)} 個預約：\n\n"
+            
+            appointment_lines: List[str] = []
+            for i, appointment in enumerate(practitioner_appointments, 1):
+                # Get patient name
+                patient_name = appointment.patient.full_name if appointment.patient else "未知病患"
+                
+                # Format appointment time
+                start_datetime = datetime.combine(
+                    appointment.calendar_event.date,
+                    appointment.calendar_event.start_time
+                )
+                formatted_time = format_datetime(start_datetime)
+                
+                # Get appointment type name
+                appointment_type_name = appointment.appointment_type.name if appointment.appointment_type else "預約"
+                
+                # Build appointment line (matching practitioner style)
+                appointment_line = f"{i}. {formatted_time}\n"
+                appointment_line += f"   病患：{patient_name}\n"
+                appointment_line += f"   類型：{appointment_type_name}"
+                
+                if appointment.notes:
+                    appointment_line += f"\n   備註：{appointment.notes}"
+                
+                appointment_line += "\n\n"
+                appointment_lines.append(appointment_line)
+            
+            # Check if adding this practitioner would exceed limit
+            practitioner_text = practitioner_section + "".join(appointment_lines)
+            practitioner_length = len(practitioner_text)
+            
+            # If single practitioner exceeds limit, split mid-practitioner
+            if practitioner_length > LINE_MESSAGE_TARGET_CHARS and len(appointment_lines) > 1:
+                # Split mid-practitioner (fallback case)
+                remaining_in_current = LINE_MESSAGE_TARGET_CHARS - current_length - len(practitioner_section) - 50  # Buffer
+                split_index = 0
+                accumulated_length = 0
+                
+                for idx, line in enumerate(appointment_lines):
+                    if accumulated_length + len(line) > remaining_in_current and idx > 0:
+                        split_index = idx
+                        break
+                    accumulated_length += len(line)
+                
+                if split_index > 0:
+                    # Split the practitioner's appointments
+                    first_part = appointment_lines[:split_index]
+                    second_part = appointment_lines[split_index:]
+                    
+                    # Add first part to current message
+                    if current_message_parts:
+                        messages.append("".join(current_message_parts) + practitioner_section + "".join(first_part))
+                    else:
+                        messages.append(practitioner_section + "".join(first_part))
+                    
+                    # Start new message with continuation
+                    continuation_section = f"治療師：{practitioner_name} (續上頁)\n"
+                    continuation_section += f"共有 {len(practitioner_appointments)} 個預約：\n\n"
+                    current_message_parts = [continuation_section] + second_part
+                    current_length = len(continuation_section) + sum(len(line) for line in second_part)
+                    continue
+            
+            # Check if adding this practitioner would exceed limit
+            if current_length + len(practitioner_text) > LINE_MESSAGE_TARGET_CHARS and current_message_parts:
+                # Save current message and start new one
+                messages.append("".join(current_message_parts))
+                current_message_parts = []
+                current_length = 0
+            
+            # Add practitioner section to current message
+            current_message_parts.append(practitioner_text)
+            current_length += len(practitioner_text)
 
-            logger.info(
-                f"Sent daily reminder to admin {admin.id} "
-                f"for {total_appointments} appointment(s) in clinic {clinic.id}"
-            )
-            return True
+        # Add final message if there are remaining parts
+        if current_message_parts:
+            messages.append("".join(current_message_parts))
 
-        except Exception as e:
-            logger.exception(
-                f"Failed to send daily reminder to admin {association.user_id}: {e}"
-            )
-            return False
+        # Add headers to all messages
+        total_parts = len(messages)
+        for i, msg in enumerate(messages, 1):
+            if total_parts > 1:
+                header = f"📅 明日預約總覽 ({date_str}) - 第 {i}/{total_parts} 部分\n\n"
+            else:
+                header = f"📅 明日預約總覽 ({date_str})\n\n"
+            full_message = header + msg
+            
+            # Validate final message length (including header) stays under limit
+            if len(full_message) > LINE_MESSAGE_MAX_CHARS:
+                logger.warning(
+                    f"Message part {i}/{total_parts} exceeds LINE limit: {len(full_message)} chars "
+                    f"(limit: {LINE_MESSAGE_MAX_CHARS}). This should not happen with current splitting logic."
+                )
+                # Truncate if somehow we exceeded (shouldn't happen, but safety check)
+                full_message = full_message[:LINE_MESSAGE_MAX_CHARS - 3] + "..."
+            
+            messages[i - 1] = full_message
+
+        return messages
 
 
 # Global service instance
@@ -430,4 +496,3 @@ async def stop_admin_daily_reminder_scheduler() -> None:
     global _admin_daily_reminder_service
     if _admin_daily_reminder_service:
         await _admin_daily_reminder_service.stop_scheduler()
-

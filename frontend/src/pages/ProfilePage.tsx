@@ -160,7 +160,6 @@ interface PractitionerSettings {
   step_size_minutes?: number | null;
   // Admin-only fields
   subscribe_to_appointment_changes?: boolean;
-  admin_daily_reminder_enabled?: boolean;
   admin_daily_reminder_time?: string;
   auto_assigned_notification_mode?: 'immediate' | 'scheduled';
 }
@@ -228,7 +227,6 @@ const ProfilePage: React.FC = () => {
             auto_assigned_notification_time: settings?.auto_assigned_notification_time || '21:00',
             step_size_minutes: settings?.step_size_minutes ?? null,
             subscribe_to_appointment_changes: settings?.subscribe_to_appointment_changes ?? false,
-            admin_daily_reminder_enabled: settings?.admin_daily_reminder_enabled ?? false,
             admin_daily_reminder_time: settings?.admin_daily_reminder_time || '21:00',
             auto_assigned_notification_mode: settings?.auto_assigned_notification_mode || 'scheduled',
           };
@@ -240,7 +238,6 @@ const ProfilePage: React.FC = () => {
             auto_assigned_notification_time: '21:00',
             step_size_minutes: null,
             subscribe_to_appointment_changes: false,
-            admin_daily_reminder_enabled: false,
             admin_daily_reminder_time: '21:00',
             auto_assigned_notification_mode: 'scheduled',
           };
@@ -304,7 +301,6 @@ const ProfilePage: React.FC = () => {
           (currentSettings.auto_assigned_notification_time || '21:00') !== (newSettings.auto_assigned_notification_time || '21:00') ||
           currentSettings.step_size_minutes !== newSettings.step_size_minutes ||
           (currentSettings.subscribe_to_appointment_changes ?? false) !== (newSettings.subscribe_to_appointment_changes ?? false) ||
-          (currentSettings.admin_daily_reminder_enabled ?? false) !== (newSettings.admin_daily_reminder_enabled ?? false) ||
           (currentSettings.admin_daily_reminder_time || '21:00') !== (newSettings.admin_daily_reminder_time || '21:00') ||
           (currentSettings.auto_assigned_notification_mode || 'scheduled') !== (newSettings.auto_assigned_notification_mode || 'scheduled');
 
@@ -411,7 +407,6 @@ const ProfilePage: React.FC = () => {
       auto_assigned_notification_time: '21:00',
       step_size_minutes: null,
       subscribe_to_appointment_changes: false,
-      admin_daily_reminder_enabled: false,
       admin_daily_reminder_time: '21:00',
       auto_assigned_notification_mode: 'scheduled',
     };
@@ -422,7 +417,6 @@ const ProfilePage: React.FC = () => {
         auto_assigned_notification_time: currentSettings.auto_assigned_notification_time || '21:00',
         step_size_minutes: currentSettings.step_size_minutes ?? null,
         subscribe_to_appointment_changes: currentSettings.subscribe_to_appointment_changes ?? false,
-        admin_daily_reminder_enabled: currentSettings.admin_daily_reminder_enabled ?? false,
         admin_daily_reminder_time: currentSettings.admin_daily_reminder_time || '21:00',
         auto_assigned_notification_mode: currentSettings.auto_assigned_notification_mode || 'scheduled',
         ...updates,
@@ -567,11 +561,7 @@ const ProfilePage: React.FC = () => {
 
                     {/* Daily Reminder */}
                     <AdminDailyReminderSettings
-                      enabled={profileData?.settings?.admin_daily_reminder_enabled ?? false}
                       reminderTime={profileData?.settings?.admin_daily_reminder_time || '21:00'}
-                      onToggle={(enabled) => updateSettings({
-                        admin_daily_reminder_enabled: enabled
-                      })}
                       onTimeChange={(time) => updateSettings({
                         admin_daily_reminder_time: time
                       })}

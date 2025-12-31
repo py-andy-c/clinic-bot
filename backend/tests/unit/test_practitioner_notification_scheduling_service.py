@@ -372,3 +372,166 @@ class TestPractitionerNotificationSchedulingService:
         db_session.refresh(scheduled)
         assert scheduled.status == 'skipped'
 
+    def test_schedule_notification_skips_admin_practitioner(self, db_session):
+        """Test that admin-practitioners are excluded from personal practitioner reminders (deduplication)."""
+        clinic = Clinic(
+            name="Test Clinic",
+            line_channel_id="test_channel",
+            line_channel_secret="test_secret",
+            line_channel_access_token="test_token",
+            subscription_status="trial"
+        )
+        db_session.add(clinic)
+        db_session.flush()
+
+        # Create user who is both admin and practitioner
+        admin_practitioner, association = create_user_with_clinic_association(
+            db_session, clinic,
+            full_name="Admin Practitioner",
+            email="admin_pract@test.com",
+            google_subject_id="admin_pract_123",
+            roles=["admin", "practitioner"],  # Both roles
+            is_active=True
+        )
+        # Set notification time
+        from models.user_clinic_association import PractitionerSettings
+        settings = PractitionerSettings()
+        settings.next_day_notification_time = "21:00"
+        association.set_validated_settings(settings)
+        association.line_user_id = "admin_pract_line_id"
+        db_session.flush()
+
+        patient = Patient(
+            clinic_id=clinic.id,
+            full_name="Test Patient",
+            phone_number="1234567890"
+        )
+        db_session.add(patient)
+        db_session.flush()
+
+        appointment_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="Test Type",
+            duration_minutes=60
+        )
+        db_session.add(appointment_type)
+        db_session.flush()
+
+        # Appointment is tomorrow
+        appointment_date = (taiwan_now() + timedelta(days=1)).date()
+        appointment_time = datetime.combine(appointment_date, time(14, 0))
+        calendar_event = create_calendar_event_with_clinic(
+            db_session, admin_practitioner, clinic,
+            event_type="appointment",
+            event_date=appointment_date,
+            start_time=appointment_time.time(),
+            end_time=(appointment_time + timedelta(minutes=60)).time()
+        )
+        db_session.flush()
+
+        appointment = Appointment(
+            calendar_event_id=calendar_event.id,
+            patient_id=patient.id,
+            appointment_type_id=appointment_type.id,
+            status="confirmed",
+            is_auto_assigned=False
+        )
+        db_session.add(appointment)
+        db_session.flush()
+
+        # Schedule notification (should skip because user is admin)
+        PractitionerNotificationSchedulingService.schedule_notification_for_appointment(
+            db_session, appointment
+        )
+        db_session.commit()
+
+        # Verify NO notification was scheduled (admin-practitioner should receive clinic-wide reminder instead)
+        scheduled = db_session.query(ScheduledLineMessage).filter(
+            ScheduledLineMessage.message_type == 'practitioner_daily',
+            ScheduledLineMessage.status == 'pending'
+        ).first()
+
+        assert scheduled is None, "Admin-practitioner should not receive personal practitioner reminder"
+
+    def test_schedule_notification_allows_practitioner_only(self, db_session):
+        """Test that practitioners who are NOT admins still receive personal reminders."""
+        clinic = Clinic(
+            name="Test Clinic",
+            line_channel_id="test_channel",
+            line_channel_secret="test_secret",
+            line_channel_access_token="test_token",
+            subscription_status="trial"
+        )
+        db_session.add(clinic)
+        db_session.flush()
+
+        # Create practitioner who is NOT admin
+        practitioner, association = create_user_with_clinic_association(
+            db_session, clinic,
+            full_name="Practitioner Only",
+            email="pract@test.com",
+            google_subject_id="pract_123",
+            roles=["practitioner"],  # Only practitioner role
+            is_active=True
+        )
+        # Set notification time
+        from models.user_clinic_association import PractitionerSettings
+        settings = PractitionerSettings()
+        settings.next_day_notification_time = "21:00"
+        association.set_validated_settings(settings)
+        association.line_user_id = "practitioner_line_id"
+        db_session.flush()
+
+        patient = Patient(
+            clinic_id=clinic.id,
+            full_name="Test Patient",
+            phone_number="1234567890"
+        )
+        db_session.add(patient)
+        db_session.flush()
+
+        appointment_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="Test Type",
+            duration_minutes=60
+        )
+        db_session.add(appointment_type)
+        db_session.flush()
+
+        # Appointment is tomorrow
+        appointment_date = (taiwan_now() + timedelta(days=1)).date()
+        appointment_time = datetime.combine(appointment_date, time(14, 0))
+        calendar_event = create_calendar_event_with_clinic(
+            db_session, practitioner, clinic,
+            event_type="appointment",
+            event_date=appointment_date,
+            start_time=appointment_time.time(),
+            end_time=(appointment_time + timedelta(minutes=60)).time()
+        )
+        db_session.flush()
+
+        appointment = Appointment(
+            calendar_event_id=calendar_event.id,
+            patient_id=patient.id,
+            appointment_type_id=appointment_type.id,
+            status="confirmed",
+            is_auto_assigned=False
+        )
+        db_session.add(appointment)
+        db_session.flush()
+
+        # Schedule notification (should succeed for practitioner-only)
+        PractitionerNotificationSchedulingService.schedule_notification_for_appointment(
+            db_session, appointment
+        )
+        db_session.commit()
+
+        # Verify notification WAS scheduled (practitioner-only should receive personal reminder)
+        scheduled = db_session.query(ScheduledLineMessage).filter(
+            ScheduledLineMessage.message_type == 'practitioner_daily',
+            ScheduledLineMessage.status == 'pending'
+        ).first()
+
+        assert scheduled is not None, "Practitioner-only should receive personal reminder"
+        assert scheduled.recipient_line_user_id == "practitioner_line_id"
+

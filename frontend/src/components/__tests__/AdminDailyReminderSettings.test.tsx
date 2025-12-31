@@ -3,47 +3,11 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import AdminDailyReminderSettings from '../AdminDailyReminderSettings';
 
 describe('AdminDailyReminderSettings', () => {
-  it('renders reminder toggle', () => {
-    const mockOnToggle = vi.fn();
+  it('renders reminder settings with time input', () => {
     const mockOnTimeChange = vi.fn();
     render(
       <AdminDailyReminderSettings
-        enabled={false}
         reminderTime="21:00"
-        onToggle={mockOnToggle}
-        onTimeChange={mockOnTimeChange}
-      />
-    );
-
-    const checkbox = screen.getByRole('checkbox');
-    expect(checkbox).toBeInTheDocument();
-    expect(checkbox).not.toBeChecked();
-  });
-
-  it('renders as checked when enabled', () => {
-    const mockOnToggle = vi.fn();
-    const mockOnTimeChange = vi.fn();
-    render(
-      <AdminDailyReminderSettings
-        enabled={true}
-        reminderTime="21:00"
-        onToggle={mockOnToggle}
-        onTimeChange={mockOnTimeChange}
-      />
-    );
-
-    const checkbox = screen.getByRole('checkbox');
-    expect(checkbox).toBeChecked();
-  });
-
-  it('shows time input when enabled', () => {
-    const mockOnToggle = vi.fn();
-    const mockOnTimeChange = vi.fn();
-    render(
-      <AdminDailyReminderSettings
-        enabled={true}
-        reminderTime="21:00"
-        onToggle={mockOnToggle}
         onTimeChange={mockOnTimeChange}
       />
     );
@@ -54,50 +18,24 @@ describe('AdminDailyReminderSettings', () => {
     expect(minuteInput).toBeInTheDocument();
   });
 
-  it('hides time input when disabled', () => {
-    const mockOnToggle = vi.fn();
+  it('renders reminder title', () => {
     const mockOnTimeChange = vi.fn();
     render(
       <AdminDailyReminderSettings
-        enabled={false}
         reminderTime="21:00"
-        onToggle={mockOnToggle}
         onTimeChange={mockOnTimeChange}
       />
     );
 
-    const hourInput = screen.queryByDisplayValue('21');
-    const minuteInput = screen.queryByDisplayValue('00');
-    expect(hourInput).not.toBeInTheDocument();
-    expect(minuteInput).not.toBeInTheDocument();
-  });
-
-  it('calls onToggle when checkbox is clicked', () => {
-    const mockOnToggle = vi.fn();
-    const mockOnTimeChange = vi.fn();
-    render(
-      <AdminDailyReminderSettings
-        enabled={false}
-        reminderTime="21:00"
-        onToggle={mockOnToggle}
-        onTimeChange={mockOnTimeChange}
-      />
-    );
-
-    const checkbox = screen.getByRole('checkbox');
-    fireEvent.click(checkbox);
-
-    expect(mockOnToggle).toHaveBeenCalledWith(true);
+    const title = screen.getByText('每日預約總覽提醒');
+    expect(title).toBeInTheDocument();
   });
 
   it('calls onTimeChange when time is changed', () => {
-    const mockOnToggle = vi.fn();
     const mockOnTimeChange = vi.fn();
     const { rerender } = render(
       <AdminDailyReminderSettings
-        enabled={true}
         reminderTime="21:00"
-        onToggle={mockOnToggle}
         onTimeChange={mockOnTimeChange}
       />
     );
@@ -109,9 +47,7 @@ describe('AdminDailyReminderSettings', () => {
     
     rerender(
       <AdminDailyReminderSettings
-        enabled={true}
         reminderTime="20:00"
-        onToggle={mockOnToggle}
         onTimeChange={mockOnTimeChange}
       />
     );
@@ -123,13 +59,10 @@ describe('AdminDailyReminderSettings', () => {
   });
 
   it('opens info modal when info button is clicked', () => {
-    const mockOnToggle = vi.fn();
     const mockOnTimeChange = vi.fn();
     render(
       <AdminDailyReminderSettings
-        enabled={false}
         reminderTime="21:00"
-        onToggle={mockOnToggle}
         onTimeChange={mockOnTimeChange}
       />
     );
@@ -142,4 +75,3 @@ describe('AdminDailyReminderSettings', () => {
     expect(modalTitle).toBeInTheDocument();
   });
 });
-

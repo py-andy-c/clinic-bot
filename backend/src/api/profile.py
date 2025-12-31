@@ -219,7 +219,6 @@ async def update_profile(
                     is_admin = 'admin' in (association.roles or [])
                     admin_only_fields = [
                         'subscribe_to_appointment_changes',
-                        'admin_daily_reminder_enabled',
                         'admin_daily_reminder_time',
                         'auto_assigned_notification_mode'
                     ]

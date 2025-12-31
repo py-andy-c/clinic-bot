@@ -66,6 +66,16 @@ class PractitionerNotificationSchedulingService:
             logger.debug(f"Practitioner {practitioner_id} has no LINE account linked for clinic {clinic_id}")
             return
         
+        # Deduplication: Skip if practitioner is also an admin
+        # Admin-practitioners receive clinic-wide admin reminder instead of personal practitioner reminder
+        # This prevents duplicate notifications (clinic-wide + personal)
+        if 'admin' in (association.roles or []):
+            logger.debug(
+                f"Practitioner {practitioner_id} is also an admin in clinic {clinic_id}, "
+                f"skipping personal practitioner reminder (will receive clinic-wide admin reminder instead)"
+            )
+            return
+        
         # Get practitioner notification time setting
         try:
             settings = association.get_validated_settings()

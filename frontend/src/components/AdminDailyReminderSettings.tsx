@@ -3,16 +3,12 @@ import { BaseModal } from './shared/BaseModal';
 import { TimeInput } from './shared/TimeInput';
 
 interface AdminDailyReminderSettingsProps {
-  enabled: boolean;
   reminderTime: string; // HH:MM format
-  onToggle: (enabled: boolean) => void;
   onTimeChange: (time: string) => void;
 }
 
 const AdminDailyReminderSettings: React.FC<AdminDailyReminderSettingsProps> = ({
-  enabled,
   reminderTime,
-  onToggle,
   onTimeChange,
 }) => {
   const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
@@ -21,17 +17,9 @@ const AdminDailyReminderSettings: React.FC<AdminDailyReminderSettingsProps> = ({
     <>
       <div className="mt-4">
         <div className="flex items-center gap-2 mb-2">
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={enabled}
-              onChange={(e) => onToggle(e.target.checked)}
-              className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-            />
-            <span className="text-sm font-medium text-gray-700">
-              每日預約總覽提醒
-            </span>
-          </label>
+          <span className="text-sm font-medium text-gray-700">
+            每日預約總覽提醒
+          </span>
           <button
             type="button"
             onClick={() => setIsInfoModalOpen(true)}
@@ -43,26 +31,19 @@ const AdminDailyReminderSettings: React.FC<AdminDailyReminderSettingsProps> = ({
             </svg>
           </button>
         </div>
-        {enabled && (
-          <div className="ml-6 mt-2">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              提醒時間
-            </label>
-            <TimeInput
-              value={reminderTime}
-              onChange={onTimeChange}
-              className="w-full max-w-xs"
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              系統將在您設定的時間發送隔天所有治療師的預約總覽
-            </p>
-          </div>
-        )}
-        {!enabled && (
-          <p className="text-xs text-gray-500 ml-6">
-            每日收到所有治療師隔天的預約總覽
+        <div className="ml-6 mt-2">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            提醒時間
+          </label>
+          <TimeInput
+            value={reminderTime}
+            onChange={onTimeChange}
+            className="w-full max-w-xs"
+          />
+          <p className="text-xs text-gray-500 mt-1">
+            系統將在您設定的時間發送隔天所有治療師的預約總覽
           </p>
-        )}
+        </div>
       </div>
 
       {isInfoModalOpen && (
