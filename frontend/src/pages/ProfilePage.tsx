@@ -204,7 +204,7 @@ const ProfilePage: React.FC = () => {
       };
 
       // Fetch profile
-      let profileToUse: { schedule: Record<string, TimeInterval[]> } | null = null;
+      let profileToUse: any = null;
       try {
         profileToUse = await apiService.getProfile();
         setProfile(profileToUse);
