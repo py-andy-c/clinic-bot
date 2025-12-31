@@ -242,12 +242,18 @@ class AdminDailyReminderService:
         Returns:
             List of UserClinicAssociation for admins with daily reminder enabled
         """
-        # Use direct JSONB query for efficiency (similar to send_admin_appointment_change_notification)
+        # Use direct JSONB query for efficiency (similar to unified notification recipient collection)
+        # Handle both string 'true' and boolean true values in JSONB
+        from sqlalchemy import or_
+        from sqlalchemy.types import Boolean
         admins = db.query(UserClinicAssociation).filter(
             UserClinicAssociation.clinic_id == clinic_id,
             UserClinicAssociation.is_active == True,
             UserClinicAssociation.roles.contains(['admin']),
-            UserClinicAssociation.settings['admin_daily_reminder_enabled'].astext == 'true',
+            or_(
+                UserClinicAssociation.settings['admin_daily_reminder_enabled'].astext == 'true',
+                UserClinicAssociation.settings['admin_daily_reminder_enabled'].astext.cast(Boolean) == True
+            ),
             UserClinicAssociation.line_user_id.isnot(None)
         ).all()
         

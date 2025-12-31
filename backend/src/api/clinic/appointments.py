@@ -723,17 +723,16 @@ async def create_recurring_appointments(
                         else:
                             practitioner = db.query(User).get(request.practitioner_id)
                             
-                            # Send practitioner notification
+                            # Send unified notification to practitioner and admins (with deduplication)
                             if practitioner:
-                                association = db.query(UserClinicAssociation).filter(
-                                    UserClinicAssociation.user_id == practitioner.id,
-                                    UserClinicAssociation.clinic_id == clinic_id,
-                                    UserClinicAssociation.is_active == True
-                                ).first()
-                                if association:
-                                    NotificationService.send_practitioner_appointment_notification(
-                                        db, association, appointment, clinic
+                                try:
+                                    NotificationService.send_unified_appointment_notification(
+                                        db, appointment, clinic, practitioner,
+                                        include_practitioner=True, include_admins=True
                                     )
+                                except Exception as e:
+                                    logger.exception(f"Failed to send appointment notification: {e}")
+                                    # Don't fail appointment creation if notification fails
                             
                             # Send patient notification
                             if appointment.patient and appointment.patient.line_user:

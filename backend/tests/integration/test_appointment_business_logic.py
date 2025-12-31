@@ -54,7 +54,7 @@ class TestAutoAssignmentVisibilityPrinciple:
         # Create auto-assigned appointment (more than 24 hours ahead for patient booking)
         start_time = taiwan_now().replace(hour=10, minute=0, second=0, microsecond=0) + timedelta(days=2)
         
-        with patch.object(NotificationService, 'send_practitioner_appointment_notification') as mock_practitioner_notify, \
+        with patch.object(NotificationService, 'send_unified_appointment_notification') as mock_practitioner_notify, \
              patch.object(NotificationService, 'send_appointment_confirmation') as mock_patient_notify:
             result = AppointmentService.create_appointment(
                 db=db_session,
@@ -129,7 +129,7 @@ class TestAutoAssignmentVisibilityPrinciple:
         appointment_id = result['appointment_id']
 
         # Admin reassigns to practitioner2
-        with patch.object(NotificationService, 'send_practitioner_appointment_notification') as mock_notify:
+        with patch.object(NotificationService, 'send_unified_appointment_notification') as mock_notify:
             AppointmentService.update_appointment(
                 db=db_session,
                 appointment_id=appointment_id,
@@ -244,7 +244,7 @@ class TestPatientNotificationsOnCreation:
         start_time = taiwan_now().replace(hour=10, minute=0, second=0, microsecond=0) + timedelta(days=2)
         
         with patch.object(NotificationService, 'send_appointment_confirmation') as mock_patient_notify, \
-             patch.object(NotificationService, 'send_practitioner_appointment_notification') as mock_practitioner_notify:
+             patch.object(NotificationService, 'send_unified_appointment_notification') as mock_practitioner_notify:
             result = AppointmentService.create_appointment(
                 db=db_session,
                 clinic_id=clinic.id,
@@ -319,7 +319,7 @@ class TestPatientNotificationsOnCreation:
         start_time = taiwan_now().replace(hour=10, minute=0, second=0, microsecond=0) + timedelta(days=1)
         
         with patch.object(NotificationService, 'send_appointment_confirmation') as mock_patient_notify, \
-             patch.object(NotificationService, 'send_practitioner_appointment_notification') as mock_practitioner_notify:
+             patch.object(NotificationService, 'send_unified_appointment_notification') as mock_practitioner_notify:
             result = AppointmentService.create_appointment(
                 db=db_session,
                 clinic_id=clinic.id,
@@ -598,7 +598,7 @@ class TestPatientEditingScenarios:
         appointment_id = result['appointment_id']
 
         # Patient changes to auto-assigned
-        with patch.object(NotificationService, 'send_practitioner_cancellation_notification') as mock_cancel:
+        with patch.object(NotificationService, 'send_unified_cancellation_notification') as mock_cancel:
             AppointmentService.update_appointment(
                 db=db_session,
                 appointment_id=appointment_id,
@@ -643,7 +643,7 @@ class TestPatientEditingScenarios:
         old_practitioner_id = appointment.calendar_event.user_id
 
         # Patient changes to specific practitioner
-        with patch.object(NotificationService, 'send_practitioner_appointment_notification') as mock_notify:
+        with patch.object(NotificationService, 'send_unified_appointment_notification') as mock_notify:
             AppointmentService.update_appointment(
                 db=db_session,
                 appointment_id=appointment_id,
@@ -854,7 +854,7 @@ class TestEdgeCases:
         original_practitioner_id = appointment.calendar_event.user_id
 
         # Admin confirms without changes
-        with patch.object(NotificationService, 'send_practitioner_appointment_notification') as mock_notify:
+        with patch.object(NotificationService, 'send_unified_appointment_notification') as mock_notify:
             AppointmentService.update_appointment(
                 db=db_session,
                 appointment_id=appointment_id,
@@ -966,8 +966,8 @@ class TestAdditionalScenarios:
         appointment_id = result['appointment_id']
 
         # Patient changes to practitioner2
-        with patch.object(NotificationService, 'send_practitioner_cancellation_notification') as mock_cancel, \
-             patch.object(NotificationService, 'send_practitioner_appointment_notification') as mock_notify:
+        with patch.object(NotificationService, 'send_unified_cancellation_notification') as mock_cancel, \
+             patch.object(NotificationService, 'send_unified_appointment_notification') as mock_notify:
             AppointmentService.update_appointment(
                 db=db_session,
                 appointment_id=appointment_id,
@@ -1012,7 +1012,7 @@ class TestAdditionalScenarios:
         # Patient changes time but keeps same practitioner
         new_start_time = start_time + timedelta(hours=2)
         with patch.object(NotificationService, 'send_appointment_edit_notification') as mock_patient_notify, \
-             patch.object(NotificationService, 'send_practitioner_edit_notification') as mock_practitioner_notify:
+             patch.object(NotificationService, 'send_unified_edit_notification') as mock_practitioner_notify:
             AppointmentService.update_appointment(
                 db=db_session,
                 appointment_id=appointment_id,
@@ -1246,7 +1246,7 @@ class TestAdditionalScenarios:
         original_practitioner_id = appointment.calendar_event.user_id
 
         # Admin confirms by reassigning to same practitioner
-        with patch.object(NotificationService, 'send_practitioner_appointment_notification') as mock_notify:
+        with patch.object(NotificationService, 'send_unified_appointment_notification') as mock_notify:
             AppointmentService.update_appointment(
                 db=db_session,
                 appointment_id=appointment_id,
@@ -1397,7 +1397,7 @@ class TestAdminEditingManuallyAssignedAppointments:
         appointment_id = result['appointment_id']
 
         # Admin changes practitioner
-        with patch.object(NotificationService, 'send_practitioner_edit_notification') as mock_practitioner_notify, \
+        with patch.object(NotificationService, 'send_unified_edit_notification') as mock_practitioner_notify, \
              patch.object(NotificationService, 'send_appointment_edit_notification') as mock_patient_notify:
             AppointmentService.update_appointment(
                 db=db_session,
@@ -1448,7 +1448,7 @@ class TestAdminEditingManuallyAssignedAppointments:
 
         # Admin changes time only
         new_start_time = start_time + timedelta(hours=2)
-        with patch.object(NotificationService, 'send_practitioner_edit_notification') as mock_practitioner_notify, \
+        with patch.object(NotificationService, 'send_unified_edit_notification') as mock_practitioner_notify, \
              patch.object(NotificationService, 'send_appointment_edit_notification') as mock_patient_notify:
             AppointmentService.update_appointment(
                 db=db_session,
@@ -1499,7 +1499,7 @@ class TestAdminEditingManuallyAssignedAppointments:
 
         # Admin changes both practitioner and time
         new_start_time = start_time + timedelta(hours=2)
-        with patch.object(NotificationService, 'send_practitioner_edit_notification') as mock_practitioner_notify, \
+        with patch.object(NotificationService, 'send_unified_edit_notification') as mock_practitioner_notify, \
              patch.object(NotificationService, 'send_appointment_edit_notification') as mock_patient_notify:
             AppointmentService.update_appointment(
                 db=db_session,
@@ -1626,7 +1626,7 @@ class TestAdminEditingAutoAssignedBothChanges:
         # Admin changes both practitioner and time
         new_start_time = start_time + timedelta(hours=2)
         with patch.object(NotificationService, 'send_appointment_edit_notification') as mock_patient_notify, \
-             patch.object(NotificationService, 'send_practitioner_appointment_notification') as mock_practitioner_notify:
+             patch.object(NotificationService, 'send_unified_appointment_notification') as mock_practitioner_notify:
             AppointmentService.update_appointment(
                 db=db_session,
                 appointment_id=appointment_id,
@@ -1828,7 +1828,7 @@ class TestPatientChangingFromVisibleToAutoAssigned:
         db_session.commit()
 
         # Patient changes to auto-assigned again (old practitioner still available)
-        with patch.object(NotificationService, 'send_practitioner_appointment_notification') as mock_practitioner_notify, \
+        with patch.object(NotificationService, 'send_unified_appointment_notification') as mock_practitioner_notify, \
              patch.object(NotificationService, 'send_appointment_edit_notification') as mock_patient_notify:
             AppointmentService.update_appointment(
                 db=db_session,
@@ -1930,7 +1930,7 @@ class TestPatientChangingFromVisibleToAutoAssigned:
         db_session.commit()
 
         # Patient changes to auto-assigned again (old practitioner not available)
-        with patch.object(NotificationService, 'send_practitioner_cancellation_notification') as mock_cancel, \
+        with patch.object(NotificationService, 'send_unified_cancellation_notification') as mock_cancel, \
              patch.object(NotificationService, 'send_appointment_edit_notification') as mock_patient_notify:
             AppointmentService.update_appointment(
                 db=db_session,
@@ -2045,7 +2045,7 @@ class TestPatientCancellationNotifications:
         appointment_id = result['appointment_id']
 
         # Cancel appointment with mocked notifications
-        with patch.object(NotificationService, 'send_practitioner_cancellation_notification') as mock_practitioner_notify, \
+        with patch.object(NotificationService, 'send_unified_cancellation_notification') as mock_practitioner_notify, \
              patch.object(NotificationService, 'send_appointment_cancellation') as mock_patient_notify:
             
             AppointmentService.cancel_appointment(
@@ -2057,14 +2057,15 @@ class TestPatientCancellationNotifications:
             # Verify practitioner notification was sent
             mock_practitioner_notify.assert_called_once()
             call_args = mock_practitioner_notify.call_args
-            # Second arg is now association, not practitioner
-            from models.user_clinic_association import UserClinicAssociation
-            association = db_session.query(UserClinicAssociation).filter(
-                UserClinicAssociation.user_id == practitioner.id,
-                UserClinicAssociation.clinic_id == clinic.id
+            # Unified method signature: (db, appointment, clinic, practitioner, cancelled_by, ...)
+            # Get appointment from database to compare
+            from models import Appointment
+            db_appointment = db_session.query(Appointment).filter(
+                Appointment.calendar_event_id == appointment_id
             ).first()
-            assert call_args[0][1] == association  # Second arg is association
-            assert call_args[0][3] == clinic  # Fourth arg is clinic
+            assert call_args[0][1] == db_appointment  # Second arg is appointment
+            assert call_args[0][2] == clinic  # Third arg is clinic
+            assert call_args[0][3] == practitioner  # Fourth arg is practitioner
             assert call_args[0][4] == 'patient'  # Fifth arg is cancelled_by
 
             # Verify patient notification was NOT sent (patient-triggered cancellation)
@@ -2104,7 +2105,7 @@ class TestPatientCancellationNotifications:
         appointment_id = result['appointment_id']
 
         # Cancel appointment by clinic with mocked notifications
-        with patch.object(NotificationService, 'send_practitioner_cancellation_notification') as mock_practitioner_notify, \
+        with patch.object(NotificationService, 'send_unified_cancellation_notification') as mock_practitioner_notify, \
              patch.object(NotificationService, 'send_appointment_cancellation') as mock_patient_notify:
             
             AppointmentService.cancel_appointment(

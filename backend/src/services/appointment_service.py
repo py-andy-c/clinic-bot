@@ -298,25 +298,15 @@ class AppointmentService:
                 
                 # Send practitioner notification if NOT auto-assigned (practitioners shouldn't see auto-assigned appointments)
                 if practitioner and not was_auto_assigned:
-                    # Get association for this practitioner and clinic
-                    association = db.query(UserClinicAssociation).filter(
-                        UserClinicAssociation.user_id == practitioner.id,
-                        UserClinicAssociation.clinic_id == clinic_id,
-                        UserClinicAssociation.is_active == True
-                    ).first()
-                    if association:
-                        NotificationService.send_practitioner_appointment_notification(
-                            db, association, appointment, clinic
+                    # Send unified notification to practitioner and admins (with deduplication)
+                    try:
+                        NotificationService.send_unified_appointment_notification(
+                            db, appointment, clinic, practitioner,
+                            include_practitioner=True, include_admins=True
                         )
-                        
-                        # Send admin appointment change notification (exclude auto-assigned)
-                        try:
-                            NotificationService.send_admin_appointment_change_notification(
-                                db, appointment, clinic, change_type='new', practitioner=practitioner
-                            )
-                        except Exception as e:
-                            logger.exception(f"Failed to send admin appointment change notification: {e}")
-                            # Don't fail appointment creation if notification fails
+                    except Exception as e:
+                        logger.exception(f"Failed to send appointment notification: {e}")
+                        # Don't fail appointment creation if notification fails
 
                 # Send patient confirmation notification
                 # For clinic-triggered: send if not auto-assigned (will get reminder anyway)
@@ -1063,19 +1053,15 @@ class AppointmentService:
                     UserClinicAssociation.is_active == True
                 ).first()
                 
-                # Send practitioner cancellation notification
+                # Send unified cancellation notification to practitioner and admins (with deduplication)
                 if association:
-                    NotificationService.send_practitioner_cancellation_notification(
-                        db, association, appointment, clinic, cancelled_by
-                    )
-                    
-                    # Send admin appointment change notification (after practitioner notification)
                     try:
-                        NotificationService.send_admin_appointment_change_notification(
-                            db, appointment, clinic, change_type='cancel', practitioner=practitioner
+                        NotificationService.send_unified_cancellation_notification(
+                            db, appointment, clinic, practitioner, cancelled_by,
+                            include_practitioner=True, include_admins=True
                         )
                     except Exception as e:
-                        logger.exception(f"Failed to send admin appointment change notification: {e}")
+                        logger.exception(f"Failed to send cancellation notification: {e}")
                         # Don't fail cancellation if notification fails
                 
                 # Send patient cancellation notification
@@ -1589,16 +1575,13 @@ class AppointmentService:
                 practitioner_actually_changed):
                 # Only send cancellation if practitioner actually changed
                 from services.notification_service import NotificationService
-                from models.user_clinic_association import UserClinicAssociation
-                old_association = db.query(UserClinicAssociation).filter(
-                    UserClinicAssociation.user_id == old_practitioner.id,
-                    UserClinicAssociation.clinic_id == clinic.id,
-                    UserClinicAssociation.is_active == True
-                ).first()
-                if old_association:
-                    NotificationService.send_practitioner_cancellation_notification(
-                        db, old_association, appointment, clinic, cancelled_by='patient'
+                try:
+                    NotificationService.send_unified_cancellation_notification(
+                        db, appointment, clinic, old_practitioner, cancelled_by='patient',
+                        include_practitioner=True, include_admins=True
                     )
+                except Exception as e:
+                    logger.exception(f"Failed to send cancellation notification: {e}")
 
             # Send patient edit notification if requested
             # Skip if patient triggered the edit (they already see confirmation in UI)
@@ -1622,77 +1605,66 @@ class AppointmentService:
                 # Changing from specific practitioner to specific practitioner
                 from services.notification_service import NotificationService
                 if reassigned_by_user_id is not None:
-                    # Admin edit: use reassignment notification (notifies both old and new)
-                    # new_practitioner must not be None for reassignment notification
+                    # Admin edit: use unified edit notification (notifies both old and new practitioners and admins)
+                    # new_practitioner must not be None for edit notification
                     if new_practitioner is not None:
-                        NotificationService.send_practitioner_edit_notification(
-                            db, old_practitioner, new_practitioner, appointment, clinic
-                        )
-                        
-                        # Send admin appointment change notification (after practitioner edit notification)
+                        # Calculate old_start_time for time change detection
+                        old_start_datetime = old_start_time.replace(tzinfo=None) if old_start_time.tzinfo else old_start_time
                         try:
-                            NotificationService.send_admin_appointment_change_notification(
-                                db, appointment, clinic, change_type='edit', practitioner=new_practitioner
+                            NotificationService.send_unified_edit_notification(
+                                db, appointment, clinic, old_practitioner, new_practitioner,
+                                old_start_datetime, include_practitioner=True, include_admins=True
                             )
                         except Exception as e:
-                            logger.exception(f"Failed to send admin appointment change notification: {e}")
+                            logger.exception(f"Failed to send edit notification: {e}")
                             # Don't fail update if notification fails
                 else:
                     # Patient edit: old receives cancellation, new receives appointment
-                    from models.user_clinic_association import UserClinicAssociation
+                    # Use unified methods but send separately (different event types)
                     if old_practitioner:
                         # Old practitioner receives cancellation notification (as if patient cancelled)
-                        old_association = db.query(UserClinicAssociation).filter(
-                            UserClinicAssociation.user_id == old_practitioner.id,
-                            UserClinicAssociation.clinic_id == clinic.id,
-                            UserClinicAssociation.is_active == True
-                        ).first()
-                        if old_association:
-                            NotificationService.send_practitioner_cancellation_notification(
-                                db, old_association, appointment, clinic, cancelled_by='patient'
+                        try:
+                            NotificationService.send_unified_cancellation_notification(
+                                db, appointment, clinic, old_practitioner, cancelled_by='patient',
+                                include_practitioner=True, include_admins=True
                             )
+                        except Exception as e:
+                            logger.exception(f"Failed to send cancellation notification: {e}")
                     if new_practitioner:
                         # New practitioner receives appointment notification (as if patient just made appointment)
-                        new_association = db.query(UserClinicAssociation).filter(
-                            UserClinicAssociation.user_id == new_practitioner.id,
-                            UserClinicAssociation.clinic_id == clinic.id,
-                            UserClinicAssociation.is_active == True
-                        ).first()
-                        if new_association:
-                            NotificationService.send_practitioner_appointment_notification(
-                                db, new_association, appointment, clinic
+                        try:
+                            NotificationService.send_unified_appointment_notification(
+                                db, appointment, clinic, new_practitioner,
+                                include_practitioner=True, include_admins=True
                             )
+                        except Exception as e:
+                            logger.exception(f"Failed to send appointment notification: {e}")
             # Case 2: Auto-assigned becomes visible (due to recency limit being reached during reschedule)
             elif old_is_auto_assigned and not appointment.is_auto_assigned and new_practitioner is not None:
-                # Was auto-assigned: use standard appointment notification (as if patient booked directly)
+                # Was auto-assigned: use unified appointment notification (as if patient booked directly)
                 from services.notification_service import NotificationService
-                from models.user_clinic_association import UserClinicAssociation
-                new_association = db.query(UserClinicAssociation).filter(
-                    UserClinicAssociation.user_id == new_practitioner.id,
-                    UserClinicAssociation.clinic_id == clinic.id,
-                    UserClinicAssociation.is_active == True
-                ).first()
-                if new_association:
-                    NotificationService.send_practitioner_appointment_notification(
-                        db, new_association, appointment, clinic
+                try:
+                    NotificationService.send_unified_appointment_notification(
+                        db, appointment, clinic, new_practitioner,
+                        include_practitioner=True, include_admins=True
                     )
+                except Exception as e:
+                    logger.exception(f"Failed to send appointment notification: {e}")
             # Case 3: Time changed but practitioner didn't change (and was manually assigned)
             # - Practitioner should receive notification about time change
             elif time_actually_changed and not practitioner_actually_changed and not old_is_auto_assigned and old_practitioner:
                 # Time changed but same practitioner (was manually assigned)
-                # Send reassignment notification to notify about time change
+                # Send unified edit notification to practitioner and admins (with deduplication)
                 from services.notification_service import NotificationService
-                NotificationService.send_practitioner_edit_notification(
-                    db, old_practitioner, old_practitioner, appointment, clinic
-                )
-                
-                # Send admin appointment change notification (after practitioner edit notification)
+                # Calculate old_start_time for time change detection
+                old_start_datetime = old_start_time.replace(tzinfo=None) if old_start_time.tzinfo else old_start_time
                 try:
-                    NotificationService.send_admin_appointment_change_notification(
-                        db, appointment, clinic, change_type='edit', practitioner=old_practitioner
+                    NotificationService.send_unified_edit_notification(
+                        db, appointment, clinic, old_practitioner, old_practitioner,
+                        old_start_datetime, include_practitioner=True, include_admins=True
                     )
                 except Exception as e:
-                    logger.exception(f"Failed to send admin appointment change notification: {e}")
+                    logger.exception(f"Failed to send edit notification: {e}")
                     # Don't fail update if notification fails
         except Exception as e:
             # Log but don't fail - notification failure shouldn't block update

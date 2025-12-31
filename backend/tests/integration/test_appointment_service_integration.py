@@ -415,7 +415,7 @@ class TestAppointmentServiceIntegration:
         db_session.refresh(appointment)  # Refresh to ensure appointment.patient_id is set
 
         # Cancel appointment with mocked notifications
-        with patch.object(NotificationService, 'send_practitioner_cancellation_notification') as mock_practitioner_notify, \
+        with patch.object(NotificationService, 'send_unified_cancellation_notification') as mock_practitioner_notify, \
              patch.object(NotificationService, 'send_appointment_cancellation') as mock_patient_notify:
             
             result = AppointmentService.cancel_appointment(
@@ -433,14 +433,10 @@ class TestAppointmentServiceIntegration:
             # Verify practitioner notification was sent
             mock_practitioner_notify.assert_called_once()
             call_args = mock_practitioner_notify.call_args
-            # Second arg is now association, not practitioner
-            from models.user_clinic_association import UserClinicAssociation
-            association = db_session.query(UserClinicAssociation).filter(
-                UserClinicAssociation.user_id == practitioner.id,
-                UserClinicAssociation.clinic_id == clinic.id
-            ).first()
-            assert call_args[0][1] == association  # Second arg is association
-            assert call_args[0][3] == clinic  # Fourth arg is clinic
+            # Unified method signature: (db, appointment, clinic, practitioner, cancelled_by, ...)
+            assert call_args[0][1] == appointment  # Second arg is appointment
+            assert call_args[0][2] == clinic  # Third arg is clinic
+            assert call_args[0][3] == practitioner  # Fourth arg is practitioner
             assert call_args[0][4] == 'patient'  # Fifth arg is cancelled_by
 
             # Verify patient notification was NOT sent (patient cancelled themselves, they already know)
