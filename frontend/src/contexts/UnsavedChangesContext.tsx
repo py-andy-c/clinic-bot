@@ -7,6 +7,7 @@ interface UnsavedChangesContextType {
 
 const UnsavedChangesContext = createContext<UnsavedChangesContextType | undefined>(undefined);
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useUnsavedChanges = () => {
   const context = useContext(UnsavedChangesContext);
   if (context === undefined) {

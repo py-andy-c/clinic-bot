@@ -47,6 +47,7 @@ export const TimeRangePresets: React.FC<TimeRangePresetsProps> = ({
 /**
  * Calculate date range for a preset
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export function getDateRangeForPreset(preset: TimeRangePreset): { startDate: string; endDate: string } {
   let startDate: moment.Moment;
   let endDate: moment.Moment;
@@ -79,6 +80,7 @@ export function getDateRangeForPreset(preset: TimeRangePreset): { startDate: str
 /**
  * Detect which preset matches the given date range
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export function detectPresetFromDates(startDate: string, endDate: string): TimeRangePreset | null {
   // Check each preset to see if it matches
   const presets: TimeRangePreset[] = ['month', '3months', '6months', 'year'];

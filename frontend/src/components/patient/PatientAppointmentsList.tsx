@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useMemo } from "react";
 import {
   useApiData,
   invalidateCacheForFunction,
@@ -149,7 +149,7 @@ export const PatientAppointmentsList: React.FC<
     // Cache key now includes patientId via dependencies, so caching is safe
   });
 
-  const allAppointments = data?.appointments || [];
+  const allAppointments = useMemo(() => data?.appointments || [], [data?.appointments]);
 
   // Helper function to check if event data has changed
   const hasEventDataChanged = useCallback(

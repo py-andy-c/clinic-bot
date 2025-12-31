@@ -342,6 +342,9 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     return false;
   }, []);
 
+  // Extract the current event ID for dependency tracking
+  const currentEventId = modalState.data && !Array.isArray(modalState.data) ? modalState.data.resource?.calendar_event_id : undefined;
+
   // Sync modalState with updated calendar events after refresh
   useEffect(() => {
     if (modalState.type === 'event' && modalState.data && !Array.isArray(modalState.data) && modalState.data.resource?.calendar_event_id) {
@@ -353,7 +356,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
         setModalState(prev => ({ ...prev, data: updatedEvent }));
       }
     }
-  }, [calendarEvents, modalState.type, modalState.data && !Array.isArray(modalState.data) ? modalState.data.resource?.calendar_event_id : undefined, modalState.data, hasEventChanged]); // Sync when calendarEvents updates (after refresh)
+  }, [calendarEvents, modalState.type, currentEventId, modalState.data, hasEventChanged]); // Sync when calendarEvents updates (after refresh)
 
   // Sync column widths between header and event columns for proper alignment in week view
   // This must be after calendarEvents is declared

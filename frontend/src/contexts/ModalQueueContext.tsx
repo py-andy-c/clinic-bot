@@ -57,6 +57,7 @@ interface ModalQueueContextType {
 
 const ModalQueueContext = createContext<ModalQueueContextType | undefined>(undefined);
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useModalQueue = () => {
   const context = useContext(ModalQueueContext);
   if (context === undefined) {
