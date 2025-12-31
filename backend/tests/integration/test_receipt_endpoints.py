@@ -11,6 +11,7 @@ from models import Clinic, User, Patient, AppointmentType, Appointment, Calendar
 from models.user_clinic_association import UserClinicAssociation
 from services.receipt_service import ReceiptService
 from services.billing_scenario_service import BillingScenarioService
+from utils.datetime_utils import taiwan_now
 
 
 class TestCheckoutEndpoint:
@@ -110,7 +111,7 @@ class TestCheckoutEndpoint:
         db_session.commit()
         
         assert receipt is not None
-        assert receipt.receipt_number.startswith(str(datetime.now(timezone.utc).year))
+        assert receipt.receipt_number.startswith(str(taiwan_now().year))
         assert receipt.total_amount == Decimal("1000.00")
         assert receipt.total_revenue_share == Decimal("300.00")
         assert receipt.is_voided is False

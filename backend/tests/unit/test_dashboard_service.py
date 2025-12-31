@@ -6,6 +6,7 @@ Tests for dashboard metrics and statistics calculation.
 
 import pytest
 from datetime import date, datetime, time, timedelta
+from calendar import monthrange
 from sqlalchemy.orm import Session
 
 from models.clinic import Clinic
@@ -319,16 +320,38 @@ class TestDashboardServiceNewPatients:
         db_session.commit()
         
         # Create patients in current month
+        # Use specific dates within the current month to avoid edge cases
+        # at month boundaries
         now = taiwan_now()
+        current_year = now.year
+        current_month = now.month
+        
+        # Create patients on the 15th and 20th of the current month
+        # This ensures they're always in the current month regardless of what day it is
+        _, last_day = monthrange(current_year, current_month)
+        # Use day 15 and min(20, last_day) to ensure valid dates
+        day1 = min(15, last_day)
+        day2 = min(20, last_day)
+        
+        patient1_created_at = datetime.combine(
+            date(current_year, current_month, day1),
+            datetime.min.time()
+        ).replace(tzinfo=TAIWAN_TZ)
+        
+        patient2_created_at = datetime.combine(
+            date(current_year, current_month, day2),
+            datetime.min.time()
+        ).replace(tzinfo=TAIWAN_TZ)
+        
         patient1 = Patient(
             clinic_id=clinic.id,
             full_name="Patient 1",
-            created_at=now - timedelta(days=5)
+            created_at=patient1_created_at
         )
         patient2 = Patient(
             clinic_id=clinic.id,
             full_name="Patient 2",
-            created_at=now - timedelta(days=1)
+            created_at=patient2_created_at
         )
         db_session.add(patient1)
         db_session.add(patient2)
