@@ -47,18 +47,10 @@ export interface MonthlyCalendarEvent {
 /**
  * Transform API calendar events to React Big Calendar format
  */
-export const transformToCalendarEvents = (apiEvents: ApiCalendarEvent[]): CalendarEvent[] => {
+export const transformToCalendarEvents = (apiEvents: ApiCalendarEvent[]): any[] => {
   const taiwanTimezone = 'Asia/Taipei';
   
   return apiEvents.map(event => {
-    // Create dates in Taiwan timezone
-    const eventDate = extendedEvent.date || '';
-    const startDateTime = moment.tz(`${eventDate}T${event.start_time || '00:00'}`, taiwanTimezone);
-    const endDateTime = moment.tz(`${eventDate}T${event.end_time || '23:59'}`, taiwanTimezone);
-    
-    // For resource events, use composite ID to ensure unique React keys
-    // Format: calendar_event_id-resource-{resource_id}
-    const eventId = event.calendar_event_id;
     // Extended event type to include all possible fields from API
     type ExtendedApiCalendarEvent = ApiCalendarEvent & {
       date?: string;
@@ -75,8 +67,18 @@ export const transformToCalendarEvents = (apiEvents: ApiCalendarEvent[]): Calend
       is_resource_event?: boolean;
       resource_id?: number;
       resource_name?: string;
+      clinic_notes?: string;
     };
     const extendedEvent = event as ExtendedApiCalendarEvent;
+
+    // Create dates in Taiwan timezone
+    const eventDate = extendedEvent.date || '';
+    const startDateTime = moment.tz(`${eventDate}T${event.start_time || '00:00'}`, taiwanTimezone);
+    const endDateTime = moment.tz(`${eventDate}T${event.end_time || '23:59'}`, taiwanTimezone);
+
+    // For resource events, use composite ID to ensure unique React keys
+    // Format: calendar_event_id-resource-{resource_id}
+    const eventId = event.calendar_event_id;
     const isResourceEvent = extendedEvent.is_resource_event === true;
     const resourceId = extendedEvent.resource_id;
     const uniqueId = isResourceEvent && resourceId

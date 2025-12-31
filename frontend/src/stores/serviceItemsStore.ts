@@ -674,7 +674,8 @@ export const useServiceItemsStore = create<ServiceItemsState>((set, get) => ({
             await apiService.deleteResourceRequirement(realServiceItemId, originalReq.id);
           } catch (err: unknown) {
             // Handle 404 gracefully - requirement might already be deleted
-            if (err?.response?.status === 404) {
+            const axiosError = err as { response?: { status?: number } };
+            if (axiosError?.response?.status === 404) {
               // Don't add to errors - it's already deleted, which is what we want
             } else {
               const errorMsg = `刪除資源需求失敗：${err instanceof Error ? err.message : '未知錯誤'}`;
