@@ -225,8 +225,8 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
       try {
         const stored = sessionStorage.getItem('preSelectedPatientData');
         if (stored) {
-          const data = JSON.parse(stored);
-          if (data.id === selectedPatientId) {
+          const data = JSON.parse(stored) as unknown;
+          if (data && typeof data === 'object' && 'id' in data && (data as { id: number }).id === selectedPatientId) {
             return data as Patient;
           }
         }
