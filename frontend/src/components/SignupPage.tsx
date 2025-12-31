@@ -138,7 +138,7 @@ const SignupPage: React.FC<SignupPageProps> = ({
         } else {
           setError(detail);
         }
-      } else if (err.response?.status === 403) {
+      } else if (axiosError.response?.status === 403) {
         setError('您沒有權限加入此診所');
       } else {
         setError('加入診所失敗，請稍後再試');

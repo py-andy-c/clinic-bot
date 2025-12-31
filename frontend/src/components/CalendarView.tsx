@@ -869,10 +869,11 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     } catch (err: unknown) {
       // Remove from in-flight requests on error
       inFlightBatchRequestsRef.current.delete(cacheKey);
-      
+
       // Handle 404 errors gracefully - these can occur when switching clinics
       // with stale practitioner/resource IDs that don't exist in the new clinic
-      if (err?.response?.status === 404) {
+      const axiosError = err as { response?: { status?: number } };
+      if (axiosError?.response?.status === 404) {
         // Clear events and silently continue - the next fetch with correct IDs will succeed
         setAllEvents([]);
         setError(null);

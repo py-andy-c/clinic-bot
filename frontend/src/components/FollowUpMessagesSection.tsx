@@ -84,7 +84,8 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
       onUpdate({ ...appointmentType, follow_up_messages: messages });
     } catch (error: unknown) {
       logger.error('Failed to load follow-up messages:', error);
-      const errorMessage = error?.response?.data?.detail || '無法載入追蹤訊息';
+      const axiosError = error as { response?: { data?: { detail?: string } } };
+      const errorMessage = axiosError?.response?.data?.detail || '無法載入追蹤訊息';
       await alert(errorMessage, '載入失敗');
       // Set empty list on error so UI shows empty state
       setFollowUpMessages([]);

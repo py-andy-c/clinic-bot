@@ -93,9 +93,10 @@ const NameConfirmationPage: React.FC = () => {
       window.location.href = response.redirect_url;
     } catch (err: unknown) {
       logger.error('Name confirmation error:', err);
-      if (err.response?.status === 400) {
-        setError(err.response.data.detail || '姓名確認失敗');
-      } else if (err.response?.status === 401) {
+      const axiosError = err as { response?: { status?: number; data?: { detail?: string } } };
+      if (axiosError.response?.status === 400) {
+        setError(axiosError.response.data?.detail || '姓名確認失敗');
+      } else if (axiosError.response?.status === 401) {
         setError('確認令牌已過期，請重新註冊');
       } else {
         setError('姓名確認失敗，請稍後再試');

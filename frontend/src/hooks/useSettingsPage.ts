@@ -137,10 +137,11 @@ export const useSettingsPage = <T extends Record<string, unknown>>(
     } catch (err: unknown) {
       logger.error('Save settings error:', err);
       // Extract error message from response
-      const errorMessage = err.response?.data?.detail || err.response?.data?.message || err.message || '儲存設定失敗，請稍後再試';
+      const axiosError = err as { response?: { data?: { detail?: string; message?: string }; status?: number }; message?: string };
+      const errorMessage = axiosError.response?.data?.detail || axiosError.response?.data?.message || axiosError.message || '儲存設定失敗，請稍後再試';
       logger.error('Error details:', {
-        status: err.response?.status,
-        data: err.response?.data,
+        status: axiosError.response?.status,
+        data: axiosError.response?.data,
         message: errorMessage
       });
 

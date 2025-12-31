@@ -150,9 +150,10 @@ export const ChatTestModal: React.FC<ChatTestModalProps> = ({
       clearTimeout(timeoutId);
 
       // Log error for debugging
-      if (err?.response) {
+      const axiosError = err as { response?: { status?: number; data?: any } };
+      if (axiosError?.response) {
         // Axios error with response
-        logger.error('Chat test API error:', err.response.status, err.response.data);
+        logger.error('Chat test API error:', axiosError.response.status, axiosError.response.data);
       } else {
         // Other error
         logger.error('Chat test error:', err);

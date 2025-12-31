@@ -309,7 +309,8 @@ const AddNotification: React.FC = () => {
       navigate(newUrl);
     } catch (err: unknown) {
       logger.error('Failed to create notification:', err);
-      const errorMessage = err.response?.data?.detail || t('notifications.add.createFailed');
+      const axiosError = err as { response?: { data?: { detail?: string } } };
+      const errorMessage = axiosError.response?.data?.detail || t('notifications.add.createFailed');
       setError(errorMessage);
     } finally {
       setIsSubmitting(false);
