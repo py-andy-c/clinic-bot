@@ -529,7 +529,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
             return { ...occ, hasConflict: false, conflictInfo: null };
           }
           
-          const conflictInfo = convertConflictStatusToResponse(conflictStatus);
+          const conflictInfo = convertConflictStatusToResponse(conflictStatus as Partial<SchedulingConflictResponse>);
           
           return {
             ...occ,
@@ -1063,8 +1063,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
                           return;
                         }
                         // Type assertion: conflictStatus matches Partial<SchedulingConflictResponse> structure
-                        
-                        const conflictInfo = convertConflictStatusToResponse(conflictStatus);
+                        const conflictInfo = convertConflictStatusToResponse(conflictStatus as Partial<SchedulingConflictResponse>);
                         setOccurrences(occurrences.map(o => o.id === occ.id ? {
                           ...o, date, time, 
                           hasConflict: conflictStatus.has_conflict || false,
