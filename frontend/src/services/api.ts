@@ -570,7 +570,7 @@ export class ApiService {
     return response.data;
   }
 
-  async voidReceipt(receiptId: number, reason: string): Promise<any> {
+  async voidReceipt(receiptId: number, reason: string): Promise<{ success: boolean; message?: string }> {
     const response = await this.client.post(`/receipts/${receiptId}/void`, {
       reason: reason,
     });
@@ -894,7 +894,7 @@ export class ApiService {
     return response.data;
   }
 
-  async updatePractitionerSettings(userId: number, settings: Record<string, any>): Promise<{ success: boolean; message: string }> {
+  async updatePractitionerSettings(userId: number, settings: Record<string, unknown>): Promise<{ success: boolean; message: string }> {
     const response = await this.client.put(`/clinic/practitioners/${userId}/settings`, {
       settings
     });
@@ -926,12 +926,12 @@ export class ApiService {
   }
 
   // Profile Management APIs
-  async getProfile(): Promise<any> {
+  async getProfile(): Promise<{ full_name: string; title?: string; settings?: { [key: string]: unknown } | null; roles?: string[]; line_linked?: boolean; user_type?: string; schedule?: Record<string, unknown> }> {
     const response = await this.client.get('/profile');
     return response.data;
   }
 
-  async updateProfile(profileData: { full_name?: string; settings?: { compact_schedule_enabled?: boolean } }): Promise<any> {
+  async updateProfile(profileData: { full_name?: string; settings?: { compact_schedule_enabled?: boolean } }): Promise<{ full_name: string; title?: string; settings?: { [key: string]: unknown } | null; roles?: string[]; line_linked?: boolean; user_type?: string }> {
     const response = await this.client.put('/profile', profileData);
     return response.data;
   }

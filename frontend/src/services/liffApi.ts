@@ -262,7 +262,7 @@ class LiffApiService {
     return response.data;
   }
 
-  async getAppointmentReceipt(appointmentId: number): Promise<any> {
+  async getAppointmentReceipt(appointmentId: number): Promise<{ receipt_id: number; void_info?: { voided: boolean; reason: string | null; voided_at: string | null; voided_by: string | null } | null }> {
     const response = await this.client.get(`/liff/appointments/${appointmentId}/receipt`);
     return response.data;
   }

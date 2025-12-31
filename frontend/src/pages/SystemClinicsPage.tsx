@@ -433,7 +433,7 @@ const SystemClinicsPage: React.FC = () => {
                   {isEditing ? (
                     <select
                       value={editingClinic.subscription_status || selectedClinic.subscription_status}
-                      onChange={(e) => setEditingClinic({ ...editingClinic, subscription_status: e.target.value as any })}
+                      onChange={(e) => setEditingClinic({ ...editingClinic, subscription_status: e.target.value as 'trial' | 'active' | 'past_due' | 'canceled' })}
                       className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
                     >
                       <option value="trial">試用</option>

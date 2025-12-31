@@ -181,7 +181,7 @@ const ProfilePage: React.FC = () => {
   }, []);
 
   // Profile state for display (set from useSettingsPage fetchData)
-  const [profile, setProfile] = React.useState<any>(null);
+  const [profile, setProfile] = React.useState<{ full_name?: string; title?: string; settings?: PractitionerSettings; roles?: string[]; line_linked?: boolean; user_type?: string; schedule?: Record<string, TimeInterval[]> } | null>(null);
 
   const {
     data: profileData,

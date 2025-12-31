@@ -112,7 +112,7 @@ export const useAppointmentForm = ({
         }
 
         // Parallel data fetching: Practitioners filtered by type and Original Resources
-        const fetchTasks: Promise<any>[] = [];
+        const fetchTasks: Promise<unknown>[] = [];
         const signal = abortControllerRef.current?.signal;
         
         // 1. Fetch practitioners for the appointment type

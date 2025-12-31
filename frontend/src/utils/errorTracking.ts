@@ -63,7 +63,7 @@ export const errorTracking: ErrorTrackingService = {
   /**
    * Capture an exception
    */
-  captureException: (error: Error, context?: Record<string, any>) => {
+  captureException: (error: Error, context?: Record<string, unknown>) => {
     if (!isSentryAvailable()) {
       // Fallback to console logging
       if (import.meta.env.DEV) {
