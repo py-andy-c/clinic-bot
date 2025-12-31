@@ -1209,7 +1209,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
 
       if (conflictingAppointments.length > 0) {
         // Show conflict modal with list of conflicting appointments
-        setModalState({ type: 'conflict', data: conflictingAppointments as any });
+        setModalState({ type: 'conflict', data: conflictingAppointments });
         return;
       }
 

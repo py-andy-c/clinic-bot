@@ -5,7 +5,7 @@ import { logger } from '../../utils/logger';
 import { LoadingSpinner, ErrorMessage, DateInput } from '../../components/shared';
 import { formatDateForApi, convertApiDateToDisplay } from '../../utils/dateFormat';
 import { validatePhoneNumber } from '../../utils/phoneValidation';
-import { getErrorMessage, AxiosErrorResponse, ApiErrorType } from '../../types';
+import { getErrorMessage, AxiosErrorResponse } from '../../types';
 import { useAppointmentStore } from '../../stores/appointmentStore';
 import { liffApiService } from '../../services/liffApi';
 import { useModal } from '../../contexts/ModalContext';
@@ -77,7 +77,7 @@ const PatientManagement: React.FC = () => {
       // Reload patients to get the full data including phone number
       await loadPatients();
       setShowAddForm(false);
-    } catch (err: ApiErrorType) {
+    } catch (err: unknown) {
       logger.error('Failed to add patient:', err);
       setError(getErrorMessage(err));
       throw err; // Re-throw so PatientForm can handle it
@@ -140,7 +140,7 @@ const PatientManagement: React.FC = () => {
       // Reload patients to get updated data
       await loadPatients();
       setEditingPatientId(null);
-    } catch (err: ApiErrorType) {
+    } catch (err: unknown) {
       logger.error('Failed to update patient:', err);
       
       setError(getErrorMessage(err));
@@ -166,7 +166,7 @@ const PatientManagement: React.FC = () => {
     try {
       await liffApiService.deletePatient(patientId);
       setPatients(prev => prev.filter(p => p.id !== patientId));
-    } catch (err: ApiErrorType) {
+    } catch (err: unknown) {
       logger.error('Failed to delete patient:', err);
 
       // Handle specific error cases - use type guard for Axios error with response

@@ -5,6 +5,93 @@ export interface ApiResponse<T = unknown> {
   message?: string;
 }
 
+// Batch API Response types for calendar operations
+export interface BatchCalendarResult {
+  user_id: number;
+  date: string;
+  events: ApiCalendarEvent[];
+  default_schedule?: TimeInterval[];
+}
+
+export interface BatchCalendarResponse {
+  results: BatchCalendarResult[];
+}
+
+export type BatchCalendarPromise = Promise<BatchCalendarResponse>;
+
+// Conflict and scheduling types
+export interface ResourceConflict {
+  resource_type_name: string;
+  required_quantity: number;
+  total_resources?: number;
+  allocated_count?: number;
+  available_quantity?: number;
+}
+
+export interface SchedulingConflict {
+  has_conflict: boolean;
+  conflict_type: 'appointment' | 'exception' | 'resource' | null;
+  appointment_conflict?: {
+    appointment_id: number;
+    patient_name: string;
+    start_time: string;
+    end_time: string;
+    appointment_type: string;
+  };
+  exception_conflict?: {
+    exception_id: number;
+    reason: string;
+    start_time: string;
+    end_time: string;
+  };
+  resource_conflicts?: ResourceConflict[];
+}
+
+// Form data types for complex forms
+export interface FormDataWithOptional<T> {
+  [key: string]: T | undefined | null;
+}
+
+// API Error response types
+export interface ApiErrorDetail {
+  error?: string;
+  detail?: string | { error?: string; appointment_types?: string[]; practitioners?: string[] };
+  appointment_types?: string[];
+  practitioners?: string[];
+}
+
+export interface AxiosErrorResponse {
+  response?: {
+    status?: number;
+    data?: ApiErrorDetail;
+  };
+  message?: string;
+  name?: string;
+}
+
+// External library types
+export interface LiffProfile {
+  userId: string;
+  displayName: string;
+  pictureUrl?: string;
+  statusMessage?: string;
+}
+
+export interface LiffLoginRequest {
+  [key: string]: unknown;
+  line_user_id: string;
+  display_name: string;
+}
+
+// Profile response type
+export interface ProfileResponse {
+  id?: number;
+  full_name?: string;
+  title?: string;
+  settings?: Record<string, unknown>;
+  schedule?: Record<string, TimeInterval[]>;
+}
+
 // User roles and types
 export type UserRole = 'admin' | 'practitioner';
 export type UserType = 'system_admin' | 'clinic_user';
@@ -471,6 +558,11 @@ export interface ApiCalendarEvent {
   patient_name?: string;
   practitioner_name?: string;
   appointment_type_name?: string;
+}
+
+// Type guards and utility types
+export function isAppointmentEvent(event: ApiCalendarEvent): event is ApiCalendarEvent & { type: 'appointment'; appointment_id: number } {
+  return event.type === 'appointment' && event.appointment_id !== undefined;
 }
 
 export interface ApiDailyCalendarData {
