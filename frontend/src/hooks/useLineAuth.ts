@@ -344,7 +344,7 @@ export const useLineAuth = (lineProfile: { userId: string; displayName: string; 
         // This check compares URL identifier (liff_id or clinic_token) with JWT identifier to prevent cross-clinic access
         // DO NOT REMOVE - this is the last line of defense against clinic isolation violations
         // See validateClinicIsolation function documentation for why this is critical
-        if (!validateClinicIsolation(token, liff)) {
+        if (!validateClinicIsolation(token, liff as any)) {
           logger.error(
             'CRITICAL: Clinic isolation validation failed - URL identifier does not match JWT identifier. ' +
             'Clearing token and forcing re-authentication to prevent cross-clinic data access.'
@@ -365,7 +365,7 @@ export const useLineAuth = (lineProfile: { userId: string; displayName: string; 
       if (checkCancelled?.()) return;
 
       try {
-        await performAuthentication(lineProfile.userId, lineProfile.displayName, liffAccessToken, lineProfile.pictureUrl, liff, checkCancelled);
+        await performAuthentication(lineProfile.userId, lineProfile.displayName, liffAccessToken, lineProfile.pictureUrl, liff as any, checkCancelled);
       } catch (err) {
         if (checkCancelled?.()) return;
           logger.error('LINE authentication failed:', err);

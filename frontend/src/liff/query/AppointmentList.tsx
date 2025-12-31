@@ -84,11 +84,6 @@ const AppointmentList: React.FC = () => {
     };
   }, [viewingReceipt]);
 
-  useEffect(() => {
-    loadAppointments();
-    loadClinicInfo();
-  }, [loadAppointments]);
-
   const loadClinicInfo = async () => {
     try {
       const clinicInfo = await liffApiService.getClinicInfo();

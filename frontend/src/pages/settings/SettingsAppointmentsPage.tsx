@@ -65,7 +65,7 @@ const SettingsAppointmentsPage: React.FC = () => {
   useUnsavedChangesDetection({ hasUnsavedChanges: () => isDirty });
 
   const onInvalid = (errors: Record<string, unknown>) => {
-    scrollOnError(errors, methods as any);
+    scrollOnError(errors as any, methods as any);
   };
 
   // Sync form with settings data when it loads
@@ -164,7 +164,7 @@ const SettingsAppointmentsPage: React.FC = () => {
             isSavingRef.current = false;
             pendingFormDataRef.current = null;
             setSavingPractitionerSettings(false);
-            handleBackendError(err, methods);
+            handleBackendError(err, methods as any);
           }
         };
         performSave();
@@ -293,7 +293,7 @@ const SettingsAppointmentsPage: React.FC = () => {
         {isDirty && (
           <button
             type="button"
-            onClick={handleSubmit(onFormSubmit, onInvalid)}
+            onClick={handleSubmit(onFormSubmit as any, onInvalid)}
             disabled={uiState.saving || savingPractitionerSettings}
             className="btn-primary text-sm px-4 py-2"
           >
@@ -301,7 +301,7 @@ const SettingsAppointmentsPage: React.FC = () => {
           </button>
         )}
       </div>
-      <form onSubmit={handleSubmit(onFormSubmit, onInvalid)} className="space-y-4">
+      <form onSubmit={handleSubmit(onFormSubmit as any, onInvalid)} className="space-y-4">
         <div className="bg-white md:rounded-xl md:border md:border-gray-100 md:shadow-sm p-0 md:p-6">
           <ClinicAppointmentSettings isClinicAdmin={isClinicAdmin} />
 

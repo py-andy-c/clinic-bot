@@ -88,7 +88,7 @@ const SettingsRemindersPage: React.FC = () => {
   }, [settings?.notification_settings]);
 
   const onInvalid = (errors: Record<string, unknown>) => {
-    scrollOnError(errors, methods as any);
+    scrollOnError(errors as any, methods as any);
   };
 
   const onFormSubmit = async (data: RemindersSettingsFormData) => {

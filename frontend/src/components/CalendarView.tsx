@@ -1794,9 +1794,9 @@ const CalendarView: React.FC<CalendarViewProps> = ({
           key={`create-${createModalKey}`}
           // null from button click → undefined (no patient), number from URL → use it, undefined → fall back to prop
           preSelectedPatientId={
-            modalState.data.patientId === null 
-              ? undefined 
-              : modalState.data.patientId ?? preSelectedPatientId
+            (modalState.data as any).patient_id === null
+              ? undefined
+              : (modalState.data as any).patient_id ?? preSelectedPatientId
           }
           initialDate={modalState.data.initialDate || null}
           preSelectedAppointmentTypeId={modalState.data.preSelectedAppointmentTypeId}
