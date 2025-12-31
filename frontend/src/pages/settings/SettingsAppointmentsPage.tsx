@@ -65,7 +65,7 @@ const SettingsAppointmentsPage: React.FC = () => {
   useUnsavedChangesDetection({ hasUnsavedChanges: () => isDirty });
 
   const onInvalid = (errors: Record<string, unknown>) => {
-    scrollOnError(errors, methods);
+    scrollOnError(errors, methods as any);
   };
 
   // Sync form with settings data when it loads

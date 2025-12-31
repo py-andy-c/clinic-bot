@@ -92,8 +92,9 @@ export const SettingsProvider: React.FC<SettingsProviderProps> = ({ children }) 
         await apiService.updateClinicSettings(settingsToSave);
       } catch (error: unknown) {
         // Handle appointment type deletion error
-        if (error.response?.status === 400 && error.response?.data?.detail?.error === 'cannot_delete_appointment_types') {
-          const errorDetail = error.response.data.detail;
+        const axiosError = error as any;
+        if (axiosError.response?.status === 400 && axiosError.response?.data?.detail?.error === 'cannot_delete_appointment_types') {
+          const errorDetail = axiosError.response.data.detail;
           // For simplicity, show only the first blocked appointment type
           // (in practice, this usually happens one at a time)
           const blockedType = errorDetail.appointment_types[0];

@@ -141,8 +141,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           user_id: (payload.user_id as number) || 0,  // Database user ID (now included in JWT)
           email: (payload.email as string) || '',
           full_name: (payload.name as string) || '',
-          user_type: (payload.user_type as string) || 'clinic_user',
-          roles: (payload.roles as string[]) || [],
+          user_type: (payload.user_type as UserType) || 'clinic_user',
+          roles: (payload.roles as UserRole[]) || [],
           active_clinic_id: (payload.active_clinic_id as number | null) ?? null,
         };
         
@@ -250,8 +250,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               user_id: (payload.user_id as number) || 0,  // Database user ID (now included in JWT)
               email: (payload.email as string) || '',
               full_name: (payload.name as string) || '',
-              user_type: (payload.user_type as string) || 'clinic_user',
-              roles: (payload.roles as string[]) || [],
+              user_type: (payload.user_type as UserType) || 'clinic_user',
+              roles: (payload.roles as UserRole[]) || [],
               active_clinic_id: (payload.active_clinic_id as number | null) ?? null,
             };
             

@@ -1250,10 +1250,10 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     setCancellationPreviewLoading(true);
     try {
       const response = await apiService.generateCancellationPreview({
-        appointment_type: modalState.data.resource.appointment_type_name,
+        appointment_type: modalState.data.resource.appointment_type_name || '',
         appointment_time: formatAppointmentTimeRange(modalState.data.start, modalState.data.end),
-        therapist_name: modalState.data.resource.practitioner_name,
-        patient_name: modalState.data.resource.patient_name,
+        therapist_name: modalState.data.resource.practitioner_name || '',
+        patient_name: modalState.data.resource.patient_name || '',
         ...(cancellationNote.trim() && { note: cancellationNote.trim() }),
       });
 
