@@ -74,7 +74,7 @@ const SettingsResourcesPage: React.FC = () => {
 
   const onFormSubmit = async (data: ResourcesSettingsFormData) => {
     // Sync RHF state to store before saving
-    useResourcesStore.getState().syncFromRHF(data);
+    useResourcesStore.getState().syncFromRHF(data as any);
     
     const success = await saveAll();
     if (success) {

@@ -95,7 +95,7 @@ const SettingsAppointmentsPage: React.FC = () => {
           settings_page_instructions: settings.clinic_info_settings.settings_page_instructions || '',
           notifications_page_instructions: settings.clinic_info_settings.notifications_page_instructions || '',
         },
-        booking_restriction_settings: settings.booking_restriction_settings,
+        booking_restriction_settings: settings.booking_restriction_settings as any,
         practitioners,
       });
     }
@@ -234,7 +234,7 @@ const SettingsAppointmentsPage: React.FC = () => {
           ...settings?.clinic_info_settings,
           ...normalizedClinicInfo,
         },
-        booking_restriction_settings: normalizedBookingSettings,
+        booking_restriction_settings: normalizedBookingSettings as any,
       });
 
       // 2. Save practitioner settings

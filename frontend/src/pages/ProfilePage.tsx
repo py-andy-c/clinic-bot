@@ -305,17 +305,17 @@ const ProfilePage: React.FC = () => {
       // Save profile changes if any
       if (Object.keys(profileUpdate).length > 0) {
         const updatedProfile = await apiService.updateProfile(profileUpdate);
-        setProfile(updatedProfile);
+        setProfile(updatedProfile as any);
       }
 
       // Save schedule changes (only for practitioners)
       if (user?.roles?.includes('practitioner') && user.user_id) {
         // Always save schedule for practitioners
-        await apiService.updatePractitionerDefaultSchedule(user.user_id, data.schedule);
+        await apiService.updatePractitionerDefaultSchedule(user.user_id, data.schedule as any);
       }
     },
-    validateData: validateProfileSettings,
-    getSectionChanges: getProfileSectionChanges,
+    validateData: validateProfileSettings as any,
+    getSectionChanges: getProfileSectionChanges as any,
     onValidationError: async (error: string) => {
       await alert(error, '無效的時間區間');
     },
@@ -514,7 +514,7 @@ const ProfilePage: React.FC = () => {
               <LineLinkingSection
                 lineLinked={profile?.line_linked || false}
                 onRefresh={() => {
-                  apiService.getProfile().then(setProfile).catch(err => logger.error('Error refreshing profile:', err));
+                  apiService.getProfile().then(setProfile as any).catch(err => logger.error('Error refreshing profile:', err));
                 }}
                 clinicName={(() => {
                   // Get clinic name from available clinics

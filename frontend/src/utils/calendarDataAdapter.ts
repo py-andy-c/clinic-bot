@@ -99,7 +99,7 @@ export const transformToCalendarEvents = (apiEvents: ApiCalendarEvent[]): any[] 
         exception_id: event.exception_id,
         appointment_id: event.appointment_id,
         notes: event.notes,
-        clinic_notes: event.clinic_notes,
+        clinic_notes: (event as any).clinic_notes,
         patient_phone: event.patient_phone,
         patient_birthday: event.patient_birthday,
         line_display_name: event.line_display_name,
