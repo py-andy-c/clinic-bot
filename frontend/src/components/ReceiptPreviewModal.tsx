@@ -43,7 +43,7 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
     try {
       const html = await apiService.getReceiptPreview(customNotes, showStamp);
       setReceiptHtml(html);
-    } catch (err: any) {
+    } catch (err: unknown) {
       logger.error('Error loading receipt preview:', err);
       setError('無法載入收據預覽');
     } finally {

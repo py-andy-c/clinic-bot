@@ -43,7 +43,7 @@ const SettingsResourcesPage: React.FC = () => {
 
   const { reset, handleSubmit, formState: { isDirty } } = methods;
 
-  const onInvalid = (errors: any) => {
+  const onInvalid = (errors: Record<string, unknown>) => {
     scrollOnError(errors, methods, { expandType: 'resourceType' });
   };
 

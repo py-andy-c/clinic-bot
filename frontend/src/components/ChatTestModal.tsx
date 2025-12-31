@@ -146,7 +146,7 @@ export const ChatTestModal: React.FC<ChatTestModalProps> = ({
       };
 
       setMessages((prev) => [...prev, aiMessage]);
-    } catch (err: any) {
+    } catch (err: unknown) {
       clearTimeout(timeoutId);
 
       // Log error for debugging

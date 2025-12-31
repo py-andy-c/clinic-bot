@@ -53,7 +53,7 @@ export const ResourceTypeField: React.FC<ResourceTypeFieldProps> = ({
   const { confirm } = useModal();
 
   useEffect(() => {
-    const handleExpand = (e: any) => {
+    const handleExpand = (e: React.MouseEvent) => {
       if (e.detail.type === 'resourceType' && e.detail.index === index) {
         setIsExpanded(true);
       }

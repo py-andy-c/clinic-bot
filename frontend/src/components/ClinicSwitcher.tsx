@@ -70,7 +70,7 @@ const ClinicSwitcher: React.FC<ClinicSwitcherProps> = ({
       setError(null);
       await onSwitch(clinicId);
       setIsOpen(false);
-    } catch (err: any) {
+    } catch (err: unknown) {
       logger.error('Clinic switch failed:', err);
       setError(err.message || '切換診所失敗，請稍後再試');
     }

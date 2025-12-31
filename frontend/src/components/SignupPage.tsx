@@ -57,7 +57,7 @@ const SignupPage: React.FC<SignupPageProps> = ({
         setSignupClinicName(response.clinic.display_name || response.clinic.name);
       }
       window.location.href = response.auth_url;
-    } catch (err: any) {
+    } catch (err: unknown) {
       logger.error('Signup error:', err);
       if (err.response?.status === 400) {
         setError('邀請連結無效或已過期');
@@ -79,7 +79,7 @@ const SignupPage: React.FC<SignupPageProps> = ({
           if (response.clinic) {
             setSignupClinicName(response.clinic.display_name || response.clinic.name);
           }
-        } catch (err: any) {
+        } catch (err: unknown) {
           // Silently fail - clinic name is optional
           logger.warn('Failed to fetch clinic info:', err);
         }
@@ -109,7 +109,7 @@ const SignupPage: React.FC<SignupPageProps> = ({
             '成功'
           );
           navigate('/admin');
-        } catch (switchError: any) {
+        } catch (switchError: unknown) {
           // If switch fails, still show success but don't switch
           logger.error('Failed to switch clinic after joining:', switchError);
           await alert(
@@ -125,7 +125,7 @@ const SignupPage: React.FC<SignupPageProps> = ({
         );
         navigate('/admin');
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       logger.error('Join clinic error:', err);
       if (err.response?.status === 400) {
         const detail = getErrorMessage(err) || '無法加入診所';
