@@ -199,7 +199,7 @@ class LiffApiService {
   }
 
   // Appointment Types
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+   
   async getAppointmentTypes(_clinicId: number): Promise<{ // eslint-disable-line @typescript-eslint/no-unused-vars 
     appointment_types: Array<{ id: number; name: string; duration_minutes: number }>; 
     appointment_type_instructions?: string 
@@ -210,7 +210,7 @@ class LiffApiService {
   }
 
   // Practitioners
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+   
   async getPractitioners(_clinicId: number, appointmentTypeId?: number, patientId?: number): Promise<PractitionersResponse> {
     // Clinic ID is already in the JWT token, don't need it in URL
     const params: Record<string, string | number> = {};
