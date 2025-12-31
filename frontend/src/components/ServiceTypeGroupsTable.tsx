@@ -20,7 +20,7 @@ interface ServiceTypeGroupsTableProps {
 
 export const ServiceTypeGroupsTable: React.FC<ServiceTypeGroupsTableProps> = ({
   groups,
-  appointmentTypes: _appointmentTypes = [], // eslint-disable-line @typescript-eslint/no-unused-vars
+  appointmentTypes: _appointmentTypes = [],
   getGroupCount,
   onSave,
   onDelete,

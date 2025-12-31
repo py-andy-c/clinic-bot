@@ -1235,7 +1235,7 @@ export class ApiService {
     return response.data;
   }
 
-  async sendCustomNotification(_data: { // eslint-disable-line @typescript-eslint/no-unused-vars
+  async sendCustomNotification(_data: {
     patient_id: number;
     message: string;
     event_type: string;

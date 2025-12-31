@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { logger } from '../../utils/logger';
 import { LoadingSpinner, ErrorMessage } from '../../components/shared';
@@ -14,6 +14,12 @@ const Step3SelectPractitioner: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [restrictToAssigned, setRestrictToAssigned] = useState(false);
+  
+  // Memoize Set as string for dependency tracking (React doesn't detect Set changes well)
+  const assignedPractitionerIdsKey = useMemo(
+    () => Array.from(assignedPractitionerIds).sort().join(','),
+    [assignedPractitionerIds]
+  );
 
   // Load clinic info to get restrict_to_assigned_practitioners setting
   useEffect(() => {
@@ -122,9 +128,10 @@ const Step3SelectPractitioner: React.FC = () => {
     };
 
     loadPractitioners();
-    // Convert Set to array for dependency tracking (React doesn't detect Set changes well)
+    // Use assignedPractitionerIdsKey (memoized string) instead of assignedPractitionerIds (Set)
+    // because React doesn't detect Set changes well, and the key changes when the Set contents change
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clinicId, appointmentTypeId, patient?.id, restrictToAssigned, Array.from(assignedPractitionerIds).join(',')]);
+  }, [clinicId, appointmentTypeId, patient?.id, restrictToAssigned, assignedPractitionerIdsKey]);
 
   const handlePractitionerSelect = (practitionerId: number | null, practitioner?: Practitioner) => {
     setPractitioner(practitionerId, practitioner, false); // false because user explicitly selected

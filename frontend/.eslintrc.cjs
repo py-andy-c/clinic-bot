@@ -20,5 +20,21 @@ module.exports = {
     ],
     'no-console': 'error',
     'clinic-cache/require-clinic-id-in-deps': 'warn',
+    '@typescript-eslint/no-unused-vars': [
+      'error',
+      {
+        argsIgnorePattern: '^_',
+        varsIgnorePattern: '^_',
+        caughtErrorsIgnorePattern: '^_',
+      },
+    ],
   },
+  overrides: [
+    {
+      files: ['src/utils/errorTracking.ts', 'src/utils/logger.ts'],
+      rules: {
+        'no-console': 'off',
+      },
+    },
+  ],
 }

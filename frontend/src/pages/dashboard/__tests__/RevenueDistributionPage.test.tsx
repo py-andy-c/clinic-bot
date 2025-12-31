@@ -52,7 +52,6 @@ vi.mock('../../../components/dashboard/TimeRangePresets', () => ({
       <button onClick={() => onSelect('month')}>本月</button>
     </div>
   ),
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   getDateRangeForPreset: vi.fn((_preset: string) => ({
     startDate: '2024-01-01',
     endDate: '2024-01-31',

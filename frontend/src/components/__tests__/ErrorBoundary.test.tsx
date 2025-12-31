@@ -119,7 +119,7 @@ describe('ErrorBoundary', () => {
   });
 
   it('should have proper accessibility attributes', () => {
-    render(
+    const { container } = render(
       <ErrorBoundary>
         <ThrowError shouldThrow={true} />
       </ErrorBoundary>

@@ -75,11 +75,11 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
   availableGroups,
   practitionerAssignments: currentPractitionerAssignments,
   billingScenarios: allBillingScenarios,
-  resourceRequirements: _currentResourceRequirements, // eslint-disable-line @typescript-eslint/no-unused-vars
+  resourceRequirements: _currentResourceRequirements,
   clinicInfoAvailability,
   onUpdatePractitionerAssignments,
   onUpdateBillingScenarios,
-  onUpdateResourceRequirements: _onUpdateResourceRequirements, // eslint-disable-line @typescript-eslint/no-unused-vars
+  onUpdateResourceRequirements: _onUpdateResourceRequirements,
 }) => {
   const {
     loadBillingScenarios,
@@ -889,8 +889,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                     setScenarioForm(prev => ({ ...prev, name: e.target.value }));
                     if (scenarioErrors.name) {
                       setScenarioErrors(prev => {
-                        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-                        const { name, ...rest } = prev;
+                        const { name: _name, ...rest } = prev;
                         return rest;
                       });
                     }
@@ -913,8 +912,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                       setScenarioForm(prev => ({ ...prev, amount: e.target.value }));
                       if (scenarioErrors.amount) {
                         setScenarioErrors(prev => {
-                          // eslint-disable-next-line @typescript-eslint/no-unused-vars
-                          const { amount, ...rest } = prev;
+                          const { amount: _amount, ...rest } = prev;
                           return rest;
                         });
                       }
@@ -938,8 +936,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                       setScenarioForm(prev => ({ ...prev, revenue_share: e.target.value }));
                       if (scenarioErrors.revenue_share) {
                         setScenarioErrors(prev => {
-                          // eslint-disable-next-line @typescript-eslint/no-unused-vars
-                          const { revenue_share, ...rest } = prev;
+                          const { revenue_share: _revenue_share, ...rest } = prev;
                           return rest;
                         });
                       }

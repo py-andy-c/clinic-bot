@@ -159,7 +159,7 @@ export const BaseModal: React.FC<BaseModalProps> = React.memo(({
     }
 
     // Handle popstate event (browser back button)
-    const handlePopState = (_event: PopStateEvent) => { // eslint-disable-line @typescript-eslint/no-unused-vars
+    const handlePopState = (_event: PopStateEvent) => {
       // Prevent race conditions
       if (isHandlingBackRef.current) {
         return;

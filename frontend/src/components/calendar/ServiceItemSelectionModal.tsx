@@ -30,7 +30,7 @@ export const ServiceItemSelectionModal: React.FC<ServiceItemSelectionModalProps>
   onSelect,
   serviceItems,
   groups,
-  selectedServiceItemId: _selectedServiceItemId, // eslint-disable-line @typescript-eslint/no-unused-vars
+  selectedServiceItemId: _selectedServiceItemId,
   originalTypeId,
   title = '選擇服務項目',
   showCustomOtherOption = false,

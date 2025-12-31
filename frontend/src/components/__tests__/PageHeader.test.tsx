@@ -25,10 +25,10 @@ describe('PageHeader', () => {
   });
 
   it('should apply custom className', () => {
-    render(
+    const renderResult = render(
       <PageHeader title="Test Title" className="custom-class" />
     );
-    const header = container.firstChild;
+    const header = renderResult.container.firstChild;
     expect(header).toHaveClass('custom-class');
   });
 

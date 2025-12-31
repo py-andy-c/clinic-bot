@@ -439,7 +439,7 @@ describe('ResourceSelector', () => {
   it('should handle API errors gracefully', async () => {
     vi.mocked(apiService.getResourceTypes).mockRejectedValue(new Error('API Error'));
 
-    render(
+    const { container } = render(
       <ResourceSelector
         selectedResourceIds={[]}
         onChange={mockOnChange}

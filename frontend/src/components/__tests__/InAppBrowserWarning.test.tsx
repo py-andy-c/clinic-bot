@@ -42,7 +42,7 @@ describe('InAppBrowserWarning', () => {
     it('should render null when no children provided', () => {
       vi.mocked(browserDetection.isInAppBrowser).mockReturnValue(false);
 
-      render(<InAppBrowserWarning />);
+      const { container } = render(<InAppBrowserWarning />);
       expect(container.firstChild).toBeNull();
     });
   });
@@ -201,7 +201,7 @@ describe('InAppBrowserWarning', () => {
       vi.mocked(browserDetection.isInAppBrowser).mockReturnValue(true);
       vi.mocked(browserDetection.canOpenInBrowser).mockReturnValue(false);
 
-      render(<InAppBrowserWarning />);
+      const { container } = render(<InAppBrowserWarning />);
       const icon = container.querySelector('svg');
       expect(icon).toBeInTheDocument();
     });

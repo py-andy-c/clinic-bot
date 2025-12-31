@@ -54,14 +54,14 @@ describe('ClinicSwitcher', () => {
   });
 
   it('should not render when user has no clinics', () => {
-    render(
+    const renderResult = render(
       <ClinicSwitcher
         currentClinicId={null}
         availableClinics={[]}
         onSwitch={mockOnSwitch}
       />
     );
-    expect(container.firstChild).toBeNull();
+    expect(renderResult.container.firstChild).toBeNull();
   });
 
   it('should render current clinic name even when user has only one clinic', () => {

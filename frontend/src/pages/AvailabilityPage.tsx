@@ -260,7 +260,7 @@ const AvailabilityPage: React.FC = () => {
     }
   }, [user]);
 
-  const handleAddExceptionHandlerReady = useCallback((handler: () => void, _view: View) => { // eslint-disable-line @typescript-eslint/no-unused-vars
+  const handleAddExceptionHandlerReady = useCallback((handler: () => void, _view: View) => {
     setAddExceptionHandler(() => handler);
   }, []);
 

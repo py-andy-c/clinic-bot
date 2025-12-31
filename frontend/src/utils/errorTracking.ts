@@ -43,7 +43,6 @@ export const errorTracking: ErrorTrackingService = {
   init: () => {
     if (!isSentryAvailable()) {
       if (import.meta.env.DEV) {
-        // eslint-disable-next-line no-console
         console.log('[Error Tracking] Sentry not configured. Using console logging.');
       }
       return;
@@ -67,10 +66,8 @@ export const errorTracking: ErrorTrackingService = {
     if (!isSentryAvailable()) {
       // Fallback to console logging
       if (import.meta.env.DEV) {
-        // eslint-disable-next-line no-console
         console.error('[Error Tracking] Exception:', error);
         if (context) {
-          // eslint-disable-next-line no-console
           console.error('[Error Tracking] Context:', context);
         }
       }
@@ -83,10 +80,8 @@ export const errorTracking: ErrorTrackingService = {
     
     // For now, just log in development
     if (import.meta.env.DEV) {
-      // eslint-disable-next-line no-console
       console.error('[Error Tracking] Exception:', error);
       if (context) {
-        // eslint-disable-next-line no-console
         console.error('[Error Tracking] Context:', context);
       }
     }
@@ -99,7 +94,6 @@ export const errorTracking: ErrorTrackingService = {
     if (!isSentryAvailable()) {
       // Fallback to console logging
       if (import.meta.env.DEV) {
-        // eslint-disable-next-line no-console
         const logMethod = level === 'error' ? console.error : level === 'warning' ? console.warn : console.info;
         logMethod(`[Error Tracking] ${level.toUpperCase()}:`, message);
       }
@@ -112,7 +106,6 @@ export const errorTracking: ErrorTrackingService = {
     
     // For now, just log in development
     if (import.meta.env.DEV) {
-      // eslint-disable-next-line no-console
       const logMethod = level === 'error' ? console.error : level === 'warning' ? console.warn : console.info;
       logMethod(`[Error Tracking] ${level.toUpperCase()}:`, message);
     }
@@ -125,7 +118,6 @@ export const errorTracking: ErrorTrackingService = {
     if (!isSentryAvailable()) {
       // Fallback: no-op
       if (import.meta.env.DEV) {
-        // eslint-disable-next-line no-console
         console.log('[Error Tracking] Set user:', user);
       }
       return;
@@ -137,7 +129,6 @@ export const errorTracking: ErrorTrackingService = {
     
     // For now, just log in development
     if (import.meta.env.DEV) {
-      // eslint-disable-next-line no-console
       console.log('[Error Tracking] Set user:', user);
     }
   },
@@ -149,7 +140,6 @@ export const errorTracking: ErrorTrackingService = {
     if (!isSentryAvailable()) {
       // Fallback: no-op
       if (import.meta.env.DEV) {
-        // eslint-disable-next-line no-console
         console.log('[Error Tracking] Cleared user');
       }
       return;
@@ -161,7 +151,6 @@ export const errorTracking: ErrorTrackingService = {
     
     // For now, just log in development
     if (import.meta.env.DEV) {
-      // eslint-disable-next-line no-console
       console.log('[Error Tracking] Cleared user');
     }
   },

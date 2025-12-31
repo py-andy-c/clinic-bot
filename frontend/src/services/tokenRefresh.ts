@@ -61,7 +61,6 @@ export class TokenRefreshService {
   /**
    * Perform the actual token refresh
    */
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   private async performRefresh(_options: RefreshTokenOptions): Promise<RefreshTokenResult> {
     try {
       logger.log('TokenRefreshService: Attempting to refresh token...');

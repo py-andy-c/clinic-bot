@@ -48,7 +48,7 @@ describe('ChatTestModal', () => {
   });
 
   it('should not render when isOpen is false', () => {
-    render(
+    const { container } = render(
       <ChatTestModal
         isOpen={false}
         onClose={mockOnClose}

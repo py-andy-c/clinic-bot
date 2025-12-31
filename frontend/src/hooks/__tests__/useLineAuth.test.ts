@@ -40,8 +40,7 @@ function createJWTToken(payload: Record<string, any>): string {
 }
 
 // Helper to decode JWT payload (for verification) - unused but kept for potential future use
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function decodeJWTPayload(_token: string): { userId?: string; exp?: number; [key: string]: unknown } | null {
+function _decodeJWTPayload(_token: string): { userId?: string; exp?: number; [key: string]: unknown } | null {
   const parts = token.split('.');
   if (parts.length < 2) return null;
   try {

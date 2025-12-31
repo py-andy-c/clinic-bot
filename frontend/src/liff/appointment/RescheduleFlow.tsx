@@ -96,6 +96,12 @@ const RescheduleFlow: React.FC = () => {
   // State for assigned practitioners and restriction setting
   const [assignedPractitionerIds, setAssignedPractitionerIds] = useState<Set<number>>(new Set());
   const [restrictToAssigned, setRestrictToAssigned] = useState(false);
+  
+  // Memoize Set as string for dependency tracking (React doesn't detect Set changes well)
+  const assignedPractitionerIdsKey = useMemo(
+    () => Array.from(assignedPractitionerIds).sort().join(','),
+    [assignedPractitionerIds]
+  );
 
   // Load clinic info for minimum cancellation hours and restrict_to_assigned_practitioners
   useEffect(() => {
@@ -229,9 +235,10 @@ const RescheduleFlow: React.FC = () => {
     };
 
     loadPractitioners();
-    // Convert Set to array for dependency tracking (React doesn't detect Set changes well)
+    // Use assignedPractitionerIdsKey (memoized string) instead of assignedPractitionerIds (Set)
+    // because React doesn't detect Set changes well, and the key changes when the Set contents change
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clinicId, appointmentDetails?.appointment_type_id, appointmentDetails?.patient_id, restrictToAssigned, Array.from(assignedPractitionerIds).join(',')]);
+  }, [clinicId, appointmentDetails?.appointment_type_id, appointmentDetails?.patient_id, restrictToAssigned, assignedPractitionerIdsKey]);
 
   // Load availability for month
   useEffect(() => {

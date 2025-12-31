@@ -139,11 +139,17 @@ const SystemClinicsPage: React.FC = () => {
         updateData.subscription_status = editingClinic.subscription_status;
       }
       if (editingClinic.liff_id !== undefined && editingClinic.liff_id !== (selectedClinic.liff_id || '')) {
-        // Set liff_id: convert empty string to null for clearing, or use the string value
-        // Type assertion needed: exactOptionalPropertyTypes doesn't allow undefined, but backend
-        // accepts null (Optional[str] in Python) to clear the value
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (updateData as any).liff_id = editingClinic.liff_id.trim() === '' ? null : editingClinic.liff_id;
+        // Set liff_id: convert empty string to undefined for clearing, or use the string value
+        // Backend accepts undefined (Optional[str] in Python) to clear the value
+        // Use type assertion to handle exactOptionalPropertyTypes restriction
+        const trimmedLiffId = editingClinic.liff_id.trim();
+        if (trimmedLiffId === '') {
+          // Omit the property to clear it (backend will treat missing optional field as clearing)
+          // TypeScript's exactOptionalPropertyTypes doesn't allow assigning undefined directly
+          delete (updateData as Record<string, unknown>).liff_id;
+        } else {
+          updateData.liff_id = trimmedLiffId;
+        }
       }
 
       await apiService.updateClinic(selectedClinic.id, updateData);

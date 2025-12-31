@@ -51,13 +51,11 @@ interface CacheEntry<T> {
   timestamp: number;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const cache = new Map<string, CacheEntry<any>>();
+const cache = new Map<string, CacheEntry<unknown>>();
 const DEFAULT_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 // Track in-flight requests to deduplicate concurrent requests for the same data
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const inFlightRequests = new Map<string, Promise<any>>();
+const inFlightRequests = new Map<string, Promise<unknown>>();
 // Map to track locks for promise registration (prevents race conditions)
 const registrationLocks = new Map<string, boolean>();
 
@@ -543,7 +541,7 @@ export function useApiData<T>(
     const cacheKey = getCacheKey(fetchFn, currentDeps, currentClinicId);
     if (cacheKey && inFlightRequests.has(cacheKey)) {
       try {
-        const result = await inFlightRequests.get(cacheKey)!;
+        const result = await inFlightRequests.get(cacheKey)! as T;
         if (isMountedRef.current) {
           setData(result);
           setLoading(false);
@@ -588,7 +586,7 @@ export function useApiData<T>(
         // Use the same cacheKey computed at the start
         if (cacheKey && inFlightRequests.has(cacheKey)) {
           try {
-            const result = await inFlightRequests.get(cacheKey)!;
+            const result = await inFlightRequests.get(cacheKey)! as T;
             if (isMountedRef.current) {
               setData(result);
               setLoading(false);
@@ -624,7 +622,7 @@ export function useApiData<T>(
       // Check if there's already an in-flight request
       if (cacheKey && inFlightRequests.has(cacheKey)) {
         try {
-          const result = await inFlightRequests.get(cacheKey)!;
+          const result = await inFlightRequests.get(cacheKey)! as T;
           if (isMountedRef.current) {
             setData(result);
             setLoading(false);
@@ -648,7 +646,7 @@ export function useApiData<T>(
           if (cacheKey && inFlightRequests.has(cacheKey)) {
             // Promise was registered, use it
             try {
-              const result = await inFlightRequests.get(cacheKey)!;
+              const result = await inFlightRequests.get(cacheKey)! as T;
               if (isMountedRef.current) {
                 setData(result);
                 setLoading(false);
@@ -686,7 +684,7 @@ export function useApiData<T>(
       try {
         // Double-check after acquiring lock
         if (inFlightRequests.has(cacheKey)) {
-          const result = await inFlightRequests.get(cacheKey)!;
+          const result = await inFlightRequests.get(cacheKey)! as T;
           if (isMountedRef.current) {
             setData(result);
             setLoading(false);
