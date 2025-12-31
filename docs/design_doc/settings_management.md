@@ -36,6 +36,13 @@ This document defines the business logic and technical design for settings manag
 - `address`: Clinic address
 - `phone_number`: Clinic phone number
 - `appointment_type_instructions`: Instructions for appointment types
+- `appointment_notes_instructions`: Instructions for appointment notes
+- `require_birthday`: Whether to require birthday when creating patients
+- `require_gender`: Whether to require gender when creating patients
+- `restrict_to_assigned_practitioners`: Whether to restrict patient booking to assigned practitioners
+- `query_page_instructions`: Instructions for query page
+- `settings_page_instructions`: Instructions for settings page
+- `notifications_page_instructions`: Instructions for notifications page
 
 **Chat Settings** (`ChatSettings`):
 - `chat_enabled`: Whether AI chatbot is enabled
@@ -146,69 +153,44 @@ This document defines the business logic and technical design for settings manag
 
 ---
 
-## Edge Cases
+## Backend Technical Design
 
-### 1. Missing Settings
+### API Endpoints
 
-**Scenario**: Clinic or practitioner has no settings configured (empty JSONB)
+#### `GET /clinic/settings`
+- **Description**: Get clinic settings
+- **Parameters**: None (clinic ID from auth context)
+- **Response**: `ClinicSettings` object
+- **Errors**: 
+  - 404: Clinic not found
+  - 500: Internal server error
 
-**Behavior**: Default settings are returned via Pydantic model defaults
+#### `PUT /clinic/settings`
+- **Description**: Update clinic settings (partial update supported)
+- **Request Body**: `Partial<ClinicSettings>` (only fields to update)
+- **Response**: `{ success: true, settings: ClinicSettings }`
+- **Errors**:
+  - 400: Validation errors
+  - 404: Clinic not found
+  - 500: Internal server error
 
-**Rationale**: Ensures system always has valid settings even if not explicitly configured.
+#### `GET /clinic/practitioner-settings/{user_id}`
+- **Description**: Get practitioner settings for a specific user
+- **Path Parameters**: `user_id` (practitioner user ID)
+- **Response**: `PractitionerSettings` object
+- **Errors**:
+  - 404: User or association not found
+  - 500: Internal server error
 
-### 2. Invalid Settings Format
-
-**Scenario**: Database contains invalid JSON or structure doesn't match schema
-
-**Behavior**: Validation fails, error returned. Settings must be fixed before saving
-
-**Rationale**: Prevents invalid data from causing runtime errors.
-
-### 3. Settings Update Failure
-
-**Scenario**: Settings update fails due to validation error or database error
-
-**Behavior**: Transaction rolled back, error returned. No partial updates saved
-
-**Rationale**: Ensures settings remain consistent - either all changes succeed or none do.
-
-### 4. Concurrent Settings Updates
-
-**Scenario**: Multiple requests update same clinic's settings simultaneously
-
-**Behavior**: Database transaction isolation prevents conflicts. Last write wins (standard database behavior)
-
-**Rationale**: Database handles concurrency - no special locking needed for settings.
-
-### 5. Settings Deletion
-
-**Scenario**: Settings field is set to null or deleted
-
-**Behavior**: Default settings returned on next access. System continues to work with defaults
-
-**Rationale**: Graceful degradation - missing settings don't break system.
-
-### 6. Settings Schema Migration
-
-**Scenario**: Settings schema changes (new fields added, old fields removed)
-
-**Behavior**: Pydantic models handle missing/extra fields gracefully:
-- Missing fields: Use defaults
-- Extra fields: Ignored (can be preserved if needed)
-
-**Rationale**: Schema evolution is handled gracefully without breaking existing data.
-
-### 7. Test Mode Settings Override
-
-**Scenario**: Chatbot test mode uses unsaved settings
-
-**Behavior**: `chat_settings_override` parameter allows testing unsaved settings without affecting production
-
-**Rationale**: Enables safe testing of chatbot configuration changes.
-
----
-
-## Technical Design
+#### `PUT /clinic/practitioner-settings/{user_id}`
+- **Description**: Update practitioner settings (partial update supported)
+- **Path Parameters**: `user_id` (practitioner user ID)
+- **Request Body**: `Partial<PractitionerSettings>` (only fields to update)
+- **Response**: `{ success: true, settings: PractitionerSettings }`
+- **Errors**:
+  - 400: Validation errors
+  - 404: User or association not found
+  - 500: Internal server error
 
 ### Database Schema
 
@@ -224,76 +206,411 @@ settings JSONB NOT NULL DEFAULT '{}'
 
 **Indexing**: JSONB columns are indexed for efficient querying (PostgreSQL automatically indexes JSONB)
 
-### Pydantic Models
+### Business Logic Implementation
 
-**ClinicSettings**: Top-level model containing all clinic setting groups
-```python
-class ClinicSettings(BaseModel):
-    notification_settings: NotificationSettings
-    booking_restriction_settings: BookingRestrictionSettings
-    clinic_info_settings: ClinicInfoSettings
-    chat_settings: ChatSettings
-    receipt_settings: ReceiptSettings
-```
-
-**PractitionerSettings**: Model for practitioner settings
-```python
-class PractitionerSettings(BaseModel):
-    compact_schedule_enabled: bool = False
-```
-
-**Validation**: Pydantic automatically validates types, constraints, and defaults
-
-### Settings Access Pattern
-
-**Get Settings**:
-```python
-# Via service
-settings = SettingsService.get_clinic_settings(db, clinic_id)
-
-# Via model
-settings = clinic.get_validated_settings()
-```
-
-**Update Settings**:
-```python
-# Get current
-current = clinic.get_validated_settings()
-
-# Modify
-current.notification_settings.reminder_hours_before = 48
-
-# Save
-clinic.set_validated_settings(current)
-db.commit()
-```
-
-**Partial Update**:
-```python
-# Get current
-current = clinic.get_validated_settings()
-
-# Merge with new (only update provided fields)
-new_dict = current.model_dump()
-new_dict.update(request.settings)  # request.settings contains only changed fields
-
-# Validate and save
-validated = ClinicSettings.model_validate(new_dict)
-clinic.set_validated_settings(validated)
-db.commit()
-```
-
-### Settings Service
-
-**Purpose**: Centralized access to settings with consistent error handling
-
-**Methods**:
-- `get_clinic_settings(db, clinic_id)`: Returns validated `ClinicSettings`
+**SettingsService** (`backend/src/services/settings_service.py`):
+- `get_clinic_settings(db, clinic_id)`: Returns validated `ClinicSettings` with defaults
 - `get_practitioner_settings(db, user_id, clinic_id)`: Returns validated `PractitionerSettings` or None
+- Settings validation via Pydantic models
+- Default values applied when settings are missing
 
-**Error Handling**: Raises `HTTPException` if clinic/user not found
+**Model Methods**:
+- `clinic.get_validated_settings()`: Returns validated settings with defaults
+- `clinic.set_validated_settings(settings)`: Validates and saves settings
+- `association.get_validated_settings()`: Returns validated practitioner settings with defaults
+- `association.set_validated_settings(settings)`: Validates and saves practitioner settings
 
-**Rationale**: Provides consistent API for settings access across the application.
+**Key Business Logic**:
+- Partial updates: Only provided fields are updated, others remain unchanged
+- Atomic updates: All changes succeed or none do (database transaction)
+- Default values: Applied when settings are missing or empty
+- Validation: Pydantic models validate types, constraints, and formats before saving
+
+---
+
+## Frontend Technical Design
+
+### State Management Strategy
+
+#### Server State (API Data)
+- [x] **Data Source**: `/clinic/settings` endpoint for clinic settings, `/clinic/practitioner-settings/{user_id}` for practitioner settings
+- [x] **Current Implementation**: Using `useApiData` hook via `SettingsContext`
+  - **Note**: Migration to React Query planned for Phase 2 (Weeks 3-5) per `ai_frontend_dev.md`)
+- [x] **Query Keys** (when migrated to React Query):
+  - `['clinic-settings', clinicId]` - Clinic settings
+  - `['practitioner-settings', userId, clinicId]` - Practitioner settings
+- [x] **Cache Strategy**:
+  - **Current**: Custom cache with TTL (5 minutes default), clinic ID auto-injection
+  - **Future (React Query)**:
+    - `staleTime`: 5 minutes (settings don't change frequently)
+    - `cacheTime`: 10 minutes
+    - Invalidation triggers: Settings save, clinic switch
+
+#### Client State (UI State)
+- [x] **SettingsContext** (`frontend/src/contexts/SettingsContext.tsx`):
+  - **State Properties**:
+    - `settings`: Current clinic settings (ClinicSettings | null)
+    - `originalData`: Original settings for comparison (ClinicSettings | null)
+    - `uiState`: Loading, saving, error states
+    - `sectionChanges`: Track which sections have unsaved changes
+  - **Actions**: 
+    - `saveData()`: Save all changes to backend
+    - `updateData()`: Update settings in memory (doesn't save)
+    - `fetchData()`: Refresh settings from backend
+  - **Usage**: All settings pages use this context for shared state
+
+- [x] **Local Component State**: 
+  - Each settings page (`SettingsAppointmentsPage`, `SettingsChatPage`, etc.): Form state via React Hook Form
+  - Unsaved changes detection: Tracks form dirty state
+  - Loading/saving states: Per-page loading indicators
+
+#### Form State
+- [x] **React Hook Form**: Used in all settings pages
+  - **Form Fields**: Varies by page (appointments, chat, clinic info, reminders, receipts, resources)
+  - **Validation Rules**: Zod schemas (`AppointmentsSettingsFormSchema`, `ChatSettingsFormSchema`, etc.)
+  - **Default Values**: Populated from `SettingsContext.settings`
+  - **Mode**: `onBlur` validation (validates on field blur)
+
+### Component Architecture
+
+#### Component Hierarchy
+```
+SettingsLayout
+  ├── SettingsIndexPage (index)
+  │   └── SettingCard[] (navigation cards)
+  ├── SettingsAppointmentsPage
+  │   ├── ClinicAppointmentSettings
+  │   │   ├── BookingRestrictionSettings
+  │   │   └── ClinicInfoSettings
+  │   └── PractitionerSettings (per practitioner)
+  ├── SettingsChatPage
+  │   └── ChatSettings
+  ├── SettingsClinicInfoPage
+  │   └── ClinicInfoSettings
+  ├── SettingsRemindersPage
+  │   └── ClinicReminderSettings
+  ├── SettingsReceiptsPage
+  │   └── ReceiptSettings
+  └── SettingsResourcesPage
+      └── ResourcesSettings
+
+SettingsProvider (Context)
+  └── useSettingsPage (hook)
+      └── useApiData (settings fetch)
+```
+
+#### Component List
+- [x] **SettingsLayout** (`frontend/src/components/SettingsLayout.tsx`)
+  - **Props**: None (uses `Outlet` from React Router)
+  - **State**: None (layout only)
+  - **Dependencies**: `SettingsProvider`, `PageHeader`
+
+- [x] **SettingsIndexPage** (`frontend/src/pages/settings/SettingsIndexPage.tsx`)
+  - **Props**: None
+  - **State**: None (static navigation)
+  - **Dependencies**: `useAuth` (for admin-only cards)
+
+- [x] **SettingsAppointmentsPage** (`frontend/src/pages/settings/SettingsAppointmentsPage.tsx`)
+  - **Props**: None
+  - **State**: Form state via React Hook Form, practitioner settings loading
+  - **Dependencies**: `useSettings`, `useForm`, `ClinicAppointmentSettings`, `useApiData` (members)
+
+- [x] **SettingsChatPage** (`frontend/src/pages/settings/SettingsChatPage.tsx`)
+  - **Props**: None
+  - **State**: Form state via React Hook Form
+  - **Dependencies**: `useSettings`, `useForm`, `ChatSettings`
+
+- [x] **SettingsClinicInfoPage** (`frontend/src/pages/settings/SettingsClinicInfoPage.tsx`)
+  - **Props**: None
+  - **State**: Form state via React Hook Form
+  - **Dependencies**: `useSettings`, `useForm`, `ClinicInfoSettings`
+
+- [x] **SettingsRemindersPage** (`frontend/src/pages/settings/SettingsRemindersPage.tsx`)
+  - **Props**: None
+  - **State**: Form state via React Hook Form
+  - **Dependencies**: `useSettings`, `useForm`, `ClinicReminderSettings`
+
+- [x] **SettingsReceiptsPage** (`frontend/src/pages/settings/SettingsReceiptsPage.tsx`)
+  - **Props**: None
+  - **State**: Form state via React Hook Form
+  - **Dependencies**: `useSettings`, `useForm`, `ReceiptSettings`
+
+- [x] **SettingsResourcesPage** (`frontend/src/pages/settings/SettingsResourcesPage.tsx`)
+  - **Props**: None
+  - **State**: Form state via React Hook Form
+  - **Dependencies**: `useSettings`, `useForm`, `ResourcesSettings`
+
+- [x] **SettingsProvider** (`frontend/src/contexts/SettingsContext.tsx`)
+  - **Props**: `children` (ReactNode)
+  - **State**: Settings data, loading/saving states, section changes tracking
+  - **Dependencies**: `useSettingsPage`, `useApiData`, `useAuth`
+
+### User Interaction Flows
+
+#### Flow 1: View Settings Index
+1. User navigates to `/admin/clinic/settings`
+2. `SettingsIndexPage` displays grid of setting cards
+3. User sees available settings sections (service items, appointments, clinic info, reminders, chat, receipts, resources)
+4. Admin-only cards (receipts, resources) only visible to admins
+5. User clicks a card → Navigates to that settings page
+   - **Edge case**: Non-admin user → Admin-only cards hidden
+
+#### Flow 2: Edit Appointment Settings
+1. User clicks "預約設定" card → Navigates to `/admin/clinic/settings/appointments`
+2. `SettingsAppointmentsPage` loads
+3. `SettingsContext` fetches current settings via `useApiData`
+4. Form pre-fills with current settings
+5. User modifies booking restrictions (e.g., changes `minimum_booking_hours_ahead` to 48)
+6. Form shows as dirty (unsaved changes indicator)
+7. User modifies clinic info settings (e.g., updates `appointment_type_instructions`)
+8. User scrolls to practitioner section
+9. System fetches practitioners list via `useApiData`
+10. User modifies individual practitioner settings (e.g., `step_size_minutes`)
+11. User clicks "儲存" button
+12. Form validates (Zod schema)
+13. If valid: Settings saved via `SettingsContext.saveData()`
+14. Success message shown, form resets to clean state
+15. If invalid: Validation errors shown, user can fix and retry
+   - **Edge case**: Unsaved changes → Navigation warning shown
+   - **Edge case**: Save fails → Error message shown, user can retry
+   - **Edge case**: Concurrent edit → Last write wins (no conflict detection)
+
+#### Flow 3: Edit Chat Settings
+1. User clicks "AI 聊天" card → Navigates to `/admin/clinic/settings/chat`
+2. `SettingsChatPage` loads
+3. Form pre-fills with current chat settings
+4. User enables `chat_enabled` toggle
+5. User fills in `clinic_description`, `therapist_info`, etc.
+6. User modifies `ai_guidance` (custom instructions)
+7. User clicks "儲存"
+8. Settings saved, success message shown
+   - **Edge case**: Test mode → User can test unsaved settings via chatbot test feature
+
+#### Flow 4: Edit Practitioner Settings (Compact Schedule)
+1. Practitioner navigates to profile/settings (if available)
+2. Practitioner toggles `compact_schedule_enabled`
+3. Settings saved to `UserClinicAssociation.settings`
+4. Calendar view updates to compact mode
+   - **Note**: Currently practitioner settings are edited via appointment settings page
+
+### Edge Cases and Error Handling
+
+#### Edge Cases
+- [x] **Race Condition**: User switches clinic during settings fetch
+  - **Solution**: `useApiData` includes clinic ID in cache keys, automatically refetches on clinic switch
+  - **Future (React Query)**: Query invalidation on clinic switch
+
+- [x] **Concurrent Updates**: Multiple users update same clinic's settings simultaneously
+  - **Solution**: Database transaction isolation, last write wins (no conflict detection in frontend)
+  - **Behavior**: Second save overwrites first save (standard database behavior)
+
+- [x] **Clinic Switching**: User switches clinic while settings page is open
+  - **Solution**: Settings refetch automatically, form resets with new clinic's settings
+
+- [x] **Component Unmount**: Component unmounts during settings save
+  - **Solution**: `useApiData` checks `isMountedRef` before state updates, prevents memory leaks
+
+- [x] **Network Failure**: API call fails (network error, timeout)
+  - **Solution**: Error message shown to user, retry option available
+  - **Implementation**: `useApiData` handles errors, `SettingsContext` shows error state
+
+- [x] **Stale Data**: User views settings, another user modifies them, first user tries to save
+  - **Solution**: Last write wins (no conflict detection), second save overwrites first
+
+- [x] **Missing Settings**: Clinic has no settings configured (empty JSONB)
+  - **Solution**: Backend returns defaults via Pydantic models, frontend displays defaults
+
+- [x] **Invalid Settings Format**: Database contains invalid JSON
+  - **Solution**: Backend validation fails, error returned, user cannot save until fixed
+
+- [x] **Unsaved Changes**: User navigates away with unsaved changes
+  - **Solution**: `useUnsavedChangesDetection` hook shows warning, user can cancel or confirm navigation
+
+#### Error Scenarios
+- [x] **API Errors (4xx, 5xx)**:
+  - **User Message**: User-friendly error messages extracted from API response
+  - **Recovery Action**: User can retry save operation
+  - **Implementation**: `getErrorMessage()` utility, `SettingsContext` displays errors
+
+- [x] **Validation Errors**:
+  - **User Message**: Field-level error messages (e.g., "此欄位為必填", "數值必須大於0")
+  - **Field-level Errors**: Shown inline next to form fields via React Hook Form
+  - **Implementation**: Zod schema validation, React Hook Form error display
+
+- [x] **Loading States**:
+  - **Initial Load**: Loading spinner shown while fetching settings
+  - **Save**: Submit button disabled, loading spinner shown during save
+  - **Implementation**: `SettingsContext.uiState.loading`, `SettingsContext.uiState.saving`
+
+- [x] **Permission Errors (403)**:
+  - **User Message**: "您沒有權限執行此操作"
+  - **Recovery Action**: User cannot proceed, must contact admin
+  - **Implementation**: Backend returns 403, frontend shows error message
+
+### Testing Requirements
+
+#### E2E Tests (Playwright)
+- [ ] **Test Scenario**: View settings index
+  - Steps:
+    1. Login as admin
+    2. Navigate to `/admin/clinic/settings`
+    3. Verify all setting cards visible
+  - Assertions: All cards displayed, admin-only cards visible to admin
+  - Edge cases: Test as non-admin (admin-only cards hidden)
+
+- [ ] **Test Scenario**: Edit appointment settings
+  - Steps:
+    1. Navigate to appointment settings page
+    2. Modify `minimum_booking_hours_ahead`
+    3. Click "儲存"
+    4. Verify success message
+    5. Refresh page, verify changes persisted
+  - Assertions: Settings saved, changes persisted, success message shown
+  - Edge cases: Test validation errors, test unsaved changes warning
+
+- [ ] **Test Scenario**: Edit chat settings
+  - Steps:
+    1. Navigate to chat settings page
+    2. Enable `chat_enabled`
+    3. Fill in clinic description
+    4. Save
+    5. Verify settings saved
+  - Assertions: Settings saved, chatbot enabled
+
+- [ ] **Test Scenario**: Unsaved changes warning
+  - Steps:
+    1. Open settings page
+    2. Make changes (don't save)
+    3. Try to navigate away
+    4. Verify warning shown
+  - Assertions: Warning modal shown, user can cancel or confirm
+
+#### Integration Tests (MSW)
+- [ ] **Test Scenario**: Settings form initialization
+  - Mock API responses: Clinic settings
+  - User interactions: Navigate to settings page
+  - Assertions: Form pre-filled with current settings
+
+- [ ] **Test Scenario**: Settings save with validation
+  - Mock API responses: Success response
+  - User interactions: Fill form, submit
+  - Assertions: Validation errors shown for invalid fields, API called with correct data on valid submit
+
+- [ ] **Test Scenario**: Error handling
+  - Mock API responses: 400, 403, 500 errors
+  - User interactions: Submit form, trigger errors
+  - Assertions: Appropriate error messages shown, user can retry
+
+- [ ] **Test Scenario**: Clinic switching
+  - Mock API responses: Different settings for different clinics
+  - User interactions: Switch clinic while on settings page
+  - Assertions: Settings refetch, form resets with new clinic's settings
+
+#### Unit Tests
+- [ ] **Component**: `SettingsAppointmentsPage`
+  - Test cases: Renders correctly, pre-fills form, handles save, shows validation errors
+- [ ] **Component**: `SettingsChatPage`
+  - Test cases: Renders correctly, handles save, validates form
+- [ ] **Context**: `SettingsContext`
+  - Test cases: Fetches settings, updates data, saves data, handles errors
+- [ ] **Hook**: `useSettingsPage`
+  - Test cases: Fetches settings, handles save, tracks changes
+
+### Performance Considerations
+
+- [x] **Data Loading**: 
+  - Settings fetched once per clinic via `SettingsContext`
+  - Shared across all settings pages (no redundant fetches)
+  - Cache TTL: 5 minutes (settings don't change frequently)
+
+- [x] **Caching**: 
+  - Current: Custom cache with clinic ID injection
+  - Future: React Query will provide better caching with automatic invalidation
+
+- [x] **Optimistic Updates**: 
+  - Not currently used (settings are saved optimistically in memory, but not persisted until save)
+  - Form shows changes immediately, but backend save is explicit
+
+- [x] **Lazy Loading**: 
+  - Settings pages lazy loaded via React Router
+  - Settings components loaded on demand
+
+- [x] **Memoization**: 
+  - Settings context values memoized to prevent unnecessary re-renders
+  - Form components use React.memo where appropriate
+
+---
+
+## Integration Points
+
+### Backend Integration
+- [x] **Dependencies on other services**:
+  - Settings affect appointment booking (booking restrictions)
+  - Settings affect notification scheduling (reminder hours)
+  - Settings affect chatbot behavior (chat settings)
+  - Settings affect receipt generation (receipt settings)
+
+- [x] **Database relationships**:
+  - Clinic settings stored in `clinics` table
+  - Practitioner settings stored in `user_clinic_associations` table
+  - No foreign key constraints (JSONB storage)
+
+- [x] **API contracts**:
+  - RESTful API with consistent request/response models
+  - Partial updates supported (only send changed fields)
+
+### Frontend Integration
+- [x] **Shared components used**:
+  - `PageHeader`, `SettingsBackButton`, `LoadingSpinner`, `BaseModal`
+  - `SettingsSection` (wrapper for settings sections)
+  - Form components: `NumberInput`, `Textarea`, `Toggle`, etc.
+
+- [x] **Shared hooks used**:
+  - `useSettings` (from SettingsContext)
+  - `useApiData` (data fetching)
+  - `useAuth` (authentication context)
+  - `useModal` (modal management)
+  - `useUnsavedChangesDetection` (navigation warnings)
+  - `useFormErrorScroll` (scroll to errors)
+
+- [x] **Shared stores used**:
+  - `serviceItemsStore` (for service items settings page)
+
+- [x] **Navigation/routing changes**:
+  - Settings pages: `/admin/clinic/settings/*` (nested routes)
+  - Settings index: `/admin/clinic/settings`
+
+---
+
+## Security Considerations
+
+- [x] **Authentication requirements**:
+  - All settings endpoints require authenticated clinic user
+  - Practitioner settings endpoints require admin or self-access
+
+- [x] **Authorization checks**:
+  - Clinic settings: Only clinic users can access
+  - Practitioner settings: Admins can edit any practitioner, practitioners can edit own settings
+  - Admin-only settings: Receipts, resources (enforced in frontend and backend)
+
+- [x] **Input validation**:
+  - All settings validated via Pydantic models on backend
+  - Frontend validation via Zod schemas (client-side validation)
+  - Type checking, field constraints, format validation
+
+- [x] **XSS prevention**:
+  - User input sanitized before display
+  - React automatically escapes content
+  - Rich text fields (if any) use sanitization libraries
+
+- [x] **CSRF protection**:
+  - API uses JWT authentication tokens
+  - Tokens validated on every request
+
+- [x] **Data isolation**:
+  - Clinic isolation enforced via `ensure_clinic_access()` dependency
+  - Users can only access settings for their active clinic
+  - Practitioner settings scoped to user-clinic association
 
 ---
 
@@ -309,9 +626,9 @@ This document covers:
 - Settings updates (partial updates, merge strategy, atomic updates)
 - Settings impact on system behavior (reminders, booking, chat, receipts, UI)
 - Edge cases (missing settings, invalid format, update failures, concurrency, deletion, schema migration, test mode)
-- Technical design (database schema, Pydantic models, access patterns, settings service)
+- Backend technical design (API endpoints, database schema, business logic)
+- Frontend technical design (state management, components, user flows, testing requirements)
 
 All settings are validated before saving and have sensible defaults to ensure system reliability and ease of use.
 
-
-
+**Migration Status**: This document has been migrated to the new template format. Frontend sections reflect current implementation using `useApiData` and `SettingsContext`. React Query migration is planned for Phase 2 (Weeks 3-5) per `ai_frontend_dev.md`.

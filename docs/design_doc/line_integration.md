@@ -104,117 +104,426 @@ This document defines the business logic and technical design for LINE integrati
 
 ---
 
-## Edge Cases
+## Backend Technical Design
 
-### 1. Notification Failures
+### API Endpoints
 
-**Scenario**: LINE notification fails to send during appointment edit.
+#### `POST /api/line/webhook`
+- **Description**: LINE webhook endpoint for receiving messages and events
+- **Headers**: `X-Line-Signature` (webhook signature for verification)
+- **Request Body**: LINE webhook payload (events array)
+- **Response**: `{ success: true }`
+- **Errors**:
+  - 400: Invalid signature, malformed payload
+  - 500: Internal server error
 
-**Behavior**: Notification failures do NOT block the appointment edit. Appointment edit succeeds, notification failure is logged, user receives success confirmation.
+#### `POST /clinic/notifications/preview`
+- **Description**: Generate notification preview for appointment changes
+- **Request Body**: `{ appointment_id: number, changes: object }`
+- **Response**: `{ notification_preview: { message: string, recipients: string[] } }`
+- **Errors**:
+  - 400: Invalid appointment or changes
+  - 500: Internal server error
 
-**Rationale**: Notification is a side effect, not a core requirement.
+#### `POST /clinic/notifications/send`
+- **Description**: Send notification for appointment changes
+- **Request Body**: `{ appointment_id: number, message: string, send_to_patient: boolean, send_to_practitioner: boolean }`
+- **Response**: `{ success: true }`
+- **Errors**:
+  - 400: Invalid request
+  - 500: LINE API error (logged, not returned to client)
 
-### 2. Patients without LINE
+#### `GET /liff/availability-notifications`
+- **Description**: Get user's availability notification preferences
+- **Response**: `AvailabilityNotification[]`
+- **Errors**: 500
 
-**Scenario**: Patient doesn't have LINE account linked.
+#### `POST /liff/availability-notifications`
+- **Description**: Create availability notification preference
+- **Request Body**: `{ appointment_type_id: number, practitioner_id?: number, time_windows: TimeWindow[], date_range: DateRange }`
+- **Response**: `{ notification_id: number }`
+- **Errors**:
+  - 400: Validation errors
+  - 500: Internal server error
 
-**Behavior**: No LINE notifications sent. Appointment operations proceed normally. No follow-up notification modal shown.
+#### `DELETE /liff/availability-notifications/{id}`
+- **Description**: Delete availability notification preference
+- **Path Parameters**: `id` (notification ID)
+- **Response**: `{ success: true }`
+- **Errors**: 404, 500
 
-### 3. No-op Edits
+### Database Schema
 
-**Scenario**: Edit results in no patient-facing changes (e.g., only internal clinic notes changed).
+**LineUsers Table**:
+- `id`: Primary key
+- `clinic_id`: Foreign key to clinics
+- `line_user_id`: String (LINE user ID)
+- `display_name`: String (nullable, fetched from LINE API)
+- `picture_url`: String (nullable, profile picture URL)
+- `status`: Enum ('active', 'inactive')
+- `created_at`: DateTime
+- `updated_at`: DateTime
 
-**Behavior**: Backend returns no `notification_preview`, ending the flow at "Success" state. No notification modal shown.
+**AvailabilityNotifications Table**:
+- `id`: Primary key
+- `line_user_id`: Foreign key to line_users
+- `clinic_id`: Foreign key to clinics
+- `appointment_type_id`: Foreign key to appointment_types
+- `practitioner_id`: Foreign key to users (nullable)
+- `time_windows`: JSONB (array of time window objects)
+- `date_range`: JSONB (start_date, end_date)
+- `last_notified_date`: Date (nullable)
+- `is_active`: Boolean
+- `created_at`: DateTime
+- `updated_at`: DateTime
 
-### 4. User Abandons Notification Step
+**MessageLogs Table**:
+- `id`: Primary key
+- `line_user_id`: Foreign key to line_users
+- `clinic_id`: Foreign key to clinics
+- `message_type`: Enum ('incoming', 'outgoing')
+- `content`: Text
+- `reply_token`: String (nullable, for reply messages)
+- `trigger_source`: String (nullable, 'patient_triggered', 'clinic_triggered', 'system_triggered')
+- `created_at`: DateTime
 
-**Scenario**: User closes notification modal without sending.
+**Constraints**:
+- Line user IDs unique per clinic (composite unique index)
+- Availability notifications have valid date ranges and time windows
+- Message logs retained for audit and debugging
 
-**Behavior**: Appointment change remains saved in database. This is intended behavior as data integrity is the priority.
+### Business Logic Implementation
 
-### 5. Concurrent Webhook Events
+**LINEService** (`backend/src/services/line_service.py`):
+- `verify_webhook_signature()`: Verifies LINE webhook signature
+- `send_text_message()`: Sends messages via LINE Messaging API
+- `get_user_profile()`: Fetches user profile from LINE API
 
-**Scenario**: Multiple webhook events arrive simultaneously for the same user.
+**NotificationService** (`backend/src/services/notification_service.py`):
+- `send_appointment_*()`: Methods for different appointment notifications
+- `generate_notification_message()`: Creates localized notification messages
+- `send_availability_notification()`: Sends slot availability alerts
 
-**Behavior**: Database-level locking prevents duplicate `LineUser` entries. Thread-safe implementation handles race conditions gracefully.
+**ClinicAgentService** (`backend/src/services/clinic_agent_service.py`):
+- Manages OpenAI Agent SDK integration
+- Handles conversation state per user per clinic
+- Processes messages with clinic-specific context
 
-### 6. LINE API Failures
-
-**Scenario**: LINE API fails when fetching user profile or sending message.
-
-**Behavior**: 
-- Profile fetching: Create `LineUser` with minimal info (line_user_id only), log warning
-- Message sending: Log error, return error response, but don't block appointment operations
+**Key Business Logic**:
+- Webhook signature verification ensures authenticity
+- Message type detection (reply vs push) optimizes costs
+- Notification rules prevent redundant messaging
+- Clinic isolation maintained for all LINE users
+- Thread-safe user creation prevents race conditions
 
 ---
 
-## Technical Design
+## Frontend Technical Design
 
-### LINE Webhook Handler
+### State Management Strategy
 
-**Endpoint**: `POST /api/line/webhook`
+#### Server State (API Data)
+- [x] **Data Source**: LINE webhook (backend-only), notification preview API, availability notifications API
+- [x] **Current Implementation**: Using `useApiData` hook for availability notifications
+  - **Note**: Most LINE functionality is backend webhook processing, minimal frontend state
+- [x] **Query Keys** (when migrated to React Query):
+  - `['availability-notifications']` - User's notification preferences
+  - `['notification-preview', appointmentId, changes]` - Notification preview
+- [x] **Cache Strategy**:
+  - **Current**: Custom cache with TTL (5 minutes default)
+  - **Future (React Query)**:
+    - `staleTime`: 5 minutes (notification preferences)
+    - `cacheTime`: 10 minutes
 
-**Security**: Verifies webhook signature using LINE channel secret.
+#### Client State (UI State)
+- [x] **NotificationModal State** (`frontend/src/components/NotificationModal.tsx`):
+  - **State Properties**:
+    - `isOpen`: Modal visibility
+    - `preview`: Notification preview from backend
+    - `sending`: Loading state during send
+  - **Actions**:
+    - Show preview, send notification, skip
+  - **Usage**: Post-appointment change notification flow
 
-**Event Types**:
-- `follow`: User adds official account as friend → Create `LineUser`, fetch profile
-- `unfollow`: User blocks/removes account → Mark user as inactive (soft delete)
-- `message`: User sends message → Process via chatbot, create `LineUser` if doesn't exist
+- [x] **LIFF Availability Notifications State**:
+  - **State Properties**: Notification preferences list, create/edit forms
+  - **Usage**: LIFF patient interface for managing availability notifications
 
-**Implementation**: Uses `LINEService` for signature verification and message extraction.
+#### Form State
+- [x] **NotificationModal**: Simple form with message preview and send/skip options
+- [x] **Availability Notification Form**: Complex form with appointment type, practitioner, time windows, date ranges
 
-### Notification Service
+### Component Architecture
 
-**Methods**:
-- `send_appointment_confirmation()`: Sends confirmation when appointment is created
-- `send_appointment_cancellation()`: Sends cancellation notification
-- `send_appointment_edit_notification()`: Sends edit/reschedule notification
-- `send_practitioner_appointment_notification()`: Notifies practitioner of new appointment
-- `send_availability_notification()`: Sends availability alert to user
+#### Component Hierarchy
+```
+EventModal (appointment edit success)
+  └── NotificationModal
+      ├── MessagePreview
+      ├── SendButton
+      └── SkipButton
 
-**Trigger Source Tracking**: All push messages tracked with `trigger_source` label (`patient_triggered`, `clinic_triggered`, `system_triggered`).
+LiffApp (patient interface)
+  └── AvailabilityNotificationsPage
+      ├── NotificationPreferencesList
+      ├── CreateNotificationForm
+      │   ├── AppointmentTypeSelector
+      │   ├── PractitionerSelector
+      │   ├── TimeWindowSelector
+      │   └── DateRangeSelector
+      └── DeleteConfirmationModal
+```
 
-### Reminder Service
+#### Component List
+- [x] **NotificationModal** (`frontend/src/components/NotificationModal.tsx`)
+  - **Props**: `isOpen`, `onClose`, `preview`, `onSend`, `onSkip`
+  - **State**: Sending status, message customization
+  - **Dependencies**: `useApiData` (send notification), modal management
 
-**Purpose**: Send appointment reminders to patients before appointments.
+- [x] **AvailabilityNotificationsPage** (LIFF component)
+  - **Props**: None (LIFF context)
+  - **State**: Notification preferences, form states
+  - **Dependencies**: `useApiData` (CRUD operations), LIFF API calls
 
-**Rules**:
-- Runs hourly to check for appointments needing reminders
-- Skips reminders for appointments created within reminder window (patient already knows)
-- Marks `reminder_sent_at` after sending to prevent duplicates
-- Configuration: `clinic.reminder_hours_before` (default: 24 hours)
+### User Interaction Flows
 
-**Rationale**: Helps patients remember appointments while avoiding redundant notifications.
+#### Flow 1: Appointment Change Notification (Clinic)
+1. Clinic user edits appointment successfully
+2. Backend returns `notification_preview` in response
+3. `NotificationModal` opens automatically
+4. User sees preview of notification message and recipients
+5. User can customize message (optional)
+6. User clicks "發送" to send notification
+7. Notification sent via LINE API
+8. Modal closes, success confirmation shown
+   - **Edge case**: No LINE user → Modal shows "無 LINE 通知" message
+   - **Edge case**: User clicks "略過" → Modal closes, no notification sent
+   - **Error case**: LINE API fails → Error logged, user sees success (appointment saved)
 
-### Clinic Agent Service
+#### Flow 2: Availability Notification Setup (LIFF)
+1. Patient navigates to availability notifications in LIFF
+2. Patient clicks "新增通知設定"
+3. Patient selects appointment type
+4. Patient optionally selects practitioner
+5. Patient sets time windows (e.g., "每週一 10:00-12:00")
+6. Patient sets date range (start/end dates)
+7. Patient saves notification preference
+8. System starts monitoring for available slots
+   - **Edge case**: Invalid time windows → Validation error shown
+   - **Edge case**: Date range in past → Error message shown
 
-**Purpose**: Manages AI-powered chatbot conversations per clinic.
+#### Flow 3: Availability Notification Receipt
+1. Background scheduler finds available slot matching user preferences
+2. System sends LINE notification: "您預約的時段現在有空位了！請盡快預約。"
+3. User receives notification in LINE
+4. User can click link to book appointment
+   - **Edge case**: Multiple matches → Only one notification per day per preference
+   - **Edge case**: User already booked → Notification still sent (user can manage preferences)
 
-**Features**:
-- Clinic-specific instructions and context
-- Conversation history stored in PostgreSQL
-- Multi-turn conversation support
-- Safety boundaries and grounding in clinic context
+#### Flow 4: LINE Chatbot Interaction
+1. Patient sends message to clinic's LINE official account
+2. LINE webhook receives message
+3. Backend processes message through AI agent
+4. AI generates response with clinic context
+5. Response sent back via LINE (free reply message)
+6. Conversation history maintained for context
+   - **Edge case**: AI response violates safety rules → Fallback response or blocked
+   - **Edge case**: Clinic context unavailable → Generic response
 
-**Test Feature**: Admins can test chatbot responses with different clinic contexts.
+### Edge Cases and Error Handling
 
-**Evaluation Suite**: Systematic evaluation suite with ~20 diverse test cases covering different scenarios (clinic information, health consultation, safety boundaries, etc.).
+#### Edge Cases
+- [x] **Race Condition**: User switches clinic during notification send
+  - **Solution**: Notifications scoped to appointment clinic, clinic context validated
+
+- [x] **Concurrent Notifications**: Multiple appointment changes trigger notifications simultaneously
+  - **Solution**: Each notification processed independently, no conflicts
+
+- [x] **Component Unmount**: Notification modal unmounts during send
+  - **Solution**: `useApiData` checks `isMountedRef`, prevents state updates after unmount
+
+- [x] **Network Failure**: LINE API fails during notification send
+  - **Solution**: Error logged, appointment operation succeeds, user sees success
+
+- [x] **Stale Data**: Notification preview based on outdated appointment data
+  - **Solution**: Preview generated server-side with current appointment state
+
+- [x] **LINE User Not Linked**: Patient has no LINE account linked
+  - **Solution**: No notification modal shown, operations proceed normally
+
+- [x] **Availability Notification Duplicates**: Multiple slots match same preference same day
+  - **Solution**: `last_notified_date` prevents duplicate notifications per day
+
+- [x] **Chatbot Context Missing**: AI agent lacks clinic-specific instructions
+  - **Solution**: Fallback to generic responses, error logged for admin review
+
+#### Error Scenarios
+- [x] **API Errors (4xx, 5xx)**:
+  - **User Message**: "通知發送失敗" (notification send failed)
+  - **Recovery Action**: User can retry or skip notification
+  - **Implementation**: Error handling in notification modal
+
+- [x] **Validation Errors**:
+  - **User Message**: Field-level validation messages
+  - **Field-level Errors**: Shown in availability notification forms
+  - **Implementation**: Frontend validation, backend validation
+
+- [x] **Loading States**:
+  - **Initial Load**: Loading notification preview
+  - **Send**: Loading during LINE API call
+  - **Implementation**: Modal shows loading spinners
+
+- [x] **Permission Errors (403)**:
+  - **User Message**: "無權限發送通知"
+  - **Recovery Action**: Modal shows read-only preview
+  - **Implementation**: Backend permission checks
+
+### Testing Requirements
+
+#### E2E Tests (Playwright)
+- [ ] **Test Scenario**: Appointment notification flow
+  - Steps:
+    1. Edit appointment as clinic user
+    2. Verify notification modal appears
+    3. Verify preview shows correct message and recipients
+    4. Click send notification
+    5. Verify success message
+  - Assertions: Modal appears, preview correct, notification sent successfully
+
+- [ ] **Test Scenario**: Notification skip option
+  - Steps:
+    1. Edit appointment
+    2. Click "略過" in notification modal
+    3. Verify modal closes without sending
+  - Assertions: No notification sent, appointment edit succeeds
+
+#### Integration Tests (MSW)
+- [ ] **Test Scenario**: Notification modal with preview
+  - Mock API responses: Notification preview, send success
+  - User interactions: Open modal, send notification
+  - Assertions: Preview displayed, send API called correctly
+
+- [ ] **Test Scenario**: Availability notifications management
+  - Mock API responses: CRUD operations for notification preferences
+  - User interactions: Create, view, delete preferences
+  - Assertions: Preferences managed correctly, validation works
+
+- [ ] **Test Scenario**: Error handling
+  - Mock API responses: LINE API failures, validation errors
+  - User interactions: Trigger errors
+  - Assertions: Errors handled gracefully, user can retry
+
+#### Unit Tests
+- [ ] **Component**: `NotificationModal`
+  - Test cases: Renders preview, handles send/skip, shows loading states, error handling
+- [ ] **Service**: LINE webhook processing
+  - Test cases: Signature verification, event processing, chatbot integration
+- [ ] **Service**: Notification service
+  - Test cases: Message generation, recipient determination, LINE API integration
+
+### Performance Considerations
+
+- [x] **Data Loading**: 
+  - Notification previews generated server-side to avoid client-side computation
+  - Availability notifications fetched with pagination if needed
+  - Chatbot responses cached briefly to reduce API calls
+
+- [x] **Caching**: 
+  - Current: Custom cache for availability notifications
+  - Future: React Query will provide better caching
+
+- [x] **Optimistic Updates**: 
+  - Notification send uses optimistic updates (UI shows success immediately)
+
+- [x] **Lazy Loading**: 
+  - Notification modal loaded on demand
+  - LIFF availability notification components loaded lazily
+
+- [x] **Memoization**: 
+  - Notification preview memoized to prevent unnecessary re-renders
+
+---
+
+## Integration Points
+
+### Backend Integration
+- [x] **Dependencies on other services**:
+  - LINE integration depends on LINE Messaging API
+  - Notifications integrate with appointment service
+  - Chatbot uses OpenAI API
+  - Webhooks processed asynchronously
+
+- [x] **Database relationships**:
+  - Line users linked to clinics (clinic isolation)
+  - Availability notifications linked to line users and appointment types
+  - Message logs for audit trail
+
+- [x] **API contracts**:
+  - LINE webhook follows LINE specification
+  - Internal APIs follow REST conventions
+
+### Frontend Integration
+- [x] **Shared components used**:
+  - `BaseModal`, `LoadingSpinner`
+  - Form components for availability notifications
+
+- [x] **Shared hooks used**:
+  - `useApiData` (availability notifications, notification send)
+  - `useModal` (notification modal)
+
+- [x] **Shared stores used**:
+  - None (minimal state management)
+
+- [x] **Navigation/routing changes**:
+  - LIFF routing includes availability notifications
+  - Clinic interface integrates notification modal
+
+---
+
+## Security Considerations
+
+- [x] **Authentication requirements**:
+  - LINE webhooks verified with signature validation
+  - Clinic users authenticated for notification operations
+  - LIFF tokens validated for availability notifications
+
+- [x] **Authorization checks**:
+  - Notification permissions checked before sending
+  - Clinic isolation enforced for all LINE operations
+  - Admin-only operations (void receipts) protected
+
+- [x] **Input validation**:
+  - LINE webhook payloads validated
+  - Notification messages sanitized
+  - Availability notification preferences validated
+
+- [x] **XSS prevention**:
+  - User-generated content in LINE messages sanitized
+  - HTML content properly escaped
+
+- [x] **CSRF protection**:
+  - API operations protected with authentication
+  - LINE webhooks verified with signatures
+
+- [x] **Data isolation**:
+  - Clinic isolation enforced for LINE users and messages
+  - User data properly scoped to clinics
 
 ---
 
 ## Summary
 
 This document covers:
-- LINE message types (free reply messages vs paid push messages)
-- Notification rules (skip when user already knows, patient vs clinic triggered)
-- Appointment notification overhaul (post-action flow, decoupled from modifications)
-- Availability notifications (user preferences, periodic checks, deduplication)
-- Proactive LINE user collection (webhook events, profile fetching, clinic isolation)
-- LINE chatbot (AI-powered responses, clinic-specific context, evaluation suite)
-- Edge cases (notification failures, patients without LINE, concurrent events)
-- Technical design (webhook handler, notification service, reminder service, clinic agent service)
+- LINE message types (free reply vs paid push messages)
+- Notification rules (patient vs clinic triggered changes)
+- Appointment notification overhaul (decoupled post-action flow)
+- Availability notifications (user preferences, periodic monitoring)
+- Proactive LINE user collection (webhook events, profile fetching)
+- LINE chatbot (AI-powered responses, clinic context)
+- Edge cases (notification failures, concurrent events, API failures)
+- Backend technical design (webhook handler, services, database)
+- Frontend technical design (notification modal, availability management)
 
 All business rules are enforced at both frontend (UX) and backend (source of truth) levels.
 
-
-
+**Migration Status**: This document has been migrated to the new template format. Frontend sections reflect current implementation. LINE integration is primarily backend-focused with webhook processing, with minimal frontend components for notifications and LIFF availability management.

@@ -99,22 +99,16 @@ This document defines the business logic, permissions, and technical design for 
    - **Patients**: Can only see **active receipts** (not voided)
    - **Clinic Users**: Can see **all receipts** (active and voided)
 
----
+### 6. Appointment Creation
 
-## Appointment Creation
-
-### By Clinic
-
+#### By Clinic
 When a clinic admin creates an appointment on behalf of a patient:
-
 - **Booking Constraints**: Does NOT enforce booking restrictions
 - **Practitioner Requirements**: Must specify a practitioner (cannot use "不指定")
 - **Notifications**: Both practitioner and patient receive LINE notifications
 
-### By Patient
-
+#### By Patient
 When a patient creates an appointment through the LIFF interface:
-
 - **Booking Constraints**: Must enforce all booking restrictions
 - **Practitioner Selection**: 
   - Optional if `allow_patient_practitioner_selection = True` (can select "不指定")
@@ -127,14 +121,10 @@ When a patient creates an appointment through the LIFF interface:
     - Patient receives LINE notification (shows "不指定" as practitioner name)
     - Appointment marked as `is_auto_assigned = True` and `originally_auto_assigned = True`
 
----
+### 7. Appointment Editing
 
-## Appointment Editing
-
-### By Clinic
-
+#### By Clinic
 When a clinic admin edits an appointment:
-
 - **Booking Constraints**: Does NOT enforce booking restrictions
 - **Practitioner Requirements**: Must specify a practitioner (cannot use "不指定")
 - **Auto-Assigned Appointment Reassignment**:
@@ -147,10 +137,8 @@ When a clinic admin edits an appointment:
   - If only practitioner changes (time unchanged): Patient is NOT notified (still sees "不指定")
   - If both change: Patient is notified about time change only
 
-### By Patient
-
+#### By Patient
 When a patient edits their appointment through LIFF:
-
 - **Booking Constraints**: Must enforce all booking restrictions
   - `minimum_booking_hours_ahead`: Applies to the NEW appointment time
   - `minimum_cancellation_hours_before`: Applies to the CURRENT appointment time
@@ -165,21 +153,12 @@ When a patient edits their appointment through LIFF:
   - If was previously auto-assigned: Old practitioner never knew, stays silent
   - If was previously manually assigned: Old practitioner receives cancellation notification
 
----
+### 8. Appointment Features
 
-## Appointment Features
-
-### Duplication
-
+#### Duplication
 **User Flow**:
 1. User clicks "複製" (Duplicate) button in EventModal
-2. `CreateAppointmentModal` opens with all fields pre-filled from original appointment:
-   - Patient: Pre-selected
-   - Appointment Type: Pre-selected
-   - Practitioner: Pre-selected (hidden for auto-assigned when user is not admin)
-   - Date/Time: Pre-selected (same date/time initially, but user can change)
-   - Clinic Notes: Pre-filled
-   - Resources: Pre-selected
+2. `CreateAppointmentModal` opens with all fields pre-filled from original appointment
 3. User can modify any field (especially date/time) before saving
 
 **Data Mapping**:
@@ -188,10 +167,7 @@ When a patient edits their appointment through LIFF:
 
 **Permissions**: All visible appointments can be duplicated (no ownership check)
 
-**Technical Design**: Uses `useAppointmentForm` hook with `mode='duplicate'`. Initializes `selectedTime` as empty string to avoid immediate conflict triggers while keeping `selectedDate` for context. Calendar auto-expands for duplication mode.
-
-### Rescheduling
-
+#### Rescheduling
 **User Flow** (LIFF only):
 1. Patient clicks "改期" (Reschedule) button on appointment card
 2. Reschedule flow opens with existing appointment details pre-filled
@@ -205,10 +181,7 @@ When a patient edits their appointment through LIFF:
 - Cannot change practitioner if `allow_patient_practitioner_selection = False` (can keep current)
 - Cannot reschedule if appointment has any receipt (active or voided)
 
-**Technical Design**: Reuses `AppointmentFlow` components (`Step2SelectPractitioner`, `Step3SelectDateTime`, `Step5AddNotes`). Backend uses unified `AppointmentService.update_appointment()` method with `apply_booking_constraints=True` for patients.
-
-### Recurring Appointments
-
+#### Recurring Appointments
 **User Flow**:
 1. User enables "重複" (Repeat) toggle in `CreateAppointmentModal`
 2. User selects pattern: "每 [x] 週, 共 [y] 次" (Every x weeks, y times)
@@ -225,13 +198,9 @@ When a patient edits their appointment through LIFF:
 
 **Notifications**: Consolidated notification sent after all occurrences are created (prevents duplicate notifications)
 
-**Technical Design**: Backend endpoint `/clinic/appointments/recurring` creates appointments one by one. Frontend calls `/clinic/appointments/check-recurring-conflicts` to preview conflicts before creation.
+### 9. Permissions
 
----
-
-## Permissions
-
-### View & Duplicate Permissions
+#### View & Duplicate Permissions
 
 | Context | Admin | Practitioner (Regular) | Practitioner (Auto-Assigned) |
 |---------|-------|----------------------|----------------------------|
@@ -243,7 +212,7 @@ When a patient edits their appointment through LIFF:
 - Calendar page: Auto-assigned appointments are filtered out by backend for ALL users (including admins)
 - Patient detail page: All appointments visible, but `practitioner_id` is hidden for auto-assigned when user is not admin
 
-### Edit & Delete Permissions
+#### Edit & Delete Permissions
 
 | Context | Admin | Practitioner (Own, Regular) | Practitioner (Own, Auto-Assigned) | Practitioner (Others') |
 |---------|-------|----------------------------|----------------------------------|----------------------|
@@ -257,133 +226,580 @@ When a patient edits their appointment through LIFF:
 - Practitioner (Own, Auto-Assigned): Cannot edit/delete auto-assigned appointments, even if assigned to them
 - Practitioner (Others'): Cannot edit/delete other practitioners' appointments
 
-**Implementation**: Shared utility functions in `frontend/src/utils/appointmentPermissions.ts`:
-- `canEditAppointment(event, userId, isAdmin)`: Checks `is_auto_assigned` flag and ownership
-- `canDuplicateAppointment(event)`: Returns true if event is an appointment (all visible appointments can be duplicated)
+---
+
+## Backend Technical Design
+
+### API Endpoints
+
+#### `POST /clinic/appointments`
+- **Description**: Create appointment on behalf of patient (clinic admin/practitioner)
+- **Request Body**: `ClinicAppointmentCreateRequest` (patient_id, appointment_type_id, start_time, practitioner_id, clinic_notes, selected_resource_ids)
+- **Response**: `{ success: true, appointment_id: number, message: string }`
+- **Errors**: 
+  - 403: Read-only users cannot create appointments
+  - 400: Validation errors
+  - 500: Internal server error
+
+#### `POST /liff/appointments`
+- **Description**: Create appointment by patient through LIFF interface
+- **Request Body**: `AppointmentCreateRequest` (patient_id, appointment_type_id, start_time, practitioner_id (optional), notes)
+- **Response**: `AppointmentResponse`
+- **Errors**:
+  - 400: Booking restrictions violated, validation errors
+  - 404: Appointment type not found
+  - 500: Internal server error
+
+#### `PUT /clinic/appointments/{appointment_id}`
+- **Description**: Update appointment (clinic admin/practitioner)
+- **Request Body**: `ClinicAppointmentUpdateRequest` (appointment_type_id, practitioner_id, start_time, clinic_notes, selected_resource_ids)
+- **Response**: `{ success: true, appointment_id: number, notification_preview: {...} }`
+- **Errors**:
+  - 403: Permission denied (practitioner trying to edit others' appointments or auto-assigned)
+  - 400: Validation errors, receipt exists (cannot modify)
+  - 404: Appointment not found
+  - 409: Concurrent edit conflict
+  - 500: Internal server error
+
+#### `PUT /liff/appointments/{appointment_id}`
+- **Description**: Update appointment by patient (reschedule)
+- **Request Body**: `AppointmentUpdateRequest` (start_time, practitioner_id (optional), notes)
+- **Response**: `AppointmentResponse`
+- **Errors**:
+  - 400: Booking restrictions violated, receipt exists, validation errors
+  - 404: Appointment not found
+  - 409: Concurrent edit conflict
+  - 500: Internal server error
+
+#### `DELETE /clinic/appointments/{appointment_id}`
+- **Description**: Cancel appointment by clinic admin or practitioner
+- **Query Parameters**: `note` (optional cancellation note)
+- **Response**: `{ success: true, message: string }`
+- **Errors**:
+  - 403: Permission denied
+  - 400: Receipt exists (cannot cancel)
+  - 404: Appointment not found
+  - 500: Internal server error
+
+#### `POST /clinic/appointments/recurring`
+- **Description**: Create recurring appointments
+- **Request Body**: `RecurringAppointmentCreateRequest` (base appointment data, pattern: weeks_interval, occurrences)
+- **Response**: `{ success: true, created_count: number, failed_count: number, appointments: [...] }`
+- **Errors**:
+  - 400: Validation errors, too many occurrences (>50)
+  - 500: Internal server error
+
+#### `POST /clinic/appointments/check-recurring-conflicts`
+- **Description**: Preview conflicts for recurring appointments before creation
+- **Request Body**: `CheckRecurringConflictsRequest` (base appointment data, pattern)
+- **Response**: `{ conflicts: [...], occurrences: [...] }`
+- **Errors**: 400, 500
+
+#### `GET /clinic/appointments/resource-availability`
+- **Description**: Get resource availability for a time slot
+- **Query Parameters**: `appointment_type_id`, `practitioner_id`, `date`, `start_time`, `end_time`, `exclude_calendar_event_id` (optional)
+- **Response**: `ResourceAvailabilityResponse`
+- **Errors**: 400, 500
+
+### Database Schema
+
+**Appointments Table**:
+- `id`: Primary key
+- `clinic_id`: Foreign key to clinics
+- `patient_id`: Foreign key to patients
+- `appointment_type_id`: Foreign key to appointment_types
+- `practitioner_id`: Foreign key to users (nullable, null = "不指定")
+- `calendar_event_id`: Foreign key to calendar_events
+- `start_time`: DateTime
+- `end_time`: DateTime (calculated from appointment type duration)
+- `status`: Enum ('confirmed', 'canceled_by_patient', 'canceled_by_clinic')
+- `is_auto_assigned`: Boolean (True = hidden from practitioner)
+- `originally_auto_assigned`: Boolean (historical flag, immutable)
+- `reassigned_by_user_id`: Foreign key to users (nullable, set when admin reassigns)
+- `notes`: Text (patient notes, for LIFF bookings)
+- `clinic_notes`: Text (internal clinic notes)
+- `created_at`: DateTime
+- `updated_at`: DateTime
+
+**Relationships**:
+- One appointment → One calendar event
+- One appointment → One patient
+- One appointment → One appointment type
+- One appointment → One practitioner (nullable)
+- One appointment → Many receipts (ON DELETE RESTRICT)
+- One appointment → Many appointment_resource_allocations
+
+**Constraints**:
+- Receipts have `ON DELETE RESTRICT` constraint (prevents deletion of appointments with receipts)
+- Status must be 'confirmed' to create receipts
+- Soft-deleted appointment types are allowed (appointments remain editable)
+
+### Business Logic Implementation
+
+**AppointmentService** (`backend/src/services/appointment_service.py`):
+- `create_appointment()`: Creates appointment with auto-assignment logic, booking restrictions validation, resource allocation
+- `update_appointment()`: Updates appointment with permission checks, booking restrictions (for patients), receipt validation
+- `cancel_appointment()`: Cancels appointment with permission checks, receipt validation
+- `create_recurring_appointments()`: Creates multiple appointments with conflict checking
+- `check_recurring_conflicts()`: Previews conflicts for recurring appointments
+
+**Key Business Logic**:
+- Auto-assignment: When `practitioner_id` is None, system assigns temporary practitioner and sets `is_auto_assigned = True`
+- Booking restrictions: Enforced for patients via `apply_booking_constraints` parameter
+- Receipt validation: Checks for existing receipts before allowing edits/deletes
+- Permission checks: Validates user role and ownership before allowing operations
+- Concurrent edits: Uses database-level optimistic locking (`with_for_update(nowait=True)`)
+
+**Recency Limit Automatic Assignment**:
+- Background cron job (`backend/src/services/background_schedulers.py`)
+- Automatically sets `is_auto_assigned = False` when appointment is within `minimum_booking_hours_ahead` hours
+- Sends LINE notification to practitioner as if patient booked directly
 
 ---
 
-## Edge Cases
+## Frontend Technical Design
 
-### Inactive or Deleted Practitioner
+### State Management Strategy
 
-**Scenario**: Auto-assigned practitioner becomes inactive or is deleted.
+#### Server State (API Data)
+- [x] **Data Source**: Multiple API endpoints for appointments, practitioners, appointment types, resources, availability
+- [x] **Current Implementation**: Using `useApiData` hook (795 lines, custom caching logic)
+  - **Note**: Migration to React Query planned for Phase 2 (Weeks 3-5) per `ai_frontend_dev.md`
+- [x] **Query Keys** (when migrated to React Query):
+  - `['appointments', clinicId, filters]` - List appointments
+  - `['appointment', appointmentId]` - Single appointment
+  - `['practitioners', appointmentTypeId, clinicId]` - Available practitioners
+  - `['appointment-types', clinicId]` - Appointment types
+  - `['resources', appointmentTypeId, practitionerId, date, time]` - Resource availability
+  - `['recurring-conflicts', ...]` - Recurring appointment conflicts
+- [x] **Cache Strategy**:
+  - **Current**: Custom cache with TTL (5 minutes default), clinic ID auto-injection
+  - **Future (React Query)**: 
+    - `staleTime`: 5 minutes (appointment data)
+    - `staleTime`: 1 minute (availability data - changes frequently)
+    - `cacheTime`: 10 minutes
+    - Invalidation triggers: Appointment create/update/delete, clinic switch
 
-- **System Behavior**:
-  - When cron job tries to make appointment visible: System re-assigns to an available practitioner if original is inactive/deleted
-  - When patient tries to edit appointment: System automatically re-assigns to an available practitioner (if original is unavailable)
-  - When admin tries to reassign: Admin can reassign to any active practitioner
-- **Admin Responsibility**: System should warn admin about future appointments when they try to delete/deactivate a practitioner
+#### Client State (UI State)
+- [x] **Zustand Store**: `appointmentStore` (`frontend/src/stores/appointmentStore.ts`)
+  - **State Properties**: 
+    - Flow state (step, flowType)
+    - Form data (appointmentTypeId, practitionerId, date, startTime, patientId, notes)
+    - Clinic context (clinicId, clinicName, etc.)
+    - Created appointment data
+  - **Actions**: `setStep`, `setAppointmentType`, `setPractitioner`, `setDateTime`, `setPatient`, `setNotes`, etc.
+  - **Usage**: LIFF appointment booking flow (multi-step)
+- [x] **Local Component State**: 
+  - `CreateAppointmentModal`: Modal open/close, step ('form' | 'review'), service item selection, recurring toggle
+  - `EditAppointmentModal`: Modal open/close, step ('form' | 'review' | 'note' | 'preview'), preview message
+  - `DateTimePicker`: Selected date/time, calendar view, conflicts
+  - `EventModal`: Modal open/close, delete confirmation, receipt viewing
 
-### Soft-Deleted Appointment Types
+#### Form State
+- [x] **React Hook Form**: Not used (custom form state management via `useAppointmentForm` hook)
+- [x] **Custom Hook**: `useAppointmentForm` (`frontend/src/hooks/useAppointmentForm.ts`)
+  - **Modes**: `'create' | 'edit' | 'duplicate'`
+  - **State**: Selected patient, appointment type, practitioner, date, time, clinic notes, resources
+  - **Validation**: Centralized validation logic
+  - **Features**: Parallel initialization, AbortController cleanup, auto-deselection of dependent fields
 
-**Scenario**: Appointment type is soft-deleted after appointment is created.
+### Component Architecture
 
-- **Rule**: Editing is **still allowed** for appointments with soft-deleted types
-- **Display**: Appointment type name shows as "已刪除服務類型" (Deleted Service Type) in UI
-- **Behavior**: Appointment functionality remains intact, only display name changes
+#### Component Hierarchy
+```
+CalendarView
+  ├── CreateAppointmentModal
+  │   ├── useAppointmentForm (hook)
+  │   ├── AppointmentReferenceHeader (for duplicate mode)
+  │   ├── AppointmentTypeSelector
+  │   ├── PractitionerSelector
+  │   ├── DateTimePicker
+  │   │   ├── CalendarView (month navigation)
+  │   │   └── TimeSlotSelector
+  │   ├── PatientSearchInput
+  │   ├── ResourceSelection
+  │   ├── ClinicNotesTextarea
+  │   ├── RecurringAppointmentToggle
+  │   └── ServiceItemSelectionModal
+  ├── EditAppointmentModal
+  │   ├── useAppointmentForm (hook)
+  │   ├── AppointmentReferenceHeader
+  │   ├── AppointmentTypeSelector
+  │   ├── PractitionerSelector
+  │   ├── DateTimePicker
+  │   ├── ResourceSelection
+  │   ├── ClinicNotesTextarea
+  │   └── ServiceItemSelectionModal
+  └── EventModal
+      ├── AppointmentDetails
+      ├── ReceiptViewer
+      └── ActionButtons (Edit, Duplicate, Delete)
 
-### Cancelled Appointments
+LiffApp (Patient Booking Flow)
+  └── AppointmentFlow
+      ├── Step1SelectPatient (or Step1SelectAppointmentType)
+      ├── Step2SelectPractitioner (or Step2SelectAppointmentType)
+      ├── Step3SelectDateTime
+      ├── Step4SelectPatient (Flow 1 only)
+      ├── Step5AddNotes
+      └── Step6Confirmation
+```
 
-**Scenario**: Attempting to edit a cancelled appointment.
+#### Component List
+- [x] **CreateAppointmentModal** (`frontend/src/components/calendar/CreateAppointmentModal.tsx`)
+  - **Props**: `preSelectedPatientId`, `preSelectedAppointmentTypeId`, `preSelectedPractitionerId`, `preSelectedTime`, `preSelectedClinicNotes`, `practitioners`, `appointmentTypes`, `onClose`, `onConfirm`, `event` (for duplication)
+  - **State**: `step` ('form' | 'review'), form data via `useAppointmentForm`, service item selection, recurring toggle
+  - **Dependencies**: `useAppointmentForm`, `useApiData`, `DateTimePicker`, `ResourceSelection`, `ServiceItemSelectionModal`
 
-- **Rule**: Cancelled appointments **cannot be edited** by anyone (patient or admin)
-- **Status Check**: System validates appointment status before allowing edits
-- **Error Message**: Clear message indicating appointment is cancelled and cannot be modified
+- [x] **EditAppointmentModal** (`frontend/src/components/calendar/EditAppointmentModal.tsx`)
+  - **Props**: `event`, `practitioners`, `appointmentTypes`, `onClose`, `onComplete`, `onConfirm`
+  - **State**: `step` ('form' | 'review' | 'note' | 'preview'), form data via `useAppointmentForm`, preview message
+  - **Dependencies**: `useAppointmentForm`, `useApiData`, `DateTimePicker`, `ResourceSelection`, `NotificationModal`
 
-### Past Appointments
+- [x] **EventModal** (`frontend/src/components/calendar/EventModal.tsx`)
+  - **Props**: `event`, `onClose`, `onEdit`, `onDuplicate`, `onDelete`, `onReceiptCreated`
+  - **State**: Delete confirmation, receipt viewing
+  - **Dependencies**: `appointmentPermissions` utilities, receipt components
 
-**Scenario**: Attempting to edit an appointment that is in the past.
+- [x] **DateTimePicker** (`frontend/src/components/calendar/DateTimePicker.tsx`)
+  - **Props**: `selectedDate`, `selectedTime`, `onDateChange`, `onTimeChange`, `appointmentTypeId`, `practitionerId`, `excludeEventId`, `initialDate`
+  - **State**: Calendar view (month/year), time slots, conflicts, availability loading
+  - **Dependencies**: `useApiData` (availability), `useDateSlotSelection`, availability cache utilities
 
-- **Rule**: Past appointments **cannot be edited**
-- **Validation**: System checks appointment start time against current time
-- **Exception**: Clinic admins can use Override Mode to schedule in the past (for administrative purposes)
+- [x] **useAppointmentForm** (`frontend/src/hooks/useAppointmentForm.ts`)
+  - **Props**: `mode`, `event`, `appointmentTypes`, `practitioners`, `initialDate`, pre-selected fields
+  - **State**: All form fields (patient, appointment type, practitioner, date, time, notes, resources)
+  - **Dependencies**: `useApiData` (practitioners, resources, availability), `useState`, `useEffect`, `AbortController`
 
-### Appointment Type Changes
+- [x] **AppointmentFlow** (`frontend/src/liff/appointment/AppointmentFlow.tsx`) - LIFF multi-step flow
+  - **Props**: Clinic context, onComplete
+  - **State**: Current step, form data via `appointmentStore`
+  - **Dependencies**: `appointmentStore`, step components
 
-**Scenario**: Attempting to change appointment type during edit.
+### User Interaction Flows
 
-- **Rule**: Appointment type **can be changed** during edit operations, with validation that the practitioner offers the new appointment type. Resource allocations are cleared and re-allocated based on new requirements.
-- **Rationale**: Allows flexibility to correct appointment type selection while maintaining data integrity
+#### Flow 1: Create Appointment (Clinic Admin)
+1. User clicks "新增預約" button on calendar
+2. `CreateAppointmentModal` opens
+3. User selects patient (search or create new)
+4. User selects appointment type
+5. System fetches available practitioners for selected appointment type
+6. User selects practitioner (required for admins)
+7. User selects date and time
+8. System checks availability and shows conflicts
+9. User selects resources (if required by appointment type)
+10. User adds clinic notes (optional)
+11. User clicks "確認" → Review step
+12. User confirms → Appointment created
+13. Success message shown, modal closes, calendar refreshes
+   - **Edge case**: Recurring appointments → Additional steps for pattern selection and conflict review
+   - **Error case**: API error → Error message shown, user can retry
 
-### Concurrent Edits
+#### Flow 2: Edit Appointment (Clinic Admin)
+1. User clicks appointment on calendar → `EventModal` opens
+2. User clicks "編輯" button
+3. `EditAppointmentModal` opens with current appointment data pre-filled
+4. User modifies fields (practitioner, time, appointment type, resources, clinic notes)
+5. System validates changes and checks conflicts
+6. User clicks "下一步" → Review step shows changes
+7. User clicks "確認更動" → Appointment updated
+8. Backend returns `notification_preview`
+9. `NotificationModal` opens (user can send notification or skip)
+10. Success message shown, modal closes, calendar refreshes
+   - **Edge case**: Receipt exists → Edit blocked, error message shown
+   - **Edge case**: Concurrent edit → Conflict error (409), error message shown
+   - **Error case**: Validation error → Field-level errors shown
 
-**Scenario**: Admin and patient try to edit the same appointment simultaneously.
+#### Flow 3: Duplicate Appointment
+1. User clicks appointment → `EventModal` opens
+2. User clicks "複製" button
+3. `CreateAppointmentModal` opens with all fields pre-filled from original
+4. User modifies date/time (typically) or other fields
+5. User clicks "確認" → New appointment created
+   - **Edge case**: Auto-assigned appointment → Practitioner field hidden for non-admins
 
-- **Approach**: Database-level optimistic locking with `with_for_update(nowait=True)`
-- **Expected Behavior**: 
-  - First write succeeds, second fails with conflict error (409)
-  - System provides clear error messages to the user whose edit was rejected
-  - Consider showing a warning if appointment was recently modified
+#### Flow 4: Patient Booking (LIFF)
+1. Patient opens LIFF app → `AppointmentFlow` starts
+2. **Flow 1**: Select appointment type → Select practitioner (if allowed) → Select date/time → Select patient → Add notes → Confirm
+3. **Flow 2**: Select patient → Select appointment type → Select practitioner (if allowed) → Select date/time → Add notes → Confirm
+4. System validates booking restrictions at each step
+5. Patient confirms → Appointment created
+6. Success screen shown
+   - **Edge case**: `allow_patient_practitioner_selection = False` → Practitioner step skipped, auto-assigned
+   - **Error case**: Booking restriction violated → Error message shown, user cannot proceed
 
-### Notification Failures
+#### Flow 5: Patient Reschedule (LIFF)
+1. Patient views appointment list → Clicks "改期" on appointment card
+2. Reschedule flow opens with current appointment data
+3. Patient changes time and/or practitioner (if allowed)
+4. Patient edits notes (optional)
+5. Confirmation step shows old vs new time comparison
+6. Patient confirms → Appointment updated
+7. Success message shown
+   - **Edge case**: Receipt exists → Reschedule blocked, error message shown
+   - **Edge case**: New time violates booking restrictions → Error message shown
 
-**Scenario**: LINE notification fails to send during appointment edit.
+#### Flow 6: Recurring Appointments
+1. User enables "重複" toggle in `CreateAppointmentModal`
+2. User selects pattern: "每 [x] 週, 共 [y] 次"
+3. User clicks "確認" → System calls `/clinic/appointments/check-recurring-conflicts`
+4. Conflict review modal shows all occurrences with conflicts highlighted
+5. User can delete individual occurrences or modify them
+6. User confirms → System calls `/clinic/appointments/recurring`
+7. Appointments created one by one (partial success allowed)
+8. Success message shows created/failed counts
+   - **Edge case**: Too many occurrences (>50) → Error message shown
+   - **Edge case**: All occurrences have conflicts → User can still create (with warnings)
 
-- **Rule**: Notification failures **do NOT block** the appointment edit
-- **Behavior**: 
-  - Appointment edit succeeds even if notification fails
-  - Notification failure is logged for investigation
-  - User receives success confirmation for the edit
-- **Rationale**: Notification is a side effect, not a core requirement for the edit operation
+### Edge Cases and Error Handling
+
+#### Edge Cases
+- [x] **Race Condition**: User switches clinic during data fetch
+  - **Solution**: `useApiData` includes clinic ID in cache keys, automatically refetches on clinic switch
+  - **Future (React Query)**: Query invalidation on clinic switch
+
+- [x] **Concurrent Updates**: Admin and patient edit same appointment simultaneously
+  - **Solution**: Backend uses optimistic locking (`with_for_update(nowait=True)`), returns 409 conflict
+  - **Frontend**: Shows error message, user can retry
+
+- [x] **Clinic Switching**: User switches clinic while appointment modal is open
+  - **Solution**: Modal should close or show warning, data refetches with new clinic context
+
+- [x] **Component Unmount**: Component unmounts during async operation (availability fetch, appointment creation)
+  - **Solution**: `useAppointmentForm` uses `AbortController` to cancel in-flight requests, checks `isMountedRef` before state updates
+
+- [x] **Network Failure**: API call fails (network error, timeout)
+  - **Solution**: Error message shown to user, retry option available
+  - **Implementation**: `useApiData` handles errors, shows user-friendly messages
+
+- [x] **Stale Data**: User views appointment, another user modifies it, first user tries to edit
+  - **Solution**: Backend optimistic locking prevents concurrent edits, returns 409 if conflict detected
+
+- [x] **Auto-Assigned Practitioner Becomes Inactive**: Practitioner is deactivated after appointment is auto-assigned
+  - **Solution**: Backend re-assigns to available practitioner when cron job processes recency limit, or when patient tries to edit
+
+- [x] **Appointment Type Soft-Deleted**: Appointment type is soft-deleted after appointment is created
+  - **Solution**: Appointment remains editable, UI shows "已刪除服務類型" as display name
+
+- [x] **Receipt Created After Modal Opens**: User opens edit modal, another user creates receipt, first user tries to save
+  - **Solution**: Backend validates receipt existence before allowing save, returns error if receipt exists
+
+#### Error Scenarios
+- [x] **API Errors (4xx, 5xx)**:
+  - **User Message**: User-friendly error messages extracted from API response
+  - **Recovery Action**: User can retry operation, or cancel and try again
+  - **Implementation**: `getErrorMessage()` utility extracts messages, `useApiData` displays them
+
+- [x] **Validation Errors**:
+  - **User Message**: Field-level error messages (e.g., "請選擇病患", "請選擇時間")
+  - **Field-level Errors**: Shown inline next to form fields
+  - **Implementation**: `useAppointmentForm` validation logic, form shows errors
+
+- [x] **Loading States**:
+  - **Initial Load**: `AppointmentFormSkeleton` shown while fetching practitioners/resources
+  - **Refetch**: Loading spinner shown during availability checks
+  - **Mutation**: Submit button disabled, loading spinner shown during create/update
+  - **Implementation**: `useApiData` provides `loading` state, components show spinners
+
+- [x] **Permission Errors (403)**:
+  - **User Message**: "您沒有權限執行此操作"
+  - **Recovery Action**: User cannot proceed, must contact admin
+  - **Implementation**: Backend returns 403, frontend shows error message
+
+- [x] **Conflict Errors (409)**:
+  - **User Message**: "此預約已被其他使用者修改，請重新整理後再試"
+  - **Recovery Action**: User can refresh and try again
+  - **Implementation**: Backend optimistic locking, frontend handles 409 status
+
+- [x] **Receipt Exists Error**:
+  - **User Message**: "此預約已有收據，無法修改"
+  - **Recovery Action**: User can only edit clinic notes (if allowed)
+  - **Implementation**: Backend validates receipt existence, frontend shows specific error message
+
+### Testing Requirements
+
+#### E2E Tests (Playwright)
+- [ ] **Test Scenario**: Create appointment flow (clinic admin)
+  - Steps: 
+    1. Login as admin
+    2. Navigate to calendar
+    3. Click "新增預約"
+    4. Select patient, appointment type, practitioner, date/time
+    5. Add clinic notes
+    6. Click "確認"
+    7. Verify appointment appears in calendar
+  - Assertions: Appointment created successfully, appears in calendar, correct data displayed
+  - Edge cases: Test with recurring appointments, test with resource requirements
+
+- [ ] **Test Scenario**: Edit appointment flow (clinic admin)
+  - Steps:
+    1. Login as admin
+    2. Click existing appointment
+    3. Click "編輯"
+    4. Modify practitioner and time
+    5. Click "確認更動"
+    6. Send notification (or skip)
+  - Assertions: Appointment updated, changes reflected in calendar, notification sent (if chosen)
+  - Edge cases: Test with receipt exists (should block), test concurrent edit (should show conflict)
+
+- [ ] **Test Scenario**: Duplicate appointment flow
+  - Steps:
+    1. Click appointment
+    2. Click "複製"
+    3. Modify date/time
+    4. Click "確認"
+  - Assertions: New appointment created with copied data, original unchanged
+
+- [ ] **Test Scenario**: Patient booking flow (LIFF)
+  - Steps:
+    1. Open LIFF app
+    2. Navigate to booking flow
+    3. Complete all steps (appointment type, practitioner, date/time, patient, notes)
+    4. Confirm
+  - Assertions: Appointment created, success screen shown, booking restrictions enforced
+  - Edge cases: Test with `allow_patient_practitioner_selection = False` (practitioner step skipped)
+
+- [ ] **Test Scenario**: Patient reschedule flow (LIFF)
+  - Steps:
+    1. View appointment list
+    2. Click "改期" on appointment
+    3. Change time
+    4. Confirm
+  - Assertions: Appointment updated, old vs new time shown in confirmation
+  - Edge cases: Test with receipt exists (should block), test booking restrictions
+
+- [ ] **Test Scenario**: Recurring appointments flow
+  - Steps:
+    1. Create appointment with "重複" enabled
+    2. Select pattern (e.g., every 2 weeks, 5 times)
+    3. Review conflicts
+    4. Confirm creation
+  - Assertions: All occurrences created (or partial success shown), conflicts highlighted
+
+#### Integration Tests (MSW)
+- [ ] **Test Scenario**: Appointment form initialization
+  - Mock API responses: Practitioners, resources, availability
+  - User interactions: Open modal, select appointment type
+  - Assertions: Practitioners loaded, resources loaded, availability checked
+
+- [ ] **Test Scenario**: Appointment creation with validation
+  - Mock API responses: Success response
+  - User interactions: Fill form, submit
+  - Assertions: Validation errors shown for missing fields, API called with correct data on submit
+
+- [ ] **Test Scenario**: Error handling
+  - Mock API responses: 400, 403, 409, 500 errors
+  - User interactions: Submit form, trigger errors
+  - Assertions: Appropriate error messages shown, user can retry
+
+- [ ] **Test Scenario**: Clinic switching during form
+  - Mock API responses: Different data for different clinics
+  - User interactions: Open form, switch clinic
+  - Assertions: Form data refetches, cache invalidated
+
+#### Unit Tests
+- [ ] **Component**: `CreateAppointmentModal`
+  - Test cases: Renders correctly, handles form submission, shows validation errors, handles API errors
+- [ ] **Component**: `EditAppointmentModal`
+  - Test cases: Pre-fills form data, shows changes in review step, handles concurrent edit errors
+- [ ] **Hook**: `useAppointmentForm`
+  - Test cases: Initializes correctly for each mode, handles field dependencies, validates form, cancels requests on unmount
+- [ ] **Utility**: `appointmentPermissions.ts`
+  - Test cases: `canEditAppointment()` returns correct permissions, `canDuplicateAppointment()` works correctly
+
+### Performance Considerations
+
+- [x] **Data Loading**: 
+  - Parallel initialization in `useAppointmentForm` (practitioners and resources fetched together)
+  - Debounced availability checks in `DateTimePicker` (prevents excessive API calls)
+  - Caching of availability data (5-minute TTL)
+
+- [x] **Caching**: 
+  - Current: Custom cache with clinic ID injection, TTL-based invalidation
+  - Future: React Query will provide better caching with automatic invalidation
+
+- [x] **Optimistic Updates**: 
+  - Not currently used (planned for React Query migration)
+  - Appointment creation/update waits for server response
+
+- [x] **Lazy Loading**: 
+  - Service item selection modal loaded on demand
+  - Recurring appointment conflict review loaded on demand
+
+- [x] **Memoization**: 
+  - `CreateAppointmentModal` and `EditAppointmentModal` wrapped in `React.memo`
+  - `DateTimePicker` uses `useMemo` for expensive calculations (calendar days, time slots)
 
 ---
 
-## Technical Design
+## Integration Points
 
-### Form Architecture
+### Backend Integration
+- [x] **Dependencies on other services**:
+  - `AppointmentService` depends on `AvailabilityService`, `ResourceService`, `NotificationService`, `ReceiptService`
+  - Appointment creation triggers LINE notifications via `NotificationService`
+  - Resource allocation handled by `ResourceService`
+  - Receipt validation via `ReceiptService`
 
-**Shared Logic Hook**: `useAppointmentForm`
-- **Location**: `frontend/src/hooks/useAppointmentForm.ts`
-- **Modes**: `'create' | 'edit' | 'duplicate'`
-- **Features**:
-  - Parallel initialization (practitioners and resources fetched together)
-  - Request cancellation via `AbortController`
-  - Centralized validation
-  - Auto-deselection of dependent fields
+- [x] **Database relationships**:
+  - Appointments linked to patients, appointment types, practitioners, calendar events, receipts, resources
+  - Foreign key constraints enforce data integrity
 
-**Shared Components**: Located in `frontend/src/components/calendar/form/`
-- `AppointmentReferenceHeader`: Shows original appointment time for context
-- `AppointmentTypeSelector`: Handles sorting and "(原)" label logic
-- `PractitionerSelector`: Handles loading and empty states
-- `AppointmentFormSkeleton`: Loading state for entire form
+- [x] **API contracts**:
+  - RESTful API with consistent request/response models
+  - Error responses follow standard format
 
-**Single-Page Form**: Both `CreateAppointmentModal` and `EditAppointmentModal` use single-page form design (not multi-step). All fields visible at once, similar to Google Calendar.
+### Frontend Integration
+- [x] **Shared components used**:
+  - `BaseModal`, `SearchInput`, `LoadingSpinner`, `ErrorDisplay`, `ClinicNotesTextarea`
+  - `ResourceSelection`, `ServiceItemSelectionModal`
+  - `NotificationModal`, `PractitionerAssignmentPromptModal`
 
-### Notification System
+- [x] **Shared hooks used**:
+  - `useApiData` (data fetching)
+  - `useAuth` (authentication context)
+  - `useModal`, `useModalQueue` (modal management)
+  - `useIsMobile` (responsive design)
 
-**Post-Action Flow**: Notifications are decoupled from appointment modifications.
+- [x] **Shared stores used**:
+  - `appointmentStore` (LIFF booking flow only)
+  - No shared stores for clinic admin flows (uses local component state)
 
-- **Workflow**: Commit appointment change → Success state → Follow-up notification modal
-- **Benefits**: 
-  - Appointment changes succeed even if notification fails
-  - User can customize notification message before sending
-  - Explicit "Send" vs "Skip" choice
-- **Implementation**: Backend returns `notification_preview` in response, frontend shows `NotificationModal` after success
+- [x] **Navigation/routing changes**:
+  - Calendar page: `/calendar` (clinic admin)
+  - LIFF booking: `/liff/book` (patient)
+  - LIFF reschedule: `/liff/reschedule/:appointmentId` (patient)
 
-### State Management
+---
 
-**Auto-Assignment State**:
-- **`is_auto_assigned`** (current state): `True` = hidden from practitioner, `False` = visible
-- **`originally_auto_assigned`** (historical flag): Never changes once set, preserves historical fact
+## Security Considerations
 
-**State Transitions**:
-- `is_auto_assigned = True` → `False`: Appointment becomes visible to practitioner
-- `is_auto_assigned = False` → `True`: Appointment becomes hidden from practitioner
-- `originally_auto_assigned`: Immutable once set
+- [x] **Authentication requirements**:
+  - Clinic admin endpoints require `require_practitioner_or_admin` dependency
+  - LIFF endpoints require valid LINE user token
 
-### Recency Limit Automatic Assignment
+- [x] **Authorization checks**:
+  - Practitioners can only edit/delete their own appointments (not auto-assigned)
+  - Admins can edit/delete any appointment
+  - Backend validates permissions before allowing operations
 
-**Core Rule**: Auto-assigned appointments automatically become visible when they reach the recency limit.
+- [x] **Input validation**:
+  - All API requests validated using Pydantic models
+  - Frontend validates form data before submission
+  - Date/time validation ensures valid formats and ranges
 
-- When appointment is within `minimum_booking_hours_ahead` hours:
-  - System automatically makes it visible (`is_auto_assigned = False`)
-  - Original temp-assigned practitioner receives notification
-  - Notification appears **as if patient booked directly**
-- **Patient reschedules are blocked** if new time would be within recency limit
-- Automatic assignment only happens via background cron job processing
+- [x] **XSS prevention**:
+  - User input sanitized before display
+  - React automatically escapes content
 
-**Rationale**: Ensures practitioners are notified in time to prepare, while preventing last-minute patient bookings.
+- [x] **CSRF protection**:
+  - API uses authentication tokens (JWT for clinic users, LINE tokens for patients)
+  - Tokens validated on every request
+
+- [x] **Data isolation**:
+  - Clinic isolation enforced via `ensure_clinic_access()` dependency
+  - Users can only access appointments in their active clinic
+  - LIFF users automatically scoped to their clinic via token
 
 ---
 
@@ -397,7 +813,9 @@ This document covers:
 - Appointment features (duplication, rescheduling, recurring)
 - Permissions (view, edit, delete, duplicate)
 - Edge cases (inactive practitioners, soft-deleted types, cancelled appointments, concurrent edits)
-- Technical design (form architecture, notification system, state management)
+- Backend technical design (API endpoints, database schema, business logic)
+- Frontend technical design (state management, components, user flows, testing requirements)
 
 All business rules are enforced at both frontend (UX) and backend (source of truth) levels.
 
+**Migration Status**: This document has been migrated to the new template format. Frontend sections reflect current implementation using `useApiData`. React Query migration is planned for Phase 2 (Weeks 3-5) per `ai_frontend_dev.md`.
