@@ -241,8 +241,9 @@ const SettingsServiceItemsPage: React.FC = () => {
       const validation = await apiService.validateAppointmentTypeDeletion([appointmentType.id]);
 
       if (!validation.can_delete && validation.error) {
-        const errorDetail = validation.error as any;
-        const blockedType = errorDetail.appointment_types[0];
+        const errorDetail = validation.error as { appointment_types?: Array<{ id: number; name: string; practitioners: string[] }> } | undefined;
+        const blockedType = errorDetail?.appointment_types?.[0];
+        if (!blockedType) return;
         const practitionerNames = blockedType.practitioners.join('、');
         const errorMessage = `「${blockedType.name}」正在被以下治療師使用：${practitionerNames}\n\n請先移除治療師的此服務設定後再刪除。`;
         await alert(errorMessage, '無法刪除預約類型');

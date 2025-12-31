@@ -206,12 +206,12 @@ export const useAppointmentForm = ({
         if (shouldFetchResources && resourcesResult) {
           if (resourcesResult.status === 'fulfilled') {
             // Use fetched resources (more fresh) - this updates the initial state if it changed
-            const fetchedResources = (resourcesResult.value as any).resources;
-            const ids = fetchedResources.map((r: Resource) => r.id);
-            const resourceData = fetchedResources.map((r: Resource) => ({
+            const fetchedResources = (resourcesResult.value as { resources: Array<Resource & { resource_type_name?: string }> }).resources;
+            const ids = fetchedResources.map((r) => r.id);
+            const resourceData = fetchedResources.map((r) => ({
               id: r.id,
               resource_type_id: r.resource_type_id,
-              resource_type_name: (r as any).resource_type_name || '',
+              resource_type_name: r.resource_type_name || '',
               name: r.name,
             }));
             setSelectedResourceIds(ids);
@@ -233,7 +233,7 @@ export const useAppointmentForm = ({
         // Handle availability result (edit mode only)
         if (shouldFetchAvailability && availabilityResult) {
           if (availabilityResult.status === 'fulfilled') {
-            setInitialAvailability(availabilityResult.value as any);
+            setInitialAvailability(availabilityResult.value as import('../types').ResourceAvailabilityResponse);
           } else if (availabilityResult.status === 'rejected') {
             const reason = availabilityResult.reason;
             if (reason?.name !== 'CanceledError' && reason?.name !== 'AbortError') {

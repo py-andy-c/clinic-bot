@@ -98,7 +98,9 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   // Key: `${practitionerIds.join(',')}-${startDate}-${endDate}`
   const cachedCalendarDataRef = useRef<Map<string, { data: ApiCalendarEvent[]; timestamp: number }>>(new Map());
   // Track in-flight batch calendar requests to prevent duplicate concurrent requests
-  const inFlightBatchRequestsRef = useRef<Map<string, Promise<{ data: ApiCalendarEvent[]; timestamp: number }>>>(new Map());
+  // Use the actual return type from getBatchCalendar
+  type BatchCalendarReturnType = Awaited<ReturnType<typeof apiService.getBatchCalendar>>;
+  const inFlightBatchRequestsRef = useRef<Map<string, Promise<BatchCalendarReturnType>>>(new Map());
   const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
   // Counter for cache cleanup - increments on each fetch to enable deterministic cleanup
   const cacheCleanupCounterRef = useRef(0);
@@ -747,7 +749,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
           const batchData = await inFlightBatchRequestsRef.current.get(cacheKey)!;
           // Process the result from the in-flight request
           const events: ApiCalendarEvent[] = [];
-          for (const result of (batchData as any).results || []) {
+          for (const result of batchData.results || []) {
             const practitionerId = result.user_id;
             const dateStr = result.date;
             // Use practitionerMap for O(1) lookup instead of O(n) find()
@@ -796,7 +798,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
         : Promise.resolve(null);
 
       // Store practitioner promise for cache deduplication
-      inFlightBatchRequestsRef.current.set(cacheKey, practitionerPromise as any);
+      inFlightBatchRequestsRef.current.set(cacheKey, practitionerPromise);
 
       // Wait for both fetches to complete
       const [batchData, resourceBatchData] = await Promise.all([
@@ -1200,15 +1202,39 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     try {
       // Conflict check - get the selected date's events and check for overlaps
       const dailyData = await apiService.getDailyCalendar(userId, dateStr);
-      const appointments = (dailyData.events as any[]).filter((event: any) => event.resource?.type === 'appointment');
+      // Note: dailyData.events is CalendarEventItem[] but we need to check resource.type
+      // This suggests the events may have been transformed or the API returns a different structure
+      // For now, we'll use a type assertion to access the resource property
+      type EventWithResource = { resource?: { type?: string }; start?: Date | string; end?: Date | string; title?: string; patient_name?: string; notes?: string };
+      const appointments = (dailyData.events as unknown as EventWithResource[]).filter((event: EventWithResource) => event.resource?.type === 'appointment');
 
-      // Collect all conflicting appointments
-      const conflictingAppointments = appointments.filter((appointment: any) => {
-        const startTime = appointment.start.toISOString();
-        const endTime = appointment.end.toISOString();
-        if (!startTime || !endTime) return false;
-        return startTime < exceptionData.endTime && endTime > exceptionData.startTime;
-      });
+      // Collect all conflicting appointments and transform to ConflictAppointment format
+      const conflictingAppointments: ConflictAppointment[] = appointments
+        .filter((appointment: EventWithResource) => {
+          if (!appointment.start || !appointment.end) return false;
+          const startTime = appointment.start instanceof Date ? appointment.start.toISOString() : appointment.start;
+          const endTime = appointment.end instanceof Date ? appointment.end.toISOString() : appointment.end;
+          if (!startTime || !endTime) return false;
+          return startTime < exceptionData.endTime && endTime > exceptionData.startTime;
+        })
+        .map((appointment: EventWithResource) => {
+          const startTime = appointment.start instanceof Date ? appointment.start.toISOString() : appointment.start || '';
+          const endTime = appointment.end instanceof Date ? appointment.end.toISOString() : appointment.end || '';
+          const result: ConflictAppointment = {
+            start_time: startTime,
+            end_time: endTime,
+          };
+          if (appointment.title !== undefined) {
+            result.title = appointment.title;
+          }
+          if (appointment.patient_name !== undefined) {
+            result.patient_name = appointment.patient_name;
+          }
+          if (appointment.notes !== undefined) {
+            result.notes = appointment.notes;
+          }
+          return result;
+        });
 
       if (conflictingAppointments.length > 0) {
         // Show conflict modal with list of conflicting appointments
@@ -1295,8 +1321,8 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       await apiService.cancelClinicAppointment(modalState.data.resource.appointment_id, cancellationNote.trim() || undefined);
 
       // Invalidate cache for the appointment's date
-      const calendarEvent = modalState.data as any;
-      const appointmentDate = calendarEvent.date || getDateString(calendarEvent.start);
+      const calendarEvent = modalState.data;
+      const appointmentDate = (calendarEvent as CalendarEvent & { date?: string }).date || getDateString(calendarEvent.start);
       invalidateCacheForDateRange(appointmentDate, appointmentDate);
       
       // Invalidate availability cache for the appointment's date, practitioner, and appointment type
@@ -1348,8 +1374,8 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       await apiService.deleteAvailabilityException(userId, modalState.data.resource.exception_id);
       
       // Invalidate cache for the exception's date
-      const calendarEvent = modalState.data as any;
-      const exceptionDate = calendarEvent.date || getDateString(calendarEvent.start);
+      const calendarEvent = modalState.data;
+      const exceptionDate = (calendarEvent as CalendarEvent & { date?: string }).date || getDateString(calendarEvent.start);
       invalidateCacheForDateRange(exceptionDate, exceptionDate);
       
       // Invalidate availability cache for this date (for all practitioners and appointment types)
@@ -1450,8 +1476,8 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       );
 
       // Invalidate cache for both old and new dates (in case appointment moved to different day)
-      const calendarEvent = modalState.data as any;
-      const oldDate = calendarEvent.date || getDateString(calendarEvent.start);
+      const calendarEvent = modalState.data;
+      const oldDate = (calendarEvent as CalendarEvent & { date?: string }).date || getDateString(calendarEvent.start);
       const newDate = moment(formData.start_time).format('YYYY-MM-DD'); // Extract date from ISO datetime string
       invalidateCacheForDateRange(oldDate, oldDate);
       if (newDate !== oldDate) {
@@ -1498,7 +1524,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   // Expose create appointment handler to parent
   useEffect(() => {
     // Store the handler so parent can call it
-    (window as any).__calendarCreateAppointment = handleCreateAppointment;
+    window.__calendarCreateAppointment = handleCreateAppointment;
     return () => {
       delete window.__calendarCreateAppointment;
     };
@@ -1703,11 +1729,11 @@ const CalendarView: React.FC<CalendarViewProps> = ({
                 // Event name was updated - optimistically update the title
                 setModalState(prev => ({
                   ...prev,
-                  data: {
+                  data: prev.data ? {
                     ...prev.data,
                     title: _newName.trim(),
-                  }
-                } as any));
+                  } : null,
+                }));
               }
               
               try {
@@ -1784,9 +1810,9 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       )}
 
       {/* Edit Appointment Modal - handles all steps (form, note, preview) */}
-      {modalState.type === 'edit_appointment' && modalState.data && (
+      {modalState.type === 'edit_appointment' && modalState.data && !Array.isArray(modalState.data) && (
         <EditAppointmentModal
-          event={modalState.data as any}
+          event={modalState.data}
           practitioners={availablePractitioners}
           appointmentTypes={appointmentTypes}
           onClose={() => {
@@ -1808,19 +1834,28 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       {modalState.type === 'create_appointment' && modalState.data && (
         <CreateAppointmentModal
           key={`create-${createModalKey}`}
-          {...(modalState.createAppointmentData ? modalState.createAppointmentData : {} as any)}
           // null from button click → undefined (no patient), number from URL → use it, undefined → fall back to prop
-          preSelectedPatientId={
-            modalState.createAppointmentData?.patientId === null
-              ? undefined
-              : (modalState.createAppointmentData?.patientId ?? preSelectedPatientId) as number | undefined
-          }
+          {...(modalState.createAppointmentData?.patientId === null
+            ? {}
+            : (modalState.createAppointmentData?.patientId ?? preSelectedPatientId) !== undefined
+            ? { preSelectedPatientId: modalState.createAppointmentData?.patientId ?? preSelectedPatientId }
+            : {})}
           initialDate={modalState.createAppointmentData?.initialDate || null}
-          preSelectedAppointmentTypeId={modalState.createAppointmentData?.preSelectedAppointmentTypeId}
-          preSelectedPractitionerId={modalState.createAppointmentData?.preSelectedPractitionerId}
-          preSelectedTime={modalState.createAppointmentData?.preSelectedTime}
-          preSelectedClinicNotes={modalState.createAppointmentData?.preSelectedClinicNotes}
-          event={modalState.createAppointmentData?.event}
+          {...(modalState.createAppointmentData?.preSelectedAppointmentTypeId !== undefined
+            ? { preSelectedAppointmentTypeId: modalState.createAppointmentData.preSelectedAppointmentTypeId }
+            : {})}
+          {...(modalState.createAppointmentData?.preSelectedPractitionerId !== undefined
+            ? { preSelectedPractitionerId: modalState.createAppointmentData.preSelectedPractitionerId }
+            : {})}
+          {...(modalState.createAppointmentData?.preSelectedTime !== undefined
+            ? { preSelectedTime: modalState.createAppointmentData.preSelectedTime }
+            : {})}
+          {...(modalState.createAppointmentData?.preSelectedClinicNotes !== undefined && modalState.createAppointmentData.preSelectedClinicNotes !== null
+            ? { preSelectedClinicNotes: modalState.createAppointmentData.preSelectedClinicNotes }
+            : {})}
+          {...(modalState.createAppointmentData?.event !== undefined
+            ? { event: modalState.createAppointmentData.event }
+            : {})}
           practitioners={availablePractitioners}
           appointmentTypes={appointmentTypes}
           onClose={() => {

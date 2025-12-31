@@ -123,7 +123,8 @@ export const MessageSettingsSection: React.FC<MessageSettingsSectionProps> = ({
               defaultMessage = DEFAULT_REMINDER_MESSAGE;
               break;
           }
-          (updated as any)[messageKey] = defaultMessage;
+          // Type assertion needed because messageKey is dynamically determined
+          (updated as Record<string, string | boolean | undefined>)[messageKey] = defaultMessage;
         }
       }
     } else {

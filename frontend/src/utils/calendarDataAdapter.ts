@@ -47,7 +47,7 @@ export interface MonthlyCalendarEvent {
 /**
  * Transform API calendar events to React Big Calendar format
  */
-export const transformToCalendarEvents = (apiEvents: ApiCalendarEvent[]): any[] => {
+export const transformToCalendarEvents = (apiEvents: ApiCalendarEvent[]): CalendarEvent[] => {
   const taiwanTimezone = 'Asia/Taipei';
   
   return apiEvents.map(event => {
@@ -120,7 +120,7 @@ export const transformToCalendarEvents = (apiEvents: ApiCalendarEvent[]): any[] 
         resource_id: extendedEvent.resource_id, // Resource ID for resource calendar events
         resource_name: extendedEvent.resource_name, // Resource name for resource calendar events
       }
-    };
+    } as CalendarEvent;
   });
 };
 

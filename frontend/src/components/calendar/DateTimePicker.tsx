@@ -134,7 +134,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
     selectedPractitionerId,
     excludeCalendarEventId: excludeCalendarEventId ?? null,
     currentMonth,
-    cachedAvailabilityData: cachedAvailabilityData as any,
+    cachedAvailabilityData: cachedAvailabilityData as unknown as Parameters<typeof useDateSlotSelection>[0]['cachedAvailabilityData'],
     loadingAvailability,
     batchInitiatedRef,
   });

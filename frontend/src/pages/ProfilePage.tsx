@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { TimeInterval } from '../types';
+import { TimeInterval, User, DefaultScheduleResponse } from '../types';
 import { logger } from '../utils/logger';
 import { LoadingSpinner } from '../components/shared';
 import { useAuth } from '../hooks/useAuth';
@@ -204,10 +204,10 @@ const ProfilePage: React.FC = () => {
       };
 
       // Fetch profile
-      let profileToUse: any = null;
+      let profileToUse: Awaited<ReturnType<typeof apiService.getProfile>> | null = null;
       try {
         profileToUse = await apiService.getProfile();
-        setProfile(profileToUse);
+        setProfile(profileToUse as unknown as typeof profile);
       } catch (err) {
         logger.error('Error fetching profile:', err);
       }
@@ -218,7 +218,7 @@ const ProfilePage: React.FC = () => {
         result.title = profileToUse.title || '';
         // Set settings from profile
         if (profileToUse.settings) {
-          const settings = profileToUse.settings as PractitionerSettings;
+          const settings = profileToUse.settings as unknown as PractitionerSettings;
           result.settings = {
             compact_schedule_enabled: Boolean(settings?.compact_schedule_enabled),
             next_day_notification_time: settings?.next_day_notification_time || '21:00',
@@ -254,13 +254,22 @@ const ProfilePage: React.FC = () => {
       if (user?.roles?.includes('practitioner') && user.user_id) {
         try {
           const scheduleData = await apiService.getPractitionerDefaultSchedule(user.user_id);
-          result.schedule = scheduleData as any;
+          // Convert DefaultScheduleResponse to Record<string, TimeInterval[]>
+          result.schedule = {
+            monday: scheduleData.monday || [],
+            tuesday: scheduleData.tuesday || [],
+            wednesday: scheduleData.wednesday || [],
+            thursday: scheduleData.thursday || [],
+            friday: scheduleData.friday || [],
+            saturday: scheduleData.saturday || [],
+            sunday: scheduleData.sunday || [],
+          };
         } catch (err) {
           logger.warn('Could not fetch availability schedule:', err);
         }
       }
 
-      return result as any;
+      return result as ProfileData & { clinicDefaultStep?: number } & Record<string, unknown>;
     },
     saveData: async (data: ProfileData) => {
       // Prepare profile update data
@@ -305,17 +314,26 @@ const ProfilePage: React.FC = () => {
       // Save profile changes if any
       if (Object.keys(profileUpdate).length > 0) {
         const updatedProfile = await apiService.updateProfile(profileUpdate);
-        setProfile(updatedProfile as any);
+        setProfile(updatedProfile as unknown as typeof profile);
       }
 
       // Save schedule changes (only for practitioners)
       if (user?.roles?.includes('practitioner') && user.user_id) {
         // Always save schedule for practitioners
-        await apiService.updatePractitionerDefaultSchedule(user.user_id, data.schedule as any);
+        // Convert Record<string, TimeInterval[]> to DefaultScheduleResponse format
+        await apiService.updatePractitionerDefaultSchedule(user.user_id, {
+          monday: data.schedule.monday || [],
+          tuesday: data.schedule.tuesday || [],
+          wednesday: data.schedule.wednesday || [],
+          thursday: data.schedule.thursday || [],
+          friday: data.schedule.friday || [],
+          saturday: data.schedule.saturday || [],
+          sunday: data.schedule.sunday || [],
+        });
       }
     },
-    validateData: validateProfileSettings as any,
-    getSectionChanges: getProfileSectionChanges as any,
+    validateData: validateProfileSettings as unknown as (data: ProfileData & { clinicDefaultStep?: number } & Record<string, unknown>) => string | null,
+    getSectionChanges: getProfileSectionChanges as unknown as (current: ProfileData & { clinicDefaultStep?: number } & Record<string, unknown>, original: ProfileData & { clinicDefaultStep?: number } & Record<string, unknown>) => Record<string, boolean>,
     onValidationError: async (error: string) => {
       await alert(error, '無效的時間區間');
     },
@@ -444,7 +462,7 @@ const ProfilePage: React.FC = () => {
           <form onSubmit={(e) => { e.preventDefault(); saveData(); }}>
             {/* Profile Form */}
             <ProfileForm
-              profile={profile as any}
+              profile={profile as User | null}
               fullName={profileData?.fullName || ''}
               title={profileData?.title || ''}
               onFullNameChange={(name) => updateData({ fullName: name })}
@@ -458,7 +476,7 @@ const ProfilePage: React.FC = () => {
             {profile?.roles?.includes('practitioner') && (
               <div className="pt-6 border-t border-gray-200 md:pt-0 md:border-t-0">
                 <AvailabilitySettings
-                  schedule={profileData?.schedule as any || {}}
+                  schedule={(profileData?.schedule as unknown as DefaultScheduleResponse) || { monday: [], tuesday: [], wednesday: [], thursday: [], friday: [], saturday: [], sunday: [] }}
                   onAddInterval={handleAddInterval}
                   onUpdateInterval={handleUpdateInterval}
                   onRemoveInterval={handleRemoveInterval}
@@ -514,7 +532,10 @@ const ProfilePage: React.FC = () => {
               <LineLinkingSection
                 lineLinked={profile?.line_linked || false}
                 onRefresh={() => {
-                  apiService.getProfile().then(setProfile as any).catch(err => logger.error('Error refreshing profile:', err));
+                  apiService.getProfile().then(profileData => {
+                    const profileState: typeof profile = profileData as unknown as typeof profile;
+                    setProfile(profileState);
+                  }).catch(err => logger.error('Error refreshing profile:', err));
                 }}
                 clinicName={(() => {
                   // Get clinic name from available clinics

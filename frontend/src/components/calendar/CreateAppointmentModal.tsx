@@ -526,16 +526,21 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
         const updatedOccurrences = generatedOccurrences.map((occ, idx) => {
           const conflictStatus = conflictResult.occurrences[idx];
           if (!conflictStatus) {
-            return { ...occ, hasConflict: false, conflictInfo: null };
+            return { ...occ, hasConflict: false };
           }
           
           const conflictInfo = convertConflictStatusToResponse(conflictStatus as Partial<SchedulingConflictResponse>);
           
-          return {
-            ...occ,
+          const updatedOcc: { id: string; date: string; time: string; hasConflict: boolean; conflictInfo?: SchedulingConflictResponse } = {
+            id: occ.id,
+            date: occ.date,
+            time: occ.time,
             hasConflict: conflictStatus.has_conflict || false,
-            conflictInfo: conflictInfo as any,
           };
+          if (conflictInfo) {
+            updatedOcc.conflictInfo = conflictInfo;
+          }
+          return updatedOcc;
         });
         
         setOccurrences(updatedOccurrences);
@@ -641,9 +646,16 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
           start_time: startTime,
         };
         if (clinicNotes.trim()) formData.clinic_notes = clinicNotes.trim();
-        if (selectedResourceIds.length > 0) (formData as any).selected_resource_ids = selectedResourceIds;
+        const formDataWithResources: Parameters<typeof onConfirm>[0] = {
+          patient_id: formData.patient_id,
+          appointment_type_id: formData.appointment_type_id,
+          practitioner_id: formData.practitioner_id!,
+          start_time: formData.start_time,
+          ...(formData.clinic_notes ? { clinic_notes: formData.clinic_notes } : {}),
+          ...(selectedResourceIds.length > 0 ? { selected_resource_ids: selectedResourceIds } : {}),
+        };
         
-        await onConfirm(formData as any);
+        await onConfirm(formDataWithResources);
         
         // After successful appointment creation, check for assignment prompt
         // Only check if practitioner is not null (not "不指定")
@@ -1064,11 +1076,19 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
                         }
                         // Type assertion: conflictStatus matches Partial<SchedulingConflictResponse> structure
                         const conflictInfo = convertConflictStatusToResponse(conflictStatus as Partial<SchedulingConflictResponse>);
-                        setOccurrences(occurrences.map(o => o.id === occ.id ? {
-                          ...o, date, time, 
-                          hasConflict: conflictStatus.has_conflict || false,
-                          conflictInfo: conflictInfo?.has_conflict ? conflictInfo as any : null
-                        } : o));
+                        setOccurrences(occurrences.map(o => {
+                          if (o.id === occ.id) {
+                            const updated: typeof o = {
+                              ...o, date, time, 
+                              hasConflict: conflictStatus.has_conflict || false,
+                            };
+                            if (conflictInfo?.has_conflict) {
+                              updated.conflictInfo = conflictInfo;
+                            }
+                            return updated;
+                          }
+                          return o;
+                        }));
                         setEditingOccurrenceId(null);
                         setError(null);
                       } catch (err) {
@@ -1154,7 +1174,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
                   setOccurrences([...occurrences, {
                     id: newOccId, date, time,
                     hasConflict: conflictStatus.has_conflict || false,
-                    conflictInfo: conflictInfo?.has_conflict ? conflictInfo as any : null
+                    ...(conflictInfo?.has_conflict ? { conflictInfo } : {})
                   }]);
                   setAddingOccurrence(false);
                   setError(null);

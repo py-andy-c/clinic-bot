@@ -93,12 +93,13 @@ export const SettingsProvider: React.FC<SettingsProviderProps> = ({ children }) 
         await apiService.updateClinicSettings(settingsToSave);
       } catch (error: unknown) {
         // Handle appointment type deletion error
-        const axiosError = error as any;
+        const axiosError = error as { response?: { status?: number; data?: { detail?: { error?: string; blocked_appointment_types?: Array<{ id: number; name: string }>; appointment_types?: Array<{ id: number; name: string; practitioners: string[] }> } } } };
         if (axiosError.response?.status === 400 && axiosError.response?.data?.detail?.error === 'cannot_delete_appointment_types') {
           const errorDetail = axiosError.response.data.detail;
           // For simplicity, show only the first blocked appointment type
           // (in practice, this usually happens one at a time)
-          const blockedType = errorDetail.appointment_types[0];
+          const blockedType = errorDetail?.appointment_types?.[0];
+          if (!blockedType) throw error;
           const practitionerNames = blockedType.practitioners.join('、');
           const errorMessage = `「${blockedType.name}」正在被以下治療師使用：${practitionerNames}\n\n請先移除治療師的此服務設定後再刪除。`;
           throw new Error(errorMessage);

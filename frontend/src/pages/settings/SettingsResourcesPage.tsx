@@ -12,6 +12,7 @@ import { useModal } from '../../contexts/ModalContext';
 import { useUnsavedChangesDetection } from '../../hooks/useUnsavedChangesDetection';
 import { useFormErrorScroll } from '../../hooks/useFormErrorScroll';
 import { ResourcesSettingsFormSchema } from '../../schemas/api';
+import { ResourceType, Resource } from '../../types';
 
 type ResourcesSettingsFormData = z.infer<typeof ResourcesSettingsFormSchema>;
 
@@ -74,7 +75,7 @@ const SettingsResourcesPage: React.FC = () => {
 
   const onFormSubmit = async (data: ResourcesSettingsFormData) => {
     // Sync RHF state to store before saving
-    useResourcesStore.getState().syncFromRHF(data as any);
+    useResourcesStore.getState().syncFromRHF(data as { resourceTypes: Array<ResourceType & { resources?: Resource[] }> });
     
     const success = await saveAll();
     if (success) {

@@ -12,7 +12,7 @@ declare global {
       isInClient: () => boolean;
       [key: string]: unknown;
     };
-    __calendarCreateAppointment?: (date: Date) => void;
+    __calendarCreateAppointment?: (patientId?: number) => void;
     location?: {
       search: string;
       [key: string]: unknown;
