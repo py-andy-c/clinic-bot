@@ -20,7 +20,7 @@ class ThrowError extends Component<{ shouldThrow?: boolean }> {
 describe('ErrorBoundary', () => {
   beforeEach(() => {
     // Suppress console.error for error boundary tests
-    // eslint-disable-next-line no-console
+     
     vi.spyOn(console, 'error').mockImplementation(() => {});
   });
 

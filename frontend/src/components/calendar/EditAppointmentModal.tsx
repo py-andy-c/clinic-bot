@@ -91,7 +91,7 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
     setError,
     isValid,
     referenceDateTime,
-    hasChanges: _hasChanges,
+    hasChanges: _hasChanges, // eslint-disable-line @typescript-eslint/no-unused-vars
     changeDetails,
   } = useAppointmentForm({
     mode: 'edit',
@@ -240,7 +240,7 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
   }, [selectedPractitionerId, selectedDate, selectedTime]);
 
   // Handle practitioner error from DateTimePicker (404 errors) - just deselect practitioner
-  const handlePractitionerError = (_errorMessage: string) => {
+  const handlePractitionerError = (_errorMessage: string) => { // eslint-disable-line @typescript-eslint/no-unused-vars
     setSelectedPractitionerId(null);
     setSelectedTime('');
     setHasAvailableSlots(false);

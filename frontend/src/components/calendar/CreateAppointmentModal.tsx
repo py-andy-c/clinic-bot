@@ -75,7 +75,7 @@ const RecurrenceDateTimePickerWrapper: React.FC<{
   appointmentTypeId: number;
   onConfirm: (date: string, time: string) => void | Promise<void>;
   onCancel: () => void;
-}> = ({ initialDate, initialTime: _initialTime, selectedPractitionerId, appointmentTypeId, onConfirm, onCancel }) => {
+}> = ({ initialDate, initialTime: _initialTime, selectedPractitionerId, appointmentTypeId, onConfirm, onCancel }) => { // eslint-disable-line @typescript-eslint/no-unused-vars
   const [selectedDate, setSelectedDate] = useState<string | null>(initialDate);
   // When editing (initialTime has value), start with empty selectedTime to prevent auto-initialization
   const [selectedTime, setSelectedTime] = useState<string>('');

@@ -55,7 +55,7 @@ function formatTooltipLabel(date: string, granularity: Granularity): string {
   switch (granularity) {
     case 'daily':
       return m.format('M/D');
-    case 'weekly':
+    case 'weekly': {
       // Show full date range in tooltip using m/d format
       const weekStart = m.clone(); // Already Monday from backend
       const weekEnd = weekStart.clone().endOf('isoWeek'); // Sunday
@@ -66,6 +66,7 @@ function formatTooltipLabel(date: string, granularity: Granularity): string {
       }
       // Same month: "10/7-13"
       return `${weekStart.format('M/D')}-${weekEnd.format('D')}`;
+    }
     case 'monthly':
       return m.format('M月');
   }

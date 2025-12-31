@@ -1672,7 +1672,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
                 logger.error('Failed to refresh calendar after receipt creation:', error);
               }
             }}
-            onEventNameUpdated={async (_newName: string | null) => {
+            onEventNameUpdated={async (_newName: string | null) => {  
               // Store original state for potential rollback
               const originalEvent = modalState.data;
               

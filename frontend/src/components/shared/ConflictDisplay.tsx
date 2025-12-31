@@ -32,7 +32,7 @@ export const ConflictDisplay: React.FC<ConflictDisplayProps> = ({
           textClass: 'text-amber-800',
         };
 
-      case 'appointment':
+      case 'appointment': {
         if (!conflictInfo.appointment_conflict) return null;
         const appt = conflictInfo.appointment_conflict;
         return {
@@ -46,8 +46,9 @@ export const ConflictDisplay: React.FC<ConflictDisplayProps> = ({
           borderClass: 'border-red-300 bg-red-50',
           textClass: 'text-red-800',
         };
+      }
 
-      case 'exception':
+      case 'exception': {
         if (!conflictInfo.exception_conflict) return null;
         const exc = conflictInfo.exception_conflict;
         return {
@@ -60,8 +61,9 @@ export const ConflictDisplay: React.FC<ConflictDisplayProps> = ({
           borderClass: 'border-orange-300 bg-orange-50',
           textClass: 'text-orange-800',
         };
+      }
 
-      case 'availability':
+      case 'availability': {
         // Show warning even if practitioner has no default availability set
         const normalHours = conflictInfo.default_availability?.normal_hours;
         return {
@@ -73,8 +75,9 @@ export const ConflictDisplay: React.FC<ConflictDisplayProps> = ({
           borderClass: 'border-blue-300 bg-blue-50',
           textClass: 'text-blue-800',
         };
+      }
 
-      case 'resource':
+      case 'resource': {
         if (!conflictInfo.resource_conflicts || conflictInfo.resource_conflicts.length === 0) return null;
         const resourceDetails = conflictInfo.resource_conflicts.map((conflict: { resource_name: string; resource_id: number }) => {
           // Format: ⚠️ 資源不足：{ResourceTypeName}
@@ -96,6 +99,7 @@ export const ConflictDisplay: React.FC<ConflictDisplayProps> = ({
           borderClass: 'border-yellow-300 bg-yellow-50',
           textClass: 'text-yellow-800',
         };
+      }
 
       default:
         return null;

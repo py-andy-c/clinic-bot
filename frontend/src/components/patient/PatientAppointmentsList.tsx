@@ -364,7 +364,7 @@ export const PatientAppointmentsList: React.FC<
 
   // Handle event name update from EventModal
   const handleEventNameUpdated = useCallback(
-    async (_newName: string | null) => {
+    async (_newName: string | null) => { // eslint-disable-line @typescript-eslint/no-unused-vars
       // Refresh appointments list to get updated data
       // The useEffect above will automatically update selectedEvent when allAppointments changes
       await refreshAppointmentsList();
