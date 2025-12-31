@@ -25,7 +25,7 @@ const Step3SelectDateTime: React.FC = () => {
   const [datesWithSlots, setDatesWithSlots] = useState<Set<string>>(new Set());
   const [loadingAvailability, setLoadingAvailability] = useState(false);
   // Cache batch availability data to avoid redundant API calls
-  const [cachedAvailabilityData, setCachedAvailabilityData] = useState<Map<string, { slots: any[] }>>(new Map());
+  const [cachedAvailabilityData, setCachedAvailabilityData] = useState<Map<string, { slots: Array<{ start_time: string; end_time?: string; is_recommended?: boolean }> }>>(new Map());
 
   // Generate calendar days using shared utility
   const calendarDays = generateCalendarDays(currentMonth);
@@ -49,7 +49,7 @@ const Step3SelectDateTime: React.FC = () => {
 
         // Cache the batch data for reuse when dates are selected
         // Cache key includes practitioner ID to ensure cache is practitioner-specific
-        const newCache = new Map<string, { slots: any[] }>();
+        const newCache = new Map<string, { slots: Array<{ start_time: string; end_time?: string; is_recommended?: boolean }> }>();
         batchResponse.results.forEach(result => {
           // Cache key includes practitioner ID to prevent cross-practitioner cache pollution
           const cacheKey = practitionerId ? `${practitionerId}-${result.date}` : result.date;
@@ -86,12 +86,12 @@ const Step3SelectDateTime: React.FC = () => {
     const cachedData = cachedAvailabilityData.get(cacheKey);
     if (cachedData) {
       // Use cached data - no API call needed
-      const slots = cachedData.slots.map((slot: any) => slot.start_time);
+      const slots = cachedData.slots.map((slot) => slot.start_time);
       setAvailableSlots(slots);
       
       // Store slot details for recommended badge display
       const detailsMap = new Map<string, { is_recommended?: boolean }>();
-      cachedData.slots.forEach((slot: any) => {
+      cachedData.slots.forEach((slot) => {
         if (slot.is_recommended !== undefined) {
           detailsMap.set(slot.start_time, { is_recommended: slot.is_recommended });
         }

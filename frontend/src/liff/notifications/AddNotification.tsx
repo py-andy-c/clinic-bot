@@ -307,7 +307,7 @@ const AddNotification: React.FC = () => {
       // Navigate to the notifications list (manage view)
       const newUrl = preserveQueryParams('/liff', { mode: 'notifications' });
       navigate(newUrl);
-    } catch (err: any) {
+    } catch (err: unknown) {
       logger.error('Failed to create notification:', err);
       const errorMessage = err.response?.data?.detail || t('notifications.add.createFailed');
       setError(errorMessage);

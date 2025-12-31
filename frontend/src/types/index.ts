@@ -526,7 +526,7 @@ export interface AvailabilityExceptionResponse {
 export interface ErrorResponse {
   error: string;
   message: string;
-  details?: any;
+  details?: unknown;
 }
 
 // Updated availability types (without is_available field)

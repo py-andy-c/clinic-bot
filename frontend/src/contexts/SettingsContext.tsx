@@ -90,7 +90,7 @@ export const SettingsProvider: React.FC<SettingsProviderProps> = ({ children }) 
       };
       try {
         await apiService.updateClinicSettings(settingsToSave);
-      } catch (error: any) {
+      } catch (error: unknown) {
         // Handle appointment type deletion error
         if (error.response?.status === 400 && error.response?.data?.detail?.error === 'cannot_delete_appointment_types') {
           const errorDetail = error.response.data.detail;

@@ -21,7 +21,7 @@ interface UseLineAuthReturn {
   refreshAuth: () => Promise<void>;
 }
 
-export const useLineAuth = (lineProfile: { userId: string; displayName: string; pictureUrl?: string | undefined } | null, liffAccessToken: string | null, liff?: any): UseLineAuthReturn => {
+export const useLineAuth = (lineProfile: { userId: string; displayName: string; pictureUrl?: string | undefined } | null, liffAccessToken: string | null, liff?: { init: (config: { liffId: string }) => Promise<void>; login: () => void; logout: () => void; getProfile: () => Promise<{ userId: string; displayName: string; pictureUrl?: string; statusMessage?: string }>; getAccessToken: () => string | null; isLoggedIn: () => boolean; isInClient: () => boolean; [key: string]: unknown }): UseLineAuthReturn => {
   const { t } = useTranslation();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isFirstTime, setIsFirstTime] = useState(false);
@@ -193,7 +193,7 @@ export const useLineAuth = (lineProfile: { userId: string; displayName: string; 
       }
     }
 
-    const request: any = {
+    const request: { line_user_id: string; display_name: string; [key: string]: unknown } = {
       line_user_id: lineUserId,
       display_name: displayName,
       liff_access_token: accessToken,

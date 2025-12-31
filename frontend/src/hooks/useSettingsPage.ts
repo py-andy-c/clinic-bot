@@ -134,7 +134,7 @@ export const useSettingsPage = <T extends Record<string, any>>(
 
       // Default success message if no onSuccess callback provided
       alert('設定已更新');
-    } catch (err: any) {
+    } catch (err: unknown) {
       logger.error('Save settings error:', err);
       // Extract error message from response
       const errorMessage = err.response?.data?.detail || err.response?.data?.message || err.message || '儲存設定失敗，請稍後再試';

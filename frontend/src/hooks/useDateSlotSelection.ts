@@ -15,7 +15,7 @@ interface UseDateSlotSelectionProps {
   selectedPractitionerId: number | null;
   excludeCalendarEventId?: number | null;
   currentMonth: Date;
-  cachedAvailabilityData: Map<string, { slots: any[] }>;
+  cachedAvailabilityData: Map<string, { slots: Array<{ start_time: string; end_time?: string; is_recommended?: boolean }> }>;
   loadingAvailability: boolean;
   batchInitiatedRef: React.MutableRefObject<boolean>;
 }

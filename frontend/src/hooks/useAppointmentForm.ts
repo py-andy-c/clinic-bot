@@ -207,8 +207,8 @@ export const useAppointmentForm = ({
           if (resourcesResult.status === 'fulfilled') {
             // Use fetched resources (more fresh) - this updates the initial state if it changed
             const fetchedResources = resourcesResult.value.resources;
-            const ids = fetchedResources.map((r: any) => r.id);
-            const resourceData = fetchedResources.map((r: any) => ({
+            const ids = fetchedResources.map((r: Resource) => r.id);
+            const resourceData = fetchedResources.map((r: Resource) => ({
               id: r.id,
               resource_type_id: r.resource_type_id,
               resource_type_name: r.resource_type_name,
@@ -268,7 +268,7 @@ export const useAppointmentForm = ({
           setIsInitialLoading(false);
         }
 
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (err?.name !== 'CanceledError' && err?.name !== 'AbortError') {
           logger.error('Error initializing appointment form:', err);
           setError(getErrorMessage(err));
@@ -316,7 +316,7 @@ export const useAppointmentForm = ({
         const sorted = [...fetched].sort((a, b) => a.full_name.localeCompare(b.full_name, 'zh-TW'));
         setAvailablePractitioners(sorted);
         lastFetchedTypeIdRef.current = selectedAppointmentTypeId;
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (isStale || err?.name === 'CanceledError' || err?.name === 'AbortError') return;
         logger.error('Failed to fetch practitioners:', err);
         setError('無法載入治療師列表，請稍後再試');

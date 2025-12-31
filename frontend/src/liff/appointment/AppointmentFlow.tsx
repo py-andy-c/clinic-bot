@@ -42,7 +42,7 @@ const AppointmentFlow: React.FC = () => {
 
       try {
         // Set timeout to default to Flow 1 if query takes too long
-        const timeoutPromise = new Promise<{ patients: any[] }>((resolve) => {
+        const timeoutPromise = new Promise<{ patients: Patient[] }>((resolve) => {
           setTimeout(() => resolve({ patients: [] }), 3000);
         });
 

@@ -419,7 +419,7 @@ const RescheduleFlow: React.FC = () => {
 
       // Navigate back to appointment list
       navigate('/liff?mode=query');
-    } catch (err: any) {
+    } catch (err: unknown) {
       logger.error('Failed to reschedule appointment:', err);
       
       // Check for structured error response

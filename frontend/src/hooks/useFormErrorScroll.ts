@@ -14,7 +14,7 @@ export const useFormErrorScroll = () => {
     const { expandType, expandEventName = 'form-error-expand' } = options;
 
     // Helper to extract the first error message and path from RHF error object
-    const findFirstError = (errs: any, currentPath: string = ''): { path: string; message: string } | null => {
+    const findFirstError = (errs: Record<string, { message?: string; [key: string]: unknown } | undefined>, currentPath: string = ''): { path: string; message: string } | null => {
       for (const key in errs) {
         const error = errs[key];
         const newPath = currentPath ? `${currentPath}.${key}` : key;
