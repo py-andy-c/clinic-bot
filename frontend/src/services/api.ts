@@ -20,7 +20,6 @@ import {
   ServiceTypeGroup,
   BillingScenario,
   ApiCalendarEvent,
-  CalendarEventItem
 } from '../types';
 import {
   validateClinicSettings,
