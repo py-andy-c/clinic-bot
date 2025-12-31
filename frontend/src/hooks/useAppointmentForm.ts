@@ -4,7 +4,7 @@ import { CalendarEvent } from '../utils/calendarDataAdapter';
 import moment from 'moment-timezone';
 import { logger } from '../utils/logger';
 import { getErrorMessage } from '../types/api';
-import { ResourceAvailabilityResponse } from '../types';
+import { ResourceAvailabilityResponse, Resource } from '../types';
 
 export type AppointmentFormMode = 'create' | 'edit' | 'duplicate';
 

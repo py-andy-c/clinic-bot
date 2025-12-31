@@ -63,7 +63,7 @@ export const useDateSlotSelection = ({
       const cachedData = cachedAvailabilityData.get(cacheKey);
       if (cachedData) {
         // Use cached data - no API call needed
-        const slots = cachedData.slots.map((slot: any) => slot.start_time);
+        const slots = cachedData.slots.map((slot) => slot.start_time);
         setAvailableSlots(slots);
         setIsLoadingSlots(false);
       } else {
@@ -105,7 +105,7 @@ export const useDateSlotSelection = ({
           const cachedData = cachedAvailabilityData.get(cacheKey);
           if (cachedData) {
             // Use cached data - no API call needed
-            const slots = cachedData.slots.map((slot: any) => slot.start_time);
+            const slots = cachedData.slots.map((slot) => slot.start_time);
             setAvailableSlots(slots);
             setIsLoadingSlots(false);
           }
@@ -119,7 +119,7 @@ export const useDateSlotSelection = ({
         const cachedData = cachedAvailabilityData.get(cacheKey);
         if (cachedData) {
           // Use cached data - no API call needed
-          const slots = cachedData.slots.map((slot: any) => slot.start_time);
+          const slots = cachedData.slots.map((slot) => slot.start_time);
           setAvailableSlots(slots);
           setIsLoadingSlots(false);
           return;
