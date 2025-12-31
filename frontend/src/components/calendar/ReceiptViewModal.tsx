@@ -34,7 +34,10 @@ export const ReceiptViewModal: React.FC<ReceiptViewModalProps> = ({
       voided: boolean;
       reason?: string;
       voided_at?: string;
-      voided_by?: string;
+      voided_by?: {
+        name?: string;
+        email?: string;
+      };
     };
   }
   const [receiptInfo, setReceiptInfo] = useState<ReceiptInfo | null>(null);

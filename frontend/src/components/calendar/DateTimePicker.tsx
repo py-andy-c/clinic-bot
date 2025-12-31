@@ -264,7 +264,8 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
         // Only update conflict info once we have the result to prevent UI flashing
         setConflictInfo(response);
       } catch (error: unknown) {
-        if (error?.name === 'CanceledError' || error?.name === 'AbortError') return;
+        const err = error as { name?: string };
+        if (err?.name === 'CanceledError' || err?.name === 'AbortError') return;
         logger.error('Failed to check scheduling conflicts:', error);
         // Show user-friendly error message per design doc
         setConflictCheckError('無法檢查時間衝突，請稍後再試');

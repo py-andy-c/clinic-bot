@@ -352,7 +352,8 @@ export const ResourceSelection: React.FC<ResourceSelectionProps> = ({
           }
         }
       } catch (err: unknown) {
-        if (err?.name === 'CanceledError' || err?.name === 'AbortError') return;
+        const error = err as { name?: string };
+        if (error?.name === 'CanceledError' || error?.name === 'AbortError') return;
         logger.error('Failed to fetch resource availability:', err);
         setError(getErrorMessage(err) || '無法取得資源可用性');
         // Keep previous availability if we have it, rather than clearing
