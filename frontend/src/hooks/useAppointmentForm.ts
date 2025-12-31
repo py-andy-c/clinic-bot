@@ -24,7 +24,7 @@ export interface UseAppointmentFormProps {
 export const useAppointmentForm = ({
   mode,
   event,
-  appointmentTypes: _appointmentTypes, // eslint-disable-line @typescript-eslint/no-unused-vars
+  appointmentTypes: _appointmentTypes,  
   practitioners: allPractitioners,
   initialDate,
   preSelectedPatientId,
