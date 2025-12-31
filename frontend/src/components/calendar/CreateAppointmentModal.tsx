@@ -635,9 +635,9 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
           clinic_notes?: string;
           resource_ids?: number[];
         } = {
-          patient_id: selectedPatientId,
-          appointment_type_id: selectedAppointmentTypeId,
-          practitioner_id: selectedPractitionerId,
+          patient_id: selectedPatientId!,
+          appointment_type_id: selectedAppointmentTypeId!,
+          practitioner_id: selectedPractitionerId!,
           start_time: startTime,
         };
         if (clinicNotes.trim()) formData.clinic_notes = clinicNotes.trim();

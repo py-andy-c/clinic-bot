@@ -783,10 +783,10 @@ const SettingsServiceItemsPage: React.FC = () => {
 
             // Add timing-specific fields
             if (message.timing_mode === 'hours_after' && message.hours_after !== null) {
-              baseData.hours_after = message.hours_after;
+              baseData.hours_after = message.hours_after!;
             } else if (message.timing_mode === 'specific_time') {
               if (message.days_after !== null) {
-                baseData.days_after = message.days_after;
+                baseData.days_after = message.days_after!;
               }
               if (message.time_of_day !== null) {
                 baseData.time_of_day = message.time_of_day;
