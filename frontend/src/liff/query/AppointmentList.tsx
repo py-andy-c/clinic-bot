@@ -190,14 +190,15 @@ const AppointmentList: React.FC = () => {
       logger.error('Failed to cancel appointment:', err);
       
       // Check for structured error response (fallback in case constraint changed)
-      const errorDetail = (err as any)?.response?.data?.detail;
+      const axiosError = err as { response?: { data?: { detail?: string | { error?: string; minimum_hours?: number } } }; message?: string };
+      const errorDetail = axiosError?.response?.data?.detail;
       if (errorDetail && typeof errorDetail === 'object' && errorDetail.error === 'cancellation_too_soon') {
         // Use structured error response
         const hours = errorDetail.minimum_hours || 24;
         await showAlert(t('appointment.errors.cancelTooSoon', { hours }), t('appointment.cancelFailedTitle'));
       } else {
         // Fallback: try to extract from error message (for backward compatibility)
-        const errorMessage = typeof errorDetail === 'string' ? errorDetail : (err as any)?.response?.data?.detail || (err as any)?.message || '';
+        const errorMessage = typeof errorDetail === 'string' ? errorDetail : (typeof errorDetail === 'object' ? String(errorDetail) : axiosError?.response?.data?.detail || axiosError?.message || '');
         // Check for numeric pattern that works across languages
         const hoursMatch = errorMessage.match(/(\d+)/);
         if (hoursMatch && (

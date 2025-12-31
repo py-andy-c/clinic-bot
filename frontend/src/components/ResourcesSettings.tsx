@@ -40,7 +40,7 @@ const ResourcesSettings: React.FC<ResourcesSettingsProps> = ({ isClinicAdmin }) 
       id: newTypeId,
       name: '',
       resources: []
-    } as any); // Type cast here is OK for the complex nested structure
+    } as { id: number; name: string; resources: Array<{ id: number; name: string; description?: string | null }> });
     
     // Notify store to create a placeholder if needed, but RHF is the source of truth for the list now
     // We'll sync everything to the store on Save

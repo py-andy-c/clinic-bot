@@ -455,7 +455,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
           }
         }
       } catch (err) {
-        if ((err as any)?.name === 'CanceledError' || (err as any)?.name === 'AbortError') return;
+        if ((err as { name?: string })?.name === 'CanceledError' || (err as { name?: string })?.name === 'AbortError') return;
         logger.error('Failed to load month availability:', err);
       } finally {
         setLoadingAvailability(false);

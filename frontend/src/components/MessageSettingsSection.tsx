@@ -100,10 +100,10 @@ export const MessageSettingsSection: React.FC<MessageSettingsSectionProps> = ({
   const reminder = getMessageField('reminder');
 
   const updateMessageField = (type: MessageType, field: 'toggle' | 'message', value: boolean | string) => {
-    const updated: AppointmentType = { ...appointmentType };
+    const updated: AppointmentType & { [key: string]: unknown } = { ...appointmentType };
     
     if (field === 'toggle') {
-      (updated as any)[`send_${type}`] = value as boolean;
+      updated[`send_${type}`] = value as boolean;
       
       // Safety net: If toggle is turned ON and message is empty, auto-set default
       if (value === true) {
@@ -123,14 +123,14 @@ export const MessageSettingsSection: React.FC<MessageSettingsSectionProps> = ({
               defaultMessage = DEFAULT_REMINDER_MESSAGE;
               break;
           }
-          (updated as any)[messageKey] = defaultMessage;
+          updated[messageKey] = defaultMessage;
         }
       }
     } else {
-      (updated as any)[`${type}_message`] = value as string;
+      updated[`${type}_message`] = value as string;
     }
     
-    onUpdate(updated);
+    onUpdate(updated as AppointmentType);
   };
 
   const handleResetToDefault = (type: MessageType) => {

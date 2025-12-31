@@ -258,7 +258,7 @@ export const ModalQueueProvider: React.FC<ModalQueueProviderProps> = ({ children
   useEffect(() => {
     if (currentModal) {
       // Try to extract modal title from props (components can pass aria-label)
-      const props = currentModal.props as any;
+      const props = currentModal.props as { 'aria-label'?: string; ariaLabel?: string; [key: string]: unknown };
       const modalTitle = props['aria-label'] || props.ariaLabel || 'Modal';
       setAnnouncement(`${modalTitle} opened`);
     } else {

@@ -178,7 +178,7 @@ export const useLineAuth = (lineProfile: { userId: string; displayName: string; 
     if (identifier.type === 'liff_id' && liff) {
       try {
         // Use liff.getContext() if available (LINE SDK method)
-        const context = (liff as any).getContext?.();
+        const context = (liff as { getContext?: () => { liffId?: string; [key: string]: unknown } }).getContext?.();
         liffId = context?.liffId || null;
         if (liffId && liffId !== identifier.value) {
           logger.warn(`LIFF ID mismatch: URL has ${identifier.value}, getContext() has ${liffId}. Using getContext() value.`);
@@ -281,7 +281,7 @@ export const useLineAuth = (lineProfile: { userId: string; displayName: string; 
       let urlLiffId = identifier.value;
       if (liff) {
         try {
-          const context = (liff as any).getContext?.();
+          const context = (liff as { getContext?: () => { liffId?: string; [key: string]: unknown } }).getContext?.();
           if (context?.liffId) {
             urlLiffId = context.liffId; // Use authoritative source
           }

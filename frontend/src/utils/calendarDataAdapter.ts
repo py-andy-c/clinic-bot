@@ -52,14 +52,31 @@ export const transformToCalendarEvents = (apiEvents: ApiCalendarEvent[]): Calend
   
   return apiEvents.map(event => {
     // Create dates in Taiwan timezone
-    const eventDate = (event as ApiCalendarEvent & { date?: string }).date || '';
+    const eventDate = extendedEvent.date || '';
     const startDateTime = moment.tz(`${eventDate}T${event.start_time || '00:00'}`, taiwanTimezone);
     const endDateTime = moment.tz(`${eventDate}T${event.end_time || '23:59'}`, taiwanTimezone);
     
     // For resource events, use composite ID to ensure unique React keys
     // Format: calendar_event_id-resource-{resource_id}
     const eventId = event.calendar_event_id;
-    const extendedEvent = event as ApiCalendarEvent & { is_resource_event?: boolean; resource_id?: number };
+    // Extended event type to include all possible fields from API
+    type ExtendedApiCalendarEvent = ApiCalendarEvent & {
+      date?: string;
+      practitioner_id?: number | null;
+      is_primary?: boolean;
+      event_practitioner_name?: string;
+      is_auto_assigned?: boolean;
+      has_active_receipt?: boolean;
+      has_any_receipt?: boolean;
+      receipt_id?: number | null;
+      receipt_ids?: number[];
+      resource_names?: string[];
+      resource_ids?: number[];
+      is_resource_event?: boolean;
+      resource_id?: number;
+      resource_name?: string;
+    };
+    const extendedEvent = event as ExtendedApiCalendarEvent;
     const isResourceEvent = extendedEvent.is_resource_event === true;
     const resourceId = extendedEvent.resource_id;
     const uniqueId = isResourceEvent && resourceId
@@ -87,19 +104,19 @@ export const transformToCalendarEvents = (apiEvents: ApiCalendarEvent[]): Calend
         patient_name: event.patient_name,
         practitioner_name: event.practitioner_name,
         appointment_type_name: event.appointment_type_name,
-        practitioner_id: (event as any).practitioner_id, // Preserve practitioner ID for color-coding
-        is_primary: (event as any).is_primary, // Preserve primary flag
-        event_practitioner_name: (event as any).practitioner_name || (event as any).event_practitioner_name, // Preserve event practitioner name
-        is_auto_assigned: (event as any).is_auto_assigned, // Preserve auto-assignment flag
-        has_active_receipt: (event as any).has_active_receipt || false, // Active receipt status
-        has_any_receipt: (event as any).has_any_receipt || false, // Any receipt status (for constraint enforcement)
-        receipt_id: (event as any).receipt_id || null, // Active receipt ID
-        receipt_ids: (event as any).receipt_ids || [], // All receipt IDs
-        resource_names: (event as any).resource_names || [], // Allocated resource names
-        resource_ids: (event as any).resource_ids || [], // Allocated resource IDs
-        is_resource_event: (event as any).is_resource_event || false, // Whether this is a resource calendar event
-        resource_id: (event as any).resource_id, // Resource ID for resource calendar events
-        resource_name: (event as any).resource_name, // Resource name for resource calendar events
+        practitioner_id: extendedEvent.practitioner_id, // Preserve practitioner ID for color-coding
+        is_primary: extendedEvent.is_primary, // Preserve primary flag
+        event_practitioner_name: extendedEvent.practitioner_name || extendedEvent.event_practitioner_name, // Preserve event practitioner name
+        is_auto_assigned: extendedEvent.is_auto_assigned, // Preserve auto-assignment flag
+        has_active_receipt: extendedEvent.has_active_receipt || false, // Active receipt status
+        has_any_receipt: extendedEvent.has_any_receipt || false, // Any receipt status (for constraint enforcement)
+        receipt_id: extendedEvent.receipt_id || null, // Active receipt ID
+        receipt_ids: extendedEvent.receipt_ids || [], // All receipt IDs
+        resource_names: extendedEvent.resource_names || [], // Allocated resource names
+        resource_ids: extendedEvent.resource_ids || [], // Allocated resource IDs
+        is_resource_event: extendedEvent.is_resource_event || false, // Whether this is a resource calendar event
+        resource_id: extendedEvent.resource_id, // Resource ID for resource calendar events
+        resource_name: extendedEvent.resource_name, // Resource name for resource calendar events
       }
     };
   });

@@ -23,7 +23,7 @@ const PractitionerAppointmentTypes: React.FC<PractitionerAppointmentTypesProps> 
   saving = false,
 }) => {
   const { user } = useAuth();
-  const [availableTypes, setAvailableTypes] = React.useState<any[]>(externalAvailableTypes || []);
+  const [availableTypes, setAvailableTypes] = React.useState<Array<{ id: number; name: string; duration_minutes: number }>>(externalAvailableTypes || []);
   const [selectedTypeIds, setSelectedTypeIds] = React.useState<number[]>(externalSelectedTypeIds || []);
   const [loading, setLoading] = React.useState(externalAvailableTypes === undefined); // Only show loading if we need to fetch
   const [error, setError] = React.useState<string | null>(null);

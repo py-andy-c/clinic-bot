@@ -123,7 +123,7 @@ export const PlaceholderHelper: React.FC<PlaceholderHelperProps> = ({
             <div className="space-y-1 max-h-64 overflow-y-auto">
               {allPlaceholders.map((placeholder, index) => {
                 // Check if this placeholder is unavailable
-                const isOptional = (placeholder as any).optional === true;
+                const isOptional = (placeholder as { key: string; description: string; optional?: boolean }).optional === true;
                 const isUnavailable = isOptional && (
                   (placeholder.key === '{診所地址}' && !clinicInfoAvailability?.has_address) ||
                   (placeholder.key === '{診所電話}' && !clinicInfoAvailability?.has_phone)
