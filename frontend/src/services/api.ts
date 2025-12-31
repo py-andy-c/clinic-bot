@@ -17,7 +17,10 @@ import {
   SwitchClinicResponse,
   PractitionerWithDetails,
   LineUserWithStatus,
-  ServiceTypeGroup
+  ServiceTypeGroup,
+  BillingScenario,
+  ApiCalendarEvent,
+  CalendarEventItem
 } from '../types';
 import {
   validateClinicSettings,
@@ -452,7 +455,7 @@ export class ApiService {
   async testChatbot(data: {
     message: string;
     session_id?: string | null;
-    chat_settings: any;
+    chat_settings: Clinic['settings']['chat_settings'];
   }): Promise<{ response: string; session_id: string }> {
     // Use longer timeout for AI responses (60 seconds)
     const response = await this.client.post('/clinic/chat/test', data, {
@@ -462,7 +465,7 @@ export class ApiService {
   }
 
 
-  async validateAppointmentTypeDeletion(appointmentTypeIds: number[]): Promise<{ can_delete: boolean; error?: any; message?: string }> {
+  async validateAppointmentTypeDeletion(appointmentTypeIds: number[]): Promise<{ can_delete: boolean; error?: string; message?: string }> {
     const response = await this.client.post('/clinic/appointment-types/validate-deletion', {
       appointment_type_ids: appointmentTypeIds
     });
@@ -470,7 +473,7 @@ export class ApiService {
   }
 
   // Billing scenario endpoints (admin-only)
-  async getBillingScenarios(serviceItemId: number, practitionerId: number): Promise<{ billing_scenarios: any[] }> {
+  async getBillingScenarios(serviceItemId: number, practitionerId: number): Promise<{ billing_scenarios: BillingScenario[] }> {
     const response = await this.client.get(
       `/clinic/service-items/${serviceItemId}/practitioners/${practitionerId}/billing-scenarios`
     );
@@ -481,7 +484,7 @@ export class ApiService {
     serviceItemId: number,
     practitionerId: number,
     scenario: { name: string; amount: number; revenue_share: number; is_default: boolean }
-  ): Promise<any> {
+  ): Promise<BillingScenario> {
     const response = await this.client.post(
       `/clinic/service-items/${serviceItemId}/practitioners/${practitionerId}/billing-scenarios`,
       scenario
@@ -494,7 +497,7 @@ export class ApiService {
     practitionerId: number,
     scenarioId: number,
     scenario: { name?: string; amount?: number; revenue_share?: number; is_default?: boolean }
-  ): Promise<any> {
+  ): Promise<BillingScenario> {
     const response = await this.client.put(
       `/clinic/service-items/${serviceItemId}/practitioners/${practitionerId}/billing-scenarios/${scenarioId}`,
       scenario
@@ -523,7 +526,7 @@ export class ApiService {
       quantity: number;
     }>,
     payment_method: string
-  ): Promise<any> {
+  ): Promise<{ receipt_id: number; message?: string }> {
     const response = await this.client.post(`/appointments/${appointmentId}/checkout`, {
       items,
       payment_method,
@@ -531,12 +534,12 @@ export class ApiService {
     return response.data;
   }
 
-  async getReceiptForAppointment(appointmentId: number): Promise<any> {
+  async getReceiptForAppointment(appointmentId: number): Promise<{ receipt_id: number; [key: string]: unknown }> {
     const response = await this.client.get(`/appointments/${appointmentId}/receipt`);
     return response.data;
   }
 
-  async getReceiptById(receiptId: number): Promise<any> {
+  async getReceiptById(receiptId: number): Promise<{ receipt_id: number; [key: string]: unknown }> {
     const response = await this.client.get(`/receipts/${receiptId}`);
     return response.data;
   }
@@ -631,8 +634,8 @@ export class ApiService {
     results: Array<{
       user_id: number;
       date: string;
-      default_schedule: any;
-      events: any[];
+      default_schedule: Record<string, Array<{ start: string; end: string }>>;
+      events: ApiCalendarEvent[];
     }>;
   }> {
     const response = await this.client.post('/clinic/practitioners/calendar/batch', {
@@ -656,7 +659,7 @@ export class ApiService {
   async getResourceCalendar(resourceId: number, date: string): Promise<{
     resource_id: number;
     date: string;
-    events: any[];
+    events: ApiCalendarEvent[];
   }> {
     const params = { date };
     const response = await this.client.get(`/clinic/resources/${resourceId}/availability/calendar`, { params });
@@ -671,7 +674,7 @@ export class ApiService {
     results: Array<{
       resource_id: number;
       date: string;
-      events: any[];
+      events: ApiCalendarEvent[];
     }>;
   }> {
     const response = await this.client.post('/clinic/resources/calendar/batch', {
@@ -728,7 +731,7 @@ export class ApiService {
     excludeCalendarEventId?: number,
     signal?: AbortSignal
   ): Promise<SchedulingConflictResponse> {
-    const config: any = {
+    const config: { params: Record<string, string | number>; signal?: AbortSignal } = {
       params: {
         date,
         start_time: startTime,

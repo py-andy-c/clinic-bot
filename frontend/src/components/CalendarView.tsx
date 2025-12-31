@@ -30,6 +30,7 @@ import {
   EditAppointmentModal,
   CreateAppointmentModal,
 } from './calendar';
+import type { ConflictAppointment } from './calendar/ConflictModal';
 import {
   getDateString,
   formatAppointmentTimeRange,
@@ -86,7 +87,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   // Key: `${practitionerIds.join(',')}-${startDate}-${endDate}`
   const cachedCalendarDataRef = useRef<Map<string, { data: ApiCalendarEvent[]; timestamp: number }>>(new Map());
   // Track in-flight batch calendar requests to prevent duplicate concurrent requests
-  const inFlightBatchRequestsRef = useRef<Map<string, Promise<any>>>(new Map());
+  const inFlightBatchRequestsRef = useRef<Map<string, Promise<{ data: ApiCalendarEvent[]; timestamp: number }>>>(new Map());
   const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
   // Counter for cache cleanup - increments on each fetch to enable deterministic cleanup
   const cacheCleanupCounterRef = useRef(0);
@@ -138,7 +139,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   }, []);
   const [modalState, setModalState] = useState<{
     type: 'event' | 'exception' | 'conflict' | 'delete_confirmation' | 'cancellation_note' | 'cancellation_preview' | 'edit_appointment' | 'create_appointment' | null;
-    data: any;
+    data: CalendarEvent | ConflictAppointment[] | null;
   }>({ type: null, data: null });
   const [createModalKey, setCreateModalKey] = useState(0);
   const [exceptionData, setExceptionData] = useState({
@@ -736,7 +737,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
             const dateStr = result.date;
             // Use practitionerMap for O(1) lookup instead of O(n) find()
             const practitionerName = practitionerMap.get(practitionerId) || '';
-            const transformedEvents = result.events.map((event: any) => ({
+            const transformedEvents = result.events.map((event: ApiCalendarEvent) => ({
               ...event,
               date: dateStr,
               practitioner_id: practitionerId,
