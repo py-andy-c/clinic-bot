@@ -1230,7 +1230,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
 
   // Show delete confirmation for appointments
   const handleDeleteAppointment = async () => {
-    if (!modalState.data || !modalState.data.resource.appointment_id) return;
+    if (!modalState.data || Array.isArray(modalState.data) || !modalState.data.resource.appointment_id) return;
     
     if (!canEditEvent(modalState.data)) {
       await alert('您只能取消自己的預約');
@@ -1245,7 +1245,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
 
   // Handle cancellation note submission and generate preview
   const handleCancellationNoteSubmit = async () => {
-    if (!modalState.data) return;
+    if (!modalState.data || Array.isArray(modalState.data)) return;
 
     setCancellationPreviewLoading(true);
     try {
@@ -1269,7 +1269,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
 
   // Confirm and perform appointment deletion
   const handleConfirmDeleteAppointment = async () => {
-    if (!modalState.data || !modalState.data.resource.appointment_id) return;
+    if (!modalState.data || Array.isArray(modalState.data) || !modalState.data.resource.appointment_id) return;
 
     if (!canEditEvent(modalState.data)) {
       await alert('您只能取消自己的預約');
@@ -1321,7 +1321,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
 
   // Confirm and perform exception deletion
   const handleConfirmDeleteException = async () => {
-    if (!modalState.data || !modalState.data.resource.exception_id) return;
+    if (!modalState.data || Array.isArray(modalState.data) || !modalState.data.resource.exception_id) return;
 
     if (!canEditEvent(modalState.data)) {
       await alert('您只能刪除自己的休診時段');
@@ -1364,7 +1364,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
 
   // Handle duplicate appointment button click
   const handleDuplicateAppointment = useCallback(async () => {
-    if (!modalState.data || !modalState.data.resource.appointment_id) return;
+    if (!modalState.data || Array.isArray(modalState.data) || !modalState.data.resource.appointment_id) return;
     
     const event = modalState.data;
     
