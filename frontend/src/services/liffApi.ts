@@ -199,7 +199,7 @@ class LiffApiService {
   }
 
   // Appointment Types
-  async getAppointmentTypes(_clinicId: number): Promise<{ 
+  async getAppointmentTypes(_clinicId: number): Promise<{ // eslint-disable-line @typescript-eslint/no-unused-vars 
     appointment_types: Array<{ id: number; name: string; duration_minutes: number }>; 
     appointment_type_instructions?: string 
   }> {
