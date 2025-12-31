@@ -18,14 +18,11 @@ const ResourceChips: React.FC<ResourceChipsProps> = ({
   allPractitionerIds = [],
   primaryUserId = null,
 }) => {
+  // All hooks must be called before any conditional returns
   // Get selected resources
   const selectedResources = resources.filter((r) =>
     selectedResourceIds.includes(r.id)
   );
-
-  if (selectedResources.length === 0) {
-    return null;
-  }
 
   // Calculate colors for resources using the same scheme as practitioners
   // Resources get colors after all practitioners
@@ -43,6 +40,10 @@ const ResourceChips: React.FC<ResourceChipsProps> = ({
       };
     });
   }, [selectedResources, selectedResourceIds, allPractitionerIds, primaryUserId]);
+
+  if (selectedResources.length === 0) {
+    return null;
+  }
 
   return (
     <div className="flex flex-wrap gap-2 mb-2 pl-2">

@@ -15,15 +15,11 @@ export const PractitionerAssignmentConfirmationModal: React.FC<PractitionerAssig
   assignedPractitioners,
   excludePractitionerId,
 }) => {
-  // Backward compatibility: if isOpen is provided and false, don't render
-  if (isOpen !== undefined && !isOpen) {
-    return null;
-  }
-
+  // All hooks must be called before any conditional returns
   // Use queue if isOpen is undefined (queue-managed mode)
   // In legacy mode (isOpen provided), we'll handle closing via onClose
   const isQueueManaged = isOpen === undefined;
-  const queueMethods = isQueueManaged ? useModalQueue() : null;
+  const queueMethods = useModalQueue();
 
   const handleClose = React.useCallback(async () => {
     if (onClose) {
@@ -34,6 +30,11 @@ export const PractitionerAssignmentConfirmationModal: React.FC<PractitionerAssig
       await queueMethods.closeCurrent();
     }
   }, [onClose, isQueueManaged, queueMethods]);
+
+  // Backward compatibility: if isOpen is provided and false, don't render
+  if (isOpen !== undefined && !isOpen) {
+    return null;
+  }
 
   // Filter out the newly added practitioner if specified
   const displayedPractitioners = excludePractitionerId

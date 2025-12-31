@@ -96,15 +96,13 @@ else
 fi
 
 # Run ESLint (includes custom clinic-cache rule)
-# Temporarily disabled due to pre-existing ESLint errors (542 issues)
-# TODO: Re-enable after fixing pre-existing ESLint errors
-# print_status "Running ESLint..."
-# if npm run lint; then
-#     print_success "ESLint passed!"
-# else
-#     print_error "ESLint failed!"
-#     exit 1
-# fi
+print_status "Running ESLint..."
+if npm run lint; then
+    print_success "ESLint passed!"
+else
+    print_error "ESLint failed!"
+    exit 1
+fi
 
 # Run frontend unit tests
 # Set environment variables for tests (in case .env file can't be read)

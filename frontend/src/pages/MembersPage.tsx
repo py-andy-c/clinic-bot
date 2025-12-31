@@ -10,6 +10,7 @@ import PageHeader from '../components/PageHeader';
 import { getErrorMessage } from '../types/api';
 
 const MembersPage: React.FC = () => {
+  // All hooks must be called before any conditional returns
   const { isClinicAdmin, user: currentUser, isAuthenticated, checkAuthStatus, isLoading } = useAuth();
   const activeClinicId = currentUser?.active_clinic_id;
   const { alert, confirm } = useModal();
@@ -18,18 +19,6 @@ const MembersPage: React.FC = () => {
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
-
-  // If not authenticated, show a message (in real app, this would redirect to login)
-  if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-900 mb-4">需要登入</h1>
-          <p className="text-gray-600">請先登入以查看成員管理頁面</p>
-        </div>
-      </div>
-    );
-  }
 
   // Stable fetch function using useCallback
   const fetchMembers = useCallback(() => apiService.getMembers(), []);
@@ -48,6 +37,18 @@ const MembersPage: React.FC = () => {
   const [showRoleModal, setShowRoleModal] = useState<Member | null>(null);
   const [inviting, setInviting] = useState(false);
   const [updatingRoles, setUpdatingRoles] = useState(false);
+
+  // If not authenticated, show a message (in real app, this would redirect to login)
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-gray-900 mb-4">需要登入</h1>
+          <p className="text-gray-600">請先登入以查看成員管理頁面</p>
+        </div>
+      </div>
+    );
+  }
 
   const handleInviteMember = async (inviteData: MemberInviteData) => {
     try {

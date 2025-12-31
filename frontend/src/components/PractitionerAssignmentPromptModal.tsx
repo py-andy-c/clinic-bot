@@ -17,15 +17,11 @@ export const PractitionerAssignmentPromptModal: React.FC<PractitionerAssignmentP
   practitionerName,
   currentAssignedPractitioners = [],
 }) => {
-  // Backward compatibility: if isOpen is provided and false, don't render
-  if (isOpen !== undefined && !isOpen) {
-    return null;
-  }
-
+  // All hooks must be called before any conditional returns
   // Use queue if isOpen is undefined (queue-managed mode)
   // In legacy mode (isOpen provided), we'll handle closing via onCancel/onConfirm
   const isQueueManaged = isOpen === undefined;
-  const queueMethods = isQueueManaged ? useModalQueue() : null;
+  const queueMethods = useModalQueue();
 
   const handleCancel = React.useCallback(async () => {
     if (onCancel) {
@@ -59,6 +55,11 @@ export const PractitionerAssignmentPromptModal: React.FC<PractitionerAssignmentP
       document.removeEventListener('keydown', handleEscape);
     };
   }, [handleCancel]);
+
+  // Backward compatibility: if isOpen is provided and false, don't render
+  if (isOpen !== undefined && !isOpen) {
+    return null;
+  }
 
   return (
     <BaseModal

@@ -147,11 +147,8 @@ const PractitionerSelector: React.FC<PractitionerSelectorProps> = ({
     onChange(selectedPractitionerIds.filter((id) => id !== practitionerId));
   };
 
-  if (availablePractitioners.length === 0) {
-    return null;
-  }
-
   // Calculate dropdown position
+  // All hooks must be called before any conditional returns
   useEffect(() => {
     if (isOpen && dropdownRef.current && dropdownMenuRef.current) {
       const rect = dropdownRef.current.getBoundingClientRect();
@@ -173,6 +170,10 @@ const PractitionerSelector: React.FC<PractitionerSelectorProps> = ({
       }
     }
   }, [isOpen]);
+
+  if (availablePractitioners.length === 0) {
+    return null;
+  }
 
   // List view - show all practitioners directly
   if (showAsList) {
