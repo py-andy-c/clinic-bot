@@ -97,7 +97,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
   const [datesWithSlots, setDatesWithSlots] = useState<Set<string>>(new Set());
   const [loadingAvailability, setLoadingAvailability] = useState(false);
   // Cache batch availability data to avoid redundant API calls when dates are selected
-  const [cachedAvailabilityData, setCachedAvailabilityData] = useState<Map<string, { slots: Array<{ start_time: string; end_time?: string; is_recommended?: boolean }> }>>(new Map());
+  const [cachedAvailabilityData, setCachedAvailabilityData] = useState<Map<string, { slots: Array<{ start: string; end: string }> }>>(new Map());
   // Track if batch has been initiated to prevent race condition with date selection
   const batchInitiatedRef = useRef(false);
   // Track if we've initialized temp state for this expand session
@@ -134,7 +134,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
     selectedPractitionerId,
     excludeCalendarEventId: excludeCalendarEventId ?? null,
     currentMonth,
-    cachedAvailabilityData,
+    cachedAvailabilityData: cachedAvailabilityData as any,
     loadingAvailability,
     batchInitiatedRef,
   });
@@ -401,7 +401,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
           const cacheKey = getCacheKey(selectedPractitionerId, appointmentTypeId, monthKey, date);
           const cachedSlots = getCachedSlots(cacheKey);
           if (cachedSlots !== null) {
-            newLocalCache.set(`${selectedPractitionerId}-${date}`, { slots: cachedSlots.map(slot => ({ start_time: slot.start_time, end_time: slot.end_time })) });
+            newLocalCache.set(`${selectedPractitionerId}-${date}`, { slots: cachedSlots.map(slot => ({ start: slot.start_time, end: slot.end_time })) });
             if (cachedSlots.length > 0) datesWithAvailableSlots.add(date);
           } else {
             allInCache = false;
@@ -433,7 +433,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
               const slots = result.available_slots || [];
               
               setCachedSlots(cacheKey, slots);
-              finalLocalCache.set(`${selectedPractitionerId}-${result.date}`, { slots: slots.map(slot => ({ start_time: slot.start_time, end_time: slot.end_time })) });
+              finalLocalCache.set(`${selectedPractitionerId}-${result.date}`, { slots: slots.map(slot => ({ start: slot.start_time, end: slot.end_time })) });
               
               if (slots.length > 0) {
                 finalDatesWithAvailableSlots.add(result.date);

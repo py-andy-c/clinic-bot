@@ -107,7 +107,7 @@ export const ReceiptViewModal: React.FC<ReceiptViewModalProps> = ({
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      const receiptNumber = (receiptInfo as any)?.receipt_number || 'receipt';
+      const receiptNumber = (receiptInfo as { receipt_number?: string })?.receipt_number || 'receipt';
       a.download = `receipt_${receiptNumber}.pdf`;
       document.body.appendChild(a);
       a.click();

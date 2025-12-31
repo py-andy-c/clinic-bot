@@ -79,7 +79,13 @@ export const ConflictDisplay: React.FC<ConflictDisplayProps> = ({
 
       case 'resource': {
         if (!conflictInfo.resource_conflicts || conflictInfo.resource_conflicts.length === 0) return null;
-        const resourceDetails = conflictInfo.resource_conflicts.map((conflict: any) => {
+        const resourceDetails = conflictInfo.resource_conflicts.map((conflict: {
+          resource_type_name: string;
+          required_quantity: number;
+          total_resources?: number;
+          allocated_count?: number;
+          available_quantity?: number;
+        }) => {
           // Format: ⚠️ 資源不足：{ResourceTypeName}
           //   需要數量：{RequiredQuantity}
           //   總數：{TotalResources} 個，已分配：{AllocatedCount} 個

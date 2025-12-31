@@ -30,6 +30,17 @@ import {
   EditAppointmentModal,
   CreateAppointmentModal,
 } from './calendar';
+
+// Types for create appointment modal data
+interface CreateAppointmentData {
+  patientId: number | null;
+  initialDate: string;
+  preSelectedAppointmentTypeId?: number;
+  preSelectedPractitionerId?: number;
+  preSelectedTime?: string;
+  preSelectedClinicNotes?: string;
+  event?: CalendarEvent;
+}
 import type { ConflictAppointment } from './calendar/ConflictModal';
 import {
   getDateString,
@@ -140,7 +151,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   const [modalState, setModalState] = useState<{
     type: 'event' | 'exception' | 'conflict' | 'delete_confirmation' | 'cancellation_note' | 'cancellation_preview' | 'edit_appointment' | 'create_appointment' | null;
     data: CalendarEvent | ConflictAppointment[] | null;
-    createAppointmentData?: { patientId: number | null; initialDate: string; preSelectedAppointmentTypeId?: number; preSelectedPractitionerId?: number; preSelectedTime?: string; preSelectedClinicNotes?: string; event?: CalendarEvent };
+    createAppointmentData?: CreateAppointmentData;
   }>({ type: null, data: null });
   const [createModalKey, setCreateModalKey] = useState(0);
   const [exceptionData, setExceptionData] = useState({
@@ -733,7 +744,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
           const batchData = await inFlightBatchRequestsRef.current.get(cacheKey)!;
           // Process the result from the in-flight request
           const events: ApiCalendarEvent[] = [];
-          for (const result of (batchData as { results: Array<{ user_id: number; date: string; events: ApiCalendarEvent[]; default_schedule?: TimeInterval[] }> }).results) {
+          for (const result of (batchData as any).results || []) {
             const practitionerId = result.user_id;
             const dateStr = result.date;
             // Use practitionerMap for O(1) lookup instead of O(n) find()
@@ -782,7 +793,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
         : Promise.resolve(null);
 
       // Store practitioner promise for cache deduplication
-      inFlightBatchRequestsRef.current.set(cacheKey, practitionerPromise as Promise<{ data: ApiCalendarEvent[]; timestamp: number }>);
+      inFlightBatchRequestsRef.current.set(cacheKey, practitionerPromise as any);
 
       // Wait for both fetches to complete
       const [batchData, resourceBatchData] = await Promise.all([
@@ -1186,10 +1197,10 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     try {
       // Conflict check - get the selected date's events and check for overlaps
       const dailyData = await apiService.getDailyCalendar(userId, dateStr);
-      const appointments = dailyData.events.filter((event: ApiCalendarEvent) => event.resource?.type === 'appointment');
+      const appointments = (dailyData.events as any[]).filter((event: any) => event.resource?.type === 'appointment');
 
       // Collect all conflicting appointments
-      const conflictingAppointments = appointments.filter((appointment: ApiCalendarEvent) => {
+      const conflictingAppointments = appointments.filter((appointment: any) => {
         const startTime = appointment.start.toISOString();
         const endTime = appointment.end.toISOString();
         if (!startTime || !endTime) return false;
@@ -1198,7 +1209,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
 
       if (conflictingAppointments.length > 0) {
         // Show conflict modal with list of conflicting appointments
-        setModalState({ type: 'conflict', data: conflictingAppointments });
+        setModalState({ type: 'conflict', data: conflictingAppointments as any });
         return;
       }
 
@@ -1772,7 +1783,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       {/* Edit Appointment Modal - handles all steps (form, note, preview) */}
       {modalState.type === 'edit_appointment' && modalState.data && (
         <EditAppointmentModal
-          event={modalState.data as CalendarEvent}
+          event={modalState.data as any}
           practitioners={availablePractitioners}
           appointmentTypes={appointmentTypes}
           onClose={() => {
@@ -1794,11 +1805,12 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       {modalState.type === 'create_appointment' && modalState.data && (
         <CreateAppointmentModal
           key={`create-${createModalKey}`}
+          {...(modalState.createAppointmentData ? modalState.createAppointmentData : {} as any)}
           // null from button click → undefined (no patient), number from URL → use it, undefined → fall back to prop
           preSelectedPatientId={
             modalState.createAppointmentData?.patientId === null
               ? undefined
-              : modalState.createAppointmentData?.patientId ?? preSelectedPatientId
+              : (modalState.createAppointmentData?.patientId ?? preSelectedPatientId) as number | undefined
           }
           initialDate={modalState.createAppointmentData?.initialDate || null}
           preSelectedAppointmentTypeId={modalState.createAppointmentData?.preSelectedAppointmentTypeId}
