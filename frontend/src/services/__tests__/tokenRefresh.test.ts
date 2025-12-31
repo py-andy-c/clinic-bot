@@ -132,7 +132,7 @@ describe('TokenRefreshService', () => {
         },
       };
 
-      let resolveFirst: (value: any) => void;
+      let resolveFirst: (value: { access_token: string; token_type: string }) => void;
       const firstPromise = new Promise((resolve) => {
         resolveFirst = resolve;
       });
@@ -196,8 +196,8 @@ describe('TokenRefreshService', () => {
         },
       };
 
-      let resolveRefresh: (value: any) => void;
-      const refreshPromise = new Promise((resolve) => {
+      let resolveRefresh: (value: { access_token: string; token_type: string }) => void;
+      const refreshPromise = new Promise<{ access_token: string; token_type: string }>((resolve) => {
         resolveRefresh = resolve;
       });
 
@@ -223,8 +223,8 @@ describe('TokenRefreshService', () => {
         },
       };
 
-      let resolveRefresh: (value: any) => void;
-      const refreshPromise = new Promise((resolve) => {
+      let resolveRefresh: (value: { access_token: string; token_type: string }) => void;
+      const refreshPromise = new Promise<{ access_token: string; token_type: string }>((resolve) => {
         resolveRefresh = resolve;
       });
 

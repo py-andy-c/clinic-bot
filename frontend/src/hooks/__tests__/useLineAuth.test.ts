@@ -39,7 +39,7 @@ function createJWTToken(payload: Record<string, any>): string {
 }
 
 // Helper to decode JWT payload (for verification)
-function decodeJWTPayload(token: string): any {
+function decodeJWTPayload(token: string): { userId?: string; exp?: number; [key: string]: unknown } | null {
   const parts = token.split('.');
   if (parts.length < 2) return null;
   try {

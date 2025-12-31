@@ -13,7 +13,7 @@ import { useServiceItemsStore } from '../../stores/serviceItemsStore';
 import { ModalProvider } from '../../contexts/ModalContext';
 
 // Wrapper component to provide RHF context
-const FormWrapper: React.FC<{ children: React.ReactNode; defaultValues: any }> = ({ children, defaultValues }) => {
+const FormWrapper: React.FC<{ children: React.ReactNode; defaultValues: Record<string, unknown> }> = ({ children, defaultValues }) => {
   const methods = useForm({ defaultValues });
   return <FormProvider {...methods}>{children}</FormProvider>;
 };
@@ -121,7 +121,7 @@ describe('ServiceItemsSettings', () => {
     isClinicAdmin: true,
   };
 
-  const renderWithProviders = (component: React.ReactElement, defaultValues: any = { appointment_types: mockAppointmentTypes }) => {
+  const renderWithProviders = (component: React.ReactElement, defaultValues: Record<string, unknown> = { appointment_types: mockAppointmentTypes }) => {
     return render(
       <ModalProvider>
         <FormWrapper defaultValues={defaultValues}>
@@ -319,7 +319,7 @@ describe('ServiceItemsSettings', () => {
       const key = `${serviceItemId}-${practitionerId}`;
       try {
         await apiService.getBillingScenarios(serviceItemId, practitionerId);
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (err?.response?.status === 404) {
           mockStore.billingScenarios = {
             ...mockStore.billingScenarios,

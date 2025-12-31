@@ -31,14 +31,14 @@ vi.mock('../../../services/api', () => ({
 
 // Mock shared components
 vi.mock('../../../components/shared', () => ({
-  LoadingSpinner: ({ size }: any) => <div data-testid="loading-spinner">Loading {size}</div>,
-  ErrorMessage: ({ message }: any) => <div data-testid="error-message">{message}</div>,
-  InfoButton: ({ onClick, ariaLabel }: any) => (
+  LoadingSpinner: ({ size }: { size?: string }) => <div data-testid="loading-spinner">Loading {size}</div>,
+  ErrorMessage: ({ message }: { message: string }) => <div data-testid="error-message">{message}</div>,
+  InfoButton: ({ onClick, ariaLabel }: { onClick: () => void; ariaLabel?: string }) => (
     <button data-testid="info-button" onClick={onClick} aria-label={ariaLabel}>
       ℹ️
     </button>
   ),
-  InfoModal: ({ isOpen, onClose, title, children }: any) =>
+  InfoModal: ({ isOpen, onClose, title, children }: { isOpen: boolean; onClose: () => void; title: string; children: React.ReactNode }) =>
     isOpen ? (
       <div data-testid="info-modal">
         <h2>{title}</h2>

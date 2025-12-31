@@ -34,7 +34,7 @@ vi.mock('../../../hooks/useAuth', () => ({
 
 // Mock SortableTableHeader
 vi.mock('../../../components/dashboard/SortableTableHeader', () => ({
-  SortableTableHeader: ({ children, onSort, column, currentSort }: any) => (
+  SortableTableHeader: ({ children, onSort, column, currentSort }: { children: React.ReactNode; onSort: (column: string) => void; column: string; currentSort: { column: string; direction: string } }) => (
     <th onClick={() => onSort(column)} data-testid={`sort-header-${column}`}>
       {children}
       {currentSort.column === column && (
@@ -62,7 +62,7 @@ vi.mock('../../../components/dashboard/TimeRangePresets', () => ({
 
 // Mock FilterDropdown
 vi.mock('../../../components/dashboard/FilterDropdown', () => ({
-  FilterDropdown: ({ type, value, onChange }: any) => (
+  FilterDropdown: ({ type, value, onChange }: { type: string; value: string; onChange: (value: string) => void }) => (
     <select
       data-testid={`filter-${type}`}
       value={value || ''}
@@ -86,7 +86,7 @@ vi.mock('../../../components/dashboard/DashboardFilters', () => ({
     onServiceItemChange,
     onApplyFilters,
     checkbox,
-  }: any) => (
+  }: { practitionerId?: string | null; hasGroups?: boolean; groupId?: string | null; serviceItemId?: string | null; onPractitionerChange?: (value: string | null) => void; onGroupChange?: (value: string | null) => void; onServiceItemChange?: (value: string | null) => void; onApplyFilters?: () => void; checkbox?: React.ReactNode }) => (
     <div data-testid="dashboard-filters">
       <select
         data-testid="filter-practitioner"
@@ -133,7 +133,7 @@ vi.mock('../../../components/dashboard/DashboardFilters', () => ({
 
 // Mock ReceiptViewModal
 vi.mock('../../../components/calendar/ReceiptViewModal', () => ({
-  ReceiptViewModal: ({ isOpen, onClose }: any) =>
+  ReceiptViewModal: ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) =>
     isOpen ? (
       <div data-testid="receipt-modal">
         <button onClick={onClose}>Close Receipt</button>
@@ -143,7 +143,7 @@ vi.mock('../../../components/calendar/ReceiptViewModal', () => ({
 
 // Mock EventModal
 vi.mock('../../../components/calendar/EventModal', () => ({
-  EventModal: ({ isOpen, onClose }: any) =>
+  EventModal: ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) =>
     isOpen ? (
       <div data-testid="appointment-modal">
         <button onClick={onClose}>Close Appointment</button>
@@ -153,14 +153,14 @@ vi.mock('../../../components/calendar/EventModal', () => ({
 
 // Mock shared components
 vi.mock('../../../components/shared', () => ({
-  LoadingSpinner: ({ size }: any) => <div data-testid="loading-spinner">Loading {size}</div>,
-  ErrorMessage: ({ message }: any) => <div data-testid="error-message">{message}</div>,
-  InfoButton: ({ onClick, ariaLabel }: any) => (
+  LoadingSpinner: ({ size }: { size?: string }) => <div data-testid="loading-spinner">Loading {size}</div>,
+  ErrorMessage: ({ message }: { message: string }) => <div data-testid="error-message">{message}</div>,
+  InfoButton: ({ onClick, ariaLabel }: { onClick: () => void; ariaLabel?: string }) => (
     <button data-testid="info-button" onClick={onClick} aria-label={ariaLabel}>
       ℹ️
     </button>
   ),
-  InfoModal: ({ isOpen, onClose, title, children }: any) =>
+  InfoModal: ({ isOpen, onClose, title, children }: { isOpen: boolean; onClose: () => void; title: string; children: React.ReactNode }) =>
     isOpen ? (
       <div data-testid="info-modal">
         <h2>{title}</h2>
@@ -172,7 +172,7 @@ vi.mock('../../../components/shared', () => ({
 
 // Mock calendar utilities
 vi.mock('../../../utils/calendarDataAdapter', () => ({
-  transformToCalendarEvents: vi.fn((events: any[]) => events),
+  transformToCalendarEvents: vi.fn((events: unknown[]) => events),
   formatEventTimeRange: vi.fn(() => '10:00 AM - 11:00 AM'),
 }));
 
@@ -262,7 +262,7 @@ describe('RevenueDistributionPage', () => {
     by_practitioner: [],
   };
 
-  const setupDefaultMocks = (groups: any[] = []) => {
+  const setupDefaultMocks = (groups: Array<{ id: number; name: string; [key: string]: unknown }> = []) => {
     let callIndex = 0;
     mockUseApiData.mockImplementation(() => {
       callIndex++;

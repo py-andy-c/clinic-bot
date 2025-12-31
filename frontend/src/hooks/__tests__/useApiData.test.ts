@@ -256,7 +256,7 @@ describe('useApiData', () => {
 
   it('should handle unmounting during fetch', async () => {
     const mockData = { id: 1, name: 'Test' };
-    let resolvePromise: (value: any) => void;
+    let resolvePromise: (value: { id: number; name: string }) => void;
     const promise = new Promise((resolve) => {
       resolvePromise = resolve;
     });

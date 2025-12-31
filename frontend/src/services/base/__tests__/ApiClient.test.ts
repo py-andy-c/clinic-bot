@@ -33,15 +33,15 @@ describe('ApiClient', () => {
         return this.get('/test');
       }
 
-      async testPost(data: any) {
+      async testPost(data: unknown) {
         return this.post('/test', data);
       }
 
-      async testPut(data: any) {
+      async testPut(data: unknown) {
         return this.put('/test', data);
       }
 
-      async testPatch(data: any) {
+      async testPatch(data: unknown) {
         return this.patch('/test', data);
       }
 
@@ -147,7 +147,7 @@ describe('ApiClient', () => {
 
     it('should allow overriding request interceptor', () => {
       class CustomApiClient extends ApiClient {
-        protected onRequest(config: any) {
+        protected onRequest(config: { headers?: Record<string, string>; [key: string]: unknown }) {
           config.customHeader = 'test';
           return config;
         }

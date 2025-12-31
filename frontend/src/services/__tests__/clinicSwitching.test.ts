@@ -40,8 +40,8 @@ vi.mock('../../config/env', () => ({
 }));
 
 describe('Clinic Switching API', () => {
-  let mockAxiosInstance: any;
-  let apiService: any;
+  let mockAxiosInstance: { get: unknown; post: unknown; put: unknown; patch: unknown; delete: unknown; interceptors: { request: { use: unknown }; response: { use: unknown } } };
+  let apiService: { switchClinic: (clinicId: number) => Promise<unknown>; listAvailableClinics: () => Promise<unknown>; [key: string]: unknown };
 
   beforeEach(() => {
     vi.clearAllMocks();

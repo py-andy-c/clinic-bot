@@ -38,7 +38,7 @@ vi.mock('../../../services/api', () => ({
 
 // Mock DateTimePicker
 vi.mock('../DateTimePicker', () => ({
-  DateTimePicker: ({ onHasAvailableSlotsChange, onDateSelect, onTimeSelect, selectedPractitionerId }: any) => {
+  DateTimePicker: ({ onHasAvailableSlotsChange, onDateSelect, onTimeSelect, selectedPractitionerId }: { onHasAvailableSlotsChange?: (hasSlots: boolean) => void; onDateSelect?: (date: string) => void; onTimeSelect?: (time: string) => void; selectedPractitionerId?: number | null }) => {
     React.useEffect(() => {
       let isMounted = true;
       if (selectedPractitionerId) {
