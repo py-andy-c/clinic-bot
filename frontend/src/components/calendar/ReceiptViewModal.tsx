@@ -28,7 +28,16 @@ export const ReceiptViewModal: React.FC<ReceiptViewModalProps> = ({
   isClinicUser,
 }) => {
   const [receiptHtml, setReceiptHtml] = useState<string | null>(null);
-  const [receiptInfo, setReceiptInfo] = useState<any>(null); // For receipt_id and void_info
+  interface ReceiptInfo {
+    receipt_id: number;
+    void_info?: {
+      voided: boolean;
+      reason?: string;
+      voided_at?: string;
+      voided_by?: string;
+    };
+  }
+  const [receiptInfo, setReceiptInfo] = useState<ReceiptInfo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isVoiding, setIsVoiding] = useState(false);

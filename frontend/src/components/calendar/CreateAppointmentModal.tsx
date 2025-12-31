@@ -257,7 +257,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
   const [editingOccurrenceId, setEditingOccurrenceId] = useState<string | null>(null);
   const [addingOccurrence, setAddingOccurrence] = useState<boolean>(false);
   const [hasVisitedConflictResolution, setHasVisitedConflictResolution] = useState<boolean>(false);
-  const [singleAppointmentConflict, setSingleAppointmentConflict] = useState<any>(null);
+  const [singleAppointmentConflict, setSingleAppointmentConflict] = useState<SchedulingConflictResponse | null>(null);
 
   // Assignment prompt state
   const [currentPatient, setCurrentPatient] = useState<Patient | null>(null);
