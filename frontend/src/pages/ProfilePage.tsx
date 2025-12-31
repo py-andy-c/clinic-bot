@@ -165,7 +165,7 @@ interface PractitionerSettings {
 interface ProfileData {
   fullName: string;
   title: string;
-  schedule: any;
+  schedule: Record<string, TimeInterval[]>;
   settings?: PractitionerSettings;
   clinicDefaultStep?: number;
 }

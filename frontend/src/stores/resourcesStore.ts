@@ -47,7 +47,7 @@ interface ResourcesState {
   saveAll: () => Promise<boolean>;
   
   // Sync from RHF
-  syncFromRHF: (data: { resourceTypes: any[] }) => void;
+  syncFromRHF: (data: { resourceTypes: ResourceType[] }) => void;
   
   // Reset/Clear
   reset: () => void;
@@ -405,7 +405,7 @@ export const useResourcesStore = create<ResourcesState>((set, get) => ({
   /**
    * Sync data from RHF state to the store.
    */
-  syncFromRHF: (data: { resourceTypes: any[] }) => {
+  syncFromRHF: (data: { resourceTypes: ResourceType[] }) => {
     const resourceTypes = data.resourceTypes.map(({ resources, ...type }) => type);
     const resourcesByType: Record<number, Resource[]> = {};
     data.resourceTypes.forEach(type => {

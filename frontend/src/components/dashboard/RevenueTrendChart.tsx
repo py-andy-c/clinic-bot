@@ -135,7 +135,7 @@ export const RevenueTrendChart: React.FC<RevenueTrendChartProps> = ({
     }
     // Recharts' stackId automatically handles stacking, so we use raw values
     return chartData.map((point) => {
-      const result: any = { 
+      const result: Record<string, string | number> = { 
         date: point.date, 
         label: point.label, // For x-axis
         tooltipLabel: point.tooltipLabel // For tooltip
@@ -251,7 +251,7 @@ export const RevenueTrendChart: React.FC<RevenueTrendChartProps> = ({
                     <div className="bg-white border border-gray-200 rounded-md p-3 shadow-lg">
                       <p className="text-sm font-medium text-gray-900 mb-2">{displayLabel}</p>
                       <div className="space-y-1">
-                        {payload.map((entry: any, index: number) => {
+                        {payload.map((entry: Record<string, unknown>, index: number) => {
                           const dataKey = entry.dataKey || entry.name;
                           const displayName = view === 'stacked-service'
                             ? serviceNames[dataKey] || dataKey

@@ -197,7 +197,7 @@ export const useServiceItemsStore = create<ServiceItemsState>((set, get) => ({
 
       const response = await apiService.getBillingScenarios(serviceItemId, practitionerId);
       
-      const scenarios: BillingScenario[] = (response.billing_scenarios || []).map((s: any) => ({
+      const scenarios: BillingScenario[] = (response.billing_scenarios || []).map((s: BillingScenario) => ({
         id: s.id,
         practitioner_id: s.practitioner_id,
         appointment_type_id: s.appointment_type_id,
@@ -220,7 +220,7 @@ export const useServiceItemsStore = create<ServiceItemsState>((set, get) => ({
           loadingScenarios: newLoadingScenarios,
         };
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       logger.error(`Error loading billing scenarios for ${key}:`, err);
       
       // Handle 404 gracefully (no scenarios exist yet)
@@ -420,7 +420,7 @@ export const useServiceItemsStore = create<ServiceItemsState>((set, get) => ({
           if (!currentIds.has(originalScenario.id)) {
             try {
               await apiService.deleteBillingScenario(realServiceItemId, practitionerId, originalScenario.id);
-            } catch (err: any) {
+            } catch (err: unknown) {
               // Handle 404 gracefully - scenario might already be deleted
               if (err?.response?.status === 404) {
                 // Don't add to errors - it's already deleted, which is what we want
@@ -584,7 +584,7 @@ export const useServiceItemsStore = create<ServiceItemsState>((set, get) => ({
           loadingResourceRequirements: newLoading,
         };
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       logger.error(`Error loading resource requirements for ${serviceItemId}:`, err);
       
       // Handle 404 gracefully (no requirements exist yet)
@@ -672,7 +672,7 @@ export const useServiceItemsStore = create<ServiceItemsState>((set, get) => ({
         if (!currentIds.has(originalReq.id)) {
           try {
             await apiService.deleteResourceRequirement(realServiceItemId, originalReq.id);
-          } catch (err: any) {
+          } catch (err: unknown) {
             // Handle 404 gracefully - requirement might already be deleted
             if (err?.response?.status === 404) {
               // Don't add to errors - it's already deleted, which is what we want

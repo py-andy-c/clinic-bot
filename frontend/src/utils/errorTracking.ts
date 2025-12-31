@@ -12,7 +12,7 @@
 
 interface ErrorTrackingService {
   init: () => void;
-  captureException: (error: Error, context?: Record<string, any>) => void;
+  captureException: (error: Error, context?: Record<string, unknown>) => void;
   captureMessage: (message: string, level?: 'error' | 'warning' | 'info') => void;
   setUser: (user: { id?: string; email?: string; username?: string }) => void;
   clearUser: () => void;

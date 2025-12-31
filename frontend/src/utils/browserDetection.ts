@@ -10,7 +10,7 @@ export function isInAppBrowser(): boolean {
   }
 
   const userAgent = navigator.userAgent.toLowerCase();
-  const standalone = (window.navigator as any).standalone;
+  const standalone = (window.navigator as { standalone?: boolean }).standalone;
   
   // Check for common in-app browser patterns (these are definitive indicators)
   const inAppPatterns = [

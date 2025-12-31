@@ -20,7 +20,7 @@ export const FormField: React.FC<FormFieldProps> = ({
   const { errors } = useFormState({ control, name });
 
   // Helper to get nested error
-  const getNestedError = (obj: any, path: string): any => {
+  const getNestedError = (obj: unknown, path: string): { message?: string } | undefined => {
     return path.split(/[.[\]]+/).filter(Boolean).reduce((acc, key) => acc?.[key], obj);
   };
 

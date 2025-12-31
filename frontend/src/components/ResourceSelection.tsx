@@ -278,7 +278,7 @@ export const ResourceSelection: React.FC<ResourceSelectionProps> = ({
             lastSelectedRef.current = selectedResourceIds;
           }
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (err?.name === 'CanceledError' || err?.name === 'AbortError') return;
         logger.error('Failed to fetch resource availability:', err);
         setError(getErrorMessage(err) || '無法取得資源可用性');

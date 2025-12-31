@@ -62,7 +62,7 @@ export interface SettingsFormStoreState<TFormData> {
  * @param config Configuration for the store
  * @returns Zustand store hook
  */
-export function createSettingsFormStore<TFormData extends Record<string, any>, TServerData>(
+export function createSettingsFormStore<TFormData extends Record<string, unknown>, TServerData>(
   config: SettingsFormStoreConfig<TFormData, TServerData>
 ) {
   const storeCreator: StateCreator<SettingsFormStoreState<TFormData>> = (set, get) => ({

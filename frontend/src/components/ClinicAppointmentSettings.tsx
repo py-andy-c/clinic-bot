@@ -9,7 +9,7 @@ interface ClinicAppointmentSettingsProps {
 }
 
 interface PractitionerRowProps {
-  practitioner: any;
+  practitioner: { id: number; full_name: string; [key: string]: unknown };
   index: number;
   isClinicAdmin: boolean;
 }

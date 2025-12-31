@@ -484,7 +484,7 @@ const SettingsServiceItemsPage: React.FC = () => {
       });
       
       return { groupMapping, errors };
-    } catch (err: any) {
+    } catch (err: unknown) {
       logger.error('Error reloading groups:', err);
       errors.push(`重新載入群組失敗：${err?.message || '未知錯誤'}`);
       return { groupMapping, errors };
@@ -597,7 +597,7 @@ const SettingsServiceItemsPage: React.FC = () => {
       }
       
       return { savedServiceItems, errors };
-    } catch (err: any) {
+    } catch (err: unknown) {
       logger.error('Error saving service items:', err);
       errors.push(`儲存服務項目失敗：${err?.response?.data?.detail || err?.message || '未知錯誤'}`);
       return { savedServiceItems: [], errors };
@@ -677,7 +677,7 @@ const SettingsServiceItemsPage: React.FC = () => {
       if (!assignmentResult.success) {
         assignmentResult.errors.forEach(err => errors.push(`治療師指派：${err}`));
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       errors.push(`儲存治療師指派失敗：${err?.message || '未知錯誤'}`);
     }
     
@@ -689,7 +689,7 @@ const SettingsServiceItemsPage: React.FC = () => {
       }
       // Note: We don't update staging store here because we reload from server below (line 854)
       // This ensures consistency with server state and eliminates redundant state updates
-    } catch (err: any) {
+    } catch (err: unknown) {
       errors.push(`儲存計費方案失敗：${err?.message || '未知錯誤'}`);
     }
     
@@ -701,7 +701,7 @@ const SettingsServiceItemsPage: React.FC = () => {
       }
       // Note: We don't update staging store here because we reload from server below (line 854)
       // This ensures consistency with server state and eliminates redundant state updates
-    } catch (err: any) {
+    } catch (err: unknown) {
       errors.push(`儲存資源需求失敗：${err?.message || '未知錯誤'}`);
     }
     
@@ -789,7 +789,7 @@ const SettingsServiceItemsPage: React.FC = () => {
           }
         }
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       errors.push(`儲存追蹤訊息失敗：${err?.message || '未知錯誤'}`);
     }
     
@@ -888,7 +888,7 @@ const SettingsServiceItemsPage: React.FC = () => {
       // This ensures hasUnsavedChanges() returns false since everything was just saved
       syncOriginals();
       
-    } catch (err: any) {
+    } catch (err: unknown) {
       logger.error('Error saving all changes:', err);
       const errorMessage = err instanceof Error ? err.message : '儲存失敗';
       await alert(errorMessage, '錯誤');

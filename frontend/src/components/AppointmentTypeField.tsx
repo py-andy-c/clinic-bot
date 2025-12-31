@@ -34,7 +34,7 @@ export const AppointmentTypeField: React.FC<AppointmentTypeFieldProps> = ({
 
   // Listen for expansion events from onInvalid
   useEffect(() => {
-    const handleExpand = (e: any) => {
+    const handleExpand = (e: React.MouseEvent) => {
       if (e.detail.type === 'appointmentType' && e.detail.index === index) {
         setIsExpanded(true);
       }
@@ -97,7 +97,7 @@ export const AppointmentTypeField: React.FC<AppointmentTypeFieldProps> = ({
       setValue(`appointment_types.${index}.service_type_group_id`, newGroup.id, { shouldDirty: true });
       setShowCreateGroupInput(false);
       setNewGroupName('');
-    } catch (err: any) {
+    } catch (err: unknown) {
       logger.error('Error creating group:', err);
       alert(err?.response?.data?.detail || err?.message || '建立群組失敗');
     }

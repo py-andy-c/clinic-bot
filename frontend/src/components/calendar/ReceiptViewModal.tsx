@@ -73,7 +73,7 @@ export const ReceiptViewModal: React.FC<ReceiptViewModalProps> = ({
 
       setReceiptHtml(html);
       setReceiptInfo(receiptData);
-    } catch (err: any) {
+    } catch (err: unknown) {
       logger.error('Error loading receipt:', err);
       setError('無法載入收據資料');
     } finally {
@@ -101,7 +101,7 @@ export const ReceiptViewModal: React.FC<ReceiptViewModalProps> = ({
       a.click();
       document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
-    } catch (err: any) {
+    } catch (err: unknown) {
       logger.error('Error downloading PDF:', err);
       alert(`下載失敗，請重試: ${err?.response?.data?.detail || err?.message || '未知錯誤'}`);
     } finally {
@@ -132,7 +132,7 @@ export const ReceiptViewModal: React.FC<ReceiptViewModalProps> = ({
         onReceiptVoided();
       }
       onClose();
-    } catch (err: any) {
+    } catch (err: unknown) {
       logger.error('Error voiding receipt:', err);
       alert(err.response?.data?.detail || '作廢失敗，請重試');
     } finally {

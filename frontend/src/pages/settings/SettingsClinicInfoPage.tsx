@@ -39,7 +39,7 @@ const SettingsClinicInfoPage: React.FC = () => {
   // Setup navigation warnings for unsaved changes
   useUnsavedChangesDetection({ hasUnsavedChanges: () => isDirty });
 
-  const onInvalid = (errors: any) => {
+  const onInvalid = (errors: Record<string, unknown>) => {
     scrollOnError(errors, methods);
   };
 
@@ -94,7 +94,7 @@ const SettingsClinicInfoPage: React.FC = () => {
     try {
       // Update context - this will trigger the useEffect above to save once state is updated
       updateData({ clinic_info_settings: data });
-    } catch (err: any) {
+    } catch (err: unknown) {
       isSavingRef.current = false;
       pendingFormDataRef.current = null;
       if (!handleBackendError(err, methods, { stripPrefix: 'clinic_info_settings' })) {

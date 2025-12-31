@@ -82,7 +82,7 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
       setExpandedMessages(new Set(messages.map(m => m.id)));
       // Update parent with loaded messages
       onUpdate({ ...appointmentType, follow_up_messages: messages });
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error('Failed to load follow-up messages:', error);
       const errorMessage = error?.response?.data?.detail || '無法載入追蹤訊息';
       await alert(errorMessage, '載入失敗');
@@ -276,7 +276,7 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
       }
       const preview = await apiService.previewFollowUpMessage(previewData);
       setPreviewData(preview);
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error('Failed to load preview:', error);
       // Keep modal open but show error state (handled by !previewData check in render)
       setPreviewData(null);

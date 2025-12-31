@@ -110,7 +110,7 @@ export abstract class ApiClient {
   /**
    * Make a POST request
    */
-  protected async post<T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
+  protected async post<T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
     try {
       const response = await this.client.post<T>(url, data, config);
       return this.handleSuccess(response);
@@ -122,7 +122,7 @@ export abstract class ApiClient {
   /**
    * Make a PUT request
    */
-  protected async put<T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
+  protected async put<T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
     try {
       const response = await this.client.put<T>(url, data, config);
       return this.handleSuccess(response);
@@ -134,7 +134,7 @@ export abstract class ApiClient {
   /**
    * Make a PATCH request
    */
-  protected async patch<T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
+  protected async patch<T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
     try {
       const response = await this.client.patch<T>(url, data, config);
       return this.handleSuccess(response);

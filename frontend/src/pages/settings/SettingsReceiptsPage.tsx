@@ -79,7 +79,7 @@ const SettingsReceiptsPage: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings?.receipt_settings]);
 
-  const onInvalid = (errors: any) => {
+  const onInvalid = (errors: Record<string, unknown>) => {
     scrollOnError(errors, methods);
   };
 
@@ -93,7 +93,7 @@ const SettingsReceiptsPage: React.FC = () => {
       updateData({
         receipt_settings: data.receipt_settings,
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       isSavingRef.current = false;
       pendingFormDataRef.current = null;
       if (!handleBackendError(err, methods)) {

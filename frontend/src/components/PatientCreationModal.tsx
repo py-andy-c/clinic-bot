@@ -108,7 +108,7 @@ export const PatientCreationModal: React.FC<PatientCreationModalProps> = ({
         phone_number,
         normalizedBirthday || null
       );
-    } catch (err: any) {
+    } catch (err: unknown) {
       logger.error('Failed to create patient:', err);
       
       // Extract error message using shared utility (strips "Value error, " prefix)
