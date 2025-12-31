@@ -21,7 +21,12 @@ export const FormField: React.FC<FormFieldProps> = ({
 
   // Helper to get nested error
   const getNestedError = (obj: unknown, path: string): { message?: string } | undefined => {
-    return path.split(/[.[\]]+/).filter(Boolean).reduce((acc: any, key) => acc?.[key], obj);
+    return path.split(/[.[\]]+/).filter(Boolean).reduce((acc: Record<string, unknown> | undefined, key: string) => {
+      if (acc && typeof acc === 'object' && key in acc) {
+        return acc[key] as Record<string, unknown>;
+      }
+      return undefined;
+    }, obj as Record<string, unknown>);
   };
 
   const error = getNestedError(errors, name);

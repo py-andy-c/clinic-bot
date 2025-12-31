@@ -258,13 +258,13 @@ export const RevenueTrendChart: React.FC<RevenueTrendChartProps> = ({
                             ? serviceNames[dataKey] || dataKey
                             : practitionerNames[dataKey] || dataKey;
                           // Get original (unstacked) value from the data point
-                          const originalValue = (entry.payload as any)?.[`${dataKey}_original`] ?? entry.value ?? 0;
+                          const originalValue = (entry.payload as Record<string, unknown>)?.[`${dataKey}_original`] as number ?? entry.value ?? 0;
                           
                           return (
                             <div key={index} className="flex items-center gap-2">
                               <div
                                 className="w-3 h-3 rounded"
-                                style={{ backgroundColor: entry.color as any }}
+                                style={{ backgroundColor: entry.color as string }}
                               />
                               <span className="text-sm text-gray-700">{displayName}:</span>
                               <span className="text-sm font-medium text-gray-900">

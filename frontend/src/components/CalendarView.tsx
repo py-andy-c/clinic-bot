@@ -139,7 +139,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   }, []);
   const [modalState, setModalState] = useState<{
     type: 'event' | 'exception' | 'conflict' | 'delete_confirmation' | 'cancellation_note' | 'cancellation_preview' | 'edit_appointment' | 'create_appointment' | null;
-    data: CalendarEvent | ConflictAppointment[] | null;
+    data: CalendarEvent | ConflictAppointment[] | { patientId: number | null; initialDate: string; preSelectedAppointmentTypeId?: number; preSelectedPractitionerId?: number; preSelectedTime?: string; preSelectedClinicNotes?: string; event?: CalendarEvent } | null;
   }>({ type: null, data: null });
   const [createModalKey, setCreateModalKey] = useState(0);
   const [exceptionData, setExceptionData] = useState({
@@ -732,7 +732,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
           const batchData = await inFlightBatchRequestsRef.current.get(cacheKey)!;
           // Process the result from the in-flight request
           const events: ApiCalendarEvent[] = [];
-          for (const result of (batchData as any).results) {
+          for (const result of (batchData as { results: Array<{ user_id: number; date: string; events: ApiCalendarEvent[]; default_schedule?: TimeInterval[] }> }).results) {
             const practitionerId = result.user_id;
             const dateStr = result.date;
             // Use practitionerMap for O(1) lookup instead of O(n) find()
@@ -781,7 +781,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
         : Promise.resolve(null);
 
       // Store practitioner promise for cache deduplication
-      inFlightBatchRequestsRef.current.set(cacheKey, practitionerPromise as any);
+      inFlightBatchRequestsRef.current.set(cacheKey, practitionerPromise as Promise<{ data: ApiCalendarEvent[]; timestamp: number }>);
 
       // Wait for both fetches to complete
       const [batchData, resourceBatchData] = await Promise.all([
@@ -1185,10 +1185,10 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     try {
       // Conflict check - get the selected date's events and check for overlaps
       const dailyData = await apiService.getDailyCalendar(userId, dateStr);
-      const appointments = dailyData.events.filter((event: any) => event.resource?.type === 'appointment');
+      const appointments = dailyData.events.filter((event: ApiCalendarEvent) => event.resource?.type === 'appointment');
 
       // Collect all conflicting appointments
-      const conflictingAppointments = appointments.filter((appointment: any) => {
+      const conflictingAppointments = appointments.filter((appointment: ApiCalendarEvent) => {
         const startTime = appointment.start.toISOString();
         const endTime = appointment.end.toISOString();
         if (!startTime || !endTime) return false;
@@ -1197,7 +1197,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
 
       if (conflictingAppointments.length > 0) {
         // Show conflict modal with list of conflicting appointments
-        setModalState({ type: 'conflict', data: conflictingAppointments as any });
+        setModalState({ type: 'conflict', data: conflictingAppointments });
         return;
       }
 
@@ -1385,7 +1385,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     // Close event modal and open create appointment modal with pre-filled data
     // Resources will be fetched by useAppointmentForm in duplicate mode
     setCreateModalKey(prev => prev + 1); // Force remount to reset state
-    setModalState({
+        setModalState({
       type: 'create_appointment',
       data: {
         patientId: patientId ?? null,
@@ -1396,7 +1396,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
         ...(initialTime && { preSelectedTime: initialTime }),
         ...(clinicNotes !== undefined && clinicNotes !== null && { preSelectedClinicNotes: clinicNotes }),
         event,
-      } as any
+      }
     });
   }, [modalState.data, isAdmin]);
 
@@ -1476,7 +1476,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     // Format current date as YYYY-MM-DD for initial date selection
     const currentDateString = getDateString(currentDate);
     // Use null to explicitly mean "no patient" (button click), undefined means "use prop" (URL-based)
-    setModalState({ type: 'create_appointment', data: { patientId: patientId ?? null, initialDate: currentDateString } as any });
+    setModalState({ type: 'create_appointment', data: { patientId: patientId ?? null, initialDate: currentDateString } });
   }, [currentDate]);
 
   // Expose create appointment handler to parent
