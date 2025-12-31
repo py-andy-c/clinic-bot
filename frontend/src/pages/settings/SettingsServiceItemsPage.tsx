@@ -292,7 +292,7 @@ const SettingsServiceItemsPage: React.FC = () => {
     // Find indices in the full service items list (not filtered)
     const allItems = [...serviceItems];
     const draggedIndex = allItems.findIndex(item => item.id === draggedItemId);
-    let targetIndex = allItems.findIndex(item => item.id === targetItemId);
+    const targetIndex = allItems.findIndex(item => item.id === targetItemId);
     
     if (draggedIndex === -1 || targetIndex === -1) return;
 

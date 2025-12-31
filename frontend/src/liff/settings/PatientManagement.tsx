@@ -131,7 +131,7 @@ const PatientManagement: React.FC = () => {
       setError(null);
       const updateData: { full_name?: string; phone_number?: string; birthday?: string; gender?: string } = {
         full_name: editPatientName.trim(),
-        phone_number: editPatientPhone.replace(/[\s\-\(\)]/g, ''),
+        phone_number: editPatientPhone.replace(/[\s\-()]/g, ''),
       };
       if (editPatientBirthday.trim()) {
         updateData.birthday = formatDateForApi(editPatientBirthday.trim());

@@ -129,7 +129,7 @@ const GlobalWarnings: React.FC = () => {
       }
 
       // Fetch admin warnings if user is admin - use batch endpoint
-      let adminWarnings: Array<{ id: number; full_name: string; hasAppointmentTypes: boolean; hasAvailability: boolean }> = [];
+      const adminWarnings: Array<{ id: number; full_name: string; hasAppointmentTypes: boolean; hasAvailability: boolean }> = [];
       if (isClinicAdmin && membersData && batchPractitionerStatusData) {
         const practitionerMembers = membersData.filter(
           member => member.roles.includes('practitioner') && member.is_active

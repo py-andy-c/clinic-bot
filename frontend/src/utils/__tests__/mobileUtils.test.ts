@@ -43,7 +43,7 @@ describe('mobileUtils', () => {
 
     it('should handle SSR (window undefined)', () => {
       const originalWindow = global.window;
-      // @ts-ignore - intentionally setting to undefined for test
+      // @ts-expect-error - intentionally setting to undefined for test
       global.window = undefined;
 
       expect(isMobileViewport()).toBe(false);
@@ -64,7 +64,7 @@ describe('mobileUtils', () => {
 
     it('should return 0 when window is undefined (SSR)', () => {
       const originalWindow = global.window;
-      // @ts-ignore - intentionally setting to undefined for test
+      // @ts-expect-error - intentionally setting to undefined for test
       global.window = undefined;
 
       expect(getViewportWidth()).toBe(0);

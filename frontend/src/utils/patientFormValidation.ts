@@ -44,7 +44,7 @@ export const validateClinicPatientForm = (
     if (!phoneValidation.isValid) {
       return { isValid: false, error: phoneValidation.error || '手機號碼格式錯誤' };
     }
-    normalizedPhone = phoneNumber.trim().replace(/[\s\-\(\)]/g, '');
+    normalizedPhone = phoneNumber.trim().replace(/[\s\-()]/g, '');
   }
   
   // Validate and normalize birthday if provided
@@ -153,7 +153,7 @@ export const validateLiffPatientForm = (
     gender?: string;
   } = {
     full_name: trimmedName,
-    phone_number: phoneNumber.replace(/[\s\-\(\)]/g, ''),
+    phone_number: phoneNumber.replace(/[\s\-()]/g, ''),
   };
   
   if (normalizedBirthday) {

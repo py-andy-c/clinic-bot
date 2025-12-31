@@ -269,7 +269,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
 
   // Lock body scroll when modal is open (prevents background scrolling on mobile)
   useEffect(() => {
-    let wasModalOpen = modalState.type !== null;
+    const wasModalOpen = modalState.type !== null;
 
     if (wasModalOpen) {
       // Save current scroll position using ref to avoid closure issues

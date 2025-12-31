@@ -256,7 +256,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       }]);
       isInitializedRef.current = true;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
     // Note: Using appointmentTypes.length instead of appointmentTypes array to prevent
     // re-initialization when the array reference changes but contents are the same.
     // We only need to re-initialize when the length changes (items added/removed).

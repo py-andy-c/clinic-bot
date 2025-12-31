@@ -83,13 +83,13 @@ export const useAppointmentForm = ({
       );
 
       try {
-        let typeId = preSelectedAppointmentTypeId || event?.resource.appointment_type_id || null;
-        let pracId = preSelectedPractitionerId || event?.resource.practitioner_id || null;
-        let date = initialDate || (event ? moment(event.start).tz('Asia/Taipei').format('YYYY-MM-DD') : null);
+        const typeId = preSelectedAppointmentTypeId || event?.resource.appointment_type_id || null;
+        const pracId = preSelectedPractitionerId || event?.resource.practitioner_id || null;
+        const date = initialDate || (event ? moment(event.start).tz('Asia/Taipei').format('YYYY-MM-DD') : null);
         let time = preSelectedTime || (event ? moment(event.start).tz('Asia/Taipei').format('HH:mm') : '');
-        let notes = preSelectedClinicNotes || event?.resource.clinic_notes || '';
+        const notes = preSelectedClinicNotes || event?.resource.clinic_notes || '';
         // Use event.resource.resource_ids for instant UI (will be updated by API fetch if data is fresher)
-        let resourceIds = event?.resource.resource_ids || [];
+        const resourceIds = event?.resource.resource_ids || [];
 
         // Special handling for duplication mode: clear time to avoid immediate conflict
         if (mode === 'duplicate') {

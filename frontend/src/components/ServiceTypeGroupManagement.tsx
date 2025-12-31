@@ -87,7 +87,7 @@ export const ServiceTypeGroupManagement: React.FC<ServiceTypeGroupManagementProp
     if (!draggedGroupId || draggedGroupId === targetGroupId) return;
 
     const draggedIndex = availableGroups.findIndex(g => g.id === draggedGroupId);
-    let targetIndex = availableGroups.findIndex(g => g.id === targetGroupId);
+    const targetIndex = availableGroups.findIndex(g => g.id === targetGroupId);
     if (draggedIndex === -1 || targetIndex === -1) return;
 
     // Calculate final insertion index based on position indicator

@@ -444,7 +444,7 @@ describe('openInBrowser', () => {
 
     // Make window.location.href setter throw an error
     const originalHref = window.location.href;
-    let hrefValue = originalHref;
+    const hrefValue = originalHref;
     Object.defineProperty(window, 'location', {
       value: {
         get href() {

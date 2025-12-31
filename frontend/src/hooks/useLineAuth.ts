@@ -389,7 +389,7 @@ export const useLineAuth = (lineProfile: { userId: string; displayName: string; 
   useEffect(() => {
     // ClinicId will be set from authentication response, not from URL
     // This prevents showing InvalidAccess prematurely
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, []); // Intentionally empty: clinicId comes from auth response
 
   // Consolidated authentication effect - handles all auth logic in one place
