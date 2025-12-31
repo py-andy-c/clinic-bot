@@ -190,7 +190,7 @@ const ProfilePage: React.FC = () => {
     saveData,
     updateData,
     fetchData,
-  } = useSettingsPage<ProfileData & { clinicDefaultStep?: number }>({
+  } = useSettingsPage<ProfileData & { clinicDefaultStep?: number } & Record<string, unknown>>({
     fetchData: async () => {
       const result: ProfileData & { clinicDefaultStep?: number } = {
         fullName: '',
@@ -458,7 +458,7 @@ const ProfilePage: React.FC = () => {
             {profile?.roles?.includes('practitioner') && (
               <div className="pt-6 border-t border-gray-200 md:pt-0 md:border-t-0">
                 <AvailabilitySettings
-                  schedule={profileData?.schedule || {}}
+                  schedule={profileData?.schedule as any || {}}
                   onAddInterval={handleAddInterval}
                   onUpdateInterval={handleUpdateInterval}
                   onRemoveInterval={handleRemoveInterval}

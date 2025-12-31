@@ -1021,7 +1021,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       if (isCheckedOut) {
         style = {
           ...style,
-          opacity: style.opacity ? style.opacity * 0.7 : 0.7,
+          opacity: style.opacity ? (style.opacity as number) * 0.7 : 0.7,
           border: style.border || '2px solid rgba(255, 255, 255, 0.5)',
           boxShadow: 'inset 0 0 0 1px rgba(255, 255, 255, 0.3)'
         };
@@ -1197,7 +1197,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
 
       if (conflictingAppointments.length > 0) {
         // Show conflict modal with list of conflicting appointments
-        setModalState({ type: 'conflict', data: conflictingAppointments });
+        setModalState({ type: 'conflict', data: conflictingAppointments as any });
         return;
       }
 
@@ -1482,7 +1482,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   // Expose create appointment handler to parent
   useEffect(() => {
     // Store the handler so parent can call it
-    window.__calendarCreateAppointment = handleCreateAppointment;
+    (window as any).__calendarCreateAppointment = handleCreateAppointment;
     return () => {
       delete window.__calendarCreateAppointment;
     };
@@ -1770,7 +1770,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       {/* Edit Appointment Modal - handles all steps (form, note, preview) */}
       {modalState.type === 'edit_appointment' && modalState.data && (
         <EditAppointmentModal
-          event={modalState.data}
+          event={modalState.data as CalendarEvent}
           practitioners={availablePractitioners}
           appointmentTypes={appointmentTypes}
           onClose={() => {
