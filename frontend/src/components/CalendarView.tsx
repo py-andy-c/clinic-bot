@@ -9,7 +9,7 @@ import { Calendar, momentLocalizer, View, Views } from 'react-big-calendar';
 import moment from 'moment-timezone';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import { apiService, sharedFetchFunctions } from '../services/api';
-import { ApiCalendarEvent, AppointmentType } from '../types';
+import { ApiCalendarEvent } from '../types';
 import { getErrorMessage } from '../types/api';
 import { 
   transformToCalendarEvents, 
@@ -1657,11 +1657,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
                 : undefined
             }
             formatAppointmentTime={formatEventTimeRange}
-            appointmentTypes={appointmentTypes.map((at: AppointmentType) => ({
-              id: at.id,
-              name: at.name,
-              receipt_name: at.receipt_name ?? null,
-            }))}
+            appointmentTypes={appointmentTypes}
             practitioners={availablePractitioners}
             onReceiptCreated={async () => {
               // Refresh calendar data after receipt creation

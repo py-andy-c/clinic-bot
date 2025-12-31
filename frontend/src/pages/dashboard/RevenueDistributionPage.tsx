@@ -694,11 +694,7 @@ const RevenueDistributionPage: React.FC = () => {
             setSelectedAppointmentEvent(null);
           }}
           formatAppointmentTime={formatEventTimeRange}
-          appointmentTypes={settingsData?.appointment_types?.map((at: AppointmentType) => ({
-            id: at.id,
-            name: at.name,
-            receipt_name: at.receipt_name ?? null,
-          })) || []}
+          appointmentTypes={settingsData?.appointment_types || []}
           practitioners={practitioners}
           onReceiptCreated={() => {
             // Refetch data after receipt creation

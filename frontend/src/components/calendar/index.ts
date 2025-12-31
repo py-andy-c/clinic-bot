@@ -32,3 +32,5 @@ export type { CreateAppointmentModalProps } from './CreateAppointmentModal';
 export { DateTimePicker } from './DateTimePicker';
 export type { DateTimePickerProps } from './DateTimePicker';
 
+export { ServiceItemSelectionModal } from './ServiceItemSelectionModal';
+

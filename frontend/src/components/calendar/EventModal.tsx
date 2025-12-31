@@ -17,7 +17,7 @@ import { CheckoutModal } from './CheckoutModal';
 import { ReceiptViewModal } from './ReceiptViewModal';
 import { ReceiptListModal } from './ReceiptListModal';
 import { canEditAppointment } from '../../utils/appointmentPermissions';
-import { SchedulingConflictResponse } from '../../types';
+import { SchedulingConflictResponse, AppointmentType } from '../../types';
 import moment from 'moment-timezone';
 
 // Maximum length for custom event names
@@ -34,7 +34,7 @@ export interface EventModalProps {
   formatAppointmentTime: (start: Date, end: Date) => string;
   onEventNameUpdated?: (newName: string | null) => void | Promise<void>;
   hidePatientInfo?: boolean; // Hide 電話、生日、LINE when true (e.g., on patient detail page)
-  appointmentTypes?: Array<{ id: number; name: string; receipt_name?: string | null }>;
+  appointmentTypes?: AppointmentType[];
   practitioners?: Array<{ id: number; full_name: string }>;
   onReceiptCreated?: () => void | Promise<void>;
 }

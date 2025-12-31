@@ -7,10 +7,11 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { BaseModal } from './BaseModal';
+import { ServiceItemSelectionModal } from './ServiceItemSelectionModal';
 import { DateTimePicker } from './DateTimePicker';
 import { CalendarEvent } from '../../utils/calendarDataAdapter';
 import { apiService } from '../../services/api';
-import { Resource, Patient } from '../../types';
+import { Resource, Patient, AppointmentType, ServiceTypeGroup } from '../../types';
 import { getErrorMessage } from '../../types/api';
 import { logger } from '../../utils/logger';
 import { getPractitionerDisplayName, formatAppointmentDateTime } from '../../utils/calendarUtils';
@@ -37,7 +38,7 @@ type EditStep = 'form' | 'review' | 'note' | 'preview';
 export interface EditAppointmentModalProps {
   event: CalendarEvent;
   practitioners: { id: number; full_name: string }[];
-  appointmentTypes: { id: number; name: string; duration_minutes: number }[];
+  appointmentTypes: AppointmentType[];
   onClose: () => void; // User cancellation → return to previous modal (if applicable)
   onComplete?: () => void; // Successful completion → close everything completely
   onConfirm: (formData: { appointment_type_id?: number | null; practitioner_id: number | null; start_time: string; clinic_notes?: string; notification_note?: string; selected_resource_ids?: number[] }) => Promise<void>;
@@ -103,6 +104,8 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
   const [previewMessage, setPreviewMessage] = useState<string | null>(null);
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [groups, setGroups] = useState<ServiceTypeGroup[]>([]);
+  const [isServiceItemModalOpen, setIsServiceItemModalOpen] = useState(false);
 
   // Assignment prompt state
   const [currentPatient, setCurrentPatient] = useState<Patient | null>(null);
@@ -123,6 +126,28 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
     };
     loadPatient();
   }, [event.resource.patient_id]);
+
+  // Fetch groups on mount
+  useEffect(() => {
+    const fetchGroups = async () => {
+      try {
+        const response = await apiService.getServiceTypeGroups();
+        setGroups(response.groups || []);
+      } catch (err) {
+        logger.error('Error loading service type groups:', err);
+        setGroups([]);
+      }
+    };
+    fetchGroups();
+  }, []);
+
+  const hasGrouping = groups.length > 0;
+
+  // Handle service item selection from modal
+  const handleServiceItemSelect = useCallback((serviceItemId: number | undefined) => {
+    setSelectedAppointmentTypeId(serviceItemId ?? null);
+    setIsServiceItemModalOpen(false);
+  }, [setSelectedAppointmentTypeId]);
 
   // Track original appointment type ID to detect user changes
   const originalAppointmentTypeId = event.resource.appointment_type_id;
@@ -638,12 +663,35 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
           </>
         )}
 
-        <AppointmentTypeSelector
-          value={selectedAppointmentTypeId}
-          options={appointmentTypes}
-          onChange={setSelectedAppointmentTypeId}
-          originalTypeId={event.resource.appointment_type_id}
-        />
+        {hasGrouping ? (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              預約類型 <span className="text-red-500">*</span>
+            </label>
+            <button
+              type="button"
+              onClick={() => setIsServiceItemModalOpen(true)}
+              className="w-full border border-gray-300 rounded-md px-3 py-2 text-left bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+            >
+              {selectedAppointmentTypeId ? (() => {
+                const selectedType = appointmentTypes.find(at => at.id === selectedAppointmentTypeId);
+                if (!selectedType) return '選擇預約類型';
+                const duration = selectedType.duration_minutes ? `(${selectedType.duration_minutes}分鐘)` : '';
+                const original = selectedType.id === event.resource.appointment_type_id ? ' (原)' : '';
+                return `${selectedType.name} ${duration}${original}`.trim();
+              })() : (
+                '選擇預約類型'
+              )}
+            </button>
+          </div>
+        ) : (
+          <AppointmentTypeSelector
+            value={selectedAppointmentTypeId}
+            options={appointmentTypes}
+            onChange={setSelectedAppointmentTypeId}
+            originalTypeId={event.resource.appointment_type_id}
+          />
+        )}
 
         <PractitionerSelector
           value={selectedPractitionerId}
@@ -979,7 +1027,18 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
       </div>
     </BaseModal>
 
-  </>
+    {/* Service Item Selection Modal */}
+    <ServiceItemSelectionModal
+      isOpen={isServiceItemModalOpen}
+      onClose={() => setIsServiceItemModalOpen(false)}
+      onSelect={handleServiceItemSelect}
+      serviceItems={appointmentTypes}
+      groups={groups}
+      selectedServiceItemId={selectedAppointmentTypeId || undefined}
+      originalTypeId={event.resource.appointment_type_id}
+      title="選擇預約類型"
+    />
+    </>
   );
 });
 

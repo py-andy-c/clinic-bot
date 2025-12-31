@@ -28,17 +28,14 @@ import { getErrorMessage } from "../../types/api";
 import { logger } from "../../utils/logger";
 import { invalidateCacheForDate } from "../../utils/availabilityCache";
 import { invalidateResourceCacheForDate } from "../../utils/resourceAvailabilityCache";
+import { AppointmentType } from "../../types";
 
 const TAIWAN_TIMEZONE = "Asia/Taipei";
 
 interface PatientAppointmentsListProps {
   patientId: number;
   practitioners: Array<{ id: number; full_name: string }>;
-  appointmentTypes: Array<{
-    id: number;
-    name: string;
-    duration_minutes: number;
-  }>;
+  appointmentTypes: AppointmentType[];
   onRefetchReady?: (refetch: () => Promise<void>) => void;
 }
 

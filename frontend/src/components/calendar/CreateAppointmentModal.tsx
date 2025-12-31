@@ -8,12 +8,13 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { flushSync } from 'react-dom';
 import { BaseModal } from './BaseModal';
+import { ServiceItemSelectionModal } from './ServiceItemSelectionModal';
 import { DateTimePicker } from './DateTimePicker';
 import { apiService } from '../../services/api';
 import { getErrorMessage } from '../../types/api';
 import { logger } from '../../utils/logger';
 import { SearchInput } from '../shared';
-import { Patient } from '../../types';
+import { Patient, AppointmentType, ServiceTypeGroup } from '../../types';
 import moment from 'moment-timezone';
 import { formatAppointmentDateTime } from '../../utils/calendarUtils';
 import { useApiData } from '../../hooks/useApiData';
@@ -146,7 +147,7 @@ export interface CreateAppointmentModalProps {
   preSelectedTime?: string | null | undefined; // Initial time in HH:mm format
   preSelectedClinicNotes?: string | null | undefined; // Initial clinic notes
   practitioners: { id: number; full_name: string }[];
-  appointmentTypes: { id: number; name: string; duration_minutes: number }[];
+  appointmentTypes: AppointmentType[];
   onClose: () => void;
   onConfirm: (formData: {
     patient_id: number;
@@ -238,6 +239,8 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
   
   const [occurrenceResourceIds, setOccurrenceResourceIds] = useState<Record<string, number[]>>({});
   const [isSaving, setIsSaving] = useState(false);
+  const [groups, setGroups] = useState<ServiceTypeGroup[]>([]);
+  const [isServiceItemModalOpen, setIsServiceItemModalOpen] = useState(false);
   
   // Recurrence state
   const [recurrenceEnabled, setRecurrenceEnabled] = useState<boolean>(false);
@@ -276,6 +279,28 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
     };
     loadPatient();
   }, [selectedPatientId]);
+
+  // Fetch groups on mount
+  useEffect(() => {
+    const fetchGroups = async () => {
+      try {
+        const response = await apiService.getServiceTypeGroups();
+        setGroups(response.groups || []);
+      } catch (err) {
+        logger.error('Error loading service type groups:', err);
+        setGroups([]);
+      }
+    };
+    fetchGroups();
+  }, []);
+
+  const hasGrouping = groups.length > 0;
+
+  // Handle service item selection from modal
+  const handleServiceItemSelect = useCallback((serviceItemId: number | undefined) => {
+    setSelectedAppointmentTypeId(serviceItemId ?? null);
+    setIsServiceItemModalOpen(false);
+  }, [setSelectedAppointmentTypeId]);
 
   // Memoize assigned practitioner IDs for PractitionerSelector
   const assignedPractitionerIdsSet = useMemo(() => {
@@ -808,11 +833,33 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
           )}
         </div>
 
-        <AppointmentTypeSelector
-          value={selectedAppointmentTypeId}
-          options={appointmentTypes}
-          onChange={setSelectedAppointmentTypeId}
-        />
+        {hasGrouping ? (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              預約類型 <span className="text-red-500">*</span>
+            </label>
+            <button
+              type="button"
+              onClick={() => setIsServiceItemModalOpen(true)}
+              className="w-full border border-gray-300 rounded-md px-3 py-2 text-left bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+            >
+              {selectedAppointmentTypeId ? (() => {
+                const selectedType = appointmentTypes.find(at => at.id === selectedAppointmentTypeId);
+                if (!selectedType) return '選擇預約類型';
+                const duration = selectedType.duration_minutes ? `(${selectedType.duration_minutes}分鐘)` : '';
+                return `${selectedType.name} ${duration}`.trim();
+              })() : (
+                '選擇預約類型'
+              )}
+            </button>
+          </div>
+        ) : (
+          <AppointmentTypeSelector
+            value={selectedAppointmentTypeId}
+            options={appointmentTypes}
+            onChange={setSelectedAppointmentTypeId}
+          />
+        )}
 
         <PractitionerSelector
           value={selectedPractitionerId}
@@ -1356,6 +1403,17 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
           </div>
         </div>
       </BaseModal>
+
+      {/* Service Item Selection Modal */}
+      <ServiceItemSelectionModal
+        isOpen={isServiceItemModalOpen}
+        onClose={() => setIsServiceItemModalOpen(false)}
+        onSelect={handleServiceItemSelect}
+        serviceItems={appointmentTypes}
+        groups={groups}
+        selectedServiceItemId={selectedAppointmentTypeId || undefined}
+        title="選擇預約類型"
+      />
     
       <PatientCreationModal isOpen={isCreatePatientModalOpen} onClose={() => setIsCreatePatientModalOpen(false)} onSuccess={handlePatientCreated} />
     

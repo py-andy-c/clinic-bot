@@ -18,6 +18,7 @@ import { shouldPromptForAssignment } from '../hooks/usePractitionerAssignmentPro
 import { PractitionerAssignmentPromptModal } from '../components/PractitionerAssignmentPromptModal';
 import { PractitionerAssignmentConfirmationModal } from '../components/PractitionerAssignmentConfirmationModal';
 import { getErrorMessage } from '../types/api';
+import { AppointmentType } from '../types';
 
 interface AutoAssignedAppointment {
   appointment_id: number;
@@ -42,7 +43,7 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
   const { enqueueModal, showNext } = useModalQueue();
   const [selectedAppointment, setSelectedAppointment] = useState<AutoAssignedAppointment | null>(null);
   const [practitioners, setPractitioners] = useState<{ id: number; full_name: string }[]>([]);
-  const [appointmentTypes, setAppointmentTypes] = useState<{ id: number; name: string; duration_minutes: number }[]>([]);
+  const [appointmentTypes, setAppointmentTypes] = useState<AppointmentType[]>([]);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [calendarEvent, setCalendarEvent] = useState<CalendarEvent | null>(null);
   const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);

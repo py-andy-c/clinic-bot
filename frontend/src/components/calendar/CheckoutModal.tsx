@@ -6,12 +6,14 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { BaseModal } from './BaseModal';
+import { ServiceItemSelectionModal } from './ServiceItemSelectionModal';
 import { apiService } from '../../services/api';
 import { getErrorMessage } from '../../types/api';
 import { logger } from '../../utils/logger';
 import { formatCurrency } from '../../utils/currencyUtils';
 import { NumberInput } from '../shared/NumberInput';
 import { CalendarEvent } from '../../utils/calendarDataAdapter';
+import { AppointmentType, ServiceTypeGroup } from '../../types';
 
 interface CheckoutItem {
   service_item_id?: number | undefined;
@@ -25,7 +27,7 @@ interface CheckoutItem {
 
 interface CheckoutModalProps {
   event: CalendarEvent;
-  appointmentTypes: Array<{ id: number; name: string; receipt_name?: string | null }>;
+  appointmentTypes: AppointmentType[];
   practitioners: Array<{ id: number; full_name: string }>;
   onClose: () => void;
   onSuccess: () => void;
@@ -79,10 +81,13 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const [paymentMethod, setPaymentMethod] = useState<string>('cash');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [availableServiceItems, setAvailableServiceItems] = useState<Array<{ id: number; name: string; receipt_name?: string | null }>>([]);
+  const [availableServiceItems, setAvailableServiceItems] = useState<AppointmentType[]>([]);
   const [billingScenarios, setBillingScenarios] = useState<Record<string, any[]>>({});
   const [practitionersByServiceItem, setPractitionersByServiceItem] = useState<Record<number, Array<{ id: number; full_name: string }>>>({});
   const [expandedQuantityItems, setExpandedQuantityItems] = useState<Set<number>>(new Set());
+  const [groups, setGroups] = useState<ServiceTypeGroup[]>([]);
+  const [isServiceItemModalOpen, setIsServiceItemModalOpen] = useState(false);
+  const [currentItemIndex, setCurrentItemIndex] = useState<number | null>(null);
   const isInitializedRef = useRef(false);
 
   const loadPractitionersForServiceItem = useCallback(async (serviceItemId: number): Promise<Array<{ id: number; full_name: string }>> => {
@@ -257,6 +262,22 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     // We only need to re-initialize when the length changes (items added/removed).
     // isInitializedRef guards against duplicate initialization.
   }, [event.resource.appointment_type_id, event.resource.practitioner_id, appointmentTypes.length]);
+
+  // Fetch groups on mount
+  useEffect(() => {
+    const fetchGroups = async () => {
+      try {
+        const response = await apiService.getServiceTypeGroups();
+        setGroups(response.groups || []);
+      } catch (err) {
+        logger.error('Error loading service type groups:', err);
+        setGroups([]);
+      }
+    };
+    fetchGroups();
+  }, []);
+
+  const hasGrouping = groups.length > 0;
 
   const handleAddItem = async () => {
     const appointmentTypeId = event.resource.appointment_type_id;
@@ -472,6 +493,15 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     setItems(newItems);
   };
 
+  // Handle service item selection from modal
+  const handleServiceItemSelect = useCallback((serviceItemId: number | undefined) => {
+    if (currentItemIndex !== null) {
+      handleItemChange(currentItemIndex, 'service_item_id', serviceItemId);
+      setIsServiceItemModalOpen(false);
+      setCurrentItemIndex(null);
+    }
+  }, [currentItemIndex, handleItemChange]);
+
   const validateItems = (): string | null => {
     if (items.length === 0) {
       return '請至少新增一個項目';
@@ -679,35 +709,57 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 </div>
                 
                 <div className="space-y-3">
-                  {/* Service Item Dropdown - Always shown */}
+                  {/* Service Item Selection - Conditional: Modal if grouping enabled, dropdown otherwise */}
                   <div>
-                    <label htmlFor={`service-item-${index}`} className="block text-sm font-medium text-gray-700 mb-1">
+                    <label htmlFor={hasGrouping ? undefined : `service-item-${index}`} className="block text-sm font-medium text-gray-700 mb-1">
                       服務項目
                     </label>
-                    <select
-                      id={`service-item-${index}`}
-                      value={item.service_item_id ? item.service_item_id.toString() : (item.service_item_id === undefined ? 'other' : '')}
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        if (value === 'other') {
-                          handleItemChange(index, 'service_item_id', undefined);
-                        } else if (value === '') {
-                          // Placeholder selected - don't change anything
-                          return;
-                        } else {
-                          handleItemChange(index, 'service_item_id', parseInt(value));
-                        }
-                      }}
-                      className="input"
-                    >
-                      <option value="">選擇服務項目...</option>
-                      {availableServiceItems.map(si => (
-                        <option key={si.id} value={si.id}>
-                          {si.name}
-                        </option>
-                      ))}
-                      <option value="other">其他</option>
-                    </select>
+                    {hasGrouping ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCurrentItemIndex(index);
+                          setIsServiceItemModalOpen(true);
+                        }}
+                        className="w-full border border-gray-300 rounded-md px-3 py-2 text-left bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        {item.service_item_id ? (() => {
+                          const selectedItem = availableServiceItems.find(si => si.id === item.service_item_id);
+                          if (!selectedItem) return '選擇服務項目...';
+                          const duration = selectedItem.duration_minutes ? `(${selectedItem.duration_minutes}分鐘)` : '';
+                          return `${selectedItem.name} ${duration}`.trim();
+                        })() : item.service_item_id === undefined ? (
+                          '其他'
+                        ) : (
+                          '選擇服務項目...'
+                        )}
+                      </button>
+                    ) : (
+                      <select
+                        id={`service-item-${index}`}
+                        value={item.service_item_id ? item.service_item_id.toString() : (item.service_item_id === undefined ? 'other' : '')}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          if (value === 'other') {
+                            handleItemChange(index, 'service_item_id', undefined);
+                          } else if (value === '') {
+                            // Placeholder selected - don't change anything
+                            return;
+                          } else {
+                            handleItemChange(index, 'service_item_id', parseInt(value));
+                          }
+                        }}
+                        className="input"
+                      >
+                        <option value="">選擇服務項目...</option>
+                        {availableServiceItems.map(si => (
+                          <option key={si.id} value={si.id}>
+                            {si.name}
+                          </option>
+                        ))}
+                        <option value="other">其他</option>
+                      </select>
+                    )}
                   </div>
                   
                   {/* Custom Item Name - Only shown when service item is "其他" */}
@@ -912,6 +964,21 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Service Item Selection Modal */}
+      <ServiceItemSelectionModal
+        isOpen={isServiceItemModalOpen}
+        onClose={() => {
+          setIsServiceItemModalOpen(false);
+          setCurrentItemIndex(null);
+        }}
+        onSelect={handleServiceItemSelect}
+        serviceItems={availableServiceItems}
+        groups={groups}
+        selectedServiceItemId={currentItemIndex !== null ? items[currentItemIndex]?.service_item_id : undefined}
+        title="選擇服務項目"
+        showCustomOtherOption={true}
+      />
     </BaseModal>
   );
 };
