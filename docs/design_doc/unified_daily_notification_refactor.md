@@ -264,7 +264,10 @@ class DailyNotificationMessageBuilder:
 
 ## Migration Notes
 
-- **Data Migration**: One-time script to copy `admin_daily_reminder_time` → `next_day_notification_time`
+- **Data Migration**: Alembic migrations handle data migration automatically:
+  - `migrate_admin_reminder_time`: Copies `admin_daily_reminder_time` → `next_day_notification_time` (runs before code deployment)
+  - `cleanup_practitioner_daily`: Marks pending `practitioner_daily` ScheduledLineMessage entries as `skipped` (runs after code deployment)
 - **Backward Compatibility**: Old settings remain in database but ignored
-- **Rollout**: Can be done incrementally (extract utilities first, then migrate)
+- **Rollout**: Migrations run automatically as part of deployment via `alembic upgrade head`
+- **Dev Database**: If migration was already run manually on dev, use `alembic stamp <revision_id>` to mark as complete
 
