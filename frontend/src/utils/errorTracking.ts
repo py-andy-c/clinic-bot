@@ -149,6 +149,7 @@ export const errorTracking: ErrorTrackingService = {
     if (!isSentryAvailable()) {
       // Fallback: no-op
       if (import.meta.env.DEV) {
+        // eslint-disable-next-line no-console
         console.log('[Error Tracking] Cleared user');
       }
       return;
@@ -160,6 +161,7 @@ export const errorTracking: ErrorTrackingService = {
     
     // For now, just log in development
     if (import.meta.env.DEV) {
+      // eslint-disable-next-line no-console
       console.log('[Error Tracking] Cleared user');
     }
   },

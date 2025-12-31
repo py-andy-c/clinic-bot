@@ -132,7 +132,7 @@ export const useAppointmentForm = ({
         const shouldFetchAvailability = mode === 'edit' && typeId && pracId && date && time;
         if (shouldFetchAvailability) {
           // Get duration from appointment type
-          const appointmentType = _appointmentTypes.find(t => t.id === typeId);
+          const appointmentType = appointmentTypes.find(t => t.id === typeId);
           const durationMinutes = appointmentType?.duration_minutes || 30;
           
           // Calculate end time

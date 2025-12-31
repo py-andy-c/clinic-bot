@@ -18,8 +18,8 @@ describe('InAppBrowserWarning', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     // Mock window.location.href
-    delete (window as any).location;
-    (window as any).location = {
+    delete window.location;
+    window.location = {
       href: 'https://example.com/test',
     };
   });
@@ -176,7 +176,7 @@ describe('InAppBrowserWarning', () => {
       vi.mocked(browserDetection.isInAppBrowser).mockReturnValue(true);
       vi.mocked(browserDetection.canOpenInBrowser).mockReturnValue(false);
 
-      (window as any).location.href = 'https://custom-url.com/page?param=value';
+      window.location!.href = 'https://custom-url.com/page?param=value';
 
       render(<InAppBrowserWarning />);
 
