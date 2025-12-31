@@ -24,14 +24,14 @@ export const useFormErrorScroll = () => {
         }
         
         if (typeof error === 'object' && error !== null) {
-          const found = findFirstError(error, newPath);
+          const found = findFirstError(error as any, newPath);
           if (found) return found;
         }
       }
       return null;
     };
 
-    const firstError = findFirstError(errors as any);
+    const firstError = findFirstError(errors as any) as any;
     
     if (firstError) {
       // 1. Expand the card if it's a nested error and an expandType is provided

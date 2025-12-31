@@ -267,7 +267,7 @@ const AvailabilityPage: React.FC = () => {
   // Handler for create appointment button
   const handleCreateAppointment = useCallback(() => {
     // Trigger create appointment modal in CalendarView
-    window.__calendarCreateAppointment?.(null);
+    (window as any).__calendarCreateAppointment?.();
   }, []);
 
   if (loading || practitionersLoading) {

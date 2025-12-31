@@ -224,7 +224,7 @@ const SettingsAppointmentsPage: React.FC = () => {
     pendingFormDataRef.current = {
       ...data,
       clinic_info_settings: normalizedClinicInfo,
-      booking_restriction_settings: normalizedBookingSettings,
+      booking_restriction_settings: normalizedBookingSettings as any,
     };
 
     try {

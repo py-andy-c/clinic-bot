@@ -260,7 +260,7 @@ const ProfilePage: React.FC = () => {
         }
       }
 
-      return result;
+      return result as any;
     },
     saveData: async (data: ProfileData) => {
       // Prepare profile update data
