@@ -261,7 +261,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     // re-initialization when the array reference changes but contents are the same.
     // We only need to re-initialize when the length changes (items added/removed).
     // isInitializedRef guards against duplicate initialization.
-  }, [event.resource.appointment_type_id, event.resource.practitioner_id, appointmentTypes.length]);
+  }, [event.resource.appointment_type_id, event.resource.practitioner_id, appointmentTypes.length, appointmentTypes, loadBillingScenarios, loadPractitionersForServiceItem]);
 
   // Fetch groups on mount
   useEffect(() => {
@@ -343,7 +343,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     });
   };
 
-  const handleItemChange = (index: number, field: keyof CheckoutItem, value: string | number | null | undefined) => {
+  const handleItemChange = useCallback((index: number, field: keyof CheckoutItem, value: string | number | null | undefined) => {
     const newItems = [...items];
     const currentItem = newItems[index];
     if (!currentItem) return;
@@ -491,7 +491,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     }
     
     setItems(newItems);
-  };
+  }, [items, loadPractitionersForServiceItem, applyBillingScenarioToItem, billingScenarios]);
 
   // Handle service item selection from modal
   const handleServiceItemSelect = useCallback((serviceItemId: number | undefined) => {

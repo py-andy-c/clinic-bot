@@ -341,7 +341,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
         setModalState(prev => ({ ...prev, data: updatedEvent }));
       }
     }
-  }, [calendarEvents, modalState.type, modalState.data?.resource?.calendar_event_id, hasEventChanged]); // Sync when calendarEvents updates (after refresh)
+  }, [calendarEvents, modalState.type, modalState.data?.resource?.calendar_event_id, modalState.data, hasEventChanged]); // Sync when calendarEvents updates (after refresh)
 
   // Sync column widths between header and event columns for proper alignment in week view
   // This must be after calendarEvents is declared
@@ -889,7 +889,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
         setLoading(false);
       }
     }
-  }, [userId, additionalPractitionerIds, resourceIds, resources, currentDate, view, practitionerMap, user?.active_clinic_id]);
+  }, [userId, additionalPractitionerIds, resourceIds, resources, currentDate, view, practitionerMap, user?.active_clinic_id, CACHE_TTL]);
 
   // Invalidate cache when clinic or resources change to prevent stale data
   const previousClinicIdRef = useRef<number | null | undefined>(user?.active_clinic_id ?? null);

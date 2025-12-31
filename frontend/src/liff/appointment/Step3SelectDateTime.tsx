@@ -132,7 +132,7 @@ const Step3SelectDateTime: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [clinicId, appointmentTypeId, practitionerId, cachedAvailabilityData]);
+  }, [clinicId, appointmentTypeId, practitionerId, cachedAvailabilityData, t]);
 
   useEffect(() => {
     if (selectedDate) {

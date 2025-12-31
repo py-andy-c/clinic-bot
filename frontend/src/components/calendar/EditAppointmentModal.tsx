@@ -196,6 +196,8 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
     isLoadingPractitioners,
     originalAppointmentTypeId,
     originalPractitionerId,
+    availablePractitioners,
+    setSelectedPractitionerId,
   ]);
 
   // Store original notes (from patient) - cannot be edited by clinic

@@ -38,7 +38,7 @@ const Step1SelectType: React.FC = () => {
     };
 
     loadAppointmentTypes();
-  }, [clinicId]);
+  }, [clinicId, setAppointmentTypeInstructions, t]);
 
   const handleTypeSelect = (type: AppointmentType) => {
     setAppointmentType(type.id, type);

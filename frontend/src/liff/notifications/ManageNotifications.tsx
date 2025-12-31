@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { logger } from '../../utils/logger';
@@ -40,11 +40,7 @@ const ManageNotifications: React.FC = () => {
     navigate(newUrl);
   };
 
-  useEffect(() => {
-    loadNotifications();
-  }, []);
-
-  const loadNotifications = async () => {
+  const loadNotifications = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
@@ -56,7 +52,11 @@ const ManageNotifications: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [t]);
+
+  useEffect(() => {
+    loadNotifications();
+  }, [loadNotifications]);
 
   const handleDelete = async (notification: Notification) => {
     const confirmMessage = t('notifications.manage.deleteConfirm', {

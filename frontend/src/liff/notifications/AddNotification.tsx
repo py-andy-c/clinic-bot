@@ -93,7 +93,7 @@ const AddNotification: React.FC = () => {
     };
 
     loadAppointmentTypes();
-  }, [clinicId]);
+  }, [clinicId, t]);
 
   // Filter by allow_patient_booking (default to true if not set)
   // Reuse the same filtering logic as Step1SelectType

@@ -334,7 +334,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
         }
       }
     }
-  }, [currentPatient, selectedAppointmentTypeId, availablePractitioners.length, selectedPractitionerId, isLoadingPractitioners]);
+  }, [currentPatient, selectedAppointmentTypeId, availablePractitioners.length, availablePractitioners, selectedPractitionerId, isLoadingPractitioners, setSelectedPractitionerId]);
 
   const [searchInput, setSearchInput] = useState<string>(
     preSelectedPatientName || ((isDuplication && event?.resource.patient_name) ? event.resource.patient_name : '')

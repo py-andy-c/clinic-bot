@@ -59,7 +59,7 @@ export const useSettingsPage = <T extends Record<string, unknown>>(
     } else if (skipFetch && !initialData) {
       setUiState(prev => ({ ...prev, loading: true }));
     }
-  }, [initialData, skipFetch]); // Removed data and originalData from deps to prevent loops
+  }, [initialData, skipFetch, data, originalData]); // Include data and originalData - they're stable after initial set
 
   // Fetch data on mount (skip if using external data source)
   useEffect(() => {

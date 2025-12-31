@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { checkCancellationConstraint } from '../../utils/appointmentConstraints';
@@ -102,7 +102,7 @@ const AppointmentList: React.FC = () => {
     }
   };
 
-  const loadAppointments = async () => {
+  const loadAppointments = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
@@ -115,7 +115,12 @@ const AppointmentList: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [t]);
+
+  useEffect(() => {
+    loadAppointments();
+    loadClinicInfo();
+  }, [loadAppointments]);
 
   // Filter appointments by tab
   // Get current time in Taiwan timezone for comparisons

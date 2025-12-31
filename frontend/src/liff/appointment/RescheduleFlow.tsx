@@ -281,7 +281,7 @@ const RescheduleFlow: React.FC = () => {
     };
 
     loadMonthAvailability();
-  }, [currentMonth, clinicId, appointmentDetails?.appointment_type_id, selectedPractitionerId]);
+  }, [currentMonth, clinicId, appointmentDetails?.appointment_type_id, appointmentDetails?.calendar_event_id, appointmentDetails?.id, selectedPractitionerId]);
 
   // Load available slots for selected date
   useEffect(() => {

@@ -37,10 +37,6 @@ const PatientManagement: React.FC = () => {
   // Enable back button navigation - always goes back to home
   useLiffBackButton('settings');
 
-  useEffect(() => {
-    loadPatients();
-  }, [clinicId]);
-
   // Fetch clinic settings to check if birthday or gender is required
   useEffect(() => {
     const fetchClinicSettings = async () => {
@@ -57,7 +53,7 @@ const PatientManagement: React.FC = () => {
     fetchClinicSettings();
   }, [clinicId]);
 
-  const loadPatients = async () => {
+  const loadPatients = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
@@ -69,7 +65,7 @@ const PatientManagement: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [t]);
 
 
   const handleAddPatient = async (formData: PatientFormData) => {

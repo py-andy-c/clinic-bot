@@ -381,7 +381,7 @@ export const useLineAuth = (lineProfile: { userId: string; displayName: string; 
       if (checkCancelled?.()) return;
       return;
       }
-  }, [lineProfile, liffAccessToken]);
+  }, [lineProfile, liffAccessToken, liff, performAuthentication, t, validateClinicIsolation, validateExistingToken]);
 
   // Initialize clinicId from URL on mount to prevent showing InvalidAccess prematurely
   // This runs once on mount - clinicId will be set from authentication response

@@ -83,7 +83,7 @@ export const ResourceSelection: React.FC<ResourceSelectionProps> = ({
         setIsExpanded(true);
       }
     }
-  }, []); // Only run on mount
+  }, [additionalResources, manuallyAddedResourceTypes.length]); // Only run on mount
   
   const [loadingResourceTypes, setLoadingResourceTypes] = useState(false);
   const [allResourceTypes, setAllResourceTypes] = useState<ResourceType[]>([]);
@@ -185,6 +185,79 @@ export const ResourceSelection: React.FC<ResourceSelectionProps> = ({
     if (!req) return [];
     return req.available_resources.filter(r => r.is_available).map(r => r.id);
   };
+
+  // Extract auto-selection logic to a helper function
+  const handleAutoSelection = useCallback((response: ResourceAvailabilityResponse) => {
+    // Use the ref to get the selection at the time the effect was triggered
+    const currentSelection = lastSelectedRef.current.length > 0 ? lastSelectedRef.current : selectedResourceIds;
+    
+    if (currentSelection.length > 0) {
+      // Keep all originally selected resources (even if unavailable)
+      // Group selected resources by type (both available and unavailable)
+      const selectedByType: Record<number, number[]> = {};
+      currentSelection.forEach(id => {
+        for (const req of response.requirements) {
+          const resource = req.available_resources.find(r => r.id === id);
+          if (resource) {
+            if (!selectedByType[req.resource_type_id]) {
+              selectedByType[req.resource_type_id] = [];
+            }
+            const typeArray = selectedByType[req.resource_type_id];
+            if (typeArray) {
+              typeArray.push(id);
+            }
+          }
+        }
+      });
+      
+      // Build new selection: keep all original selections, only add if needed to meet requirements
+      const newSelection: number[] = [...currentSelection];
+      
+      // For each resource type, check if we need to add more resources to meet requirements
+      response.requirements.forEach(req => {
+        const currentCount = selectedByType[req.resource_type_id]?.length || 0;
+        const needed = req.required_quantity - currentCount;
+        
+        if (needed > 0) {
+          // Get available resources for this type that aren't already selected
+          const availableForType = getAvailableResourcesForType(req.resource_type_id, response);
+          const notSelected = availableForType.filter(id => !newSelection.includes(id));
+          
+          // Add needed resources from available ones (only if we need more to meet requirements)
+          const toAdd = notSelected.slice(0, needed);
+          newSelection.push(...toAdd);
+        }
+      });
+      
+      // Only update if selection changed (to avoid infinite loops)
+      const selectionChanged = newSelection.length !== currentSelection.length || 
+          !newSelection.every(id => currentSelection.includes(id)) ||
+          !currentSelection.every(id => newSelection.includes(id));
+      
+      if (selectionChanged) {
+        isUpdatingSelectionRef.current = true;
+        onSelectionChange(newSelection);
+        lastSelectedRef.current = newSelection;
+        // Reset flag after a short delay to allow state to update
+        setTimeout(() => {
+          isUpdatingSelectionRef.current = false;
+        }, 100);
+      } else {
+        lastSelectedRef.current = currentSelection;
+      }
+    } else {
+      // Auto-select suggested resources if none selected
+      if (response.suggested_allocation.length > 0) {
+        isUpdatingSelectionRef.current = true;
+        const suggestedIds = response.suggested_allocation.flatMap(allocation => allocation.resource_ids);
+        onSelectionChange(suggestedIds);
+        lastSelectedRef.current = suggestedIds;
+        setTimeout(() => {
+          isUpdatingSelectionRef.current = false;
+        }, 100);
+      }
+    }
+  }, [selectedResourceIds, onSelectionChange]);
 
   // Use initialAvailability if provided (pre-fetched in edit mode)
   useEffect(() => {
@@ -302,80 +375,7 @@ export const ResourceSelection: React.FC<ResourceSelectionProps> = ({
       clearTimeout(timer);
       abortController.abort();
     };
-  }, [appointmentTypeId, practitionerId, date, startTime, durationMinutes, excludeCalendarEventId, skipInitialDebounce, initialAvailabilityProp]);
-
-  // Extract auto-selection logic to a helper function
-  const handleAutoSelection = (response: ResourceAvailabilityResponse) => {
-    // Use the ref to get the selection at the time the effect was triggered
-    const currentSelection = lastSelectedRef.current.length > 0 ? lastSelectedRef.current : selectedResourceIds;
-    
-    if (currentSelection.length > 0) {
-      // Keep all originally selected resources (even if unavailable)
-      // Group selected resources by type (both available and unavailable)
-      const selectedByType: Record<number, number[]> = {};
-      currentSelection.forEach(id => {
-        for (const req of response.requirements) {
-          const resource = req.available_resources.find(r => r.id === id);
-          if (resource) {
-            if (!selectedByType[req.resource_type_id]) {
-              selectedByType[req.resource_type_id] = [];
-            }
-            const typeArray = selectedByType[req.resource_type_id];
-            if (typeArray) {
-              typeArray.push(id);
-            }
-          }
-        }
-      });
-      
-      // Build new selection: keep all original selections, only add if needed to meet requirements
-      const newSelection: number[] = [...currentSelection];
-      
-      // For each resource type, check if we need to add more resources to meet requirements
-      response.requirements.forEach(req => {
-        const currentCount = selectedByType[req.resource_type_id]?.length || 0;
-        const needed = req.required_quantity - currentCount;
-        
-        if (needed > 0) {
-          // Get available resources for this type that aren't already selected
-          const availableForType = getAvailableResourcesForType(req.resource_type_id, response);
-          const notSelected = availableForType.filter(id => !newSelection.includes(id));
-          
-          // Add needed resources from available ones (only if we need more to meet requirements)
-          const toAdd = notSelected.slice(0, needed);
-          newSelection.push(...toAdd);
-        }
-      });
-      
-      // Only update if selection changed (to avoid infinite loops)
-      const selectionChanged = newSelection.length !== currentSelection.length || 
-          !newSelection.every(id => currentSelection.includes(id)) ||
-          !currentSelection.every(id => newSelection.includes(id));
-      
-      if (selectionChanged) {
-        isUpdatingSelectionRef.current = true;
-        onSelectionChange(newSelection);
-        lastSelectedRef.current = newSelection;
-        // Reset flag after a short delay to allow state to update
-        setTimeout(() => {
-          isUpdatingSelectionRef.current = false;
-        }, 100);
-      } else {
-        lastSelectedRef.current = currentSelection;
-      }
-    } else {
-      // Auto-select suggested resources if none selected
-      if (response.suggested_allocation.length > 0) {
-        isUpdatingSelectionRef.current = true;
-        const suggestedIds = response.suggested_allocation.map(r => r.id);
-        onSelectionChange(suggestedIds);
-        lastSelectedRef.current = suggestedIds;
-        setTimeout(() => {
-          isUpdatingSelectionRef.current = false;
-        }, 100);
-      }
-    }
-  };
+  }, [appointmentTypeId, practitionerId, date, startTime, durationMinutes, excludeCalendarEventId, skipInitialDebounce, initialAvailabilityProp, handleAutoSelection, selectedResourceIds]);
 
   // Helper function to get resource by ID (memoized to avoid closure issues)
   const getResourceById = useCallback((resourceId: number): Resource | null => {
