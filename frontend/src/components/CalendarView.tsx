@@ -1478,9 +1478,9 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   // Expose create appointment handler to parent
   useEffect(() => {
     // Store the handler so parent can call it
-    (window as any).__calendarCreateAppointment = handleCreateAppointment;
+    window.__calendarCreateAppointment = handleCreateAppointment;
     return () => {
-      delete (window as any).__calendarCreateAppointment;
+      delete window.__calendarCreateAppointment;
     };
   }, [handleCreateAppointment]);
 

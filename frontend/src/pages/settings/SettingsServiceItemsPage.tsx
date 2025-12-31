@@ -754,8 +754,18 @@ const SettingsServiceItemsPage: React.FC = () => {
         // Create or update messages
         for (const message of messages) {
           try {
-            // Build common data structure
-            const baseData = {
+            // Build common data structure with proper typing
+            type FollowUpMessageData = {
+              timing_mode: 'hours_after' | 'specific_time';
+              message_template: string;
+              is_enabled: boolean;
+              display_order: number;
+              hours_after?: number;
+              days_after?: number;
+              time_of_day?: string;
+            };
+            
+            const baseData: FollowUpMessageData = {
               timing_mode: message.timing_mode,
               message_template: message.message_template,
               is_enabled: message.is_enabled,
@@ -764,13 +774,13 @@ const SettingsServiceItemsPage: React.FC = () => {
 
             // Add timing-specific fields
             if (message.timing_mode === 'hours_after' && message.hours_after !== null) {
-              (baseData as any).hours_after = message.hours_after;
+              baseData.hours_after = message.hours_after;
             } else if (message.timing_mode === 'specific_time') {
               if (message.days_after !== null) {
-                (baseData as any).days_after = message.days_after;
+                baseData.days_after = message.days_after;
               }
               if (message.time_of_day !== null) {
-                (baseData as any).time_of_day = message.time_of_day;
+                baseData.time_of_day = message.time_of_day;
               }
             }
 
@@ -779,7 +789,7 @@ const SettingsServiceItemsPage: React.FC = () => {
               await apiService.updateFollowUpMessage(realServiceItemId, message.id, baseData);
             } else {
               // Create new message
-              await apiService.createFollowUpMessage(realServiceItemId, baseData as any);
+              await apiService.createFollowUpMessage(realServiceItemId, baseData);
             }
           } catch (err: unknown) {
             const action = isRealId(message.id) ? '更新' : '建立';

@@ -57,7 +57,7 @@ export const useFormErrorScroll = () => {
           element.focus({ preventScroll: true });
           
           // Force a validation check on this specific field to ensure red text shows
-          methods.trigger(firstError.path as any);
+          methods.trigger(firstError.path as Parameters<typeof methods.trigger>[0]);
         }
       }, 200);
     }

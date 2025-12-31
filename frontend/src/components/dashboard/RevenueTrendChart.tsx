@@ -144,14 +144,14 @@ export const RevenueTrendChart: React.FC<RevenueTrendChartProps> = ({
         let value = 0;
         if (view === 'stacked-service') {
           // For stacked-service, the point already has the byService keys spread into it
-          value = (point as any)[key] || 0;
+          value = (point as Record<string, unknown>)[key] as number || 0;
         } else if (view === 'stacked-group') {
           // For stacked-group, backend doesn't provide by_group in revenue_trend, so use 0
           // The group breakdown is shown in the table instead
           value = 0;
         } else if (view === 'stacked-practitioner') {
           // For stacked-practitioner, the point already has the byPractitioner keys spread into it
-          value = (point as any)[key] || 0;
+          value = (point as Record<string, unknown>)[key] as number || 0;
         }
         // Use raw values - Recharts' stackId will handle stacking automatically
         result[key] = value;

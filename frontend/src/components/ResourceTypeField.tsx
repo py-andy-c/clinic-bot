@@ -79,7 +79,7 @@ export const ResourceTypeField: React.FC<ResourceTypeFieldProps> = ({
     if (isExpanded && typeId < 1000000000000) {
       const storeResources = useResourcesStore.getState().resourcesByType[typeId] || [];
       if (fields.length === 0 && storeResources.length > 0) {
-        setValue(`resourceTypes.${index}.resources`, storeResources as any);
+        setValue(`resourceTypes.${index}.resources`, storeResources as Array<{ id: number; name: string; description?: string | null }>);
       }
     }
   }, [isExpanded, typeId, fields.length, index, setValue]);
@@ -96,7 +96,7 @@ export const ResourceTypeField: React.FC<ResourceTypeFieldProps> = ({
       const updatedStoreResources = useResourcesStore.getState().resourcesByType[typeId] || [];
       if (updatedStoreResources.length > currentResources) {
         const newResource = updatedStoreResources[updatedStoreResources.length - 1];
-        append(newResource as any);
+        append(newResource as { id: number; name: string; description?: string | null });
       }
     }, 0);
   };

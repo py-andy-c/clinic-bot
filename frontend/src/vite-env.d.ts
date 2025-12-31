@@ -12,6 +12,7 @@ declare global {
       isInClient: () => boolean;
       [key: string]: unknown;
     };
+    __calendarCreateAppointment?: (date: Date) => void;
   }
 }
 
