@@ -176,7 +176,7 @@ const GlobalWarnings: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [isLoading, user, isClinicAdmin, hasRole, clinicSettingsData, membersData, practitionerStatusData, batchPractitionerStatusData]);
+  }, [isLoading, user, isClinicAdmin, hasRole, clinicSettingsData, membersData, practitionerStatusData, batchPractitionerStatusData, batchPractitionerStatusError, clinicSettingsError, membersError, practitionerStatusError]);
 
   // Refresh warnings when navigating away from settings/profile pages
   // We'll invalidate the useApiData cache instead of using our own cache
@@ -380,7 +380,7 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
       };
     }
     return undefined;
-  }, [openDropdowns]);
+  }, [openDropdowns, isMobileMenuOpen]);
 
   return (
     <div className="min-h-screen bg-white md:bg-gray-50">

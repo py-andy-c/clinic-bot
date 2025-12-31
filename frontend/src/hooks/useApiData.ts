@@ -51,10 +51,12 @@ interface CacheEntry<T> {
   timestamp: number;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const cache = new Map<string, CacheEntry<any>>();
 const DEFAULT_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 // Track in-flight requests to deduplicate concurrent requests for the same data
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const inFlightRequests = new Map<string, Promise<any>>();
 // Map to track locks for promise registration (prevents race conditions)
 const registrationLocks = new Map<string, boolean>();
@@ -186,7 +188,7 @@ function extractEndpointUrl(functionString: string): string | null {
  * @returns A cache key string
  */
 function getCacheKey(
-  fetchFn: () => Promise<any>, 
+  fetchFn: () => Promise<unknown>, 
   dependencies?: DependencyList,
   activeClinicId?: number | null
 ): string {
@@ -328,7 +330,7 @@ export function clearApiDataCache(): void {
  * 
  * @param fetchFn - The fetch function to invalidate cache for
  */
-export function invalidateCacheForFunction(fetchFn: () => Promise<any>): void {
+export function invalidateCacheForFunction(fetchFn: () => Promise<unknown>): void {
   // Try to invalidate for all possible clinic IDs by using pattern matching
   const functionString = fetchFn.toString();
   const methodMatch = functionString.match(/\.(get\w+|post\w+|put\w+|patch\w+|update\w+|create\w+|delete\w+)\s*\(/);
@@ -762,7 +764,7 @@ export function useApiData<T>(
         logger.error('useApiData: Fetch error:', err);
       }
     }
-  }, [fetchFn, enabled, defaultErrorMessage, onSuccess, onError, logErrors, cacheTTL, initialData, activeClinicId]);
+  }, [fetchFn, enabled, defaultErrorMessage, onSuccess, onError, logErrors, cacheTTL, initialData]);
 
   // Auto-fetch on mount and when dependencies change
   // Include activeClinicId in dependencies to trigger refetch when clinic changes

@@ -323,7 +323,9 @@ describe('openInBrowser', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     // Mock window.location
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     delete (window as any).location;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (window as any).location = {
       href: 'https://example.com/test',
     };
@@ -388,6 +390,7 @@ describe('openInBrowser', () => {
     const removeChildSpy = vi.fn();
     const containsSpy = vi.fn(() => true);
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     vi.spyOn(document, 'createElement').mockReturnValue(iframe as any);
     vi.spyOn(document.body, 'appendChild').mockImplementation(appendChildSpy);
     vi.spyOn(document.body, 'removeChild').mockImplementation(removeChildSpy);

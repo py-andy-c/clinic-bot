@@ -71,7 +71,7 @@ const AppointmentFlow: React.FC = () => {
     };
 
     determineFlow();
-  }, [clinicId, setStoreFlowType]);
+  }, [clinicId, setStoreFlowType, t]);
 
   // Prevent accessing step 2 if practitioner selection is disabled
   React.useEffect(() => {

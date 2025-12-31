@@ -8,7 +8,6 @@ import React from 'react';
 import { BrowserRouter } from 'react-router-dom';
 import RevenueDistributionPage from '../RevenueDistributionPage';
 import { useApiData } from '../../../hooks/useApiData';
-import { apiService } from '../../../services/api';
 
 // Mock useApiData hook
 vi.mock('../../../hooks/useApiData');
@@ -53,7 +52,8 @@ vi.mock('../../../components/dashboard/TimeRangePresets', () => ({
       <button onClick={() => onSelect('month')}>本月</button>
     </div>
   ),
-  getDateRangeForPreset: vi.fn((preset: string) => ({
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  getDateRangeForPreset: vi.fn((_preset: string) => ({
     startDate: '2024-01-01',
     endDate: '2024-01-31',
   })),

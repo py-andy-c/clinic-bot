@@ -5,7 +5,6 @@
 import { describe, it, expect } from 'vitest';
 import { getClinicSectionChanges } from '../clinicSettings';
 import { ClinicSettings, BookingRestrictionSettings } from '../../schemas/api';
-import { AppointmentType } from '../../types';
 
 describe('clinicSettings', () => {
   const createMockClinicSettings = (
@@ -506,6 +505,7 @@ describe('clinicSettings', () => {
           booking_restriction_settings: createMockBookingRestrictionSettings({
             booking_restriction_type: 'deadline_time_day_before',
             deadline_time_day_before: '08:00',
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             deadline_on_same_day: null as any,
           }),
         });

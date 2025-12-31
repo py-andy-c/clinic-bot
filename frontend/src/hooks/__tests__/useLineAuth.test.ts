@@ -6,7 +6,7 @@
  * doesn't match JWT identifier.
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 
 // Mock localStorage
 const localStorageMock = (() => {
@@ -30,6 +30,7 @@ Object.defineProperty(window, 'localStorage', {
 });
 
 // Helper to create a JWT token payload
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function createJWTToken(payload: Record<string, any>): string {
   const header = { alg: 'HS256', typ: 'JWT' };
   const encodedHeader = btoa(JSON.stringify(header));
@@ -38,8 +39,9 @@ function createJWTToken(payload: Record<string, any>): string {
   return `${encodedHeader}.${encodedPayload}.signature`;
 }
 
-// Helper to decode JWT payload (for verification)
-function decodeJWTPayload(token: string): { userId?: string; exp?: number; [key: string]: unknown } | null {
+// Helper to decode JWT payload (for verification) - unused but kept for potential future use
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function decodeJWTPayload(_token: string): { userId?: string; exp?: number; [key: string]: unknown } | null {
   const parts = token.split('.');
   if (parts.length < 2) return null;
   try {

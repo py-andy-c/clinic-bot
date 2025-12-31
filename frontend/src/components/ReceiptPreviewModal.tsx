@@ -5,7 +5,7 @@
  * Displays the receipt HTML in an iframe to match the PDF exactly.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { BaseModal } from './shared/BaseModal';
 import { apiService } from '../services/api';
 import { logger } from '../utils/logger';
@@ -27,17 +27,7 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (isOpen) {
-      loadPreview();
-    } else {
-      // Reset state when modal closes
-      setReceiptHtml(null);
-      setError(null);
-    }
-  }, [isOpen, customNotes, showStamp]);
-
-  const loadPreview = async () => {
+  const loadPreview = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
@@ -49,7 +39,17 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [customNotes, showStamp]);
+
+  useEffect(() => {
+    if (isOpen) {
+      loadPreview();
+    } else {
+      // Reset state when modal closes
+      setReceiptHtml(null);
+      setError(null);
+    }
+  }, [isOpen, customNotes, showStamp, loadPreview]);
 
   if (!isOpen) return null;
 

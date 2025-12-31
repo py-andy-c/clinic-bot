@@ -148,7 +148,7 @@ const RescheduleFlow: React.FC = () => {
     };
 
     loadAppointmentDetails();
-  }, [appointmentId]);
+  }, [appointmentId, t]);
 
   // Load assigned practitioners for the patient from appointment details
   useEffect(() => {

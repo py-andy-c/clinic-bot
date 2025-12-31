@@ -287,7 +287,7 @@ export const useAppointmentForm = ({
         abortControllerRef.current.abort();
       }
     };
-  }, [mode, event, preSelectedAppointmentTypeId, preSelectedPractitionerId, preSelectedTime, preSelectedClinicNotes, initialDate, allPractitioners]);
+  }, [mode, event, preSelectedAppointmentTypeId, preSelectedPractitionerId, preSelectedTime, preSelectedClinicNotes, initialDate, allPractitioners, appointmentTypes]);
 
   // Fetch practitioners when appointment type changes (after initial mount)
   useEffect(() => {

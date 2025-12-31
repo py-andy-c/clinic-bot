@@ -16,6 +16,7 @@ describe('shouldPromptForAssignment', () => {
     });
 
     it('should return false when patient is undefined', () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       expect(shouldPromptForAssignment(undefined as any, 1)).toBe(false);
     });
 
@@ -38,7 +39,7 @@ describe('shouldPromptForAssignment', () => {
         phone_number: '1234567890',
         created_at: '2024-01-01T00:00:00Z',
       };
-      expect(shouldPromptForAssignment(patient, undefined as any)).toBe(false);
+      expect(shouldPromptForAssignment(patient, undefined)).toBe(false);
     });
 
     it('should return false when both patient and practitionerId are null', () => {

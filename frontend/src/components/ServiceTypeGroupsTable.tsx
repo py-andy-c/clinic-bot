@@ -56,7 +56,7 @@ export const ServiceTypeGroupsTable: React.FC<ServiceTypeGroupsTableProps> = ({
     } else if (editingGroupId === -1) {
       setEditingGroupId(null);
     }
-  }, [addingNewGroup]);
+  }, [addingNewGroup, editingGroupId]);
 
   const handleStartEdit = (group: ServiceTypeGroup) => {
     setEditingGroupId(group.id);

@@ -257,7 +257,7 @@ export const PatientAppointmentsList: React.FC<
         await alert("無法載入預約資料，請重新整理頁面", "錯誤");
       }
     },
-    [],
+    [alert],
   );
 
   // Handle edit appointment from EventModal
@@ -272,7 +272,7 @@ export const PatientAppointmentsList: React.FC<
     setEditingAppointment(selectedEvent);
     setEditErrorMessage(null);
     setSelectedEvent(null); // Close EventModal
-  }, [selectedEvent, canEditEvent]);
+  }, [selectedEvent, canEditEvent, alert]);
 
   // Handle delete appointment from EventModal
   const handleDeleteAppointment = useCallback(async () => {
@@ -289,7 +289,7 @@ export const PatientAppointmentsList: React.FC<
     setDeletingAppointment(selectedEvent);
     setDeleteStep("note");
     setSelectedEvent(null); // Close EventModal
-  }, [selectedEvent, canEditEvent]);
+  }, [selectedEvent, canEditEvent, alert]);
 
   // Handle duplicate appointment from EventModal
   const handleDuplicateAppointment = useCallback(async () => {

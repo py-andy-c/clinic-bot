@@ -129,21 +129,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
         
         // Decode base64 payload
-        let payload: any;
+        let payload: Record<string, unknown>;
         try {
-          payload = JSON.parse(atob(tokenParts[1]!));
+          payload = JSON.parse(atob(tokenParts[1]!)) as Record<string, unknown>;
         } catch (decodeError) {
           throw new Error('Invalid token format: failed to decode payload');
         }
         
         // Extract user data from JWT payload
         const userData: AuthUser = {
-          user_id: payload.user_id || 0,  // Database user ID (now included in JWT)
-          email: payload.email || '',
-          full_name: payload.name || '',
-          user_type: payload.user_type || 'clinic_user',
-          roles: payload.roles || [],
-          active_clinic_id: payload.active_clinic_id ?? null,
+          user_id: (payload.user_id as number) || 0,  // Database user ID (now included in JWT)
+          email: (payload.email as string) || '',
+          full_name: (payload.name as string) || '',
+          user_type: (payload.user_type as string) || 'clinic_user',
+          roles: (payload.roles as string[]) || [],
+          active_clinic_id: (payload.active_clinic_id as number | null) ?? null,
         };
         
         // Validate required fields
@@ -195,7 +195,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     return () => {
       window.removeEventListener('storage', handleStorageChange);
     };
-  }, [clearAuthState]);
+  }, [clearAuthState, refreshAvailableClinics]);
 
 
   // Enhanced user object with role helpers
@@ -238,21 +238,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             }
             
             // Decode base64 payload
-            let payload: any;
+            let payload: Record<string, unknown>;
             try {
-              payload = JSON.parse(atob(tokenParts[1]!));
+              payload = JSON.parse(atob(tokenParts[1]!)) as Record<string, unknown>;
             } catch (decodeError) {
               throw new Error('Invalid token format: failed to decode payload');
             }
             
             // Extract user data from JWT payload
             const userData: AuthUser = {
-              user_id: payload.user_id || 0,  // Database user ID (now included in JWT)
-              email: payload.email || '',
-              full_name: payload.name || '',
-              user_type: payload.user_type || 'clinic_user',
-              roles: payload.roles || [],
-              active_clinic_id: payload.active_clinic_id ?? null,
+              user_id: (payload.user_id as number) || 0,  // Database user ID (now included in JWT)
+              email: (payload.email as string) || '',
+              full_name: (payload.name as string) || '',
+              user_type: (payload.user_type as string) || 'clinic_user',
+              roles: (payload.roles as string[]) || [],
+              active_clinic_id: (payload.active_clinic_id as number | null) ?? null,
             };
             
             // Validate required fields
@@ -296,7 +296,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       logger.error('useAuth: Unexpected error in checkAuthStatus:', error);
       setAuthState(prev => ({ ...prev, isLoading: false }));
     }
-  }, [clearAuthState]);
+  }, [refreshAvailableClinics]);
 
   // Initial auth check on mount
   useEffect(() => {
@@ -388,16 +388,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         clinicId: response.active_clinic_id,
         clinicName: response.clinic.name 
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error('Failed to switch clinic:', error);
       
       // Handle specific error cases
-      if (error.response?.status === 429) {
+      const axiosError = error as { response?: { status?: number; data?: { detail?: string } } };
+      if (axiosError.response?.status === 429) {
         throw new Error('切換診所次數過於頻繁，請稍後再試');
-      } else if (error.response?.status === 403) {
-        throw new Error(error.response?.data?.detail || '您沒有此診所的存取權限');
-      } else if (error.response?.status === 400) {
-        throw new Error(error.response?.data?.detail || '無法切換診所');
+      } else if (axiosError.response?.status === 403) {
+        throw new Error(axiosError.response?.data?.detail || '您沒有此診所的存取權限');
+      } else if (axiosError.response?.status === 400) {
+        throw new Error(axiosError.response?.data?.detail || '無法切換診所');
       } else {
         throw new Error('切換診所失敗，請稍後再試');
       }

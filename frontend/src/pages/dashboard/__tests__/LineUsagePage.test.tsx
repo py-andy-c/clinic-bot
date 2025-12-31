@@ -8,7 +8,6 @@ import React from 'react';
 import { BrowserRouter } from 'react-router-dom';
 import LineUsagePage from '../LineUsagePage';
 import { useApiData } from '../../../hooks/useApiData';
-import { apiService } from '../../../services/api';
 
 // Mock useApiData hook
 vi.mock('../../../hooks/useApiData');

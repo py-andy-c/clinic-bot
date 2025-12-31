@@ -5,8 +5,7 @@
  * preventing schema mismatches that could cause data loss.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { ApiService } from '../api';
+import { describe, it, expect, vi } from 'vitest';
 import { validateClinicSettings, ClinicSettingsSchema } from '../../schemas/api';
 import type { ClinicSettings } from '../../schemas/api';
 

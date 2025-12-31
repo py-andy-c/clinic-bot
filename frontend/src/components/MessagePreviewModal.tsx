@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { BaseModal } from './shared/BaseModal';
 import { apiService } from '../services/api';
 import { LoadingSpinner } from './shared';
@@ -33,16 +33,7 @@ export const MessagePreviewModal: React.FC<MessagePreviewModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (isOpen && template) {
-      loadPreview();
-    } else {
-      setPreview(null);
-      setError(null);
-    }
-  }, [isOpen, template, appointmentTypeId, messageType]);
-
-  const loadPreview = async () => {
+  const loadPreview = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -58,7 +49,16 @@ export const MessagePreviewModal: React.FC<MessagePreviewModalProps> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [appointmentTypeId, appointmentTypeName, messageType, template]);
+
+  useEffect(() => {
+    if (isOpen && template) {
+      loadPreview();
+    } else {
+      setPreview(null);
+      setError(null);
+    }
+  }, [isOpen, template, appointmentTypeId, messageType, loadPreview]);
 
   if (!isOpen) return null;
 

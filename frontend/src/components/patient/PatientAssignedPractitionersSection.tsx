@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Patient } from '../../types';
 import { logger } from '../../utils/logger';
 import { getErrorMessage } from '../../types/api';
@@ -27,7 +27,7 @@ export const PatientAssignedPractitionersSection: React.FC<PatientAssignedPracti
   const [error, setError] = useState<string | null>(null);
 
   // Helper function to extract practitioner IDs from patient data
-  const getAssignedPractitionerIds = (): number[] => {
+  const getAssignedPractitionerIds = useCallback((): number[] => {
     if (patient.assigned_practitioner_ids !== undefined) {
       return patient.assigned_practitioner_ids;
     }
@@ -37,12 +37,12 @@ export const PatientAssignedPractitionersSection: React.FC<PatientAssignedPracti
         .map((p) => p.id);
     }
     return [];
-  };
+  }, [patient]);
 
   // Initialize selected practitioners from patient data
   useEffect(() => {
     setSelectedPractitionerIds(getAssignedPractitionerIds());
-  }, [patient]);
+  }, [patient, getAssignedPractitionerIds]);
 
   const handleSave = async () => {
     setError(null);

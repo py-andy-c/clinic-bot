@@ -464,7 +464,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
 
     loadMonthAvailability();
     return () => abortController.abort();
-  }, [currentMonth, appointmentTypeId, selectedPractitionerId, excludeCalendarEventId, isExpanded, onHasAvailableSlotsChange, onPractitionerError]);
+  }, [currentMonth, appointmentTypeId, selectedPractitionerId, excludeCalendarEventId, isExpanded, onHasAvailableSlotsChange, onPractitionerError, selectedDate, selectedTime]);
 
   // Date/slot selection logic is now handled by useDateSlotSelection hook
 

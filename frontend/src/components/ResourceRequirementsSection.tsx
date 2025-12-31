@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { ResourceType, ResourceRequirement } from '../types';
 import { apiService } from '../services/api';
 import { logger } from '../utils/logger';
@@ -35,11 +35,7 @@ export const ResourceRequirementsSection: React.FC<ResourceRequirementsSectionPr
   const requirements = (appointmentTypeId && resourceRequirements[appointmentTypeId]) || [];
   const isLoading = appointmentTypeId ? loadingResourceRequirements.has(appointmentTypeId) : false;
 
-  useEffect(() => {
-    loadData();
-  }, [appointmentTypeId]);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
       // Load resource types
@@ -60,7 +56,11 @@ export const ResourceRequirementsSection: React.FC<ResourceRequirementsSectionPr
     } finally {
       setLoading(false);
     }
-  };
+  }, [appointmentTypeId, loadResourceRequirements, alert]);
+
+  useEffect(() => {
+    loadData();
+  }, [appointmentTypeId, loadData]);
 
   const handleAddRequirement = () => {
     if (!selectedResourceTypeId || quantity < 1) {

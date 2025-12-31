@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppointmentStore } from '../stores/appointmentStore';
 import { preserveQueryParams } from '../utils/urlUtils';
@@ -52,7 +52,7 @@ export const useAppointmentBackButton = (isInAppointmentFlow: boolean) => {
    * This is extracted to avoid duplication and ensure consistent behavior.
    * Uses replace: true to clear history when navigating to home.
    */
-  const navigateToHome = () => {
+  const navigateToHome = useCallback(() => {
     historyInitializedRef.current = false;
     // Navigate to home and clear history using replace
     const newUrl = preserveQueryParams('/liff', { mode: 'home' });
@@ -61,7 +61,7 @@ export const useAppointmentBackButton = (isInAppointmentFlow: boolean) => {
     // Also replace browser history state to ensure consistency
     const homeState: LiffNavigationState = { mode: 'home', liffNavigation: true };
     window.history.replaceState(homeState, '', newUrl);
-  };
+  }, [navigate]);
 
   // Initialize history when entering appointment flow
   // Only depend on isInAppointmentFlow to avoid re-initialization when step changes
@@ -183,6 +183,6 @@ export const useAppointmentBackButton = (isInAppointmentFlow: boolean) => {
     return () => {
       window.removeEventListener('popstate', handlePopState);
     };
-  }, [isInAppointmentFlow, navigate, setStep]);
+  }, [isInAppointmentFlow, navigate, setStep, navigateToHome]);
 };
 

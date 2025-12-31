@@ -108,7 +108,7 @@ export function useCalendarSelection<T extends { id: number }>({
     return () => {
       clearTimeout(timeoutId);
     };
-  }, [userId, clinicId, items, validateItem, storageType, waitForAllItems]);
+  }, [userId, clinicId, items, validateItem, storageType, waitForAllItems, onSelectionChange]);
 
   // Save selection when it changes (after initial load)
   useEffect(() => {
@@ -149,6 +149,7 @@ export function useCalendarSelection<T extends { id: number }>({
     }
     // Note: We intentionally don't include selectedIds in dependencies to avoid infinite loops
     // This effect only runs when items or validateItem changes, which is when cleanup is needed
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [items, validateItem]);
 
   return {

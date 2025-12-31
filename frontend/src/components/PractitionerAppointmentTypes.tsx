@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { apiService } from '../services/api';
@@ -39,21 +39,7 @@ const PractitionerAppointmentTypes: React.FC<PractitionerAppointmentTypesProps> 
     }
   }, [externalAvailableTypes]);
 
-  // Only fetch data if props are not provided (backward compatibility)
-  React.useEffect(() => {
-    if (externalAvailableTypes === undefined || externalSelectedTypeIds === undefined) {
-      fetchData();
-    }
-  }, [user]);
-
-  // Update internal state when external state changes
-  React.useEffect(() => {
-    if (externalSelectedTypeIds !== undefined) {
-      setSelectedTypeIds(externalSelectedTypeIds);
-    }
-  }, [externalSelectedTypeIds]);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     if (!user?.user_id) return;
 
     try {
@@ -90,7 +76,21 @@ const PractitionerAppointmentTypes: React.FC<PractitionerAppointmentTypesProps> 
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, externalAvailableTypes, availableTypes, externalSelectedTypeIds]);
+
+  // Only fetch data if props are not provided (backward compatibility)
+  React.useEffect(() => {
+    if (externalAvailableTypes === undefined || externalSelectedTypeIds === undefined) {
+      fetchData();
+    }
+  }, [user, externalAvailableTypes, externalSelectedTypeIds, fetchData]);
+
+  // Update internal state when external state changes
+  React.useEffect(() => {
+    if (externalSelectedTypeIds !== undefined) {
+      setSelectedTypeIds(externalSelectedTypeIds);
+    }
+  }, [externalSelectedTypeIds]);
 
   const handleTypeToggle = (typeId: number) => {
     const newSelectedTypeIds = currentSelectedTypeIds.includes(typeId)

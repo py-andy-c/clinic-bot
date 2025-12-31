@@ -12,7 +12,6 @@ import type {
   AppointmentType,
   Patient,
   Practitioner,
-  PractitionerAvailability,
   ClinicSettings,
 } from '../index';
 

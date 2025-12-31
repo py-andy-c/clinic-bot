@@ -406,6 +406,7 @@ export const useResourcesStore = create<ResourcesState>((set, get) => ({
    * Sync data from RHF state to the store.
    */
   syncFromRHF: (data: { resourceTypes: ResourceType[] }) => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const resourceTypes = data.resourceTypes.map(({ resources, ...type }) => type);
     const resourcesByType: Record<number, Resource[]> = {};
     data.resourceTypes.forEach(type => {

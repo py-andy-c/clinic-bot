@@ -6,6 +6,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { BillingScenario } from '../../types';
 
 describe('Temporary ID Mapping Logic', () => {
   /**
@@ -59,10 +60,10 @@ describe('Temporary ID Mapping Logic', () => {
    * Helper function to update billingScenarios keys with real IDs
    */
   const updateBillingScenariosKeys = (
-    scenarios: Record<string, any[]>,
+    scenarios: Record<string, BillingScenario[]>,
     mapping: Record<number, number>
-  ): Record<string, any[]> => {
-    const updated: Record<string, any[]> = {};
+  ): Record<string, BillingScenario[]> => {
+    const updated: Record<string, BillingScenario[]> = {};
     for (const [key, scenarioList] of Object.entries(scenarios)) {
       const parts = key.split('-');
       if (parts.length === 2) {
@@ -204,7 +205,7 @@ describe('Temporary ID Mapping Logic', () => {
 
   describe('updateBillingScenariosKeys', () => {
     it('should update keys from temporary to real IDs', () => {
-      const scenarios: Record<string, any[]> = {
+      const scenarios: Record<string, BillingScenario[]> = {
         '1734567890123-11': [{ id: 1, name: '原價' }], // Temporary serviceItemId
         '1-12': [{ id: 2, name: '特約' }], // Real serviceItemId
       };
@@ -222,7 +223,7 @@ describe('Temporary ID Mapping Logic', () => {
     });
 
     it('should keep original keys if not in mapping', () => {
-      const scenarios: Record<string, any[]> = {
+      const scenarios: Record<string, BillingScenario[]> = {
         '1734567890123-11': [{ id: 1, name: '原價' }],
         '999-12': [{ id: 2, name: '特約' }], // Not in mapping
       };
@@ -240,7 +241,7 @@ describe('Temporary ID Mapping Logic', () => {
     });
 
     it('should handle invalid key format', () => {
-      const scenarios: Record<string, any[]> = {
+      const scenarios: Record<string, BillingScenario[]> = {
         'invalid-key': [{ id: 1, name: '原價' }],
       };
       
@@ -256,7 +257,7 @@ describe('Temporary ID Mapping Logic', () => {
     });
 
     it('should handle empty mapping', () => {
-      const scenarios: Record<string, any[]> = {
+      const scenarios: Record<string, BillingScenario[]> = {
         '1734567890123-11': [{ id: 1, name: '原價' }],
       };
       
@@ -288,7 +289,7 @@ describe('Temporary ID Mapping Logic', () => {
       const updatedAssignments = updatePractitionerAssignments(assignments, mapping);
       
       // Step 3: Update billing scenarios
-      const scenarios: Record<string, any[]> = {
+      const scenarios: Record<string, BillingScenario[]> = {
         '1734567890123-11': [{ id: -1734567890456, name: '原價', amount: 1000 }], // Temporary IDs
       };
       const updatedScenarios = updateBillingScenariosKeys(scenarios, mapping);

@@ -6,7 +6,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
 import { useApiData, clearApiDataCache } from '../useApiData';
 import { logger } from '../../utils/logger';
-import { ApiErrorType } from '../../types';
 
 // Mock logger
 vi.mock('../../utils/logger', () => ({

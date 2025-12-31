@@ -5,7 +5,7 @@
  * Used when appointment has multiple receipts.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { BaseModal } from './BaseModal';
 import { apiService } from '../../services/api';
 import { logger } from '../../utils/logger';
@@ -38,11 +38,7 @@ export const ReceiptListModal: React.FC<ReceiptListModalProps> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadReceipts();
-  }, [receiptIds]);
-
-  const loadReceipts = async () => {
+  const loadReceipts = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
@@ -83,7 +79,11 @@ export const ReceiptListModal: React.FC<ReceiptListModalProps> = ({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [receiptIds]);
+
+  useEffect(() => {
+    loadReceipts();
+  }, [receiptIds, loadReceipts]);
 
   // Use the shared currency utility for consistent formatting
   const formatCurrency = formatCurrencyUtil;

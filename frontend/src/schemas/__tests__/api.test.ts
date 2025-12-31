@@ -110,6 +110,7 @@ describe('ClinicSettings Schema Validation', () => {
       const result = validateClinicSettings(mockData);
       
       // Passthrough should preserve unknown fields
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       expect((result.appointment_types[0] as any).future_field).toBe('test value');
     });
   });

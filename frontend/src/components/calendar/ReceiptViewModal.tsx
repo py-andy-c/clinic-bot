@@ -5,7 +5,7 @@
  * Displays the full receipt HTML in an iframe to match the PDF exactly.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { BaseModal } from './BaseModal';
 import { apiService } from '../../services/api';
@@ -45,11 +45,7 @@ export const ReceiptViewModal: React.FC<ReceiptViewModalProps> = ({
   const [showVoidConfirm, setShowVoidConfirm] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
 
-  useEffect(() => {
-    loadReceipt();
-  }, [appointmentId, receiptId]);
-
-  const loadReceipt = async () => {
+  const loadReceipt = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
@@ -88,7 +84,11 @@ export const ReceiptViewModal: React.FC<ReceiptViewModalProps> = ({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [appointmentId, receiptId]);
+
+  useEffect(() => {
+    loadReceipt();
+  }, [appointmentId, receiptId, loadReceipt]);
 
   const handleDownloadPDF = async () => {
     const targetReceiptId = receiptId || receiptInfo?.receipt_id;

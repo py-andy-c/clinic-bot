@@ -8,7 +8,6 @@ import React from 'react';
 import { BrowserRouter } from 'react-router-dom';
 import BusinessInsightsPage from '../BusinessInsightsPage';
 import { useApiData } from '../../../hooks/useApiData';
-import { apiService } from '../../../services/api';
 
 // Mock useApiData hook
 vi.mock('../../../hooks/useApiData');
@@ -34,7 +33,7 @@ vi.mock('../../../services/api', () => ({
 
 // Mock RevenueTrendChart
 vi.mock('../../../components/dashboard/RevenueTrendChart', () => ({
-  RevenueTrendChart: ({ data, view }: { data: unknown[]; view: string }) => (
+  RevenueTrendChart: ({ view }: { data: unknown[]; view: string }) => (
     <div data-testid="revenue-trend-chart">
       RevenueTrendChart - View: {view}
     </div>
@@ -43,12 +42,13 @@ vi.mock('../../../components/dashboard/RevenueTrendChart', () => ({
 
 // Mock TimeRangePresets
 vi.mock('../../../components/dashboard/TimeRangePresets', () => ({
-  TimeRangePresets: ({ onSelect }: { onSelect: (preset: string) => void }) => (
+  TimeRangePresets: ({ onSelect }: { onSelect: (_preset: string) => void }) => (
     <div data-testid="time-range-presets">
       <button onClick={() => onSelect('month')}>本月</button>
     </div>
   ),
-  getDateRangeForPreset: vi.fn((preset: string) => ({
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  getDateRangeForPreset: vi.fn((_preset: string) => ({
     startDate: '2024-01-01',
     endDate: '2024-01-31',
   })),
