@@ -801,7 +801,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
         const practitionerName = practitionerMap.get(practitionerId) || '';
         
         // Add date and practitioner ID to each event for proper display and color-coding
-        const transformedEvents = result.events.map((event: any) => ({
+        const transformedEvents = result.events.map((event: ApiCalendarEvent) => ({
           ...event,
           date: dateStr,
           practitioner_id: practitionerId, // Add practitioner ID for color-coding
@@ -825,7 +825,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
           const resourceName = resourceMap.get(resourceId) || '';
           
           // Transform resource events and mark them as resource events
-          const transformedEvents = result.events.map((event: any) => ({
+          const transformedEvents = result.events.map((event: ApiCalendarEvent) => ({
             ...event,
             date: dateStr,
             resource_id: resourceId, // Add resource ID for color-coding
@@ -866,7 +866,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
 
       setAllEvents(allEvents);
 
-    } catch (err: any) {
+    } catch (err: unknown) {
       // Remove from in-flight requests on error
       inFlightBatchRequestsRef.current.delete(cacheKey);
       
@@ -940,7 +940,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     // Check if this is a resource event
     const isResourceEvent = event.resource.is_resource_event === true;
     
-    let style: any = {
+    let style: React.CSSProperties = {
       borderRadius: '6px',
       color: 'white',
       border: 'none',
@@ -1056,7 +1056,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   }, [onSelectEvent]);
 
   // Handle slot selection - for monthly and weekly view navigation
-  const handleSelectSlot = useCallback((slotInfo: any) => {
+  const handleSelectSlot = useCallback((slotInfo: { start: Date; end: Date; slots: Date[] }) => {
     // In monthly view, clicking a date should navigate to daily view of that date
     if (view === Views.MONTH) {
       setCurrentDate(slotInfo.start);
@@ -1076,7 +1076,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   }, [view, onNavigate]);
 
   // Create a dateHeader component that handles clicks on the date number to navigate to day view
-  const DateHeaderWithClick = useCallback(({ date }: any) => {
+  const DateHeaderWithClick = useCallback(({ date }: { date: Date }) => {
     const handleClick = () => {
       handleSelectSlot({
         start: date,
@@ -1184,12 +1184,14 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     try {
       // Conflict check - get the selected date's events and check for overlaps
       const dailyData = await apiService.getDailyCalendar(userId, dateStr);
-      const appointments = dailyData.events.filter((event: any) => event.type === 'appointment');
+      const appointments = dailyData.events.filter((event: CalendarEvent) => event.resource.type === 'appointment');
       
       // Collect all conflicting appointments
-      const conflictingAppointments = appointments.filter((appointment: any) => {
-        if (!appointment.start_time || !appointment.end_time) return false;
-        return appointment.start_time < exceptionData.endTime && appointment.end_time > exceptionData.startTime;
+      const conflictingAppointments = appointments.filter((appointment: CalendarEvent) => {
+        const startTime = appointment.start.toISOString();
+        const endTime = appointment.end.toISOString();
+        if (!startTime || !endTime) return false;
+        return startTime < exceptionData.endTime && endTime > exceptionData.startTime;
       });
 
       if (conflictingAppointments.length > 0) {

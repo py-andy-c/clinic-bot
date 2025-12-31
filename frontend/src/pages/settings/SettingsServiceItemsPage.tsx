@@ -251,7 +251,7 @@ const SettingsServiceItemsPage: React.FC = () => {
 
       // Confirmation is handled in the modal, just delete
       deleteServiceItem(appointmentType.id);
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error('Error validating appointment type deletion:', error);
       const errorMessage = getErrorMessage(error) || '驗證刪除失敗，請稍後再試';
       await alert(errorMessage, '驗證失敗');
@@ -419,7 +419,7 @@ const SettingsServiceItemsPage: React.FC = () => {
           display_order: group.display_order,
         });
         groupMapping[group.id] = response.id;
-      } catch (err: any) {
+      } catch (err: unknown) {
         logger.error('Error creating group:', err);
         errors.push(`建立群組「${group.name}」失敗：${err?.response?.data?.detail || err?.message || '未知錯誤'}`);
       }
@@ -432,7 +432,7 @@ const SettingsServiceItemsPage: React.FC = () => {
           name: group.name,
           display_order: group.display_order,
         });
-      } catch (err: any) {
+      } catch (err: unknown) {
         logger.error('Error updating group:', err);
         errors.push(`更新群組「${group.name}」失敗：${err?.response?.data?.detail || err?.message || '未知錯誤'}`);
       }
@@ -442,7 +442,7 @@ const SettingsServiceItemsPage: React.FC = () => {
     for (const groupId of groupsToDelete) {
       try {
         await apiService.deleteServiceTypeGroup(groupId);
-      } catch (err: any) {
+      } catch (err: unknown) {
         logger.error('Error deleting group:', err);
         errors.push(`刪除群組失敗：${err?.response?.data?.detail || err?.message || '未知錯誤'}`);
       }
@@ -460,7 +460,7 @@ const SettingsServiceItemsPage: React.FC = () => {
           await apiService.bulkUpdateGroupOrder(
             orderedIds.map((id, index) => ({ id, display_order: index }))
           );
-        } catch (err: any) {
+        } catch (err: unknown) {
           logger.error('Error reordering groups:', err);
           // Don't add to errors - reordering is not critical
         }
@@ -590,7 +590,7 @@ const SettingsServiceItemsPage: React.FC = () => {
               orderedIds.map((id, index) => ({ id, display_order: index }))
             );
           }
-        } catch (err: any) {
+        } catch (err: unknown) {
           logger.error('Error updating service item order:', err);
           // Don't add to errors - order update is not critical, order is already saved in main update
         }
@@ -730,7 +730,7 @@ const SettingsServiceItemsPage: React.FC = () => {
         try {
           const response = await apiService.getFollowUpMessages(realServiceItemId);
           originalMessages = response.follow_up_messages;
-        } catch (err: any) {
+        } catch (err: unknown) {
           // If service item is new, there are no original messages
           if (err?.response?.status !== 404) {
             logger.error(`Error loading original follow-up messages for ${realServiceItemId}:`, err);
@@ -744,7 +744,7 @@ const SettingsServiceItemsPage: React.FC = () => {
         for (const message of messagesToDelete) {
           try {
             await apiService.deleteFollowUpMessage(realServiceItemId, message.id);
-          } catch (err: any) {
+          } catch (err: unknown) {
             const errorMsg = `刪除追蹤訊息失敗：${err instanceof Error ? err.message : '未知錯誤'}`;
             logger.error(`Error deleting follow-up message ${message.id}:`, err);
             errors.push(errorMsg);
@@ -781,7 +781,7 @@ const SettingsServiceItemsPage: React.FC = () => {
               // Create new message
               await apiService.createFollowUpMessage(realServiceItemId, baseData as any);
             }
-          } catch (err: any) {
+          } catch (err: unknown) {
             const action = isRealId(message.id) ? '更新' : '建立';
             const errorMsg = `${action}追蹤訊息失敗：${err instanceof Error ? err.message : '未知錯誤'}`;
             logger.error(`Error ${action === '更新' ? 'updating' : 'creating'} follow-up message:`, err);

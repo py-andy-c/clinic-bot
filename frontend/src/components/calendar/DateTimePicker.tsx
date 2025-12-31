@@ -97,7 +97,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
   const [datesWithSlots, setDatesWithSlots] = useState<Set<string>>(new Set());
   const [loadingAvailability, setLoadingAvailability] = useState(false);
   // Cache batch availability data to avoid redundant API calls when dates are selected
-  const [cachedAvailabilityData, setCachedAvailabilityData] = useState<Map<string, { slots: any[] }>>(new Map());
+  const [cachedAvailabilityData, setCachedAvailabilityData] = useState<Map<string, { slots: Array<{ start: string; end: string }> }>>(new Map());
   // Track if batch has been initiated to prevent race condition with date selection
   const batchInitiatedRef = useRef(false);
   // Track if we've initialized temp state for this expand session
@@ -263,7 +263,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
         );
         // Only update conflict info once we have the result to prevent UI flashing
         setConflictInfo(response);
-      } catch (error: any) {
+      } catch (error: unknown) {
         if (error?.name === 'CanceledError' || error?.name === 'AbortError') return;
         logger.error('Failed to check scheduling conflicts:', error);
         // Show user-friendly error message per design doc
@@ -393,7 +393,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
         
         // Check global cache first
         const datesWithAvailableSlots = new Set<string>();
-        const newLocalCache = new Map<string, { slots: any[] }>();
+        const newLocalCache = new Map<string, { slots: Array<{ start: string; end: string }> }>();
         let allInCache = true;
 
         datesToCheck.forEach(date => {
@@ -424,7 +424,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
           );
 
           const finalDatesWithAvailableSlots = new Set<string>();
-          const finalLocalCache = new Map<string, { slots: any[] }>();
+          const finalLocalCache = new Map<string, { slots: Array<{ start: string; end: string }> }>();
 
           batchResponse.results.forEach((result) => {
             if (result.date) {
@@ -442,7 +442,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
 
           setCachedAvailabilityData(finalLocalCache);
           setDatesWithSlots(finalDatesWithAvailableSlots);
-        } catch (err: any) {
+        } catch (err: unknown) {
           if (err?.name === 'CanceledError' || err?.name === 'AbortError') return;
           const statusCode = err?.response?.status;
           if (statusCode === 404) {

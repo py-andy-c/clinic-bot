@@ -55,7 +55,7 @@ const MembersPage: React.FC = () => {
       setInviting(true);
       const response = await apiService.inviteMember(inviteData);
       return response;
-    } catch (err: any) {
+    } catch (err: unknown) {
       logger.error('Invite member error:', err);
       const errorMessage = getErrorMessage(err);
       if (errorMessage === 'Invalid role specified') {
@@ -80,7 +80,7 @@ const MembersPage: React.FC = () => {
       if (currentUser && userId === currentUser.user_id) {
         await checkAuthStatus();
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       logger.error('Update roles error:', err);
       const errorMessage = getErrorMessage(err);
       if (errorMessage === '找不到成員') {
@@ -106,7 +106,7 @@ const MembersPage: React.FC = () => {
     try {
       await apiService.removeMember(userId);
       await refetch(); // Refresh the list
-    } catch (err: any) {
+    } catch (err: unknown) {
       logger.error('Remove member error:', err);
 
       // Check for specific error messages from backend
@@ -131,7 +131,7 @@ const MembersPage: React.FC = () => {
       await apiService.reactivateMember(userId);
       await refetch(); // Refresh the list
       await alert('成員已重新啟用');
-    } catch (err: any) {
+    } catch (err: unknown) {
       logger.error('Reactivate member error:', err);
 
       // Check for specific error messages from backend

@@ -53,7 +53,7 @@ export const MessagePreviewModal: React.FC<MessagePreviewModalProps> = ({
         template,
       });
       setPreview(result);
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError(err?.response?.data?.detail || '無法載入預覽');
     } finally {
       setLoading(false);

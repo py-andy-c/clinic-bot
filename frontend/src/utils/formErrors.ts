@@ -7,8 +7,8 @@ import { UseFormReturn, Path } from 'react-hook-form';
  * @param methods The react-hook-form methods object
  * @param options Configuration options
  */
-export const handleBackendError = <T extends Record<string, any>>(
-  error: any,
+export const handleBackendError = <T extends Record<string, unknown>>(
+  error: unknown,
   methods: UseFormReturn<T>,
   options: {
     rootPath?: string;
@@ -17,11 +17,13 @@ export const handleBackendError = <T extends Record<string, any>>(
 ) => {
   const { rootPath, stripPrefix } = options;
 
-  if (error.response?.status === 422 && Array.isArray(error.response?.data?.detail)) {
-    const details = error.response.data.detail;
-    let hasSetError = false;
-    
-    details.forEach((detail: any) => {
+  if (typeof error === 'object' && error !== null && 'response' in error) {
+    const axiosError = error as { response?: { status?: number; data?: { detail?: Array<{ loc?: (string | number)[]; msg?: string }> } } };
+    if (axiosError.response?.status === 422 && Array.isArray(axiosError.response?.data?.detail)) {
+      const details = axiosError.response.data.detail;
+      let hasSetError = false;
+      
+      details.forEach((detail: { loc?: (string | number)[]; msg?: string }) => {
       if (Array.isArray(detail.loc)) {
         // FastAPI loc is usually ["body", "path", "to", "field"]
         // We want to map this to "path.to.field"
@@ -53,9 +55,10 @@ export const handleBackendError = <T extends Record<string, any>>(
         });
         hasSetError = true;
       }
-    });
-    
-    return hasSetError;
+      });
+      
+      return hasSetError;
+    }
   }
   
   return false;

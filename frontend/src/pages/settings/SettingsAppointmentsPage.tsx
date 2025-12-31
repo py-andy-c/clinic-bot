@@ -64,7 +64,7 @@ const SettingsAppointmentsPage: React.FC = () => {
   // Setup navigation warnings for unsaved changes
   useUnsavedChangesDetection({ hasUnsavedChanges: () => isDirty });
 
-  const onInvalid = (errors: any) => {
+  const onInvalid = (errors: Record<string, unknown>) => {
     scrollOnError(errors, methods);
   };
 
@@ -226,7 +226,7 @@ const SettingsAppointmentsPage: React.FC = () => {
 
       // 3. Save all via context - the useEffect above will trigger save once state is updated
 
-    } catch (err: any) {
+    } catch (err: unknown) {
       logger.error('Failed to save appointment settings:', err);
       isSavingRef.current = false;
       pendingFormDataRef.current = null;

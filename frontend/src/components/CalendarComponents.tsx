@@ -109,7 +109,7 @@ export const CustomToolbar = React.memo((toolbar: ToolbarProps) => {
 });
 
 // Custom Weekday Header Component for Month View Column Headers
-export const CustomWeekdayHeader = ({ date }: any) => {
+export const CustomWeekdayHeader = ({ date }: { date: Date }) => {
   const taiwanDate = moment(date).tz('Asia/Taipei');
   const weekdayNames = getWeekdayNames();
   const weekday = weekdayNames[taiwanDate.day()];
@@ -123,7 +123,7 @@ export const CustomWeekdayHeader = ({ date }: any) => {
 
 // Custom Date Header Component for Month View
 // Accepts optional onClick handler for date navigation
-export const CustomDateHeader = ({ date, onClick }: any) => {
+export const CustomDateHeader = ({ date, onClick }: { date: Date; onClick?: () => void }) => {
   const taiwanDate = moment(date).tz('Asia/Taipei');
   
   const handleClick = (e: React.MouseEvent) => {
@@ -144,7 +144,7 @@ export const CustomDateHeader = ({ date, onClick }: any) => {
 };
 
 // Custom Day Header Component for Day View
-export const CustomDayHeader = ({ date }: any) => {
+export const CustomDayHeader = ({ date }: { date: Date }) => {
   const isMobile = useIsMobile();
   const taiwanDate = moment(date).tz('Asia/Taipei');
   const weekdayNames = getWeekdayNames();
@@ -169,7 +169,7 @@ export const CustomDayHeader = ({ date }: any) => {
 
 // Custom Week Header Component for Week View
 // Displays weekday and date for each day column in week view
-export const CustomWeekHeader = ({ date }: any) => {
+export const CustomWeekHeader = ({ date }: { date: Date }) => {
   const taiwanDate = moment(date).tz('Asia/Taipei');
   const weekdayNames = getWeekdayNames();
   const weekday = weekdayNames[taiwanDate.day()];

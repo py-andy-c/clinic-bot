@@ -326,7 +326,14 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
       // Backend decides: only show note/preview if notification will be sent
       if (!previewResponse.will_send_notification) {
         // No notification needed - save directly without note/preview steps
-        const formData: any = {
+        const formData: {
+          appointment_type_id?: number | null;
+          practitioner_id: number | null;
+          start_time: string;
+          clinic_notes?: string;
+          notification_note?: string;
+          selected_resource_ids?: number[];
+        } = {
           practitioner_id: selectedPractitionerId,
           start_time: newStartTimeISO,
         };
@@ -599,7 +606,14 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
     
     try {
       const newStartTime = moment.tz(`${selectedDate}T${selectedTime}`, 'Asia/Taipei').toISOString();
-      const formData: any = {
+      const formData: {
+        appointment_type_id?: number | null;
+        practitioner_id: number | null;
+        start_time: string;
+        clinic_notes?: string;
+        notification_note?: string;
+        selected_resource_ids?: number[];
+      } = {
         practitioner_id: selectedPractitionerId,
         start_time: newStartTime,
       };

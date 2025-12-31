@@ -161,7 +161,7 @@ const GlobalWarnings: React.FC = () => {
         practitionerWarnings,
         adminWarnings
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       // Silently handle network/CORS errors during auth recovery
       // These are expected when returning to tab after being in background
       const isNetworkError = err?.code === 'ERR_NETWORK' ||

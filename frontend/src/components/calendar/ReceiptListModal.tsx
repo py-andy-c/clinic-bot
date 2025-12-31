@@ -57,9 +57,10 @@ export const ReceiptListModal: React.FC<ReceiptListModalProps> = ({
       const receiptData = await Promise.all(receiptPromises);
       
       // Filter out failed loads and map to summary format
+      type ReceiptApiResponse = { receipt_id: number; receipt_number: string; issue_date: string; void_info?: { voided: boolean; voided_at?: string; reason?: string }; total_amount?: number };
       const validReceipts: ReceiptSummary[] = receiptData
-        .filter((r): r is any => r !== null)
-        .map((r: any) => ({
+        .filter((r): r is ReceiptApiResponse => r !== null)
+        .map((r: ReceiptApiResponse) => ({
           receipt_id: r.receipt_id,
           receipt_number: r.receipt_number,
           issue_date: r.issue_date,
@@ -76,7 +77,7 @@ export const ReceiptListModal: React.FC<ReceiptListModalProps> = ({
         });
       
       setReceipts(validReceipts);
-    } catch (err: any) {
+    } catch (err: unknown) {
       logger.error('Error loading receipts:', err);
       setError('無法載入收據列表');
     } finally {

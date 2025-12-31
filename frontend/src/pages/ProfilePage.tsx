@@ -37,7 +37,7 @@ const LineLinkingSection: React.FC<LineLinkingSectionProps> = ({ lineLinked, onR
       const response = await apiService.generateLinkCode();
       setLinkCode(response.code);
       setExpiresAt(new Date(response.expires_at));
-    } catch (err: any) {
+    } catch (err: unknown) {
       logger.error('Error generating link code:', err);
       alert('產生連結代碼失敗', getErrorMessage(err) || '請稍後再試');
     } finally {
@@ -57,7 +57,7 @@ const LineLinkingSection: React.FC<LineLinkingSectionProps> = ({ lineLinked, onR
       await apiService.unlinkLineAccount();
       alert('成功', 'LINE 帳號已取消連結');
       onRefresh();
-    } catch (err: any) {
+    } catch (err: unknown) {
       logger.error('Error unlinking LINE account:', err);
       alert('取消連結失敗', getErrorMessage(err) || '請稍後再試');
     } finally {
@@ -204,7 +204,7 @@ const ProfilePage: React.FC = () => {
       };
 
       // Fetch profile
-      let profileToUse: any = null;
+      let profileToUse: { schedule: Record<string, TimeInterval[]> } | null = null;
       try {
         profileToUse = await apiService.getProfile();
         setProfile(profileToUse);
@@ -368,7 +368,7 @@ const ProfilePage: React.FC = () => {
     if (!profileData) return;
 
     const daySchedule = profileData.schedule[dayKey] || [];
-    const updatedIntervals = daySchedule.map((interval: any, i: number) =>
+    const updatedIntervals = daySchedule.map((interval: TimeInterval, i: number) =>
       i === index ? { ...interval, [field]: value } : interval
     );
 
@@ -386,7 +386,7 @@ const ProfilePage: React.FC = () => {
     const daySchedule = profileData.schedule[dayKey] || [];
     const updatedSchedule = {
       ...profileData.schedule,
-      [dayKey]: daySchedule.filter((_: any, i: number) => i !== index),
+      [dayKey]: daySchedule.filter((_interval: TimeInterval, i: number) => i !== index),
     };
 
     updateData({ schedule: updatedSchedule });

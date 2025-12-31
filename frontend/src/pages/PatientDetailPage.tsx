@@ -109,7 +109,7 @@ const PatientDetailPage: React.FC = () => {
       setIsEditingNotes(false);
       setIsEditingPractitioners(false);
       await alert('病患資料已更新');
-    } catch (err: any) {
+    } catch (err: unknown) {
       logger.error('Update patient error:', err);
       const errorMessage = getErrorMessage(err);
       await alert(errorMessage || '更新病患資料失敗');

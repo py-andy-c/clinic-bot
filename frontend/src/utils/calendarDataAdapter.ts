@@ -47,19 +47,21 @@ export interface MonthlyCalendarEvent {
 /**
  * Transform API calendar events to React Big Calendar format
  */
-export const transformToCalendarEvents = (apiEvents: (ApiCalendarEvent | any)[]): CalendarEvent[] => {
+export const transformToCalendarEvents = (apiEvents: ApiCalendarEvent[]): CalendarEvent[] => {
   const taiwanTimezone = 'Asia/Taipei';
   
   return apiEvents.map(event => {
     // Create dates in Taiwan timezone
-    const startDateTime = moment.tz(`${(event as any).date}T${event.start_time || '00:00'}`, taiwanTimezone);
-    const endDateTime = moment.tz(`${(event as any).date}T${event.end_time || '23:59'}`, taiwanTimezone);
+    const eventDate = (event as ApiCalendarEvent & { date?: string }).date || '';
+    const startDateTime = moment.tz(`${eventDate}T${event.start_time || '00:00'}`, taiwanTimezone);
+    const endDateTime = moment.tz(`${eventDate}T${event.end_time || '23:59'}`, taiwanTimezone);
     
     // For resource events, use composite ID to ensure unique React keys
     // Format: calendar_event_id-resource-{resource_id}
     const eventId = event.calendar_event_id;
-    const isResourceEvent = (event as any).is_resource_event === true;
-    const resourceId = (event as any).resource_id;
+    const extendedEvent = event as ApiCalendarEvent & { is_resource_event?: boolean; resource_id?: number };
+    const isResourceEvent = extendedEvent.is_resource_event === true;
+    const resourceId = extendedEvent.resource_id;
     const uniqueId = isResourceEvent && resourceId
       ? `${eventId}-resource-${resourceId}`
       : eventId;
