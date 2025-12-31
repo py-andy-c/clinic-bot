@@ -26,7 +26,7 @@ import { ClinicNotesTextarea } from '../shared/ClinicNotesTextarea';
 import { preventScrollWheelChange } from '../../utils/inputUtils';
 import { NumberInput } from '../shared/NumberInput';
 import { ConflictIndicator } from '../shared';
-import { SchedulingConflictResponse } from '../../types';
+import { SchedulingConflictResponse, ResourceConflictDetail } from '../../types';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { ResourceSelection } from '../ResourceSelection';
 import { useAppointmentForm } from '../../hooks/useAppointmentForm';
