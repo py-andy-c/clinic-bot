@@ -144,7 +144,7 @@ const PatientsPage: React.FC = () => {
 
   // Use previous data if currently loading, otherwise use current data
   const displayData = loading && previousPatientsData ? previousPatientsData : patientsData;
-  const patients = displayData?.patients || [];
+  const patients = useMemo(() => displayData?.patients || [], [displayData?.patients]);
   const totalPatients = displayData?.total || 0;
   const totalPages = Math.ceil(totalPatients / pageSize);
   

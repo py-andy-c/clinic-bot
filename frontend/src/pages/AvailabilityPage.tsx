@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useApiData } from '../hooks/useApiData';
@@ -53,7 +53,7 @@ const AvailabilityPage: React.FC = () => {
     }
   );
 
-  const practitioners = practitionersData || [];
+  const practitioners = useMemo(() => practitionersData || [], [practitionersData]);
   
   // Load resources for resource selector
   const [resourcesLoading, setResourcesLoading] = useState(false);

@@ -120,7 +120,7 @@ const LineUsersPage: React.FC = () => {
 
   // Use previous data if currently loading, otherwise use current data
   const displayData = loading && previousLineUsersData ? previousLineUsersData : lineUsersData;
-  const lineUsers = displayData?.line_users || [];
+  const lineUsers = useMemo(() => displayData?.line_users || [], [displayData?.line_users]);
   const totalLineUsers = displayData?.total || 0;
   const totalPages = Math.ceil(totalLineUsers / pageSize);
   

@@ -90,12 +90,12 @@ export const useLineAuth = (lineProfile: { userId: string; displayName: string; 
 
 
   // Get clinic identifier from URL (liff_id or clinic_token)
-  const getClinicIdentifier = (): { type: 'liff_id' | 'token', value: string } | null => {
+  const getClinicIdentifier = useCallback((): { type: 'liff_id' | 'token', value: string } | null => {
     return getClinicIdentifierFromUrl();
-  };
+  }, []);
 
   // Get clinic_id from JWT token (clinic_id is no longer in URL)
-  const getClinicId = (token?: string | null): number | null => {
+  const getClinicId = useCallback((token?: string | null): number | null => {
     // Get from JWT token if provided
     if (token) {
       const tokenClinicId = getClinicIdFromToken(token);
@@ -110,10 +110,10 @@ export const useLineAuth = (lineProfile: { userId: string; displayName: string; 
     }
 
     return null;
-  };
+  }, []);
 
   // Shared helper: Validate existing JWT token
-  const validateExistingToken = async (token: string, checkCancelled?: () => boolean): Promise<boolean> => {
+  const validateExistingToken = useCallback(async (token: string, checkCancelled?: () => boolean): Promise<boolean> => {
         try {
           const response = await fetch(`${API_BASE_URL}/liff/patients`, {
             method: 'GET',
@@ -146,10 +146,10 @@ export const useLineAuth = (lineProfile: { userId: string; displayName: string; 
           localStorage.removeItem('liff_jwt_token');
       return false;
         }
-  };
+  }, [getClinicId]);
 
   // Shared helper: Authenticate with LINE profile
-  const performAuthentication = async (
+  const performAuthentication = useCallback(async (
     lineUserId: string,
     displayName: string,
     accessToken: string,
@@ -228,7 +228,7 @@ export const useLineAuth = (lineProfile: { userId: string; displayName: string; 
           }
 
     setIsLoading(false);
-  };
+  }, [t, getClinicIdentifier]);
 
   /**
    * CRITICAL SECURITY: Validate clinic isolation by comparing URL identifier with JWT identifier.
@@ -250,7 +250,7 @@ export const useLineAuth = (lineProfile: { userId: string; displayName: string; 
    * @param liff - Optional LIFF instance to get authoritative liff_id from getContext()
    * @returns true if URL identifier matches JWT identifier, false otherwise
    */
-  const validateClinicIsolation = (token: string, liff?: typeof import('@line/liff') | null): boolean => {
+  const validateClinicIsolation = useCallback((token: string, liff?: typeof import('@line/liff') | null): boolean => {
     const tokenLiffId = getLiffIdFromToken(token);
     const tokenClinicToken = getClinicTokenFromToken(token);
     const tokenClinicId = getClinicIdFromToken(token);
@@ -331,7 +331,7 @@ export const useLineAuth = (lineProfile: { userId: string; displayName: string; 
     }
 
     return false;
-  };
+  }, [getClinicIdentifier]);
 
   // Shared helper: Handle authentication flow (reusable by useEffect and refreshAuth)
   const handleAuth = useCallback(async (checkCancelled?: () => boolean) => {

@@ -412,7 +412,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
     : (hasValidSearch || shouldFetchForPreSelected)
       ? patientsData 
       : null;
-  const patients = displayData?.patients || [];
+  const patients = useMemo(() => displayData?.patients || [], [displayData?.patients]);
   const totalPatients = displayData?.total || 0;
   const displayPatients = patients;
   

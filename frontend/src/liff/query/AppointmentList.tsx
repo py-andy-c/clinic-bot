@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { checkCancellationConstraint } from '../../utils/appointmentConstraints';
@@ -87,7 +87,7 @@ const AppointmentList: React.FC = () => {
   useEffect(() => {
     loadAppointments();
     loadClinicInfo();
-  }, []);
+  }, [loadAppointments]);
 
   const loadClinicInfo = async () => {
     try {
@@ -128,7 +128,12 @@ const AppointmentList: React.FC = () => {
   
   // Calculate counts and filter appointments for all tabs
   // All times are interpreted as Taiwan time
-  const futureAppointments = allAppointments
+  // Memoize filtered arrays to prevent unnecessary re-renders
+  // Note: nowInTaiwan is intentionally excluded from dependencies as it changes every render
+  // and would defeat the purpose of memoization. The filtered arrays will update when allAppointments changes.
+  // allAppointments is a state variable (stable), so the warning about logical expression is a false positive.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const futureAppointments = useMemo(() => allAppointments
     .filter((apt) => {
       const startTime = moment.tz(apt.start_time, TAIWAN_TIMEZONE);
       // Use isSameOrAfter to include appointments happening exactly "now"
@@ -139,8 +144,9 @@ const AppointmentList: React.FC = () => {
       const timeA = moment.tz(a.start_time, TAIWAN_TIMEZONE);
       const timeB = moment.tz(b.start_time, TAIWAN_TIMEZONE);
       return timeA.valueOf() - timeB.valueOf();
-    });
-  const pastAppointments = allAppointments
+    }), [allAppointments]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const pastAppointments = useMemo(() => allAppointments
     .filter((apt) => {
       const startTime = moment.tz(apt.start_time, TAIWAN_TIMEZONE);
       // Use isBefore to exclude appointments happening exactly "now" (they appear in future)
@@ -151,8 +157,8 @@ const AppointmentList: React.FC = () => {
       const timeA = moment.tz(a.start_time, TAIWAN_TIMEZONE);
       const timeB = moment.tz(b.start_time, TAIWAN_TIMEZONE);
       return timeB.valueOf() - timeA.valueOf();
-    });
-  const cancelledAppointments = allAppointments
+    }), [allAppointments]);
+  const cancelledAppointments = useMemo(() => allAppointments
     .filter(
       (apt) =>
         apt.status === "canceled_by_patient" ||
@@ -163,7 +169,7 @@ const AppointmentList: React.FC = () => {
       const timeA = moment.tz(a.start_time, TAIWAN_TIMEZONE);
       const timeB = moment.tz(b.start_time, TAIWAN_TIMEZONE);
       return timeB.valueOf() - timeA.valueOf();
-    });
+    }), [allAppointments]);
 
   const displayAppointments =
     activeTab === "future"

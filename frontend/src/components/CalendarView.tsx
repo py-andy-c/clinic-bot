@@ -232,7 +232,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
 
   // Use practitioners from props (passed from AvailabilityPage) to avoid duplicate API calls
   // Fallback to empty array if prop is not provided (for other use cases)
-  const availablePractitioners = practitioners || [];
+  const availablePractitioners = useMemo(() => practitioners || [], [practitioners]);
 
   // Lazy-load clinic settings - only fetch when modals are opened
   // This reduces initial page load since settings are only needed for create/edit modals

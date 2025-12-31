@@ -59,9 +59,10 @@ const FreeTrialPage: React.FC = () => {
     }
 
     // Cleanup: clear widget on unmount
+    const currentWidgetRef = widgetRef.current;
     return () => {
-      if (widgetRef.current) {
-        widgetRef.current.innerHTML = '';
+      if (currentWidgetRef) {
+        currentWidgetRef.innerHTML = '';
       }
     };
   }, []);
