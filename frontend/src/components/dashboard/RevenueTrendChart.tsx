@@ -258,7 +258,7 @@ export const RevenueTrendChart: React.FC<RevenueTrendChartProps> = ({
                             ? serviceNames[dataKey] || dataKey
                             : practitionerNames[dataKey] || dataKey;
                           // Get original (unstacked) value from the data point
-                          const originalValue = entry.payload?.[`${dataKey}_original`] ?? entry.value ?? 0;
+                          const originalValue = (entry.payload as any)?.[`${dataKey}_original`] ?? entry.value ?? 0;
                           
                           return (
                             <div key={index} className="flex items-center gap-2">

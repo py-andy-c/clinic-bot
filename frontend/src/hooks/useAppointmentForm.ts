@@ -206,7 +206,7 @@ export const useAppointmentForm = ({
         if (shouldFetchResources && resourcesResult) {
           if (resourcesResult.status === 'fulfilled') {
             // Use fetched resources (more fresh) - this updates the initial state if it changed
-            const fetchedResources = resourcesResult.value.resources;
+            const fetchedResources = (resourcesResult.value as any).resources;
             const ids = fetchedResources.map((r: Resource) => r.id);
             const resourceData = fetchedResources.map((r: Resource) => ({
               id: r.id,

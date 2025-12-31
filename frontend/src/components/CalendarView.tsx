@@ -1476,7 +1476,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     // Format current date as YYYY-MM-DD for initial date selection
     const currentDateString = getDateString(currentDate);
     // Use null to explicitly mean "no patient" (button click), undefined means "use prop" (URL-based)
-    setModalState({ type: 'create_appointment', data: { patientId: patientId ?? null, initialDate: currentDateString } });
+    setModalState({ type: 'create_appointment', data: { patientId: patientId ?? null, initialDate: currentDateString } as any });
   }, [currentDate]);
 
   // Expose create appointment handler to parent

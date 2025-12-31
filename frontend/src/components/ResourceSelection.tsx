@@ -249,7 +249,7 @@ export const ResourceSelection: React.FC<ResourceSelectionProps> = ({
       // Auto-select suggested resources if none selected
       if (response.suggested_allocation.length > 0) {
         isUpdatingSelectionRef.current = true;
-        const suggestedIds = response.suggested_allocation.flatMap(allocation => allocation.resource_ids);
+        const suggestedIds = response.suggested_allocation.flatMap(allocation => (allocation as any).resource_ids);
         onSelectionChange(suggestedIds);
         lastSelectedRef.current = suggestedIds;
         setTimeout(() => {
