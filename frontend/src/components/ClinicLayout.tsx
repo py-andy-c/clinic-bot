@@ -34,7 +34,7 @@ const GlobalWarnings: React.FC = () => {
     fetchClinicSettingsFn,
     {
       enabled: !isLoading && isClinicAdmin,
-      dependencies: [isLoading, isClinicAdmin],
+      dependencies: [isLoading, isClinicAdmin, user?.active_clinic_id],
       cacheTTL: 5 * 60 * 1000, // 5 minutes cache
     }
   );
@@ -44,7 +44,7 @@ const GlobalWarnings: React.FC = () => {
     fetchMembersFn,
     {
       enabled: !isLoading && isClinicAdmin,
-      dependencies: [isLoading, isClinicAdmin],
+      dependencies: [isLoading, isClinicAdmin, user?.active_clinic_id],
       cacheTTL: 5 * 60 * 1000, // 5 minutes cache
     }
   );

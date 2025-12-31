@@ -95,6 +95,17 @@ else
     exit 1
 fi
 
+# Run ESLint (includes custom clinic-cache rule)
+# Temporarily disabled due to pre-existing ESLint errors (542 issues)
+# TODO: Re-enable after fixing pre-existing ESLint errors
+# print_status "Running ESLint..."
+# if npm run lint; then
+#     print_success "ESLint passed!"
+# else
+#     print_error "ESLint failed!"
+#     exit 1
+# fi
+
 # Run frontend unit tests
 # Set environment variables for tests (in case .env file can't be read)
 export VITE_API_BASE_URL="${VITE_API_BASE_URL:-/api}"
@@ -124,4 +135,3 @@ print_success "✅ All Frontend Tests Passed!"
 print_success "🔍 TypeScript: All type checks passed"
 print_success "✅ Unit tests: All passed"
 exit 0
-

@@ -21,7 +21,7 @@ import { CreateAppointmentModal } from '../components/calendar/CreateAppointment
 const PatientDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { hasRole, isLoading: authLoading, isAuthenticated } = useAuth();
+  const { hasRole, isLoading: authLoading, isAuthenticated, user } = useAuth();
   const { alert } = useModal();
   const [isEditing, setIsEditing] = useState(false);
   const [isEditingNotes, setIsEditingNotes] = useState(false);
@@ -65,7 +65,7 @@ const PatientDetailPage: React.FC = () => {
     fetchClinicSettings,
     {
       enabled: !authLoading && isAuthenticated,
-      dependencies: [authLoading, isAuthenticated],
+      dependencies: [authLoading, isAuthenticated, user?.active_clinic_id],
       defaultErrorMessage: '無法載入診所設定',
       cacheTTL: 5 * 60 * 1000, // 5 minutes cache
     }
@@ -77,7 +77,7 @@ const PatientDetailPage: React.FC = () => {
     fetchPractitioners,
     {
       enabled: !authLoading && isAuthenticated,
-      dependencies: [authLoading, isAuthenticated],
+      dependencies: [authLoading, isAuthenticated, user?.active_clinic_id],
       cacheTTL: 5 * 60 * 1000, // 5 minutes cache
     }
   );

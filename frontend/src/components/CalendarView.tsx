@@ -240,7 +240,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     fetchClinicSettingsFn,
     {
       enabled: !authLoading && isAuthenticated && shouldFetchSettings,
-      dependencies: [authLoading, isAuthenticated, shouldFetchSettings],
+      dependencies: [authLoading, isAuthenticated, shouldFetchSettings, user?.active_clinic_id],
       cacheTTL: 5 * 60 * 1000, // 5 minutes cache
     }
   );

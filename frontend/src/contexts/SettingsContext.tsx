@@ -53,7 +53,7 @@ export const SettingsProvider: React.FC<SettingsProviderProps> = ({ children }) 
     sharedFetchFunctions.getClinicSettings,
     {
       enabled: !isLoading,
-      dependencies: [isLoading],
+      dependencies: [isLoading, activeClinicId],
       cacheTTL: 5 * 60 * 1000, // 5 minutes cache
     }
   );

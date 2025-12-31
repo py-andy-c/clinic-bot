@@ -43,6 +43,7 @@
 import { useState, useEffect, useCallback, useRef, DependencyList } from 'react';
 import { logger } from '../utils/logger';
 import { ApiErrorType, getErrorMessage } from '../types';
+import { useAuth } from './useAuth';
 
 // Simple in-memory cache with TTL
 interface CacheEntry<T> {
@@ -117,14 +118,102 @@ function simpleHash(str: string): string {
   return Math.abs(hash).toString(36);
 }
 
-function getCacheKey(fetchFn: () => Promise<any>, dependencies?: DependencyList): string {
+/**
+ * Clinic-specific URL patterns (matches backend routes)
+ * These endpoints are clinic-scoped and should include clinic ID in cache keys.
+ * 
+ * When adding new clinic-specific endpoints, add their URL patterns here.
+ * Patterns are matched against the endpoint URL extracted from the fetch function.
+ */
+const CLINIC_SPECIFIC_URL_PATTERNS = [
+  /^\/clinic\//,           // /clinic/settings, /clinic/members, etc.
+  /^\/appointments/,        // Appointment endpoints are clinic-scoped
+  /^\/patients/,            // Patient endpoints are clinic-scoped
+  /^\/dashboard\/metrics/, // Dashboard metrics are clinic-specific
+  /^\/liff\/clinic-info/,  // LIFF clinic info is clinic-specific
+];
+
+/**
+ * Clinic-specific method names (fallback when URL extraction fails)
+ * These methods are known to be clinic-scoped.
+ * 
+ * When adding new clinic-specific endpoints, add their method names here.
+ * Also update the same list in eslint-plugin-clinic-cache/index.js
+ */
+const CLINIC_SPECIFIC_METHODS = new Set([
+  'getClinicSettings',
+  'getMembers',
+  'getPractitioners',
+  'getServiceTypeGroups',
+  'getAutoAssignedAppointments',
+  'getDashboardMetrics',
+  'getBatchPractitionerStatus',
+  'getPractitionerStatus',
+  'getClinicInfo', // LIFF
+]);
+
+/**
+ * Check if an endpoint URL is clinic-specific
+ */
+function isClinicSpecificEndpoint(url: string): boolean {
+  return CLINIC_SPECIFIC_URL_PATTERNS.some(pattern => pattern.test(url));
+}
+
+/**
+ * Try to extract endpoint URL from function string
+ * Looks for patterns like: this.client.get('/clinic/settings')
+ * Returns null if URL cannot be extracted
+ */
+function extractEndpointUrl(functionString: string): string | null {
+  // Match axios call patterns: client.get('/path'), client.post('/path'), etc.
+  const urlMatch = functionString.match(/\.(get|post|put|patch|delete)\s*\(\s*['"`]([^'"`]+)['"`]/);
+  if (urlMatch && urlMatch[2]) {
+    return urlMatch[2];
+  }
+  return null;
+}
+
+/**
+ * Generate a cache key for a fetch function.
+ * 
+ * For clinic-specific endpoints (detected via URL patterns or method names),
+ * automatically includes the active clinic ID in the cache key to ensure
+ * proper cache separation between clinics.
+ * 
+ * @param fetchFn - The fetch function to generate a cache key for
+ * @param dependencies - Optional dependencies array (e.g., from useApiData)
+ * @param activeClinicId - The active clinic ID to include for clinic-specific endpoints
+ * @returns A cache key string
+ */
+function getCacheKey(
+  fetchFn: () => Promise<any>, 
+  dependencies?: DependencyList,
+  activeClinicId?: number | null
+): string {
   // Normalize function string to extract method name
   // This handles minification differences (e.g., xe.getClinicSettings() vs j.getClinicSettings())
   const functionString = fetchFn.toString();
   
+  // Try to extract endpoint URL first (more reliable than method name)
+  const endpointUrl = extractEndpointUrl(functionString);
+  const isClinicSpecificByUrl = endpointUrl ? isClinicSpecificEndpoint(endpointUrl) : false;
+  
   // Match common HTTP method patterns: get, post, put, patch, delete, update, create
   // Also handle batch methods like getBatchPractitionerStatus
   const methodMatch = functionString.match(/\.(get\w+|post\w+|put\w+|patch\w+|update\w+|create\w+|delete\w+)\s*\(/);
+  const isClinicSpecificByMethod = methodMatch && methodMatch[1] 
+    ? CLINIC_SPECIFIC_METHODS.has(methodMatch[1])
+    : false;
+  
+  // Determine if endpoint is clinic-specific
+  const isClinicSpecific = isClinicSpecificByUrl || isClinicSpecificByMethod;
+  
+  // Auto-inject clinic ID for clinic-specific endpoints
+  // Note: null is included (differentiates "no clinic" vs "clinic 1")
+  let effectiveDeps = dependencies || [];
+  if (isClinicSpecific && activeClinicId !== undefined) {
+    effectiveDeps = [...effectiveDeps, activeClinicId];
+  }
   
   if (methodMatch && methodMatch[1]) {
     const methodName = methodMatch[1];
@@ -134,12 +223,13 @@ function getCacheKey(fetchFn: () => Promise<any>, dependencies?: DependencyList)
     
     // Include dependencies in cache key if provided (for parameterized functions)
     // This ensures different IDs get different cache keys
+    // Use effectiveDeps (which includes clinic ID if applicable) instead of dependencies
     let dependencySuffix = '';
-    if (dependencies && dependencies.length > 0) {
+    if (effectiveDeps && effectiveDeps.length > 0) {
       // Create a stable string representation of dependencies
       // Include null/undefined values as special markers to differentiate cache keys
       // This is important: null vs undefined vs actual values should create different cache keys
-      const depValues = dependencies
+      const depValues = effectiveDeps
         .map(dep => {
           // Handle null and undefined explicitly (they are different values for cache purposes)
           if (dep === null) return '__null__';
@@ -201,8 +291,9 @@ function getCacheKey(fetchFn: () => Promise<any>, dependencies?: DependencyList)
   }
 
   // Fallback for non-standard functions - use full function string and dependencies for uniqueness
-  const fallbackKey = dependencies && dependencies.length > 0
-    ? `${functionString}_${dependencies.map(d => {
+  // Use effectiveDeps (which includes clinic ID if applicable) instead of dependencies
+  const fallbackKey = effectiveDeps && effectiveDeps.length > 0
+    ? `${functionString}_${effectiveDeps.map(d => {
         if (d === null) return '__null__';
         if (d === undefined) return '__undefined__';
         return String(d);
@@ -225,10 +316,33 @@ export function clearApiDataCache(): void {
   registrationLocks.clear();
 }
 
-// Export function to invalidate cache for a specific fetch function
+/**
+ * Invalidate cache for a specific fetch function.
+ * 
+ * For clinic-specific endpoints, this invalidates ALL clinic variants (all clinic IDs).
+ * This is intentional - when a clinic-specific endpoint is invalidated, we want to
+ * clear the cache for all clinics to ensure data consistency.
+ * 
+ * If you need to invalidate only a specific clinic's cache, use `invalidateCacheByPattern`
+ * with a more specific pattern that includes the clinic ID.
+ * 
+ * @param fetchFn - The fetch function to invalidate cache for
+ */
 export function invalidateCacheForFunction(fetchFn: () => Promise<any>): void {
-  const cacheKey = getCacheKey(fetchFn);
-  cache.delete(cacheKey);
+  // Try to invalidate for all possible clinic IDs by using pattern matching
+  const functionString = fetchFn.toString();
+  const methodMatch = functionString.match(/\.(get\w+|post\w+|put\w+|patch\w+|update\w+|create\w+|delete\w+)\s*\(/);
+  
+  if (methodMatch && methodMatch[1]) {
+    const methodName = methodMatch[1];
+    // Invalidate all cache keys starting with this method name
+    // This includes all clinic-specific variants (different clinic IDs)
+    invalidateCacheByPattern(`api_${methodName}`);
+  } else {
+    // Fallback: try to delete by exact key (without clinic ID)
+    const cacheKey = getCacheKey(fetchFn);
+    cache.delete(cacheKey);
+  }
   // Note: We don't clear in-flight requests as they may be needed by other components
 }
 
@@ -370,6 +484,19 @@ export function useApiData<T>(
     cacheTTL = DEFAULT_CACHE_TTL,
   } = options;
 
+  /**
+   * Auto-injection of clinic ID into cache keys:
+   * 
+   * For clinic-specific endpoints (detected via URL patterns or method names),
+   * the active clinic ID is automatically included in the cache key. This ensures
+   * proper cache separation when users switch between clinics.
+   * 
+   * The clinic ID is obtained from useAuth() and stored in a ref to avoid
+   * unnecessary re-renders while ensuring cache keys are always up-to-date.
+   */
+  const { user } = useAuth();
+  const activeClinicId = user?.active_clinic_id;
+
   const [data, setData] = useState<T | null>(initialData ?? null);
   const [loading, setLoading] = useState<boolean>(enabled);
   const [error, setError] = useState<string | null>(null);
@@ -383,6 +510,9 @@ export function useApiData<T>(
   // Update synchronously on each render to ensure we always have the latest values
   const dependenciesRef = useRef(dependencies);
   dependenciesRef.current = dependencies; // Update synchronously, not in effect
+  // Store activeClinicId in ref for use in performFetch
+  const activeClinicIdRef = useRef(activeClinicId);
+  activeClinicIdRef.current = activeClinicId; // Update synchronously
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -407,7 +537,8 @@ export function useApiData<T>(
     // Use ref to always get the latest dependencies without recreating this callback
     // dependenciesRef.current is updated synchronously on each render, so it's always current
     const currentDeps = dependenciesRef.current;
-    const cacheKey = getCacheKey(fetchFn, currentDeps);
+    const currentClinicId = activeClinicIdRef.current;
+    const cacheKey = getCacheKey(fetchFn, currentDeps, currentClinicId);
     if (cacheKey && inFlightRequests.has(cacheKey)) {
       try {
         const result = await inFlightRequests.get(cacheKey)!;
@@ -631,15 +762,19 @@ export function useApiData<T>(
         logger.error('useApiData: Fetch error:', err);
       }
     }
-  }, [fetchFn, enabled, defaultErrorMessage, onSuccess, onError, logErrors, cacheTTL, initialData]);
+  }, [fetchFn, enabled, defaultErrorMessage, onSuccess, onError, logErrors, cacheTTL, initialData, activeClinicId]);
 
   // Auto-fetch on mount and when dependencies change
+  // Include activeClinicId in dependencies to trigger refetch when clinic changes
+  // Note: activeClinicId is included here to ensure refetch when clinic switches,
+  // even though performFetch uses activeClinicIdRef.current. This is necessary
+  // because the cache key changes when clinic changes, requiring a new fetch.
   useEffect(() => {
     if (enabled) {
       performFetch();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, ...dependencies]);
+  }, [enabled, activeClinicId, ...dependencies]);
 
   const refetch = useCallback(async () => {
     await performFetch();

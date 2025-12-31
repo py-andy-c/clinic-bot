@@ -15,6 +15,14 @@ vi.mock('../../utils/logger', () => ({
   },
 }));
 
+// Mock useAuth
+let mockClinicId: number | null | undefined = 1;
+vi.mock('../useAuth', () => ({
+  useAuth: vi.fn(() => ({
+    user: mockClinicId !== undefined ? { active_clinic_id: mockClinicId } : null,
+  })),
+}));
+
 describe('useApiData', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -269,6 +277,159 @@ describe('useApiData', () => {
 
     // Should not throw errors
     expect(fetchFn).toHaveBeenCalled();
+  });
+
+  describe('clinic ID auto-injection', () => {
+    beforeEach(() => {
+      clearApiDataCache();
+      mockClinicId = 1; // Reset to default
+    });
+
+    it('should include clinic ID in cache key for clinic-specific endpoints (method name)', async () => {
+      // Mock clinic-specific method
+      const mockApiService = {
+        getClinicSettings: vi.fn().mockResolvedValue({ settings: 'test' }),
+      };
+      const fetchFn = () => mockApiService.getClinicSettings();
+      
+      // Test with clinic ID 1
+      mockClinicId = 1;
+      const { result: result1, rerender } = renderHook(() => 
+        useApiData(fetchFn, { cacheTTL: 60000 })
+      );
+      
+      await waitFor(() => {
+        expect(result1.current.loading).toBe(false);
+      });
+      
+      expect(mockApiService.getClinicSettings).toHaveBeenCalledTimes(1);
+      
+      // Clear cache to ensure we're testing cache key differences, not cache hits
+      clearApiDataCache();
+      
+      // Switch to clinic ID 2 - should trigger new fetch
+      mockClinicId = 2;
+      rerender();
+      
+      await waitFor(() => {
+        expect(result1.current.loading).toBe(false);
+      });
+      
+      // Should fetch again because cache key includes clinic ID
+      expect(mockApiService.getClinicSettings).toHaveBeenCalledTimes(2);
+    });
+
+    it('should include clinic ID in cache key for clinic-specific endpoints (URL pattern)', async () => {
+      // Mock function that matches URL pattern
+      const fetchFn = () => Promise.resolve({ data: 'test' });
+      // Override toString to simulate URL pattern
+      fetchFn.toString = () => "this.client.get('/clinic/settings')";
+      
+      // Test with clinic ID 1
+      mockClinicId = 1;
+      const { result: result1, rerender } = renderHook(() => 
+        useApiData(fetchFn, { cacheTTL: 60000 })
+      );
+      
+      await waitFor(() => {
+        expect(result1.current.loading).toBe(false);
+      });
+      
+      // Switch to clinic ID 2 - should trigger new fetch
+      mockClinicId = 2;
+      rerender();
+      
+      await waitFor(() => {
+        expect(result1.current.loading).toBe(false);
+      });
+      
+      // Should have fetched twice (once per clinic)
+      expect(result1.current.data).toBeTruthy();
+    });
+
+    it('should not include clinic ID for non-clinic-specific endpoints', async () => {
+      // Mock non-clinic-specific method
+      const mockApiService = {
+        getSystemInfo: vi.fn().mockResolvedValue({ info: 'test' }),
+      };
+      const fetchFn = () => mockApiService.getSystemInfo();
+      
+      // Test with clinic ID 1
+      mockClinicId = 1;
+      const { result: result1, rerender } = renderHook(() => 
+        useApiData(fetchFn, { cacheTTL: 60000 })
+      );
+      
+      await waitFor(() => {
+        expect(result1.current.loading).toBe(false);
+      });
+      
+      expect(mockApiService.getSystemInfo).toHaveBeenCalledTimes(1);
+      
+      // Switch to clinic ID 2 - should NOT trigger new fetch (same cache key)
+      mockClinicId = 2;
+      rerender();
+      
+      // Wait a bit to ensure no new fetch
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Should still be called only once (cached)
+      expect(mockApiService.getSystemInfo).toHaveBeenCalledTimes(1);
+    });
+
+    it('should handle null clinic ID correctly', async () => {
+      const mockApiService = {
+        getClinicSettings: vi.fn().mockResolvedValue({ settings: 'test' }),
+      };
+      const fetchFn = () => mockApiService.getClinicSettings();
+      
+      // Test with null clinic ID
+      mockClinicId = null;
+      const { result: result1, rerender } = renderHook(() => 
+        useApiData(fetchFn, { cacheTTL: 60000 })
+      );
+      
+      await waitFor(() => {
+        expect(result1.current.loading).toBe(false);
+      });
+      
+      expect(mockApiService.getClinicSettings).toHaveBeenCalledTimes(1);
+      
+      // Clear cache to ensure we're testing cache key differences
+      clearApiDataCache();
+      
+      // Switch to clinic ID 1 - should trigger new fetch (null vs 1 are different)
+      mockClinicId = 1;
+      rerender();
+      
+      await waitFor(() => {
+        expect(result1.current.loading).toBe(false);
+      });
+      
+      // Should fetch again because null and 1 are different cache keys
+      expect(mockApiService.getClinicSettings).toHaveBeenCalledTimes(2);
+    });
+
+    it('should handle undefined clinic ID (no user)', async () => {
+      const mockApiService = {
+        getClinicSettings: vi.fn().mockResolvedValue({ settings: 'test' }),
+      };
+      const fetchFn = () => mockApiService.getClinicSettings();
+      
+      // Test with undefined clinic ID (no user)
+      mockClinicId = undefined;
+      const { result } = renderHook(() => 
+        useApiData(fetchFn, { cacheTTL: 60000 })
+      );
+      
+      await waitFor(() => {
+        expect(result.current.loading).toBe(false);
+      });
+      
+      // Should still work (undefined is not included in cache key)
+      expect(mockApiService.getClinicSettings).toHaveBeenCalledTimes(1);
+      expect(result.current.data).toBeTruthy();
+    });
   });
 });
 

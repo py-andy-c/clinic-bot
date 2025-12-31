@@ -22,7 +22,7 @@ export type AppointmentsSettingsFormData = z.infer<typeof AppointmentsSettingsFo
 
 const SettingsAppointmentsPage: React.FC = () => {
   const { settings, uiState, saveData, updateData } = useSettings();
-  const { isClinicAdmin } = useAuth();
+  const { isClinicAdmin, user } = useAuth();
   const { alert } = useModal();
   const { onInvalid: scrollOnError } = useFormErrorScroll();
   const [showLiffInfoModal, setShowLiffInfoModal] = useState(false);
@@ -35,6 +35,7 @@ const SettingsAppointmentsPage: React.FC = () => {
     () => apiService.getMembers(),
     {
       enabled: true,
+      dependencies: [user?.active_clinic_id],
       cacheTTL: 5 * 60 * 1000,
     }
   );
