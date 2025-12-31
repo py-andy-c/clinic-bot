@@ -264,7 +264,7 @@ export const RevenueTrendChart: React.FC<RevenueTrendChartProps> = ({
                             <div key={index} className="flex items-center gap-2">
                               <div
                                 className="w-3 h-3 rounded"
-                                style={{ backgroundColor: entry.color }}
+                                style={{ backgroundColor: entry.color as any }}
                               />
                               <span className="text-sm text-gray-700">{displayName}:</span>
                               <span className="text-sm font-medium text-gray-900">

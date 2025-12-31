@@ -534,7 +534,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
           return {
             ...occ,
             hasConflict: conflictStatus.has_conflict || false,
-            conflictInfo: conflictInfo,
+            conflictInfo: conflictInfo as any,
           };
         });
         
@@ -641,9 +641,9 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
           start_time: startTime,
         };
         if (clinicNotes.trim()) formData.clinic_notes = clinicNotes.trim();
-        if (selectedResourceIds.length > 0) formData.selected_resource_ids = selectedResourceIds;
+        if (selectedResourceIds.length > 0) (formData as any).selected_resource_ids = selectedResourceIds;
         
-        await onConfirm(formData);
+        await onConfirm(formData as any);
         
         // After successful appointment creation, check for assignment prompt
         // Only check if practitioner is not null (not "不指定")
@@ -1067,7 +1067,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
                         setOccurrences(occurrences.map(o => o.id === occ.id ? {
                           ...o, date, time, 
                           hasConflict: conflictStatus.has_conflict || false,
-                          conflictInfo: conflictInfo?.has_conflict ? conflictInfo : null
+                          conflictInfo: conflictInfo?.has_conflict ? conflictInfo as any : null
                         } : o));
                         setEditingOccurrenceId(null);
                         setError(null);
@@ -1154,7 +1154,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
                   setOccurrences([...occurrences, {
                     id: newOccId, date, time,
                     hasConflict: conflictStatus.has_conflict || false,
-                    conflictInfo: conflictInfo?.has_conflict ? conflictInfo : null
+                    conflictInfo: conflictInfo?.has_conflict ? conflictInfo as any : null
                   }]);
                   setAddingOccurrence(false);
                   setError(null);

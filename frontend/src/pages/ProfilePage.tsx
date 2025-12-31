@@ -254,7 +254,7 @@ const ProfilePage: React.FC = () => {
       if (user?.roles?.includes('practitioner') && user.user_id) {
         try {
           const scheduleData = await apiService.getPractitionerDefaultSchedule(user.user_id);
-          result.schedule = scheduleData;
+          result.schedule = scheduleData as any;
         } catch (err) {
           logger.warn('Could not fetch availability schedule:', err);
         }

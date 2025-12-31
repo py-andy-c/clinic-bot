@@ -789,7 +789,7 @@ const SettingsServiceItemsPage: React.FC = () => {
                 baseData.days_after = message.days_after!;
               }
               if (message.time_of_day !== null) {
-                baseData.time_of_day = message.time_of_day;
+                baseData.time_of_day = message.time_of_day!;
               }
             }
 

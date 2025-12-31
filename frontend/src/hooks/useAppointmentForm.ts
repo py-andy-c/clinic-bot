@@ -168,7 +168,7 @@ export const useAppointmentForm = ({
         let practitionersReadyFromResult = false;
         
         if (practitionersResult && practitionersResult.status === 'fulfilled') {
-          const sorted = [...practitionersResult.value].sort((a, b) => a.full_name.localeCompare(b.full_name, 'zh-TW'));
+          const sorted = [...(practitionersResult.value as any[])].sort((a, b) => a.full_name.localeCompare(b.full_name, 'zh-TW'));
           setAvailablePractitioners(sorted);
           practitionersReadyFromResult = true;
           

@@ -201,7 +201,7 @@ const AppointmentList: React.FC = () => {
         await showAlert(t('appointment.errors.cancelTooSoon', { hours }), t('appointment.cancelFailedTitle'));
       } else {
         // Fallback: try to extract from error message (for backward compatibility)
-        const errorMessage: string = typeof errorDetail === 'string' ? errorDetail : (typeof errorDetail === 'object' ? String(errorDetail) : axiosError?.response?.data?.detail || axiosError?.message || '');
+        const errorMessage = typeof errorDetail === 'string' ? errorDetail : (typeof errorDetail === 'object' ? String(errorDetail) : axiosError?.response?.data?.detail || axiosError?.message || '');
         // Check for numeric pattern that works across languages
         const hoursMatch = errorMessage.match(/(\d+)/);
         if (hoursMatch && (
