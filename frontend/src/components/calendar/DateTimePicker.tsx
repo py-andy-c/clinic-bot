@@ -401,7 +401,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
           const cacheKey = getCacheKey(selectedPractitionerId, appointmentTypeId, monthKey, date);
           const cachedSlots = getCachedSlots(cacheKey);
           if (cachedSlots !== null) {
-            newLocalCache.set(`${selectedPractitionerId}-${date}`, { slots: cachedSlots });
+            newLocalCache.set(`${selectedPractitionerId}-${date}`, { slots: cachedSlots.map(slot => ({ start: slot.start_time, end: slot.end_time })) });
             if (cachedSlots.length > 0) datesWithAvailableSlots.add(date);
           } else {
             allInCache = false;
@@ -433,7 +433,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
               const slots = result.available_slots || [];
               
               setCachedSlots(cacheKey, slots);
-              finalLocalCache.set(`${selectedPractitionerId}-${result.date}`, { slots });
+              finalLocalCache.set(`${selectedPractitionerId}-${result.date}`, { slots: slots.map(slot => ({ start: slot.start_time, end: slot.end_time })) });
               
               if (slots.length > 0) {
                 finalDatesWithAvailableSlots.add(result.date);

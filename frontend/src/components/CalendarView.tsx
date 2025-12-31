@@ -1280,13 +1280,13 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       await apiService.cancelClinicAppointment(modalState.data.resource.appointment_id, cancellationNote.trim() || undefined);
 
       // Invalidate cache for the appointment's date
-      const calendarEvent = modalState.data as CalendarEvent;
+      const calendarEvent = modalState.data as any;
       const appointmentDate = calendarEvent.date || getDateString(calendarEvent.start);
       invalidateCacheForDateRange(appointmentDate, appointmentDate);
       
       // Invalidate availability cache for the appointment's date, practitioner, and appointment type
-      const practitionerId = modalState.data.resource.practitioner_id;
-      const appointmentTypeId = modalState.data.resource.appointment_type_id;
+      const practitionerId = calendarEvent.resource.practitioner_id;
+      const appointmentTypeId = calendarEvent.resource.appointment_type_id;
       if (practitionerId && appointmentTypeId) {
         invalidateCacheForDate(practitionerId, appointmentTypeId, appointmentDate);
         invalidateResourceCacheForDate(practitionerId, appointmentTypeId, appointmentDate);
@@ -1333,7 +1333,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       await apiService.deleteAvailabilityException(userId, modalState.data.resource.exception_id);
       
       // Invalidate cache for the exception's date
-      const calendarEvent = modalState.data as CalendarEvent;
+      const calendarEvent = modalState.data as any;
       const exceptionDate = calendarEvent.date || getDateString(calendarEvent.start);
       invalidateCacheForDateRange(exceptionDate, exceptionDate);
       
@@ -1434,7 +1434,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       );
 
       // Invalidate cache for both old and new dates (in case appointment moved to different day)
-      const calendarEvent = modalState.data as CalendarEvent;
+      const calendarEvent = modalState.data as any;
       const oldDate = calendarEvent.date || getDateString(calendarEvent.start);
       const newDate = moment(formData.start_time).format('YYYY-MM-DD'); // Extract date from ISO datetime string
       invalidateCacheForDateRange(oldDate, oldDate);
