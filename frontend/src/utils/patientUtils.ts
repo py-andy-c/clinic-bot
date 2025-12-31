@@ -29,3 +29,4 @@ export const getAssignedPractitionerIds = (patient: Patient | null): number[] =>
 };
 
 
+

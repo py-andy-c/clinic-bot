@@ -206,3 +206,4 @@ This document covers:
 All business rules are enforced at the prompt level (system prompt) and cannot be overridden by clinic settings for safety-critical rules.
 
 
+

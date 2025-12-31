@@ -534,7 +534,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
           return {
             ...occ,
             hasConflict: conflictStatus.has_conflict || false,
-            conflictInfo: conflictInfo?.has_conflict ? conflictInfo : null,
+            conflictInfo: conflictInfo,
           };
         });
         

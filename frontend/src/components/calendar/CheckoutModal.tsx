@@ -350,7 +350,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     
     // Handle service item change
     if (field === 'service_item_id') {
-      const newServiceItemId = value;
+      const newServiceItemId = value != null ? Number(value) : 0;
       const wasOther = !currentItem.service_item_id;
       
       if (newServiceItemId) {
@@ -429,7 +429,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     
     // Handle practitioner change
     else if (field === 'practitioner_id') {
-      const newPractitionerId = value;
+      const newPractitionerId = value != null ? Number(value) : null;
       const serviceItemId = currentItem.service_item_id;
       
       newItems[index] = {
@@ -455,12 +455,12 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         // A scenario was selected - set amount and revenue_share from scenario values
         const key = `${serviceItemId}-${practitionerId}`;
         const scenarios = billingScenarios[key] || [];
-        const scenario = scenarios.find((s: BillingScenario) => s.id === value);
+        const scenario = scenarios.find((s: BillingScenario) => s.id === Number(value));
         
         if (scenario) {
           newItems[index] = {
             ...currentItem,
-            billing_scenario_id: value,
+            billing_scenario_id: value != null ? Number(value) : null,
             amount: normalizeScenarioValue(scenario.amount),
             revenue_share: normalizeScenarioValue(scenario.revenue_share),
           };
@@ -468,7 +468,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           // Scenario not found, reset to 0
           newItems[index] = {
             ...currentItem,
-            billing_scenario_id: value,
+            billing_scenario_id: value != null ? Number(value) : null,
             amount: 0,
             revenue_share: 0,
           };
@@ -573,14 +573,14 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         };
         
         if (isServiceItem) {
-          apiItem.service_item_id = item.service_item_id;
+          apiItem.service_item_id = item.service_item_id!;
           // Only include billing_scenario_id if it's set (not null/undefined)
           if (item.billing_scenario_id != null) {
             apiItem.billing_scenario_id = item.billing_scenario_id;
           }
         } else {
           // For "other" type, item_name is required
-          apiItem.item_name = item.custom_name;
+          apiItem.item_name = item.custom_name!;
         }
         
         // Include practitioner_id only if it's set (not undefined/null)
