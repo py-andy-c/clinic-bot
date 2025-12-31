@@ -164,10 +164,11 @@ const GlobalWarnings: React.FC = () => {
     } catch (err: unknown) {
       // Silently handle network/CORS errors during auth recovery
       // These are expected when returning to tab after being in background
-      const isNetworkError = err?.code === 'ERR_NETWORK' ||
-        err?.message?.includes('Network Error') ||
-        err?.message?.includes('Load failed') ||
-        err?.message?.includes('CORS');
+      const error = err as { code?: string; message?: string };
+      const isNetworkError = error?.code === 'ERR_NETWORK' ||
+        error?.message?.includes('Network Error') ||
+        error?.message?.includes('Load failed') ||
+        error?.message?.includes('CORS');
 
       if (!isNetworkError) {
         // Only log non-network errors (actual API failures)

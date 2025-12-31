@@ -144,7 +144,8 @@ export const ReceiptViewModal: React.FC<ReceiptViewModalProps> = ({
       onClose();
     } catch (err: unknown) {
       logger.error('Error voiding receipt:', err);
-      alert(err.response?.data?.detail || '作廢失敗，請重試');
+      const axiosError = err as { response?: { data?: { detail?: string } } };
+      alert(axiosError.response?.data?.detail || '作廢失敗，請重試');
     } finally {
       setIsVoiding(false);
     }

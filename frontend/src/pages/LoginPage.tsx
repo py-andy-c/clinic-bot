@@ -33,7 +33,7 @@ const LoginPage: React.FC = () => {
       
       const backendError = getErrorMessage(error);
       if (backendError) {
-        
+
         // Translate specific backend error messages to user-friendly Traditional Chinese
         if (backendError.includes('診所使用者認證必須透過註冊流程')) {
           errorMsg = '您尚未註冊為診所使用者，請聯繫診所管理員取得註冊連結';
@@ -51,8 +51,11 @@ const LoginPage: React.FC = () => {
           // For other errors, show the backend message if it's in Chinese, otherwise show generic message
           errorMsg = backendError;
         }
-      } else if (error?.message) {
-        errorMsg = error.message;
+      } else {
+        const err = error as { message?: string };
+        if (err?.message) {
+          errorMsg = err.message;
+        }
       }
       
       setErrorMessage(errorMsg);

@@ -5,7 +5,7 @@ import { logger } from '../../utils/logger';
 import { LoadingSpinner, ErrorMessage, DateInput } from '../../components/shared';
 import { formatDateForApi, convertApiDateToDisplay } from '../../utils/dateFormat';
 import { validatePhoneNumber } from '../../utils/phoneValidation';
-import { getErrorMessage, AxiosErrorResponse } from '../../types';
+import { getErrorMessage, AxiosErrorResponse, ApiErrorType } from '../../types';
 import { useAppointmentStore } from '../../stores/appointmentStore';
 import { liffApiService } from '../../services/liffApi';
 import { useModal } from '../../contexts/ModalContext';

@@ -72,7 +72,8 @@ const ClinicSwitcher: React.FC<ClinicSwitcherProps> = ({
       setIsOpen(false);
     } catch (err: unknown) {
       logger.error('Clinic switch failed:', err);
-      setError(err.message || '切換診所失敗，請稍後再試');
+      const error = err as { message?: string };
+      setError(error.message || '切換診所失敗，請稍後再試');
     }
   };
 

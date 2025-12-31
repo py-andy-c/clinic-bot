@@ -59,9 +59,10 @@ const SignupPage: React.FC<SignupPageProps> = ({
       window.location.href = response.auth_url;
     } catch (err: unknown) {
       logger.error('Signup error:', err);
-      if (err.response?.status === 400) {
+      const axiosError = err as { response?: { status?: number } };
+      if (axiosError.response?.status === 400) {
         setError('邀請連結無效或已過期');
-      } else if (err.response?.status === 409) {
+      } else if (axiosError.response?.status === 409) {
         setError('此邀請連結已被使用');
       } else {
         setError('註冊失敗，請稍後再試');
@@ -127,7 +128,8 @@ const SignupPage: React.FC<SignupPageProps> = ({
       }
     } catch (err: unknown) {
       logger.error('Join clinic error:', err);
-      if (err.response?.status === 400) {
+      const axiosError = err as { response?: { status?: number } };
+      if (axiosError.response?.status === 400) {
         const detail = getErrorMessage(err) || '無法加入診所';
         if (detail.includes('已經是此診所的成員')) {
           setError('您已經是此診所的成員');
