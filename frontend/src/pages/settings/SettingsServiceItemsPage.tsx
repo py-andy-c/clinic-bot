@@ -489,7 +489,8 @@ const SettingsServiceItemsPage: React.FC = () => {
       return { groupMapping, errors };
     } catch (err: unknown) {
       logger.error('Error reloading groups:', err);
-      errors.push(`重新載入群組失敗：${err?.message || '未知錯誤'}`);
+      const error = err as { message?: string };
+      errors.push(`重新載入群組失敗：${error?.message || '未知錯誤'}`);
       return { groupMapping, errors };
     }
   };
@@ -682,7 +683,8 @@ const SettingsServiceItemsPage: React.FC = () => {
         assignmentResult.errors.forEach(err => errors.push(`治療師指派：${err}`));
       }
     } catch (err: unknown) {
-      errors.push(`儲存治療師指派失敗：${err?.message || '未知錯誤'}`);
+      const error = err as { message?: string };
+      errors.push(`儲存治療師指派失敗：${error?.message || '未知錯誤'}`);
     }
     
     // Save billing scenarios (pass idMapping to handle temporary service item IDs)
@@ -694,7 +696,8 @@ const SettingsServiceItemsPage: React.FC = () => {
       // Note: We don't update staging store here because we reload from server below (line 854)
       // This ensures consistency with server state and eliminates redundant state updates
     } catch (err: unknown) {
-      errors.push(`儲存計費方案失敗：${err?.message || '未知錯誤'}`);
+      const error = err as { message?: string };
+      errors.push(`儲存計費方案失敗：${error?.message || '未知錯誤'}`);
     }
     
     // Save resource requirements (pass idMapping to handle temporary service item IDs)
@@ -706,7 +709,8 @@ const SettingsServiceItemsPage: React.FC = () => {
       // Note: We don't update staging store here because we reload from server below (line 854)
       // This ensures consistency with server state and eliminates redundant state updates
     } catch (err: unknown) {
-      errors.push(`儲存資源需求失敗：${err?.message || '未知錯誤'}`);
+      const error = err as { message?: string };
+      errors.push(`儲存資源需求失敗：${error?.message || '未知錯誤'}`);
     }
     
     // Save follow-up messages
@@ -805,7 +809,8 @@ const SettingsServiceItemsPage: React.FC = () => {
         }
       }
     } catch (err: unknown) {
-      errors.push(`儲存追蹤訊息失敗：${err?.message || '未知錯誤'}`);
+      const error = err as { message?: string };
+      errors.push(`儲存追蹤訊息失敗：${error?.message || '未知錯誤'}`);
     }
     
     return { errors };
