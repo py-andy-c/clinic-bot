@@ -36,7 +36,7 @@ This document defines the business logic and technical design for resource manag
 
 **Automatic Allocation**: When an appointment is created, system allocates required resources automatically.
 
-**Allocation Strategy**: 
+**Allocation Strategy**:
 - Simple: First available resource ordered by name (deterministic)
 - Future: Can extend to round-robin, least-recently-used, or resource preferences
 
@@ -87,13 +87,13 @@ All conflicts are detected and returned to the frontend. Priority determines the
 
 **Override Mode**:
 - **Default Mode (Override Toggle OFF)**: Shows only available time slots within practitioner's default availability
-- **Override Mode (Toggle ON)**: 
+- **Override Mode (Toggle ON)**:
   - All dates become selectable (even if no normal availability)
   - Time selection changes to **free-form time input** (12-hour format: H:MM AM/PM or 24-hour: HH:MM)
   - Allows any time selection regardless of availability, including **past dates/times**
   - Real-time conflict detection and display (warnings, not blockers)
 
-**Permissions**: 
+**Permissions**:
 - Clinic admins: ✅ Always available
 - Practitioners: ✅ Always available
 - Read-only users: ❌ Not available (cannot create appointments anyway)
@@ -119,150 +119,425 @@ All conflicts are detected and returned to the frontend. Priority determines the
 
 ---
 
-## Edge Cases
+## Backend Technical Design
 
-### 1. Resource Deletion
+### API Endpoints
 
-**Scenario**: Resource is deleted while allocated to appointments.
+#### `GET /clinic/resource-types`
+- **Description**: List resource types for clinic
+- **Response**: `ResourceType[]`
+- **Errors**: 500
 
-**Behavior**: Prevent deletion if resource has active allocations (confirmed appointments only, exclude cancelled). Show list of appointments using it. Require admin to reassign or cancel appointments first.
+#### `POST /clinic/resource-types`
+- **Description**: Create resource type
+- **Request Body**: `{ name: string }`
+- **Response**: `{ id: number, name: string }`
+- **Errors**: 400 (duplicate name), 500
 
-### 2. Resource Type Deletion
+#### `GET /clinic/resources`
+- **Description**: List resources for clinic
+- **Query Parameters**: `resource_type_id` (optional filter)
+- **Response**: `Resource[]`
+- **Errors**: 500
 
-**Scenario**: Resource type is deleted.
+#### `POST /clinic/resources`
+- **Description**: Create resource
+- **Request Body**: `{ resource_type_id: number, name?: string, description?: string }`
+- **Response**: `{ id: number, name: string, ... }`
+- **Errors**: 400 (validation), 500
 
-**Behavior**: Prevent deletion if any resources of this type have active allocations (confirmed appointments). Show list of affected appointments. Require admin to reassign or cancel appointments first. Do not allow cascade deletion.
+#### `PUT /clinic/resources/{id}`
+- **Description**: Update resource
+- **Request Body**: `{ name?: string, description?: string }`
+- **Response**: `{ success: true }`
+- **Errors**: 400, 404, 500
 
-### 3. No Resources Available
+#### `DELETE /clinic/resources/{id}`
+- **Description**: Soft delete resource
+- **Response**: `{ success: true }`
+- **Errors**: 400 (has allocations), 404, 500
 
-**Scenario**: Appointment type requires resources but no resources of that type exist.
+#### `GET /clinic/appointments/resource-availability`
+- **Description**: Get resource availability for time slot
+- **Query Parameters**: `appointment_type_id`, `practitioner_id`, `date`, `start_time`, `end_time`, `exclude_calendar_event_id`
+- **Response**: `ResourceAvailabilityResponse`
+- **Errors**: 400, 500
 
-**Behavior**: Show warning in slot calculation. Allow appointment creation with warning. System attempts to allocate but fails gracefully.
+### Database Schema
 
-### 4. Multiple Resources of Same Type
+**ResourceTypes Table**:
+- `id`: Primary key
+- `clinic_id`: Foreign key to clinics
+- `name`: String (unique within clinic)
+- `is_deleted`: Boolean (soft delete)
+- `created_at`: DateTime
+- `updated_at`: DateTime
 
-**Scenario**: Appointment needs 2 rooms but only 1 available.
+**Resources Table**:
+- `id`: Primary key
+- `clinic_id`: Foreign key to clinics
+- `resource_type_id`: Foreign key to resource_types
+- `name`: String (unique within resource type)
+- `description`: String (nullable)
+- `is_deleted`: Boolean (soft delete)
+- `created_at`: DateTime
+- `updated_at`: DateTime
 
-**Behavior**: Auto-select the 1 available room, show quantity warning. User can proceed or change time/resources.
+**AppointmentResourceRequirements Table**:
+- `id`: Primary key
+- `appointment_type_id`: Foreign key to appointment_types
+- `resource_type_id`: Foreign key to resource_types
+- `quantity`: Integer (> 0)
+- `created_at`: DateTime
 
-### 5. Recurring Appointments
+**AppointmentResourceAllocations Table**:
+- `id`: Primary key
+- `appointment_id`: Foreign key to appointments
+- `resource_id`: Foreign key to resources
+- `created_at`: DateTime
 
-**Scenario**: How to handle resource allocation for recurring appointments.
+**Constraints**:
+- Resource type names unique per clinic
+- Resource names unique per resource type
+- Foreign key constraints prevent orphaned records
+- Soft delete prevents hard deletion of allocated resources
 
-**Behavior**: Allocate resources for each occurrence independently. Check availability for each occurrence. Show conflicts per occurrence.
+### Business Logic Implementation
 
-### 6. Appointment Type Change
+**ResourceService** (`backend/src/services/resource_service.py`):
+- `create_resource_type()`: Create with name validation
+- `create_resource()`: Create with auto-naming if needed
+- `check_resource_availability()`: Check availability for time slot
+- `allocate_resources()`: Auto-allocate required resources
+- `deallocate_resources()`: Release resources on appointment changes
 
-**Scenario**: User changes appointment type and new type requires different resources.
+**AvailabilityService Integration**:
+- `check_slot_availability()`: Combined practitioner + resource availability
+- Resource conflicts detected and prioritized
+- Override mode bypasses resource constraints
 
-**Behavior**: Existing resource allocations are cleared first (deleted), then new allocations are made based on new appointment type requirements. This ensures clean state and prevents conflicts.
-
-### 7. Time Change
-
-**Scenario**: User changes appointment time and resources are no longer available.
-
-**Behavior**: Try to keep same resources if available. If not, auto-select new available resources. If none available, keep selection but mark unavailable with warning.
-
-### 8. Resource Requirements Change
-
-**Scenario**: Resource requirements are changed for a service item that already has appointments.
-
-**Behavior**: Existing appointments keep their current resource allocations. New appointments use the updated requirements. No automatic re-allocation of existing appointments.
-
-### 9. Appointment Cancellation
-
-**Scenario**: What happens to resource allocations when an appointment is cancelled.
-
-**Behavior**: Resource allocations are released immediately when appointment is cancelled. Resources become available for other appointments. Allocation records are kept for historical tracking but resources are no longer considered allocated.
-
-### 10. Soft-Deleted Resources
-
-**Scenario**: Resource is soft-deleted but still referenced in allocations.
-
-**Behavior**: Soft-deleted resources are excluded from availability checks and allocation. Only active resources are considered. Soft-deleted resources do NOT appear in resource selection UI.
+**Key Business Logic**:
+- Resource allocation happens during appointment creation/editing
+- Allocation is deterministic (first available, ordered by name)
+- Resource constraints are checked but can be overridden by clinic users
+- Soft deletes preserve data integrity
 
 ---
 
-## Technical Design
+## Frontend Technical Design
 
-### Resource Selection Component
+### State Management Strategy
 
-**UI Structure**: Two-level expansion design for space efficiency.
+#### Server State (API Data)
+- [x] **Data Source**: Resource APIs, availability API, appointment creation APIs
+- [x] **Current Implementation**: Using `useApiData` hook
+  - **Note**: Migration to React Query planned for Phase 2 (Weeks 3-5) per `ai_frontend_dev.md`
+- [x] **Query Keys** (when migrated to React Query):
+  - `['resource-types', clinicId]` - Resource types
+  - `['resources', clinicId, resourceTypeId]` - Resources
+  - `['resource-availability', appointmentTypeId, practitionerId, date, time]` - Availability
+- [x] **Cache Strategy**:
+  - **Current**: Custom cache with TTL (5 minutes default)
+  - **Future (React Query)**:
+    - `staleTime`: 5 minutes (resource data)
+    - `staleTime`: 1 minute (availability data - changes frequently)
+    - `cacheTime`: 10 minutes
+    - Invalidation triggers: Resource creation/deletion, appointment create/update
 
-1. **Top Layer**: Main expand/collapse for entire resource selection section
-   - **Collapsed (default)**: Shows compact summary text (e.g., "治療室: 1/1 ✓ (治療室1) | 設備: 0/1 ⚠️")
-   - **Expanded**: Shows detailed resource selection interface
+#### Client State (UI State)
+- [x] **ResourceSelection Component State** (`frontend/src/components/calendar/ResourceSelection.tsx`):
+  - **State Properties**:
+    - `selectedResources`: Map of resource type ID to selected resource IDs
+    - `expandedSections`: Which resource type sections are expanded
+    - `availableResources`: Cached availability data per time slot
+    - `conflicts`: Resource conflicts for current selection
+  - **Actions**:
+    - Toggle section expansion
+    - Select/deselect resources
+    - Auto-select resources based on availability
+    - Validate selection against requirements
+  - **Usage**: Complex resource selection in appointment creation/editing
 
-2. **Second Layer**: Individual expand/collapse for each resource type section
-   - Each resource type can be independently expanded/collapsed
-   - Shows grid of available resources when expanded
+- [x] **DateTimePicker Integration**:
+  - Resource availability affects slot display
+  - Conflicts shown with appropriate warnings
 
-**Auto-Expansion Logic**:
-- Top layer expands when: Unmet requirements, resource conflicts, prepopulated resources, or additional resource types added
-- Second layer expands when: Top layer expanded AND section has issues (unmet requirements, conflicts)
+#### Form State
+- [x] **Resource Selection**: Complex multi-step selection with validation
+  - **Validation Rules**: Required quantities met, conflicts checked
+  - **Dependencies**: Selection depends on appointment type and time slot
+  - **Auto-selection**: System suggests optimal resource allocation
 
-**State Preservation**: Additional resource types and expanded sections are preserved when component remounts (e.g., when date/time changes) using refs.
+### Component Architecture
 
-**Rationale**: Provides space-efficient interface that shows summary by default and expands to show details when needed.
-
-### Resource Availability API
-
-**Endpoint**: `GET /clinic/appointments/resource-availability`
-
-**Purpose**: Get resource availability and suggested allocation for a time slot (for frontend auto-selection).
-
-**Response Structure**:
-```json
-{
-  "requirements": [
-    {
-      "resource_type_id": 1,
-      "resource_type_name": "治療室",
-      "required_quantity": 2,
-      "available_resources": [
-        {"id": 1, "name": "治療室1", "is_available": true},
-        {"id": 2, "name": "治療室2", "is_available": true},
-        {"id": 3, "name": "治療室3", "is_available": false}
-      ],
-      "available_quantity": 2
-    }
-  ],
-  "suggested_allocation": [
-    {"id": 1, "name": "治療室1"},
-    {"id": 2, "name": "治療室2"}
-  ],
-  "conflicts": []
-}
+#### Component Hierarchy
+```
+CreateAppointmentModal/EditAppointmentModal
+  ├── DateTimePicker
+  │   └── ResourceAvailabilityIndicator (shows conflicts)
+  ├── ResourceSelection
+  │   ├── ResourceTypeSection (expandable)
+  │   │   ├── ResourceGrid
+  │   │   │   └── ResourceCard (selectable)
+  │   │   └── QuantityWarning
+  │   ├── SummaryDisplay (compact view)
+  │   └── ExpandCollapseButton
+  └── ConflictDisplay (shows all conflicts)
 ```
 
-**Rationale**: Enables frontend to perform auto-selection for UI display, while backend performs final allocation when appointment is created.
+#### Component List
+- [x] **ResourceSelection** (`frontend/src/components/calendar/ResourceSelection.tsx`)
+  - **Props**: `appointmentTypeId`, `selectedTime`, `initialSelections`, `onSelectionChange`, `onValidationChange`
+  - **State**: Selection state, expansion state, availability data
+  - **Dependencies**: `useApiData` (availability), `useDebounce` (time change debouncing)
+  - **Features**: Two-level expansion, auto-selection, conflict detection
 
-### Resource Service
+- [x] **DateTimePicker** (`frontend/src/components/calendar/DateTimePicker.tsx`)
+  - **Props**: `selectedDate`, `selectedTime`, `appointmentTypeId`, `practitionerId`, `onSlotSelect`
+  - **State**: Calendar view, time slots, conflicts, resource availability
+  - **Dependencies**: `useApiData` (slot availability), availability cache
+  - **Integration**: Resource conflicts affect slot availability display
 
-**Core Methods**:
-- `check_resource_availability()`: Check if required resources are available for a time slot
-- `allocate_resources()`: Automatically allocate required resources for an appointment
-- `_find_available_resources()`: Find available resources of a type for a time slot
+- [x] **ResourceSettings** (`frontend/src/components/ResourcesSettings.tsx`)
+  - **Props**: None (settings context)
+  - **State**: Resource types list, resources list, create/edit forms
+  - **Dependencies**: `useApiData` (CRUD operations), settings context
 
-**Allocation Strategy**: First available resource ordered by name (deterministic). Future: Can extend to round-robin, least-recently-used, or resource preferences.
+### User Interaction Flows
 
-**Rationale**: Provides centralized resource management logic that can be reused across scheduling, conflict detection, and availability notifications.
+#### Flow 1: Resource Selection During Appointment Creation
+1. User selects appointment type, practitioner, date, and time
+2. `ResourceSelection` component loads requirements for appointment type
+3. System calls resource availability API to get available resources
+4. Auto-selection runs: System selects required quantities of available resources
+5. If insufficient resources: Shows quantity warnings, allows user to proceed or change time
+6. User can manually adjust selections or expand to see detailed options
+7. Real-time validation shows conflicts and unmet requirements
+8. User can proceed with appointment creation (resources allocated on backend)
+   - **Edge case**: No resources of required type exist → Warning shown, appointment can still be created
+   - **Edge case**: All resources unavailable → User can select unavailable resources manually
+   - **Error case**: API failure → Fallback to manual selection mode
 
-### Shared Availability Logic
+#### Flow 2: Override Availability Scheduling
+1. User enables "Override Mode" toggle in DateTimePicker
+2. Date picker becomes fully selectable (no availability restrictions)
+3. Time input changes to free-form text input
+4. User can enter any date/time, including past dates
+5. System shows real-time conflicts as warnings (not blockers)
+6. Resource selection still functions normally
+7. User can proceed with appointment creation
+   - **Edge case**: Past date/time selected → Conflicts shown but not blocked
+   - **Edge case**: No practitioner availability → Still allows scheduling with override
 
-**Refactor**: Create shared core function that determines slot availability (practitioner + resources).
+#### Flow 3: Resource Management (Settings)
+1. Admin navigates to Resources settings page
+2. Views list of resource types and resources
+3. Can create new resource types
+4. Can add resources to types (auto-naming or custom names)
+5. Can edit resource details
+6. Can soft-delete resources (with allocation checks)
+7. Can view which appointments use specific resources
+   - **Edge case**: Resource has active allocations → Deletion blocked, shows affected appointments
+   - **Error case**: Duplicate names → Validation error shown
 
-**Method**: `AvailabilityService.check_slot_availability()`
+### Edge Cases and Error Handling
 
-**Returns**: `SlotAvailabilityResult` with:
-- `is_available`: Overall availability (both practitioner and resources available)
-- `practitioner_available`: Practitioner availability status
-- `resources_available`: Resource availability status
-- `resource_conflicts`: List of resource conflicts (if any)
+#### Edge Cases
+- [x] **Race Condition**: User changes time while resource availability loading
+  - **Solution**: Debounced updates (~300ms), latest time wins, cancels previous requests
 
-**Used By**: Slot calculation, conflict checking, availability notifications.
+- [x] **Concurrent Resource Allocation**: Two appointments created simultaneously for same resources
+  - **Solution**: Database-level allocation prevents conflicts, first appointment succeeds
 
-**Rationale**: Ensures consistent availability logic across all scheduling paths.
+- [x] **Component Unmount**: Resource selection unmounts during API call
+  - **Solution**: `useApiData` checks `isMountedRef`, prevents state updates after unmount
+
+- [x] **Network Failure**: Resource availability API fails
+  - **Solution**: Fallback to manual selection mode, error logged, user can proceed
+
+- [x] **Stale Data**: User views availability, another appointment created, resources no longer available
+  - **Solution**: Real-time validation on appointment creation, backend checks current availability
+
+- [x] **Resource Deletion**: Resource deleted while user selecting it
+  - **Solution**: Backend validation on appointment creation, returns error if resource deleted
+
+- [x] **Appointment Type Change**: User changes appointment type with different resource requirements
+  - **Solution**: Resource selection resets and recalculates for new requirements
+
+- [x] **Override Mode + Resources**: Override mode with resource conflicts
+  - **Solution**: Resource conflicts shown as warnings, can be overridden like other conflicts
+
+#### Error Scenarios
+- [x] **API Errors (4xx, 5xx)**:
+  - **User Message**: "資源載入失敗" or "資源分配失敗"
+  - **Recovery Action**: Retry operation, or proceed with manual selection
+  - **Implementation**: `getErrorMessage()` utility, fallback to manual mode
+
+- [x] **Validation Errors**:
+  - **User Message**: "資源數量不足" or "資源已被預約"
+  - **Field-level Errors**: Shown inline in resource selection UI
+  - **Implementation**: Frontend validation, backend validation on appointment creation
+
+- [x] **Loading States**:
+  - **Initial Load**: Loading availability data for resource selection
+  - **Time Change**: Loading new availability data (debounced)
+  - **Appointment Creation**: Loading during resource allocation
+  - **Implementation**: `useApiData` loading states, UI shows spinners and disabled states
+
+- [x] **Permission Errors (403)**:
+  - **User Message**: "無權限管理資源"
+  - **Recovery Action**: Admin-only features hidden for non-admins
+  - **Implementation**: Frontend permission checks, backend validation
+
+- [x] **Not Found Errors (404)**:
+  - **User Message**: "資源不存在"
+  - **Recovery Action**: Refresh resource list, remove invalid selections
+  - **Implementation**: Backend returns 404, frontend handles gracefully
+
+### Testing Requirements
+
+#### E2E Tests (Playwright)
+- [ ] **Test Scenario**: Resource selection during appointment creation
+  - Steps:
+    1. Login as admin
+    2. Create appointment with resource requirements
+    3. Verify resource auto-selection works
+    4. Change time, verify resources update
+    5. Manually change resource selection
+    6. Verify conflicts shown appropriately
+    7. Complete appointment creation
+  - Assertions: Resources allocated correctly, conflicts detected, appointment created
+
+- [ ] **Test Scenario**: Override availability scheduling
+  - Steps:
+    1. Enable override mode
+    2. Select past date/time
+    3. Verify conflicts shown as warnings
+    4. Create appointment
+    5. Verify appointment created despite conflicts
+  - Assertions: Override mode works, conflicts are warnings not blockers
+
+- [ ] **Test Scenario**: Resource management
+  - Steps:
+    1. Navigate to resources settings
+    2. Create resource type
+    3. Add resources
+    4. Try to delete allocated resource
+    5. Verify deletion blocked with warning
+  - Assertions: Resource management works, allocation constraints enforced
+
+#### Integration Tests (MSW)
+- [ ] **Test Scenario**: Resource availability checking
+  - Mock API responses: Resource availability, conflicts
+  - User interactions: Select time slot, view resource availability
+  - Assertions: Availability calculated correctly, conflicts detected
+
+- [ ] **Test Scenario**: Resource allocation
+  - Mock API responses: Appointment creation with resource allocation
+  - User interactions: Create appointment with resources
+  - Assertions: Resources allocated correctly, conflicts prevented
+
+- [ ] **Test Scenario**: Error handling
+  - Mock API responses: 400, 403, 404, 500 errors
+  - User interactions: Trigger resource operations, handle errors
+  - Assertions: Errors handled gracefully, user can retry
+
+#### Unit Tests
+- [ ] **Component**: `ResourceSelection`
+  - Test cases: Auto-selection works, manual selection works, validation works, expansion/collapse works
+- [ ] **Component**: `DateTimePicker` (resource integration)
+  - Test cases: Resource conflicts shown, override mode works, slot availability correct
+- [ ] **Hook**: Resource availability logic
+  - Test cases: Availability calculation correct, conflicts detected, caching works
+- [ ] **Service**: Resource allocation logic
+  - Test cases: Allocation strategy works, conflicts detected, deallocation works
+
+### Performance Considerations
+
+- [x] **Data Loading**: 
+  - Resource availability debounced (~300ms) to prevent excessive API calls
+  - Resource lists cached with TTL
+  - Availability data cached briefly since it changes frequently
+
+- [x] **Caching**: 
+  - Current: Custom cache with clinic ID injection
+  - Future: React Query will provide better caching
+
+- [x] **Optimistic Updates**: 
+  - Not currently used (resource allocation is server-validated)
+  - Could use optimistic updates for resource selection UI
+
+- [x] **Lazy Loading**: 
+  - Resource selection component loaded on demand
+  - Resource settings loaded lazily
+
+- [x] **Memoization**: 
+  - Resource availability calculations memoized
+  - Resource selection state optimized
+
+---
+
+## Integration Points
+
+### Backend Integration
+- [x] **Dependencies on other services**:
+  - Resource service integrates with appointment service
+  - Availability service combines practitioner and resource checks
+  - Settings service provides resource configuration
+
+- [x] **Database relationships**:
+  - Resources linked to resource types and clinics
+  - Allocations link appointments to resources
+  - Requirements link appointment types to resource types
+
+- [x] **API contracts**:
+  - RESTful API for resource CRUD operations
+  - Consistent error response format
+
+### Frontend Integration
+- [x] **Shared components used**:
+  - `BaseModal`, `LoadingSpinner`, `ErrorMessage`
+  - Form components and utilities
+
+- [x] **Shared hooks used**:
+  - `useApiData` (resource data, availability)
+  - `useDebounce` (time change debouncing)
+
+- [x] **Shared stores used**:
+  - None (local component state)
+
+- [x] **Navigation/routing changes**:
+  - Settings page includes resource management
+  - Calendar modals include resource selection
+
+---
+
+## Security Considerations
+
+- [x] **Authentication requirements**:
+  - All resource operations require authenticated clinic user
+
+- [x] **Authorization checks**:
+  - Resource management requires admin role
+  - Resource viewing requires clinic membership
+  - Override availability requires practitioner or admin role
+
+- [x] **Input validation**:
+  - Resource names validated for uniqueness and format
+  - Resource allocations validated for availability
+  - Appointment creation validates resource constraints
+
+- [x] **XSS prevention**:
+  - User input in resource names sanitized
+  - React automatically escapes content
+
+- [x] **CSRF protection**:
+  - API operations protected with authentication
+  - Tokens validated on every request
+
+- [x] **Data isolation**:
+  - Clinic isolation enforced on all resource operations
+  - Users can only access resources within their clinic
 
 ---
 
@@ -277,7 +552,9 @@ This document covers:
 - Override availability scheduling (clinic users can schedule outside normal hours)
 - Resource selection UI (two-level expansion, auto-selection)
 - Edge cases (resource deletion, type deletion, no resources, recurring appointments)
-- Technical design (resource service, shared availability logic, API endpoints)
+- Backend technical design (resource service, shared availability logic, API endpoints)
+- Frontend technical design (state management, components, user flows, testing requirements)
 
 All business rules are enforced at both frontend (UX) and backend (source of truth) levels.
 
+**Migration Status**: This document has been migrated to the new template format. Frontend sections reflect current implementation using `useApiData`. React Query migration is planned for Phase 2 (Weeks 3-5) per `ai_frontend_dev.md`.
