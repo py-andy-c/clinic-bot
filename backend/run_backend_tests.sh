@@ -116,13 +116,22 @@ fi
 print_status "Checking test database: $TEST_DB_NAME..."
 if ! psql -h localhost -t -c "SELECT 1 FROM pg_database WHERE datname='$TEST_DB_NAME'" postgres 2>/dev/null | grep -q 1; then
     print_status "Creating test database: $TEST_DB_NAME..."
-    createdb "$TEST_DB_NAME" 2>/dev/null || {
-        print_error "Failed to create test database: $TEST_DB_NAME"
-        print_error "Try: createdb $TEST_DB_NAME"
-        print_sandbox_hint
-        exit 1
-    }
-    print_success "Test database created: $TEST_DB_NAME"
+    # Try using psql to create database (works better in CI environments)
+    psql -h localhost -U postgres -c "CREATE DATABASE \"$TEST_DB_NAME\";" 2>/dev/null || \
+    createdb -h localhost "$TEST_DB_NAME" 2>/dev/null || {
+        # If creation fails, check if it was created by another process
+        sleep 1
+        if psql -h localhost -t -c "SELECT 1 FROM pg_database WHERE datname='$TEST_DB_NAME'" postgres 2>/dev/null | grep -q 1; then
+            print_success "Test database already exists: $TEST_DB_NAME"
+        else
+            print_error "Failed to create test database: $TEST_DB_NAME"
+            print_error "Try: createdb $TEST_DB_NAME or psql -c \"CREATE DATABASE $TEST_DB_NAME;\""
+            print_sandbox_hint
+            exit 1
+        fi
+    } || print_success "Test database created: $TEST_DB_NAME"
+else
+    print_success "Test database already exists: $TEST_DB_NAME"
 fi
 
 # Load test environment variables

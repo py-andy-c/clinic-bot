@@ -75,7 +75,7 @@ jobs:
         npm ci
         # Create symlink for local ESLint plugin
         if [ ! -L node_modules/eslint-plugin-clinic-cache ] && [ -d eslint-plugin-clinic-cache ]; then
-          ln -s ../../eslint-plugin-clinic-cache node_modules/eslint-plugin-clinic-cache
+          ln -s ../eslint-plugin-clinic-cache node_modules/eslint-plugin-clinic-cache
         fi
 
     - name: Run frontend tests
@@ -140,7 +140,7 @@ jobs:
         npm ci
         # Create symlink for local ESLint plugin
         if [ ! -L node_modules/eslint-plugin-clinic-cache ] && [ -d eslint-plugin-clinic-cache ]; then
-          ln -s ../../eslint-plugin-clinic-cache node_modules/eslint-plugin-clinic-cache
+          ln -s ../eslint-plugin-clinic-cache node_modules/eslint-plugin-clinic-cache
         fi
 
     - name: Install Playwright browsers
