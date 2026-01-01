@@ -114,14 +114,36 @@ if [ -z "$TEST_DB_NAME" ]; then
 fi
 
 print_status "Checking test database: $TEST_DB_NAME..."
-if ! psql -h localhost -t -c "SELECT 1 FROM pg_database WHERE datname='$TEST_DB_NAME'" postgres 2>/dev/null | grep -q 1; then
+# Check if database exists (try multiple methods for compatibility)
+# In CI, the database is often pre-created by the PostgreSQL service
+DB_EXISTS=false
+
+# Try connecting to the database directly (most reliable check)
+if psql -h localhost -U postgres -d "$TEST_DB_NAME" -c "SELECT 1;" 2>/dev/null | grep -q 1; then
+    DB_EXISTS=true
+# Try querying pg_database with postgres user
+elif psql -h localhost -U postgres -d postgres -t -c "SELECT 1 FROM pg_database WHERE datname='$TEST_DB_NAME'" 2>/dev/null | grep -q 1; then
+    DB_EXISTS=true
+# Fallback: try without specifying user (uses current user)
+elif psql -h localhost -d postgres -t -c "SELECT 1 FROM pg_database WHERE datname='$TEST_DB_NAME'" 2>/dev/null | grep -q 1; then
+    DB_EXISTS=true
+fi
+
+if [ "$DB_EXISTS" = true ]; then
+    print_success "Test database already exists: $TEST_DB_NAME"
+else
     print_status "Creating test database: $TEST_DB_NAME..."
     # Try using psql to create database (works better in CI environments)
-    psql -h localhost -U postgres -c "CREATE DATABASE \"$TEST_DB_NAME\";" 2>/dev/null || \
-    createdb -h localhost "$TEST_DB_NAME" 2>/dev/null || {
-        # If creation fails, check if it was created by another process
+    if psql -h localhost -U postgres -d postgres -c "CREATE DATABASE \"$TEST_DB_NAME\";" 2>/dev/null; then
+        print_success "Test database created: $TEST_DB_NAME"
+    elif createdb -h localhost -U postgres "$TEST_DB_NAME" 2>/dev/null; then
+        print_success "Test database created: $TEST_DB_NAME"
+    elif createdb -h localhost "$TEST_DB_NAME" 2>/dev/null; then
+        print_success "Test database created: $TEST_DB_NAME"
+    else
+        # If creation fails, check one more time if it was created by another process
         sleep 1
-        if psql -h localhost -t -c "SELECT 1 FROM pg_database WHERE datname='$TEST_DB_NAME'" postgres 2>/dev/null | grep -q 1; then
+        if psql -h localhost -U postgres -d "$TEST_DB_NAME" -c "SELECT 1;" 2>/dev/null | grep -q 1; then
             print_success "Test database already exists: $TEST_DB_NAME"
         else
             print_error "Failed to create test database: $TEST_DB_NAME"
@@ -129,9 +151,7 @@ if ! psql -h localhost -t -c "SELECT 1 FROM pg_database WHERE datname='$TEST_DB_
             print_sandbox_hint
             exit 1
         fi
-    } || print_success "Test database created: $TEST_DB_NAME"
-else
-    print_success "Test database already exists: $TEST_DB_NAME"
+    fi
 fi
 
 # Load test environment variables
