@@ -47,6 +47,7 @@ jobs:
         ./run_backend_tests.sh --no-cache
       env:
         DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+        PGPASSWORD: postgres
 
     - name: Upload backend test results
       uses: actions/upload-artifact@v4
@@ -154,6 +155,7 @@ jobs:
         ./run_e2e_tests.sh --no-cache
       env:
         DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+        PGPASSWORD: postgres
 
     - name: Upload E2E test results
       uses: actions/upload-artifact@v4
