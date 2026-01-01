@@ -13,6 +13,14 @@ sleep 2
 # Check and start PostgreSQL if not running
 echo "🔍 Checking PostgreSQL status..."
 if ! pg_isready -h localhost -p 5432 >/dev/null 2>&1; then
+    # For E2E tests, don't try to start PostgreSQL - just check if it's available
+    if [ "$E2E_TEST_MODE" = "true" ]; then
+        echo "⚠️  PostgreSQL is not running. For E2E tests, please ensure PostgreSQL is running."
+        echo "   You can start it with: brew services start postgresql@14"
+        echo "   Or use: pg_ctl -D /usr/local/var/postgresql@14 start"
+        exit 1
+    fi
+    
     echo "⚠️  PostgreSQL is not running. Starting postgresql@14..."
     brew services restart postgresql@14 2>/dev/null || brew services start postgresql@14 2>/dev/null || true
     

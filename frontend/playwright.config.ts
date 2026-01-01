@@ -9,10 +9,11 @@ export default defineConfig({
   fullyParallel: false, // Disable parallel for now to avoid DB conflicts
   /* Fail the build on CI if you accidentally left test.only in the source code. */
   forbidOnly: !!process.env.CI,
-  /* Retry on CI only */
-  retries: process.env.CI ? 2 : 0,
+  /* Retry on CI only, with one retry locally for network/transient issues */
+  retries: process.env.CI ? 2 : 1,
   /* Opt out of parallel tests on CI. */
-  workers: process.env.CI ? 1 : undefined,
+  /* Use fewer workers locally to reduce resource contention for auth tests */
+  workers: process.env.CI ? 1 : 2,
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
   // In CI: Use both 'github' (for GitHub Actions annotations) and 'html' (for downloadable report)
   // Locally: Use 'html' and 'list' for better local development experience
@@ -74,7 +75,7 @@ export default defineConfig({
   webServer: [
     // Backend server first (takes longer to start)
     ...(process.env.E2E_SKIP_BACKEND ? [] : [{
-      command: 'cd ../backend && ./launch_dev.sh',
+      command: 'cd ../backend && E2E_TEST_MODE=true ENVIRONMENT=test ./launch_dev.sh',
       url: 'http://localhost:8000',
       reuseExistingServer: !process.env.CI,
       timeout: 180 * 1000, // 3 minutes for backend

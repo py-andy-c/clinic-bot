@@ -11,8 +11,16 @@ export class CalendarHelper {
    * Navigate to calendar page
    */
   async gotoCalendar() {
-    await this.page.goto('/admin/calendar');
-    await this.page.waitForLoadState('networkidle');
+    await this.page.goto('/admin/calendar', { waitUntil: 'load', timeout: 45000 });
+    // Wait for calendar page to be ready - verify we're on the calendar URL
+    // and page has loaded (not on login page)
+    await this.page.waitForFunction(
+      () => {
+        const url = window.location.href;
+        return url && url.includes('/admin/calendar') && !url.includes('/admin/login');
+      },
+      { timeout: 10000 }
+    );
   }
 
   /**

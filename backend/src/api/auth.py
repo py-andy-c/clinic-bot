@@ -22,7 +22,8 @@ from services.jwt_service import jwt_service, TokenPayload
 from models import RefreshToken, User, Clinic, UserClinicAssociation
 from models.clinic import ClinicSettings
 from auth.dependencies import get_active_clinic_association, require_authenticated, UserContext
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr, field_validator
+import re
 
 router = APIRouter()
 
@@ -799,6 +800,195 @@ async def dev_login(
             "full_name": user.email,  # System admins use email as name
             "user_type": token_payload.user_type,
             "roles": token_payload.roles  # Clinic-specific roles from token
+        }
+    }
+
+
+class TestLoginRequest(BaseModel):
+    """Request model for test login endpoint."""
+    email: str
+    user_type: str = "clinic_user"
+    
+    @field_validator('email')
+    @classmethod
+    def validate_email(cls, v: str) -> str:
+        """Basic email validation to catch test setup errors early."""
+        if not v or '@' not in v:
+            raise ValueError('Invalid email format: must contain @ symbol')
+        # Basic regex check for email format
+        email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        if not re.match(email_pattern, v):
+            raise ValueError(f'Invalid email format: {v}')
+        return v
+
+
+@router.post("/test/login", summary="Test login for E2E tests (bypass OAuth)")
+async def test_login(
+    request: Request,
+    test_request: TestLoginRequest,
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """
+    Test authentication endpoint for E2E tests.
+    
+    This endpoint bypasses OAuth and directly creates/login users for testing.
+    Only enabled when ENVIRONMENT=test or E2E_TEST_MODE=true.
+    
+    WARNING: This endpoint should NEVER be enabled in production!
+    """
+    # Security check: Only allow in test environment
+    environment = os.getenv("ENVIRONMENT", "development")
+    e2e_test_mode = os.getenv("E2E_TEST_MODE", "").lower() == "true"
+    
+    if environment != "test" and not e2e_test_mode:
+        client_host = request.client.host if hasattr(request, 'client') and request.client else None
+        logger.warning(
+            f"Test login attempted in non-test environment: {environment}, "
+            f"client_host={client_host}, email={test_request.email}"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Test login endpoint is only available in test environments"
+        )
+    
+    email = test_request.email
+    user_type = test_request.user_type
+    
+    if user_type not in ["system_admin", "clinic_user"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="無效的使用者類型。必須是 'system_admin' 或 'clinic_user'"
+        )
+
+    # Check if user exists, if not create them
+    user = db.query(User).filter(
+        User.email == email
+    ).first()
+    
+    # Verify user type matches (will raise HTTPException if mismatch)
+    if user:
+        has_associations = db.query(UserClinicAssociation).filter(  # type: ignore
+            UserClinicAssociation.user_id == user.id  # type: ignore
+        ).first() is not None
+        
+        if user_type == "system_admin" and has_associations:
+            # User has associations but we're expecting system admin
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"User {email} has clinic associations but system_admin was requested. "
+                       "Use clinic_user type or create a new user without associations."
+            )
+        elif user_type == "clinic_user" and not has_associations:
+            # User has no associations but we're expecting clinic user
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"User {email} has no clinic associations but clinic_user was requested. "
+                       "Use system_admin type or create a new user with associations."
+            )
+    
+    if not user:
+        # Create a new user
+        now = datetime.now(timezone.utc)
+        
+        if user_type == "clinic_user":
+            # Need a clinic for clinic users
+            clinic = db.query(Clinic).first()
+            if not clinic:
+                # Create default clinic using ClinicSettings with all defaults
+                clinic = Clinic(
+                    name="Test Clinic",
+                    line_channel_id="test_channel",
+                    line_channel_secret="test_secret",
+                    line_channel_access_token="test_token",
+                    settings=ClinicSettings().model_dump()  # Use all defaults from Pydantic model
+                )
+                db.add(clinic)
+                db.commit()
+                db.refresh(clinic)
+            
+            # Create user
+            user = User(
+                email=email,
+                google_subject_id=f"test_{email.replace('@', '_').replace('.', '_')}",
+                created_at=now,
+                updated_at=now
+            )
+            db.add(user)
+            db.flush()
+            
+            # Create clinic association
+            association = UserClinicAssociation(
+                user_id=user.id,
+                clinic_id=clinic.id,
+                roles=["admin", "practitioner"],
+                full_name=email.split('@')[0].title(),
+                is_active=True,
+                created_at=now,
+                updated_at=now
+            )
+            db.add(association)
+        else:
+            # System admin - create User record (no clinic associations)
+            user = User(
+                email=email,
+                google_subject_id=f"test_{email.replace('@', '_').replace('.', '_')}",
+                created_at=now,
+                updated_at=now
+            )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+
+    # Determine user type - check if user has any clinic associations
+    has_associations = db.query(UserClinicAssociation).filter(  # type: ignore
+        UserClinicAssociation.user_id == user.id  # type: ignore
+    ).first() is not None
+    is_system_admin = not has_associations or email in SYSTEM_ADMIN_EMAILS
+    
+    # Get clinic-specific data for token creation
+    clinic_data = get_clinic_user_token_data(user, db)
+    
+    # Create JWT tokens
+    token_payload = TokenPayload(
+        sub=str(user.google_subject_id),
+        user_id=user.id,
+        user_type="system_admin" if is_system_admin else "clinic_user",
+        email=user.email,
+        roles=[] if is_system_admin else clinic_data["clinic_roles"],  # System admins don't have clinic roles
+        active_clinic_id=clinic_data["active_clinic_id"],  # Currently selected clinic for clinic users
+        name=clinic_data["clinic_name"]  # Clinic-specific name for clinic users
+    )
+
+    token_data = jwt_service.create_token_pair(token_payload)
+
+    # Store refresh token
+    refresh_token_hash = token_data["refresh_token_hash"]
+    refresh_token_hash_sha256 = token_data.get("refresh_token_hash_sha256")  # SHA-256 hash for O(1) lookup
+
+    refresh_token_record = RefreshToken(
+        user_id=user.id,
+        token_hash=refresh_token_hash,
+        token_hash_sha256=refresh_token_hash_sha256,  # SHA-256 hash for O(1) lookup
+        expires_at=jwt_service.get_token_expiry("refresh"),
+        email=None,  # No longer needed - user_id links to User record
+        google_subject_id=None,  # No longer needed - user_id links to User record
+        name=None  # No longer needed - user_id links to User record
+    )
+    db.add(refresh_token_record)
+    db.commit()
+
+    return {
+        "access_token": token_data["access_token"],
+        "refresh_token": token_data["refresh_token"],
+        "token_type": "bearer",
+        "expires_in": str(token_data["expires_in"]),
+        "user": {
+            "user_id": user.id,
+            "email": user.email,
+            "full_name": clinic_data["clinic_name"],
+            "user_type": token_payload.user_type,
+            "roles": token_payload.roles,
+            "active_clinic_id": clinic_data["active_clinic_id"]
         }
     }
 

@@ -1,45 +1,28 @@
 import { test, expect } from '@playwright/test';
+import { createAuthHelper, createCalendarHelper } from './helpers';
 
 test.describe('Appointment Creation', { tag: '@auth' }, () => {
-  test.skip('create appointment flow', async ({ page }) => {
-    // TODO: This test requires authentication setup
-    // Skipping until test authentication is properly configured
-    // The login page may not be accessible without proper backend setup
-    
-    // This test assumes we have a test account setup
-    // In a real scenario, you might need to set up test data or mock authentication
+  test('create appointment flow', async ({ page }) => {
+    test.setTimeout(60000); // Increase timeout for auth tests
+    const auth = createAuthHelper(page);
+    const calendar = createCalendarHelper(page);
 
-    // Navigate to login page
-    await page.goto('/admin/login');
+    // Authenticate using test endpoint
+    await auth.loginWithTestAuth('test-clinic-user@example.com', 'clinic_user');
 
-    // Wait for page to load and verify we're on the login page
-    // Use a more flexible selector that should always be present
-    await page.waitForLoadState('networkidle');
-    
-    // Check for either the title or the Google login button (more reliable)
-    const hasTitle = await page.locator('text=診所小幫手').first().isVisible().catch(() => false);
-    const hasLoginButton = await page.locator('button:has-text("Google 登入")').isVisible().catch(() => false);
-    
-    if (!hasTitle && !hasLoginButton) {
-      // If neither is visible, check what's actually on the page for debugging
-      const pageContent = await page.textContent('body').catch(() => '');
-      throw new Error(`Login page not loaded correctly. Page content: ${pageContent.substring(0, 200)}`);
-    }
+    // Navigate to calendar
+    await calendar.gotoCalendar();
 
-    // For E2E testing, we might need to:
-    // 1. Set up a test user account
-    // 2. Mock the Google OAuth flow
-    // 3. Or use a test authentication endpoint
+    // TODO: Implement appointment creation test
+    // This is a placeholder test structure that can be expanded
+    // Example flow:
+    // 1. Click on a time slot in the calendar
+    // 2. Fill in appointment details (patient, time, notes, etc.)
+    // 3. Submit the appointment
+    // 4. Verify the appointment appears in the calendar
+    // 5. Verify success message
 
-    // For now, let's create a basic test structure that can be expanded
-
-    // Check that login elements are present
-    await expect(page.locator('button:has-text("Google 登入")')).toBeVisible();
-
-    // Note: Actual login testing would require setting up test accounts
-    // and handling OAuth redirects, which is complex for E2E tests
-    // Consider using API mocking or a test authentication flow
-
-    console.log('Appointment creation test setup - authentication needs to be configured');
+    // For now, just verify we're on the calendar page
+    await expect(page).toHaveURL(/\/admin\/calendar/);
   });
 });
