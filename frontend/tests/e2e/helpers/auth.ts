@@ -77,23 +77,23 @@ export class AuthHelper {
     );
 
     // Navigate to admin area to trigger auth initialization
-    // Timeout: 45000ms - allows for slow backend startup in CI
-    await this.page.goto('/admin', { waitUntil: 'load', timeout: 45000 });
+    // Timeout: 20000ms - reduced from 45s, should be sufficient for most cases
+    await this.page.goto('/admin', { waitUntil: 'load', timeout: 20000 });
     
     // Wait for auth state to stabilize - wait until we're not on login page
     // This handles the async checkAuthStatus() that runs after page load
-    // Timeout: 20000ms - gives React time to check auth and potentially redirect
+    // Timeout: 8000ms - reduced from 20s, auth check is usually fast
     await this.page.waitForFunction(
       () => {
         const url = window.location.href;
         return url && !url.includes('/admin/login');
       },
-      { timeout: 20000 }
+      { timeout: 8000 }
     );
     
     // Verify we're authenticated (not on login page)
-    // Timeout: 10000ms - final verification, should be quick if auth succeeded
-    await expect(this.page).not.toHaveURL(/\/admin\/login/, { timeout: 10000 });
+    // Timeout: 5000ms - reduced from 10s, should be quick if auth succeeded
+    await expect(this.page).not.toHaveURL(/\/admin\/login/, { timeout: 5000 });
   }
 
   /**
