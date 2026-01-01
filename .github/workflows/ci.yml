@@ -165,6 +165,7 @@ jobs:
         name: e2e-test-results
         path: frontend/test-results/
         if-no-files-found: ignore
+        retention-days: 7
 
     - name: Upload Playwright report
       uses: actions/upload-artifact@v4
@@ -174,3 +175,4 @@ jobs:
         name: playwright-report
         path: frontend/playwright-report/
         if-no-files-found: ignore
+        retention-days: 7
