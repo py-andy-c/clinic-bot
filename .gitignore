@@ -290,3 +290,7 @@ backend/:memory:
 
 # Evaluation suite outputs
 backend/eval_outputs/
+
+# Playwright test artifacts
+frontend/playwright-report/
+frontend/test-results/

@@ -46,7 +46,11 @@ for arg in "$@"; do
             echo ""
             echo "Options:"
             echo "  (no flags)   Run tests for changed files only (fast)"
+            echo "                - Unit tests: incremental (changed files)"
+            echo "                - E2E tests: incremental (changed features)"
             echo "  --no-cache   Run full test suite"
+            echo "                - Unit tests: full suite"
+            echo "                - E2E tests: full suite (all browsers)"
             echo "  --help       Show this help message"
             exit 0
             ;;
@@ -127,9 +131,31 @@ else
     fi
 fi
 
+# Run E2E tests
+print_status "Running E2E tests..."
+
+if [ "$NO_CACHE" = true ]; then
+    print_status "Running full E2E test suite..."
+    if npm run test:e2e; then
+        print_success "E2E tests passed!"
+    else
+        print_error "E2E tests failed!"
+        exit 1
+    fi
+else
+    print_status "Running incremental E2E tests for changed features..."
+    if npm run test:e2e:changed; then
+        print_success "E2E tests passed!"
+    else
+        print_error "E2E tests failed!"
+        exit 1
+    fi
+fi
+
 # Final success message
 echo ""
 print_success "✅ All Frontend Tests Passed!"
 print_success "🔍 TypeScript: All type checks passed"
 print_success "✅ Unit tests: All passed"
+print_success "✅ E2E tests: All passed"
 exit 0

@@ -30,17 +30,22 @@ print_error() {
 
 # Parse command line arguments
 NO_CACHE=false
+RUN_E2E=false
 for arg in "$@"; do
     case $arg in
         --no-cache)
             NO_CACHE=true
             ;;
+        --e2e)
+            RUN_E2E=true
+            ;;
         --help|-h)
-            echo "Usage: $0 [--no-cache]"
+            echo "Usage: $0 [--no-cache] [--e2e]"
             echo ""
             echo "Options:"
             echo "  (no flags)   Run tests with testmon (fast, incremental, no coverage)"
             echo "  --no-cache   Run all backend tests with coverage check"
+            echo "  --e2e        Run E2E tests (requires backend to be running)"
             echo "  --help       Show this help message"
             exit 0
             ;;
@@ -73,6 +78,11 @@ if [ "$NO_CACHE" = true ]; then
     FRONTEND_CMD="$FRONTEND_CMD --no-cache"
 fi
 
+# E2E test command
+if [ "$RUN_E2E" = true ]; then
+    E2E_CMD="cd $PROJECT_ROOT/frontend && npm run test:e2e"
+fi
+
 # Verify test scripts exist
 if [ ! -f "$BACKEND_SCRIPT" ]; then
     print_error "Backend test script not found: $BACKEND_SCRIPT"
@@ -82,21 +92,44 @@ if [ ! -f "$FRONTEND_SCRIPT" ]; then
     print_error "Frontend test script not found: $FRONTEND_SCRIPT"
     exit 1
 fi
+if [ "$RUN_E2E" = true ]; then
+    if [ ! -f "$PROJECT_ROOT/frontend/package.json" ]; then
+        print_error "Frontend package.json not found!"
+        exit 1
+    fi
+    if ! grep -q '"test:e2e"' "$PROJECT_ROOT/frontend/package.json"; then
+        print_error "E2E test script not found in package.json"
+        exit 1
+    fi
+fi
 
 # Create temporary files for capturing output and exit codes
 BACKEND_OUTPUT=$(mktemp)
 FRONTEND_OUTPUT=$(mktemp)
 BACKEND_EXIT_FILE=$(mktemp)
 FRONTEND_EXIT_FILE=$(mktemp)
+if [ "$RUN_E2E" = true ]; then
+    E2E_OUTPUT=$(mktemp)
+    E2E_EXIT_FILE=$(mktemp)
+fi
 
 # Function to cleanup temp files
 cleanup_temp_files() {
     rm -f "$BACKEND_OUTPUT" "$FRONTEND_OUTPUT" "$BACKEND_EXIT_FILE" "$FRONTEND_EXIT_FILE"
+    if [ "$RUN_E2E" = true ]; then
+        rm -f "$E2E_OUTPUT" "$E2E_EXIT_FILE"
+    fi
 }
 trap cleanup_temp_files EXIT
 
+# Start tests in background
+if [ "$RUN_E2E" = true ]; then
+    print_status "Running backend, frontend, and E2E tests in parallel..."
+else
+    print_status "Running backend and frontend tests in parallel..."
+fi
+
 # Start backend tests in background
-print_status "Running backend and frontend tests in parallel..."
 (
     bash $BACKEND_CMD > "$BACKEND_OUTPUT" 2>&1
     echo $? > "$BACKEND_EXIT_FILE"
@@ -110,7 +143,16 @@ BACKEND_PID=$!
 ) &
 FRONTEND_PID=$!
 
-# Wait for both processes to complete
+# Start E2E tests in background if requested
+if [ "$RUN_E2E" = true ]; then
+    (
+        eval $E2E_CMD > "$E2E_OUTPUT" 2>&1
+        echo $? > "$E2E_EXIT_FILE"
+    ) &
+    E2E_PID=$!
+fi
+
+# Wait for processes to complete
 # Temporarily disable set -e to allow wait to return non-zero exit codes
 # (which is expected when background processes fail)
 set +e
@@ -118,6 +160,10 @@ wait $BACKEND_PID
 BACKEND_WAIT_EXIT=$?
 wait $FRONTEND_PID
 FRONTEND_WAIT_EXIT=$?
+if [ "$RUN_E2E" = true ]; then
+    wait $E2E_PID
+    E2E_WAIT_EXIT=$?
+fi
 set -e
 
 # Give processes a moment to write exit codes to files
@@ -141,6 +187,16 @@ if [ -f "$FRONTEND_EXIT_FILE" ] && [ -s "$FRONTEND_EXIT_FILE" ]; then
     case "$FRONTEND_EXIT" in
         ''|*[!0-9]*) FRONTEND_EXIT=1 ;;
     esac
+fi
+if [ "$RUN_E2E" = true ]; then
+    E2E_EXIT=1
+    if [ -f "$E2E_EXIT_FILE" ] && [ -s "$E2E_EXIT_FILE" ]; then
+        E2E_EXIT=$(cat "$E2E_EXIT_FILE" 2>/dev/null)
+        # Ensure it's a valid integer, default to 1 if not
+        case "$E2E_EXIT" in
+            ''|*[!0-9]*) E2E_EXIT=1 ;;
+        esac
+    fi
 fi
 
 # Display results only if they failed
@@ -170,6 +226,19 @@ if [ "$FRONTEND_EXIT" -ne 0 ]; then
     echo ""
 fi
 
+if [ "$RUN_E2E" = true ] && [ "$E2E_EXIT" -ne 0 ]; then
+    echo ""
+    print_error "E2E tests failed!"
+    echo ""
+    print_status "=== E2E Test Output ==="
+    if [ -f "$E2E_OUTPUT" ]; then
+        cat "$E2E_OUTPUT"
+    else
+        print_error "E2E output file not found!"
+    fi
+    echo ""
+fi
+
 # Display summary
 echo ""
 print_status "=== Test Summary ==="
@@ -184,10 +253,18 @@ if [ "$FRONTEND_EXIT" -eq 0 ]; then
 else
     print_error "Frontend: ❌ FAILED"
 fi
+
+if [ "$RUN_E2E" = true ]; then
+    if [ "$E2E_EXIT" -eq 0 ]; then
+        print_success "E2E:      ✅ PASSED"
+    else
+        print_error "E2E:      ❌ FAILED"
+    fi
+fi
 echo ""
 
-# Exit with error if either failed
-if [ "$BACKEND_EXIT" -ne 0 ] || [ "$FRONTEND_EXIT" -ne 0 ]; then
+# Exit with error if any failed
+if [ "$BACKEND_EXIT" -ne 0 ] || [ "$FRONTEND_EXIT" -ne 0 ] || ([ "$RUN_E2E" = true ] && [ "$E2E_EXIT" -ne 0 ]); then
     exit 1
 fi
 

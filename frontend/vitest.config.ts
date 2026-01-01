@@ -15,6 +15,11 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./src/test/setup.ts'],
+    exclude: [
+      '**/node_modules/**',
+      '**/dist/**',
+      '**/tests/e2e/**', // Exclude Playwright E2E tests (they're run separately)
+    ],
   },
   // Configure environment variables for tests (hardcoded to avoid .env file loading issues)
   // These values are used instead of loading from .env file

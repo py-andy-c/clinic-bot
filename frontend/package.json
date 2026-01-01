@@ -11,7 +11,20 @@
     "generate-types": "openapi-typescript http://localhost:8000/openapi.json --output src/types/api.ts",
     "test": "vitest",
     "test:ui": "vitest --ui",
-    "test:run": "vitest run"
+    "test:run": "vitest run",
+    "test:e2e": "playwright test",
+    "test:e2e:basic": "E2E_SKIP_BACKEND=1 NODE_ENV=test playwright test basic-test.spec.ts",
+    "test:e2e:check": "playwright test playwright-check.spec.ts --config=playwright-no-server.config.ts",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:debug": "playwright test --debug",
+    "test:e2e:auth": "playwright test --grep '@auth'",
+    "test:e2e:settings": "playwright test --grep '@settings'",
+    "test:e2e:calendar": "playwright test --grep '@calendar'",
+    "test:e2e:clinic": "playwright test --grep '@clinic'",
+    "test:e2e:basic-tag": "playwright test --grep '@basic'",
+    "test:e2e:changed": "node scripts/run-changed-e2e-tests.js",
+    "test:e2e:quick": "npm run test:e2e:check && npm run test:e2e:basic-tag"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -41,6 +54,7 @@
     "zustand": "^5.0.8"
   },
   "devDependencies": {
+    "@playwright/test": "^1.57.0",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.0",
     "@types/node": "^20.19.24",

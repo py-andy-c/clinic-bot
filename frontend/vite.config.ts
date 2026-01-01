@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [react()],
   server: {
     host: '0.0.0.0', // Listen on all interfaces for ngrok (development)
-    port: 5173,
+    port: process.env.E2E_PORT || (process.env.NODE_ENV === 'test' ? 3000 : 5173), // Use port 3000 for E2E tests, configurable via E2E_PORT
     allowedHosts: [
       'clinic-bot-frontend.ngrok.io',
       'localhost',

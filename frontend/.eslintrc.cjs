@@ -36,5 +36,13 @@ module.exports = {
         'no-console': 'off',
       },
     },
+    {
+      files: ['tests/**/*.ts', 'tests/**/*.tsx'],
+      rules: {
+        'no-console': 'off',
+        '@typescript-eslint/no-unused-vars': 'off',
+        '@typescript-eslint/no-explicit-any': 'off',
+      },
+    },
   ],
 }
