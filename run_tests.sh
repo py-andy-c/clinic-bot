@@ -1,11 +1,11 @@
 #!/bin/bash
 
 # Clinic Bot Test Runner
-# Orchestrates backend and frontend test runners
+# Orchestrates backend, frontend, and E2E test runners
 #
 # Usage:
 #   ./run_tests.sh           - Run tests with testmon (fast, incremental, no coverage)
-#   ./run_tests.sh --no-cache - Run all backend tests with coverage check
+#   ./run_tests.sh --no-cache - Run all tests with coverage check
 
 set -e  # Exit on any error
 
@@ -30,22 +30,17 @@ print_error() {
 
 # Parse command line arguments
 NO_CACHE=false
-RUN_E2E=false
 for arg in "$@"; do
     case $arg in
         --no-cache)
             NO_CACHE=true
             ;;
-        --e2e)
-            RUN_E2E=true
-            ;;
         --help|-h)
-            echo "Usage: $0 [--no-cache] [--e2e]"
+            echo "Usage: $0 [--no-cache]"
             echo ""
             echo "Options:"
             echo "  (no flags)   Run tests with testmon (fast, incremental, no coverage)"
-            echo "  --no-cache   Run all backend tests with coverage check"
-            echo "  --e2e        Run E2E tests (requires backend to be running)"
+            echo "  --no-cache   Run all tests with coverage check"
             echo "  --help       Show this help message"
             exit 0
             ;;
@@ -79,8 +74,10 @@ if [ "$NO_CACHE" = true ]; then
 fi
 
 # E2E test command
-if [ "$RUN_E2E" = true ]; then
-    E2E_CMD="cd $PROJECT_ROOT/frontend && npm run test:e2e"
+E2E_SCRIPT="$PROJECT_ROOT/frontend/run_e2e_tests.sh"
+E2E_CMD="$E2E_SCRIPT"
+if [ "$NO_CACHE" = true ]; then
+    E2E_CMD="$E2E_CMD --no-cache"
 fi
 
 # Verify test scripts exist
@@ -92,42 +89,27 @@ if [ ! -f "$FRONTEND_SCRIPT" ]; then
     print_error "Frontend test script not found: $FRONTEND_SCRIPT"
     exit 1
 fi
-if [ "$RUN_E2E" = true ]; then
-    if [ ! -f "$PROJECT_ROOT/frontend/package.json" ]; then
-        print_error "Frontend package.json not found!"
-        exit 1
-    fi
-    if ! grep -q '"test:e2e"' "$PROJECT_ROOT/frontend/package.json"; then
-        print_error "E2E test script not found in package.json"
-        exit 1
-    fi
+if [ ! -f "$E2E_SCRIPT" ]; then
+    print_error "E2E test script not found: $E2E_SCRIPT"
+    exit 1
 fi
 
 # Create temporary files for capturing output and exit codes
 BACKEND_OUTPUT=$(mktemp)
 FRONTEND_OUTPUT=$(mktemp)
+E2E_OUTPUT=$(mktemp)
 BACKEND_EXIT_FILE=$(mktemp)
 FRONTEND_EXIT_FILE=$(mktemp)
-if [ "$RUN_E2E" = true ]; then
-    E2E_OUTPUT=$(mktemp)
-    E2E_EXIT_FILE=$(mktemp)
-fi
+E2E_EXIT_FILE=$(mktemp)
 
 # Function to cleanup temp files
 cleanup_temp_files() {
-    rm -f "$BACKEND_OUTPUT" "$FRONTEND_OUTPUT" "$BACKEND_EXIT_FILE" "$FRONTEND_EXIT_FILE"
-    if [ "$RUN_E2E" = true ]; then
-        rm -f "$E2E_OUTPUT" "$E2E_EXIT_FILE"
-    fi
+    rm -f "$BACKEND_OUTPUT" "$FRONTEND_OUTPUT" "$E2E_OUTPUT" "$BACKEND_EXIT_FILE" "$FRONTEND_EXIT_FILE" "$E2E_EXIT_FILE"
 }
 trap cleanup_temp_files EXIT
 
 # Start tests in background
-if [ "$RUN_E2E" = true ]; then
-    print_status "Running backend, frontend, and E2E tests in parallel..."
-else
-    print_status "Running backend and frontend tests in parallel..."
-fi
+print_status "Running backend, frontend, and E2E tests in parallel..."
 
 # Start backend tests in background
 (
@@ -143,14 +125,12 @@ BACKEND_PID=$!
 ) &
 FRONTEND_PID=$!
 
-# Start E2E tests in background if requested
-if [ "$RUN_E2E" = true ]; then
-    (
-        eval $E2E_CMD > "$E2E_OUTPUT" 2>&1
-        echo $? > "$E2E_EXIT_FILE"
-    ) &
-    E2E_PID=$!
-fi
+# Start E2E tests in background
+(
+    bash $E2E_CMD > "$E2E_OUTPUT" 2>&1
+    echo $? > "$E2E_EXIT_FILE"
+) &
+E2E_PID=$!
 
 # Wait for processes to complete
 # Temporarily disable set -e to allow wait to return non-zero exit codes
@@ -160,10 +140,8 @@ wait $BACKEND_PID
 BACKEND_WAIT_EXIT=$?
 wait $FRONTEND_PID
 FRONTEND_WAIT_EXIT=$?
-if [ "$RUN_E2E" = true ]; then
-    wait $E2E_PID
-    E2E_WAIT_EXIT=$?
-fi
+wait $E2E_PID
+E2E_WAIT_EXIT=$?
 set -e
 
 # Give processes a moment to write exit codes to files
@@ -188,15 +166,13 @@ if [ -f "$FRONTEND_EXIT_FILE" ] && [ -s "$FRONTEND_EXIT_FILE" ]; then
         ''|*[!0-9]*) FRONTEND_EXIT=1 ;;
     esac
 fi
-if [ "$RUN_E2E" = true ]; then
-    E2E_EXIT=1
-    if [ -f "$E2E_EXIT_FILE" ] && [ -s "$E2E_EXIT_FILE" ]; then
-        E2E_EXIT=$(cat "$E2E_EXIT_FILE" 2>/dev/null)
-        # Ensure it's a valid integer, default to 1 if not
-        case "$E2E_EXIT" in
-            ''|*[!0-9]*) E2E_EXIT=1 ;;
-        esac
-    fi
+E2E_EXIT=1
+if [ -f "$E2E_EXIT_FILE" ] && [ -s "$E2E_EXIT_FILE" ]; then
+    E2E_EXIT=$(cat "$E2E_EXIT_FILE" 2>/dev/null)
+    # Ensure it's a valid integer, default to 1 if not
+    case "$E2E_EXIT" in
+        ''|*[!0-9]*) E2E_EXIT=1 ;;
+    esac
 fi
 
 # Display results only if they failed
@@ -226,7 +202,7 @@ if [ "$FRONTEND_EXIT" -ne 0 ]; then
     echo ""
 fi
 
-if [ "$RUN_E2E" = true ] && [ "$E2E_EXIT" -ne 0 ]; then
+if [ "$E2E_EXIT" -ne 0 ]; then
     echo ""
     print_error "E2E tests failed!"
     echo ""
@@ -254,17 +230,15 @@ else
     print_error "Frontend: ❌ FAILED"
 fi
 
-if [ "$RUN_E2E" = true ]; then
-    if [ "$E2E_EXIT" -eq 0 ]; then
-        print_success "E2E:      ✅ PASSED"
-    else
-        print_error "E2E:      ❌ FAILED"
-    fi
+if [ "$E2E_EXIT" -eq 0 ]; then
+    print_success "E2E:      ✅ PASSED"
+else
+    print_error "E2E:      ❌ FAILED"
 fi
 echo ""
 
 # Exit with error if any failed
-if [ "$BACKEND_EXIT" -ne 0 ] || [ "$FRONTEND_EXIT" -ne 0 ] || ([ "$RUN_E2E" = true ] && [ "$E2E_EXIT" -ne 0 ]); then
+if [ "$BACKEND_EXIT" -ne 0 ] || [ "$FRONTEND_EXIT" -ne 0 ] || [ "$E2E_EXIT" -ne 0 ]; then
     exit 1
 fi
 

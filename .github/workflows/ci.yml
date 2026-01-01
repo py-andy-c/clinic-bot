@@ -74,16 +74,10 @@ jobs:
         cd frontend
         npm ci
 
-    - name: Run frontend type check and lint
+    - name: Run frontend tests
       run: |
         cd frontend
-        ./node_modules/.bin/tsc --noEmit --incremental
-        npm run lint
-
-    - name: Run frontend unit tests
-      run: |
-        cd frontend
-        npm test -- --run
+        ./run_frontend_tests.sh --no-cache
       env:
         VITE_API_BASE_URL: /api
         VITE_LIFF_ID: test-liff-id
@@ -149,9 +143,8 @@ jobs:
     - name: Run E2E tests
       run: |
         cd frontend
-        npm run test:e2e
+        ./run_e2e_tests.sh --no-cache
       env:
-        E2E_BASE_URL: http://localhost:3000
         DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
 
     - name: Upload E2E test results
