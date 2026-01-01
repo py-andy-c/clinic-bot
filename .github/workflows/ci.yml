@@ -71,7 +71,7 @@ jobs:
         E2E_BASE_URL: http://localhost:3000
 
     - name: Upload test results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
         name: test-results
@@ -80,7 +80,7 @@ jobs:
           backend/htmlcov/
 
     - name: Upload Playwright report
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
         name: playwright-report
