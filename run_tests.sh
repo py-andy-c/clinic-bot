@@ -102,6 +102,13 @@ else
         
         if [ "$RUN_BACKEND" = false ] && [ "$RUN_FRONTEND" = false ]; then
             print_status "No backend or frontend files changed, skipping tests"
+            # Still show summary with all skipped
+            echo ""
+            print_status "=== Test Summary ==="
+            echo -e "${BLUE}[INFO]${NC} Backend:  ⏭️  SKIPPED (no backend files changed)"
+            echo -e "${BLUE}[INFO]${NC} Frontend: ⏭️  SKIPPED (no frontend files changed)"
+            echo -e "${BLUE}[INFO]${NC} E2E:      ⏭️  SKIPPED (no frontend files changed)"
+            echo ""
             exit 0
         fi
     else
@@ -309,31 +316,35 @@ if [ "$RUN_E2E" = true ] && [ "$E2E_EXIT" -ne 0 ]; then
     echo ""
 fi
 
-# Display summary
+# Display summary (always show all three, mark skipped ones)
 echo ""
 print_status "=== Test Summary ==="
-if [ "$RUN_BACKEND" = true ]; then
-    if [ "$BACKEND_EXIT" -eq 0 ]; then
-        print_success "Backend:  ✅ PASSED"
-    else
-        print_error "Backend:  ❌ FAILED"
-    fi
+
+# Backend status
+if [ "$RUN_BACKEND" = false ]; then
+    echo -e "${BLUE}[INFO]${NC} Backend:  ⏭️  SKIPPED (no backend files changed)"
+elif [ "$BACKEND_EXIT" -eq 0 ]; then
+    print_success "Backend:  ✅ PASSED"
+else
+    print_error "Backend:  ❌ FAILED"
 fi
 
-if [ "$RUN_FRONTEND" = true ]; then
-    if [ "$FRONTEND_EXIT" -eq 0 ]; then
-        print_success "Frontend: ✅ PASSED"
-    else
-        print_error "Frontend: ❌ FAILED"
-    fi
+# Frontend status
+if [ "$RUN_FRONTEND" = false ]; then
+    echo -e "${BLUE}[INFO]${NC} Frontend: ⏭️  SKIPPED (no frontend files changed)"
+elif [ "$FRONTEND_EXIT" -eq 0 ]; then
+    print_success "Frontend: ✅ PASSED"
+else
+    print_error "Frontend: ❌ FAILED"
 fi
 
-if [ "$RUN_E2E" = true ]; then
-    if [ "$E2E_EXIT" -eq 0 ]; then
-        print_success "E2E:      ✅ PASSED"
-    else
-        print_error "E2E:      ❌ FAILED"
-    fi
+# E2E status
+if [ "$RUN_E2E" = false ]; then
+    echo -e "${BLUE}[INFO]${NC} E2E:      ⏭️  SKIPPED (no frontend files changed)"
+elif [ "$E2E_EXIT" -eq 0 ]; then
+    print_success "E2E:      ✅ PASSED"
+else
+    print_error "E2E:      ❌ FAILED"
 fi
 echo ""
 
