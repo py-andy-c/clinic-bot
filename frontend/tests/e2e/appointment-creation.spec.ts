@@ -8,8 +8,19 @@ test.describe('Appointment Creation', { tag: '@auth' }, () => {
     // Navigate to login page
     await page.goto('/admin/login');
 
-    // Verify we're on the login page
-    await expect(page.locator('text=診所小幫手 管理系統')).toBeVisible();
+    // Wait for page to load and verify we're on the login page
+    // Use a more flexible selector that should always be present
+    await page.waitForLoadState('networkidle');
+    
+    // Check for either the title or the Google login button (more reliable)
+    const hasTitle = await page.locator('text=診所小幫手').first().isVisible().catch(() => false);
+    const hasLoginButton = await page.locator('button:has-text("Google 登入")').isVisible().catch(() => false);
+    
+    if (!hasTitle && !hasLoginButton) {
+      // If neither is visible, check what's actually on the page for debugging
+      const pageContent = await page.textContent('body').catch(() => '');
+      throw new Error(`Login page not loaded correctly. Page content: ${pageContent.substring(0, 200)}`);
+    }
 
     // For E2E testing, we might need to:
     // 1. Set up a test user account

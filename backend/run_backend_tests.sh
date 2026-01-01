@@ -105,16 +105,24 @@ fi
 print_success "PostgreSQL is running"
 
 # Ensure test database exists
-print_status "Checking test database..."
-if ! psql -h localhost -t -c "SELECT 1 FROM pg_database WHERE datname='clinic_bot_test'" postgres 2>/dev/null | grep -q 1; then
-    print_status "Creating test database..."
-    createdb clinic_bot_test 2>/dev/null || {
-        print_error "Failed to create test database"
-        print_error "Try: createdb clinic_bot_test"
+# Extract database name from DATABASE_URL or TEST_DATABASE_URL, default to clinic_bot_test
+TEST_DB_NAME="${TEST_DATABASE_URL:-${DATABASE_URL:-postgresql://localhost/clinic_bot_test}}"
+# Extract database name from URL (format: postgresql://user:pass@host:port/dbname)
+TEST_DB_NAME=$(echo "$TEST_DB_NAME" | sed -n 's|.*/\([^?]*\).*|\1|p')
+if [ -z "$TEST_DB_NAME" ]; then
+    TEST_DB_NAME="clinic_bot_test"
+fi
+
+print_status "Checking test database: $TEST_DB_NAME..."
+if ! psql -h localhost -t -c "SELECT 1 FROM pg_database WHERE datname='$TEST_DB_NAME'" postgres 2>/dev/null | grep -q 1; then
+    print_status "Creating test database: $TEST_DB_NAME..."
+    createdb "$TEST_DB_NAME" 2>/dev/null || {
+        print_error "Failed to create test database: $TEST_DB_NAME"
+        print_error "Try: createdb $TEST_DB_NAME"
         print_sandbox_hint
         exit 1
     }
-    print_success "Test database created"
+    print_success "Test database created: $TEST_DB_NAME"
 fi
 
 # Load test environment variables
