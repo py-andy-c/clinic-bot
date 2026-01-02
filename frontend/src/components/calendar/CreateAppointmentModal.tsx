@@ -17,8 +17,8 @@ import { SearchInput } from '../shared';
 import { Patient, AppointmentType, ServiceTypeGroup } from '../../types';
 import moment from 'moment-timezone';
 import { formatAppointmentDateTime } from '../../utils/calendarUtils';
-import { useApiData } from '../../hooks/useApiData';
 import { useAuth } from '../../hooks/useAuth';
+import { usePatients } from '../../hooks/usePatients';
 import { useDebouncedSearch, shouldTriggerSearch } from '../../utils/searchUtils';
 import { PatientCreationModal } from '../PatientCreationModal';
 import { PatientCreationSuccessModal } from '../PatientCreationSuccessModal';
@@ -360,36 +360,21 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
   const shouldFetchForPreSelected = !!selectedPatientId && !hasValidSearch;
   
   const { isLoading: authLoading, isAuthenticated } = useAuth();
-  const fetchPatientsFn = useCallback(
-    () => {
-      if (shouldFetchForPreSelected) {
-        return apiService.getPatients(1, 100, undefined, undefined);
-      }
-      return apiService.getPatients(1, 100, undefined, debouncedSearchQuery);
-    },
-    [debouncedSearchQuery, shouldFetchForPreSelected]
-  );
   
-  const { 
-    data: patientsData, 
-    loading: isLoadingPatients,
-    error: patientsError,
-    refetch: refetchPatients
-  } = useApiData<{
-    patients: Patient[];
-    total: number;
-    page: number;
-    page_size: number;
-  }>(
-    fetchPatientsFn,
-    {
-      enabled: !authLoading && isAuthenticated && (hasValidSearch || shouldFetchForPreSelected),
-      dependencies: [authLoading, isAuthenticated, selectedPatientId, debouncedSearchQuery, hasValidSearch, shouldFetchForPreSelected],
-      cacheTTL: 5 * 60 * 1000,
-      defaultErrorMessage: '無法載入病患列表',
-      initialData: { patients: [], total: 0, page: 1, page_size: 1 },
-    }
-  );
+  // Fetch patients using React Query
+  const {
+    data: patientsData,
+    isLoading: isLoadingPatients,
+    error: patientsQueryError,
+    refetch: refetchPatients,
+  } = usePatients({
+    page: 1,
+    pageSize: 100,
+    ...(shouldFetchForPreSelected ? {} : { search: debouncedSearchQuery }),
+    enabled: !authLoading && isAuthenticated && (hasValidSearch || shouldFetchForPreSelected),
+  });
+
+  const patientsError = patientsQueryError ? (getErrorMessage(patientsQueryError) || '無法載入病患列表') : null;
   
   // Keep previous data visible during loading to prevent flicker
   const [previousPatientsData, setPreviousPatientsData] = useState<{

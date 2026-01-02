@@ -1,9 +1,8 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Patient } from '../../types';
 import { useAuth } from '../../hooks/useAuth';
-import { useApiData } from '../../hooks/useApiData';
-import { apiService } from '../../services/api';
+import { useClinicSettings } from '../../hooks/useClinicSettings';
 import { DateInput } from '../shared/DateInput';
 import { formatDateForApi, convertApiDateToDisplay } from '../../utils/dateFormat';
 import { validateClinicPatientForm } from '../../utils/patientFormValidation';
@@ -44,14 +43,7 @@ export const PatientInfoSection: React.FC<PatientInfoSectionProps> = ({
   const [error, setError] = useState<string | null>(null);
 
   // Fetch clinic settings to check if birthday or gender is required
-  const fetchClinicSettings = useCallback(() => apiService.getClinicSettings(), []);
-  const { data: clinicSettings } = useApiData(
-    fetchClinicSettings,
-    {
-      enabled: !!user?.active_clinic_id,
-      dependencies: [user?.active_clinic_id],
-    }
-  );
+  const { data: clinicSettings } = useClinicSettings(!!user?.active_clinic_id);
 
   useEffect(() => {
     if (clinicSettings) {

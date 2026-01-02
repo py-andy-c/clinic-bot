@@ -30,7 +30,7 @@ Object.defineProperty(window, 'localStorage', {
 });
 
 // Helper to create a JWT token payload
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 function createJWTToken(payload: Record<string, any>): string {
   const header = { alg: 'HS256', typ: 'JWT' };
   const encodedHeader = btoa(JSON.stringify(header));

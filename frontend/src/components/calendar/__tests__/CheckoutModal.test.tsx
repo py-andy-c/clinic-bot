@@ -73,7 +73,7 @@ describe('CheckoutModal', () => {
     vi.mocked(apiService.getBillingScenarios).mockResolvedValue({
       billing_scenarios: mockBillingScenarios,
     });
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     vi.mocked(apiService.checkoutAppointment).mockResolvedValue({} as any);
   });
 
@@ -809,7 +809,7 @@ describe('CheckoutModal', () => {
       );
       // Verify practitioner_id is NOT in the request
       const callArgs = vi.mocked(apiService.checkoutAppointment).mock.calls[0];
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const items = callArgs[1] as any[];
       expect(items[0]).not.toHaveProperty('practitioner_id');
     });
@@ -855,7 +855,7 @@ describe('CheckoutModal', () => {
       );
       // Verify billing_scenario_id is NOT in the request
       const callArgs = vi.mocked(apiService.checkoutAppointment).mock.calls[0];
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const items = callArgs[1] as any[];
       expect(items[0]).not.toHaveProperty('billing_scenario_id');
     });

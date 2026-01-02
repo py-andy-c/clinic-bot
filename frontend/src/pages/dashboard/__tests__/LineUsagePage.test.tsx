@@ -6,11 +6,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import React from 'react';
 import { BrowserRouter } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import LineUsagePage from '../LineUsagePage';
-import { useApiData } from '../../../hooks/useApiData';
+import { useDashboardMetrics } from '../../../hooks/useDashboard';
 
-// Mock useApiData hook
-vi.mock('../../../hooks/useApiData');
+// Mock React Query hooks
+vi.mock('../../../hooks/useDashboard');
 
 // Mock useAuth hook
 vi.mock('../../../hooks/useAuth', () => ({
@@ -19,13 +20,6 @@ vi.mock('../../../hooks/useAuth', () => ({
     isAuthenticated: true,
     isLoading: false,
   }),
-}));
-
-// Mock apiService
-vi.mock('../../../services/api', () => ({
-  apiService: {
-    getDashboardMetrics: vi.fn(),
-  },
 }));
 
 // Mock shared components
@@ -47,7 +41,7 @@ vi.mock('../../../components/shared', () => ({
     ) : null,
 }));
 
-const mockUseApiData = vi.mocked(useApiData);
+const mockUseDashboardMetrics = vi.mocked(useDashboardMetrics);
 
 describe('LineUsagePage', () => {
   const mockDashboardMetrics = {
@@ -104,43 +98,46 @@ describe('LineUsagePage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
-    mockUseApiData.mockImplementation(() => ({
+    mockUseDashboardMetrics.mockReturnValue({
       data: mockDashboardMetrics,
-      loading: false,
+      isLoading: false,
       error: null,
       refetch: vi.fn(),
-      clearError: vi.fn(),
-      setData: vi.fn(),
-    }));
+    } as any);
   });
 
   const renderWithRouter = (component: React.ReactElement) => {
-    return render(<BrowserRouter>{component}</BrowserRouter>);
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+      },
+    });
+    return render(
+      <QueryClientProvider client={queryClient}>
+        <BrowserRouter>{component}</BrowserRouter>
+      </QueryClientProvider>
+    );
   };
 
   it('renders loading state correctly', () => {
-    mockUseApiData.mockImplementation(() => ({
-      data: null,
-      loading: true,
+    mockUseDashboardMetrics.mockReturnValue({
+      data: undefined,
+      isLoading: true,
       error: null,
       refetch: vi.fn(),
-      clearError: vi.fn(),
-      setData: vi.fn(),
-    }));
+    } as any);
 
     renderWithRouter(<LineUsagePage />);
     expect(screen.getByTestId('loading-spinner')).toBeInTheDocument();
   });
 
   it('renders error state correctly', () => {
-    mockUseApiData.mockImplementation(() => ({
-      data: null,
-      loading: false,
-      error: 'Failed to load data',
+    mockUseDashboardMetrics.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      error: new Error('Failed to load data'),
       refetch: vi.fn(),
-      clearError: vi.fn(),
-      setData: vi.fn(),
-    }));
+    } as any);
 
     renderWithRouter(<LineUsagePage />);
     expect(screen.getByTestId('error-message')).toBeInTheDocument();
@@ -215,14 +212,12 @@ describe('LineUsagePage', () => {
       ai_reply_messages_by_month: [],
     };
 
-    mockUseApiData.mockImplementation(() => ({
+    mockUseDashboardMetrics.mockReturnValue({
       data: incompleteData,
-      loading: false,
+      isLoading: false,
       error: null,
       refetch: vi.fn(),
-      clearError: vi.fn(),
-      setData: vi.fn(),
-    }));
+    } as any);
 
     renderWithRouter(<LineUsagePage />);
 

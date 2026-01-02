@@ -2,8 +2,9 @@ import React, { createContext, useContext, ReactNode } from 'react';
 import { ClinicSettings } from '../schemas/api';
 import { useSettingsPage } from '../hooks/useSettingsPage';
 import { useAuth } from '../hooks/useAuth';
-import { useApiData, invalidateCacheForFunction, invalidateCacheByPattern } from '../hooks/useApiData';
-import { sharedFetchFunctions, apiService } from '../services/api';
+import { useQueryClient } from '@tanstack/react-query';
+import { apiService } from '../services/api';
+import { useClinicSettings, clinicSettingsKeys } from '../hooks/useClinicSettings';
 import { validateClinicSettings, getClinicSectionChanges } from '../utils/clinicSettings';
 import { useModal } from './ModalContext';
 import { useUnsavedChangesDetection } from '../hooks/useUnsavedChangesDetection';
@@ -47,17 +48,11 @@ export const SettingsProvider: React.FC<SettingsProviderProps> = ({ children }) 
   const { isLoading, user } = useAuth();
   const activeClinicId = user?.active_clinic_id;
   const { alert } = useModal();
+  const queryClient = useQueryClient();
   const [clinicInfoRefreshTrigger, setClinicInfoRefreshTrigger] = React.useState(0);
 
-  // Fetch clinic settings with caching (shares cache with GlobalWarnings)
-  const { data: cachedSettings, loading: settingsLoading } = useApiData(
-    sharedFetchFunctions.getClinicSettings,
-    {
-      enabled: !isLoading,
-      dependencies: [isLoading, activeClinicId],
-      cacheTTL: 5 * 60 * 1000, // 5 minutes cache
-    }
-  );
+  // Fetch clinic settings using React Query
+  const { data: cachedSettings, isLoading: settingsLoading } = useClinicSettings(!isLoading);
 
   // Use settings page hook with cached data to avoid duplicate fetch
   const {
@@ -70,7 +65,7 @@ export const SettingsProvider: React.FC<SettingsProviderProps> = ({ children }) 
     fetchData,
   } = useSettingsPage({
     fetchData: async () => {
-      return await sharedFetchFunctions.getClinicSettings();
+      return await apiService.getClinicSettings();
     },
     saveData: async (data: ClinicSettings) => {
       // Convert reminder hours and booking restriction hours to numbers for backend
@@ -122,7 +117,7 @@ export const SettingsProvider: React.FC<SettingsProviderProps> = ({ children }) 
       // if there are service items changes. We'll handle success in the outer saveData.
       
       // Invalidate cache after successful save so other components see fresh data
-      invalidateCacheForFunction(sharedFetchFunctions.getClinicSettings);
+      queryClient.invalidateQueries({ queryKey: clinicSettingsKeys.all });
 
       // Check if clinic info was changed and saved by comparing with the data before save
       if (settings && originalData) {
@@ -150,9 +145,8 @@ export const SettingsProvider: React.FC<SettingsProviderProps> = ({ children }) 
     const currentClinicId = activeClinicId;
     if (!isLoading && currentClinicId && previousClinicIdRef.current !== currentClinicId && previousClinicIdRef.current !== null && previousClinicIdRef.current !== undefined) {
       // Invalidate cache when clinic changes
-      invalidateCacheForFunction(sharedFetchFunctions.getClinicSettings);
-      invalidateCacheByPattern('api_getPractitionerStatus_');
-      invalidateCacheByPattern('api_getBatchPractitionerStatus_');
+      queryClient.invalidateQueries({ queryKey: clinicSettingsKeys.all });
+      queryClient.invalidateQueries({ queryKey: ['practitionerStatus'] });
       // Clear service items store when clinic changes (will be reloaded for new clinic)
       clearServiceItems();
       // Force refetch by calling fetchData (skipFetch will be false after invalidation)

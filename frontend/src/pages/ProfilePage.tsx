@@ -7,7 +7,8 @@ import { useSettingsPage } from '../hooks/useSettingsPage';
 import { useModal } from '../contexts/ModalContext';
 import { validateProfileSettings, getProfileSectionChanges } from '../utils/profileSettings';
 import { apiService } from '../services/api';
-import { invalidateCacheByPattern } from '../hooks/useApiData';
+import { useQueryClient } from '@tanstack/react-query';
+import { practitionerStatusKeys } from '../hooks/usePractitionerStatus';
 import ProfileForm from '../components/ProfileForm';
 import { getErrorMessage } from '../types/api';
 import AvailabilitySettings from '../components/AvailabilitySettings';
@@ -174,6 +175,7 @@ const ProfilePage: React.FC = () => {
   const { user, isLoading, user: authUser } = useAuth();
   const activeClinicId = authUser?.active_clinic_id;
   const { alert } = useModal();
+  const queryClient = useQueryClient();
 
   // Scroll to top when component mounts
   useEffect(() => {
@@ -342,8 +344,7 @@ const ProfilePage: React.FC = () => {
     },
     onSuccess: async () => {
       // Invalidate practitioner status cache so warnings update after profile changes
-      invalidateCacheByPattern('api_getPractitionerStatus_');
-      invalidateCacheByPattern('api_getBatchPractitionerStatus_');
+      queryClient.invalidateQueries({ queryKey: practitionerStatusKeys.all });
 
       // Show success message using modal
       await alert('設定已更新', '成功');

@@ -3,8 +3,10 @@ import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useUnsavedChanges } from '../contexts/UnsavedChangesContext';
 import { useModal } from '../contexts/ModalContext';
-import { useApiData, invalidateCacheForFunction, invalidateCacheByPattern } from '../hooks/useApiData';
-import { apiService, sharedFetchFunctions } from '../services/api';
+import { useQueryClient } from '@tanstack/react-query';
+import { useClinicSettings, clinicSettingsKeys } from '../hooks/useClinicSettings';
+import { useMembers } from '../hooks/useMembers';
+import { usePractitionerStatus, useBatchPractitionerStatus, practitionerStatusKeys } from '../hooks/usePractitionerStatus';
 import { logger } from '../utils/logger';
 import ClinicSwitcher from './ClinicSwitcher';
 
@@ -28,64 +30,32 @@ const GlobalWarnings: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const previousPathnameRef = useRef<string | null>(null);
 
-  // Use shared fetch functions for cache key consistency
-  const fetchClinicSettingsFn = sharedFetchFunctions.getClinicSettings;
-  const { data: clinicSettingsData, error: clinicSettingsError } = useApiData(
-    fetchClinicSettingsFn,
-    {
-      enabled: !isLoading && isClinicAdmin,
-      dependencies: [isLoading, isClinicAdmin, user?.active_clinic_id],
-      cacheTTL: 5 * 60 * 1000, // 5 minutes cache
-    }
-  );
+  const queryClient = useQueryClient();
 
-  const fetchMembersFn = sharedFetchFunctions.getMembers;
-  const { data: membersData, error: membersError } = useApiData(
-    fetchMembersFn,
-    {
-      enabled: !isLoading && isClinicAdmin,
-      dependencies: [isLoading, isClinicAdmin, user?.active_clinic_id],
-      cacheTTL: 5 * 60 * 1000, // 5 minutes cache
-    }
-  );
+  // Fetch clinic settings using React Query
+  const { data: clinicSettingsData, error: clinicSettingsError } = useClinicSettings(!isLoading && isClinicAdmin);
 
-  // Use useApiData for practitioner status to enable caching and request deduplication
-  const fetchPractitionerStatusFn = useCallback(
-    () => user?.user_id ? apiService.getPractitionerStatus(user.user_id) : Promise.reject(new Error('No user ID')),
-    [user?.user_id]
-  );
-  const { data: practitionerStatusData, error: practitionerStatusError } = useApiData(
-    fetchPractitionerStatusFn,
-    {
-      enabled: !isLoading && user?.user_id !== undefined && hasRole && hasRole('practitioner'),
-      dependencies: [isLoading, user?.user_id, hasRole],
-      cacheTTL: 5 * 60 * 1000, // 5 minutes cache
-    }
+  // Fetch members using React Query
+  const { data: membersData = [], error: membersError } = useMembers(!isLoading && isClinicAdmin);
+
+  // Fetch practitioner status using React Query
+  const { data: practitionerStatusData, error: practitionerStatusError } = usePractitionerStatus(
+    !isLoading && user?.user_id !== undefined && hasRole && hasRole('practitioner')
   );
 
   // Compute practitioner IDs from members data
   const practitionerIds = useMemo(() => {
-    if (!isClinicAdmin || !membersData) return [];
+    if (!isClinicAdmin || !membersData || membersData.length === 0) return [];
     const practitionerMembers = membersData.filter(
       member => member.roles.includes('practitioner') && member.is_active
     );
     return practitionerMembers.map(m => m.id).sort((a, b) => a - b); // Sort for stable cache key
   }, [isClinicAdmin, membersData]);
 
-  // Use useApiData for batch practitioner status to enable caching and request deduplication
-  const fetchBatchPractitionerStatusFn = useCallback(
-    () => practitionerIds.length > 0 
-      ? apiService.getBatchPractitionerStatus(practitionerIds)
-      : Promise.resolve({ results: [] }),
-    [practitionerIds]
-  );
-  const { data: batchPractitionerStatusData, error: batchPractitionerStatusError } = useApiData(
-    fetchBatchPractitionerStatusFn,
-    {
-      enabled: !isLoading && isClinicAdmin && practitionerIds.length > 0,
-      dependencies: [isLoading, isClinicAdmin, practitionerIds],
-      cacheTTL: 5 * 60 * 1000, // 5 minutes cache
-    }
+  // Fetch batch practitioner status using React Query
+  const { data: batchPractitionerStatusData, error: batchPractitionerStatusError } = useBatchPractitionerStatus(
+    practitionerIds,
+    !isLoading && isClinicAdmin && practitionerIds.length > 0
   );
 
   // Compute warnings from fetched data
@@ -180,7 +150,7 @@ const GlobalWarnings: React.FC = () => {
   }, [isLoading, user, isClinicAdmin, hasRole, clinicSettingsData, membersData, practitionerStatusData, batchPractitionerStatusData, batchPractitionerStatusError, clinicSettingsError, membersError, practitionerStatusError]);
 
   // Refresh warnings when navigating away from settings/profile pages
-  // We'll invalidate the useApiData cache instead of using our own cache
+  // We'll invalidate the React Query cache to refresh data
   useEffect(() => {
     const previousPathname = previousPathnameRef.current;
     const currentPathname = location.pathname;
@@ -191,17 +161,15 @@ const GlobalWarnings: React.FC = () => {
     // Only refresh if navigating away from settings pages
     if (previousPathname && isSettingsPage(previousPathname) && !isSettingsPage(currentPathname)) {
       // Invalidate cache to ensure fresh data after settings changes
-      invalidateCacheForFunction(sharedFetchFunctions.getClinicSettings);
-      invalidateCacheForFunction(sharedFetchFunctions.getMembers);
-      
-      // Also invalidate practitioner status caches (parameterized functions)
-      // These use patterns like "api_getPractitionerStatus_*" and "api_getBatchPractitionerStatus_*"
-      invalidateCacheByPattern('api_getPractitionerStatus_');
-      invalidateCacheByPattern('api_getBatchPractitionerStatus_');
+      queryClient.invalidateQueries({ queryKey: clinicSettingsKeys.all });
+      queryClient.invalidateQueries({ queryKey: ['members'] });
+      queryClient.invalidateQueries({ queryKey: practitionerStatusKeys.all });
     }
 
     // Update previous pathname for next navigation
     previousPathnameRef.current = currentPathname;
+    // queryClient is stable from useQueryClient() and doesn't need to be in deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.pathname, user, isClinicAdmin, hasRole]);
 
   const hasAnyWarnings = !warnings.clinicWarnings.hasAppointmentTypes ||

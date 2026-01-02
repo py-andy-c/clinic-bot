@@ -1,18 +1,22 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useModal } from '../contexts/ModalContext';
-import { apiService } from '../services/api';
 import { Member, UserRole, MemberInviteData } from '../types';
 import { logger } from '../utils/logger';
 import { LoadingSpinner, ErrorMessage } from '../components/shared';
-import { useApiData } from '../hooks/useApiData';
 import PageHeader from '../components/PageHeader';
 import { getErrorMessage } from '../types/api';
+import {
+  useMembers,
+  useInviteMember,
+  useUpdateMemberRoles,
+  useRemoveMember,
+  useReactivateMember,
+} from '../hooks/useMembers';
 
 const MembersPage: React.FC = () => {
   // All hooks must be called before any conditional returns
-  const { isClinicAdmin, user: currentUser, isAuthenticated, checkAuthStatus, isLoading } = useAuth();
-  const activeClinicId = currentUser?.active_clinic_id;
+  const { isClinicAdmin, user: currentUser, isAuthenticated, checkAuthStatus } = useAuth();
   const { alert, confirm } = useModal();
   
   // Scroll to top when component mounts
@@ -20,23 +24,18 @@ const MembersPage: React.FC = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
 
-  // Stable fetch function using useCallback
-  const fetchMembers = useCallback(() => apiService.getMembers(), []);
+  // Fetch members using React Query
+  const { data: members = [], isLoading: loading, error: queryError, refetch } = useMembers();
+  const error = queryError ? (getErrorMessage(queryError) || '無法載入成員列表') : null;
 
-  const { data: members, loading, error, refetch } = useApiData<Member[]>(
-    fetchMembers,
-    {
-      enabled: !isLoading && isAuthenticated,
-      dependencies: [isLoading, isAuthenticated, activeClinicId],
-      defaultErrorMessage: '無法載入成員列表',
-      initialData: [],
-    }
-  );
+  // Mutation hooks
+  const inviteMemberMutation = useInviteMember();
+  const updateRolesMutation = useUpdateMemberRoles();
+  const removeMemberMutation = useRemoveMember();
+  const reactivateMemberMutation = useReactivateMember();
 
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [showRoleModal, setShowRoleModal] = useState<Member | null>(null);
-  const [inviting, setInviting] = useState(false);
-  const [updatingRoles, setUpdatingRoles] = useState(false);
 
   // If not authenticated, show a message (in real app, this would redirect to login)
   if (!isAuthenticated) {
@@ -52,8 +51,7 @@ const MembersPage: React.FC = () => {
 
   const handleInviteMember = async (inviteData: MemberInviteData) => {
     try {
-      setInviting(true);
-      const response = await apiService.inviteMember(inviteData);
+      const response = await inviteMemberMutation.mutateAsync(inviteData);
       return response;
     } catch (err: unknown) {
       logger.error('Invite member error:', err);
@@ -64,21 +62,17 @@ const MembersPage: React.FC = () => {
         await alert('邀請成員失敗，請稍後再試');
       }
       throw err;
-    } finally {
-      setInviting(false);
     }
   };
 
   const handleUpdateRoles = async (userId: number, roles: UserRole[]) => {
     try {
-      setUpdatingRoles(true);
-      await apiService.updateMemberRoles(userId, roles);
+      await updateRolesMutation.mutateAsync({ userId, roles });
       setShowRoleModal(null);
-      await refetch(); // Refresh the list
       
-      // If the current user updated their own roles, refresh auth status
+      // If the current user updated their own roles, refresh auth status (force refresh)
       if (currentUser && userId === currentUser.user_id) {
-        await checkAuthStatus();
+        await checkAuthStatus(true);
       }
     } catch (err: unknown) {
       logger.error('Update roles error:', err);
@@ -92,8 +86,6 @@ const MembersPage: React.FC = () => {
       } else {
         await alert('更新角色失敗，請稍後再試');
       }
-    } finally {
-      setUpdatingRoles(false);
     }
   };
 
@@ -104,8 +96,7 @@ const MembersPage: React.FC = () => {
     }
 
     try {
-      await apiService.removeMember(userId);
-      await refetch(); // Refresh the list
+      await removeMemberMutation.mutateAsync(userId);
     } catch (err: unknown) {
       logger.error('Remove member error:', err);
 
@@ -128,8 +119,7 @@ const MembersPage: React.FC = () => {
     }
 
     try {
-      await apiService.reactivateMember(userId);
-      await refetch(); // Refresh the list
+      await reactivateMemberMutation.mutateAsync(userId);
       await alert('成員已重新啟用');
     } catch (err: unknown) {
       logger.error('Reactivate member error:', err);
@@ -320,8 +310,8 @@ const MembersPage: React.FC = () => {
       {showInviteModal && (
         <InviteMemberModal
           onClose={() => setShowInviteModal(false)}
-          onInvite={handleInviteMember}
-          inviting={inviting}
+              onInvite={handleInviteMember}
+              inviting={inviteMemberMutation.isPending}
         />
       )}
 
@@ -331,7 +321,7 @@ const MembersPage: React.FC = () => {
           member={showRoleModal}
           onClose={() => setShowRoleModal(null)}
           onUpdate={handleUpdateRoles}
-          updating={updatingRoles}
+          updating={updateRolesMutation.isPending}
         />
       )}
     </>

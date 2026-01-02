@@ -1,9 +1,6 @@
 import React, { useState, useCallback, useEffect, useMemo } from "react";
-import {
-  useApiData,
-  invalidateCacheForFunction,
-  invalidateCacheByPattern,
-} from "../../hooks/useApiData";
+import { usePatientAppointments, patientAppointmentsKeys } from "../../hooks/usePatientAppointments";
+import { useQueryClient } from '@tanstack/react-query';
 import { apiService } from "../../services/api";
 import { LoadingSpinner, ErrorMessage } from "../shared";
 import moment from "moment-timezone";
@@ -24,11 +21,11 @@ import { appointmentToCalendarEvent } from "./appointmentUtils";
 import { canEditAppointment, canDuplicateAppointment, getPractitionerIdForDuplicate } from "../../utils/appointmentPermissions";
 import { useModal } from "../../contexts/ModalContext";
 import { useAuth } from "../../hooks/useAuth";
-import { getErrorMessage } from "../../types/api";
 import { logger } from "../../utils/logger";
 import { invalidateCacheForDate } from "../../utils/availabilityCache";
 import { invalidateResourceCacheForDate } from "../../utils/resourceAvailabilityCache";
 import { AppointmentType } from "../../types";
+import { getErrorMessage } from "../../types/api";
 
 const TAIWAN_TIMEZONE = "Asia/Taipei";
 
@@ -131,23 +128,20 @@ export const PatientAppointmentsList: React.FC<
     [canEdit, isAdmin, userId],
   );
 
-  // Fetch ALL appointments once (no filters) so we can calculate accurate counts for all tabs
-  const fetchAppointments = useCallback(() => {
-    return apiService.getPatientAppointments(
-      patientId,
-      undefined, // No status filter - get all appointments
-      false, // No upcoming_only filter - get all appointments
-    );
-  }, [patientId]);
+  const queryClient = useQueryClient();
 
-  const { data, loading, error, refetch, setData } = useApiData<{
-    appointments: Appointment[];
-  }>(fetchAppointments, {
-    enabled: !!patientId,
-    dependencies: [patientId], // Only depend on patientId, not activeTab
-    defaultErrorMessage: "無法載入預約記錄",
-    // Cache key now includes patientId via dependencies, so caching is safe
-  });
+  // Fetch ALL appointments once (no filters) so we can calculate accurate counts for all tabs
+  const { data, isLoading: loading, error: queryError, refetch } = usePatientAppointments(
+    patientId,
+    !!patientId
+  );
+
+  const error = queryError ? (getErrorMessage(queryError) || "無法載入預約記錄") : null;
+
+  // Helper to update local cache after mutations
+  const setData = useCallback((newData: { appointments: Appointment[] }) => {
+    queryClient.setQueryData(patientAppointmentsKeys.list(patientId ?? 0), newData);
+  }, [queryClient, patientId]);
 
   const allAppointments = useMemo(() => data?.appointments || [], [data?.appointments]);
 
@@ -224,20 +218,20 @@ export const PatientAppointmentsList: React.FC<
   // Helper function to refresh appointments list after mutations
   const refreshAppointmentsList = useCallback(async () => {
     // Invalidate cache for appointments list using pattern to catch all variations
-    invalidateCacheByPattern(`api_getPatientAppointments`);
-    invalidateCacheForFunction(fetchAppointments);
+    // Invalidate React Query cache
+    queryClient.invalidateQueries({ queryKey: patientAppointmentsKeys.all });
 
     // Force a fresh fetch by directly calling the API and updating data
     // This ensures we get fresh data regardless of cache state
     try {
-      const freshData = await fetchAppointments();
+      const freshData = await apiService.getPatientAppointments(patientId ?? 0);
       setData(freshData);
     } catch (fetchError) {
       // If direct fetch fails, try refetch as fallback
       logger.warn("Direct fetch failed, trying refetch:", fetchError);
       await refetch();
     }
-  }, [fetchAppointments, setData, refetch]);
+  }, [queryClient, patientId, setData, refetch]);
 
   // Expose refetch function to parent component
   useEffect(() => {
@@ -587,12 +581,7 @@ export const PatientAppointmentsList: React.FC<
                     {appointment.notes}
                   </div>
                 )}
-                {appointment.clinic_notes && (
-                  <div className="text-sm text-gray-600 mt-2">
-                    <span className="font-medium">診所備注：</span>
-                    {appointment.clinic_notes}
-                  </div>
-                )}
+                {/* clinic_notes is not available in AppointmentListItem type */}
 
                 {/* Receipt View Button */}
                 {appointment.has_any_receipt && appointment.receipt_ids && appointment.receipt_ids.length > 0 && (

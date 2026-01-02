@@ -16,7 +16,7 @@ describe('shouldPromptForAssignment', () => {
     });
 
     it('should return false when patient is undefined', () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       expect(shouldPromptForAssignment(undefined as any, 1)).toBe(false);
     });
 

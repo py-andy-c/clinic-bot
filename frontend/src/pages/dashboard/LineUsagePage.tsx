@@ -1,24 +1,17 @@
 import React, { useState, useMemo } from 'react';
-import { useApiData } from '../../hooks/useApiData';
-import { apiService } from '../../services/api';
 import { LoadingSpinner, ErrorMessage } from '../../components/shared';
 import { InfoButton, InfoModal } from '../../components/shared';
-import { useAuth } from '../../hooks/useAuth';
 import DashboardBackButton from '../../components/DashboardBackButton';
+import { useDashboardMetrics } from '../../hooks/useDashboard';
+import { getErrorMessage } from '../../types/api';
 
 const LineUsagePage: React.FC = () => {
-  const { user } = useAuth();
-  const activeClinicId = user?.active_clinic_id ?? null;
-  
   const [showPaidMessagesModal, setShowPaidMessagesModal] = useState(false);
   const [showAiRepliesModal, setShowAiRepliesModal] = useState(false);
   const [showPageInfoModal, setShowPageInfoModal] = useState(false);
 
-  const fetchDashboardMetrics = () => apiService.getDashboardMetrics();
-  const { data, loading, error } = useApiData(fetchDashboardMetrics, {
-    cacheTTL: 2 * 60 * 1000, // 2 minutes cache
-    dependencies: [activeClinicId], // Include activeClinicId to prevent cross-clinic cache reuse
-  });
+  const { data, isLoading: loading, error: queryError } = useDashboardMetrics();
+  const error = queryError ? (getErrorMessage(queryError) || '無法載入儀表板資料') : null;
 
   // Group paid messages by recipient_type, then by event_type
   const paidMessagesTableData = useMemo(() => {

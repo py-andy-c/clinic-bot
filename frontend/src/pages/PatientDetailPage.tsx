@@ -1,10 +1,9 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { LoadingSpinner, ErrorMessage } from '../components/shared';
-import { apiService, sharedFetchFunctions } from '../services/api';
-import { Patient } from '../types';
+import { apiService } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
-import { useApiData, invalidateCacheForFunction, invalidateCacheByPattern } from '../hooks/useApiData';
 import { logger } from '../utils/logger';
 import { getErrorMessage } from '../types/api';
 import { invalidateCacheForDate } from '../utils/availabilityCache';
@@ -17,11 +16,15 @@ import { PatientNotesSection } from '../components/patient/PatientNotesSection';
 import { PatientAssignedPractitionersSection } from '../components/patient/PatientAssignedPractitionersSection';
 import { PatientAppointmentsList } from '../components/patient/PatientAppointmentsList';
 import { CreateAppointmentModal } from '../components/calendar/CreateAppointmentModal';
+import { usePatient, useUpdatePatient } from '../hooks/usePatients';
+import { useClinicSettings } from '../hooks/useClinicSettings';
+import { usePractitioners } from '../hooks/usePractitioners';
+import { patientAppointmentsKeys } from '../hooks/usePatientAppointments';
 
 const PatientDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { hasRole, isLoading: authLoading, isAuthenticated, user } = useAuth();
+  const { hasRole, isLoading: authLoading, isAuthenticated } = useAuth();
   const { alert } = useModal();
   const [isEditing, setIsEditing] = useState(false);
   const [isEditingNotes, setIsEditingNotes] = useState(false);
@@ -29,60 +32,35 @@ const PatientDetailPage: React.FC = () => {
   const [isAppointmentModalOpen, setIsAppointmentModalOpen] = useState(false);
   const appointmentsListRefetchRef = useRef<(() => Promise<void>) | null>(null);
 
-  const patientId = id ? parseInt(id, 10) : null;
+  const patientId = id ? parseInt(id, 10) : undefined;
+  const updatePatientMutation = useUpdatePatient();
+  const queryClient = useQueryClient();
 
   // Scroll to top when component mounts or patientId changes
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [patientId]);
 
-  const fetchPatient = useCallback(
-    () => {
-      if (!patientId) {
-        return Promise.reject(new Error('Invalid patient ID'));
-      }
-      return apiService.getPatient(patientId);
-    },
-    [patientId]
-  );
+  // Fetch patient using React Query
+  const {
+    data: patient,
+    isLoading: loading,
+    error: queryError,
+    refetch,
+  } = usePatient(patientId, !!patientId);
 
-  const { data: patient, loading, error, refetch, setData } = useApiData<Patient>(
-    fetchPatient,
-    {
-      enabled: !!patientId,
-      dependencies: [patientId],
-      defaultErrorMessage: '無法載入病患資料',
-      // Cache key now includes patientId via dependencies, so caching is safe
-    }
-  );
+  const error = queryError ? (getErrorMessage(queryError) || '無法載入病患資料') : null;
 
   const canEdit = hasRole && (hasRole('admin') || hasRole('practitioner'));
   const canCreateAppointment = canEdit; // Same permissions as editing
 
   // Fetch clinic settings for appointment types
-  const fetchClinicSettings = useCallback(() => apiService.getClinicSettings(), []);
-  const { data: clinicSettings } = useApiData(
-    fetchClinicSettings,
-    {
-      enabled: !authLoading && isAuthenticated,
-      dependencies: [authLoading, isAuthenticated, user?.active_clinic_id],
-      defaultErrorMessage: '無法載入診所設定',
-      cacheTTL: 5 * 60 * 1000, // 5 minutes cache
-    }
-  );
+  const { data: clinicSettings } = useClinicSettings(!authLoading && isAuthenticated);
 
   // Fetch practitioners (needed for edit/delete appointment buttons and create modal)
-  const fetchPractitioners = useCallback(() => sharedFetchFunctions.getPractitioners(), []);
-  const { data: practitionersData } = useApiData(
-    fetchPractitioners,
-    {
-      enabled: !authLoading && isAuthenticated,
-      dependencies: [authLoading, isAuthenticated, user?.active_clinic_id],
-      cacheTTL: 5 * 60 * 1000, // 5 minutes cache
-    }
-  );
+  const { data: practitionersData = [] } = usePractitioners(undefined, !authLoading && isAuthenticated);
 
-  const practitioners = practitionersData || [];
+  const practitioners = practitionersData;
   const appointmentTypes = clinicSettings?.appointment_types || [];
 
   const handleUpdate = async (data: {
@@ -96,14 +74,8 @@ const PatientDetailPage: React.FC = () => {
     if (!patientId) return;
 
     try {
-      // Update patient and get the updated data
-      const updatedPatient = await apiService.updatePatient(patientId, data);
-
-      // Immediately update the displayed data with the response
-      setData(updatedPatient);
-
-      // Invalidate cache to ensure future fetches get fresh data
-      invalidateCacheForFunction(fetchPatient);
+      // Update patient using React Query mutation
+      await updatePatientMutation.mutateAsync({ patientId, data });
 
       setIsEditing(false);
       setIsEditingNotes(false);
@@ -214,7 +186,7 @@ const PatientDetailPage: React.FC = () => {
       </div>
 
       {/* Create Appointment Modal */}
-      {isAppointmentModalOpen && patientId !== null && (
+      {isAppointmentModalOpen && patientId !== undefined && (
         <CreateAppointmentModal
           preSelectedPatientId={patientId}
           initialDate={null}
@@ -229,7 +201,7 @@ const PatientDetailPage: React.FC = () => {
               setIsAppointmentModalOpen(false);
               
               // Invalidate appointments cache to refresh the list
-              invalidateCacheByPattern('api_getPatientAppointments');
+              queryClient.invalidateQueries({ queryKey: patientAppointmentsKeys.all });
               
               // Invalidate availability cache for the appointment's date, practitioner, and appointment type
               const appointmentDate = moment(formData.start_time).format('YYYY-MM-DD');
@@ -252,7 +224,7 @@ const PatientDetailPage: React.FC = () => {
           }}
           onRecurringAppointmentsCreated={async () => {
             // Invalidate appointments cache to refresh the list
-            invalidateCacheByPattern('api_getPatientAppointments');
+            queryClient.invalidateQueries({ queryKey: patientAppointmentsKeys.all });
             
             // Trigger refetch of appointments list if available
             if (appointmentsListRefetchRef.current) {

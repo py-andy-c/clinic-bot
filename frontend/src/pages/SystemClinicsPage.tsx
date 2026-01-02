@@ -1,18 +1,13 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { logger } from '../utils/logger';
 import { LoadingSpinner, ErrorMessage } from '../components/shared';
 import { useModal } from '../contexts/ModalContext';
 import moment from 'moment-timezone';
 import { Link, useParams } from 'react-router-dom';
 import { apiService } from '../services/api';
-import { Clinic, ClinicCreateData, ClinicHealth, PractitionerWithDetails } from '../types';
-import { useApiData } from '../hooks/useApiData';
-
-interface ClinicDetailsData {
-  clinic: Clinic;
-  health: ClinicHealth;
-  practitioners?: PractitionerWithDetails[];
-}
+import { ClinicCreateData } from '../types';
+import { useClinics, useClinicDetails, useCreateClinic, useUpdateClinic } from '../hooks/useClinics';
+import { getErrorMessage } from '../types/api';
 
 const SystemClinicsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -22,73 +17,48 @@ const SystemClinicsPage: React.FC = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [editingClinic, setEditingClinic] = useState<Partial<ClinicCreateData>>({});
   const [updating, setUpdating] = useState(false);
+  const createClinicMutation = useCreateClinic();
+  const updateClinicMutation = useUpdateClinic();
 
   // Scroll to top when component mounts or id changes
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [id]);
 
-  // Stable fetch functions using useCallback
-  const fetchClinics = useCallback(() => apiService.getClinics(), []);
-  const fetchClinicDetails = useCallback(async (): Promise<ClinicDetailsData> => {
-    if (!id) {
-      throw new Error('Clinic ID is required');
-    }
-    const [clinicData, healthData, practitionersData] = await Promise.all([
-      apiService.getClinicDetails(parseInt(id)),
-      apiService.getClinicHealth(parseInt(id)),
-      apiService.getClinicPractitioners(parseInt(id)).catch(() => ({ practitioners: [] }))
-    ]);
-    return {
-      clinic: clinicData,
-      health: healthData,
-      practitioners: practitionersData.practitioners || []
-    };
-  }, [id]);
-
   // Fetch clinics list when no ID
   const {
-    data: clinics,
-    loading: clinicsLoading,
+    data: clinics = [],
+    isLoading: clinicsLoading,
     error: clinicsError,
     refetch: refetchClinics,
-    setData: setClinics,
-  } = useApiData<Clinic[]>(fetchClinics, {
-    enabled: !id,
-    dependencies: [id],
-    initialData: [],
-  });
+  } = useClinics(!id);
 
   // Fetch clinic details when ID exists
+  const clinicId = id ? parseInt(id, 10) : undefined;
   const {
     data: clinicDetails,
-    loading: detailsLoading,
+    isLoading: detailsLoading,
     error: detailsError,
     refetch: refetchDetails,
-  } = useApiData<ClinicDetailsData>(fetchClinicDetails, {
-    enabled: !!id,
-    dependencies: [id],
-    // Cache key now includes clinic id via dependencies, so caching is safe
-  });
+  } = useClinicDetails(clinicId, !!id);
 
   const selectedClinic = clinicDetails?.clinic ?? null;
   const clinicHealth = clinicDetails?.health ?? null;
   const practitioners = clinicDetails?.practitioners ?? [];
   const loading = clinicsLoading || detailsLoading;
-  const error = clinicsError || detailsError;
+  const error = clinicsError ? (getErrorMessage(clinicsError) || '無法載入診所列表') : 
+                detailsError ? (getErrorMessage(detailsError) || '無法載入診所詳細資訊') : null;
 
   const handleCreateClinic = async (clinicData: ClinicCreateData) => {
     try {
       setCreating(true);
-      const newClinic = await apiService.createClinic(clinicData);
-      setClinics([...(clinics || []), newClinic]);
+      await createClinicMutation.mutateAsync(clinicData);
       setShowCreateModal(false);
     } catch (err) {
       logger.error('Create clinic error:', err);
       try {
         await alert('建立診所失敗，請稍後再試。', '錯誤');
       } catch (alertErr) {
-        // Fallback if alert fails (shouldn't happen, but defensive programming)
         logger.error('Failed to show alert:', alertErr);
       }
     } finally {
@@ -152,9 +122,7 @@ const SystemClinicsPage: React.FC = () => {
         }
       }
 
-      await apiService.updateClinic(selectedClinic.id, updateData);
-      // Refetch clinic details to get updated data
-      await refetchDetails();
+      await updateClinicMutation.mutateAsync({ clinicId: selectedClinic.id, data: updateData });
       setIsEditing(false);
       setEditingClinic({});
       try {

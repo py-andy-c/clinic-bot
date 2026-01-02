@@ -505,7 +505,7 @@ describe('clinicSettings', () => {
           booking_restriction_settings: createMockBookingRestrictionSettings({
             booking_restriction_type: 'deadline_time_day_before',
             deadline_time_day_before: '08:00',
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             
             deadline_on_same_day: null as any,
           }),
         });

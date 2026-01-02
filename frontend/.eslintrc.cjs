@@ -11,7 +11,6 @@ module.exports = {
   plugins: [
     '@typescript-eslint',
     'react-refresh',
-    'eslint-plugin-clinic-cache',
   ],
   rules: {
     'react-refresh/only-export-components': [
@@ -19,7 +18,7 @@ module.exports = {
       { allowConstantExport: true },
     ],
     'no-console': 'error',
-    'clinic-cache/require-clinic-id-in-deps': 'warn',
+    // Note: clinic-cache/require-clinic-id-in-deps rule removed - no longer needed after React Query migration
     '@typescript-eslint/no-unused-vars': [
       'error',
       {
@@ -37,7 +36,7 @@ module.exports = {
       },
     },
     {
-      files: ['tests/**/*.ts', 'tests/**/*.tsx'],
+      files: ['tests/**/*.ts', 'tests/**/*.tsx', '**/__tests__/**/*.ts', '**/__tests__/**/*.tsx'],
       rules: {
         'no-console': 'off',
         '@typescript-eslint/no-unused-vars': 'off',

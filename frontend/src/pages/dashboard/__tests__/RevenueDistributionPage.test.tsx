@@ -6,11 +6,18 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import React from 'react';
 import { BrowserRouter } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import RevenueDistributionPage from '../RevenueDistributionPage';
-import { useApiData } from '../../../hooks/useApiData';
+import { useMembers } from '../../../hooks/useMembers';
+import { useClinicSettings } from '../../../hooks/useClinicSettings';
+import { useServiceTypeGroups } from '../../../hooks/useServiceTypeGroups';
+import { useRevenueDistribution, useBusinessInsights } from '../../../hooks/useDashboard';
 
-// Mock useApiData hook
-vi.mock('../../../hooks/useApiData');
+// Mock React Query hooks
+vi.mock('../../../hooks/useMembers');
+vi.mock('../../../hooks/useClinicSettings');
+vi.mock('../../../hooks/useServiceTypeGroups');
+vi.mock('../../../hooks/useDashboard');
 
 // Mock apiService
 vi.mock('../../../services/api', () => ({
@@ -175,11 +182,24 @@ vi.mock('../../../utils/calendarDataAdapter', () => ({
   formatEventTimeRange: vi.fn(() => '10:00 AM - 11:00 AM'),
 }));
 
-const mockUseApiData = vi.mocked(useApiData);
+const mockUseMembers = vi.mocked(useMembers);
+const mockUseClinicSettings = vi.mocked(useClinicSettings);
+const mockUseServiceTypeGroups = vi.mocked(useServiceTypeGroups);
+const mockUseRevenueDistribution = vi.mocked(useRevenueDistribution);
+const mockUseBusinessInsights = vi.mocked(useBusinessInsights);
 
 describe('RevenueDistributionPage', () => {
   const renderWithRouter = (component: React.ReactElement) => {
-    return render(<BrowserRouter>{component}</BrowserRouter>);
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+      },
+    });
+    return render(
+      <QueryClientProvider client={queryClient}>
+        <BrowserRouter>{component}</BrowserRouter>
+      </QueryClientProvider>
+    );
   };
   const mockMembers = [
     { id: 1, full_name: '王醫師', roles: ['practitioner'] },
@@ -262,61 +282,42 @@ describe('RevenueDistributionPage', () => {
   };
 
   const setupDefaultMocks = (groups: Array<{ id: number; name: string; [key: string]: unknown }> = []) => {
-    let callIndex = 0;
-    mockUseApiData.mockImplementation(() => {
-      callIndex++;
-      if (callIndex === 1) {
-        return {
-          data: mockMembers,
-          loading: false,
-          error: null,
-          refetch: vi.fn(),
-          clearError: vi.fn(),
-          setData: vi.fn(),
-        };
-      }
-      if (callIndex === 2) {
-        return {
-          data: mockSettings,
-          loading: false,
-          error: null,
-          refetch: vi.fn(),
-          clearError: vi.fn(),
-          setData: vi.fn(),
-        };
-      }
-      if (callIndex === 3) {
-        // getServiceTypeGroups
-        return {
-          data: { groups },
-          loading: false,
-          error: null,
-          refetch: vi.fn(),
-          clearError: vi.fn(),
-          setData: vi.fn(),
-        };
-      }
-      if (callIndex === 4) {
-        // Unfiltered business insights for custom items extraction
-        return {
-          data: mockBusinessInsights,
-          loading: false,
-          error: null,
-          refetch: vi.fn(),
-          clearError: vi.fn(),
-          setData: vi.fn(),
-        };
-      }
-      // Filtered revenue distribution for display (callIndex === 5)
-      return {
-        data: mockRevenueDistribution,
-        loading: false,
-        error: null,
-        refetch: vi.fn(),
-        clearError: vi.fn(),
-        setData: vi.fn(),
-      };
-    });
+    mockUseMembers.mockReturnValue({
+      data: mockMembers,
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    } as any);
+    
+    mockUseClinicSettings.mockReturnValue({
+      data: mockSettings,
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    } as any);
+    
+    mockUseServiceTypeGroups.mockReturnValue({
+      data: { groups },
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    } as any);
+    
+    // Unfiltered business insights for custom items extraction
+    mockUseBusinessInsights.mockReturnValue({
+      data: mockBusinessInsights,
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    } as any);
+    
+    // Filtered revenue distribution for display
+    mockUseRevenueDistribution.mockReturnValue({
+      data: mockRevenueDistribution,
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    } as any);
   };
 
   beforeEach(() => {
@@ -325,56 +326,26 @@ describe('RevenueDistributionPage', () => {
   });
 
   it('renders loading state correctly', () => {
-    let callIndex = 0;
-    mockUseApiData.mockImplementation(() => {
-      callIndex++;
-      if (callIndex <= 4) {
-        return {
-          data: null,
-          loading: false,
-          error: null,
-          refetch: vi.fn(),
-          clearError: vi.fn(),
-          setData: vi.fn(),
-        };
-      }
-      return {
-        data: null,
-        loading: true,
-        error: null,
-        refetch: vi.fn(),
-        clearError: vi.fn(),
-        setData: vi.fn(),
-      };
-    });
+    setupDefaultMocks();
+    mockUseRevenueDistribution.mockReturnValue({
+      data: null,
+      isLoading: true,
+      error: null,
+      refetch: vi.fn(),
+    } as any);
 
     renderWithRouter(<RevenueDistributionPage />);
     expect(screen.getByTestId('loading-spinner')).toBeInTheDocument();
   });
 
   it('renders error state correctly', () => {
-    let callIndex = 0;
-    mockUseApiData.mockImplementation(() => {
-      callIndex++;
-      if (callIndex <= 4) {
-        return {
-          data: null,
-          loading: false,
-          error: null,
-          refetch: vi.fn(),
-          clearError: vi.fn(),
-          setData: vi.fn(),
-        };
-      }
-      return {
-        data: null,
-        loading: false,
-        error: 'Failed to load data',
-        refetch: vi.fn(),
-        clearError: vi.fn(),
-        setData: vi.fn(),
-      };
-    });
+    setupDefaultMocks();
+    mockUseRevenueDistribution.mockReturnValue({
+      data: null,
+      isLoading: false,
+      error: new Error('Failed to load data'),
+      refetch: vi.fn(),
+    } as any);
 
     renderWithRouter(<RevenueDistributionPage />);
     expect(screen.getByTestId('error-message')).toBeInTheDocument();
@@ -428,61 +399,13 @@ describe('RevenueDistributionPage', () => {
       total: 0,
     };
 
-    let callIndex = 0;
-    mockUseApiData.mockImplementation(() => {
-      callIndex++;
-      if (callIndex === 1) {
-        return {
-          data: mockMembers,
-          loading: false,
-          error: null,
-          refetch: vi.fn(),
-          clearError: vi.fn(),
-          setData: vi.fn(),
-        };
-      }
-      if (callIndex === 2) {
-        return {
-          data: mockSettings,
-          loading: false,
-          error: null,
-          refetch: vi.fn(),
-          clearError: vi.fn(),
-          setData: vi.fn(),
-        };
-      }
-      if (callIndex === 3) {
-        // getServiceTypeGroups
-        return {
-          data: { groups: [] },
-          loading: false,
-          error: null,
-          refetch: vi.fn(),
-          clearError: vi.fn(),
-          setData: vi.fn(),
-        };
-      }
-      if (callIndex === 4) {
-        // Unfiltered business insights for custom items extraction
-        return {
-          data: mockBusinessInsights,
-          loading: false,
-          error: null,
-          refetch: vi.fn(),
-          clearError: vi.fn(),
-          setData: vi.fn(),
-        };
-      }
-      // Filtered revenue distribution for display (callIndex === 5)
-      return {
-        data: emptyData,
-        loading: false,
-        error: null,
-        refetch: vi.fn(),
-        clearError: vi.fn(),
-        setData: vi.fn(),
-      };
-    });
+    setupDefaultMocks();
+    mockUseRevenueDistribution.mockReturnValue({
+      data: emptyData,
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    } as any);
 
     renderWithRouter(<RevenueDistributionPage />);
 
@@ -499,61 +422,13 @@ describe('RevenueDistributionPage', () => {
       page_size: 20,
     };
 
-    let callIndex = 0;
-    mockUseApiData.mockImplementation(() => {
-      callIndex++;
-      if (callIndex === 1) {
-        return {
-          data: mockMembers,
-          loading: false,
-          error: null,
-          refetch: vi.fn(),
-          clearError: vi.fn(),
-          setData: vi.fn(),
-        };
-      }
-      if (callIndex === 2) {
-        return {
-          data: mockSettings,
-          loading: false,
-          error: null,
-          refetch: vi.fn(),
-          clearError: vi.fn(),
-          setData: vi.fn(),
-        };
-      }
-      if (callIndex === 3) {
-        // getServiceTypeGroups
-        return {
-          data: { groups: [] },
-          loading: false,
-          error: null,
-          refetch: vi.fn(),
-          clearError: vi.fn(),
-          setData: vi.fn(),
-        };
-      }
-      if (callIndex === 4) {
-        // Unfiltered business insights for custom items extraction
-        return {
-          data: mockBusinessInsights,
-          loading: false,
-          error: null,
-          refetch: vi.fn(),
-          clearError: vi.fn(),
-          setData: vi.fn(),
-        };
-      }
-      // Filtered revenue distribution for display (callIndex === 5)
-      return {
-        data: paginatedData,
-        loading: false,
-        error: null,
-        refetch: vi.fn(),
-        clearError: vi.fn(),
-        setData: vi.fn(),
-      };
-    });
+    setupDefaultMocks();
+    mockUseRevenueDistribution.mockReturnValue({
+      data: paginatedData,
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    } as any);
 
     renderWithRouter(<RevenueDistributionPage />);
 
@@ -586,61 +461,13 @@ describe('RevenueDistributionPage', () => {
       ],
     };
 
-    let callIndex = 0;
-    mockUseApiData.mockImplementation(() => {
-      callIndex++;
-      if (callIndex === 1) {
-        return {
-          data: mockMembers,
-          loading: false,
-          error: null,
-          refetch: vi.fn(),
-          clearError: vi.fn(),
-          setData: vi.fn(),
-        };
-      }
-      if (callIndex === 2) {
-        return {
-          data: mockSettings,
-          loading: false,
-          error: null,
-          refetch: vi.fn(),
-          clearError: vi.fn(),
-          setData: vi.fn(),
-        };
-      }
-      if (callIndex === 3) {
-        // getServiceTypeGroups
-        return {
-          data: { groups: [] },
-          loading: false,
-          error: null,
-          refetch: vi.fn(),
-          clearError: vi.fn(),
-          setData: vi.fn(),
-        };
-      }
-      if (callIndex === 4) {
-        // Unfiltered business insights for custom items extraction
-        return {
-          data: mockBusinessInsights,
-          loading: false,
-          error: null,
-          refetch: vi.fn(),
-          clearError: vi.fn(),
-          setData: vi.fn(),
-        };
-      }
-      // Filtered revenue distribution for display (callIndex === 5)
-      return {
-        data: dataWithNullPractitioner,
-        loading: false,
-        error: null,
-        refetch: vi.fn(),
-        clearError: vi.fn(),
-        setData: vi.fn(),
-      };
-    });
+    setupDefaultMocks();
+    mockUseRevenueDistribution.mockReturnValue({
+      data: dataWithNullPractitioner,
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    } as any);
 
     renderWithRouter(<RevenueDistributionPage />);
 

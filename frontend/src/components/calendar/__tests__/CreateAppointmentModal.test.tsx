@@ -5,9 +5,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import React from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { CreateAppointmentModal } from '../CreateAppointmentModal';
 import { apiService } from '../../../services/api';
-import { useApiData } from '../../../hooks/useApiData';
+import { usePatients } from '../../../hooks/usePatients';
 import { ModalProvider } from '../../../contexts/ModalContext';
 import { ModalQueueProvider } from '../../../contexts/ModalQueueContext';
 
@@ -33,6 +34,7 @@ vi.mock('../../../services/api', () => ({
     createPatient: vi.fn(),
     getPatient: vi.fn(),
     checkSchedulingConflicts: vi.fn(),
+    getServiceTypeGroups: vi.fn(() => Promise.resolve({ groups: [] })),
   },
 }));
 
@@ -67,7 +69,7 @@ vi.mock('../../../hooks/useAuth', () => ({
   }),
 }));
 
-vi.mock('../../../hooks/useApiData');
+vi.mock('../../../hooks/usePatients');
 
 vi.mock('../../../utils/searchUtils', () => ({
   useDebouncedSearch: (query: string) => query,
@@ -86,14 +88,21 @@ vi.mock('../../PatientCreationSuccessModal', () => ({
 const mockOnConfirm = vi.fn();
 const mockOnClose = vi.fn();
 
-// Helper to wrap component with ModalProvider and ModalQueueProvider
+// Helper to wrap component with ModalProvider, ModalQueueProvider, and QueryClientProvider
 const renderWithModal = (component: React.ReactElement) => {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+    },
+  });
   return render(
-    <ModalProvider>
-      <ModalQueueProvider>
-        {component}
-      </ModalQueueProvider>
-    </ModalProvider>
+    <QueryClientProvider client={queryClient}>
+      <ModalProvider>
+        <ModalQueueProvider>
+          {component}
+        </ModalQueueProvider>
+      </ModalProvider>
+    </QueryClientProvider>
   );
 };
 
@@ -108,12 +117,12 @@ describe('CreateAppointmentModal', () => {
       { id: 1, full_name: 'Dr. Test' },
       { id: 2, full_name: 'Dr. Another' },
     ]);
-    vi.mocked(useApiData).mockReturnValue({
+    vi.mocked(usePatients).mockReturnValue({
       data: { patients: mockPatients, total: 1, page: 1, page_size: 100 },
-      loading: false,
+      isLoading: false,
       error: null,
       refetch: vi.fn(),
-    });
+    } as any);
   });
 
   const mockPractitioners = [

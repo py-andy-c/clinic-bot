@@ -146,7 +146,7 @@ describe('calendarUtils', () => {
 
     it('should default to day range for unknown view', () => {
       const date = new Date('2024-01-15T12:00:00+08:00');
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const { start, end: _end } = getDateRange(date, 'unknown' as any);
       
       const startMoment = moment(start).tz('Asia/Taipei');

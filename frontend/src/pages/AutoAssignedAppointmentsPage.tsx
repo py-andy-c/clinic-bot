@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useModal } from '../contexts/ModalContext';
 import { useModalQueue } from '../contexts/ModalQueueContext';
@@ -6,7 +6,8 @@ import { apiService } from '../services/api';
 import { logger } from '../utils/logger';
 import { LoadingSpinner, ErrorMessage } from '../components/shared';
 import { EditAppointmentModal } from '../components/calendar/EditAppointmentModal';
-import { useApiData } from '../hooks/useApiData';
+import { useAutoAssignedAppointments } from '../hooks/useAppointments';
+import { getErrorMessage } from '../types/api';
 import { BaseModal } from '../components/shared/BaseModal';
 import moment from 'moment-timezone';
 import { CalendarEvent } from '../utils/calendarDataAdapter';
@@ -17,7 +18,6 @@ import { invalidateResourceCacheForDate } from '../utils/resourceAvailabilityCac
 import { shouldPromptForAssignment } from '../hooks/usePractitionerAssignmentPrompt';
 import { PractitionerAssignmentPromptModal } from '../components/PractitionerAssignmentPromptModal';
 import { PractitionerAssignmentConfirmationModal } from '../components/PractitionerAssignmentConfirmationModal';
-import { getErrorMessage } from '../types/api';
 import { AppointmentType } from '../types';
 
 interface AutoAssignedAppointment {
@@ -38,7 +38,7 @@ interface AutoAssignedAppointment {
 }
 
 const AutoAssignedAppointmentsPage: React.FC = () => {
-  const { isClinicAdmin, user: currentUser, isAuthenticated, isLoading } = useAuth();
+  const { isClinicAdmin, isAuthenticated, isLoading } = useAuth();
   const { alert } = useModal();
   const { enqueueModal, showNext } = useModalQueue();
   const [selectedAppointment, setSelectedAppointment] = useState<AutoAssignedAppointment | null>(null);
@@ -64,23 +64,15 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
 
-  // Fetch auto-assigned appointments
-  const fetchAppointments = useCallback(
-    () => apiService.getAutoAssignedAppointments(),
-    []
-  );
+  // Fetch auto-assigned appointments using React Query
+  const {
+    data: appointmentsData,
+    isLoading: loading,
+    error: queryError,
+    refetch,
+  } = useAutoAssignedAppointments(!isLoading && isAuthenticated && isClinicAdmin);
 
-  const { data: appointmentsData, loading, error, refetch } = useApiData<{
-    appointments: AutoAssignedAppointment[];
-  }>(
-    fetchAppointments,
-    {
-      enabled: !isLoading && isAuthenticated && isClinicAdmin,
-      dependencies: [isLoading, isAuthenticated, currentUser?.active_clinic_id],
-      defaultErrorMessage: '無法載入待審核預約列表',
-      initialData: { appointments: [] },
-    }
-  );
+  const error = queryError ? (getErrorMessage(queryError) || '無法載入待審核預約列表') : null;
 
   // Fetch practitioners and appointment types when modal opens
   React.useEffect(() => {

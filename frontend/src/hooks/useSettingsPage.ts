@@ -21,7 +21,7 @@ interface SettingsPageConfig<T> {
 interface UseSettingsPageOptions<T> {
   isLoading?: boolean;
   initialData?: T | null; // Allow passing initial/cached data to skip fetch
-  skipFetch?: boolean; // If true, never fetch - only use initialData (for use with external data sources like useApiData)
+  skipFetch?: boolean; // If true, never fetch - only use initialData (for use with external data sources like React Query)
 }
 
 export const useSettingsPage = <T extends Record<string, unknown>>(

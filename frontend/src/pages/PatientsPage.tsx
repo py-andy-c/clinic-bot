@@ -1,13 +1,12 @@
 import React, { useCallback, useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { LoadingSpinner, ErrorMessage, SearchInput, PaginationControls } from '../components/shared';
-import { apiService, sharedFetchFunctions } from '../services/api';
+import { apiService } from '../services/api';
 import { Patient } from '../types';
 import { useAuth } from '../hooks/useAuth';
-import { useApiData } from '../hooks/useApiData';
 import { useHighlightRow } from '../hooks/useHighlightRow';
 import PageHeader from '../components/PageHeader';
-import { ClinicSettings } from '../schemas/api';
 import { useDebouncedSearch } from '../utils/searchUtils';
 import { PatientCreationModal } from '../components/PatientCreationModal';
 import { PatientCreationSuccessModal } from '../components/PatientCreationSuccessModal';
@@ -15,6 +14,10 @@ import { CreateAppointmentModal } from '../components/calendar/CreateAppointment
 import { useModal } from '../contexts/ModalContext';
 import { logger } from '../utils/logger';
 import { getErrorMessage } from '../types/api';
+import { usePatients } from '../hooks/usePatients';
+import { usePractitioners } from '../hooks/usePractitioners';
+import { useClinicSettings } from '../hooks/useClinicSettings';
+import { patientsKeys } from '../hooks/usePatients';
 
 // Component to handle profile picture with fallback on error
 const ProfilePictureWithFallback: React.FC<{
@@ -98,34 +101,20 @@ const PatientsPage: React.FC = () => {
     return practitionerIdParam ? parseInt(practitionerIdParam, 10) : undefined;
   });
 
-  // Memoize fetch functions to ensure stable cache keys
-  // Only search if debouncedSearchQuery has a value (empty string becomes undefined)
-  const fetchPatients = useCallback(
-    () => apiService.getPatients(
-      currentPage,
-      pageSize,
-      undefined, // no signal
-      debouncedSearchQuery || undefined, // search parameter (empty string becomes undefined)
-      selectedPractitionerId // practitioner filter
-    ),
-    [currentPage, pageSize, debouncedSearchQuery, selectedPractitionerId]
-  );
-  const fetchClinicSettings = useCallback(() => apiService.getClinicSettings(), []);
+  const queryClient = useQueryClient();
 
-  const { data: patientsData, loading, error, refetch } = useApiData<{
-    patients: Patient[];
-    total: number;
-    page: number;
-    page_size: number;
-  }>(
-    fetchPatients,
-    {
-      enabled: !isLoading && isAuthenticated,
-      dependencies: [isLoading, isAuthenticated, activeClinicId, currentPage, pageSize, debouncedSearchQuery, selectedPractitionerId],
-      defaultErrorMessage: '無法載入病患列表',
-      initialData: { patients: [], total: 0, page: 1, page_size: 25 },
-    }
-  );
+  // Fetch patients using React Query
+  const {
+    data: patientsData,
+    isLoading: patientsLoading,
+    error: patientsError,
+  } = usePatients({
+    page: currentPage,
+    pageSize,
+    ...(debouncedSearchQuery ? { search: debouncedSearchQuery } : {}),
+    ...(selectedPractitionerId !== undefined ? { practitionerId: selectedPractitionerId } : {}),
+    enabled: !isLoading && isAuthenticated,
+  });
 
   // Keep previous data visible during loading to prevent flicker
   const [previousPatientsData, setPreviousPatientsData] = useState<{
@@ -137,16 +126,31 @@ const PatientsPage: React.FC = () => {
 
   // Update previous data when new data arrives (not during loading)
   useEffect(() => {
-    if (!loading && patientsData) {
+    if (!patientsLoading && patientsData) {
       setPreviousPatientsData(patientsData);
     }
-  }, [loading, patientsData]);
+  }, [patientsLoading, patientsData]);
 
   // Use previous data if currently loading, otherwise use current data
-  const displayData = loading && previousPatientsData ? previousPatientsData : patientsData;
+  const displayData = patientsLoading && previousPatientsData ? previousPatientsData : patientsData;
   const patients = useMemo(() => displayData?.patients || [], [displayData?.patients]);
   const totalPatients = displayData?.total || 0;
   const totalPages = Math.ceil(totalPatients / pageSize);
+  const loading = patientsLoading;
+  const error = patientsError ? (getErrorMessage(patientsError) || '無法載入病患列表') : null;
+
+  // Refetch function for manual refresh
+  const refetch = useCallback(() => {
+    queryClient.invalidateQueries({
+      queryKey: patientsKeys.list({
+        ...(currentPage !== undefined && { page: currentPage }),
+        ...(pageSize !== undefined && { pageSize }),
+        ...(debouncedSearchQuery ? { search: debouncedSearchQuery } : {}),
+        ...(selectedPractitionerId !== undefined && { practitionerId: selectedPractitionerId }),
+        ...(activeClinicId !== undefined && activeClinicId !== null && { clinicId: activeClinicId }),
+      }),
+    });
+  }, [queryClient, currentPage, pageSize, debouncedSearchQuery, selectedPractitionerId, activeClinicId]);
   
   // Validate currentPage doesn't exceed totalPages and reset if needed
   // This runs after we have totalPages from the API response
@@ -162,17 +166,8 @@ const PatientsPage: React.FC = () => {
   // Use validated page for display (clamp to valid range)
   const validatedPage = Math.max(1, Math.min(currentPage, totalPages || 1));
 
-  // Fetch clinic settings to check if birthday column should be shown
-  // Use useApiData with caching to avoid redundant API calls
-  const { data: clinicSettings } = useApiData<ClinicSettings>(
-    fetchClinicSettings,
-    {
-      enabled: !isLoading && isAuthenticated,
-      dependencies: [isLoading, isAuthenticated, activeClinicId],
-      defaultErrorMessage: '無法載入診所設定',
-      cacheTTL: 5 * 60 * 1000, // 5 minutes cache
-    }
-  );
+  // Fetch clinic settings using React Query
+  const { data: clinicSettings } = useClinicSettings(!isLoading && isAuthenticated);
 
   // Birthday column removed - no longer shown in patient list
   const hasHandledQueryRef = useRef(false);
@@ -180,17 +175,9 @@ const PatientsPage: React.FC = () => {
   const { alert } = useModal();
 
   // Fetch practitioners for appointment modal and filter dropdown
-  const fetchPractitioners = useCallback(() => sharedFetchFunctions.getPractitioners(), []);
-  const { data: practitionersData } = useApiData(
-    fetchPractitioners,
-    {
-      enabled: !isLoading && isAuthenticated,
-      dependencies: [isLoading, isAuthenticated],
-      cacheTTL: 5 * 60 * 1000, // 5 minutes cache
-    }
-  );
+  const { data: practitionersData = [] } = usePractitioners(undefined, !isLoading && isAuthenticated);
 
-  const practitioners = practitionersData || [];
+  const practitioners = practitionersData;
   const appointmentTypes = clinicSettings?.appointment_types || [];
 
   // Memoize PageHeader to prevent re-renders when only data changes

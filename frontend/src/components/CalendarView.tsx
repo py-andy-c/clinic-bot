@@ -3,12 +3,12 @@ import { logger } from '../utils/logger';
 import { LoadingSpinner, ErrorMessage } from './shared';
 import { useModal } from '../contexts/ModalContext';
 import { useAuth } from '../hooks/useAuth';
-import { useApiData } from '../hooks/useApiData';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { Calendar, momentLocalizer, View, Views } from 'react-big-calendar';
 import moment from 'moment-timezone';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
-import { apiService, sharedFetchFunctions } from '../services/api';
+import { apiService } from '../services/api';
+import { useClinicSettings } from '../hooks/useClinicSettings';
 import { ApiCalendarEvent } from '../types';
 import { getErrorMessage } from '../types/api';
 import { 
@@ -242,7 +242,6 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     calendarStorage.setCalendarState(user.user_id, user.active_clinic_id, updatedState);
   }, [user?.user_id, user?.active_clinic_id, view, currentDate]);
 
-  const fetchClinicSettingsFn = sharedFetchFunctions.getClinicSettings;
 
   // Use practitioners from props (passed from AvailabilityPage) to avoid duplicate API calls
   // Fallback to empty array if prop is not provided (for other use cases)
@@ -251,14 +250,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   // Lazy-load clinic settings - only fetch when modals are opened
   // This reduces initial page load since settings are only needed for create/edit modals
   const [shouldFetchSettings, setShouldFetchSettings] = useState(false);
-  const { data: clinicSettingsData } = useApiData(
-    fetchClinicSettingsFn,
-    {
-      enabled: !authLoading && isAuthenticated && shouldFetchSettings,
-      dependencies: [authLoading, isAuthenticated, shouldFetchSettings, user?.active_clinic_id],
-      cacheTTL: 5 * 60 * 1000, // 5 minutes cache
-    }
-  );
+  const { data: clinicSettingsData } = useClinicSettings(!authLoading && isAuthenticated && shouldFetchSettings);
 
   const appointmentTypes = clinicSettingsData?.appointment_types || [];
 

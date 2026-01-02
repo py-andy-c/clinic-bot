@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode, useMemo, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef, ReactNode, useMemo, useCallback } from 'react';
 import { AuthUser, AuthState, UserRole, UserType, ClinicInfo } from '../types';
 import { logger } from '../utils/logger';
 import { authStorage } from '../utils/storage';
@@ -20,7 +20,7 @@ interface AuthContextType extends AuthState {
   user: AuthUser | null;
   login: (userType?: 'system_admin' | 'clinic_user') => Promise<void>;
   logout: () => Promise<void>;
-  checkAuthStatus: () => Promise<void>;
+  checkAuthStatus: (force?: boolean) => Promise<void>;
   hasRole: (role: UserRole) => boolean;
   isSystemAdmin: boolean;
   isClinicAdmin: boolean;
@@ -57,6 +57,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   });
   const [availableClinics, setAvailableClinics] = useState<ClinicInfo[]>([]);
   const [isSwitchingClinic, setIsSwitchingClinic] = useState(false);
+  
+  // Use ref to store current user to avoid dependency cycles
+  const userRef = useRef<AuthUser | null>(null);
+  // Track last checked token to prevent unnecessary re-checks
+  const lastCheckedTokenRef = useRef<string | null>(null);
+  
+  // Keep ref in sync with state
+  useEffect(() => {
+    userRef.current = authState.user;
+  }, [authState.user]);
 
   const clearAuthState = useCallback(() => {
     authStorage.clearAuth();
@@ -69,8 +79,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const refreshAvailableClinics = useCallback(async (userOverride?: AuthUser | null) => {
     try {
-      // Use provided user or current auth state user
-      const user = userOverride ?? authState.user;
+      // Use provided user or current user from ref (avoids dependency on authState.user)
+      const user = userOverride ?? userRef.current;
       
       // Only fetch clinics for clinic users (system admins don't have clinics)
       if (!user || user.user_type !== 'clinic_user') {
@@ -94,7 +104,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       logger.error('Failed to refresh available clinics:', error);
       // Don't throw - just log the error
     }
-  }, [authState.user]);
+  }, []); // No dependencies - uses userOverride parameter or userRef to access current state
 
   useEffect(() => {
     // Skip authentication checks for signup pages
@@ -216,11 +226,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     return enhanced;
   }, [authState.user]);
 
-  const checkAuthStatus = useCallback(async () => {
+  const checkAuthStatus = useCallback(async (force: boolean = false) => {
     try {
       // Check if we have a token (access or refresh)
       const accessToken = authStorage.getAccessToken();
       const refreshToken = authStorage.getRefreshToken();
+      
+      // Skip if we've already checked this token and user is authenticated (unless forced)
+      // This prevents unnecessary re-checks on re-renders, but allows manual calls to force refresh
+      if (!force && accessToken === lastCheckedTokenRef.current && authState.isAuthenticated && authState.user) {
+        logger.debug('useAuth: Skipping auth check - token unchanged and user already authenticated');
+        return;
+      }
+      
+      // Update last checked token
+      lastCheckedTokenRef.current = accessToken;
       
       if (accessToken || refreshToken) {
         // If we have an access token, decode it to get user data
@@ -261,7 +281,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               throw new Error('Invalid token: missing required fields');
             }
             
-            logger.log('useAuth: User data decoded from JWT token', { user_id: userData.user_id, email: userData.email });
+            // Only log in debug mode to reduce console noise (this runs on every auth check)
+            logger.debug('useAuth: User data decoded from JWT token', { user_id: userData.user_id, email: userData.email });
             setAuthState({
               user: userData,
               isAuthenticated: true,
@@ -297,9 +318,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       logger.error('useAuth: Unexpected error in checkAuthStatus:', error);
       setAuthState(prev => ({ ...prev, isLoading: false }));
     }
+    // We intentionally don't include authState.isAuthenticated or authState.user in deps
+    // because we use refs (userRef, lastCheckedTokenRef) to avoid dependency cycles.
+    // refreshAvailableClinics is stable (no deps), so checkAuthStatus is also stable.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshAvailableClinics]);
 
-  // Initial auth check on mount
+  // Initial auth check on mount (only run once)
+  const hasCheckedAuthRef = useRef(false);
   useEffect(() => {
     // Skip authentication checks for signup pages
     if (window.location.pathname.startsWith('/signup/')) {
@@ -307,7 +333,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       return;
     }
 
-    checkAuthStatus();
+    // Only run initial check once
+    if (!hasCheckedAuthRef.current) {
+      hasCheckedAuthRef.current = true;
+      checkAuthStatus();
+    }
   }, [checkAuthStatus]);
 
   const login = async (userType?: 'system_admin' | 'clinic_user') => {

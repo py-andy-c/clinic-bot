@@ -1,17 +1,23 @@
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../hooks/useAuth';
 import { useModal } from '../contexts/ModalContext';
-import { apiService } from '../services/api';
 import { LineUserWithStatus } from '../types';
 import { logger } from '../utils/logger';
 import { LoadingSpinner, ErrorMessage, SearchInput, PaginationControls } from '../components/shared';
 import { BaseModal } from '../components/shared/BaseModal';
-import { useApiData } from '../hooks/useApiData';
 import { useHighlightRow } from '../hooks/useHighlightRow';
 import PageHeader from '../components/PageHeader';
 import { useDebouncedSearch } from '../utils/searchUtils';
 import { getErrorMessage } from '../types/api';
+import {
+  useLineUsers,
+  useUpdateLineUserDisplayName,
+  useDisableAiForLineUser,
+  useEnableAiForLineUser,
+  lineUsersKeys,
+} from '../hooks/useLineUsers';
 
 // Component to handle profile picture with fallback on error
 const ProfilePictureWithFallback: React.FC<{
@@ -71,37 +77,26 @@ const LineUsersPage: React.FC = () => {
   const [isComposing, setIsComposing] = useState(false);
   const debouncedSearchQuery = useDebouncedSearch(searchInput, 400, isComposing);
   
+  const queryClient = useQueryClient();
+  const updateDisplayNameMutation = useUpdateLineUserDisplayName();
+  const disableAiMutation = useDisableAiForLineUser();
+  const enableAiMutation = useEnableAiForLineUser();
+
   // State for editing display names
   const [editingLineUserId, setEditingLineUserId] = useState<string | null>(null);
   const [editingDisplayName, setEditingDisplayName] = useState<string>('');
-  const [isSaving, setIsSaving] = useState(false);
 
-  // Stable fetch function using useCallback
-  // Only search if debouncedSearchQuery has a value (empty string means no search)
-  const fetchLineUsers = useCallback(
-    () => apiService.getLineUsers(
-      currentPage,
-      pageSize,
-      undefined, // no signal
-      debouncedSearchQuery || undefined // search parameter (empty string becomes undefined)
-    ),
-    [currentPage, pageSize, debouncedSearchQuery]
-  );
-
-  const { data: lineUsersData, loading, error, refetch } = useApiData<{
-    line_users: LineUserWithStatus[];
-    total: number;
-    page: number;
-    page_size: number;
-  }>(
-    fetchLineUsers,
-    {
-      enabled: !isLoading && isAuthenticated,
-      dependencies: [isLoading, isAuthenticated, activeClinicId, currentPage, pageSize, debouncedSearchQuery],
-      defaultErrorMessage: '無法載入LINE使用者列表',
-      initialData: { line_users: [], total: 0, page: 1, page_size: 25 },
-    }
-  );
+  // Fetch line users using React Query
+  const {
+    data: lineUsersData,
+    isLoading: lineUsersLoading,
+    error: lineUsersError,
+  } = useLineUsers({
+    page: currentPage,
+    pageSize,
+    ...(debouncedSearchQuery ? { search: debouncedSearchQuery } : {}),
+    enabled: !isLoading && isAuthenticated,
+  });
 
   // Keep previous data visible during loading to prevent flicker
   const [previousLineUsersData, setPreviousLineUsersData] = useState<{
@@ -113,16 +108,30 @@ const LineUsersPage: React.FC = () => {
 
   // Update previous data when new data arrives (not during loading)
   useEffect(() => {
-    if (!loading && lineUsersData) {
+    if (!lineUsersLoading && lineUsersData) {
       setPreviousLineUsersData(lineUsersData);
     }
-  }, [loading, lineUsersData]);
+  }, [lineUsersLoading, lineUsersData]);
 
   // Use previous data if currently loading, otherwise use current data
-  const displayData = loading && previousLineUsersData ? previousLineUsersData : lineUsersData;
+  const displayData = lineUsersLoading && previousLineUsersData ? previousLineUsersData : lineUsersData;
   const lineUsers = useMemo(() => displayData?.line_users || [], [displayData?.line_users]);
   const totalLineUsers = displayData?.total || 0;
   const totalPages = Math.ceil(totalLineUsers / pageSize);
+  const loading = lineUsersLoading;
+  const error = lineUsersError ? (getErrorMessage(lineUsersError) || '無法載入LINE使用者列表') : null;
+
+  // Refetch function for manual refresh
+  const refetch = useCallback(() => {
+    queryClient.invalidateQueries({
+      queryKey: lineUsersKeys.list({
+        ...(currentPage !== undefined && { page: currentPage }),
+        ...(pageSize !== undefined && { pageSize }),
+        ...(debouncedSearchQuery ? { search: debouncedSearchQuery } : {}),
+        ...(activeClinicId !== undefined && activeClinicId !== null && { clinicId: activeClinicId }),
+      }),
+    });
+  }, [queryClient, currentPage, pageSize, debouncedSearchQuery, activeClinicId]);
   
   // Validate currentPage doesn't exceed totalPages and reset if needed
   // This runs after we have totalPages from the API response
@@ -216,26 +225,23 @@ const LineUsersPage: React.FC = () => {
 
 
   const handleSaveDisplayName = async (lineUser: LineUserWithStatus) => {
-    if (isSaving) return;
+    if (updateDisplayNameMutation.isPending) return;
     
-    setIsSaving(true);
     try {
       const newDisplayName = editingDisplayName.trim() || null;
-      await apiService.updateLineUserDisplayName(lineUser.line_user_id, newDisplayName);
+      await updateDisplayNameMutation.mutateAsync({
+        lineUserId: lineUser.line_user_id,
+        displayName: newDisplayName,
+      });
       
       // Update local state
       setEditingLineUserId(null);
       setEditingDisplayName('');
       
-      // Refetch to get updated data
-      await refetch();
-      
       await alert('顯示名稱已更新');
     } catch (error) {
       logger.error('Failed to update display name:', error);
       await alert(getErrorMessage(error) || '無法更新顯示名稱');
-    } finally {
-      setIsSaving(false);
     }
   };
 
@@ -260,14 +266,12 @@ const LineUsersPage: React.FC = () => {
       setToggling(prev => new Set(prev).add(lineUserId));
       
       if (lineUser.ai_disabled) {
-        await apiService.enableAiForLineUser(lineUserId);
+        await enableAiMutation.mutateAsync(lineUserId);
         await alert('AI自動回覆已啟用');
       } else {
-        await apiService.disableAiForLineUser(lineUserId);
+        await disableAiMutation.mutateAsync({ lineUserId });
         await alert('AI自動回覆已停用');
       }
-      
-      await refetch(); // Refresh the list
     } catch (err: unknown) {
       logger.error('Toggle AI error:', err);
       const axiosError = err as { response?: { status?: number } };
@@ -470,17 +474,17 @@ const LineUsersPage: React.FC = () => {
                                     onClick={(e) => e.stopPropagation()}
                                     className="w-32 px-1.5 py-0.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
                                     autoFocus
-                                    disabled={isSaving}
+                                    disabled={updateDisplayNameMutation.isPending}
                                   />
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       handleSaveDisplayName(lineUser);
                                     }}
-                                    disabled={isSaving}
+                                    disabled={updateDisplayNameMutation.isPending}
                                     className="px-1.5 py-0.5 text-xs text-white bg-blue-600 rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
                                   >
-                                    {isSaving ? '...' : '✓'}
+                                    {updateDisplayNameMutation.isPending ? '...' : '✓'}
                                   </button>
                                   <button
                                     onClick={(e) => {
@@ -488,7 +492,7 @@ const LineUsersPage: React.FC = () => {
                                       setEditingLineUserId(null);
                                       setEditingDisplayName('');
                                     }}
-                                    disabled={isSaving}
+                                    disabled={updateDisplayNameMutation.isPending}
                                     className="px-1.5 py-0.5 text-xs text-gray-600 bg-gray-200 rounded hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
                                   >
                                     ✕
