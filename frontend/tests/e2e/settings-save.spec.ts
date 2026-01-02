@@ -10,12 +10,13 @@ async function waitForSettingsPage(page: Page) {
         return false;
       }
       const bodyText = document.body.textContent || '';
-      const hasInputs = document.querySelectorAll('input').length > 0;
       const hasError = bodyText.includes('無法載入設定');
-      const isLoading = bodyText.includes('載入中') && !hasInputs;
-      return hasInputs || hasError || !isLoading;
+      // Wait for the specific display_name input to appear (form is fully rendered)
+      const displayNameInput = document.querySelector('input[name="display_name"]');
+      const isLoading = bodyText.includes('載入中') && !displayNameInput;
+      return displayNameInput !== null || hasError || !isLoading;
     },
-    { timeout: 10000 }
+    { timeout: 15000 }
   );
 }
 
@@ -52,7 +53,7 @@ test.describe('Settings Save Flow', { tag: '@settings' }, () => {
     // Navigate to settings page
     await page.goto('/admin/clinic/settings/clinic-info', { waitUntil: 'load', timeout: 20000 });
     
-    // Wait for settings to load
+    // Wait for settings to load (this waits for display_name input specifically)
     await waitForSettingsPage(page);
 
     // Check if settings loaded successfully
@@ -61,8 +62,9 @@ test.describe('Settings Save Flow', { tag: '@settings' }, () => {
     }
 
     // Wait for form inputs and find display_name input
+    // Use waitForSelector to ensure element is visible (in DOM and rendered)
     const displayNameInput = page.locator('input[name="display_name"]');
-    await expect(displayNameInput).toBeVisible({ timeout: 8000 });
+    await page.waitForSelector('input[name="display_name"]', { state: 'visible', timeout: 15000 });
 
     // Update display name field
     const newValue = `Test Clinic ${Date.now()}`;
@@ -158,7 +160,7 @@ test.describe('Settings Save Flow', { tag: '@settings' }, () => {
     // Navigate directly to clinic info settings page
     await page.goto('/admin/clinic/settings/clinic-info', { waitUntil: 'load', timeout: 20000 });
     
-    // Wait for settings to load
+    // Wait for settings to load (this waits for display_name input specifically)
     await waitForSettingsPage(page);
 
     // Check if settings loaded successfully
@@ -167,8 +169,9 @@ test.describe('Settings Save Flow', { tag: '@settings' }, () => {
     }
 
     // Wait for and find the display_name input
+    // Use waitForSelector to ensure element is visible (in DOM and rendered)
     const displayNameInput = page.locator('input[name="display_name"]');
-    await expect(displayNameInput).toBeVisible({ timeout: 8000 });
+    await page.waitForSelector('input[name="display_name"]', { state: 'visible', timeout: 15000 });
 
     // Intercept the API call and force an error response
     // The API endpoint is /api/clinic/settings (PUT request)
