@@ -3,43 +3,40 @@ import { createAuthHelper } from './helpers';
 
 // Helper function to wait for settings page to load
 async function waitForSettingsPage(page: Page) {
+  // Use shorter timeout for local runs, longer for CI
+  const timeout = process.env.CI ? 30000 : 10000;
+  
   // Wait for the settings API request to complete first
   // This ensures data is loaded before checking for UI elements
   await page.waitForResponse(
     (response) => response.url().includes('/api/clinic/settings') && response.request().method() === 'GET',
-    { timeout: 30000 }
+    { timeout }
   ).catch(() => {
     // If API request doesn't complete, continue - we'll check for error state below
   });
   
-  // Wait for loading to complete - check for loading spinner to disappear
-  // The spinner has role="status" with aria-label="載入中..."
-  await page.waitForFunction(
+  // Wait for input to be visible - this implicitly waits for loading to complete
+  // The input won't be visible until React finishes rendering after API response
+  // Check for error state first, then wait for input
+  const hasError = await page.waitForFunction(
     () => {
       const bodyText = document.body.textContent || '';
-      const hasError = bodyText.includes('無法載入設定');
-      // Check if loading spinner is present (role="status" with aria-busy="true")
-      const spinner = document.querySelector('[role="status"][aria-busy="true"]');
-      const isLoading = !!spinner || bodyText.includes('載入中');
-      // Return true if we have an error or if we're not loading
-      return hasError || !isLoading;
+      return bodyText.includes('無法載入設定');
     },
-    { timeout: 30000 }
-  );
+    { timeout: 2000 }
+  ).then(() => true).catch(() => false);
   
-  // Check if we're in an error state - if so, don't wait for input
-  const pageText = await page.textContent('body').catch(() => '') || '';
-  if (pageText.includes('無法載入設定')) {
+  if (hasError) {
     // Error state - form won't render, this will be handled by checkSettingsLoaded
     return;
   }
   
-  // Otherwise, wait for the input to be visible (not just in DOM)
+  // Wait for the input to be visible (not just in DOM)
   // This ensures the form is fully rendered and visible
-  // Use a longer timeout for CI environments where rendering might be slower
+  // After API response, this should complete quickly
   await page.waitForSelector('input[name="display_name"]', { 
     state: 'visible', 
-    timeout: 30000 
+    timeout 
   });
 }
 
