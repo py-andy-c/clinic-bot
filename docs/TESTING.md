@@ -148,6 +148,36 @@ frontend/
 - **Browsers**: Chromium, Firefox, WebKit, Mobile Chrome, Mobile Safari
 - **Incremental Testing**: Custom script with file-to-test mapping
 
+### Database Configuration
+
+E2E tests use a **separate test database** to avoid polluting your development database.
+
+**Default Test Database URL**: `postgresql://postgres:postgres@localhost:5432/test_db`
+
+**Configuration Options:**
+- Set `E2E_DATABASE_URL` environment variable to use a custom test database
+- Example: `E2E_DATABASE_URL=postgresql://user:password@localhost:5432/my_test_db npm run test:e2e`
+
+**Setting Up the Test Database:**
+
+1. **Ensure PostgreSQL is running:**
+   ```bash
+   brew services start postgresql@14
+   # or
+   pg_ctl -D /usr/local/var/postgresql@14 start
+   ```
+
+2. **Create the test database** (if using default URL):
+   ```bash
+   createdb -U postgres test_db
+   # or
+   psql -U postgres -c "CREATE DATABASE test_db;"
+   ```
+
+3. **The backend will run migrations automatically** when starting for E2E tests
+
+**Note**: The test database is separate from your development database (`clinic_bot`). This ensures E2E tests don't interfere with your development data.
+
 ### Running Tests
 
 ```bash

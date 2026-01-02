@@ -155,6 +155,7 @@ jobs:
         ./run_e2e_tests.sh --no-cache
       env:
         DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+        E2E_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
         PGPASSWORD: postgres
         E2E_TEST_MODE: "true"
         ENVIRONMENT: "test"

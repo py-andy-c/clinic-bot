@@ -75,34 +75,64 @@ test.describe('Settings Save Flow', { tag: '@settings' }, () => {
     // Click save and wait for completion
     await saveButton.click();
 
-    // Wait for save to complete - check for save button disappearing or success message
+    // Wait for save to complete - use Promise.race to catch any completion signal
     await Promise.race([
-      // Wait for save button to disappear (form is no longer dirty)
+      // Wait for alert dialog (most immediate signal)
+      page.waitForEvent('dialog', { timeout: 10000 }).catch(() => null),
+      // Wait for save button to disappear (form reset completed)
       page.waitForFunction(
         () => {
           const saveBtn = Array.from(document.querySelectorAll('button')).find(
             btn => btn.textContent?.includes('儲存變更')
           );
-          return !saveBtn || saveBtn.style.display === 'none';
+          return !saveBtn || saveBtn.style.display === 'none' || !saveBtn.offsetParent;
         },
-        { timeout: 8000 }
+        { timeout: 10000 }
       ).catch(() => null),
-      // Or wait for success message
+      // Wait for success message in page
       page.waitForFunction(
         () => {
           const bodyText = document.body.textContent || '';
           return bodyText.includes('設定已成功儲存') || bodyText.includes('設定已儲存') || bodyText.includes('設定已更新');
         },
-        { timeout: 8000 }
+        { timeout: 10000 }
       ).catch(() => null),
-      // Or wait for alert dialog
-      page.waitForEvent('dialog', { timeout: 8000 }).catch(() => null),
     ]);
 
-    // Verify success - check form value or success message (no blocking wait)
-    const savedValue = await displayNameInput.inputValue();
-    const hasSuccessMessage = await page.locator('text=設定已成功儲存, text=設定已儲存, text=設定已更新').first().isVisible({ timeout: 2000 }).catch(() => false);
-    const saveButtonStillVisible = await saveButton.isVisible({ timeout: 1000 }).catch(() => false);
+    // Now wait for all async operations to complete:
+    // 1. Wait for save button to disappear (form reset completed)
+    // 2. Wait for input value to reflect saved state
+    // This ensures React has fully updated the form state
+    await Promise.all([
+      // Wait for save button to be gone (with longer timeout for slow renders)
+      page.waitForFunction(
+        () => {
+          const saveBtn = Array.from(document.querySelectorAll('button')).find(
+            btn => btn.textContent?.includes('儲存變更')
+          );
+          return !saveBtn || saveBtn.style.display === 'none' || !saveBtn.offsetParent;
+        },
+        { timeout: 10000 }
+      ).catch(() => {
+        // If button is still visible, that's okay - we'll check other signals
+      }),
+      // Wait for input value to be saved (form reset has completed)
+      page.waitForFunction(
+        (expectedValue) => {
+          const input = document.querySelector('input[name="display_name"]') as HTMLInputElement;
+          return input && input.value === expectedValue;
+        },
+        newValue,
+        { timeout: 10000 }
+      ).catch(() => {
+        // If value check fails, we'll verify with other signals
+      }),
+    ]);
+
+    // Final verification - check multiple success indicators
+    const savedValue = await displayNameInput.inputValue().catch(() => '');
+    const hasSuccessMessage = await page.locator('text=設定已成功儲存, text=設定已儲存, text=設定已更新').first().isVisible({ timeout: 3000 }).catch(() => false);
+    const saveButtonStillVisible = await saveButton.isVisible({ timeout: 2000 }).catch(() => false);
     
     // Success if: alert was shown, value was saved, success message appears, or save button disappeared
     const success = alertHandled || savedValue === newValue || hasSuccessMessage || !saveButtonStillVisible;

@@ -87,6 +87,13 @@ if ! grep -q '"@playwright/test"' package.json; then
     exit 1
 fi
 
+# Check for test database configuration
+E2E_DB_URL="${E2E_DATABASE_URL:-postgresql://postgres:postgres@localhost:5432/test_db}"
+print_status "E2E test database: ${E2E_DB_URL//:[^:@]+@/:****@}" # Hide password in output
+
+# Export for Playwright config
+export E2E_DATABASE_URL="$E2E_DB_URL"
+
 # Run E2E tests
 print_status "Running E2E tests..."
 

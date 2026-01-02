@@ -75,7 +75,7 @@ export default defineConfig({
   webServer: [
     // Backend server first (takes longer to start)
     ...(process.env.E2E_SKIP_BACKEND ? [] : [{
-      command: 'cd ../backend && E2E_TEST_MODE=true ENVIRONMENT=test ./launch_dev.sh',
+      command: `cd ../backend && E2E_TEST_MODE=true ENVIRONMENT=test DATABASE_URL="${process.env.E2E_DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/test_db'}" ./launch_dev.sh`,
       url: 'http://localhost:8000',
       reuseExistingServer: !process.env.CI,
       timeout: 180 * 1000, // 3 minutes for backend

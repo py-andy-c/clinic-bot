@@ -25,8 +25,12 @@ test.describe('Clinic Switching', { tag: '@clinic' }, () => {
       // Click the clinic switcher button to open dropdown
       await clinicSwitcher.first().click();
       
-      // Wait for dropdown to appear
-      await page.waitForSelector('div[role="menu"]', { timeout: 5000 });
+      // Wait for button's aria-expanded to become true (indicates state update)
+      // This ensures React has processed the click and updated the state
+      await expect(clinicSwitcher.first()).toHaveAttribute('aria-expanded', 'true', { timeout: 10000 });
+      
+      // Wait for dropdown menu to appear
+      await page.waitForSelector('div[role="menu"]', { timeout: 10000 });
       
       // Get the current clinic name from the button
       const currentClinicName = await clinicSwitcher.first().textContent();
@@ -38,18 +42,38 @@ test.describe('Clinic Switching', { tag: '@clinic' }, () => {
         const targetClinicName = await otherClinicButton.textContent();
         await otherClinicButton.click();
         
-        // Wait for clinic switch to complete (switcher shows "切換中..." then updates)
+        // Wait for switching state to complete:
+        // 1. First wait for "切換中..." to appear (confirms switch started)
+        // 2. Then wait for "切換中..." to disappear (confirms isSwitching became false)
+        // 3. Finally wait for the new clinic name to appear (confirms UI updated)
+        await page.waitForFunction(
+          () => {
+            const switcher = Array.from(document.querySelectorAll('button')).find(
+              b => b.textContent?.includes('診所') || b.textContent?.includes('Clinic')
+            );
+            return switcher && switcher.textContent?.includes('切換中');
+          },
+          { timeout: 5000 }
+        ).catch(() => {
+          // If "切換中" doesn't appear, that's okay - switch might be very fast
+        });
+        
+        // Wait for switching to complete - "切換中" disappears and new name appears
         await page.waitForFunction(
           (expectedName) => {
-            const switcher = document.querySelector('button:has-text("診所")') || 
-                           Array.from(document.querySelectorAll('button')).find(b => b.textContent?.includes('診所'));
-            return switcher && switcher.textContent?.includes(expectedName || '');
+            const switcher = Array.from(document.querySelectorAll('button')).find(
+              b => b.textContent?.includes('診所') || b.textContent?.includes('Clinic')
+            );
+            if (!switcher) return false;
+            const text = switcher.textContent || '';
+            // Must not be switching AND must show the new clinic name
+            return !text.includes('切換中') && text.includes(expectedName || '');
           },
           targetClinicName || '',
-          { timeout: 10000 }
+          { timeout: 15000 }
         );
         
-        // Verify clinic switched by checking the switcher shows the new clinic name
+        // Final verification - ensure the switcher shows the new clinic name
         await expect(clinicSwitcher.first()).toContainText(targetClinicName || '', { timeout: 5000 });
       } else {
         // Only one clinic available - skip the actual switch but verify switcher works
@@ -80,7 +104,13 @@ test.describe('Clinic Switching', { tag: '@clinic' }, () => {
     if (switcherVisible) {
       // Test that clinic switcher dropdown opens correctly
       await clinicSwitcher.first().click();
-      await page.waitForSelector('div[role="menu"]', { timeout: 5000 });
+      
+      // Wait for button's aria-expanded to become true (indicates state update)
+      // This ensures React has processed the click and updated the state
+      await expect(clinicSwitcher.first()).toHaveAttribute('aria-expanded', 'true', { timeout: 10000 });
+      
+      // Wait for dropdown menu to appear
+      await page.waitForSelector('div[role="menu"]', { timeout: 10000 });
       
       // Verify dropdown opened successfully
       await expect(page.locator('div[role="menu"]')).toBeVisible();
