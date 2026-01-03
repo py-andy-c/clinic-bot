@@ -21,6 +21,7 @@ DB_POOL_RECYCLE_SECONDS = 300  # 5 minutes
 # Railway/Vercel URLs are automatically added via environment variables
 _CORS_ORIGINS_RAW = [
     "http://localhost:5173",      # React dev server (Vite) - localhost
+    "http://localhost:3000",      # React dev server (Vite) - E2E tests port
     "http://10.0.0.25:5173",     # React dev server - local network IP
     FRONTEND_URL,  # Includes ngrok URL or production URL if FRONTEND_URL is set accordingly
 ]

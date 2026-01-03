@@ -62,7 +62,12 @@ class ScheduledMessageScheduler:
         logger.info("Scheduled message scheduler started")
         
         # Run immediately on startup to catch up on missed messages
+        from datetime import datetime
+        startup_task_start = datetime.utcnow()
+        logger.info(f"[{startup_task_start.isoformat()}Z] [STARTUP] Starting immediate _send_pending_messages() task...")
         await self._send_pending_messages()
+        startup_task_duration = (datetime.utcnow() - startup_task_start).total_seconds()
+        logger.info(f"[{datetime.utcnow().isoformat()}Z] [STARTUP] Immediate _send_pending_messages() task completed (took {startup_task_duration:.2f}s)")
 
     async def stop_scheduler(self) -> None:
         """

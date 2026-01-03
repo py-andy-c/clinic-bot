@@ -56,7 +56,12 @@ class TestSessionCleanupService:
         logger.info("Test session cleanup scheduler started")
         
         # Run cleanup immediately on startup
+        from datetime import datetime
+        startup_task_start = datetime.utcnow()
+        logger.info(f"[{startup_task_start.isoformat()}Z] [STARTUP] Starting immediate _cleanup_old_sessions() task...")
         await self._cleanup_old_sessions()
+        startup_task_duration = (datetime.utcnow() - startup_task_start).total_seconds()
+        logger.info(f"[{datetime.utcnow().isoformat()}Z] [STARTUP] Immediate _cleanup_old_sessions() task completed (took {startup_task_duration:.2f}s)")
     
     async def stop_scheduler(self) -> None:
         """

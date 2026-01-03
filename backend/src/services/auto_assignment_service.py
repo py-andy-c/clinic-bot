@@ -68,7 +68,12 @@ class AutoAssignmentService:
         logger.info("Auto-assignment scheduler started")
         
         # Run immediately on startup to catch up on any missed appointments
+        from datetime import datetime
+        startup_task_start = datetime.utcnow()
+        logger.info(f"[{startup_task_start.isoformat()}Z] [STARTUP] Starting immediate _process_auto_assigned_appointments() task...")
         await self._process_auto_assigned_appointments()
+        startup_task_duration = (datetime.utcnow() - startup_task_start).total_seconds()
+        logger.info(f"[{datetime.utcnow().isoformat()}Z] [STARTUP] Immediate _process_auto_assigned_appointments() task completed (took {startup_task_duration:.2f}s)")
 
     async def stop_scheduler(self) -> None:
         """Stop the auto-assignment scheduler."""

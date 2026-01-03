@@ -3,6 +3,23 @@
 # Script to launch the FastAPI development server
 # Kills existing uvicorn processes and starts fresh
 
+# Set log file path for E2E tests - write immediately to ensure we capture everything
+BACKEND_LOG_FILE="${E2E_BACKEND_LOG_FILE:-/tmp/backend_e2e.log}"
+
+# ALWAYS write to log file first thing, even before checking E2E_TEST_MODE
+# This ensures we capture if the script is even being called
+echo "[$(date -u +"%Y-%m-%dT%H:%M:%SZ")] [BACKEND-STARTUP] ========== Script EXECUTED ==========" >> "$BACKEND_LOG_FILE" 2>&1
+echo "[$(date -u +"%Y-%m-%dT%H:%M:%SZ")] [BACKEND-STARTUP] Script path: $0" >> "$BACKEND_LOG_FILE" 2>&1
+echo "[$(date -u +"%Y-%m-%dT%H:%M:%SZ")] [BACKEND-STARTUP] E2E_TEST_MODE=${E2E_TEST_MODE:-not set}" >> "$BACKEND_LOG_FILE" 2>&1
+echo "[$(date -u +"%Y-%m-%dT%H:%M:%SZ")] [BACKEND-STARTUP] DATABASE_URL=${DATABASE_URL:-not set}" >> "$BACKEND_LOG_FILE" 2>&1
+echo "[$(date -u +"%Y-%m-%dT%H:%M:%SZ")] [BACKEND-STARTUP] PWD=$(pwd)" >> "$BACKEND_LOG_FILE" 2>&1
+
+if [ "$E2E_TEST_MODE" = "true" ]; then
+    echo "[$(date -u +"%Y-%m-%dT%H:%M:%SZ")] [BACKEND-STARTUP] Writing all logs to: $BACKEND_LOG_FILE" >> "$BACKEND_LOG_FILE" 2>&1
+    # Redirect all output to both stdout and log file
+    exec > >(tee -a "$BACKEND_LOG_FILE") 2>&1
+fi
+
 echo "🚀 Launching Clinic Bot Development Server..."
 
 # Kill existing uvicorn processes
@@ -65,4 +82,9 @@ echo ""
 echo "🌟 Starting FastAPI server with hot reload (logs visible below)..."
 echo "🛑 Press Ctrl+C to stop server"
 echo ""
-cd src && uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+echo "[$(date -u +"%Y-%m-%dT%H:%M:%SZ")] [BACKEND-STARTUP] Starting uvicorn server on port 8000..."
+echo "[$(date -u +"%Y-%m-%dT%H:%M:%SZ")] [BACKEND-STARTUP] Command: cd src && uvicorn main:app --host 0.0.0.0 --port 8000 --log-level info --no-access-log"
+
+# Ensure unbuffered output for immediate log visibility
+export PYTHONUNBUFFERED=1
+cd src && exec uvicorn main:app --host 0.0.0.0 --port 8000 --log-level info --no-access-log

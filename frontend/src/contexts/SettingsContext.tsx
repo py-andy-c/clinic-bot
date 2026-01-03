@@ -55,6 +55,7 @@ export const SettingsProvider: React.FC<SettingsProviderProps> = ({ children }) 
   const { data: cachedSettings, isLoading: settingsLoading } = useClinicSettings(!isLoading);
 
   // Use settings page hook with cached data to avoid duplicate fetch
+  // Fix: Always use React Query cache, never fetch directly to prevent duplicate requests
   const {
     data: settings,
     originalData,
@@ -65,9 +66,22 @@ export const SettingsProvider: React.FC<SettingsProviderProps> = ({ children }) 
     fetchData,
   } = useSettingsPage({
     fetchData: async () => {
+      // This should never be called because skipFetch is always true
+      // But if it is called (fallback), use cachedSettings if available
+      if (cachedSettings) {
+        return cachedSettings;
+      }
+      // Last resort fallback
       return await apiService.getClinicSettings();
     },
     saveData: async (data: ClinicSettings) => {
+      // Log in development mode only
+      const isDevelopment = typeof window !== 'undefined' && process.env.NODE_ENV === 'development';
+      if (isDevelopment) {
+        const timestamp = new Date().toISOString();
+        console.log(`[${timestamp}] [FRONTEND] [SAVE] saveData called in SettingsContext`);
+      }
+      
       // Convert reminder hours and booking restriction hours to numbers for backend
       const settingsToSave = {
         ...data,
@@ -84,9 +98,19 @@ export const SettingsProvider: React.FC<SettingsProviderProps> = ({ children }) 
           allow_patient_deletion: data.booking_restriction_settings.allow_patient_deletion ?? true
         }
       };
+      if (isDevelopment) {
+        console.log(`[${new Date().toISOString()}] [FRONTEND] [SAVE] Calling apiService.updateClinicSettings...`);
+      }
       try {
+        const saveStartTime = isDevelopment ? Date.now() : 0;
         await apiService.updateClinicSettings(settingsToSave);
+        if (isDevelopment) {
+          console.log(`[${new Date().toISOString()}] [FRONTEND] [SAVE] apiService.updateClinicSettings succeeded (${Date.now() - saveStartTime}ms)`);
+        }
       } catch (error: unknown) {
+        if (isDevelopment) {
+          console.log(`[${new Date().toISOString()}] [FRONTEND] [SAVE] apiService.updateClinicSettings failed:`, error);
+        }
         // Handle appointment type deletion error
         const axiosError = error as { response?: { status?: number; data?: { detail?: { error?: string; blocked_appointment_types?: Array<{ id: number; name: string }>; appointment_types?: Array<{ id: number; name: string; practitioners: string[] }> } } } };
         if (axiosError.response?.status === 400 && axiosError.response?.data?.detail?.error === 'cannot_delete_appointment_types') {
@@ -133,7 +157,10 @@ export const SettingsProvider: React.FC<SettingsProviderProps> = ({ children }) 
   }, {
     isLoading: isLoading || settingsLoading,
     ...(cachedSettings ? { initialData: cachedSettings } : {}),
-    skipFetch: !!cachedSettings // Only skip fetch if we have cached data
+    // Skip fetch if we have cached data OR if React Query is still loading
+    // This prevents the race condition: React Query handles fetching, we wait for it
+    // Once React Query finishes (success or error), cachedSettings will be set or we'll handle the error
+    skipFetch: !!cachedSettings || settingsLoading
   });
 
 

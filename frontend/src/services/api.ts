@@ -85,7 +85,37 @@ export class ApiService {
         const requestUrl = error.config?.url || '';
         const isRefreshRequest = requestUrl.includes('/auth/refresh');
         const isNetworkError = !error.response; // Network error (no response)
-        return isNetworkError && !isRefreshRequest;
+        const shouldRetry = isNetworkError && !isRefreshRequest;
+        
+        // Log retry decisions for debugging (development only)
+        if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+          const timestamp = new Date().toISOString();
+          console.log(`[${timestamp}] [FRONTEND] [AXIOS-RETRY-DECISION] Request to ${requestUrl}:`, {
+            isNetworkError,
+            isRefreshRequest,
+            shouldRetry,
+            errorMessage: error.message,
+            errorCode: error.code,
+            hasResponse: !!error.response,
+            responseStatus: error.response?.status
+          });
+        }
+        
+        return shouldRetry;
+      },
+      onRetry: (retryCount, error, requestConfig) => {
+        // Log when axios-retry is actually retrying (development only)
+        if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+          const timestamp = new Date().toISOString();
+          const fullUrl = requestConfig.url ? (requestConfig.baseURL || '') + requestConfig.url : 'unknown';
+          console.log(`[${timestamp}] [FRONTEND] [AXIOS-RETRY] Retrying request to ${fullUrl} (attempt ${retryCount + 1}/3):`, {
+            retryCount,
+            errorMessage: error.message,
+            errorCode: error.code,
+            hasResponse: !!error.response,
+            responseStatus: error.response?.status
+          });
+        }
       },
     });
 
@@ -95,13 +125,46 @@ export class ApiService {
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
       }
+      
+      // Log all requests with timestamps for debugging (development only)
+      if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+        const timestamp = new Date().toISOString();
+        const requestId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        (config as any).__requestId = requestId; // Store request ID for tracking
+        (config as any).__requestStartTime = Date.now(); // Store start time
+        
+        const fullUrl = config.url ? (config.baseURL || '') + config.url : 'unknown';
+        console.log(`[${timestamp}] [FRONTEND] [AXIOS-REQUEST] ${config.method?.toUpperCase()} ${fullUrl} [ID: ${requestId}]`);
+      }
+      
       return config;
     });
 
     // Response interceptor: Handle 401 errors and refresh tokens
     this.client.interceptors.response.use(
-      (response) => response,
+      (response) => {
+        // Log all successful responses with timestamps (development only)
+        if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+          const timestamp = new Date().toISOString();
+          const requestId = (response.config as any).__requestId || 'unknown';
+          const startTime = (response.config as any).__requestStartTime || Date.now();
+          const duration = Date.now() - startTime;
+          const fullUrl = response.config.url ? (response.config.baseURL || '') + response.config.url : 'unknown';
+          console.log(`[${timestamp}] [FRONTEND] [AXIOS-RESPONSE] ${response.config.method?.toUpperCase()} ${fullUrl} [ID: ${requestId}] - Status: ${response.status} - Duration: ${duration}ms`);
+        }
+        return response;
+      },
       async (error: AxiosError) => {
+        // Log all failed requests with timestamps (development only)
+        if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+          const timestamp = new Date().toISOString();
+          const requestId = (error.config as any).__requestId || 'unknown';
+          const startTime = (error.config as any).__requestStartTime || Date.now();
+          const duration = Date.now() - startTime;
+          const fullUrl = error.config?.url ? (error.config.baseURL || '') + error.config.url : 'unknown';
+          console.log(`[${timestamp}] [FRONTEND] [AXIOS-ERROR] ${error.config?.method?.toUpperCase()} ${fullUrl} [ID: ${requestId}] - Status: ${error.response?.status || 'NO_RESPONSE'}, Error: ${error.message}, Code: ${error.code}, Duration: ${duration}ms`);
+        }
+        
         // Only handle 401 errors (unauthorized)
         if (error.response?.status !== 401) {
           return Promise.reject(error);
@@ -426,9 +489,29 @@ export class ApiService {
   }
 
   async updateClinicSettings(settings: ClinicSettings): Promise<ClinicSettings> {
-    const response = await this.client.put('/clinic/settings', settings);
-    // Note: We don't validate the response here since it's just a success message
-    return response.data;
+    // Log in development mode only
+    const isDevelopment = typeof window !== 'undefined' && process.env.NODE_ENV === 'development';
+    const timestamp = isDevelopment ? new Date().toISOString() : '';
+    const requestId = isDevelopment ? `${Date.now()}-${Math.random().toString(36).substr(2, 9)}` : '';
+    if (isDevelopment) {
+      console.log(`[${timestamp}] [FRONTEND] [SAVE] [AXIOS-REQUEST] PUT ${this.client.defaults.baseURL}/clinic/settings [ID: ${requestId}]`);
+    }
+    const startTime = Date.now();
+    try {
+      const response = await this.client.put('/clinic/settings', settings);
+      if (isDevelopment) {
+        const duration = Date.now() - startTime;
+        console.log(`[${new Date().toISOString()}] [FRONTEND] [SAVE] [AXIOS-RESPONSE] PUT ${this.client.defaults.baseURL}/clinic/settings [ID: ${requestId}] - Status: ${response.status} - Duration: ${duration}ms`);
+      }
+      // Note: We don't validate the response here since it's just a success message
+      return response.data;
+    } catch (error: any) {
+      if (isDevelopment) {
+        const duration = Date.now() - startTime;
+        console.log(`[${new Date().toISOString()}] [FRONTEND] [SAVE] [AXIOS-ERROR] PUT ${this.client.defaults.baseURL}/clinic/settings [ID: ${requestId}] - Status: ${error.response?.status || 'NO_RESPONSE'}, Error: ${error.message}, Duration: ${duration}ms`);
+      }
+      throw error;
+    }
   }
 
   async generateReminderPreview(data: {

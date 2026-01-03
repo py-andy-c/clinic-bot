@@ -77,12 +77,13 @@ export default defineConfig({
     ...(process.env.E2E_SKIP_BACKEND ? [] : [{
       command: `cd ../backend && E2E_TEST_MODE=true ENVIRONMENT=test DATABASE_URL="${process.env.E2E_DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/test_db'}" ./launch_dev.sh`,
       url: 'http://localhost:8000',
-      reuseExistingServer: !process.env.CI,
+      reuseExistingServer: !process.env.CI, // Revert to original: reuse if not in CI
       timeout: 180 * 1000, // 3 minutes for backend
     }]),
     // Frontend server second
+    // Override VITE_API_BASE_URL to use localhost for E2E tests (overrides .env file)
     {
-      command: 'NODE_ENV=test npm run dev',
+      command: 'NODE_ENV=test VITE_API_BASE_URL=http://localhost:8000/api npm run dev',
       url: 'http://localhost:3000',
       reuseExistingServer: !process.env.CI,
       timeout: 60 * 1000, // 1 minute for frontend

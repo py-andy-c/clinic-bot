@@ -12,14 +12,17 @@ Features:
 """
 
 import logging
+import os
 from pathlib import Path
 from contextlib import asynccontextmanager
 from typing import Callable, Awaitable
+from datetime import datetime
 import httpx
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from api import auth, signup, system, clinic, profile, liff, line_webhook, receipt_endpoints
 from core.constants import CORS_ORIGINS
@@ -58,13 +61,31 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger(__name__)
-logger.info("🏥 Clinic Bot API starting...")
+
+def get_timestamp():
+    """Get ISO format timestamp for logging."""
+    return datetime.utcnow().isoformat() + 'Z'
+
+def log_with_timestamp(level, message, *args, **kwargs):
+    """Log with timestamp prefix."""
+    timestamp = get_timestamp()
+    log_message = f"[{timestamp}] [BACKEND] {message}"
+    if level == 'info':
+        logger.info(log_message, *args, **kwargs)
+    elif level == 'error':
+        logger.error(log_message, *args, **kwargs)
+    elif level == 'warning':
+        logger.warning(log_message, *args, **kwargs)
+    elif level == 'debug':
+        logger.debug(log_message, *args, **kwargs)
+
+log_with_timestamp('info', "🏥 Clinic Bot API starting...")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan manager for startup and shutdown events."""
-    logger.info("🚀 Starting Clinic Bot Backend API")
+    log_with_timestamp('info', "🚀 Starting Clinic Bot Backend API - Lifespan started")
     
     # Start schedulers - wrap each in try-except to ensure server starts even if schedulers fail
     # Use asyncio.create_task to start schedulers in background without blocking
@@ -72,14 +93,21 @@ async def lifespan(app: FastAPI):
     
     async def start_scheduler_safely(name: str, start_func: Callable[[], Awaitable[None]]):
         """Start a scheduler safely, logging errors but not blocking startup."""
+        scheduler_start_time = datetime.utcnow()
         try:
+            log_with_timestamp('info', f"⏳ [STARTUP] Starting scheduler: {name}")
             await start_func()
-            logger.info(f"✅ {name} started")
+            scheduler_duration = (datetime.utcnow() - scheduler_start_time).total_seconds()
+            log_with_timestamp('info', f"✅ [STARTUP] {name} started successfully (took {scheduler_duration:.2f}s)")
         except Exception as e:
+            scheduler_duration = (datetime.utcnow() - scheduler_start_time).total_seconds()
+            log_with_timestamp('error', f"❌ [STARTUP] Failed to start {name} after {scheduler_duration:.2f}s: {e}")
             logger.exception(f"❌ Failed to start {name}: {e}")
             # Don't re-raise - allow server to start even if scheduler fails
 
     # Start all schedulers concurrently to avoid blocking
+    gather_start_time = datetime.utcnow()
+    log_with_timestamp('info', "🔄 [STARTUP] Starting all schedulers concurrently...")
     await asyncio.gather(
         start_scheduler_safely("Test session cleanup scheduler", start_test_session_cleanup),
         start_scheduler_safely("LINE message cleanup scheduler", start_line_message_cleanup),
@@ -91,8 +119,11 @@ async def lifespan(app: FastAPI):
         start_scheduler_safely("Scheduled message scheduler (handles reminders, follow-ups)", start_scheduled_message_scheduler),
         return_exceptions=True  # Don't fail if any scheduler fails
     )
+    gather_duration = (datetime.utcnow() - gather_start_time).total_seconds()
+    log_with_timestamp('info', f"✅ [STARTUP] All schedulers gather completed (took {gather_duration:.2f}s)")
     
-    logger.info("✅ All schedulers initialized (some may have failed, but server is ready)")
+    log_with_timestamp('info', "✅ All schedulers initialized (some may have failed, but server is ready)")
+    log_with_timestamp('info', "✅ Backend API is READY - All initialization complete")
     yield
 
     # Stop test session cleanup scheduler
@@ -151,7 +182,7 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.exception(f"❌ Error stopping scheduled message scheduler: {e}")
 
-    logger.info("🛑 Shutting down Clinic Bot Backend API")
+    log_with_timestamp('info', "🛑 Shutting down Clinic Bot Backend API")
 
 
 # Create FastAPI application
@@ -163,6 +194,28 @@ app = FastAPI(
     redoc_url="/redoc",  # ReDoc
     lifespan=lifespan,
 )
+
+# Request logging middleware - only enabled in E2E test mode for debugging
+# Must be added before CORS if enabled
+if os.getenv("E2E_TEST_MODE") == "true":
+    class RequestLoggingMiddleware(BaseHTTPMiddleware):
+        async def dispatch(self, request: Request, call_next):
+            start_time = datetime.utcnow()
+            
+            # Log request
+            log_with_timestamp('info', f"📥 REQUEST: {request.method} {request.url.path} - Client: {request.client.host if request.client else 'unknown'}")
+            
+            try:
+                response = await call_next(request)
+                process_time = (datetime.utcnow() - start_time).total_seconds() * 1000
+                log_with_timestamp('info', f"📤 RESPONSE: {request.method} {request.url.path} - Status: {response.status_code} - Time: {process_time:.2f}ms")
+                return response
+            except Exception as e:
+                process_time = (datetime.utcnow() - start_time).total_seconds() * 1000
+                log_with_timestamp('error', f"❌ ERROR: {request.method} {request.url.path} - Error: {str(e)} - Time: {process_time:.2f}ms")
+                raise
+
+    app.add_middleware(RequestLoggingMiddleware)
 
 # CORS middleware for frontend integration
 app.add_middleware(

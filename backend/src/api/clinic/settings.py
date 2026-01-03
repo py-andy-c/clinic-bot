@@ -7,8 +7,9 @@ import logging
 import secrets
 import os
 from typing import Dict, List, Optional, Any
+from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi import status as http_status
 from pydantic import BaseModel, model_validator
 from sqlalchemy.orm import Session
@@ -160,7 +161,7 @@ class AppointmentTypeDeletionValidationRequest(BaseModel):
     appointment_type_ids: List[int]
 
 
-@router.get("/settings", summary="Get clinic settings")
+@router.get("/settings", summary="Get clinic settings", response_model_exclude_none=True)
 async def get_settings(
     current_user: UserContext = Depends(require_authenticated),
     db: Session = Depends(get_db)
@@ -249,19 +250,26 @@ async def get_settings(
         
         # Convert validated settings to API response models (they have the same structure)
         # This ensures type compatibility while maintaining automatic field inclusion
-        return SettingsResponse(
-            clinic_id=clinic.id,
-            clinic_name=clinic.name,
-            business_hours=business_hours,
-            appointment_types=appointment_type_list,
+        # Build response data, conditionally including liff_urls only when it's not None
+        # This prevents sending null values for optional fields (more RESTful)
+        response_data = {
+            "clinic_id": clinic.id,
+            "clinic_name": clinic.name,
+            "business_hours": business_hours,
+            "appointment_types": appointment_type_list,
             # Convert from models to API response models - automatically includes all fields
-            notification_settings=NotificationSettings.model_validate(validated_settings.notification_settings.model_dump()),
-            booking_restriction_settings=BookingRestrictionSettings.model_validate(validated_settings.booking_restriction_settings.model_dump()),
-            clinic_info_settings=ClinicInfoSettings.model_validate(validated_settings.clinic_info_settings.model_dump()),
-            chat_settings=ChatSettings.model_validate(validated_settings.chat_settings.model_dump()),
-            receipt_settings=ReceiptSettings.model_validate(validated_settings.receipt_settings.model_dump() if hasattr(validated_settings, 'receipt_settings') else {"custom_notes": None, "show_stamp": False}),
-            liff_urls=liff_urls
-        )
+            "notification_settings": NotificationSettings.model_validate(validated_settings.notification_settings.model_dump()),
+            "booking_restriction_settings": BookingRestrictionSettings.model_validate(validated_settings.booking_restriction_settings.model_dump()),
+            "clinic_info_settings": ClinicInfoSettings.model_validate(validated_settings.clinic_info_settings.model_dump()),
+            "chat_settings": ChatSettings.model_validate(validated_settings.chat_settings.model_dump()),
+            "receipt_settings": ReceiptSettings.model_validate(validated_settings.receipt_settings.model_dump() if hasattr(validated_settings, 'receipt_settings') else {"custom_notes": None, "show_stamp": False}),
+        }
+        
+        # Only include liff_urls if it's not None (omit from response instead of sending null)
+        if liff_urls is not None:
+            response_data["liff_urls"] = liff_urls
+        
+        return SettingsResponse(**response_data)
 
     except Exception as e:
         logger.exception(f"Error getting clinic settings: {e}")
@@ -386,6 +394,7 @@ async def validate_appointment_type_deletion(
 
 @router.put("/settings", summary="Update clinic settings")
 async def update_settings(
+    request: Request,
     settings: Dict[str, Any],
     current_user: UserContext = Depends(require_admin_role),
     db: Session = Depends(get_db)
@@ -396,6 +405,19 @@ async def update_settings(
     Only clinic admins can update settings.
     Prevents deletion of appointment types that are referenced by practitioners.
     """
+    # Only log in E2E test mode for debugging
+    e2e_test_mode = os.getenv("E2E_TEST_MODE") == "true"
+    save_start_time = datetime.utcnow()
+    
+    if e2e_test_mode:
+        def get_timestamp():
+            return datetime.utcnow().isoformat(timespec='milliseconds') + 'Z'
+        
+        def log_with_timestamp(level: str, message: str):
+            timestamp = get_timestamp()
+            getattr(logger, level)(f"[{timestamp}] [BACKEND] {message}")
+        
+        log_with_timestamp('info', f"💾 SAVE REQUEST: PUT /api/clinic/settings - Client: {request.client.host if request.client else 'unknown'}")
     try:
         # Ensure clinic_id is set
         clinic_id = ensure_clinic_access(current_user)
@@ -815,13 +837,23 @@ async def update_settings(
                     )
 
         db.commit()
+        
+        if e2e_test_mode:
+            save_duration = (datetime.utcnow() - save_start_time).total_seconds() * 1000
+            log_with_timestamp('info', f"✅ SAVE SUCCESS: PUT /api/clinic/settings - Status: 200 - Time: {save_duration:.2f}ms")
 
         return {"message": "設定更新成功"}
 
-    except HTTPException:
+    except HTTPException as e:
+        if e2e_test_mode:
+            save_duration = (datetime.utcnow() - save_start_time).total_seconds() * 1000
+            log_with_timestamp('error', f"❌ SAVE ERROR: PUT /api/clinic/settings - Status: {e.status_code} - Time: {save_duration:.2f}ms - Detail: {e.detail}")
         raise
     except Exception as e:
         logger.exception(f"Error updating clinic settings: {e}")
+        if e2e_test_mode:
+            save_duration = (datetime.utcnow() - save_start_time).total_seconds() * 1000
+            log_with_timestamp('error', f"❌ SAVE EXCEPTION: PUT /api/clinic/settings - Time: {save_duration:.2f}ms - Error: {str(e)}")
         db.rollback()
         raise HTTPException(
             status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,

@@ -2,6 +2,25 @@ import { test, expect } from '@playwright/test';
 import { createAuthHelper, createCalendarHelper } from './helpers';
 
 test.describe('Clinic Switching', { tag: '@clinic' }, () => {
+  // Test isolation: Clear storage and reset state before each test
+  // This prevents state pollution from previous tests that could cause
+  // component state issues (e.g., aria-expanded not updating)
+  test.beforeEach(async ({ page }) => {
+    // Navigate to a real page first (about:blank doesn't allow localStorage access)
+    // Use the base URL from Playwright config or default to localhost:3000
+    const baseURL = page.context().baseURL || 'http://localhost:3000';
+    await page.goto(baseURL);
+    
+    // Clear all storage to ensure clean state
+    await page.evaluate(() => {
+      localStorage.clear();
+      sessionStorage.clear();
+    });
+    
+    // Clear all cookies
+    await page.context().clearCookies();
+  });
+
   test('switch between clinics', async ({ page }) => {
     test.setTimeout(45000);
     const auth = createAuthHelper(page);
