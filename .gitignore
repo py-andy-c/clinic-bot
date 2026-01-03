@@ -200,6 +200,7 @@ jspm_packages/
 # dotenv environment variables file
 .env
 .env.test
+.env.e2e
 
 load_test_env.sh
 
@@ -290,3 +291,8 @@ backend/:memory:
 
 # Evaluation suite outputs
 backend/eval_outputs/
+
+# Playwright test outputs
+test-results/
+playwright-report/
+playwright/.cache/

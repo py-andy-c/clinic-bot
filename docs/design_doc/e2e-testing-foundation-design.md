@@ -1,7 +1,7 @@
 # Week 2: E2E Testing Foundation - Design Document
 
 **Date:** January 2025  
-**Status:** Ready for Implementation (Updated per Feedback)  
+**Status:** Phase 1 Complete ✅ | Phase 2+ Ready for Implementation  
 **Related:** `docs/design_doc/ai_frontend_dev.md` - Week 2 Implementation
 
 ## Executive Summary
@@ -15,7 +15,7 @@ This document provides a comprehensive plan for implementing E2E testing with Pl
 - Achieve performance targets: <3s per test (realistic), <2s (stretch goal), <60s full suite, <15s incremental
 - Ensure test isolation and parallel execution
 - Maintain zero interference with manual development workflow
-- Support incremental testing similar to existing patterns (`pytest-testmon`, `vitest --changed`)
+- Support incremental testing similar to existing patterns (`pytest-testmon`, `vitest --changed`, `playwright --only-changed`)
 
 ---
 
@@ -417,10 +417,10 @@ use: {
 
 ### 5.1 Test Selection Strategies
 
-**Option 1: Playwright's `--changed` Flag (Recommended)**
+**Option 1: Playwright's `--only-changed` Flag (Recommended)**
 ```bash
 # Simplest approach, built-in
-npx playwright test --changed
+npx playwright test --only-changed
 ```
 
 **Option 2: Tag-Based Filtering**
@@ -446,7 +446,7 @@ fi
 ```
 
 **Recommended Approach:**
-- **Phase 1:** Use Playwright's `--changed` flag (simplest)
+- **Phase 1:** ✅ Use Playwright's `--only-changed` flag (implemented)
 - **Phase 2:** Add tag-based filtering for test categories
 - **Phase 3:** Implement custom filtering if needed
 
@@ -684,7 +684,7 @@ test('appointment creation', async ({ page }) => {
 
 **Optimization:**
 - Run only changed tests
-- Fast test selection (Playwright `--changed` or git diff)
+- Fast test selection (Playwright `--only-changed` or git diff)
 - Parallel execution (2 workers)
 
 ---
@@ -709,7 +709,7 @@ test('appointment creation', async ({ page }) => {
 ```bash
 # run_e2e_tests.sh
 # Usage:
-#   ./run_e2e_tests.sh           - Run E2E tests incrementally (--changed)
+#   ./run_e2e_tests.sh           - Run E2E tests incrementally (--only-changed)
 #   ./run_e2e_tests.sh --all     - Run full E2E test suite
 #   ./run_e2e_tests.sh --ui      - Run with UI mode (headed browser)
 ```
@@ -776,22 +776,27 @@ jobs:
 
 ## 10. Implementation Plan
 
-### 10.1 Phase 1: Foundation Setup (Days 1-2)
+### 10.1 Phase 1: Foundation Setup (Days 1-2) ✅ **COMPLETED**
 
 **Tasks:**
-1. Install Playwright: `npm install -D @playwright/test`
-2. Install browsers: `npx playwright install`
-3. Create `playwright.config.ts` with base configuration
-4. Create test directory structure: `tests/e2e/`
-5. Set up test database: `clinic_bot_e2e`
-6. Create `.env.e2e` file with test environment variables
-7. Create `run_e2e_tests.sh` script
-8. Test server startup (webServer config)
+1. ✅ Install Playwright: `npm install -D @playwright/test`
+2. ✅ Install browsers: `npx playwright install`
+3. ✅ Create `playwright.config.ts` with base configuration
+4. ✅ Create test directory structure: `tests/e2e/`
+5. ✅ Set up test database: `clinic_bot_e2e`
+6. ✅ Create `.env.e2e.example` file with test environment variables
+7. ✅ Create `run_e2e_tests.sh` script with `--only-changed` support
+8. ✅ Test server startup (webServer config)
+9. ✅ Create initial smoke tests
+10. ✅ Implement incremental testing with `--only-changed`
 
 **Deliverables:**
-- Playwright installed and configured
-- Test environment isolated from dev
-- Basic test infrastructure ready
+- ✅ Playwright installed and configured
+- ✅ Test environment isolated from dev (ports 8001/5174, database `clinic_bot_e2e`)
+- ✅ Basic test infrastructure ready
+- ✅ Incremental testing working (`--only-changed` flag)
+- ✅ Smoke tests passing
+- ✅ All feedback addressed
 
 ### 10.2 Phase 2: First E2E Test (Day 3)
 
@@ -833,7 +838,7 @@ jobs:
 
 **Tasks:**
 1. Integrate into development workflow (`run_e2e_tests.sh`)
-2. Implement incremental testing (Playwright `--changed` flag)
+2. ✅ Implement incremental testing (Playwright `--only-changed` flag) - **COMPLETED in Phase 1**
 3. Add CI/CD configuration (GitHub Actions)
 4. Optimize test execution time
 5. Document test patterns and conventions
@@ -874,7 +879,7 @@ jobs:
 **Must Have:**
 - ✅ E2E tests don't interfere with dev server
 - ✅ E2E tests can run while dev server is active
-- ✅ Incremental testing works (Playwright `--changed`)
+- ✅ Incremental testing works (Playwright `--only-changed`)
 - ✅ Test execution is fast (<15s typical)
 - ✅ Test debugging is easy (inspector, traces)
 
@@ -1097,7 +1102,7 @@ This design document provides a comprehensive plan for implementing E2E testing 
 4. **Ensure Reliability:** Non-flaky tests with proper isolation
 5. **Support Efficiency:** Incremental testing, parallel execution
 
-The implementation follows industry best practices and integrates with existing project patterns (similar to backend `pytest-testmon` and frontend `vitest --changed`).
+The implementation follows industry best practices and integrates with existing project patterns (similar to backend `pytest-testmon` and frontend `vitest --changed`). Phase 1 is complete with incremental testing via `playwright --only-changed`.
 
 **Next Steps:**
 1. Review and approve this design document
@@ -1202,7 +1207,7 @@ The implementation follows industry best practices and integrates with existing 
 
 ---
 
-**Document Version:** 1.1 (Updated per Feedback)  
+**Document Version:** 1.2 (Phase 1 Complete)  
 **Last Updated:** January 2025  
-**Status:** Ready for Implementation
+**Status:** Phase 1 ✅ Complete | Phase 2+ Ready for Implementation
 
