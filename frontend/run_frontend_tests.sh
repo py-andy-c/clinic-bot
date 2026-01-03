@@ -34,6 +34,14 @@ print_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
+print_sandbox_hint() {
+    echo ""
+    print_warning "This error may be due to sandbox restrictions."
+    print_warning "If running in Cursor AI IDE, try requesting full permissions:"
+    print_warning "  required_permissions: ['all']"
+    echo ""
+}
+
 # Parse command line arguments
 NO_CACHE=false
 for arg in "$@"; do
@@ -97,12 +105,21 @@ fi
 
 # Run ESLint (includes custom clinic-cache rule)
 print_status "Running ESLint..."
-if npm run lint; then
-    print_success "ESLint passed!"
-else
+set +e
+ESLINT_OUTPUT=$(npm run lint 2>&1)
+ESLINT_STATUS=$?
+set -e
+
+if [ $ESLINT_STATUS -ne 0 ]; then
     print_error "ESLint failed!"
+    echo "$ESLINT_OUTPUT"
+    # Check if the error is a permission error
+    if echo "$ESLINT_OUTPUT" | grep -q "EPERM\|operation not permitted"; then
+        print_sandbox_hint
+    fi
     exit 1
 fi
+print_success "ESLint passed!"
 
 # Run frontend unit tests
 # Set environment variables for tests (in case .env file can't be read)
