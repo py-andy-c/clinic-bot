@@ -1,6 +1,6 @@
 /// <reference types="node" />
 import { test, expect, Page, TestInfo } from '@playwright/test';
-import { createAuthHelper } from './helpers';
+import { createAuthHelper, clearTestState } from './helpers';
 
 // Helper function to wait for settings page to load
 async function waitForSettingsPage(page: Page) {
@@ -65,36 +65,60 @@ async function checkSettingsLoaded(page: Page, testInfo?: TestInfo): Promise<boo
 }
 
 test.describe('Settings Save Flow', { tag: '@settings' }, () => {
+  // Run tests in this file serially to avoid React state race conditions
+  // This ensures tests run one after another, even with multiple workers
+  test.describe.configure({ mode: 'serial' });
+  
+  // Test isolation: Clear storage and reset state before each test
+  // This prevents state pollution from previous tests when running in parallel
+  // Note: We clear cookies via context (works without navigation)
+  // Storage will be cleared by navigating to a blank page if needed, but
+  // we avoid navigating to baseURL here to not interfere with addInitScript in auth
+  test.beforeEach(async ({ page, context }) => {
+    // Clear all cookies (works without navigation)
+    await context.clearCookies();
+    
+    // Clear storage if page is already loaded, otherwise it will be cleared on first navigation
+    try {
+      await page.evaluate(() => {
+        localStorage.clear();
+        sessionStorage.clear();
+      });
+    } catch (e) {
+      // Page might not be loaded yet, that's fine - storage will be cleared on first navigation
+    }
+  });
+
   test('save settings successfully', async ({ page }) => {
     test.setTimeout(60000);
     
     const testStartTime = new Date().toISOString();
-    console.log(`[${testStartTime}] [TEST] [PLAYWRIGHT] ========== TEST STARTED: save settings successfully ==========`);
-    console.log(`[${testStartTime}] [TEST] [PLAYWRIGHT] Test function execution began`);
+    const startTime = Date.now();
+    console.log(`[${testStartTime}] [TEST] [SETTINGS-SAVE] ========== TEST STARTED: save settings successfully ==========`);
+    console.log(`[${testStartTime}] [TEST] [SETTINGS-SAVE] Test function execution began`);
     
-    // Monitor API requests with timestamps
+    // Monitor ALL API requests with timestamps
     const apiRequests: Array<{ url: string; time: number; method: string; timestamp: string }> = [];
     const apiResponses: Array<{ url: string; status: number; time: number; timestamp: string }> = [];
-    const startTime = Date.now();
     
     page.on('request', (request) => {
       const url = request.url();
-      if (url.includes('/api/clinic/settings') && request.method() === 'GET') {
-        const timestamp = new Date().toISOString();
-        const relativeTime = Date.now() - startTime;
-        apiRequests.push({ url, time: relativeTime, method: request.method(), timestamp });
-        console.log(`[${timestamp}] [TEST] [PLAYWRIGHT-REQUEST] ${request.method()} ${url} (relative: +${relativeTime}ms)`);
+      const timestamp = new Date().toISOString();
+      const relativeTime = Date.now() - startTime;
+      apiRequests.push({ url, time: relativeTime, method: request.method(), timestamp });
+      if (url.includes('/api/')) {
+        console.log(`[${timestamp}] [TEST] [SETTINGS-SAVE-REQUEST] ${request.method()} ${url} (relative: +${relativeTime}ms)`);
       }
     });
     
     page.on('response', (response) => {
       const url = response.url();
-      if (url.includes('/api/clinic/settings')) {
-        const timestamp = new Date().toISOString();
-        const relativeTime = Date.now() - startTime;
-        const requestTime = apiRequests.find(r => r.url === url && !apiResponses.find(res => res.url === url))?.time || 0;
-        apiResponses.push({ url, status: response.status(), time: relativeTime, timestamp });
-        console.log(`[${timestamp}] [TEST] [PLAYWRIGHT-RESPONSE] ${response.request().method()} ${url} - Status: ${response.status()} (relative: +${relativeTime}ms, request was at +${requestTime}ms)`);
+      const timestamp = new Date().toISOString();
+      const relativeTime = Date.now() - startTime;
+      const requestTime = apiRequests.find(r => r.url === url && !apiResponses.find(res => res.url === url))?.time || 0;
+      apiResponses.push({ url, status: response.status(), time: relativeTime, timestamp });
+      if (url.includes('/api/')) {
+        console.log(`[${timestamp}] [TEST] [SETTINGS-SAVE-RESPONSE] ${response.request().method()} ${url} - Status: ${response.status()} (relative: +${relativeTime}ms, request was at +${requestTime}ms)`);
       }
     });
     
@@ -103,11 +127,11 @@ test.describe('Settings Save Flow', { tag: '@settings' }, () => {
       const timestamp = new Date().toISOString();
       const text = msg.text();
       const type = msg.type();
-      // Log all frontend logs, errors, and warnings (especially CORS errors)
+      // Log all frontend logs, errors, and warnings
       if (text.includes('[FRONTEND]') || text.includes('AXIOS') || text.includes('RQ-') || text.includes('RETRY') || 
           text.includes('CORS') || text.includes('Access-Control') || text.includes('Origin') || 
           text.includes('preflight') || type === 'error' || type === 'warning') {
-        console.log(`[${timestamp}] [TEST] [BROWSER-CONSOLE-${type.toUpperCase()}] ${text}`);
+        console.log(`[${timestamp}] [TEST] [SETTINGS-SAVE-CONSOLE-${type.toUpperCase()}] ${text}`);
       }
     });
 
@@ -126,14 +150,16 @@ test.describe('Settings Save Flow', { tag: '@settings' }, () => {
     });
 
     // Navigate to settings page
-    console.log(`[${new Date().toISOString()}] [TEST] [STEP] Navigating to settings page...`);
+    const navStartTime = Date.now();
+    console.log(`[${new Date().toISOString()}] [TEST] [SETTINGS-SAVE] [STEP] Navigating to settings page...`);
     await page.goto('/admin/clinic/settings/clinic-info', { waitUntil: 'load', timeout: 20000 });
-    console.log(`[${new Date().toISOString()}] [TEST] [STEP] Navigation complete`);
+    console.log(`[${new Date().toISOString()}] [TEST] [SETTINGS-SAVE] [STEP] Navigation complete (took ${Date.now() - navStartTime}ms)`);
     
     // Wait for settings to load (waits for API response, loading completion, and input visibility)
-    console.log(`[${new Date().toISOString()}] [TEST] [STEP] Waiting for settings page to load...`);
+    const waitStartTime = Date.now();
+    console.log(`[${new Date().toISOString()}] [TEST] [SETTINGS-SAVE] [STEP] Waiting for settings page to load...`);
     await waitForSettingsPage(page);
-    console.log(`[${new Date().toISOString()}] [TEST] [STEP] Settings page wait complete`);
+    console.log(`[${new Date().toISOString()}] [TEST] [SETTINGS-SAVE] [STEP] Settings page wait complete (took ${Date.now() - waitStartTime}ms)`);
 
     // Check if settings loaded successfully
     console.log(`[${new Date().toISOString()}] [TEST] [STEP] Checking if settings loaded successfully...`);

@@ -25,6 +25,14 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from api import auth, signup, system, clinic, profile, liff, line_webhook, receipt_endpoints
+
+# Conditionally import test endpoints (only in test mode)
+test = None
+if os.getenv("E2E_TEST_MODE") == "true" or os.getenv("ENVIRONMENT") == "test":
+    try:
+        from api import test
+    except ImportError:
+        test = None
 from core.constants import CORS_ORIGINS
 from services.test_session_cleanup import start_test_session_cleanup, stop_test_session_cleanup
 from services.line_message_cleanup import start_line_message_cleanup, stop_line_message_cleanup
@@ -307,6 +315,20 @@ app.include_router(
         500: {"description": "Internal server error"},
     },
 )
+
+# Include test endpoints (only in test mode)
+if (os.getenv("E2E_TEST_MODE") == "true" or os.getenv("ENVIRONMENT") == "test") and test is not None:
+    app.include_router(
+        test.router,
+        prefix="/api/test",
+        tags=["test"],
+        responses={
+            403: {"description": "Forbidden (test endpoints only available in test mode)"},
+            404: {"description": "Resource not found"},
+            500: {"description": "Internal server error"},
+        },
+    )
+    logger.info("✅ Test endpoints enabled (E2E_TEST_MODE or ENVIRONMENT=test)")
 
 # Serve static files from frontend dist directory
 # This allows the backend to serve the frontend app for LIFF routes

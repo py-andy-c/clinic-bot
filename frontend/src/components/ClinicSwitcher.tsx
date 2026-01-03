@@ -19,6 +19,17 @@ const ClinicSwitcher: React.FC<ClinicSwitcherProps> = ({
   const [error, setError] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+  // Calculate hasMultipleClinics early for logging
+  const hasMultipleClinics = availableClinics && availableClinics.length > 1;
+
+  // Log state changes in development/test mode
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test') {
+      const timestamp = new Date().toISOString();
+      console.log(`[${timestamp}] [FRONTEND] [CLINIC-SWITCHER] State changed: isOpen=${isOpen}, hasMultipleClinics=${hasMultipleClinics}, aria-expanded=${hasMultipleClinics ? isOpen : false}`);
+    }
+  }, [isOpen, hasMultipleClinics]);
+
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -59,7 +70,7 @@ const ClinicSwitcher: React.FC<ClinicSwitcherProps> = ({
 
   const currentClinic = availableClinics.find(c => c.id === currentClinicId);
   const otherClinics = availableClinics.filter(c => c.id !== currentClinicId);
-  const hasMultipleClinics = availableClinics.length > 1;
+  // hasMultipleClinics is already calculated above for logging
 
   const handleSwitch = async (clinicId: number): Promise<void> => {
     if (clinicId === currentClinicId || isSwitching) {
@@ -82,7 +93,15 @@ const ClinicSwitcher: React.FC<ClinicSwitcherProps> = ({
     <div className="relative" ref={dropdownRef}>
       <button
         type="button"
-        onClick={() => hasMultipleClinics && setIsOpen(!isOpen)}
+        onClick={() => {
+          if (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test') {
+            const timestamp = new Date().toISOString();
+            console.log(`[${timestamp}] [FRONTEND] [CLINIC-SWITCHER] Button clicked: hasMultipleClinics=${hasMultipleClinics}, currentIsOpen=${isOpen}, willSetTo=${!isOpen}`);
+          }
+          if (hasMultipleClinics) {
+            setIsOpen(!isOpen);
+          }
+        }}
         disabled={isSwitching}
         className={`
           flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium

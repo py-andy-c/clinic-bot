@@ -4,6 +4,9 @@
 
 export { AuthHelper, createAuthHelper } from './auth';
 export { CalendarHelper, createCalendarHelper } from './calendar';
+export { TestDataFactory } from './data-factory';
+export type { Clinic, User, UserClinicAssociation } from './data-factory';
+export { clearTestState } from './test-isolation';
 
 // Common test data
 export const TEST_DATA = {

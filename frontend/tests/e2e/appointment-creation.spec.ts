@@ -1,7 +1,13 @@
 import { test, expect } from '@playwright/test';
-import { createAuthHelper, createCalendarHelper } from './helpers';
+import { createAuthHelper, createCalendarHelper, clearTestState } from './helpers';
 
 test.describe('Appointment Creation', { tag: '@auth' }, () => {
+  // Test isolation: Clear storage and reset state before each test
+  // This prevents state pollution from previous tests when running in parallel
+  test.beforeEach(async ({ page, context }) => {
+    await clearTestState(page, context);
+  });
+
   test('create appointment flow', async ({ page }) => {
     test.setTimeout(60000); // Increase timeout for auth tests
     const auth = createAuthHelper(page);

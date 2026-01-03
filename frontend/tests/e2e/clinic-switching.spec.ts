@@ -1,24 +1,16 @@
 import { test, expect } from '@playwright/test';
-import { createAuthHelper, createCalendarHelper } from './helpers';
+import { createAuthHelper, createCalendarHelper, TestDataFactory, clearTestState } from './helpers';
 
 test.describe('Clinic Switching', { tag: '@clinic' }, () => {
+  // Run tests in this file serially to avoid React state race conditions
+  // This ensures tests run one after another, even with multiple workers
+  test.describe.configure({ mode: 'serial' });
+  
   // Test isolation: Clear storage and reset state before each test
   // This prevents state pollution from previous tests that could cause
   // component state issues (e.g., aria-expanded not updating)
-  test.beforeEach(async ({ page }) => {
-    // Navigate to a real page first (about:blank doesn't allow localStorage access)
-    // Use the base URL from Playwright config or default to localhost:3000
-    const baseURL = page.context().baseURL || 'http://localhost:3000';
-    await page.goto(baseURL);
-    
-    // Clear all storage to ensure clean state
-    await page.evaluate(() => {
-      localStorage.clear();
-      sessionStorage.clear();
-    });
-    
-    // Clear all cookies
-    await page.context().clearCookies();
+  test.beforeEach(async ({ page, context }) => {
+    await clearTestState(page, context);
   });
 
   test('switch between clinics', async ({ page }) => {
@@ -107,18 +99,32 @@ test.describe('Clinic Switching', { tag: '@clinic' }, () => {
 
   test('clinic switcher dropdown opens', async ({ page }) => {
     test.setTimeout(45000);
+    
+    // Setup: Create test data with multiple clinics
+    const testEmail = `test-clinic-user-${Date.now()}@example.com`;
+    await TestDataFactory.createUserWithClinics(
+      page,
+      testEmail,
+      ['Clinic A', 'Clinic B']
+    );
+    
     const auth = createAuthHelper(page);
     const calendar = createCalendarHelper(page);
 
-    // Authenticate using test endpoint
-    await auth.loginWithTestAuth('test-clinic-user@example.com', 'clinic_user');
-
-    // Navigate to calendar page
+    await auth.loginWithTestAuth(testEmail, 'clinic_user');
     await calendar.gotoCalendar();
 
     // Check if clinic switcher is available
-    const clinicSwitcher = page.locator('button:has-text("診所")').or(page.locator('button').filter({ hasText: /診所|Clinic/ }));
-    const switcherVisible = await clinicSwitcher.first().isVisible().catch(() => false);
+    // Use a more specific selector: button with aria-haspopup="true" (ClinicSwitcher has this when hasMultipleClinics=true)
+    const clinicSwitcherWithMultiple = page.locator('button[aria-haspopup="true"]').filter({ hasText: /診所|Clinic/ });
+    const hasMultiple = await clinicSwitcherWithMultiple.count() > 0;
+    
+    // Fallback to the original selector
+    const clinicSwitcher = hasMultiple 
+      ? clinicSwitcherWithMultiple.first()
+      : page.locator('button:has-text("診所")').or(page.locator('button').filter({ hasText: /診所|Clinic/ })).first();
+    
+    const switcherVisible = await clinicSwitcher.isVisible().catch(() => false);
 
     if (switcherVisible) {
       // Test that clinic switcher dropdown opens correctly
