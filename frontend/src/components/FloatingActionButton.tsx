@@ -101,6 +101,7 @@ const FloatingActionButton: React.FC<FloatingActionButtonProps> = ({
                   {item.label}
                 </button>
                 <button
+                  data-testid={`fab-item-${item.id}`}
                   onClick={() => handleItemClick(item)}
                   className={`${getColorClasses(item.color)} text-white rounded-full w-14 h-14 flex items-center justify-center shadow-lg transition-transform hover:scale-110 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-transparent focus:ring-white`}
                   aria-label={item.label}
@@ -120,6 +121,7 @@ const FloatingActionButton: React.FC<FloatingActionButtonProps> = ({
 
         {/* Main FAB Button */}
         <button
+          data-testid="fab-main-button"
           onClick={handleMainButtonClick}
           className={`bg-primary-600 hover:bg-primary-700 text-white rounded-full w-16 h-16 flex items-center justify-center shadow-lg transition-transform ${isOpen ? 'rotate-45' : 'rotate-0'} focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-transparent focus:ring-primary-500`}
           aria-label={isOpen ? 'Close menu' : 'Open menu'}

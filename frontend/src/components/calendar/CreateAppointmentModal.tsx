@@ -993,6 +993,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
   const renderFormStepFooter = () => (
     <div className="flex justify-end space-x-2 pt-4 border-t border-gray-200 flex-shrink-0" onMouseDown={(e) => e.stopPropagation()}>
       <button
+        data-testid="appointment-form-next-button"
         onClick={handleFormSubmit}
         disabled={!isValid || isCheckingConflicts || (recurrenceEnabled && (!occurrenceCount || occurrenceCount < 1)) || isInitialLoading}
         className={`btn-primary ${
@@ -1316,6 +1317,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
         返回修改
       </button>
       <button
+        data-testid="confirm-create-appointment-button"
         onClick={handleSave}
         disabled={isSaving}
         className="btn-primary"
@@ -1397,7 +1399,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
   return (
     <>
       <BaseModal onClose={handleClose} aria-label={modalTitle} className="!p-0" fullScreen={isMobile}>
-        <div className={`flex flex-col h-full ${isMobile ? 'px-4 pt-4 pb-0' : 'px-6 pt-6 pb-6'}`}>
+        <div data-testid="create-appointment-modal" className={`flex flex-col h-full ${isMobile ? 'px-4 pt-4 pb-0' : 'px-6 pt-6 pb-6'}`}>
           <div className="flex items-center mb-4 flex-shrink-0">
             <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center mr-2">
               <svg className="w-4 h-4 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
