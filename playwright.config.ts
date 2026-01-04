@@ -10,6 +10,7 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 4 : undefined, // Auto-detect locally
+  globalSetup: './tests/e2e/global-setup.ts',
   reporter: [
     ['html'],
     ['list'],
@@ -31,7 +32,6 @@ export default defineConfig({
       url: 'http://localhost:8001/health',
       reuseExistingServer: !process.env.CI,
       timeout: 120000, // 120s for backend (includes migrations)
-      retries: 3, // Retry health check 3 times with exponential backoff
       env: {
         DATABASE_URL: process.env.E2E_DATABASE_URL || process.env.DATABASE_URL || 'postgresql://user:password@localhost/clinic_bot_e2e',
         E2E_TEST_MODE: 'true',
@@ -46,7 +46,6 @@ export default defineConfig({
       url: 'http://localhost:5174',
       reuseExistingServer: !process.env.CI,
       timeout: 60000, // 60s for frontend
-      retries: 3, // Retry health check 3 times
       env: {
         VITE_API_BASE_URL: 'http://localhost:8001/api',
       },

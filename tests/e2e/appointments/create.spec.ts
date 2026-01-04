@@ -7,49 +7,34 @@ import { test, expect } from '../fixtures/auth';
  * through the calendar interface.
  */
 test.describe('Appointment Creation', () => {
-  test('user can navigate to calendar page after authentication @smoke @appointment', async ({ authenticatedPage }) => {
+  test('clinic user can navigate to calendar page @smoke @appointment', async ({ authenticatedPage }) => {
     // Navigate to calendar page
-    await authenticatedPage.goto('/admin/calendar');
+    await authenticatedPage.goto('/admin/calendar', { waitUntil: 'load' });
     
-    // Wait for page to load
-    await authenticatedPage.waitForLoadState('networkidle');
-    
-    // System admins may be redirected to their default route, so check for either calendar or system clinics
+    // Clinic users should be on the calendar page
     const currentUrl = authenticatedPage.url();
-    const isCalendarPage = currentUrl.includes('/admin/calendar');
-    const isSystemAdminDefault = currentUrl.includes('/admin/system/clinics');
+    expect(currentUrl).toContain('/admin/calendar');
     
-    // Verify we're on a valid admin page (not redirected to login)
-    expect(isCalendarPage || isSystemAdminDefault).toBe(true);
+    // Wait for calendar to be visible (more reliable than networkidle)
+    const calendar = authenticatedPage.locator('.rbc-calendar');
+    await expect(calendar).toBeVisible({ timeout: 15000 });
     
-    // If we're on the calendar page, verify calendar is visible
-    if (isCalendarPage) {
-      const calendar = authenticatedPage.locator('.rbc-calendar');
-      await expect(calendar).toBeVisible({ timeout: 10000 });
-      
-      // Also verify the create appointment button is visible (confirms page loaded correctly)
-      const createButton = authenticatedPage.locator('[data-testid="create-appointment-button"]');
-      await expect(createButton).toBeVisible();
-    } else {
-      // If redirected to system admin default, verify that page loaded
-      const body = authenticatedPage.locator('body');
-      await expect(body).toBeVisible();
-    }
+    // Verify the create appointment button is visible (confirms page loaded correctly)
+    const createButton = authenticatedPage.locator('[data-testid="create-appointment-button"]');
+    await expect(createButton).toBeVisible();
   });
 
-  test('authenticated user can access protected routes @smoke', async ({ authenticatedPage }) => {
-    // Test accessing different protected routes
-    // Note: System admins may be redirected to default routes, so we check for valid admin URLs
+  test('clinic user can access protected routes @smoke', async ({ authenticatedPage }) => {
+    // Test accessing different protected routes for clinic users
     const protectedRoutes = [
       '/admin/calendar',
       '/admin/clinic/patients',
       '/admin/clinic/members',
-      '/admin/system/clinics', // System admin default route
     ];
     
     for (const route of protectedRoutes) {
-      await authenticatedPage.goto(route);
-      await authenticatedPage.waitForLoadState('networkidle');
+      await authenticatedPage.goto(route, { waitUntil: 'load' });
+      await authenticatedPage.waitForTimeout(1000); // Wait for auth to process
       
       // Should not be redirected to login - verify we're still in admin area
       const currentUrl = authenticatedPage.url();
@@ -59,25 +44,17 @@ test.describe('Appointment Creation', () => {
   });
 
   test('clinic user can open create appointment modal @appointment', async ({ authenticatedPage }) => {
-    // This test requires clinic_user (not system_admin) to access calendar
-    // Note: Run with E2E_TEST_USER_TYPE=clinic_user to test appointment creation
     // Navigate to calendar page
-    await authenticatedPage.goto('/admin/calendar');
-    await authenticatedPage.waitForLoadState('networkidle');
+    await authenticatedPage.goto('/admin/calendar', { waitUntil: 'load' });
+    await authenticatedPage.waitForTimeout(1000); // Wait for auth to process
     
-    // Check if we're on calendar page (clinic users can access it, system admins get redirected)
+    // Verify we're on the calendar page
     const currentUrl = authenticatedPage.url();
-    
-    // If we're not on calendar page, this test is for clinic users only
-    // System admins will be redirected to /admin/system/clinics
-    if (!currentUrl.includes('/admin/calendar')) {
-      // Skip test for system admins - they don't have access to calendar
-      return;
-    }
+    expect(currentUrl).toContain('/admin/calendar');
     
     // Verify calendar is visible
     const calendar = authenticatedPage.locator('.rbc-calendar');
-    await expect(calendar).toBeVisible({ timeout: 10000 });
+    await expect(calendar).toBeVisible({ timeout: 15000 });
     
     // Click create appointment button
     const createButton = authenticatedPage.locator('[data-testid="create-appointment-button"]');

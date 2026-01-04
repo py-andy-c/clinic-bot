@@ -188,16 +188,11 @@ def get_current_user(
                 detail="Clinic is inactive"
             )
 
-        # Update last_accessed_at for default clinic selection
-        # Use flush() instead of commit() to avoid blocking on every request
-        # The session will commit at the end of the request lifecycle
-        # If this fails, log but don't fail authentication
-        try:
-            association.last_accessed_at = taiwan_now()
-            db.flush()  # Flush instead of commit to reduce blocking
-        except Exception as e:
-            # Log but don't fail authentication if last_accessed_at update fails
-            logger.warning(f"Failed to update last_accessed_at for user {user.id}, clinic {active_clinic_id}: {e}")
+        # Note: last_accessed_at is NOT updated here to avoid lock contention.
+        # It's only updated on:
+        # 1. OAuth login (get_clinic_user_token_data) - for initial clinic selection
+        # 2. Clinic switch (switch_clinic endpoint) - when user explicitly switches
+        # The active_clinic_id is already in the JWT token, so no update needed on every request.
 
         return UserContext(
             user_type="clinic_user",

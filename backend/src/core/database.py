@@ -7,6 +7,7 @@ and provides dependency injection for database sessions in FastAPI routes.
 """
 
 import logging
+import os
 from contextlib import contextmanager
 from typing import Generator
 
@@ -20,11 +21,51 @@ from core.constants import DB_POOL_RECYCLE_SECONDS
 
 logger = logging.getLogger(__name__)
 
+# E2E test mode configuration
+E2E_TEST_MODE = os.getenv("E2E_TEST_MODE") == "true"
+
+# Connection pool settings - stricter limits for E2E tests to prevent connection exhaustion
+# E2E mode uses smaller pool to catch connection leaks early and prevent accumulation
+# Production uses larger pool to handle higher concurrency
+if E2E_TEST_MODE:
+    # E2E mode: smaller pool, shorter timeouts
+    # Smaller pool helps detect connection leaks during test runs
+    pool_size = 5  # Maximum number of connections in pool
+    max_overflow = 10  # Maximum overflow connections (total max = pool_size + max_overflow = 15)
+    pool_timeout = 30  # Seconds to wait for connection from pool
+else:
+    # Production/dev mode: larger pool
+    pool_size = 10
+    max_overflow = 20
+    pool_timeout = 30
+
+# Build connection arguments
+connect_args = {}
+if E2E_TEST_MODE:
+    # Set PostgreSQL timeouts for E2E tests to prevent infinite waits
+    # statement_timeout: 30 seconds (prevents long-running queries from hanging)
+    # idle_in_transaction_session_timeout: 10 seconds (prevents stuck transactions)
+    connect_args = {
+        "options": "-c statement_timeout=30000 -c idle_in_transaction_session_timeout=10000"
+    }
+    logger.info("E2E test mode: Using strict connection pool limits and PostgreSQL timeouts")
+else:
+    # Set PostgreSQL timeouts for production/dev to prevent stuck transactions
+    # idle_in_transaction_session_timeout: 30 seconds (kills stuck transactions after 30s)
+    # statement_timeout: not set (allow longer queries in production)
+    connect_args = {
+        "options": "-c idle_in_transaction_session_timeout=30000"
+    }
+
 # Create SQLAlchemy engine with optimized settings
 engine = create_engine(
     DATABASE_URL,
     pool_pre_ping=True,  # Verify connections before use
     pool_recycle=DB_POOL_RECYCLE_SECONDS,
+    pool_size=pool_size,
+    max_overflow=max_overflow,
+    pool_timeout=pool_timeout,
+    connect_args=connect_args,
     echo=False,          # Disable SQL logging
     future=True,         # Use SQLAlchemy 2.0 style
 )

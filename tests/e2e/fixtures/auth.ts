@@ -2,32 +2,43 @@ import { test as base, Page } from '@playwright/test';
 
 // Cache authentication tokens to avoid repeated logins within the same worker
 // Cache is per-worker to maintain test isolation across parallel workers
-let cachedAuthState: { accessToken: string; refreshToken: string; email: string; userType: string } | null = null;
+// Cache key includes email and roles to support different role combinations
+let cachedAuthState: { accessToken: string; refreshToken: string; email: string; roles: string[] } | null = null;
 
 /**
  * Authenticated page fixture that handles login via test-only endpoint.
  * 
  * Implements token caching for performance while maintaining test isolation.
  * Cache is per-worker (Playwright workers run tests in parallel).
- * Email and user type can be configured via environment variables:
- * - E2E_TEST_EMAIL (default: 'test@example.com')
- * - E2E_TEST_USER_TYPE (default: 'system_admin')
+ * 
+ * Defaults to clinic_user with roles ['admin', 'practitioner'] for full access.
+ * Email can be configured via E2E_TEST_EMAIL environment variable.
+ * 
+ * Future: When role-based testing is needed, we can extend this to support per-test roles:
+ *   - Option 1: Use test.use() with a custom fixture option
+ *   - Option 2: Create separate fixtures (authenticatedAdminPage, authenticatedPractitionerPage)
+ *   - Option 3: Pass roles as a parameter to a helper function
  */
 export const test = base.extend<{
   authenticatedPage: Page;
 }>({
   authenticatedPage: async ({ page, request }, use, testInfo) => {
-    // Use configurable email and user type for flexibility
+    // Use configurable email (default: 'test@example.com')
     const testEmail = process.env.E2E_TEST_EMAIL || 'test@example.com';
-    const userType = process.env.E2E_TEST_USER_TYPE || 'system_admin';
+    
+    // Default roles: ['admin', 'practitioner'] for full access
+    // Future: Can be made configurable per-test when role-based testing is needed
+    const roles = ['admin', 'practitioner'];
     
     // Get backend URL from environment or default to localhost:8001
     const apiBaseUrl = process.env.API_BASE_URL || 'http://localhost:8001';
     
-    // Check if we have cached tokens for this email/userType combination
-    // Cache is per-worker, so tests in the same worker can reuse tokens
-    const cacheKey = `${testEmail}:${userType}`;
-    const cachedKey = cachedAuthState ? `${cachedAuthState.email}:${cachedAuthState.userType}` : null;
+    // Create cache key from email and roles (sorted for consistency)
+    const rolesKey = [...roles].sort().join(',');
+    const cacheKey = `${testEmail}:${rolesKey}`;
+    const cachedKey = cachedAuthState 
+      ? `${cachedAuthState.email}:${[...cachedAuthState.roles].sort().join(',')}` 
+      : null;
     
     let access_token: string;
     let refresh_token: string;
@@ -41,7 +52,8 @@ export const test = base.extend<{
       const response = await request.post(`${apiBaseUrl}/api/test/login`, {
         data: {
           email: testEmail,
-          user_type: userType,
+          user_type: 'clinic_user',
+          roles: roles,
         },
       });
       
@@ -59,19 +71,25 @@ export const test = base.extend<{
         accessToken: access_token,
         refreshToken: refresh_token,
         email: testEmail,
-        userType: userType,
+        roles: roles,
       };
     }
     
-    // Set tokens in localStorage (frontend uses auth_access_token and auth_refresh_token)
+    // Set tokens in localStorage before navigating (frontend uses auth_access_token and auth_refresh_token)
     await page.goto('/');
     await page.evaluate(({ accessToken, refreshToken }) => {
       localStorage.setItem('auth_access_token', accessToken);
       localStorage.setItem('auth_refresh_token', refreshToken);
     }, { accessToken: access_token, refreshToken: refresh_token });
     
-    // Wait for page to load and auth to be processed
-    await page.waitForLoadState('networkidle');
+    // Reload page to trigger auth check with tokens in localStorage
+    await page.reload();
+    
+    // Wait for page to load (use 'load' instead of 'networkidle' to avoid hanging on ongoing API calls)
+    await page.waitForLoadState('load');
+    
+    // Wait a bit for auth to be processed (frontend makes async API calls)
+    await page.waitForTimeout(1000);
     
     await use(page);
     
@@ -81,4 +99,5 @@ export const test = base.extend<{
 });
 
 export { expect } from '@playwright/test';
+
 

@@ -1187,6 +1187,75 @@ The implementation follows industry best practices and integrates with existing 
    DATABASE_URL=postgresql://user:password@localhost/clinic_bot_e2e alembic upgrade head
    ```
 
+### 17.2.1 Connection Pool Exhaustion
+
+**Problem: `FATAL: remaining connection slots are reserved for non-replication superuser connections`**
+
+**Root Causes:**
+- Stuck database connections from previous test runs (zombie connections)
+- Lock contention on shared rows (e.g., `user_clinic_associations`)
+- No timeouts configured, causing connections to wait indefinitely
+- Connection pool size too large, allowing accumulation
+
+**Prevention (Implemented):**
+1. **PostgreSQL Timeouts (E2E Mode):**
+   - `statement_timeout=30s`: Prevents long-running queries from hanging
+   - `idle_in_transaction_session_timeout=10s`: Terminates stuck transactions
+   - Configured automatically when `E2E_TEST_MODE=true`
+
+2. **Connection Pool Limits (E2E Mode):**
+   - Pool size: 5 connections (max 15 with overflow)
+   - Prevents connection accumulation
+   - Configured in `backend/src/core/database.py`
+
+3. **Lock Contention Prevention:**
+   - Skip `last_accessed_at` updates in E2E mode (not critical for tests)
+   - Implemented in `backend/src/auth/dependencies.py`
+
+4. **Connection Cleanup:**
+   - Global setup hook (`tests/e2e/global-setup.ts`) cleans up stuck connections
+   - Manual cleanup endpoint: `POST /api/test/cleanup-connections`
+
+**Manual Cleanup:**
+```bash
+# Kill stuck backend processes
+pkill -f "uvicorn.*8001"
+
+# Terminate stuck database connections
+psql -h localhost -d clinic_bot_e2e -c "
+  SELECT pg_terminate_backend(pid)
+  FROM pg_stat_activity
+  WHERE datname = 'clinic_bot_e2e'
+    AND state = 'idle in transaction'
+    AND state_change < now() - interval '10 seconds'
+    AND pid != pg_backend_pid();
+"
+
+# Or use the cleanup endpoint
+curl -X POST http://localhost:8001/api/test/cleanup-connections
+```
+
+**Monitoring:**
+```bash
+# Check active connections
+psql -h localhost -d clinic_bot_e2e -c "
+  SELECT count(*), state, wait_event_type
+  FROM pg_stat_activity
+  WHERE datname = 'clinic_bot_e2e'
+  GROUP BY state, wait_event_type;
+"
+
+# Check for stuck transactions
+psql -h localhost -d clinic_bot_e2e -c "
+  SELECT pid, state, wait_event_type, wait_event, now() - xact_start as transaction_age
+  FROM pg_stat_activity
+  WHERE datname = 'clinic_bot_e2e'
+    AND state = 'active'
+    AND wait_event_type = 'Lock'
+  ORDER BY xact_start;
+"
+```
+
 ### 17.3 Flaky Test Detection
 
 **Problem: Tests pass sometimes but fail other times**

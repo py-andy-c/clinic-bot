@@ -1057,7 +1057,11 @@ async def switch_clinic(
             detail="您沒有此診所的存取權限"
         )
     
-    # Update last_accessed_at
+    # Update last_accessed_at to track this clinic as most recently accessed
+    # This is one of only two places where last_accessed_at is updated:
+    # 1. Here (clinic switch) - when user explicitly switches clinics
+    # 2. OAuth login (get_clinic_user_token_data) - for initial clinic selection
+    # Note: It is NOT updated in get_current_user() to avoid lock contention on every API request
     try:
         association.last_accessed_at = datetime.now(timezone.utc)
         db.flush()

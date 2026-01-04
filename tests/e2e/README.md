@@ -75,6 +75,20 @@ Tests use unique data with cleanup to ensure isolation. Each test:
 - Cleans up test-specific data in `afterEach` hooks
 - Does not share state with other tests
 
+## Authentication
+
+E2E tests use a test-only authentication endpoint that bypasses OAuth for faster test execution.
+
+**Default Behavior:**
+- All tests run as `clinic_user` with roles `['admin', 'practitioner']` (full access)
+- Email can be configured via `E2E_TEST_EMAIL` environment variable (default: `test@example.com`)
+
+**Future: Role-Based Testing**
+When testing role-based access control is needed, the fixture can be extended to support per-test roles. For example:
+- Test admin-only functionality
+- Test practitioner-only functionality
+- Test access restrictions
+
 ## Writing Tests
 
 See the design document for best practices:
