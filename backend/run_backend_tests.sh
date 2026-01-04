@@ -104,13 +104,16 @@ if ! pg_isready -h localhost &> /dev/null; then
 fi
 print_success "PostgreSQL is running"
 
+# Set PostgreSQL password for CI environment
+export PGPASSWORD=postgres
+
 # Ensure test database exists
 print_status "Checking test database..."
-if ! psql -h localhost -t -c "SELECT 1 FROM pg_database WHERE datname='clinic_bot_test'" postgres 2>/dev/null | grep -q 1; then
+if ! psql -h localhost -U postgres -t -c "SELECT 1 FROM pg_database WHERE datname='clinic_bot_test'" 2>/dev/null | grep -q 1; then
     print_status "Creating test database..."
-    createdb clinic_bot_test 2>/dev/null || {
+    createdb -U postgres clinic_bot_test 2>/dev/null || {
         print_error "Failed to create test database"
-        print_error "Try: createdb clinic_bot_test"
+        print_error "Try: createdb -U postgres clinic_bot_test"
         print_sandbox_hint
         exit 1
     }
