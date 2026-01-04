@@ -1831,7 +1831,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       )}
 
       {/* Create Appointment Modal */}
-      {modalState.type === 'create_appointment' && modalState.data && (
+      {modalState.type === 'create_appointment' && modalState.createAppointmentData && (
         <CreateAppointmentModal
           key={`create-${createModalKey}`}
           // null from button click → undefined (no patient), number from URL → use it, undefined → fall back to prop
