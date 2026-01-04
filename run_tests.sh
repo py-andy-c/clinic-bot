@@ -156,8 +156,17 @@ E2E_PID=""
 
 if [ "$RUN_BACKEND" = true ]; then
     (
-        bash $BACKEND_CMD > "$BACKEND_OUTPUT" 2>&1
-        echo $? > "$BACKEND_EXIT_FILE"
+        set +e  # Don't exit on error in subshell
+        pushd "$PROJECT_ROOT/backend" > /dev/null
+        if [ "$FULL" = true ]; then
+            bash ./run_backend_tests.sh --full > "$BACKEND_OUTPUT" 2>&1
+            TEST_EXIT_CODE=$?
+        else
+            bash ./run_backend_tests.sh > "$BACKEND_OUTPUT" 2>&1
+            TEST_EXIT_CODE=$?
+        fi
+        echo $TEST_EXIT_CODE > "$BACKEND_EXIT_FILE"
+        popd > /dev/null
     ) &
     BACKEND_PID=$!
     print_status "Started backend tests (PID: $BACKEND_PID)"
@@ -165,8 +174,17 @@ fi
 
 if [ "$RUN_FRONTEND" = true ]; then
     (
-        bash $FRONTEND_CMD > "$FRONTEND_OUTPUT" 2>&1
-        echo $? > "$FRONTEND_EXIT_FILE"
+        set +e  # Don't exit on error in subshell
+        pushd "$PROJECT_ROOT/frontend" > /dev/null
+        if [ "$FULL" = true ]; then
+            bash ./run_frontend_tests.sh --full > "$FRONTEND_OUTPUT" 2>&1
+            TEST_EXIT_CODE=$?
+        else
+            bash ./run_frontend_tests.sh > "$FRONTEND_OUTPUT" 2>&1
+            TEST_EXIT_CODE=$?
+        fi
+        echo $TEST_EXIT_CODE > "$FRONTEND_EXIT_FILE"
+        popd > /dev/null
     ) &
     FRONTEND_PID=$!
     print_status "Started frontend tests (PID: $FRONTEND_PID)"
