@@ -113,14 +113,14 @@ else
 
     # Check if backend files changed
     BACKEND_CHANGED=false
-    if echo "$CHANGED_FILES" | grep -q "^backend/\|^run_backend_tests.sh\|^run_tests.sh"; then
+    if echo "$CHANGED_FILES" | grep -q "^backend/"; then
         BACKEND_CHANGED=true
         print_status "Backend files changed - will run backend tests"
     fi
 
     # Check if frontend files changed
     FRONTEND_CHANGED=false
-    if echo "$CHANGED_FILES" | grep -q "^frontend/\|^run_frontend_tests.sh\|^run_tests.sh"; then
+    if echo "$CHANGED_FILES" | grep -q "^frontend/"; then
         FRONTEND_CHANGED=true
         print_status "Frontend files changed - will run frontend tests"
     fi
