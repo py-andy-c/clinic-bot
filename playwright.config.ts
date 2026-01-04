@@ -28,7 +28,7 @@ export default defineConfig({
   webServer: [
     {
       // Note: Uses backend/src because main.py is in backend/src/ (matches launch_dev.sh pattern)
-      command: 'bash -c "cd backend/src && source ../venv/bin/activate && python -m uvicorn main:app --port 8001 --host 0.0.0.0"',
+      command: 'bash -c "cd backend && source venv/bin/activate && alembic upgrade head && cd src && python -m uvicorn main:app --port 8001 --host 0.0.0.0"',
       url: 'http://localhost:8001/health',
       reuseExistingServer: !process.env.CI,
       timeout: 120000, // 120s for backend (includes migrations)

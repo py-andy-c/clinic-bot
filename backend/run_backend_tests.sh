@@ -111,13 +111,27 @@ export PGPASSWORD=postgres
 print_status "Checking test database..."
 if ! psql -h localhost -U postgres -t -c "SELECT 1 FROM pg_database WHERE datname='clinic_bot_test'" 2>/dev/null | grep -q 1; then
     print_status "Creating test database..."
-    createdb -U postgres clinic_bot_test 2>/dev/null || {
+    if ! createdb -U postgres clinic_bot_test 2>/dev/null; then
         print_error "Failed to create test database"
         print_error "Try: createdb -U postgres clinic_bot_test"
         print_sandbox_hint
         exit 1
-    }
+    fi
     print_success "Test database created"
+fi
+
+# Run database migrations on test database
+print_status "Running database migrations..."
+if [ -d "alembic" ] && [ -f "alembic.ini" ]; then
+    if alembic upgrade head; then
+        print_success "Migrations completed successfully"
+    else
+        print_error "Database migrations failed!"
+        exit 1
+    fi
+else
+    print_error "Alembic directory or config not found!"
+    exit 1
 fi
 
 # Load test environment variables
@@ -128,8 +142,15 @@ fi
 
 # Run Pyright type checking first (fail-fast)
 print_status "Running Pyright type checking..."
-if pyright; then
-    print_success "Type checking passed!"
+if pyright --outputformat=text | tee /tmp/pyright_output.txt; then
+    # Check if there are any warnings or errors
+    if grep -q "error\|warning" /tmp/pyright_output.txt; then
+        print_error "Type checking found warnings/errors:"
+        cat /tmp/pyright_output.txt
+        exit 1
+    else
+        print_success "Type checking passed!"
+    fi
 else
     print_error "Type checking failed!"
     exit 1
