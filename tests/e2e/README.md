@@ -6,10 +6,17 @@ This directory contains end-to-end tests using Playwright.
 
 - `smoke/` - Critical smoke tests (run first)
 - `appointments/` - Appointment-related tests
+  - `create.spec.ts` - Appointment creation flow
+  - `edit.spec.ts` - Appointment editing flow
 - `settings/` - Settings tests
+  - `save.spec.ts` - Settings save functionality
 - `calendar/` - Calendar tests
+  - `navigation.spec.ts` - Calendar navigation (views, date navigation)
+- `clinic/` - Clinic management tests
+  - `switching.spec.ts` - Clinic switching functionality
 - `fixtures/` - Shared fixtures (auth, database, etc.)
 - `helpers/` - Test helpers (API helpers, database helpers)
+  - `test-data.ts` - Test data creation and cleanup helpers
 
 ## Running Tests
 
@@ -40,6 +47,10 @@ npx playwright test tests/e2e/smoke/app-availability.spec.ts
 
 # Run tests with specific tag
 npx playwright test --grep @smoke
+npx playwright test --grep @appointment
+npx playwright test --grep @critical
+npx playwright test --grep @settings
+npx playwright test --grep @calendar
 
 # Run in UI mode
 npx playwright test --ui
@@ -72,8 +83,17 @@ npx playwright show-report
 
 Tests use unique data with cleanup to ensure isolation. Each test:
 - Creates data with unique identifiers (timestamps, UUIDs)
-- Cleans up test-specific data in `afterEach` hooks
+- Cleans up test-specific data in `finally` blocks or cleanup helpers
 - Does not share state with other tests
+
+**Test Data Helpers:**
+- `createTestPatient()` - Create a test patient with unique name
+- `deleteTestPatient()` - Delete a test patient by ID
+- `cleanupTestPatients()` - Bulk cleanup patients matching a pattern
+- `getAppointmentTypes()` - Get available appointment types
+- `getPractitioners()` - Get available practitioners
+
+See `helpers/test-data.ts` for all available helpers.
 
 ## Authentication
 
@@ -89,6 +109,28 @@ When testing role-based access control is needed, the fixture can be extended to
 - Test practitioner-only functionality
 - Test access restrictions
 
+## Test Tags
+
+Tests are tagged for easy filtering:
+
+- `@smoke` - Critical smoke tests (run first, verify basic functionality)
+- `@appointment` - Appointment-related tests
+- `@settings` - Settings-related tests
+- `@calendar` - Calendar-related tests
+- `@critical` - Tests that must pass before deployment
+
+**Usage:**
+```bash
+# Run only smoke tests
+npx playwright test --grep @smoke
+
+# Run critical tests
+npx playwright test --grep @critical
+
+# Run appointment tests
+npx playwright test --grep @appointment
+```
+
 ## Writing Tests
 
 See the design document for best practices:
@@ -96,6 +138,8 @@ See the design document for best practices:
 - Use Playwright's auto-waiting (avoid fixed delays)
 - Mock external services (LINE API, OAuth)
 - Keep tests independent and parallelizable
+- Use test data helpers from `helpers/test-data.ts` for creating/cleaning up data
+- Add appropriate tags (`@smoke`, `@appointment`, `@critical`, etc.)
 
 ## Troubleshooting
 
