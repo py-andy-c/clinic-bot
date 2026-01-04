@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode, useMemo, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, ReactNode, useMemo, useCallback, useRef } from 'react';
 import { AuthUser, AuthState, UserRole, UserType, ClinicInfo } from '../types';
 import { logger } from '../utils/logger';
 import { authStorage } from '../utils/storage';
@@ -58,6 +58,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [availableClinics, setAvailableClinics] = useState<ClinicInfo[]>([]);
   const [isSwitchingClinic, setIsSwitchingClinic] = useState(false);
 
+  // Use ref to store current user to avoid dependency loop
+  // This allows refreshAvailableClinics to access current user without depending on authState.user
+  // Pattern matches useApiData.ts which uses refs to break dependency loops
+  const userRef = useRef<AuthUser | null>(null);
+  userRef.current = authState.user;
+
+  // Track in-flight request to prevent duplicate calls
+  // This prevents multiple simultaneous calls to the same endpoint
+  const inFlightRequestRef = useRef<Promise<void> | null>(null);
+
   const clearAuthState = useCallback(() => {
     authStorage.clearAuth();
     setAuthState({
@@ -65,36 +75,60 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       isAuthenticated: false,
       isLoading: false,
     });
+    userRef.current = null;
   }, []);
 
   const refreshAvailableClinics = useCallback(async (userOverride?: AuthUser | null) => {
-    try {
-      // Use provided user or current auth state user
-      const user = userOverride ?? authState.user;
-      
-      // Only fetch clinics for clinic users (system admins don't have clinics)
-      if (!user || user.user_type !== 'clinic_user') {
-        setAvailableClinics([]);
-        return;
-      }
-
-      const response = await apiService.listAvailableClinics(false);
-      setAvailableClinics(response.clinics);
-      
-      // Update user's available_clinics if user exists
-      setAuthState(prev => ({
-        ...prev,
-        user: prev.user ? {
-          ...prev.user,
-          available_clinics: response.clinics,
-          active_clinic_id: response.active_clinic_id ?? prev.user.active_clinic_id,
-        } : null,
-      }));
-    } catch (error) {
-      logger.error('Failed to refresh available clinics:', error);
-      // Don't throw - just log the error
+    // Request deduplication: if a request is already in flight, return it
+    // This prevents multiple simultaneous calls when the function is called multiple times
+    if (inFlightRequestRef.current) {
+      return inFlightRequestRef.current;
     }
-  }, [authState.user]);
+
+    // Create the request promise
+    const requestPromise = (async () => {
+      try {
+        // Use provided user or current user from ref (avoids dependency on authState.user)
+        // Using ref pattern ensures the callback is stable and doesn't recreate on every render
+        const user = userOverride ?? userRef.current;
+        
+        // Only fetch clinics for clinic users (system admins don't have clinics)
+        if (!user || user.user_type !== 'clinic_user') {
+          setAvailableClinics([]);
+          return;
+        }
+
+        const response = await apiService.listAvailableClinics(false);
+        setAvailableClinics(response.clinics);
+        
+        // Update user's available_clinics if user exists
+        // Use functional update to get latest state without depending on it
+        setAuthState(prev => {
+          if (!prev.user) {
+            return prev;
+          }
+          return {
+            ...prev,
+            user: {
+              ...prev.user,
+              available_clinics: response.clinics,
+              active_clinic_id: response.active_clinic_id ?? prev.user.active_clinic_id,
+            },
+          };
+        });
+      } catch (error) {
+        logger.error('Failed to refresh available clinics:', error);
+        // Don't throw - just log the error
+      } finally {
+        // Clear in-flight request when done
+        inFlightRequestRef.current = null;
+      }
+    })();
+
+    // Store the promise for deduplication
+    inFlightRequestRef.current = requestPromise;
+    return requestPromise;
+  }, []); // No dependencies - function is stable, breaks the dependency loop
 
   useEffect(() => {
     // Skip authentication checks for signup pages
