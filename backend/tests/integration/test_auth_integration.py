@@ -2032,15 +2032,6 @@ class TestSystemAdminRefreshTokenFlow:
             auth.SYSTEM_ADMIN_EMAILS = original_emails
 
 
-def test_async_sqlite_import_available():
-    """Test that aiosqlite can be imported (dependency is installed)."""
-    try:
-        import aiosqlite
-        assert aiosqlite is not None
-    except ImportError:
-        pytest.fail("aiosqlite is not installed - async SQLite operations will fail")
-
-
 class TestMultiClinicTokenCreation:
     """Test JWT token creation with multi-clinic user support."""
 

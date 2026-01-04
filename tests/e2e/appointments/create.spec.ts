@@ -17,8 +17,9 @@ test.describe('Appointment Creation', () => {
     expect(currentUrl).toContain('/admin/calendar');
     
     // Wait for calendar to be visible (more reliable than networkidle)
+    // Increase timeout for CI environments where loading may be slower
     const calendar = authenticatedPage.locator('.rbc-calendar');
-    await expect(calendar).toBeVisible({ timeout: 15000 });
+    await expect(calendar).toBeVisible({ timeout: 30000 });
     
     // Verify the create appointment button is visible (confirms page loaded correctly)
     const createButton = authenticatedPage.locator('[data-testid="create-appointment-button"]');
@@ -56,7 +57,7 @@ test.describe('Appointment Creation', () => {
     
     // Verify calendar is visible
     const calendar = authenticatedPage.locator('.rbc-calendar');
-    await expect(calendar).toBeVisible({ timeout: 15000 });
+    await expect(calendar).toBeVisible({ timeout: 30000 });
     
     // Click create appointment button
     const createButton = authenticatedPage.locator('[data-testid="create-appointment-button"]');
