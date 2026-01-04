@@ -27,7 +27,7 @@ This directory contains end-to-end tests using Playwright.
 ./run_e2e_tests.sh
 
 # Run full test suite (same as default)
-./run_e2e_tests.sh --all
+./run_e2e_tests.sh --full
 
 # Run with UI mode (headed browser)
 ./run_e2e_tests.sh --ui
