@@ -16,10 +16,15 @@ test.describe('Appointment Creation', () => {
     const currentUrl = authenticatedPage.url();
     expect(currentUrl).toContain('/admin/calendar');
     
-    // Wait for calendar to be visible (more reliable than networkidle)
-    // Increase timeout for CI environments where loading may be slower
-    const calendar = authenticatedPage.locator('.rbc-calendar');
-    await expect(calendar).toBeVisible({ timeout: 30000 });
+    // Wait for calendar to load completely (wait for loading spinner to disappear)
+    // This ensures calendar data has finished loading, not just that DOM element is present
+    await authenticatedPage.waitForSelector('.rbc-calendar', { timeout: 30000 });
+
+    // Wait for any loading spinners to disappear (indicates data loading is complete)
+    await authenticatedPage.waitForFunction(() => {
+      const loadingSpinners = document.querySelectorAll('[data-testid="loading-spinner"], .loading-spinner');
+      return loadingSpinners.length === 0;
+    }, { timeout: 30000 });
     
     // Verify the create appointment button is visible (confirms page loaded correctly)
     const createButton = authenticatedPage.locator('[data-testid="create-appointment-button"]');

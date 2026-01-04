@@ -66,9 +66,17 @@ test.describe('Calendar Navigation', () => {
     await authenticatedPage.goto('/admin/calendar', { waitUntil: 'load' });
     await authenticatedPage.waitForLoadState('domcontentloaded');
 
-    // Wait for calendar to be visible
+    // Wait for calendar to load completely (wait for loading spinner to disappear)
+    await authenticatedPage.waitForSelector('.rbc-calendar', { timeout: 30000 });
+
+    // Wait for any loading spinners to disappear (indicates data loading is complete)
+    await authenticatedPage.waitForFunction(() => {
+      const loadingSpinners = document.querySelectorAll('[data-testid="loading-spinner"], .loading-spinner');
+      return loadingSpinners.length === 0;
+    }, { timeout: 30000 });
+
+    // Get calendar locator for later use
     const calendar = authenticatedPage.locator('.rbc-calendar');
-    await expect(calendar).toBeVisible({ timeout: 15000 });
 
     // Look for view mode buttons (month, week, day, agenda)
     // React Big Calendar toolbar typically has these
@@ -113,9 +121,17 @@ test.describe('Calendar Navigation', () => {
     await authenticatedPage.goto('/admin/calendar', { waitUntil: 'load' });
     await authenticatedPage.waitForLoadState('domcontentloaded');
 
-    // Wait for calendar to be visible
+    // Wait for calendar to load completely (wait for loading spinner to disappear)
+    await authenticatedPage.waitForSelector('.rbc-calendar', { timeout: 30000 });
+
+    // Wait for any loading spinners to disappear (indicates data loading is complete)
+    await authenticatedPage.waitForFunction(() => {
+      const loadingSpinners = document.querySelectorAll('[data-testid="loading-spinner"], .loading-spinner');
+      return loadingSpinners.length === 0;
+    }, { timeout: 30000 });
+
+    // Get calendar locator for later use
     const calendar = authenticatedPage.locator('.rbc-calendar');
-    await expect(calendar).toBeVisible({ timeout: 15000 });
 
     // Look for "Today" button
     const todayButton = authenticatedPage.locator('button')
