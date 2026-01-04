@@ -5,7 +5,7 @@
 #
 # Usage:
 #   ./run_backend_tests.sh        - Run tests with testmon (fast, incremental, no coverage)
-#   ./run_backend_tests.sh --no-cache - Run all tests with coverage check
+#   ./run_backend_tests.sh --full - Run all tests with coverage check
 
 set -e  # Exit on any error
 
@@ -42,18 +42,18 @@ print_sandbox_hint() {
 }
 
 # Parse command line arguments
-NO_CACHE=false
+FULL=false
 for arg in "$@"; do
     case $arg in
-        --no-cache)
-            NO_CACHE=true
+        --full)
+            FULL=true
             ;;
         --help|-h)
-            echo "Usage: $0 [--no-cache]"
+            echo "Usage: $0 [--full]"
             echo ""
             echo "Options:"
             echo "  (no flags)   Run tests with testmon (fast, incremental, no coverage)"
-            echo "  --no-cache   Run all tests with coverage check"
+            echo "  --full       Run all tests with coverage check"
             echo "  --help       Show this help message"
             exit 0
             ;;
@@ -142,7 +142,7 @@ else
 fi
 
 # Run pytest tests
-if [ "$NO_CACHE" = true ]; then
+if [ "$FULL" = true ]; then
     # Full mode: Run all tests with coverage
     print_status "Running all tests with coverage..."
     if PYTHONPATH=src python -m pytest tests/unit/ tests/integration/ -v --tb=short --cov=src --cov-report=html:htmlcov --cov-report=term-missing --cov-fail-under=65; then

@@ -6,7 +6,7 @@
 #
 # Usage:
 #   ./run_frontend_tests.sh           - Run tests for changed files only (fast)
-#   ./run_frontend_tests.sh --no-cache - Run full test suite
+#   ./run_frontend_tests.sh --full    - Run full test suite
 
 set -e  # Exit on any error
 
@@ -43,18 +43,18 @@ print_sandbox_hint() {
 }
 
 # Parse command line arguments
-NO_CACHE=false
+FULL=false
 for arg in "$@"; do
     case $arg in
-        --no-cache)
-            NO_CACHE=true
+        --full)
+            FULL=true
             ;;
         --help|-h)
-            echo "Usage: $0 [--no-cache]"
+            echo "Usage: $0 [--full]"
             echo ""
             echo "Options:"
             echo "  (no flags)   Run tests for changed files only (fast)"
-            echo "  --no-cache   Run full test suite"
+            echo "  --full       Run full test suite"
             echo "  --help       Show this help message"
             exit 0
             ;;
@@ -126,7 +126,7 @@ print_success "ESLint passed!"
 export VITE_API_BASE_URL="${VITE_API_BASE_URL:-/api}"
 export VITE_LIFF_ID="${VITE_LIFF_ID:-test-liff-id}"
 
-if [ "$NO_CACHE" = true ]; then
+if [ "$FULL" = true ]; then
     print_status "Running full frontend unit test suite..."
     if npm test -- --run; then
         print_success "Frontend unit tests passed!"

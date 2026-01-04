@@ -5,7 +5,7 @@
 #
 # Usage:
 #   ./run_e2e_tests.sh           - Run E2E tests
-#   ./run_e2e_tests.sh --all     - Run full E2E test suite (same as default)
+#   ./run_e2e_tests.sh --full    - Run full E2E test suite (same as default)
 #   ./run_e2e_tests.sh --ui      - Run with UI mode (headed browser)
 #   ./run_e2e_tests.sh --help    - Show help message
 
@@ -36,22 +36,22 @@ print_warning() {
 }
 
 # Parse command line arguments
-RUN_ALL=false
+FULL=false
 UI_MODE=false
 for arg in "$@"; do
     case $arg in
-        --all)
-            RUN_ALL=true
+        --full)
+            FULL=true
             ;;
         --ui)
             UI_MODE=true
             ;;
         --help|-h)
-            echo "Usage: $0 [--all] [--ui]"
+            echo "Usage: $0 [--full] [--ui]"
             echo ""
             echo "Options:"
             echo "  (no flags)   Run E2E tests"
-            echo "  --all        Run full E2E test suite (same as default)"
+            echo "  --full       Run full E2E test suite (same as default)"
             echo "  --ui         Run with UI mode (headed browser)"
             echo "  --help       Show this help message"
             exit 0
@@ -119,7 +119,7 @@ fi
 # Build Playwright command
 PLAYWRIGHT_CMD="npx playwright test"
 
-if [ "$RUN_ALL" = false ]; then
+if [ "$FULL" = false ]; then
     PLAYWRIGHT_CMD="$PLAYWRIGHT_CMD --only-changed"
     print_status "Running E2E tests incrementally (changed files only)"
 else

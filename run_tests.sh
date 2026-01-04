@@ -4,8 +4,8 @@
 # Orchestrates backend and frontend test runners
 #
 # Usage:
-#   ./run_tests.sh           - Run tests with testmon (fast, incremental, no coverage)
-#   ./run_tests.sh --no-cache - Run all backend tests with coverage check
+#   ./run_tests.sh           - Run tests based on changed files (smart incremental)
+#   ./run_tests.sh --full    - Run all tests with coverage/full suites
 
 set -e  # Exit on any error
 
@@ -29,18 +29,18 @@ print_error() {
 }
 
 # Parse command line arguments
-NO_CACHE=false
+FULL=false
 for arg in "$@"; do
     case $arg in
-        --no-cache)
-            NO_CACHE=true
+        --full)
+            FULL=true
             ;;
         --help|-h)
-            echo "Usage: $0 [--no-cache]"
+            echo "Usage: $0 [--full]"
             echo ""
             echo "Options:"
-            echo "  (no flags)   Run tests with testmon (fast, incremental, no coverage)"
-            echo "  --no-cache   Run all backend tests with coverage check"
+            echo "  (no flags)   Run tests based on changed files (smart incremental)"
+            echo "  --full       Run all tests with coverage/full suites"
             echo "  --help       Show this help message"
             exit 0
             ;;
@@ -62,15 +62,22 @@ print_status "Project root: $PROJECT_ROOT"
 # Build backend test command
 BACKEND_SCRIPT="$PROJECT_ROOT/backend/run_backend_tests.sh"
 BACKEND_CMD="$BACKEND_SCRIPT"
-if [ "$NO_CACHE" = true ]; then
-    BACKEND_CMD="$BACKEND_CMD --no-cache"
+if [ "$FULL" = true ]; then
+    BACKEND_CMD="$BACKEND_CMD --full"
 fi
 
 # Frontend test command
 FRONTEND_SCRIPT="$PROJECT_ROOT/frontend/run_frontend_tests.sh"
 FRONTEND_CMD="$FRONTEND_SCRIPT"
-if [ "$NO_CACHE" = true ]; then
-    FRONTEND_CMD="$FRONTEND_CMD --no-cache"
+if [ "$FULL" = true ]; then
+    FRONTEND_CMD="$FRONTEND_CMD --full"
+fi
+
+# E2E test command
+E2E_SCRIPT="$PROJECT_ROOT/run_e2e_tests.sh"
+E2E_CMD="$E2E_SCRIPT"
+if [ "$FULL" = true ]; then
+    E2E_CMD="$E2E_CMD --full"
 fi
 
 # Verify test scripts exist
@@ -82,69 +89,144 @@ if [ ! -f "$FRONTEND_SCRIPT" ]; then
     print_error "Frontend test script not found: $FRONTEND_SCRIPT"
     exit 1
 fi
+if [ ! -f "$E2E_SCRIPT" ]; then
+    print_error "E2E test script not found: $E2E_SCRIPT"
+    exit 1
+fi
+
+# Detect changed files to determine which tests to run
+if [ "$FULL" = true ]; then
+    print_status "Running all tests (--full mode)"
+    RUN_BACKEND=true
+    RUN_FRONTEND=true
+    RUN_E2E=true
+else
+    print_status "Detecting changed files to determine which tests to run..."
+
+    # Get changed files since last commit
+    CHANGED_FILES=$(git diff --name-only HEAD~1 2>/dev/null || echo "")
+
+    # Check if backend files changed
+    BACKEND_CHANGED=false
+    if echo "$CHANGED_FILES" | grep -q "^backend/\|^run_backend_tests.sh\|^run_tests.sh"; then
+        BACKEND_CHANGED=true
+        print_status "Backend files changed - will run backend tests"
+    fi
+
+    # Check if frontend files changed
+    FRONTEND_CHANGED=false
+    if echo "$CHANGED_FILES" | grep -q "^frontend/\|^run_frontend_tests.sh\|^run_tests.sh"; then
+        FRONTEND_CHANGED=true
+        print_status "Frontend files changed - will run frontend tests"
+    fi
+
+    # Always run E2E tests (they test the full system)
+    RUN_BACKEND=$BACKEND_CHANGED
+    RUN_FRONTEND=$FRONTEND_CHANGED
+    RUN_E2E=true
+
+    print_status "E2E tests will always run (full system testing)"
+fi
 
 # Create temporary files for capturing output and exit codes
 BACKEND_OUTPUT=$(mktemp)
 FRONTEND_OUTPUT=$(mktemp)
+E2E_OUTPUT=$(mktemp)
 BACKEND_EXIT_FILE=$(mktemp)
 FRONTEND_EXIT_FILE=$(mktemp)
+E2E_EXIT_FILE=$(mktemp)
 
 # Function to cleanup temp files
 cleanup_temp_files() {
-    rm -f "$BACKEND_OUTPUT" "$FRONTEND_OUTPUT" "$BACKEND_EXIT_FILE" "$FRONTEND_EXIT_FILE"
+    rm -f "$BACKEND_OUTPUT" "$FRONTEND_OUTPUT" "$E2E_OUTPUT" "$BACKEND_EXIT_FILE" "$FRONTEND_EXIT_FILE" "$E2E_EXIT_FILE"
 }
 trap cleanup_temp_files EXIT
 
-# Start backend tests in background
-print_status "Running backend and frontend tests in parallel..."
-(
-    bash $BACKEND_CMD > "$BACKEND_OUTPUT" 2>&1
-    echo $? > "$BACKEND_EXIT_FILE"
-) &
-BACKEND_PID=$!
+# Start tests in background based on what needs to run
+print_status "Running tests in parallel..."
 
-# Start frontend tests in background
-(
-    bash $FRONTEND_CMD > "$FRONTEND_OUTPUT" 2>&1
-    echo $? > "$FRONTEND_EXIT_FILE"
-) &
-FRONTEND_PID=$!
+BACKEND_PID=""
+FRONTEND_PID=""
+E2E_PID=""
 
-# Wait for both processes to complete
-# Temporarily disable set -e to allow wait to return non-zero exit codes
-# (which is expected when background processes fail)
+if [ "$RUN_BACKEND" = true ]; then
+    (
+        bash $BACKEND_CMD > "$BACKEND_OUTPUT" 2>&1
+        echo $? > "$BACKEND_EXIT_FILE"
+    ) &
+    BACKEND_PID=$!
+    print_status "Started backend tests (PID: $BACKEND_PID)"
+fi
+
+if [ "$RUN_FRONTEND" = true ]; then
+    (
+        bash $FRONTEND_CMD > "$FRONTEND_OUTPUT" 2>&1
+        echo $? > "$FRONTEND_EXIT_FILE"
+    ) &
+    FRONTEND_PID=$!
+    print_status "Started frontend tests (PID: $FRONTEND_PID)"
+fi
+
+if [ "$RUN_E2E" = true ]; then
+    (
+        bash $E2E_CMD > "$E2E_OUTPUT" 2>&1
+        echo $? > "$E2E_EXIT_FILE"
+    ) &
+    E2E_PID=$!
+    print_status "Started E2E tests (PID: $E2E_PID)"
+fi
+
+# Wait for processes to complete
 set +e
-wait $BACKEND_PID
-BACKEND_WAIT_EXIT=$?
-wait $FRONTEND_PID
-FRONTEND_WAIT_EXIT=$?
+
+if [ -n "$BACKEND_PID" ]; then
+    wait $BACKEND_PID
+    BACKEND_WAIT_EXIT=$?
+fi
+
+if [ -n "$FRONTEND_PID" ]; then
+    wait $FRONTEND_PID
+    FRONTEND_WAIT_EXIT=$?
+fi
+
+if [ -n "$E2E_PID" ]; then
+    wait $E2E_PID
+    E2E_WAIT_EXIT=$?
+fi
+
 set -e
 
 # Give processes a moment to write exit codes to files
-# Note: This is a small delay to ensure file I/O completes. In practice,
-# the wait above should be sufficient, but this provides a safety margin.
 sleep 0.1
 
 # Read exit codes from files
-BACKEND_EXIT=1
-FRONTEND_EXIT=1
-if [ -f "$BACKEND_EXIT_FILE" ] && [ -s "$BACKEND_EXIT_FILE" ]; then
+BACKEND_EXIT=0
+FRONTEND_EXIT=0
+E2E_EXIT=1  # Default to 1 for E2E since it's always run
+
+if [ "$RUN_BACKEND" = true ] && [ -f "$BACKEND_EXIT_FILE" ] && [ -s "$BACKEND_EXIT_FILE" ]; then
     BACKEND_EXIT=$(cat "$BACKEND_EXIT_FILE" 2>/dev/null)
-    # Ensure it's a valid integer, default to 1 if not
     case "$BACKEND_EXIT" in
         ''|*[!0-9]*) BACKEND_EXIT=1 ;;
     esac
 fi
-if [ -f "$FRONTEND_EXIT_FILE" ] && [ -s "$FRONTEND_EXIT_FILE" ]; then
+
+if [ "$RUN_FRONTEND" = true ] && [ -f "$FRONTEND_EXIT_FILE" ] && [ -s "$FRONTEND_EXIT_FILE" ]; then
     FRONTEND_EXIT=$(cat "$FRONTEND_EXIT_FILE" 2>/dev/null)
-    # Ensure it's a valid integer, default to 1 if not
     case "$FRONTEND_EXIT" in
         ''|*[!0-9]*) FRONTEND_EXIT=1 ;;
     esac
 fi
 
+if [ "$RUN_E2E" = true ] && [ -f "$E2E_EXIT_FILE" ] && [ -s "$E2E_EXIT_FILE" ]; then
+    E2E_EXIT=$(cat "$E2E_EXIT_FILE" 2>/dev/null)
+    case "$E2E_EXIT" in
+        ''|*[!0-9]*) E2E_EXIT=1 ;;
+    esac
+fi
+
 # Display results only if they failed
-if [ "$BACKEND_EXIT" -ne 0 ]; then
+if [ "$RUN_BACKEND" = true ] && [ "$BACKEND_EXIT" -ne 0 ]; then
     echo ""
     print_error "Backend tests failed!"
     echo ""
@@ -157,7 +239,7 @@ if [ "$BACKEND_EXIT" -ne 0 ]; then
     echo ""
 fi
 
-if [ "$FRONTEND_EXIT" -ne 0 ]; then
+if [ "$RUN_FRONTEND" = true ] && [ "$FRONTEND_EXIT" -ne 0 ]; then
     echo ""
     print_error "Frontend tests failed!"
     echo ""
@@ -170,30 +252,74 @@ if [ "$FRONTEND_EXIT" -ne 0 ]; then
     echo ""
 fi
 
-# Display summary
+if [ "$RUN_E2E" = true ] && [ "$E2E_EXIT" -ne 0 ]; then
+    echo ""
+    print_error "E2E tests failed!"
+    echo ""
+    print_status "=== E2E Test Output ==="
+    if [ -f "$E2E_OUTPUT" ]; then
+        cat "$E2E_OUTPUT"
+    else
+        print_error "E2E output file not found!"
+    fi
+    echo ""
+fi
+
+# Display summary with passed/skipped/failed status
 echo ""
 print_status "=== Test Summary ==="
-if [ "$BACKEND_EXIT" -eq 0 ]; then
-    print_success "Backend:  ✅ PASSED"
+
+if [ "$RUN_BACKEND" = true ]; then
+    if [ "$BACKEND_EXIT" -eq 0 ]; then
+        print_success "Backend:  ✅ PASSED"
+    else
+        print_error "Backend:  ❌ FAILED"
+    fi
 else
-    print_error "Backend:  ❌ FAILED"
+    print_warning "Backend:  ⏭️  SKIPPED (no backend changes)"
 fi
 
-if [ "$FRONTEND_EXIT" -eq 0 ]; then
-    print_success "Frontend: ✅ PASSED"
+if [ "$RUN_FRONTEND" = true ]; then
+    if [ "$FRONTEND_EXIT" -eq 0 ]; then
+        print_success "Frontend: ✅ PASSED"
+    else
+        print_error "Frontend: ❌ FAILED"
+    fi
 else
-    print_error "Frontend: ❌ FAILED"
+    print_warning "Frontend: ⏭️  SKIPPED (no frontend changes)"
 fi
+
+if [ "$RUN_E2E" = true ]; then
+    if [ "$E2E_EXIT" -eq 0 ]; then
+        print_success "E2E:      ✅ PASSED"
+    else
+        print_error "E2E:      ❌ FAILED"
+    fi
+else
+    print_warning "E2E:      ⏭️  SKIPPED"
+fi
+
 echo ""
 
-# Exit with error if either failed
-if [ "$BACKEND_EXIT" -ne 0 ] || [ "$FRONTEND_EXIT" -ne 0 ]; then
+# Exit with error if any test that ran failed
+FAILED_TESTS=false
+if [ "$RUN_BACKEND" = true ] && [ "$BACKEND_EXIT" -ne 0 ]; then
+    FAILED_TESTS=true
+fi
+if [ "$RUN_FRONTEND" = true ] && [ "$FRONTEND_EXIT" -ne 0 ]; then
+    FAILED_TESTS=true
+fi
+if [ "$RUN_E2E" = true ] && [ "$E2E_EXIT" -ne 0 ]; then
+    FAILED_TESTS=true
+fi
+
+if [ "$FAILED_TESTS" = true ]; then
     exit 1
 fi
 
 # Final success message
 print_success "🎉 All Tests Passed Successfully!"
-if [ "$NO_CACHE" = true ]; then
+if [ "$FULL" = true ]; then
     print_success "📁 Coverage report: backend/htmlcov/index.html"
 fi
 exit 0
