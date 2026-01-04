@@ -24,20 +24,12 @@ logger = logging.getLogger(__name__)
 # E2E test mode configuration
 E2E_TEST_MODE = os.getenv("E2E_TEST_MODE") == "true"
 
-# Connection pool settings - stricter limits for E2E tests to prevent connection exhaustion
-# E2E mode uses smaller pool to catch connection leaks early and prevent accumulation
-# Production uses larger pool to handle higher concurrency
-if E2E_TEST_MODE:
-    # E2E mode: smaller pool, shorter timeouts
-    # Smaller pool helps detect connection leaks during test runs
-    pool_size = 5  # Maximum number of connections in pool
-    max_overflow = 10  # Maximum overflow connections (total max = pool_size + max_overflow = 15)
-    pool_timeout = 30  # Seconds to wait for connection from pool
-else:
-    # Production/dev mode: larger pool
-    pool_size = 10
-    max_overflow = 20
-    pool_timeout = 30
+# Connection pool settings - unified for both E2E and production
+# Balanced pool size for good concurrency while maintaining resource efficiency
+# Connection leak detection relies on PostgreSQL timeouts and cleanup mechanisms
+pool_size = 15  # Maximum number of connections in pool
+max_overflow = 25  # Maximum overflow connections (total max = pool_size + max_overflow = 40)
+pool_timeout = 30  # Seconds to wait for connection from pool
 
 # Build connection arguments
 connect_args = {}
@@ -48,13 +40,13 @@ if E2E_TEST_MODE:
     connect_args = {
         "options": "-c statement_timeout=30000 -c idle_in_transaction_session_timeout=10000"
     }
-    logger.info("E2E test mode: Using strict connection pool limits and PostgreSQL timeouts")
+    logger.info("E2E test mode: Using strict PostgreSQL timeouts for fast failure detection")
 else:
-    # Set PostgreSQL timeouts for production/dev to prevent stuck transactions
+    # Set PostgreSQL timeouts for production/dev to prevent stuck transactions and runaway queries
+    # statement_timeout: 5 minutes (prevents runaway queries while allowing legitimate operations)
     # idle_in_transaction_session_timeout: 30 seconds (kills stuck transactions after 30s)
-    # statement_timeout: not set (allow longer queries in production)
     connect_args = {
-        "options": "-c idle_in_transaction_session_timeout=30000"
+        "options": "-c statement_timeout=300000 -c idle_in_transaction_session_timeout=30000"
     }
 
 # Create SQLAlchemy engine with optimized settings
