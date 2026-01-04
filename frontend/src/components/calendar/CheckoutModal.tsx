@@ -494,6 +494,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   }, [items, loadPractitionersForServiceItem, applyBillingScenarioToItem, billingScenarios]);
 
   // Handle service item selection from modal
+  // Safe: Event handler - only called on user selection. currentItemIndex is read-only (used to identify which item to update).
+  // eslint-disable-next-line clinic-cache/no-dependency-loop
   const handleServiceItemSelect = useCallback((serviceItemId: number | undefined) => {
     if (currentItemIndex !== null) {
       handleItemChange(currentItemIndex, 'service_item_id', serviceItemId);

@@ -1074,6 +1074,8 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   }, [onSelectEvent]);
 
   // Handle slot selection - for monthly and weekly view navigation
+  // Safe: Event handler - only called on user click, not automatically. Reads view to decide behavior.
+  // eslint-disable-next-line clinic-cache/no-dependency-loop
   const handleSelectSlot = useCallback((slotInfo: { start: Date; end: Date; slots: Date[] }) => {
     // In monthly view, clicking a date should navigate to daily view of that date
     if (view === Views.MONTH) {
@@ -1168,6 +1170,8 @@ const CalendarView: React.FC<CalendarViewProps> = ({
 
 
   // Handle adding availability exception via button
+  // Safe: Event handler - only called on user click. Reads view to decide behavior.
+  // eslint-disable-next-line clinic-cache/no-dependency-loop
   const handleAddException = useCallback(() => {
     // If in month view, switch to day view first
     if (view === Views.MONTH) {

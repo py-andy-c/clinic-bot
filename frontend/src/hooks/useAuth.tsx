@@ -379,6 +379,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     return enhancedUser?.hasRole(role) ?? false;
   };
 
+  // Safe: Guard pattern - checks isSwitchingClinic to prevent re-entry. Uses functional update for setAuthState.
+  // eslint-disable-next-line clinic-cache/no-dependency-loop
   const switchClinic = useCallback(async (clinicId: number) => {
     if (isSwitchingClinic) {
       logger.warn('Clinic switch already in progress');

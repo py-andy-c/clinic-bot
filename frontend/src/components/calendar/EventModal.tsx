@@ -173,6 +173,8 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
     }
   }, [handleSaveName, handleCancelEdit]);
 
+  // Safe: Guard pattern - checks isSavingClinicNotes to prevent double-saving. Sets it to true then false after async.
+  // eslint-disable-next-line clinic-cache/no-dependency-loop
   const handleSaveClinicNotes = useCallback(async () => {
     if (isSavingClinicNotes) return;
 

@@ -1345,6 +1345,9 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
     onClose();
   }, [onClose]);
 
+  // Safe: Reads createdPatientId to extract data, then sets different state (modal visibility, sessionStorage).
+  // No loop - updates different state than it depends on.
+  // eslint-disable-next-line clinic-cache/no-dependency-loop
   const handleCreateAppointmentFromSuccess = useCallback(() => {
     if (createdPatientId) {
       isCreatingPatientFromModal.current = true;

@@ -126,8 +126,11 @@ function hasClinicIdInDependencies(dependenciesNode) {
   });
 }
 
+const noDependencyLoop = require('./rules/no-dependency-loop');
+
 module.exports = {
   rules: {
+    'no-dependency-loop': noDependencyLoop,
     'require-clinic-id-in-deps': {
       meta: {
         type: 'suggestion',

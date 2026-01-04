@@ -20,6 +20,7 @@ module.exports = {
     ],
     'no-console': 'error',
     'clinic-cache/require-clinic-id-in-deps': 'warn',
+    'clinic-cache/no-dependency-loop': 'error',
     '@typescript-eslint/no-unused-vars': [
       'error',
       {

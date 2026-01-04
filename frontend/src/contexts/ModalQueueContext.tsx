@@ -131,6 +131,8 @@ export const ModalQueueProvider: React.FC<ModalQueueProviderProps> = ({ children
     };
   }, []);
 
+  // Safe: Uses functional update for setQueue. Depends on currentModal to read current state for decision-making.
+  // eslint-disable-next-line clinic-cache/no-dependency-loop
   const enqueueModal = useCallback(<T,>(modal: QueuedModal<T>) => {
     setQueue((prev) => {
       // Safety check: prevent queue from growing too large
@@ -201,6 +203,8 @@ export const ModalQueueProvider: React.FC<ModalQueueProviderProps> = ({ children
     });
   }, [currentModal, isClosing]);
 
+  // Safe: Reads currentModal to conditionally clear it. No loop - only reads, then sets to null if exists.
+  // eslint-disable-next-line clinic-cache/no-dependency-loop
   const clearQueue = useCallback(() => {
     setQueue([]);
     if (currentModal) {
@@ -213,6 +217,8 @@ export const ModalQueueProvider: React.FC<ModalQueueProviderProps> = ({ children
     // Don't close current modal, let it handle its own close
   }, []);
 
+  // Safe: Guard pattern - checks if currentModal exists. Uses functional update for setQueue.
+  // eslint-disable-next-line clinic-cache/no-dependency-loop
   const showNext = useCallback(() => {
       // Show next modal in queue if no current modal
       if (!currentModal) {
@@ -229,6 +235,8 @@ export const ModalQueueProvider: React.FC<ModalQueueProviderProps> = ({ children
       }
   }, [currentModal]);
 
+  // Safe: Reads currentModal to call onError callback, then clears it. Uses functional update for setQueue.
+  // eslint-disable-next-line clinic-cache/no-dependency-loop
   const handleModalError = useCallback((error: Error) => {
     logger.error('Modal render error in queue:', error);
     // Call onError callback if provided

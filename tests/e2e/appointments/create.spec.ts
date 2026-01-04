@@ -1,4 +1,4 @@
-import { test, expect } from '../fixtures/auth';
+import { test, expect } from '../fixtures/api-monitoring';
 
 /**
  * E2E test for appointment creation flow.
