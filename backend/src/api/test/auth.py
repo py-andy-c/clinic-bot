@@ -116,12 +116,10 @@ async def test_login(
                     detail=f"Failed to create test clinic for E2E testing: {str(e)}"
                 )
         
-        # Create user
+        # Create usepr
         user = User(
             email=request.email,
             google_subject_id=f"test_{request.email.replace('@', '_').replace('.', '_')}",
-            full_name=request.email.split('@')[0].title(),
-            is_active=True,
             created_at=now,
             updated_at=now
         )
