@@ -142,15 +142,8 @@ fi
 
 # Run Pyright type checking first (fail-fast)
 print_status "Running Pyright type checking..."
-if pyright | tee /tmp/pyright_output.txt; then
-    # Check if there are any errors (warnings are allowed)
-    if grep -q "error" /tmp/pyright_output.txt; then
-        print_error "Type checking found errors:"
-        cat /tmp/pyright_output.txt
-        exit 1
-    else
-        print_success "Type checking passed!"
-    fi
+if pyright; then
+    print_success "Type checking passed!"
 else
     print_error "Type checking failed!"
     exit 1

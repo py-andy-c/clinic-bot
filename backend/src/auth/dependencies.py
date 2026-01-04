@@ -24,7 +24,6 @@ from core.database import get_db
 from core.config import SYSTEM_ADMIN_EMAILS
 from services.jwt_service import jwt_service, TokenPayload
 from models import User, LineUser, Clinic, UserClinicAssociation
-from utils.datetime_utils import taiwan_now
 
 logger = logging.getLogger(__name__)
 

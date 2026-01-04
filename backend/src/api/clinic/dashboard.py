@@ -5,7 +5,7 @@ Dashboard and Analytics API endpoints.
 
 import logging
 from datetime import datetime
-from typing import Dict, List, Optional, Union
+from typing import List, Optional, Union
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi import status as http_status

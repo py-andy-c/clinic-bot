@@ -8,7 +8,7 @@ Uses next_day_notification_time setting (same as practitioners).
 """
 
 import logging
-from datetime import datetime, timedelta, date
+from datetime import timedelta, date
 from typing import List, Optional, Dict
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler  # type: ignore

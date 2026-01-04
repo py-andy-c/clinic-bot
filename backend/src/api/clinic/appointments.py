@@ -4,19 +4,18 @@ Appointment Management API endpoints.
 """
 
 import logging
-import re
 from datetime import datetime, time
 from typing import Dict, List, Optional, Any
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi import status as http_status
-from pydantic import BaseModel, Field, model_validator, field_validator
+from pydantic import BaseModel, model_validator, field_validator
 from sqlalchemy.orm import Session, joinedload
 
 from core.database import get_db
 from core.constants import MAX_EVENT_NAME_LENGTH
 from auth.dependencies import require_authenticated, require_practitioner_or_admin, require_admin_role, UserContext, ensure_clinic_access
-from models import User, Clinic, AppointmentType, CalendarEvent, Appointment, Patient, ResourceType, Resource, AppointmentResourceRequirement, AppointmentResourceAllocation, UserClinicAssociation
+from models import User, Clinic, AppointmentType, CalendarEvent, Appointment, Patient, ResourceType, Resource, AppointmentResourceRequirement, AppointmentResourceAllocation
 from services import AppointmentService, AppointmentTypeService
 from services.availability_service import AvailabilityService
 from services.notification_service import NotificationService

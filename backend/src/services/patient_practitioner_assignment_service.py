@@ -242,7 +242,6 @@ class PatientPractitionerAssignmentService:
         
         # Validate all practitioners exist and belong to clinic
         if practitioner_ids:
-            from utils.practitioner_helpers import validate_practitioner_for_clinic
             from models import UserClinicAssociation
             from utils.query_helpers import filter_by_role
             
