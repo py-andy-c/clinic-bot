@@ -20,7 +20,7 @@ import {
 } from '../../utils/dashboardServiceItems';
 
 const BusinessInsightsPage: React.FC = () => {
-  const { user } = useAuth();
+  const { user, isClinicAdmin } = useAuth();
   const activeClinicId = user?.active_clinic_id ?? null;
   
   // Active filter state (used for API calls)
@@ -41,18 +41,21 @@ const BusinessInsightsPage: React.FC = () => {
   useEffect(() => {
     const defaultStartDate = moment().startOf('month').format('YYYY-MM-DD');
     const defaultEndDate = moment().endOf('month').format('YYYY-MM-DD');
-    
+
+    // For non-admin users, auto-filter to their own practitioner ID
+    const defaultPractitionerId = !isClinicAdmin && user?.user_id ? user.user_id : null;
+
     setStartDate(defaultStartDate);
     setEndDate(defaultEndDate);
-    setSelectedPractitionerId(null);
+    setSelectedPractitionerId(defaultPractitionerId);
     setSelectedServiceItemId(null);
     setSelectedGroupId(null);
     setPendingStartDate(defaultStartDate);
     setPendingEndDate(defaultEndDate);
-    setPendingPractitionerId(null);
+    setPendingPractitionerId(defaultPractitionerId);
     setPendingServiceItemId(null);
     setPendingGroupId(null);
-  }, [activeClinicId]);
+  }, [activeClinicId, isClinicAdmin, user?.user_id]);
   
   const [chartView, setChartView] = useState<ChartView>('total');
   const [showPageInfoModal, setShowPageInfoModal] = useState(false);
@@ -100,10 +103,17 @@ const BusinessInsightsPage: React.FC = () => {
 
   const practitioners = useMemo<PractitionerOption[]>(() => {
     if (!membersData || !Array.isArray(membersData)) return [];
-    return membersData
+    let pracs = membersData
       .filter(m => m.roles.includes('practitioner'))
       .map(m => ({ id: m.id, full_name: m.full_name }));
-  }, [membersData]);
+
+    // For non-admin users, only show their own practitioner option
+    if (!isClinicAdmin && user?.user_id) {
+      pracs = pracs.filter(p => p.id === user.user_id);
+    }
+
+    return pracs;
+  }, [membersData, isClinicAdmin, user?.user_id]);
 
   // Fetch business insights data for custom items extraction (unfiltered by service_item_id and practitioner_id)
   // This ensures all custom items and null practitioners always appear in the dropdown, even when filtering
