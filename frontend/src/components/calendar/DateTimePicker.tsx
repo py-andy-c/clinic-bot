@@ -134,7 +134,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
     selectedPractitionerId,
     excludeCalendarEventId: excludeCalendarEventId ?? null,
     currentMonth,
-    cachedAvailabilityData: cachedAvailabilityData as unknown as Parameters<typeof useDateSlotSelection>[0]['cachedAvailabilityData'],
+    cachedAvailabilityData,
     loadingAvailability,
     batchInitiatedRef,
   });
@@ -149,12 +149,13 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
     
     const slots = [...availableSlots];
 
-    // In edit mode, if we are on the original date and practitioner, 
+    // In edit mode, if we are on the original date and practitioner,
     // ensure the original time is included in the list even if it's not in the standard grid.
-    if (excludeCalendarEventId && 
-        displayDate === initialValuesRef.current.date && 
+    if (excludeCalendarEventId &&
+        displayDate === initialValuesRef.current.date &&
         selectedPractitionerId === initialValuesRef.current.practitionerId &&
         initialValuesRef.current.time &&
+        initialValuesRef.current.time.trim() !== '' &&
         !slots.includes(initialValuesRef.current.time)) {
       slots.push(initialValuesRef.current.time);
       slots.sort();

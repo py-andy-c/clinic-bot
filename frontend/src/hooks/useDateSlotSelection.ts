@@ -15,7 +15,7 @@ interface UseDateSlotSelectionProps {
   selectedPractitionerId: number | null;
   excludeCalendarEventId?: number | null;
   currentMonth: Date;
-  cachedAvailabilityData: Map<string, { slots: Array<{ start_time: string; end_time?: string; is_recommended?: boolean }> }>;
+  cachedAvailabilityData: Map<string, { slots: Array<{ start: string; end: string }> }>;
   loadingAvailability: boolean;
   batchInitiatedRef: React.MutableRefObject<boolean>;
 }
@@ -63,7 +63,9 @@ export const useDateSlotSelection = ({
       const cachedData = cachedAvailabilityData.get(cacheKey);
       if (cachedData) {
         // Use cached data - no API call needed
-        const slots = cachedData.slots.map((slot) => slot.start_time);
+        const slots = cachedData.slots
+          .map((slot) => slot.start)
+          .filter((time): time is string => time != null && time.trim() !== '');
         setAvailableSlots(slots);
         setIsLoadingSlots(false);
       } else {
@@ -105,7 +107,9 @@ export const useDateSlotSelection = ({
           const cachedData = cachedAvailabilityData.get(cacheKey);
           if (cachedData) {
             // Use cached data - no API call needed
-            const slots = cachedData.slots.map((slot) => slot.start_time);
+            const slots = cachedData.slots
+              .map((slot) => slot.start)
+              .filter((time): time is string => time != null && time.trim() !== '');
             setAvailableSlots(slots);
             setIsLoadingSlots(false);
           }
@@ -119,7 +123,9 @@ export const useDateSlotSelection = ({
         const cachedData = cachedAvailabilityData.get(cacheKey);
         if (cachedData) {
           // Use cached data - no API call needed
-          const slots = cachedData.slots.map((slot) => slot.start_time);
+          const slots = cachedData.slots
+            .map((slot) => slot.start)
+            .filter((time): time is string => time != null && time.trim() !== '');
           setAvailableSlots(slots);
           setIsLoadingSlots(false);
           return;
