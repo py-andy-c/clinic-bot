@@ -85,7 +85,7 @@ const ClinicSwitcher: React.FC<ClinicSwitcherProps> = ({
         onClick={() => hasMultipleClinics && setIsOpen(!isOpen)}
         disabled={isSwitching}
         className={`
-          flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium
+          flex items-center space-x-1 px-3 py-1.5 rounded-md text-sm font-medium
           ${isSwitching
             ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
             : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
@@ -105,10 +105,12 @@ const ClinicSwitcher: React.FC<ClinicSwitcherProps> = ({
           </>
         ) : (
           <>
-            <span className="font-semibold">{currentClinic?.display_name || currentClinic?.name || '診所'}</span>
+            <span className="font-semibold text-sm sm:text-base truncate max-w-[120px] sm:max-w-[140px] md:max-w-none">
+              {currentClinic?.display_name || currentClinic?.name || '診所'}
+            </span>
             {hasMultipleClinics && (
               <svg
-                className={`h-4 w-4 text-gray-500 transition-transform ${isOpen ? 'transform rotate-180' : ''}`}
+                className={`h-3.5 w-3.5 sm:h-4 sm:w-4 text-gray-500 transition-transform flex-shrink-0 ${isOpen ? 'transform rotate-180' : ''}`}
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -121,7 +123,7 @@ const ClinicSwitcher: React.FC<ClinicSwitcherProps> = ({
       </button>
 
       {isOpen && !isSwitching && (
-        <div className="absolute right-0 mt-2 w-80 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50">
+        <div className="absolute right-0 mt-1 w-64 sm:w-72 md:w-80 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50 overflow-hidden">
           <div className="py-1" role="menu" aria-orientation="vertical">
             {/* Current Clinic */}
             {currentClinic && (
@@ -158,25 +160,15 @@ const ClinicSwitcher: React.FC<ClinicSwitcherProps> = ({
                     className="w-full text-left px-4 py-3 hover:bg-gray-50 focus:bg-gray-50 focus:outline-none transition-colors"
                     role="menuitem"
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1 min-w-0">
-                        <span className="font-medium text-gray-900 truncate">
-                          {clinic.display_name || clinic.name}
-                        </span>
-                        {!clinic.is_active && (
-                          <div className="mt-1 text-xs text-red-600">
-                            已停用
-                          </div>
-                        )}
-                      </div>
-                      <svg
-                        className="h-5 w-5 text-gray-400 flex-shrink-0 ml-2"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                      </svg>
+                    <div className="flex items-center space-x-2 sm:space-x-3">
+                      <span className="font-medium text-gray-900 truncate">
+                        {clinic.display_name || clinic.name}
+                      </span>
+                      {!clinic.is_active && (
+                        <div className="mt-1 text-xs text-red-600">
+                          已停用
+                        </div>
+                      )}
                     </div>
                   </button>
                 ))}
