@@ -22,6 +22,7 @@ from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from api import auth, signup, system, clinic, profile, liff, line_webhook, receipt_endpoints
+from api.test import router as test_router
 from core.constants import CORS_ORIGINS
 from services.test_session_cleanup import start_test_session_cleanup, stop_test_session_cleanup
 from services.line_message_cleanup import start_line_message_cleanup, stop_line_message_cleanup
@@ -254,6 +255,19 @@ app.include_router(
         500: {"description": "Internal server error"},
     },
 )
+
+# Include test router only in E2E test mode
+import os
+if os.getenv("E2E_TEST_MODE") == "true":
+    app.include_router(
+        test_router,
+        prefix="/api/test",
+        tags=["test"],
+        responses={
+            403: {"description": "Forbidden - E2E test mode required"},
+            500: {"description": "Internal server error"},
+        },
+    )
 
 # Serve static files from frontend dist directory
 # This allows the backend to serve the frontend app for LIFF routes

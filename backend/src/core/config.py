@@ -14,20 +14,42 @@ from dotenv import load_dotenv
 # Don't load .env file during testing to ensure predictable test behavior
 is_testing = os.getenv("PYTEST_VERSION") is not None or any("pytest" in str(frame) for frame in __import__('inspect').stack(0))
 
+# Determine if we're running E2E tests
+is_e2e = os.getenv("E2E_TEST_MODE") == "true"
+
 # Load .env file into os.environ (only outside of testing)
 if not is_testing:
-    # Try multiple possible locations for .env file
-    possible_paths = [
-        pathlib.Path(__file__).parent.parent.parent / ".env",  # backend/.env (when run from backend/src)
-        pathlib.Path(__file__).parent.parent.parent.parent / ".env",  # .env (when run from src)
-        pathlib.Path.cwd() / ".env",  # .env in current directory
-        pathlib.Path.cwd().parent / ".env",  # .env in parent directory
-    ]
+    # For E2E tests, prioritize .env.e2e file
+    if is_e2e:
+        e2e_env_path = pathlib.Path(__file__).parent.parent.parent.parent / ".env.e2e"
+        if e2e_env_path.exists():
+            load_dotenv(e2e_env_path)
+        else:
+            # Fallback to regular .env loading for E2E if .env.e2e doesn't exist
+            possible_paths = [
+                pathlib.Path(__file__).parent.parent.parent / ".env",  # backend/.env (when run from backend/src)
+                pathlib.Path(__file__).parent.parent.parent.parent / ".env",  # .env (when run from src)
+                pathlib.Path.cwd() / ".env",  # .env in current directory
+                pathlib.Path.cwd().parent / ".env",  # .env in parent directory
+            ]
 
-    for env_path in possible_paths:
-        if env_path.exists():
-            load_dotenv(env_path)
-            break
+            for env_path in possible_paths:
+                if env_path.exists():
+                    load_dotenv(env_path)
+                    break
+    else:
+        # Regular .env loading for non-E2E scenarios
+        possible_paths = [
+            pathlib.Path(__file__).parent.parent.parent / ".env",  # backend/.env (when run from backend/src)
+            pathlib.Path(__file__).parent.parent.parent.parent / ".env",  # .env (when run from src)
+            pathlib.Path.cwd() / ".env",  # .env in current directory
+            pathlib.Path.cwd().parent / ".env",  # .env in parent directory
+        ]
+
+        for env_path in possible_paths:
+            if env_path.exists():
+                load_dotenv(env_path)
+                break
 
 
 # Configuration constants with defaults
