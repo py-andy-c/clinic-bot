@@ -516,13 +516,13 @@ class BillingScenarioUpdateRequest(BaseModel):
 async def list_billing_scenarios(
     service_item_id: int,
     practitioner_id: int,
-    current_user: UserContext = Depends(require_admin_role),
+    current_user: UserContext = Depends(require_clinic_user),
     db: Session = Depends(get_db)
 ):
     """
     List billing scenarios for a practitioner-service combination.
-    
-    Admin-only. Non-admin users cannot see billing scenarios.
+
+    Clinic users only. All clinic users can view billing scenarios for checkout purposes.
     """
     try:
         clinic_id = ensure_clinic_access(current_user)
