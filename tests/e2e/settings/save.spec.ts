@@ -6,23 +6,25 @@ import { test, expect } from '../fixtures/api-monitoring';
  * This test verifies that authenticated users can save settings.
  */
 test.describe('Settings Save', () => {
-  test('clinic admin can save clinic info settings @settings @critical', async ({ authenticatedPage }) => {
+  // Use the standard scenario for settings tests
+  test.use({ scenario: 'standard' });
+
+  test('clinic admin can save clinic info settings @settings @critical', async ({ seededPage }) => {
     // Navigate to settings page
-    await authenticatedPage.goto('/admin/clinic/settings/clinic-info', { waitUntil: 'load' });
-    await authenticatedPage.waitForLoadState('domcontentloaded');
+    await seededPage.goto('/admin/clinic/settings/clinic-info', { waitUntil: 'load' });
+    await seededPage.waitForLoadState('domcontentloaded');
 
     // Verify we're on the settings page
-    const currentUrl = authenticatedPage.url();
+    const currentUrl = seededPage.url();
     expect(currentUrl).toContain('/admin/clinic/settings');
 
     // Wait for settings page to load
-    // Look for form elements or input fields (settings may not use a <form> tag)
     // Try to find any text input fields on the page
-    const textInputs = authenticatedPage.locator('input[type="text"]');
-    
+    const textInputs = seededPage.locator('input[type="text"]');
+
     // Wait a bit for page to fully load
-    await authenticatedPage.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => null);
-    
+    await seededPage.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => null);
+
     const inputCount = await textInputs.count();
 
     if (inputCount > 0) {
@@ -38,45 +40,29 @@ test.describe('Settings Save', () => {
       await firstInput.fill(newValue);
 
       // Find and click save button
-      const saveButton = authenticatedPage.getByRole('button', { name: /儲存|Save/ }).first();
+      const saveButton = seededPage.getByRole('button', { name: /儲存|Save/ }).first();
       await expect(saveButton).toBeVisible();
-      
-      // Store original value for cleanup
-      const originalValue = currentValue;
-      
-      try {
-        await saveButton.click();
 
-        // Wait for save to complete (success message or page update)
-        const successIndicator = authenticatedPage.getByText(/設定已更新|Settings saved|成功/).first();
-        // Wait for either success message or form to update
-        await Promise.race([
-          successIndicator.waitFor({ state: 'visible', timeout: 5000 }).catch(() => null),
-          authenticatedPage.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => null),
-        ]);
+      // NOTE: No originalValue cleanup needed here because the clinic is unique and transient.
 
-        // Verify success (either success message or form shows updated value)
-        // The exact success indicator depends on the UI implementation
-        if (await successIndicator.isVisible().catch(() => false)) {
-          await expect(successIndicator).toBeVisible();
-        } else {
-          // Alternative: verify the form shows the updated value
-          const updatedInput = textInputs.first();
-          const updatedValue = await updatedInput.inputValue();
-          expect(updatedValue).toContain('test');
-        }
-      } finally {
-        // Always restore original value in finally block
-        if (originalValue) {
-          try {
-            await firstInput.fill(originalValue);
-            await saveButton.click();
-            // Wait for restore to complete
-            await authenticatedPage.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => null);
-          } catch (error) {
-            console.warn(`Failed to restore original settings value: ${error}`);
-          }
-        }
+      await saveButton.click();
+
+      // Wait for save to complete (success message or page update)
+      const successIndicator = seededPage.getByText(/設定已更新|Settings saved|成功/).first();
+      // Wait for either success message or form to update
+      await Promise.race([
+        successIndicator.waitFor({ state: 'visible', timeout: 5000 }).catch(() => null),
+        seededPage.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => null),
+      ]);
+
+      // Verify success (either success message or form shows updated value)
+      if (await successIndicator.isVisible().catch(() => false)) {
+        await expect(successIndicator).toBeVisible();
+      } else {
+        // Alternative: verify the form shows the updated value
+        const updatedInput = textInputs.first();
+        const updatedValue = await updatedInput.inputValue();
+        expect(updatedValue).toContain('test');
       }
     } else {
       // If no text inputs found, just verify the page loaded correctly
@@ -84,18 +70,17 @@ test.describe('Settings Save', () => {
     }
   });
 
-  test('clinic admin can navigate settings pages @settings', async ({ authenticatedPage }) => {
+  test('clinic admin can navigate settings pages @settings', async ({ seededPage }) => {
     // Navigate to settings
-    await authenticatedPage.goto('/admin/clinic/settings', { waitUntil: 'load' });
-    await authenticatedPage.waitForLoadState('domcontentloaded');
+    await seededPage.goto('/admin/clinic/settings', { waitUntil: 'load' });
+    await seededPage.waitForLoadState('domcontentloaded');
 
     // Verify we're on settings page
-    const currentUrl = authenticatedPage.url();
+    const currentUrl = seededPage.url();
     expect(currentUrl).toContain('/admin/clinic/settings');
 
     // Check for settings navigation or tabs
-    // The exact structure depends on the UI
-    const settingsContent = authenticatedPage.locator('text=設定').or(authenticatedPage.locator('text=Settings'));
+    const settingsContent = seededPage.locator('text=設定').or(seededPage.locator('text=Settings'));
     await expect(settingsContent.first()).toBeVisible({ timeout: 5000 });
   });
 });

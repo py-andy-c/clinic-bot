@@ -6,103 +6,93 @@ import { test, expect } from '../fixtures/api-monitoring';
  * This test verifies that users with multiple clinic access can switch clinics.
  */
 test.describe('Clinic Switching', () => {
-  test('user can switch between clinics @critical', async ({ authenticatedPage }) => {
+  // Use the multi_clinic scenario
+  test.use({ scenario: 'multi_clinic' });
+
+  test('user can switch between clinics @critical', async ({ seededPage, seededData }) => {
     // Navigate to a page that shows clinic switcher
-    await authenticatedPage.goto('/admin/calendar', { waitUntil: 'load' });
-    await authenticatedPage.waitForLoadState('domcontentloaded');
+    await seededPage.goto('/admin/calendar', { waitUntil: 'load' });
+    await seededPage.waitForLoadState('domcontentloaded');
+
+    // Expected clinic names from seed
+    const expectedClinics = seededData.clinic_names || [];
 
     // Look for clinic switcher component
-    // The clinic switcher might be in the header/navbar
-    // Common patterns: dropdown, button with clinic name, etc.
-    const clinicSwitcher = authenticatedPage.locator('[data-testid="clinic-switcher"]')
-      .or(authenticatedPage.locator('button').filter({ hasText: /診所|Clinic/ }))
-      .or(authenticatedPage.locator('select').filter({ hasText: /診所|Clinic/ }));
+    const clinicSwitcher = seededPage.locator('[data-testid="clinic-switcher"]')
+      .or(seededPage.locator('button').filter({ hasText: /診所|Clinic/ }))
+      .or(seededPage.locator('select').filter({ hasText: /診所|Clinic/ }));
 
-    // Check if clinic switcher is visible
-    const isSwitcherVisible = await clinicSwitcher.first().isVisible().catch(() => false);
+    await expect(clinicSwitcher.first()).toBeVisible({ timeout: 10000 });
 
-    if (isSwitcherVisible) {
-      // Get current clinic name/ID (if available)
-      const currentClinicText = await clinicSwitcher.first().textContent().catch(() => null);
+    const currentClinicText = (await clinicSwitcher.first().textContent() || "").trim();
+    const isGenericLabel = currentClinicText.includes("診所管理") || currentClinicText.includes("Clinic Management");
 
-      // Click to open switcher
-      await clinicSwitcher.first().click();
+    // Click to open switcher
+    await clinicSwitcher.first().click();
 
-      // Look for other clinics in dropdown/list
-      const clinicOptions = authenticatedPage.locator('[role="option"]')
-        .or(authenticatedPage.locator('button').filter({ hasText: /診所|Clinic/ }))
-        .or(authenticatedPage.locator('li').filter({ hasText: /診所|Clinic/ }));
+    // Look for other clinics
+    const clinicOptions = seededPage.locator('[role="option"]')
+      .or(seededPage.locator('button').filter({ hasText: /Clinic/ }))
+      .or(seededPage.locator('li').filter({ hasText: /Clinic/ }));
 
-      // Wait for options to appear
-      await expect(clinicOptions.first()).toBeVisible({ timeout: 2000 });
-      const optionCount = await clinicOptions.count();
+    // Try to click the second clinic (which should be different from current)
+    // We prefer using the seeded name
+    if (expectedClinics.length > 1) {
+      const secondClinicName = expectedClinics[1];
+      console.log(`Attempting to switch to clinic: ${secondClinicName}`);
 
-      if (optionCount > 1) {
-        // Click on a different clinic (not the first one, which might be current)
-        const secondClinic = clinicOptions.nth(1);
-        await expect(secondClinic).toBeVisible();
-        
-        const secondClinicText = await secondClinic.textContent();
-        await secondClinic.click();
+      const option = seededPage.getByRole('option', { name: secondClinicName })
+        .or(seededPage.getByText(secondClinicName))
+        .first();
 
-        // Wait for clinic switch to complete (page reload or state update)
-        await authenticatedPage.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => null);
-
-        // Verify clinic switched (check URL, clinic name in UI, or page reload)
-        // The exact verification depends on how clinic switching is implemented
-        const pageAfterSwitch = authenticatedPage.url();
-        
-        // Page should still be accessible (not redirected to login)
-        expect(pageAfterSwitch).toContain('/admin/');
-
-        // If clinic name is shown in UI, verify it changed
-        const newClinicText = await clinicSwitcher.first().textContent().catch(() => null);
-        if (newClinicText && currentClinicText && newClinicText !== currentClinicText) {
-          expect(newClinicText).not.toBe(currentClinicText);
-        }
-      } else {
-        // User only has access to one clinic - skip test with clear reason
-        test.skip('User has access to only one clinic - switching not applicable');
+      // Use a try-catch for visibility to fallback
+      try {
+        await expect(option).toBeVisible({ timeout: 5000 });
+        await option.click();
+      } catch (e) {
+        console.log("Could not find clinic by name, falling back to index");
+        // Fallback: click the second reachable option
+        await expect(clinicOptions.nth(1)).toBeVisible({ timeout: 5000 });
+        await clinicOptions.nth(1).click();
       }
     } else {
-      // Clinic switcher not visible - user might only have one clinic
-      // Skip test with clear reason
-      test.skip('Clinic switcher not visible - user may have single clinic access');
+      // Fallback if no names seeded (shouldn't happen)
+      await expect(clinicOptions.nth(1)).toBeVisible({ timeout: 5000 });
+      await clinicOptions.nth(1).click();
+    }
+
+    // Wait for switch
+    await seededPage.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => null);
+
+    const pageAfterSwitch = seededPage.url();
+    expect(pageAfterSwitch).toContain('/admin/');
+
+    // Verify change
+    if (!isGenericLabel) {
+      const newClinicText = (await clinicSwitcher.first().textContent() || "").trim();
+      expect(newClinicText).not.toBe(currentClinicText);
     }
   });
 
-  test('clinic context persists after navigation @critical', async ({ authenticatedPage }) => {
-    // Navigate to calendar
-    await authenticatedPage.goto('/admin/calendar', { waitUntil: 'load' });
-    await authenticatedPage.waitForLoadState('domcontentloaded');
+  test('clinic context persists after navigation @critical', async ({ seededPage }) => {
+    await seededPage.goto('/admin/calendar', { waitUntil: 'load' });
+    await seededPage.waitForLoadState('domcontentloaded');
 
-    // Get current clinic context (if visible)
-    const clinicSwitcher = authenticatedPage.locator('[data-testid="clinic-switcher"]')
-      .or(authenticatedPage.locator('button').filter({ hasText: /診所|Clinic/ }));
-    
+    const clinicSwitcher = seededPage.locator('[data-testid="clinic-switcher"]')
+      .or(seededPage.locator('button').filter({ hasText: /診所|Clinic/ }));
+
     const initialClinicText = await clinicSwitcher.first().textContent().catch(() => null);
 
-    // Navigate to another page
-    await authenticatedPage.goto('/admin/clinic/patients', { waitUntil: 'load' });
-    await authenticatedPage.waitForLoadState('domcontentloaded');
+    await seededPage.goto('/admin/clinic/patients', { waitUntil: 'load' });
+    await seededPage.waitForLoadState('domcontentloaded');
 
-    // Verify we're still authenticated and on admin page
-    const currentUrl = authenticatedPage.url();
-    expect(currentUrl).toContain('/admin/');
-    expect(currentUrl).not.toContain('/admin/login');
+    expect(seededPage.url()).toContain('/admin/');
+    expect(seededPage.url()).not.toContain('/admin/login');
 
-    // Navigate back to calendar
-    await authenticatedPage.goto('/admin/calendar', { waitUntil: 'load' });
-    await authenticatedPage.waitForLoadState('domcontentloaded');
+    await seededPage.goto('/admin/calendar', { waitUntil: 'load' });
+    await seededPage.waitForLoadState('domcontentloaded');
 
-    // Clinic context should be maintained
     const finalClinicText = await clinicSwitcher.first().textContent().catch(() => null);
-    
-    if (initialClinicText && finalClinicText) {
-      // Clinic should be the same (unless user switched)
-      // This verifies clinic context persists across navigation
-      expect(finalClinicText).toBeTruthy();
-    }
+    expect(finalClinicText).toBe(initialClinicText);
   });
 });
-

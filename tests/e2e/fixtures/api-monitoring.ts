@@ -27,7 +27,7 @@ export class ApiCallTracker {
     // Extract endpoint path (remove query params and base URL)
     const endpoint = this.extractEndpoint(url);
     const key = `${method} ${endpoint}`;
-    
+
     const currentCount = this.calls.get(key) || 0;
     this.calls.set(key, currentCount + 1);
     this.totalCalls++;
@@ -223,11 +223,11 @@ export class ApiCallTracker {
 export const test = base.extend<{
   apiCallTracker: ApiCallTracker;
 }>({
-  apiCallTracker: async ({ authenticatedPage }, use, testInfo) => {
+  apiCallTracker: async ({ page }, use, testInfo) => {
     const tracker = new ApiCallTracker();
 
-    // Track all requests from the authenticated page
-    authenticatedPage.on('request', (request) => {
+    // Track all requests from the page
+    page.on('request', (request) => {
       const url = request.url();
       // Only track API calls (not static assets, etc.)
       if (url.includes('/api/')) {

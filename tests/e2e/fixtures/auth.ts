@@ -1,9 +1,7 @@
 import { test as base, Page } from '@playwright/test';
 
-// Cache authentication tokens to avoid repeated logins within the same worker
-// Cache is per-worker to maintain test isolation across parallel workers
-// Cache key includes email and roles to support different role combinations
-let cachedAuthState: { accessToken: string; refreshToken: string; email: string; roles: string[] } | null = null;
+/**
+ * Fixtures for E2E tests.
 
 /**
  * Authenticated page fixture that handles login via test-only endpoint.
@@ -19,82 +17,73 @@ let cachedAuthState: { accessToken: string; refreshToken: string; email: string;
  *   - Option 2: Create separate fixtures (authenticatedAdminPage, authenticatedPractitionerPage)
  *   - Option 3: Pass roles as a parameter to a helper function
  */
+
+export type ScenarioName = 'minimal' | 'standard' | 'multi_clinic' | 'with_appointment';
+
+export interface SeededData {
+  clinic_id: number;
+  tokens: {
+    role: string;
+    email?: string;
+    clinic_id?: number;
+    clinic_name?: string;
+    access_token: string;
+    refresh_token: string;
+  }[];
+  clinic_names?: string[];
+  appointment_type_id?: number;
+  appointment_type_name?: string;
+  patient_id?: number;
+  patient_name?: string;
+}
+
 export const test = base.extend<{
-  authenticatedPage: Page;
+  // Option to specify scenario for seededPage
+  scenario: ScenarioName;
+  // Fixture that provides a pre-authenticated page with specific scenario data
+  seededPage: Page;
+  // Data returned from the seed API for the current test
+  seededData: SeededData;
 }>({
-  authenticatedPage: async ({ page, request }, use, testInfo) => {
-    // Use configurable email (default: 'test@example.com')
-    const testEmail = process.env.E2E_TEST_EMAIL || 'test@example.com';
-    
-    // Default roles: ['admin', 'practitioner'] for full access
-    // Future: Can be made configurable per-test when role-based testing is needed
-    const roles = ['admin', 'practitioner'];
-    
-    // Get backend URL from environment or default to localhost:8001
+  // Default scenario is minimal
+  scenario: ['minimal', { option: true }],
+
+  seededData: async ({ request, scenario }, use) => {
     const apiBaseUrl = process.env.API_BASE_URL || 'http://localhost:8001';
-    
-    // Create cache key from email and roles (sorted for consistency)
-    const rolesKey = [...roles].sort().join(',');
-    const cacheKey = `${testEmail}:${rolesKey}`;
-    const cachedKey = cachedAuthState 
-      ? `${cachedAuthState.email}:${[...cachedAuthState.roles].sort().join(',')}` 
-      : null;
-    
-    let access_token: string;
-    let refresh_token: string;
-    
-    if (cachedAuthState && cachedKey === cacheKey) {
-      // Use cached tokens
-      access_token = cachedAuthState.accessToken;
-      refresh_token = cachedAuthState.refreshToken;
-    } else {
-      // Authenticate via test-only endpoint
-      const response = await request.post(`${apiBaseUrl}/api/test/login`, {
-        data: {
-          email: testEmail,
-          user_type: 'clinic_user',
-          roles: roles,
-        },
-      });
-      
-      if (!response.ok()) {
-        const errorText = await response.text();
-        throw new Error(`Test login failed: ${response.status()} ${errorText}`);
-      }
-      
-      const authData = await response.json();
-      access_token = authData.access_token;
-      refresh_token = authData.refresh_token;
-      
-      // Cache tokens for reuse within this worker
-      cachedAuthState = {
-        accessToken: access_token,
-        refreshToken: refresh_token,
-        email: testEmail,
-        roles: roles,
-      };
+
+    // Call seed API
+    const response = await request.post(`${apiBaseUrl}/api/test/seed`, {
+      data: { scenario }
+    });
+
+    if (!response.ok()) {
+      const errorText = await response.text();
+      throw new Error(`Seeding failed for scenario "${scenario}": ${response.status()} ${errorText}`);
     }
-    
-    // Set tokens in localStorage before navigating (frontend uses auth_access_token and auth_refresh_token)
+
+    const data = await response.json();
+    await use(data);
+  },
+
+  seededPage: async ({ page, seededData }, use) => {
+    // Use the first token returned by the seed API (usually the admin)
+    const auth = seededData.tokens[0];
+
+    // Set tokens in localStorage
     await page.goto('/');
     await page.evaluate(({ accessToken, refreshToken }) => {
       localStorage.setItem('auth_access_token', accessToken);
       localStorage.setItem('auth_refresh_token', refreshToken);
-    }, { accessToken: access_token, refreshToken: refresh_token });
-    
-    // Reload page to trigger auth check with tokens in localStorage
+    }, { accessToken: auth.access_token, refreshToken: auth.refresh_token });
+
+    // Reload to apply auth
     await page.reload();
-    
-    // Wait for page to load (use 'load' instead of 'networkidle' to avoid hanging on ongoing API calls)
     await page.waitForLoadState('load');
-    
-    // Wait a bit for auth to be processed (frontend makes async API calls)
-    await page.waitForTimeout(1000);
-    
+
+    // Brief wait for app initialization
+    await page.waitForTimeout(500);
+
     await use(page);
-    
-    // Note: We don't clear localStorage here to allow token reuse within the same worker
-    // Each worker gets its own page context, so tests are still isolated
   },
 });
 

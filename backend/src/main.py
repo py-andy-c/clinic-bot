@@ -22,7 +22,7 @@ from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from api import auth, signup, system, clinic, profile, liff, line_webhook, receipt_endpoints
-from api.test import auth as test_auth
+from api.test import auth as test_auth, seed as test_seed
 from core.constants import CORS_ORIGINS
 from services.test_session_cleanup import start_test_session_cleanup, stop_test_session_cleanup
 from services.line_message_cleanup import start_line_message_cleanup, stop_line_message_cleanup
@@ -252,6 +252,17 @@ app.include_router(
 # Test-only endpoints (only available when E2E_TEST_MODE=true)
 app.include_router(
     test_auth.router,
+    prefix="/api/test",
+    tags=["test"],
+    responses={
+        400: {"description": "Bad request"},
+        401: {"description": "Unauthorized"},
+        404: {"description": "Resource not found"},
+        500: {"description": "Internal server error"},
+    },
+)
+app.include_router(
+    test_seed.router,
     prefix="/api/test",
     tags=["test"],
     responses={
