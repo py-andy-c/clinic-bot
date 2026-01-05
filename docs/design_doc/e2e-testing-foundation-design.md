@@ -101,164 +101,88 @@ export default defineConfig({
 
 ## 2. Test Data Management
 
-### 2.1 Database Isolation Strategy
+### 2.1 Data Strategy: Shared vs. Acquired
 
-**Transaction-Based Isolation (Recommended):**
-All analyses strongly recommend transaction-based isolation for speed and perfect isolation, similar to backend tests. However, implementation requires careful consideration of HTTP statelessness and session management.
+To enable high-performance, parallel E2E testing without flakiness, we adopt a **Scenario-Based Namespace Isolation** strategy. Instead of all tests sharing a single "Test Clinic," every test (or test group) operates within its own unique, isolated "Island" of data created by a server-side Seed API.
 
-**Implementation Strategy: Session-Scoped Transactions via Middleware (Recommended)**
+We distinguish between infrastructure that enables the system to run and the data that belongs to the business logic.
 
-**Backend Implementation:**
-Create FastAPI middleware that wraps all requests in a transaction when `E2E_TEST_MODE=true`:
+#### Shared Infrastructure (Global)
+These elements are persistent and shared across the entire test session:
+- **Database Schema:** Latest version as defined by `alembic upgrade head`
+- **Infrastructure Tables:** Only `alembic_version` and system-level logging tables
+- **Everything else is wiped** at the start of a test session
 
+#### Acquired Data (Test-Specific)
+Every test acquires a fresh, private "Island" of business data. This includes:
+- **Clinic:** A unique `clinic_id` generated per test
+- **Users:** Fresh `User` records and `UserClinicAssociations`. **No users are shared between parallel tests.**
+- **Clinic-Specific Categories:** `ServiceTypeGroup`, `ResourceType`, `AppointmentType`, and `BillingScenario`
+- **Operational Data:** `Patient`, `Appointment`, `CalendarEvent`, etc.
+
+### 2.2 Technical Architecture
+
+#### Backend: The Scenario Registry & Seed API
+A new, test-only endpoint `/api/test/seed` (active only when `E2E_TEST_MODE=true`) creates the required data state on the server using internal ORM models for maximum speed.
+
+**Conceptual Scenario Registry:**
 ```python
-# backend/src/api/test/transaction_middleware.py
-from fastapi import Request, HTTPException
-from sqlalchemy.orm import Session
-from core.database import get_db
-
-class E2ETransactionMiddleware:
-    """Middleware for E2E test transaction isolation."""
-    
-    async def __call__(self, request: Request, call_next):
-        if not os.getenv('E2E_TEST_MODE'):
-            return await call_next(request)
-        
-        # Get transaction ID from header or session
-        transaction_id = request.headers.get('X-Test-Transaction-ID')
-        
-        if request.url.path == '/api/test/begin-transaction':
-            # Create new transaction, return transaction ID
-            db = next(get_db())
-            transaction = db.begin_nested()  # Savepoint
-            transaction_id = str(uuid.uuid4())
-            # Store transaction in session/cache
-            return JSONResponse({'transaction_id': transaction_id})
-        
-        if request.url.path == '/api/test/rollback-transaction':
-            # Rollback transaction
-            # Retrieve and rollback transaction
-            return JSONResponse({'status': 'rolled_back'})
-        
-        # For all other requests, use existing transaction
-        # Wrap request in transaction context
-        return await call_next(request)
-```
-
-**Alternative: Database Savepoints (Similar to Backend Tests)**
-- Use nested transactions with savepoints (like `backend/tests/conftest.py`)
-- Disable connection pooling for test mode
-- Each test gets its own connection with savepoint
-- **Pros:** Proven pattern, matches backend tests
-- **Cons:** Connection management complexity
-
-**Fallback: Unique Data with Cleanup**
-- Use unique identifiers per test (UUIDs, timestamps)
-- Clean up test-specific data in `afterEach`
-- **When to use:** If transaction implementation is not ready, or for tests that verify transaction behavior itself
-- **Pros:** No backend changes needed, can start immediately
-- **Cons:** Slower than transactions (~2-3x slower)
-
-**Recommended Approach:**
-- **Phase 1:** Start with unique data + cleanup (can begin immediately)
-- **Phase 2:** Implement session-scoped transactions via middleware
-- **Phase 3:** Migrate tests to use transactions for performance
-
-**Test Implementation (Transaction-Based):**
-```typescript
-// tests/e2e/fixtures/database.ts
-export const test = base.extend({
-  dbTransaction: async ({ request }, use) => {
-    // Begin transaction
-    const response = await request.post('/api/test/begin-transaction');
-    const { transaction_id } = await response.json();
-    
-    // Set transaction ID in headers for subsequent requests
-    const context = await request.newContext({
-      extraHTTPHeaders: {
-        'X-Test-Transaction-ID': transaction_id,
-      },
-    });
-    
-    await use(context);
-    
-    // Always rollback, even on failure
-    await request.post('/api/test/rollback-transaction', {
-      headers: { 'X-Test-Transaction-ID': transaction_id },
-    });
-  },
-});
-```
-
-**Test Implementation (Unique Data - Fallback):**
-```typescript
-test('create appointment', async ({ page }) => {
-  const uniqueId = `test-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-  const patientName = `Test Patient ${uniqueId}`;
-  
-  // Create test data with unique identifier
-  await createTestPatient({ name: patientName });
-  
-  // Run test...
-  
-  // Cleanup
-  await deleteTestPatient(patientName);
-});
-```
-
-### 2.2 Test Data Seeding
-
-**Base Data (Session-Scoped):**
-- Test clinics with settings
-- Test users (admin, practitioner, staff)
-- Common appointment types
-- Common resource types
-
-**Test-Specific Data (Test-Scoped):**
-- Patients (unique names/IDs per test)
-- Appointments (unique timestamps)
-- Service items, billing scenarios
-- Resource allocations
-
-**Seeding Implementation:**
-```typescript
-// tests/e2e/global-setup.ts
-async function globalSetup() {
-  // Run migrations (idempotent - Alembic handles this)
-  execSync('cd backend && alembic upgrade head', {
-    env: { ...process.env, DATABASE_URL: process.env.E2E_DATABASE_URL },
-  });
-  
-  // Seed base data (idempotent, with database locks for parallel safety)
-  await seedBaseData();
+# backend/src/api/test/scenarios.py
+SCENARIOS = {
+    "minimal": seed_minimal_clinic,        # 1 Clinic, 1 Admin
+    "standard": seed_standard_clinic,      # 1 Clinic, 1 Admin, 1 Prac, 1 ApptType
+    "multi_clinic": seed_multi_clinic,    # 2 Clinics, 1 Shared Admin
+    "with_appointment": seed_with_appt,   # 1 Clinic + 1 existing Appointment
 }
-
-// backend/scripts/seed_e2e_data.py
-async def seed_base_data():
-    """Seed base test data with idempotency guarantees."""
-    # Use database-level locks to prevent race conditions
-    # Use INSERT ... ON CONFLICT DO NOTHING for idempotency
-    async with db.begin():
-        # Lock table to prevent concurrent seeding
-        await db.execute(text("LOCK TABLE clinics IN EXCLUSIVE MODE"))
-        
-        # Idempotent inserts
-        await db.execute(
-            text("""
-                INSERT INTO clinics (name, line_channel_id, settings)
-                VALUES ('Test Clinic', 'test_channel', '{}')
-                ON CONFLICT (line_channel_id) DO NOTHING
-            """)
-        )
-        
-        # Similar for users, appointment_types, etc.
 ```
 
-**Seeding Strategy:**
-- **Idempotency:** All seed operations use `INSERT ... ON CONFLICT DO NOTHING`
-- **Parallel Safety:** Use database-level locks (`LOCK TABLE ... IN EXCLUSIVE MODE`) during seeding
-- **Timing:** Seed in `global-setup.ts` before parallel test execution begins
-- **Dependencies:** Document seed data dependencies clearly (e.g., clinics before users)
+#### Frontend: Contextual Playwright Fixtures
+We use Playwright fixtures to abstract the data acquisition. Tests simply request the "type" of environment they need.
+
+```typescript
+// tests/e2e/fixtures/context.ts
+export const test = base.extend({
+  seededPage: async ({ browser, request }, use) => {
+    // 1. Request scenario from Seed API
+    const response = await request.post('/api/test/seed', {
+      data: { scenario: 'standard' }
+    });
+    const { tokens, clinic_id } = await response.json();
+
+    // 2. Create isolated page with authentication tokens
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    await setupAuth(page, tokens[0]); // Primary admin token
+
+    await use(page);
+
+    // 3. Cleanup: DB remains for debugging, wiped at next session start
+    await page.close();
+  }
+});
+```
+
+### 2.3 Defined Scenarios & Test Mapping
+
+| Scenario | Data Summary | Targeted Tests |
+| :--- | :--- | :--- |
+| **`MinimalClinic`** | 1 Clinic, 1 Admin | Smoke tests, Page availability checks. |
+| **`StandardClinic`** | 1 Clinic, 1 Admin, 1 Practitioner, 1 ApptType, 1 Patient | Appointment creation, Settings save flows. |
+| **`MultiClinicAdmin`** | 2 Clinics, 1 User (Admin of both) | **Clinic Switching** (removing previous skips). |
+| **`WithAppointment`** | `StandardClinic` + 1 existing Appointment | **Appointment Editing**, Deletion, Rescheduling. |
+
+### 2.4 Lifecycle & Concurrency
+
+#### Session Lifecycle
+1. **Global Setup:** Run `alembic upgrade head` -> `TRUNCATE` all business tables (cascade) -> Seed required system-level constants
+2. **Test Run:** Parallel workers request unique Scenarios via `/api/test/seed`. Postgres handles concurrency naturally via unique IDs
+3. **Debugging:** If a test fails, the distinct `clinic_id` and `User` records remain in the DB, allowing developers to manually inspect the state
+4. **Global Teardown:** None required
+
+#### Key Benefits
+- **Performance:** Creating 100 appointments on the backend takes ~50ms vs. ~10s via UI/API
+- **Consistency:** Since the Seed API uses SQLAlchemy Models, tests fail immediately if a migration makes a field "Required" but the Seed logic is missing it
+- **Simplicity:** Test scripts no longer need "Cleanup" logic in `finally` blocks because the entire Clinic is transient
 
 ---
 
@@ -797,14 +721,17 @@ jobs:
 
 **Tasks:**
 1. Implement test-only auth endpoint (`POST /api/test/auth/login`) or use `storageState`
-2. Create authentication helper/fixture with token caching
-3. Create first E2E test (appointment creation)
-4. Add `data-testid` attributes to critical UI elements
-5. Test test execution and debugging
-6. Verify test isolation
+2. Implement `/api/test/seed` endpoint with `MinimalClinic` and `StandardClinic` scenarios
+3. Create authentication helper/fixture with token caching
+4. Create contextual fixtures (`seededPage`) for scenario-based testing
+5. Create first E2E test (appointment creation) using scenario-based isolation
+6. Add `data-testid` attributes to critical UI elements
+7. Test test execution and debugging
+8. Verify test isolation
 
 **Deliverables:**
-- First E2E test passing
+- First E2E test passing with scenario-based data isolation
+- Seed API working with basic scenarios
 - Authentication helper working (test-only endpoint or storageState)
 - Test debugging workflow established
 
@@ -812,21 +739,19 @@ jobs:
 
 **Tasks:**
 1. Create 3-5 more E2E tests (critical flows):
-   - Appointment creation
-   - Appointment editing
-   - Settings save
-   - Clinic switching
-   - Calendar navigation
-2. Create test fixtures for common data
-3. Implement test data cleanup:
-   - Start with unique data + cleanup (can begin immediately)
-   - Or implement transaction-based isolation if backend endpoints are ready
+   - Appointment creation (using StandardClinic scenario)
+   - Appointment editing (using WithAppointment scenario)
+   - Settings save (using StandardClinic scenario)
+   - Clinic switching (using MultiClinicAdmin scenario)
+   - Calendar navigation (using StandardClinic scenario)
+2. Implement additional scenarios (`WithAppointment`, `MultiClinicAdmin`)
+3. Expand contextual fixtures for different test needs
 4. Add test tags (`@smoke`, `@appointment`, `@critical`, etc.)
 5. Optimize test performance (<3s per test realistic, <2s stretch goal)
 
 **Deliverables:**
-- 3-5 E2E tests covering critical flows
-- Test fixtures and helpers
+- 3-5 E2E tests covering critical flows using scenario-based isolation
+- Multiple scenarios implemented
 - Performance targets met
 
 ### 10.4 Phase 4: Integration & Optimization (Days 6-7)
@@ -836,13 +761,15 @@ jobs:
 2. Implement incremental testing (Playwright `--changed` flag)
 3. Add CI/CD configuration (GitHub Actions)
 4. Optimize test execution time
-5. Document test patterns and conventions
-6. Test AI autonomous debugging (run failing test, AI fixes)
+5. Expand scenario registry as needed for new test cases
+6. Document test patterns and conventions
+7. Test AI autonomous debugging (run failing test, AI fixes)
 
 **Deliverables:**
 - E2E tests integrated into workflow
 - Incremental testing working
 - CI/CD integration complete
+- Scenario-based testing fully operational
 - Documentation complete
 
 ---
@@ -854,7 +781,8 @@ jobs:
 **Must Have:**
 - ✅ Playwright installed and configured
 - ✅ Test environment isolated from dev
-- ✅ 3-5 E2E tests covering critical flows
+- ✅ Scenario-based data isolation implemented (`/api/test/seed`)
+- ✅ 3-5 E2E tests covering critical flows using scenario isolation
 - ✅ Tests run in <3s each (realistic), <2s (stretch goal)
 - ✅ Full suite runs in <60s
 - ✅ Incremental suite runs in <15s
@@ -959,12 +887,11 @@ clinic-bot/
 │   └── e2e/
 │       ├── fixtures/
 │       │   ├── auth.ts          # Authentication helpers
-│       │   ├── test-data.ts     # Test data fixtures
-│       │   ├── database.ts      # Database transaction helpers
+│       │   ├── context.ts       # Scenario-based contextual fixtures
 │       │   └── pages/           # Page Object Model
 │       ├── helpers/
 │       │   ├── api.ts           # API helpers for test data
-│       │   └── database.ts      # Database helpers
+│       │   └── scenarios.ts     # Scenario definitions and helpers
 │       ├── smoke/               # Critical smoke tests
 │       │   └── app-availability.spec.ts
 │       ├── appointments/        # Appointment-related tests
@@ -974,7 +901,7 @@ clinic-bot/
 │       │   └── save.spec.ts
 │       ├── calendar/             # Calendar tests
 │       │   └── navigation.spec.ts
-│       ├── global-setup.ts       # Global setup (migrations, seeding)
+│       ├── global-setup.ts       # Global setup (migrations, table truncation)
 │       └── global-teardown.ts    # Global teardown
 ├── playwright.config.ts
 ├── .env.e2e                     # E2E test environment variables
@@ -994,71 +921,58 @@ import { test, expect } from '@playwright/test';
 import { AppointmentPage } from '../pages/AppointmentPage';
 
 test.describe('Appointment Creation', () => {
-  test('create appointment flow @smoke @appointment', async ({ authenticatedPage, request }) => {
-    // Option 1: Using transaction-based isolation (if implemented)
-    const response = await request.post('/api/test/begin-transaction');
-    const { transaction_id } = await response.json();
-    const context = await request.newContext({
-      extraHTTPHeaders: {
-        'X-Test-Transaction-ID': transaction_id,
-      },
+  test('create appointment flow @smoke @appointment', async ({ seededPage }) => {
+    // seededPage fixture provides a page with 'standard' scenario:
+    // - 1 Clinic, 1 Admin, 1 Practitioner, 1 ApptType, 1 Patient
+    // - Auth tokens already set up
+    // - No cleanup needed - entire clinic is transient
+
+    const appointmentPage = new AppointmentPage(seededPage);
+    await appointmentPage.goto();
+
+    // Create appointment using existing patient from scenario
+    await appointmentPage.createAppointment({
+      patient: 'Test Patient', // From StandardClinic scenario
+      type: '一般治療', // From StandardClinic scenario
+      practitioner: 'Dr. Smith', // From StandardClinic scenario
+      date: '2025-01-15',
+      time: '10:00',
+      notes: 'Test appointment',
     });
-    
-    try {
-      // authenticatedPage fixture handles authentication (test-only endpoint)
-      const appointmentPage = new AppointmentPage(authenticatedPage);
-      await appointmentPage.goto();
-      
-      // Create appointment with unique patient name
-      const uniqueId = `test-${Date.now()}`;
-      const patientName = `Test Patient ${uniqueId}`;
-      
-      await appointmentPage.createAppointment({
-        patient: patientName,
-        type: '一般治療',
-        practitioner: 'Dr. Smith',
-        date: '2025-01-15',
-        time: '10:00',
-        notes: 'Test appointment',
-      });
-      
-      // Verify success
-      await expect(authenticatedPage.getByTestId('success-message')).toBeVisible();
-      await expect(authenticatedPage.getByTestId('success-message')).toContainText('預約已建立');
-      
-      // Verify appointment appears in calendar
-      await expect(appointmentPage.getAppointment(patientName)).toBeVisible();
-    } finally {
-      // Always rollback transaction
-      await request.post('/api/test/rollback-transaction', {
-        headers: { 'X-Test-Transaction-ID': transaction_id },
-      });
-    }
+
+    // Verify success
+    await expect(seededPage.getByTestId('success-message')).toBeVisible();
+    await expect(seededPage.getByTestId('success-message')).toContainText('預約已建立');
+
+    // Verify appointment appears in calendar
+    await expect(appointmentPage.getAppointment('Test Patient')).toBeVisible();
   });
-  
-  // Option 2: Using unique data + cleanup (fallback, no transactions)
-  test('create appointment with cleanup @appointment', async ({ authenticatedPage }) => {
-    const uniqueId = `test-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    const patientName = `Test Patient ${uniqueId}`;
-    
+
+  test('create appointment with custom scenario @appointment', async ({ browser, request }) => {
+    // For tests needing specific data states, request custom scenario
+    const response = await request.post('/api/test/seed', {
+      data: { scenario: 'with_appointment' } // StandardClinic + 1 existing appointment
+    });
+    const { tokens, clinic_id } = await response.json();
+
+    // Create authenticated page
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    await setupAuth(page, tokens[0]);
+
     try {
-      const appointmentPage = new AppointmentPage(authenticatedPage);
+      const appointmentPage = new AppointmentPage(page);
       await appointmentPage.goto();
-      
-      await appointmentPage.createAppointment({
-        patient: patientName,
-        type: '一般治療',
-        practitioner: 'Dr. Smith',
-        date: '2025-01-15',
-        time: '10:00',
-        notes: 'Test appointment',
+
+      // Test appointment editing (building on existing appointment)
+      await appointmentPage.editAppointment('Test Patient', {
+        notes: 'Updated appointment notes'
       });
-      
-      // Verify success
-      await expect(authenticatedPage.getByTestId('success-message')).toBeVisible();
+
+      // Verify update
+      await expect(page.getByTestId('appointment-notes')).toContainText('Updated appointment notes');
     } finally {
-      // Cleanup test data
-      await deleteTestPatient(patientName);
+      await page.close();
     }
   });
 });
@@ -1202,7 +1116,7 @@ The implementation follows industry best practices and integrates with existing 
 
 ---
 
-**Document Version:** 1.1 (Updated per Feedback)  
-**Last Updated:** January 2025  
+**Document Version:** 1.2 (Consolidated with Data Management Improvements)
+**Last Updated:** January 2025
 **Status:** Ready for Implementation
 
