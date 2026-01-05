@@ -186,28 +186,52 @@ class TestAccountingInvariants:
         if len(by_service) > 0:
             service_breakdown_total = sum(stat['total_revenue'] for stat in by_service)
             if service_breakdown_total > 0:
-                service_pct_total = 0
+                # Calculate percentages with proper rounding to ensure they sum to 100
+                percentages = []
                 for stat in by_service:
-                    pct = round(float(stat['total_revenue'] / service_breakdown_total * 100))
-                    service_pct_total += pct
-                
-                # Allow 2% rounding tolerance (since we round to whole numbers, 
-                # with many items rounding errors can accumulate)
-                assert abs(service_pct_total - 100) <= 2, (
+                    pct = stat['total_revenue'] / service_breakdown_total * 100
+                    percentages.append(float(pct))
+
+                # Round to whole numbers
+                rounded_percentages = [round(pct) for pct in percentages]
+
+                # Adjust the largest percentage to ensure sum equals 100
+                service_pct_total = sum(rounded_percentages)
+                if service_pct_total != 100 and len(rounded_percentages) > 0:
+                    # Find the index of the largest percentage
+                    max_idx = max(range(len(percentages)), key=lambda i: percentages[i])
+                    # Adjust by the difference needed to reach 100
+                    diff = 100 - service_pct_total
+                    rounded_percentages[max_idx] += diff
+                    service_pct_total = sum(rounded_percentages)
+
+                assert service_pct_total == 100, (
                     f"Service percentages sum to {service_pct_total}, expected 100"
                 )
         
         if len(by_practitioner) > 0:
             practitioner_breakdown_total = sum(stat['total_revenue'] for stat in by_practitioner)
             if practitioner_breakdown_total > 0:
-                practitioner_pct_total = 0
+                # Calculate percentages with proper rounding to ensure they sum to 100
+                percentages = []
                 for stat in by_practitioner:
-                    pct = round(float(stat['total_revenue'] / practitioner_breakdown_total * 100))
-                    practitioner_pct_total += pct
-                
-                # Allow 2% rounding tolerance (since we round to whole numbers,
-                # with many items rounding errors can accumulate)
-                assert abs(practitioner_pct_total - 100) <= 2, (
+                    pct = stat['total_revenue'] / practitioner_breakdown_total * 100
+                    percentages.append(float(pct))
+
+                # Round to whole numbers
+                rounded_percentages = [round(pct) for pct in percentages]
+
+                # Adjust the largest percentage to ensure sum equals 100
+                practitioner_pct_total = sum(rounded_percentages)
+                if practitioner_pct_total != 100 and len(rounded_percentages) > 0:
+                    # Find the index of the largest percentage
+                    max_idx = max(range(len(percentages)), key=lambda i: percentages[i])
+                    # Adjust by the difference needed to reach 100
+                    diff = 100 - practitioner_pct_total
+                    rounded_percentages[max_idx] += diff
+                    practitioner_pct_total = sum(rounded_percentages)
+
+                assert practitioner_pct_total == 100, (
                     f"Practitioner percentages sum to {practitioner_pct_total}, expected 100"
                 )
     
