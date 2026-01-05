@@ -522,11 +522,18 @@ async def list_billing_scenarios(
     """
     List billing scenarios for a practitioner-service combination.
 
-    Clinic users only. All clinic users can view billing scenarios for checkout purposes.
+    Clinic users only. Non-admin users can only view their own billing scenarios.
     """
     try:
         clinic_id = ensure_clinic_access(current_user)
-        
+
+        # Non-admin users can only view their own billing scenarios
+        if not current_user.has_role("admin") and practitioner_id != current_user.user_id:
+            raise HTTPException(
+                status_code=http_status.HTTP_403_FORBIDDEN,
+                detail="無權限查看其他治療師的計費方案"
+            )
+
         # Query scenarios directly by practitioner_id and appointment_type_id
         # Scenarios are independent - no PAT required
         scenarios = BillingScenarioService.get_billing_scenarios_for_practitioner_service(

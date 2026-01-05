@@ -25,7 +25,7 @@ import {
 } from '../../utils/dashboardServiceItems';
 
 const RevenueDistributionPage: React.FC = () => {
-  const { user, isClinicUser } = useAuth();
+  const { user, isClinicUser, isClinicAdmin } = useAuth();
   const activeClinicId = user?.active_clinic_id ?? null;
   
   // Active filter state (used for API calls)
@@ -53,21 +53,24 @@ const RevenueDistributionPage: React.FC = () => {
   useEffect(() => {
     const defaultStartDate = moment().startOf('month').format('YYYY-MM-DD');
     const defaultEndDate = moment().endOf('month').format('YYYY-MM-DD');
-    
+
+    // For non-admin users, auto-filter to their own practitioner ID
+    const defaultPractitionerId = !isClinicAdmin && user?.user_id ? user.user_id : null;
+
     setStartDate(defaultStartDate);
     setEndDate(defaultEndDate);
-    setSelectedPractitionerId(null);
+    setSelectedPractitionerId(defaultPractitionerId);
     setSelectedServiceItemId(null);
     setSelectedGroupId(null);
     setShowOverwrittenOnly(false);
     setPendingStartDate(defaultStartDate);
     setPendingEndDate(defaultEndDate);
-    setPendingPractitionerId(null);
+    setPendingPractitionerId(defaultPractitionerId);
     setPendingServiceItemId(null);
     setPendingGroupId(null);
     setPendingShowOverwrittenOnly(false);
     setPage(1);
-  }, [activeClinicId]);
+  }, [activeClinicId, isClinicAdmin, user?.user_id]);
   const [showPageInfoModal, setShowPageInfoModal] = useState(false);
   const [showOverwrittenFilterInfoModal, setShowOverwrittenFilterInfoModal] = useState(false);
   const [selectedReceiptId, setSelectedReceiptId] = useState<number | null>(null);
@@ -92,12 +95,18 @@ const RevenueDistributionPage: React.FC = () => {
 
   const practitioners = useMemo<PractitionerOption[]>(() => {
     if (!membersData || !Array.isArray(membersData)) return [];
-    const pracs = membersData
+    let pracs = membersData
       .filter(m => m.roles.includes('practitioner'))
       .map(m => ({ id: m.id, full_name: m.full_name }));
+
+    // For non-admin users, only show their own practitioner option
+    if (!isClinicAdmin && user?.user_id) {
+      pracs = pracs.filter(p => p.id === user.user_id);
+    }
+
     // Add null practitioner option if there are receipts with null practitioners
     return pracs;
-  }, [membersData]);
+  }, [membersData, isClinicAdmin, user?.user_id]);
 
   const groups = useMemo<ServiceTypeGroupOption[]>(() => {
     if (!groupsData?.groups) return [];
