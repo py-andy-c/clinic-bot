@@ -2,7 +2,8 @@
 Service for managing billing scenarios.
 
 Billing scenarios define pricing options (amount and revenue_share) for
-practitioner-service combinations. Only admins can view and manage billing scenarios.
+practitioner-service combinations. All clinic users can view billing scenarios,
+but only admins can create, update, and delete them.
 """
 
 from typing import List, Optional

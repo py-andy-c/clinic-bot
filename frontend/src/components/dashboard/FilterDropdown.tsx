@@ -61,6 +61,8 @@ export const FilterDropdown: React.FC<FilterDropdownProps> = ({
     const standardPractitioners = practitioners.filter(p => p.id !== null);
     // Check if null practitioners exist in data (not just in members list)
     const hasNullPractitioner = hasNullPractitionerInData;
+    // Only show "全部" option if there are multiple practitioners to choose from
+    const showAllOption = standardPractitioners.length > 1 || hasNullPractitioner;
 
     return (
       <select
@@ -68,7 +70,7 @@ export const FilterDropdown: React.FC<FilterDropdownProps> = ({
         onChange={handleChange}
         className={`w-full px-3 py-2 border border-gray-300 rounded-md text-sm ${className}`}
       >
-        <option value="">全部</option>
+        {showAllOption && <option value="">全部</option>}
         {standardPractitioners.length > 0 && (
           <>
             <option disabled style={{ backgroundColor: '#f3f4f6', color: '#9ca3af' }}>

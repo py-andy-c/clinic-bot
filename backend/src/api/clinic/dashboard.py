@@ -15,7 +15,7 @@ from sqlalchemy import func, cast, String
 from sqlalchemy.sql import sqltypes
 
 from core.database import get_db
-from auth.dependencies import require_admin_role, UserContext, ensure_clinic_access
+from auth.dependencies import require_admin_role, require_clinic_user, UserContext, ensure_clinic_access
 from models import Appointment, CalendarEvent
 from services.availability_service import AvailabilityService
 from services.resource_service import ResourceService
@@ -252,18 +252,18 @@ async def list_auto_assigned_appointments(
 
 @router.get("/dashboard/metrics", summary="Get clinic dashboard metrics")
 async def get_dashboard_metrics(
-    current_user: UserContext = Depends(require_admin_role),
+    current_user: UserContext = Depends(require_clinic_user),
     db: Session = Depends(get_db)
 ) -> ClinicDashboardMetricsResponse:
     """
     Get aggregated dashboard metrics for the clinic.
-    
+
     Returns metrics for past 3 months + current month, including:
     - Patient statistics (active patients, new patients)
     - Appointment statistics (counts, cancellation rates, types, practitioners)
     - Message statistics (paid messages, AI replies)
-    
-    Admin-only endpoint.
+
+    Clinic users only.
     """
     try:
         from services.dashboard_service import DashboardService
@@ -332,14 +332,14 @@ async def get_business_insights(
     practitioner_id: Optional[Union[int, str]] = Query(None, description="Optional practitioner ID to filter by, or 'null' to filter for items without practitioners"),
     service_item_id: Optional[str] = Query(None, description="Optional service item ID or 'custom:name' to filter by"),
     service_type_group_id: Optional[Union[int, str]] = Query(None, description="Optional service type group ID to filter by, or '-1' for ungrouped"),
-    current_user: UserContext = Depends(require_admin_role),
+    current_user: UserContext = Depends(require_clinic_user),
     db: Session = Depends(get_db)
 ):
     """
     Get business insights data for a date range.
 
     Returns summary statistics, revenue trend, and breakdowns by service item and practitioner.
-    Admin-only endpoint.
+    Clinic users only.
     """
     try:
         clinic_id = ensure_clinic_access(current_user)
@@ -400,14 +400,14 @@ async def get_revenue_distribution(
     page_size: int = Query(20, ge=1, le=100, description="Items per page"),
     sort_by: str = Query('date', description="Column to sort by"),
     sort_order: str = Query('desc', regex='^(asc|desc)$', description="Sort order"),
-    current_user: UserContext = Depends(require_admin_role),
+    current_user: UserContext = Depends(require_clinic_user),
     db: Session = Depends(get_db)
 ):
     """
     Get revenue distribution data for a date range.
 
     Returns summary statistics and paginated list of receipt items.
-    Admin-only endpoint.
+    Clinic users only. Non-admin users can only view their own data.
     """
     try:
         clinic_id = ensure_clinic_access(current_user)
@@ -438,6 +438,11 @@ async def get_revenue_distribution(
                     parsed_group_id = int(service_type_group_id)
             else:
                 parsed_group_id = service_type_group_id
+
+        # Non-admin users can only view their own data
+        if not current_user.has_role("admin"):
+            # Force filter to current user's practitioner ID
+            parsed_practitioner_id = current_user.user_id
 
         # Get revenue distribution
         distribution = RevenueDistributionService.get_revenue_distribution(
