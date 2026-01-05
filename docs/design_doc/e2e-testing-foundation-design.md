@@ -196,17 +196,16 @@ export const test = base.extend({
 - Start test servers (handled by `webServer` config)
 
 **Global Teardown:**
-- Optional cleanup (transactions handle most cleanup)
+- Optional cleanup (scenario isolation handles cleanup)
 - Stop test servers (automatic via `webServer`)
 
 **Test-Level Setup (`beforeEach`):**
 - Navigate to base URL
 - Set up authentication (if needed)
-- Begin database transaction (if using transaction isolation)
+- Request scenario data island (via seededPage fixture)
 
 **Test-Level Teardown (`afterEach`):**
-- Rollback database transaction
-- Clean up test-specific data (if not using transactions)
+- Automatic cleanup (scenario data remains for debugging)
 - Screenshots/videos captured automatically on failure
 
 ### 3.2 Authentication Fixtures
@@ -312,19 +311,19 @@ use: {
 - No shared state between tests
 
 **Database Isolation:**
-- **Primary:** Transaction-based rollback (fastest, perfect isolation)
-- **Fallback:** Unique data with cleanup (slower, more explicit)
+- **Primary:** Scenario-based namespace isolation (fastest, perfect isolation)
+- **Fallback:** None needed (scenarios provide complete isolation)
 
 **State Isolation:**
 - No shared mutable state between tests
-- Use fixtures for read-only base data only
-- Each test creates its own test-specific data
+- Each test operates within its own scenario-based data island
+- Complete isolation through unique clinic/user combinations per test
 
 ### 4.2 Parallel Execution Safety
 
 **Requirements:**
 - Tests must be truly independent (no shared state)
-- Use transactions or unique data to prevent conflicts
+- Use scenario-based isolation to prevent conflicts
 - Avoid shared resources (files, external services)
 - Mock external APIs to prevent rate limiting
 
@@ -341,13 +340,14 @@ use: {
 
 ### 5.1 Test Selection Strategies
 
-**Option 1: Playwright's `--changed` Flag (Recommended)**
+**Primary: Playwright's `--only-changed` Flag (Recommended)**
 ```bash
-# Simplest approach, built-in
-npx playwright test --changed
+# Integrated with overall testing architecture
+./run_e2e_tests.sh              # Incremental: runs only changed tests
+./run_e2e_tests.sh --full       # Full suite: runs all E2E tests
 ```
 
-**Option 2: Tag-Based Filtering**
+**Secondary: Tag-Based Filtering**
 ```typescript
 test('create appointment @smoke @appointment', async ({ page }) => {
   // Test code
@@ -357,20 +357,16 @@ test('create appointment @smoke @appointment', async ({ page }) => {
 npx playwright test --grep @smoke
 ```
 
-**Option 3: Custom File-Based Filtering**
-```bash
-# Detect changed test files
-CHANGED_TESTS=$(git diff --name-only HEAD | grep 'tests/e2e.*\.spec\.ts' || true)
-
-if [ -n "$CHANGED_TESTS" ]; then
-  npx playwright test $CHANGED_TESTS
-else
-  npx playwright test --grep @smoke
-fi
-```
+**Integration with Overall Testing:**
+The E2E tests integrate with the project's testing architecture:
+- **`run_tests.sh`**: Orchestrates backend, frontend, and E2E tests in parallel
+- **Incremental Detection**: Uses git diff to detect changed files
+- **Backend**: Uses `pytest-testmon` for dependency-aware test selection
+- **Frontend**: Uses `--changed` flag for changed file detection
+- **E2E**: Uses `--only-changed` for incremental Playwright runs
 
 **Recommended Approach:**
-- **Phase 1:** Use Playwright's `--changed` flag (simplest)
+- **Phase 1:** Use `--only-changed` flag integrated with `run_tests.sh`
 - **Phase 2:** Add tag-based filtering for test categories
 - **Phase 3:** Implement custom filtering if needed
 
@@ -565,14 +561,14 @@ test('appointment creation', async ({ page }) => {
 **Breakdown:**
 - Setup: <0.5s (authentication with caching, navigation)
 - Test execution: <1.5s (user interactions, assertions, API calls)
-- Teardown: <0.5s (cleanup, transaction rollback)
+- Teardown: <0.5s (automatic cleanup via scenario isolation)
 
 **Optimization:**
 - Fast authentication (cache tokens, use test-only endpoint)
 - Efficient selectors (data-testid)
 - Minimal waits (rely on auto-waiting)
 - Mock external services (LINE API, OAuth)
-- Use transaction rollback (faster than cleanup)
+- Use scenario-based isolation (fastest, no cleanup needed)
 
 **Performance Monitoring:**
 - Track actual vs. target times per test
@@ -608,7 +604,7 @@ test('appointment creation', async ({ page }) => {
 
 **Optimization:**
 - Run only changed tests
-- Fast test selection (Playwright `--changed` or git diff)
+- Fast test selection (Playwright `--only-changed` or git diff)
 - Parallel execution (2 workers)
 
 ---
@@ -629,14 +625,44 @@ test('appointment creation', async ({ page }) => {
 
 ### 9.2 Test Scripts
 
-**Script Structure:**
+**Integration with Testing Architecture:**
+The E2E tests integrate with the overall testing orchestration via `run_tests.sh`, which runs backend, frontend, and E2E tests in parallel.
+
+**E2E Test Script (`run_e2e_tests.sh`):**
 ```bash
-# run_e2e_tests.sh
 # Usage:
-#   ./run_e2e_tests.sh           - Run E2E tests incrementally (--changed)
-#   ./run_e2e_tests.sh --all     - Run full E2E test suite
-#   ./run_e2e_tests.sh --ui      - Run with UI mode (headed browser)
+#   ./run_e2e_tests.sh               - Run E2E tests incrementally (--only-changed)
+#   ./run_e2e_tests.sh --full        - Run full E2E test suite
+#   ./run_e2e_tests.sh --headed      - Run with UI mode (headed browser)
 ```
+
+**Quick Start Commands:**
+```bash
+# Run all tests (incremental based on changes)
+./run_tests.sh
+
+# Run full test suite with coverage
+./run_tests.sh --full
+
+# Run individual test suites
+./backend/run_backend_tests.sh        # Incremental backend tests
+./frontend/run_frontend_tests.sh      # Incremental frontend tests
+./run_e2e_tests.sh                    # Incremental E2E tests
+
+# Full individual suites
+./backend/run_backend_tests.sh --full
+./frontend/run_frontend_tests.sh --full
+./run_e2e_tests.sh --full
+```
+
+**Test Execution Strategy:**
+- **`run_tests.sh`**: Main orchestrator that runs all test types in parallel
+  - Detects changed files via git diff
+  - Skips backend/frontend tests if no relevant changes
+  - E2E tests always run (full system testing)
+  - Passes `--full` flag through to all scripts
+
+- **Fail-Early Behavior**: E2E script fails early with environment setup validation before running Playwright tests
 
 **Integration with `run_tests.sh`:**
 - Optionally add E2E tests as a step
@@ -647,7 +673,7 @@ test('appointment creation', async ({ page }) => {
 
 **GitHub Actions Workflow:**
 ```yaml
-name: E2E Tests
+name: Tests
 
 on:
   pull_request:
@@ -656,13 +682,13 @@ on:
     branches: [main]
 
 jobs:
-  e2e:
+  test:
     runs-on: ubuntu-latest
     services:
       postgres:
         image: postgres:14
         env:
-          POSTGRES_DB: clinic_bot_e2e
+          POSTGRES_DB: clinic_bot_test
           POSTGRES_USER: user
           POSTGRES_PASSWORD: password
     steps:
@@ -678,23 +704,28 @@ jobs:
       - name: Run migrations
         run: |
           cd backend
-          DATABASE_URL=postgresql://user:password@localhost/clinic_bot_e2e alembic upgrade head
-      - name: Run E2E tests
-        run: npx playwright test
+          DATABASE_URL=postgresql://user:password@localhost/clinic_bot_test alembic upgrade head
+      - name: Run all tests
+        run: ./run_tests.sh --full
       - name: Upload test results
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: playwright-report
-          path: playwright-report/
+          name: test-results
+          path: |
+            backend/htmlcov/
+            frontend/test_output.log
+            test-results/
+            playwright-report/
 ```
 
 **CI Considerations:**
-- Use PostgreSQL service in CI
-- Run migrations before tests
-- Cache Playwright browsers (large download)
-- Upload test artifacts (screenshots, videos, traces)
-- Run in parallel workers for speed
+- **Integrated Testing**: Use `./run_tests.sh --full` to run all test suites (backend, frontend, E2E)
+- **Parallel Execution**: Backend, frontend, and E2E tests run in parallel for optimal CI performance
+- **Fail-Early Strategy**: Each test suite fails early internally (linting → tests)
+- **Incremental vs Full**: Use `--full` flag in CI for complete coverage
+- **Artifact Upload**: Collect test results from all test types
+- **PostgreSQL Service**: Single database service used by all test suites
 
 ---
 
@@ -758,7 +789,7 @@ jobs:
 
 **Tasks:**
 1. Integrate into development workflow (`run_e2e_tests.sh`)
-2. Implement incremental testing (Playwright `--changed` flag)
+2. Implement incremental testing (Playwright `--only-changed` flag)
 3. Add CI/CD configuration (GitHub Actions)
 4. Optimize test execution time
 5. Expand scenario registry as needed for new test cases
@@ -802,7 +833,7 @@ jobs:
 **Must Have:**
 - ✅ E2E tests don't interfere with dev server
 - ✅ E2E tests can run while dev server is active
-- ✅ Incremental testing works (Playwright `--changed`)
+- ✅ Incremental testing works (Playwright `--only-changed`)
 - ✅ Test execution is fast (<15s typical)
 - ✅ Test debugging is easy (inspector, traces)
 
@@ -1106,8 +1137,8 @@ The implementation follows industry best practices and integrates with existing 
 
 3. **Verify test isolation:**
    - Ensure tests don't share state
-   - Check for unique data conflicts
-   - Verify transaction rollback is working
+   - Check for unique clinic/user conflicts
+   - Verify scenario-based isolation is working
 
 4. **Review test logs:**
    - Check screenshots/videos on failure
@@ -1116,7 +1147,7 @@ The implementation follows industry best practices and integrates with existing 
 
 ---
 
-**Document Version:** 1.2 (Consolidated with Data Management Improvements)
+**Document Version:** 1.3 (Consolidated with Data Management Improvements & Consistency Fixes)
 **Last Updated:** January 2025
 **Status:** Ready for Implementation
 
