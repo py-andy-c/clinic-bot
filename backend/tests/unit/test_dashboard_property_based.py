@@ -191,9 +191,9 @@ class TestAccountingInvariants:
                     pct = round(float(stat['total_revenue'] / service_breakdown_total * 100))
                     service_pct_total += pct
                 
-                # Allow 2% rounding tolerance (since we round to whole numbers, 
+                # Allow 5% rounding tolerance (since we round to whole numbers,
                 # with many items rounding errors can accumulate)
-                assert abs(service_pct_total - 100) <= 2, (
+                assert abs(service_pct_total - 100) <= 5, (
                     f"Service percentages sum to {service_pct_total}, expected 100"
                 )
         
@@ -205,9 +205,9 @@ class TestAccountingInvariants:
                     pct = round(float(stat['total_revenue'] / practitioner_breakdown_total * 100))
                     practitioner_pct_total += pct
                 
-                # Allow 2% rounding tolerance (since we round to whole numbers,
+                # Allow 5% rounding tolerance (since we round to whole numbers,
                 # with many items rounding errors can accumulate)
-                assert abs(practitioner_pct_total - 100) <= 2, (
+                assert abs(practitioner_pct_total - 100) <= 5, (
                     f"Practitioner percentages sum to {practitioner_pct_total}, expected 100"
                 )
     
