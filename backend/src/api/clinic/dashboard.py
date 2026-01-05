@@ -370,12 +370,7 @@ async def get_business_insights(
                     parsed_group_id = int(service_type_group_id)
             else:
                 parsed_group_id = service_type_group_id
-
-        # Non-admin users can only view their own data
-        if not current_user.has_role("admin"):
-            # Force filter to current user's practitioner ID
-            parsed_practitioner_id = current_user.user_id
-
+        
         # Get business insights
         insights = BusinessInsightsService.get_business_insights(
             db, clinic_id, start, end, parsed_practitioner_id, parsed_service_item_id, parsed_group_id
