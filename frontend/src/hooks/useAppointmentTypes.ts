@@ -52,6 +52,7 @@ export const useAppointmentTypesQuery = (patientId?: number | null) => {
     fetchAppointmentTypes,
     {
       enabled: !!clinicId,
+      dependencies: [patientId],
       defaultErrorMessage: '無法載入服務項目',
     }
   );
