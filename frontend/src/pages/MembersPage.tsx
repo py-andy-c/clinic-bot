@@ -10,7 +10,7 @@ import PageHeader from '../components/PageHeader';
 import { getErrorMessage } from '../types/api';
 
 const MembersPage: React.FC = () => {
-  const { isClinicAdmin, user: currentUser, isAuthenticated, checkAuthStatus, isLoading } = useAuth();
+  const { isClinicAdmin, user: currentUser, isAuthenticated, checkAuthStatus, refreshUserData, isLoading } = useAuth();
   const activeClinicId = currentUser?.active_clinic_id;
   const { alert, confirm } = useModal();
   
@@ -74,10 +74,12 @@ const MembersPage: React.FC = () => {
       await apiService.updateMemberRoles(userId, roles);
       setShowRoleModal(null);
       await refetch(); // Refresh the list
-      
-      // If the current user updated their own roles, refresh auth status
+
+      // Only refresh user data if the current user updated their own roles
+      // Note: When updating other users' roles, their permissions won't update until they refresh their browser
       if (currentUser && userId === currentUser.user_id) {
         await checkAuthStatus();
+        await refreshUserData();
       }
     } catch (err: any) {
       logger.error('Update roles error:', err);

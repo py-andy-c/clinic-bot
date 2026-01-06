@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode, useMemo, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, ReactNode, useMemo, useCallback, useRef } from 'react';
 import { AuthUser, AuthState, UserRole, ClinicInfo } from '../types';
 import { logger } from '../utils/logger';
 import { authStorage } from '../utils/storage';
@@ -32,6 +32,8 @@ interface AuthContextType extends AuthState {
   refreshAvailableClinics: () => Promise<void>;
   availableClinics: ClinicInfo[];
   isSwitchingClinic: boolean;
+  // User data refresh
+  refreshUserData: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -56,6 +58,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   });
   const [availableClinics, setAvailableClinics] = useState<ClinicInfo[]>([]);
   const [isSwitchingClinic, setIsSwitchingClinic] = useState(false);
+  const authInitializedRef = useRef(false);
 
   const clearAuthState = useCallback(() => {
     authStorage.clearAuth();
@@ -212,102 +215,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       isClinicUser: authState.user?.user_type === 'clinic_user',
     };
 
+    // Permission calculation complete
+
     return enhanced;
   }, [authState.user]);
-
-  const checkAuthStatus = useCallback(async () => {
-    try {
-      // Check if we have a token (access or refresh)
-      const accessToken = authStorage.getAccessToken();
-      const refreshToken = authStorage.getRefreshToken();
-      
-      if (accessToken || refreshToken) {
-        // If we have an access token, decode it to get user data
-        // If access token is invalid, the first API call will trigger refresh via interceptor
-        // The interceptor will:
-        // 1. Detect 401 error from the API call
-        // 2. Call tokenRefreshService.refreshToken() to get new tokens (with user data)
-        // 3. Retry the API call with the new access token
-        // 4. If refresh fails, redirect to login
-        if (accessToken) {
-          try {
-            // Decode JWT token to get user data (eliminates need for /auth/verify call)
-            const tokenParts = accessToken.split('.');
-            if (tokenParts.length !== 3) {
-              throw new Error('Invalid token format: expected 3 parts');
-            }
-            
-            // Decode base64 payload
-            let payload: any;
-            try {
-              payload = JSON.parse(atob(tokenParts[1]!));
-            } catch (decodeError) {
-              throw new Error('Invalid token format: failed to decode payload');
-            }
-            
-            // Extract user data from JWT payload
-            const userData: AuthUser = {
-              user_id: payload.user_id || 0,  // Database user ID (now included in JWT)
-              email: payload.email || '',
-              full_name: payload.name || '',
-              user_type: payload.user_type || 'clinic_user',
-              roles: payload.roles || [],
-              active_clinic_id: payload.active_clinic_id ?? null,
-            };
-            
-            // Validate required fields
-            if (!userData.email || !userData.user_type) {
-              throw new Error('Invalid token: missing required fields');
-            }
-            
-            logger.log('useAuth: User data decoded from JWT token', { user_id: userData.user_id, email: userData.email });
-            setAuthState({
-              user: userData,
-              isAuthenticated: true,
-              isLoading: false,
-            });
-            
-            // Fetch available clinics for clinic users (async, don't wait)
-            if (userData.user_type === 'clinic_user') {
-              // Use setTimeout to avoid calling setState during render
-              // Pass userData to avoid closure issues with authState.user
-              setTimeout(() => {
-                refreshAvailableClinics(userData).catch(err => {
-                  logger.warn('Failed to fetch available clinics on auth check:', err);
-                });
-              }, 0);
-            }
-            
-            return;
-          } catch (error) {
-            logger.warn('useAuth: Failed to decode access token, will rely on first API call to validate:', error);
-            // Continue to set loading false - first API call will validate token
-          }
-        }
-        
-        // If no access token or decoding failed, just set loading false
-        // The first API call will trigger refresh if needed
-        setAuthState(prev => ({ ...prev, isLoading: false }));
-      } else {
-        // No tokens available
-        setAuthState(prev => ({ ...prev, isLoading: false }));
-      }
-    } catch (error) {
-      logger.error('useAuth: Unexpected error in checkAuthStatus:', error);
-      setAuthState(prev => ({ ...prev, isLoading: false }));
-    }
-  }, [clearAuthState]);
-
-  // Initial auth check on mount
-  useEffect(() => {
-    // Skip authentication checks for signup pages
-    if (window.location.pathname.startsWith('/signup/')) {
-      setAuthState(prev => ({ ...prev, isLoading: false }));
-      return;
-    }
-
-    checkAuthStatus();
-  }, [checkAuthStatus]);
 
   const login = async (userType?: 'system_admin' | 'clinic_user') => {
     try {
@@ -406,6 +317,150 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   }, [isSwitchingClinic, refreshAvailableClinics]);
 
+  const refreshUserData = useCallback(async () => {
+    try {
+      const response = await apiService.refreshUserData();
+
+      // Update tokens in storage
+      authStorage.setAccessToken(response.access_token);
+      authStorage.setRefreshToken(response.refresh_token);
+
+      // Update auth state with fresh user data
+      setAuthState(() => {
+        const userData: AuthUser = {
+          user_id: response.user.user_id,
+          email: response.user.email,
+          full_name: response.user.full_name,
+          user_type: response.user.user_type,
+          roles: response.user.roles || [],
+          active_clinic_id: response.user.active_clinic_id,
+        };
+
+        return {
+          user: userData,
+          isAuthenticated: true,
+          isLoading: false,
+        };
+      });
+    } catch (error) {
+      logger.error('Failed to refresh user data:', error);
+      throw error;
+    }
+  }, []);
+
+  const checkAuthStatus = useCallback(async () => {
+    try {
+      // Prevent multiple simultaneous auth checks
+      if (authState.isLoading === false && authState.user !== null) {
+        logger.log('checkAuthStatus: Auth already initialized, skipping');
+        return;
+      }
+
+      // Check if we have a token (access or refresh)
+      const accessToken = authStorage.getAccessToken();
+      const refreshToken = authStorage.getRefreshToken();
+
+      if (accessToken || refreshToken) {
+        // Proactively refresh user data to ensure we have current roles and permissions
+        // This handles cases where roles were updated by an admin while user was logged in
+        try {
+          await refreshUserData();
+          return;
+        } catch (error) {
+          logger.warn('checkAuthStatus: Failed to refresh user data, falling back to token decoding:', error);
+
+          // Fallback: decode existing token if refresh fails
+          if (accessToken) {
+            try {
+              // Decode JWT token to get user data (eliminates need for /auth/verify call)
+              const tokenParts = accessToken.split('.');
+              if (tokenParts.length !== 3) {
+                throw new Error('Invalid token format: expected 3 parts');
+              }
+
+              // Decode base64 payload
+              let payload: any;
+              try {
+                payload = JSON.parse(atob(tokenParts[1]!));
+              } catch (decodeError) {
+                throw new Error('Invalid token format: failed to decode payload');
+              }
+
+              // Extract user data from JWT payload
+              const userData: AuthUser = {
+                user_id: payload.user_id || 0,  // Database user ID (now included in JWT)
+                email: payload.email || '',
+                full_name: payload.name || '',
+                user_type: payload.user_type || 'clinic_user',
+                roles: payload.roles || [],
+                active_clinic_id: payload.active_clinic_id ?? null,
+              };
+
+              // Validate required fields
+              if (!userData.email || !userData.user_type) {
+                throw new Error('Invalid token: missing required fields');
+              }
+
+              logger.log('useAuth: User data decoded from JWT token (fallback after refresh failure)', {
+                user_id: userData.user_id,
+                email: userData.email,
+                roles: userData.roles,
+                active_clinic_id: userData.active_clinic_id,
+                token_roles: payload.roles
+              });
+              setAuthState({
+                user: userData,
+                isAuthenticated: true,
+                isLoading: false,
+              });
+
+              // Fetch available clinics for clinic users (async, don't wait)
+              if (userData.user_type === 'clinic_user') {
+                // Use setTimeout to avoid calling setState during render
+                // Pass userData to avoid closure issues with authState.user
+                setTimeout(() => {
+                  refreshAvailableClinics(userData).catch(err => {
+                    logger.warn('Failed to fetch available clinics on auth check:', err);
+                  });
+                }, 0);
+              }
+
+              return;
+            } catch (error) {
+              logger.warn('useAuth: Failed to decode access token:', error);
+            }
+          }
+        }
+
+        // If refresh failed and no valid token, set loading false
+        setAuthState(prev => ({ ...prev, isLoading: false }));
+      } else {
+        // No tokens available
+        setAuthState(prev => ({ ...prev, isLoading: false }));
+      }
+    } catch (error) {
+      logger.error('useAuth: Unexpected error in checkAuthStatus:', error);
+      setAuthState(prev => ({ ...prev, isLoading: false }));
+    }
+  }, [refreshUserData, refreshAvailableClinics]);
+
+  // Initial auth check on mount
+  useEffect(() => {
+    // Prevent multiple initialization calls
+    if (authInitializedRef.current) {
+      return;
+    }
+    authInitializedRef.current = true;
+
+    // Skip authentication checks for signup pages
+    if (window.location.pathname.startsWith('/signup/')) {
+      setAuthState(prev => ({ ...prev, isLoading: false }));
+      return;
+    }
+
+    checkAuthStatus();
+  }, [checkAuthStatus]);
+
   const value: AuthContextType = {
     user: enhancedUser,
     isAuthenticated: authState.isAuthenticated,
@@ -424,6 +479,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     refreshAvailableClinics,
     availableClinics,
     isSwitchingClinic,
+    // User data refresh
+    refreshUserData,
   };
 
   return (

@@ -3925,3 +3925,162 @@ class TestExistingUserJoinClinic:
             
         finally:
             client.app.dependency_overrides.pop(get_db, None)
+
+    def test_refresh_user_data_success(self, client, db_session):
+        """Test successful user data refresh."""
+        from services.jwt_service import jwt_service
+
+        # Create clinic
+        clinic = Clinic(
+            name="Test Clinic",
+            line_channel_id="test_channel",
+            line_channel_secret="test_secret",
+            line_channel_access_token="test_token"
+        )
+        db_session.add(clinic)
+        db_session.commit()
+
+        # Create user with association
+        user = User(
+            email="refresh@example.com",
+            google_subject_id="refresh_subject",
+        )
+        db_session.add(user)
+        db_session.flush()
+
+        # Create association
+        association = UserClinicAssociation(
+            user_id=user.id,
+            clinic_id=clinic.id,
+            roles=["practitioner"],
+            full_name="Test User",
+            is_active=True
+        )
+        db_session.add(association)
+        db_session.commit()
+
+        # Create access token with old roles
+        payload = TokenPayload(
+            sub=str(user.google_subject_id),
+            user_id=user.id,
+            email=user.email,
+            user_type="clinic_user",
+            roles=["practitioner"],  # Current roles
+            active_clinic_id=clinic.id,
+            name="Test User"
+        )
+        access_token = jwt_service.create_access_token(payload)
+
+        # Override dependencies
+        def override_get_db():
+            yield db_session
+        client.app.dependency_overrides[get_db] = override_get_db
+
+        try:
+            # Refresh user data
+            response = client.post(
+                "/api/auth/refresh-user-data",
+                headers={"Authorization": f"Bearer {access_token}"}
+            )
+            assert response.status_code == 200
+            data = response.json()
+
+            # Verify response
+            assert "access_token" in data
+            assert "refresh_token" in data
+            assert data["token_type"] == "bearer"
+            assert "expires_in" in data
+            assert "user" in data
+
+            # Verify user data in response
+            user_data = data["user"]
+            assert user_data["user_id"] == user.id
+            assert user_data["email"] == user.email
+            assert user_data["full_name"] == "Test User"
+            assert user_data["user_type"] == "clinic_user"
+            assert user_data["active_clinic_id"] == clinic.id
+            assert set(user_data["roles"]) == {"practitioner"}
+
+            # Verify new token has correct data
+            new_token_payload = jwt_service.verify_token(data["access_token"])
+            assert new_token_payload is not None
+            assert new_token_payload.user_id == user.id
+            assert new_token_payload.active_clinic_id == clinic.id
+            assert set(new_token_payload.roles) == {"practitioner"}
+
+        finally:
+            client.app.dependency_overrides.pop(get_db, None)
+
+    def test_refresh_user_data_role_change(self, client, db_session):
+        """Test that refresh-user-data returns updated roles after role change."""
+        from services.jwt_service import jwt_service
+
+        # Create clinic
+        clinic = Clinic(
+            name="Test Clinic",
+            line_channel_id="test_channel",
+            line_channel_secret="test_secret",
+            line_channel_access_token="test_token"
+        )
+        db_session.add(clinic)
+        db_session.commit()
+
+        # Create user with association
+        user = User(
+            email="rolechange@example.com",
+            google_subject_id="rolechange_subject",
+        )
+        db_session.add(user)
+        db_session.flush()
+
+        # Create association with initial roles
+        association = UserClinicAssociation(
+            user_id=user.id,
+            clinic_id=clinic.id,
+            roles=["practitioner"],  # Initial role
+            full_name="Role Change User",
+            is_active=True
+        )
+        db_session.add(association)
+        db_session.commit()
+
+        # Create access token with old roles
+        payload = TokenPayload(
+            sub=str(user.google_subject_id),
+            user_id=user.id,
+            email=user.email,
+            user_type="clinic_user",
+            roles=["practitioner"],  # Old roles in token
+            active_clinic_id=clinic.id,
+            name="Role Change User"
+        )
+        access_token = jwt_service.create_access_token(payload)
+
+        # Simulate role change in database (admin added practitioner role)
+        association.roles = ["practitioner", "admin"]
+        db_session.commit()
+
+        # Override dependencies
+        def override_get_db():
+            yield db_session
+        client.app.dependency_overrides[get_db] = override_get_db
+
+        try:
+            # Refresh user data - should get updated roles
+            response = client.post(
+                "/api/auth/refresh-user-data",
+                headers={"Authorization": f"Bearer {access_token}"}
+            )
+            assert response.status_code == 200
+            data = response.json()
+
+            # Verify new token has updated roles
+            user_data = data["user"]
+            assert set(user_data["roles"]) == {"practitioner", "admin"}
+
+            new_token_payload = jwt_service.verify_token(data["access_token"])
+            assert new_token_payload is not None
+            assert set(new_token_payload.roles) == {"practitioner", "admin"}
+
+        finally:
+            client.app.dependency_overrides.pop(get_db, None)

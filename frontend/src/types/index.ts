@@ -397,6 +397,21 @@ export interface SwitchClinicResponse {
   };
 }
 
+export interface RefreshUserDataResponse {
+  access_token: string;
+  refresh_token: string;
+  token_type: string;
+  expires_in: string;
+  user: {
+    user_id: number;
+    active_clinic_id: number | null;
+    email: string;
+    full_name: string;
+    user_type: UserType;
+    roles: UserRole[];
+  };
+}
+
 // Calendar and Availability types
 export interface TimeInterval {
   start_time: string;

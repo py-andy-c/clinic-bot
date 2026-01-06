@@ -79,6 +79,16 @@ export interface paths {
      */
     post: operations["switch_clinic_api_auth_switch_clinic_post"];
   };
+  "/api/auth/refresh-user-data": {
+    /**
+     * Refresh user data with current roles
+     * @description Refresh user data by fetching current roles from database and issuing new tokens.
+     *
+     * This endpoint is used when user roles may have changed (e.g., after role updates)
+     * to ensure the frontend has the most current permission data.
+     */
+    post: operations["refresh_user_data_api_auth_refresh_user_data_post"];
+  };
   "/api/signup/clinic": {
     /**
      * Initiate clinic admin signup
@@ -256,412 +266,87 @@ export interface paths {
      */
     delete: operations["unlink_line_account_api_profile_unlink_line_delete"];
   };
-  "/api/clinic/members": {
+  "/api/clinic/service-type-groups": {
     /**
-     * List all clinic members
-     * @description Get all members of the current user's clinic.
+     * List all service type groups
+     * @description List all service type groups for the clinic.
      *
-     * For admins: Returns both active and inactive members.
-     * For other users: Returns only active members.
-     *
-     * Available to all clinic members (including read-only users).
+     * Available to all clinic members.
      */
-    get: operations["list_members_api_clinic_members_get"];
+    get: operations["list_service_type_groups_api_clinic_service_type_groups_get"];
+    /**
+     * Create a service type group
+     * @description Create a new service type group.
+     *
+     * Admin-only.
+     */
+    post: operations["create_service_type_group_api_clinic_service_type_groups_post"];
   };
-  "/api/clinic/practitioners": {
+  "/api/clinic/service-type-groups/bulk-order": {
     /**
-     * List all practitioners for current clinic
-     * @description Get all practitioners for the current user's clinic.
+     * Bulk update group display order
+     * @description Bulk update display order for multiple groups.
      *
-     * Returns basic information (id, full_name) for all practitioners.
-     * Available to all clinic members (including read-only users).
+     * Admin-only.
      */
-    get: operations["list_practitioners_api_clinic_practitioners_get"];
+    put: operations["bulk_update_group_order_api_clinic_service_type_groups_bulk_order_put"];
   };
-  "/api/clinic/members/invite": {
+  "/api/clinic/service-type-groups/{group_id}": {
     /**
-     * Invite a new team member
-     * @description Generate a secure signup link for inviting a new team member.
+     * Update a service type group
+     * @description Update a service type group.
      *
-     * Only clinic admins can invite members.
-     * Supports inviting users with no roles for read-only access.
+     * Admin-only.
      */
-    post: operations["invite_member_api_clinic_members_invite_post"];
+    put: operations["update_service_type_group_api_clinic_service_type_groups__group_id__put"];
+    /**
+     * Delete a service type group
+     * @description Delete a service type group.
+     *
+     * Sets service_type_group_id to NULL for all appointment types in this group.
+     * Admin-only.
+     */
+    delete: operations["delete_service_type_group_api_clinic_service_type_groups__group_id__delete"];
   };
-  "/api/clinic/members/{user_id}/roles": {
+  "/api/clinic/appointment-types/bulk-order": {
     /**
-     * Update member roles
-     * @description Update roles for a team member.
+     * Bulk update appointment type display order
+     * @description Bulk update display order for multiple appointment types.
      *
-     * Only clinic admins can update member roles.
+     * Admin-only.
      */
-    put: operations["update_member_roles_api_clinic_members__user_id__roles_put"];
+    put: operations["bulk_update_appointment_type_order_api_clinic_appointment_types_bulk_order_put"];
   };
-  "/api/clinic/members/{user_id}": {
+  "/api/clinic/appointment-types/{appointment_type_id}/follow-up-messages": {
     /**
-     * Remove a team member
-     * @description Soft delete a team member by marking them as inactive.
-     *
-     * Only clinic admins can remove members.
+     * Get follow-up messages for an appointment type
+     * @description Get all follow-up messages for an appointment type.
      */
-    delete: operations["remove_member_api_clinic_members__user_id__delete"];
+    get: operations["get_follow_up_messages_api_clinic_appointment_types__appointment_type_id__follow_up_messages_get"];
+    /**
+     * Create a follow-up message
+     * @description Create a follow-up message for an appointment type.
+     */
+    post: operations["create_follow_up_message_api_clinic_appointment_types__appointment_type_id__follow_up_messages_post"];
   };
-  "/api/clinic/members/{user_id}/reactivate": {
+  "/api/clinic/appointment-types/{appointment_type_id}/follow-up-messages/{message_id}": {
     /**
-     * Reactivate a team member
-     * @description Reactivate a previously removed team member.
-     *
-     * Only clinic admins can reactivate members.
+     * Update a follow-up message
+     * @description Update a follow-up message.
      */
-    post: operations["reactivate_member_api_clinic_members__user_id__reactivate_post"];
+    put: operations["update_follow_up_message_api_clinic_appointment_types__appointment_type_id__follow_up_messages__message_id__put"];
+    /**
+     * Delete a follow-up message
+     * @description Delete a follow-up message.
+     */
+    delete: operations["delete_follow_up_message_api_clinic_appointment_types__appointment_type_id__follow_up_messages__message_id__delete"];
   };
-  "/api/clinic/settings": {
+  "/api/clinic/follow-up-message-preview": {
     /**
-     * Get clinic settings
-     * @description Get clinic settings including appointment types.
-     *
-     * Available to all clinic members (including read-only users).
+     * Preview a follow-up message
+     * @description Preview a follow-up message with sample data.
      */
-    get: operations["get_settings_api_clinic_settings_get"];
-    /**
-     * Update clinic settings
-     * @description Update clinic settings including appointment types.
-     *
-     * Only clinic admins can update settings.
-     * Prevents deletion of appointment types that are referenced by practitioners.
-     */
-    put: operations["update_settings_api_clinic_settings_put"];
-  };
-  "/api/clinic/appointment-types/validate-deletion": {
-    /**
-     * Validate appointment type deletion
-     * @description Validate if appointment types can be deleted.
-     *
-     * Checks if any practitioners reference the appointment types.
-     * Returns list of appointment types that cannot be deleted with their practitioner names.
-     * Only clinic admins can validate deletion.
-     */
-    post: operations["validate_appointment_type_deletion_api_clinic_appointment_types_validate_deletion_post"];
-  };
-  "/api/clinic/regenerate-liff-token": {
-    /**
-     * Regenerate LIFF access token
-     * @description Regenerate LIFF access token for current clinic.
-     *
-     * Only clinic admins can regenerate tokens. The old token is immediately
-     * invalidated and a new secure token is generated. This is useful if a token
-     * is compromised or needs to be rotated for security purposes.
-     *
-     * Returns:
-     *     Dict with success status, message, and new token
-     */
-    post: operations["regenerate_liff_token_api_clinic_regenerate_liff_token_post"];
-  };
-  "/api/clinic/reminder-preview": {
-    /**
-     * Generate reminder message preview
-     * @description Generate a preview of what a LINE reminder message would look like.
-     *
-     * This endpoint allows clinic admins to see exactly how their reminder
-     * messages will appear to patients before they are sent.
-     */
-    post: operations["generate_reminder_preview_api_clinic_reminder_preview_post"];
-  };
-  "/api/clinic/cancellation-preview": {
-    /**
-     * Generate cancellation message preview
-     * @description Generate a preview of what a LINE cancellation message would look like.
-     *
-     * This endpoint allows clinic admins to see exactly how their cancellation
-     * messages will appear to patients before they are sent.
-     */
-    post: operations["generate_cancellation_preview_api_clinic_cancellation_preview_post"];
-  };
-  "/api/clinic/chat/test": {
-    /**
-     * Test chatbot with current settings
-     * @description Test chatbot with current (unsaved) chat settings.
-     *
-     * This endpoint allows clinic users to test how the chatbot will respond
-     * using their current settings before saving them. The test uses the provided
-     * chat_settings instead of the clinic's saved settings.
-     *
-     * Available to all clinic members (including read-only users).
-     */
-    post: operations["test_chatbot_api_clinic_chat_test_post"];
-  };
-  "/api/clinic/patients": {
-    /**
-     * List all patients
-     * @description Get all patients for the current user's clinic.
-     *
-     * Available to all clinic members (including read-only users).
-     * Supports pagination via page and page_size parameters.
-     * Supports search via search parameter to filter by patient name, phone number, or LINE user display name.
-     * If pagination parameters are not provided, returns all patients (backward compatible).
-     * Note: page and page_size must both be provided together or both omitted.
-     */
-    get: operations["get_patients_api_clinic_patients_get"];
-    /**
-     * Create patient (clinic users)
-     * @description Create a new patient record for the clinic.
-     *
-     * Available to clinic admins and practitioners.
-     * Phone number and birthday are optional.
-     * Duplicate phone numbers are allowed.
-     */
-    post: operations["create_patient_api_clinic_patients_post"];
-  };
-  "/api/clinic/patients/check-duplicate": {
-    /**
-     * Check for duplicate patient names
-     * @description Check for existing patients with exact same name (case-insensitive).
-     *
-     * Used for duplicate detection in patient creation form.
-     * Returns count of patients with matching name (excluding soft-deleted).
-     * Available to all clinic users (including read-only).
-     */
-    get: operations["check_duplicate_patient_name_api_clinic_patients_check_duplicate_get"];
-  };
-  "/api/clinic/patients/{patient_id}": {
-    /**
-     * Get patient details
-     * @description Get patient details by ID.
-     *
-     * Available to all clinic members (including read-only users).
-     */
-    get: operations["get_patient_api_clinic_patients__patient_id__get"];
-    /**
-     * Update patient information
-     * @description Update patient information.
-     *
-     * Available to clinic admins and practitioners only.
-     * Read-only users cannot update patients.
-     */
-    put: operations["update_patient_api_clinic_patients__patient_id__put"];
-  };
-  "/api/clinic/patients/{patient_id}/appointments": {
-    /**
-     * Get patient appointments
-     * @description Get appointments for a specific patient.
-     *
-     * Available to all clinic members (including read-only users).
-     */
-    get: operations["get_patient_appointments_api_clinic_patients__patient_id__appointments_get"];
-  };
-  "/api/clinic/appointments/{appointment_id}": {
-    /**
-     * Edit appointment
-     * @description Edit an appointment (time and/or practitioner).
-     *
-     * Admin can edit any appointment.
-     * Practitioners can only edit their own appointments.
-     * Read-only users cannot edit.
-     */
-    put: operations["edit_clinic_appointment_api_clinic_appointments__appointment_id__put"];
-    /**
-     * Cancel appointment by clinic admin or practitioner
-     * @description Cancel an appointment by clinic admin or practitioner.
-     *
-     * Practitioners can only cancel their own appointments.
-     * Admins can cancel any appointment in their clinic.
-     *
-     * Updates appointment status to 'canceled_by_clinic'
-     * and sends LINE notification to patient.
-     */
-    delete: operations["cancel_clinic_appointment_api_clinic_appointments__appointment_id__delete"];
-  };
-  "/api/clinic/appointments": {
-    /**
-     * Create appointment on behalf of patient
-     * @description Create an appointment on behalf of an existing patient.
-     *
-     * Admin and practitioners can create appointments for any patient.
-     * Read-only users cannot create appointments.
-     */
-    post: operations["create_clinic_appointment_api_clinic_appointments_post"];
-  };
-  "/api/clinic/appointments/{appointment_id}/edit-preview": {
-    /**
-     * Preview edit notification
-     * @description Preview edit notification message before confirming edit.
-     *
-     * Also validates conflicts and returns whether notification will be sent.
-     */
-    post: operations["preview_edit_notification_api_clinic_appointments__appointment_id__edit_preview_post"];
-  };
-  "/api/clinic/calendar-events/{calendar_event_id}/event-name": {
-    /**
-     * Update calendar event name
-     * @description Update the custom event name for a calendar event (appointment or availability exception).
-     *
-     * Admin can edit any event.
-     * Practitioners can only edit their own events.
-     * Read-only users cannot edit.
-     *
-     * If event_name is null or empty, the default format will be used:
-     * - For appointments: "{patient_name} - {appointment_type_name}"
-     * - For availability exceptions: "休診"
-     */
-    put: operations["update_calendar_event_name_api_clinic_calendar_events__calendar_event_id__event_name_put"];
-  };
-  "/api/clinic/practitioners/{user_id}/appointment-types": {
-    /**
-     * Get practitioner's appointment types
-     * @description Get all appointment types offered by a practitioner.
-     *
-     * Practitioners can view their own appointment types.
-     * Clinic admins can view any practitioner's appointment types.
-     */
-    get: operations["get_practitioner_appointment_types_api_clinic_practitioners__user_id__appointment_types_get"];
-    /**
-     * Update practitioner's appointment types
-     * @description Update the appointment types offered by a practitioner.
-     *
-     * Practitioners can only update their own appointment types.
-     * Clinic admins can update any practitioner's appointment types.
-     */
-    put: operations["update_practitioner_appointment_types_api_clinic_practitioners__user_id__appointment_types_put"];
-  };
-  "/api/clinic/practitioners/{user_id}/status": {
-    /**
-     * Get practitioner's configuration status
-     * @description Get practitioner's configuration status for warnings.
-     *
-     * This endpoint checks if a practitioner has configured appointment types
-     * and availability settings, used for displaying warnings to admins.
-     */
-    get: operations["get_practitioner_status_api_clinic_practitioners__user_id__status_get"];
-  };
-  "/api/clinic/practitioners/status/batch": {
-    /**
-     * Get practitioner status for multiple practitioners
-     * @description Get configuration status for multiple practitioners in a single request.
-     *
-     * This endpoint efficiently fetches status for multiple practitioners,
-     * reducing API calls from N to 1. Used for displaying warnings to admins.
-     *
-     * Args:
-     *     request: Batch request with list of practitioner IDs
-     *
-     * Returns:
-     *     BatchPractitionerStatusResponse with status for each practitioner
-     *
-     * Raises:
-     *     HTTPException: If validation fails or practitioners don't exist
-     */
-    post: operations["get_batch_practitioner_status_api_clinic_practitioners_status_batch_post"];
-  };
-  "/api/clinic/practitioners/{user_id}/availability/default": {
-    /**
-     * Get practitioner's default weekly schedule
-     * @description Get practitioner's default weekly schedule.
-     *
-     * Returns the practitioner's default working hours for each day of the week.
-     * Multiple intervals per day are supported (e.g., morning and afternoon sessions).
-     */
-    get: operations["get_default_schedule_api_clinic_practitioners__user_id__availability_default_get"];
-    /**
-     * Update practitioner's default weekly schedule
-     * @description Update practitioner's default weekly schedule.
-     *
-     * Replaces the entire weekly schedule with the provided intervals.
-     * Multiple intervals per day are supported.
-     *
-     * The system will check for conflicts with future appointments and show warnings
-     * if appointments would be outside the new working hours.
-     */
-    put: operations["update_default_schedule_api_clinic_practitioners__user_id__availability_default_put"];
-  };
-  "/api/clinic/practitioners/{user_id}/availability/calendar": {
-    /**
-     * Get calendar data for practitioner
-     * @description Get calendar data for practitioner.
-     *
-     * Returns either monthly calendar data (appointment counts per day) or
-     * detailed daily calendar data (events and default schedule).
-     */
-    get: operations["get_calendar_data_api_clinic_practitioners__user_id__availability_calendar_get"];
-  };
-  "/api/clinic/practitioners/calendar/batch": {
-    /**
-     * Get calendar data for multiple practitioners and date range
-     * @description Get calendar data for multiple practitioners across a date range.
-     *
-     * This endpoint efficiently fetches calendar data for multiple practitioners
-     * in a single request, reducing API calls from N to 1.
-     *
-     * Returns daily calendar data (events and default schedules) for each
-     * practitioner for each day in the date range.
-     */
-    post: operations["get_batch_calendar_api_clinic_practitioners_calendar_batch_post"];
-  };
-  "/api/clinic/practitioners/{user_id}/availability/slots": {
-    /**
-     * Get available time slots for booking
-     * @description Get available time slots for booking.
-     *
-     * Returns available time slots for a specific practitioner on a specific date
-     * for a specific appointment type. Used by AI agent for appointment booking.
-     *
-     * Considers:
-     * - Default weekly schedule
-     * - Availability exceptions (takes precedence)
-     * - Existing appointments
-     * - Appointment type duration
-     */
-    get: operations["get_available_slots_api_clinic_practitioners__user_id__availability_slots_get"];
-  };
-  "/api/clinic/practitioners/{user_id}/availability/slots/batch": {
-    /**
-     * Get available time slots for multiple dates
-     * @description Get available time slots for multiple dates in a single request.
-     *
-     * This endpoint efficiently fetches availability for multiple dates,
-     * reducing API calls from N to 1.
-     *
-     * Returns available time slots for a specific practitioner on multiple dates
-     * for a specific appointment type. Used by appointment creation/editing flows.
-     *
-     * Considers:
-     * - Default weekly schedule
-     * - Availability exceptions (takes precedence)
-     * - Existing appointments
-     * - Appointment type duration
-     *
-     * Args:
-     *     user_id: Practitioner user ID
-     *     request: Batch request with dates, appointment_type_id, and optional exclude_calendar_event_id
-     *
-     * Returns:
-     *     BatchAvailableSlotsResponse with one AvailableSlotsResponse per date
-     *
-     * Raises:
-     *     HTTPException: If validation fails or dates are invalid
-     */
-    post: operations["get_available_slots_batch_api_clinic_practitioners__user_id__availability_slots_batch_post"];
-  };
-  "/api/clinic/practitioners/{user_id}/availability/exceptions": {
-    /**
-     * Create availability exception
-     * @description Create availability exception for practitioner.
-     *
-     * Creates a period of unavailability that overrides the default schedule.
-     * Multiple exceptions per day are allowed, and overlapping exceptions are permitted.
-     *
-     * If the exception conflicts with existing appointments, a warning is returned
-     * but the exception is still created. Appointments remain valid but marked as "outside hours".
-     */
-    post: operations["create_availability_exception_api_clinic_practitioners__user_id__availability_exceptions_post"];
-  };
-  "/api/clinic/practitioners/{user_id}/availability/exceptions/{exception_id}": {
-    /**
-     * Delete availability exception
-     * @description Delete availability exception.
-     *
-     * Removes an availability exception. The associated calendar event is also deleted.
-     */
-    delete: operations["delete_availability_exception_api_clinic_practitioners__user_id__availability_exceptions__exception_id__delete"];
+    post: operations["preview_follow_up_message_api_clinic_follow_up_message_preview_post"];
   };
   "/api/clinic/line-users": {
     /**
@@ -745,9 +430,641 @@ export interface paths {
      * - Appointment statistics (counts, cancellation rates, types, practitioners)
      * - Message statistics (paid messages, AI replies)
      *
-     * Available to all clinic members (including read-only users).
+     * Clinic users only.
      */
     get: operations["get_dashboard_metrics_api_clinic_dashboard_metrics_get"];
+  };
+  "/api/clinic/dashboard/business-insights": {
+    /**
+     * Get business insights data
+     * @description Get business insights data for a date range.
+     *
+     * Returns summary statistics, revenue trend, and breakdowns by service item and practitioner.
+     * Clinic users only.
+     */
+    get: operations["get_business_insights_api_clinic_dashboard_business_insights_get"];
+  };
+  "/api/clinic/dashboard/revenue-distribution": {
+    /**
+     * Get revenue distribution data
+     * @description Get revenue distribution data for a date range.
+     *
+     * Returns summary statistics and paginated list of receipt items.
+     * Clinic users only. Non-admin users can only view their own data.
+     */
+    get: operations["get_revenue_distribution_api_clinic_dashboard_revenue_distribution_get"];
+  };
+  "/api/clinic/patients": {
+    /**
+     * List all patients
+     * @description Get all patients for the current user's clinic.
+     *
+     * Available to all clinic members (including read-only users).
+     * Supports pagination via page and page_size parameters.
+     * Supports search via search parameter to filter by patient name, phone number, or LINE user display name.
+     * Supports filtering by practitioner via practitioner_id parameter.
+     * If pagination parameters are not provided, returns all patients (backward compatible).
+     * Note: page and page_size must both be provided together or both omitted.
+     */
+    get: operations["list_patients_api_clinic_patients_get"];
+    /**
+     * Create patient (clinic users)
+     * @description Create a new patient record for the clinic.
+     *
+     * Available to clinic admins and practitioners.
+     * Phone number and birthday are optional.
+     * Duplicate phone numbers are allowed.
+     */
+    post: operations["create_patient_api_clinic_patients_post"];
+  };
+  "/api/clinic/patients/check-duplicate": {
+    /**
+     * Check for duplicate patient names
+     * @description Check for existing patients with exact same name (case-insensitive).
+     *
+     * Used for duplicate detection in patient creation form.
+     * Returns count of patients with matching name (excluding soft-deleted).
+     * Available to all clinic users (including read-only).
+     */
+    get: operations["check_duplicate_patient_name_api_clinic_patients_check_duplicate_get"];
+  };
+  "/api/clinic/patients/{patient_id}": {
+    /**
+     * Get patient details
+     * @description Get patient details by ID.
+     *
+     * Available to all clinic members (including read-only users).
+     */
+    get: operations["get_patient_api_clinic_patients__patient_id__get"];
+    /**
+     * Update patient information
+     * @description Update patient information.
+     *
+     * Available to clinic admins and practitioners only.
+     * Read-only users cannot update patients.
+     */
+    put: operations["update_patient_api_clinic_patients__patient_id__put"];
+  };
+  "/api/clinic/patients/{patient_id}/assign-practitioner": {
+    /**
+     * Assign practitioner to patient
+     * @description Assign a practitioner to a patient.
+     *
+     * Available to clinic admins and practitioners only.
+     */
+    post: operations["assign_practitioner_api_clinic_patients__patient_id__assign_practitioner_post"];
+  };
+  "/api/clinic/patients/{patient_id}/assign-practitioner/{practitioner_id}": {
+    /**
+     * Remove practitioner assignment from patient
+     * @description Remove a practitioner assignment from a patient.
+     *
+     * Available to clinic admins and practitioners only.
+     */
+    delete: operations["remove_practitioner_assignment_api_clinic_patients__patient_id__assign_practitioner__practitioner_id__delete"];
+  };
+  "/api/clinic/patients/{patient_id}/appointments": {
+    /**
+     * Get patient appointments
+     * @description Get appointments for a specific patient.
+     *
+     * Available to all clinic members (including read-only users).
+     */
+    get: operations["get_patient_appointments_api_clinic_patients__patient_id__appointments_get"];
+  };
+  "/api/clinic/members": {
+    /**
+     * List all clinic members
+     * @description Get all members of the current user's clinic.
+     *
+     * For admins: Returns both active and inactive members.
+     * For other users: Returns only active members.
+     *
+     * Available to all clinic members (including read-only users).
+     */
+    get: operations["list_members_api_clinic_members_get"];
+  };
+  "/api/clinic/members/invite": {
+    /**
+     * Invite a new team member
+     * @description Generate a secure signup link for inviting a new team member.
+     *
+     * Only clinic admins can invite members.
+     * Supports inviting users with no roles for read-only access.
+     */
+    post: operations["invite_member_api_clinic_members_invite_post"];
+  };
+  "/api/clinic/members/{user_id}/roles": {
+    /**
+     * Update member roles
+     * @description Update roles for a team member.
+     *
+     * Only clinic admins can update member roles.
+     */
+    put: operations["update_member_roles_api_clinic_members__user_id__roles_put"];
+  };
+  "/api/clinic/members/{user_id}": {
+    /**
+     * Remove a team member
+     * @description Soft delete a team member by marking them as inactive.
+     *
+     * Only clinic admins can remove members.
+     */
+    delete: operations["remove_member_api_clinic_members__user_id__delete"];
+  };
+  "/api/clinic/members/{user_id}/reactivate": {
+    /**
+     * Reactivate a team member
+     * @description Reactivate a previously removed team member.
+     *
+     * Only clinic admins can reactivate members.
+     */
+    post: operations["reactivate_member_api_clinic_members__user_id__reactivate_post"];
+  };
+  "/api/clinic/settings": {
+    /**
+     * Get clinic settings
+     * @description Get clinic settings including appointment types.
+     *
+     * Available to all clinic members (including read-only users).
+     */
+    get: operations["get_settings_api_clinic_settings_get"];
+    /**
+     * Update clinic settings
+     * @description Update clinic settings including appointment types.
+     *
+     * Only clinic admins can update settings.
+     * Prevents deletion of appointment types that are referenced by practitioners.
+     */
+    put: operations["update_settings_api_clinic_settings_put"];
+  };
+  "/api/clinic/appointment-types/validate-deletion": {
+    /**
+     * Validate appointment type deletion
+     * @description Validate if appointment types can be deleted.
+     *
+     * Checks if any practitioners reference the appointment types.
+     * Returns list of appointment types that cannot be deleted with their practitioner names.
+     * Only clinic admins can validate deletion.
+     */
+    post: operations["validate_appointment_type_deletion_api_clinic_appointment_types_validate_deletion_post"];
+  };
+  "/api/clinic/regenerate-liff-token": {
+    /**
+     * Regenerate LIFF access token
+     * @description Regenerate LIFF access token for current clinic.
+     *
+     * Only clinic admins can regenerate tokens. The old token is immediately
+     * invalidated and a new secure token is generated. This is useful if a token
+     * is compromised or needs to be rotated for security purposes.
+     *
+     * Returns:
+     *     Dict with success status, message, and new token
+     */
+    post: operations["regenerate_liff_token_api_clinic_regenerate_liff_token_post"];
+  };
+  "/api/clinic/practitioners/{user_id}/availability/default": {
+    /**
+     * Get practitioner's default weekly schedule
+     * @description Get practitioner's default weekly schedule.
+     *
+     * Returns the practitioner's default working hours for each day of the week.
+     * Multiple intervals per day are supported (e.g., morning and afternoon sessions).
+     */
+    get: operations["get_default_schedule_api_clinic_practitioners__user_id__availability_default_get"];
+    /**
+     * Update practitioner's default weekly schedule
+     * @description Update practitioner's default weekly schedule.
+     *
+     * Replaces the entire weekly schedule with the provided intervals.
+     * Multiple intervals per day are supported.
+     *
+     * The system will check for conflicts with future appointments and show warnings
+     * if appointments would be outside the new working hours.
+     */
+    put: operations["update_default_schedule_api_clinic_practitioners__user_id__availability_default_put"];
+  };
+  "/api/clinic/practitioners/{user_id}/availability/calendar": {
+    /**
+     * Get calendar data for practitioner
+     * @description Get calendar data for practitioner.
+     *
+     * Returns either monthly calendar data (appointment counts per day) or
+     * detailed daily calendar data (events and default schedule).
+     */
+    get: operations["get_calendar_data_api_clinic_practitioners__user_id__availability_calendar_get"];
+  };
+  "/api/clinic/practitioners/calendar/batch": {
+    /**
+     * Get calendar data for multiple practitioners and date range
+     * @description Get calendar data for multiple practitioners across a date range.
+     *
+     * This endpoint efficiently fetches calendar data for multiple practitioners
+     * in a single request, reducing API calls from N to 1.
+     *
+     * Returns daily calendar data (events and default schedules) for each
+     * practitioner for each day in the date range.
+     */
+    post: operations["get_batch_calendar_api_clinic_practitioners_calendar_batch_post"];
+  };
+  "/api/clinic/resources/{resource_id}/availability/calendar": {
+    /**
+     * Get calendar data for resource
+     * @description Get calendar data for a resource.
+     *
+     * Returns daily calendar data (appointments using this resource).
+     * Only shows confirmed appointments (excludes canceled appointments).
+     */
+    get: operations["get_resource_calendar_data_api_clinic_resources__resource_id__availability_calendar_get"];
+  };
+  "/api/clinic/resources/calendar/batch": {
+    /**
+     * Get calendar data for multiple resources and date range
+     * @description Get calendar data for multiple resources across a date range.
+     *
+     * This endpoint efficiently fetches calendar data for multiple resources
+     * in a single request, reducing API calls from N to 1.
+     *
+     * Returns daily calendar data (appointments) for each resource for each day in the date range.
+     * Only shows confirmed appointments (excludes canceled appointments).
+     */
+    post: operations["get_batch_resource_calendar_api_clinic_resources_calendar_batch_post"];
+  };
+  "/api/clinic/practitioners/{user_id}/availability/slots": {
+    /**
+     * Get available time slots for booking
+     * @description Get available time slots for booking.
+     *
+     * Returns available time slots for a specific practitioner on a specific date
+     * for a specific appointment type. Used by AI agent for appointment booking.
+     *
+     * Considers:
+     * - Default weekly schedule
+     * - Availability exceptions (takes precedence)
+     * - Existing appointments
+     * - Appointment type duration
+     */
+    get: operations["get_available_slots_api_clinic_practitioners__user_id__availability_slots_get"];
+  };
+  "/api/clinic/practitioners/{user_id}/availability/conflicts": {
+    /**
+     * Check scheduling conflicts for a specific time
+     * @description Check for scheduling conflicts at a specific time.
+     *
+     * Returns conflict information in priority order:
+     * 1. Past appointment (highest priority)
+     * 2. Appointment conflicts
+     * 3. Availability exception conflicts (medium priority)
+     * 4. Outside default availability (lowest priority)
+     *
+     * Used by frontend to show conflict warnings when scheduling appointments
+     * outside normal availability (override mode).
+     */
+    get: operations["check_scheduling_conflicts_api_clinic_practitioners__user_id__availability_conflicts_get"];
+  };
+  "/api/clinic/practitioners/{user_id}/availability/slots/batch": {
+    /**
+     * Get available time slots for multiple dates
+     * @description Get available time slots for multiple dates in a single request.
+     *
+     * This endpoint efficiently fetches availability for multiple dates,
+     * reducing API calls from N to 1.
+     *
+     * Returns available time slots for a specific practitioner on multiple dates
+     * for a specific appointment type. Used by appointment creation/editing flows.
+     */
+    post: operations["get_available_slots_batch_api_clinic_practitioners__user_id__availability_slots_batch_post"];
+  };
+  "/api/clinic/practitioners/{user_id}/availability/exceptions": {
+    /**
+     * Create availability exception
+     * @description Create availability exception for practitioner.
+     *
+     * Creates a period of unavailability that overrides the default schedule.
+     * Multiple exceptions per day are allowed, and overlapping exceptions are permitted.
+     *
+     * If the exception conflicts with existing appointments, a warning is returned
+     * but the exception is still created. Appointments remain valid but marked as "outside hours".
+     */
+    post: operations["create_availability_exception_api_clinic_practitioners__user_id__availability_exceptions_post"];
+  };
+  "/api/clinic/practitioners/{user_id}/availability/exceptions/{exception_id}": {
+    /**
+     * Delete availability exception
+     * @description Delete availability exception.
+     *
+     * Removes an availability exception. The associated calendar event is also deleted.
+     */
+    delete: operations["delete_availability_exception_api_clinic_practitioners__user_id__availability_exceptions__exception_id__delete"];
+  };
+  "/api/clinic/calendar-events/{calendar_event_id}/event-name": {
+    /**
+     * Update calendar event name
+     * @description Update the custom event name for a calendar event (appointment or availability exception).
+     *
+     * Admin can edit any event.
+     * Practitioners can only edit their own events.
+     * Read-only users cannot edit.
+     *
+     * If event_name is null or empty, the default format will be used:
+     * - For appointments: "{patient_name} - {appointment_type_name}"
+     * - For availability exceptions: "休診"
+     */
+    put: operations["update_calendar_event_name_api_clinic_calendar_events__calendar_event_id__event_name_put"];
+  };
+  "/api/clinic/practitioners": {
+    /**
+     * List all practitioners for current clinic
+     * @description Get all practitioners for the current user's clinic.
+     *
+     * Optionally filter by appointment type to get only practitioners who offer that type.
+     *
+     * Returns basic information (id, full_name) for all practitioners (or filtered list).
+     * Available to all clinic members (including read-only users).
+     */
+    get: operations["list_practitioners_api_clinic_practitioners_get"];
+  };
+  "/api/clinic/practitioners/{user_id}/appointment-types": {
+    /**
+     * Get practitioner's appointment types
+     * @description Get all appointment types offered by a practitioner.
+     *
+     * Practitioners can view their own appointment types.
+     * Clinic admins can view any practitioner's appointment types.
+     */
+    get: operations["get_practitioner_appointment_types_api_clinic_practitioners__user_id__appointment_types_get"];
+    /**
+     * Update practitioner's appointment types
+     * @description Update the appointment types offered by a practitioner.
+     *
+     * Practitioners can only update their own appointment types.
+     * Clinic admins can update any practitioner's appointment types.
+     */
+    put: operations["update_practitioner_appointment_types_api_clinic_practitioners__user_id__appointment_types_put"];
+  };
+  "/api/clinic/practitioners/{user_id}/settings": {
+    /**
+     * Update practitioner settings
+     * @description Update practitioner settings (admin only).
+     *
+     * Only clinic admins can update practitioner settings.
+     * This includes settings like patient_booking_allowed.
+     */
+    put: operations["update_practitioner_settings_api_clinic_practitioners__user_id__settings_put"];
+  };
+  "/api/clinic/practitioners/{user_id}/status": {
+    /**
+     * Get practitioner's configuration status
+     * @description Get practitioner's configuration status for warnings.
+     *
+     * This endpoint checks if a practitioner has configured appointment types
+     * and availability settings, used for displaying warnings to admins.
+     */
+    get: operations["get_practitioner_status_api_clinic_practitioners__user_id__status_get"];
+  };
+  "/api/clinic/practitioners/status/batch": {
+    /**
+     * Get practitioner status for multiple practitioners
+     * @description Get configuration status for multiple practitioners in a single request.
+     *
+     * This endpoint efficiently fetches status for multiple practitioners,
+     * reducing API calls from N to 1. Used for displaying warnings to admins.
+     *
+     * Args:
+     *     request: Batch request with list of practitioner IDs
+     *
+     * Returns:
+     *     BatchPractitionerStatusResponse with status for each practitioner
+     *
+     * Raises:
+     *     HTTPException: If validation fails or practitioners don't exist
+     */
+    post: operations["get_batch_practitioner_status_api_clinic_practitioners_status_batch_post"];
+  };
+  "/api/clinic/appointments/resource-availability": {
+    /**
+     * Get resource availability for a time slot
+     * @description Get resource availability and suggested allocation for a time slot.
+     */
+    get: operations["get_resource_availability_api_clinic_appointments_resource_availability_get"];
+  };
+  "/api/clinic/appointments/{appointment_id}": {
+    /**
+     * Get appointment details
+     * @description Get appointment details by calendar_event_id.
+     *
+     * Available to all clinic members (including read-only users).
+     * Note: The appointment_id parameter is actually the calendar_event_id.
+     */
+    get: operations["get_appointment_details_api_clinic_appointments__appointment_id__get"];
+    /**
+     * Edit appointment
+     * @description Edit an appointment (time and/or practitioner).
+     *
+     * Admin can edit any appointment.
+     * Practitioners can only edit their own appointments.
+     * Read-only users cannot edit.
+     */
+    put: operations["edit_clinic_appointment_api_clinic_appointments__appointment_id__put"];
+    /**
+     * Cancel appointment by clinic admin or practitioner
+     * @description Cancel an appointment by clinic admin or practitioner.
+     *
+     * Practitioners can only cancel their own appointments.
+     * Admins can cancel any appointment in their clinic.
+     *
+     * Updates appointment status to 'canceled_by_clinic'
+     * and sends LINE notification to patient.
+     */
+    delete: operations["cancel_clinic_appointment_api_clinic_appointments__appointment_id__delete"];
+  };
+  "/api/clinic/appointments": {
+    /**
+     * Create appointment on behalf of patient
+     * @description Create an appointment on behalf of an existing patient.
+     *
+     * Admin and practitioners can create appointments for any patient.
+     * Read-only users cannot create appointments.
+     */
+    post: operations["create_clinic_appointment_api_clinic_appointments_post"];
+  };
+  "/api/clinic/appointments/check-recurring-conflicts": {
+    /**
+     * Check conflicts for recurring appointments
+     * @description Check for conflicts in a list of appointment occurrences.
+     *
+     * Returns conflict status for each occurrence, including:
+     * - Past appointment conflicts (highest priority)
+     * - Availability conflicts
+     * - Existing appointment conflicts
+     * - Duplicate occurrences within the list
+     * - Booking restriction violations (for patients, not clinic admins)
+     */
+    post: operations["check_recurring_conflicts_api_clinic_appointments_check_recurring_conflicts_post"];
+  };
+  "/api/clinic/appointments/recurring": {
+    /**
+     * Create recurring appointments
+     * @description Create multiple recurring appointments for a patient.
+     *
+     * Each occurrence is created in a separate transaction to allow partial success.
+     * Clinic notes are replicated to all successfully created appointments.
+     */
+    post: operations["create_recurring_appointments_api_clinic_appointments_recurring_post"];
+  };
+  "/api/clinic/appointments/{appointment_id}/edit-preview": {
+    /**
+     * Preview edit notification
+     * @description Preview edit notification message before confirming edit.
+     *
+     * Also validates conflicts and returns whether notification will be sent.
+     */
+    post: operations["preview_edit_notification_api_clinic_appointments__appointment_id__edit_preview_post"];
+  };
+  "/api/clinic/appointments/{appointment_id}/resources": {
+    /**
+     * Get resources allocated to an appointment
+     * @description Get all resources allocated to an appointment.
+     */
+    get: operations["get_appointment_resources_api_clinic_appointments__appointment_id__resources_get"];
+    /**
+     * Update resource allocation for an appointment
+     * @description Manually update resource allocation for an appointment.
+     */
+    put: operations["update_appointment_resources_api_clinic_appointments__appointment_id__resources_put"];
+  };
+  "/api/clinic/resource-types": {
+    /**
+     * List all resource types for clinic
+     * @description Get all resource types for the current clinic.
+     */
+    get: operations["list_resource_types_api_clinic_resource_types_get"];
+    /**
+     * Create a new resource type
+     * @description Create a new resource type for the clinic.
+     */
+    post: operations["create_resource_type_api_clinic_resource_types_post"];
+  };
+  "/api/clinic/resource-types/{resource_type_id}": {
+    /**
+     * Update a resource type
+     * @description Update a resource type.
+     */
+    put: operations["update_resource_type_api_clinic_resource_types__resource_type_id__put"];
+    /**
+     * Delete a resource type
+     * @description Delete a resource type. Prevents deletion if resources have active allocations.
+     */
+    delete: operations["delete_resource_type_api_clinic_resource_types__resource_type_id__delete"];
+  };
+  "/api/clinic/resource-types/{resource_type_id}/resources": {
+    /**
+     * List resources for a resource type
+     * @description Get all resources for a resource type.
+     */
+    get: operations["list_resources_api_clinic_resource_types__resource_type_id__resources_get"];
+    /**
+     * Create a new resource
+     * @description Create a new resource. Auto-generates name if not provided.
+     */
+    post: operations["create_resource_api_clinic_resource_types__resource_type_id__resources_post"];
+  };
+  "/api/clinic/resources/{resource_id}": {
+    /**
+     * Update a resource
+     * @description Update a resource.
+     */
+    put: operations["update_resource_api_clinic_resources__resource_id__put"];
+    /**
+     * Delete a resource (soft delete)
+     * @description Soft delete a resource. Prevents deletion if resource has active allocations.
+     */
+    delete: operations["delete_resource_api_clinic_resources__resource_id__delete"];
+  };
+  "/api/clinic/resource-types/{resource_type_id}/appointment-types": {
+    /**
+     * Get appointment types that require a resource type
+     * @description Get all appointment types that require a specific resource type.
+     */
+    get: operations["get_appointment_types_by_resource_type_api_clinic_resource_types__resource_type_id__appointment_types_get"];
+  };
+  "/api/clinic/appointment-types/{appointment_type_id}/resource-requirements": {
+    /**
+     * Get resource requirements for appointment type
+     * @description Get all resource requirements for an appointment type.
+     */
+    get: operations["get_resource_requirements_api_clinic_appointment_types__appointment_type_id__resource_requirements_get"];
+    /**
+     * Create a resource requirement
+     * @description Create a resource requirement for an appointment type.
+     */
+    post: operations["create_resource_requirement_api_clinic_appointment_types__appointment_type_id__resource_requirements_post"];
+  };
+  "/api/clinic/appointment-types/{appointment_type_id}/resource-requirements/{requirement_id}": {
+    /**
+     * Update a resource requirement
+     * @description Update a resource requirement.
+     */
+    put: operations["update_resource_requirement_api_clinic_appointment_types__appointment_type_id__resource_requirements__requirement_id__put"];
+    /**
+     * Delete a resource requirement
+     * @description Delete a resource requirement.
+     */
+    delete: operations["delete_resource_requirement_api_clinic_appointment_types__appointment_type_id__resource_requirements__requirement_id__delete"];
+  };
+  "/api/clinic/reminder-preview": {
+    /**
+     * Generate reminder message preview
+     * @description Generate a preview of what a LINE reminder message would look like.
+     *
+     * This endpoint allows clinic admins to see exactly how their reminder
+     * messages will appear to patients before they are sent.
+     */
+    post: operations["generate_reminder_preview_api_clinic_reminder_preview_post"];
+  };
+  "/api/clinic/cancellation-preview": {
+    /**
+     * Generate cancellation message preview
+     * @description Generate a preview of what a LINE cancellation message would look like.
+     *
+     * This endpoint allows clinic admins to see exactly how their cancellation
+     * messages will appear to patients before they are sent.
+     */
+    post: operations["generate_cancellation_preview_api_clinic_cancellation_preview_post"];
+  };
+  "/api/clinic/appointment-message-preview": {
+    /**
+     * Preview appointment message
+     * @description Preview appointment message with actual context data.
+     *
+     * Uses actual context: current user as practitioner, actual service item name, real clinic data.
+     * Returns preview message, used placeholders, and completeness warnings.
+     */
+    post: operations["preview_appointment_message_api_clinic_appointment_message_preview_post"];
+  };
+  "/api/clinic/settings/receipts/preview": {
+    /**
+     * Generate receipt preview
+     * @description Generate a preview of what a receipt would look like with current settings.
+     *
+     * This endpoint allows clinic admins to see exactly how their receipts
+     * will appear with the current receipt settings (custom_notes, show_stamp).
+     * Uses dummy data for preview purposes.
+     */
+    post: operations["generate_receipt_preview_api_clinic_settings_receipts_preview_post"];
+  };
+  "/api/clinic/chat/test": {
+    /**
+     * Test chatbot with current settings
+     * @description Test chatbot with current (unsaved) chat settings.
+     *
+     * This endpoint allows clinic users to test how the chatbot will respond
+     * using their current settings before saving them. The test uses the provided
+     * chat_settings instead of the clinic's saved settings.
+     *
+     * Available to all clinic members (including read-only users).
+     */
+    post: operations["test_chatbot_api_clinic_chat_test_post"];
   };
   "/api/liff/auth/liff-login": {
     /**
@@ -823,6 +1140,10 @@ export interface paths {
      *
      * If no appointment_type_id provided, returns all practitioners.
      * Clinic isolation is enforced through LIFF token context.
+     *
+     * When restrict_to_assigned_practitioners is True and patient_id is provided:
+     * - Filters to show only assigned practitioners
+     * - If no assigned practitioners or appointment type not offered by assigned practitioners, shows all practitioners
      */
     get: operations["list_practitioners_api_liff_practitioners_get"];
   };
@@ -901,6 +1222,29 @@ export interface paths {
      */
     delete: operations["cancel_appointment_api_liff_appointments__appointment_id__delete"];
   };
+  "/api/liff/appointments/{appointment_id}/receipt": {
+    /**
+     * Get Appointment Receipt
+     * @description Get active receipt for an appointment (patient view).
+     *
+     * Patients can only see active (non-voided) receipts.
+     * Returns 404 if no active receipt exists (security best practice).
+     * Clinic isolation is enforced through LIFF token context.
+     */
+    get: operations["get_appointment_receipt_api_liff_appointments__appointment_id__receipt_get"];
+  };
+  "/api/liff/appointments/{appointment_id}/receipt/html": {
+    /**
+     * Get Appointment Receipt Html
+     * @description Get active receipt as HTML for an appointment (patient view).
+     *
+     * Patients can only see active (non-voided) receipts.
+     * Returns 404 if no active receipt exists (security best practice).
+     * Clinic isolation is enforced through LIFF token context.
+     * Uses the same HTML template as the admin receipt view for consistency.
+     */
+    get: operations["get_appointment_receipt_html_api_liff_appointments__appointment_id__receipt_html_get"];
+  };
   "/api/liff/appointments/{appointment_id}/reschedule": {
     /**
      * Reschedule Appointment
@@ -952,6 +1296,100 @@ export interface paths {
      */
     put: operations["update_language_preference_api_liff_language_preference_put"];
   };
+  "/api/appointments/{appointment_id}/checkout": {
+    /**
+     * Checkout Appointment
+     * @description Checkout an appointment (create receipt).
+     *
+     * Clinic users only. Creates a receipt with immutable snapshot of all billing information.
+     *
+     * Validates:
+     * - Payment method is valid (cash, card, transfer, other)
+     * - All items have amount >= 0 (allows free services)
+     * - Revenue share <= amount for each item
+     * - Billing scenarios exist and are not deleted (if provided)
+     * - Service items exist and are not deleted
+     * - Quantity is between 1 and 999 (enforced by Pydantic model)
+     * - Receipt number sequence is not exhausted
+     */
+    post: operations["checkout_appointment_api_appointments__appointment_id__checkout_post"];
+  };
+  "/api/appointments/{appointment_id}/receipt": {
+    /**
+     * Get Appointment Receipt
+     * @description Get receipt for an appointment.
+     *
+     * Clinic users only. Returns active receipt if exists, otherwise most recent voided receipt.
+     */
+    get: operations["get_appointment_receipt_api_appointments__appointment_id__receipt_get"];
+  };
+  "/api/receipts/{receipt_id}/void": {
+    /**
+     * Void Receipt
+     * @description Void a receipt.
+     *
+     * Clinic users only. Voids a receipt for corrections while maintaining audit trail.
+     */
+    post: operations["void_receipt_api_receipts__receipt_id__void_post"];
+  };
+  "/api/clinic/service-items/{service_item_id}/practitioners/{practitioner_id}/billing-scenarios": {
+    /**
+     * List Billing Scenarios
+     * @description List billing scenarios for a practitioner-service combination.
+     *
+     * Clinic users only. Non-admin users can only view their own billing scenarios.
+     */
+    get: operations["list_billing_scenarios_api_clinic_service_items__service_item_id__practitioners__practitioner_id__billing_scenarios_get"];
+    /**
+     * Create Billing Scenario
+     * @description Create a new billing scenario.
+     *
+     * Admin-only.
+     */
+    post: operations["create_billing_scenario_api_clinic_service_items__service_item_id__practitioners__practitioner_id__billing_scenarios_post"];
+  };
+  "/api/clinic/service-items/{service_item_id}/practitioners/{practitioner_id}/billing-scenarios/{scenario_id}": {
+    /**
+     * Update Billing Scenario
+     * @description Update a billing scenario.
+     *
+     * Admin-only.
+     */
+    put: operations["update_billing_scenario_api_clinic_service_items__service_item_id__practitioners__practitioner_id__billing_scenarios__scenario_id__put"];
+    /**
+     * Delete Billing Scenario
+     * @description Soft delete a billing scenario.
+     *
+     * Admin-only.
+     */
+    delete: operations["delete_billing_scenario_api_clinic_service_items__service_item_id__practitioners__practitioner_id__billing_scenarios__scenario_id__delete"];
+  };
+  "/api/receipts/{receipt_id}/download": {
+    /**
+     * Download Receipt Pdf
+     * @description Download receipt as PDF.
+     *
+     * Clinic users only. Returns PDF file with receipt information.
+     */
+    get: operations["download_receipt_pdf_api_receipts__receipt_id__download_get"];
+  };
+  "/api/receipts/{receipt_id}/html": {
+    /**
+     * Get Receipt Html
+     * @description Get receipt as HTML for LIFF display.
+     *
+     * Clinic users only. Returns HTML page with receipt information.
+     * Same template as PDF to ensure consistency.
+     */
+    get: operations["get_receipt_html_api_receipts__receipt_id__html_get"];
+  };
+  "/api/receipts/{receipt_id}": {
+    /**
+     * Get Receipt By Id
+     * @description Get receipt by ID (clinic users only).
+     */
+    get: operations["get_receipt_by_id_api_receipts__receipt_id__get"];
+  };
   "/api/line/webhook": {
     /**
      * LINE webhook endpoint
@@ -993,6 +1431,22 @@ export type webhooks = Record<string, never>;
 export interface components {
   schemas: {
     /**
+     * AppointmentConflictDetail
+     * @description Detail model for appointment conflict.
+     */
+    AppointmentConflictDetail: {
+      /** Appointment Id */
+      appointment_id: number;
+      /** Patient Name */
+      patient_name: string;
+      /** Start Time */
+      start_time: string;
+      /** End Time */
+      end_time: string;
+      /** Appointment Type */
+      appointment_type: string;
+    };
+    /**
      * AppointmentCreateRequest
      * @description Request model for creating appointment.
      */
@@ -1028,14 +1482,18 @@ export interface components {
      * @description Request model for editing appointment.
      */
     AppointmentEditRequest: {
+      /** Appointment Type Id */
+      appointment_type_id?: number | null;
       /** Practitioner Id */
       practitioner_id?: number | null;
       /** Start Time */
       start_time?: string | null;
-      /** Notes */
-      notes?: string | null;
+      /** Clinic Notes */
+      clinic_notes?: string | null;
       /** Notification Note */
       notification_note?: string | null;
+      /** Selected Resource Ids */
+      selected_resource_ids?: number[] | null;
     };
     /**
      * AppointmentListItem
@@ -1051,7 +1509,7 @@ export interface components {
       /** Patient Name */
       patient_name: string;
       /** Practitioner Id */
-      practitioner_id: number;
+      practitioner_id?: number | null;
       /** Practitioner Name */
       practitioner_name: string;
       /** Appointment Type Id */
@@ -1068,6 +1526,8 @@ export interface components {
       status: string;
       /** Notes */
       notes: string | null;
+      /** Clinic Notes */
+      clinic_notes?: string | null;
       /** Line Display Name */
       line_display_name?: string | null;
       /**
@@ -1075,6 +1535,38 @@ export interface components {
        * @default false
        */
       originally_auto_assigned?: boolean;
+      /**
+       * Is Auto Assigned
+       * @default false
+       */
+      is_auto_assigned?: boolean;
+      /**
+       * Resource Names
+       * @default []
+       */
+      resource_names?: string[];
+      /**
+       * Resource Ids
+       * @default []
+       */
+      resource_ids?: number[];
+      /**
+       * Has Active Receipt
+       * @default false
+       */
+      has_active_receipt?: boolean;
+      /**
+       * Has Any Receipt
+       * @default false
+       */
+      has_any_receipt?: boolean;
+      /** Receipt Id */
+      receipt_id?: number | null;
+      /**
+       * Receipt Ids
+       * @default []
+       */
+      receipt_ids?: number[];
     };
     /**
      * AppointmentListResponse
@@ -1113,6 +1605,8 @@ export interface components {
       status: string;
       /** Notes */
       notes: string | null;
+      /** Clinic Notes */
+      clinic_notes?: string | null;
       /** Practitioner Id */
       practitioner_id: number;
       /**
@@ -1120,6 +1614,19 @@ export interface components {
        * @default false
        */
       is_auto_assigned?: boolean | null;
+    };
+    /**
+     * AppointmentTypeBulkOrderRequest
+     * @description Request model for bulk updating appointment type display order.
+     */
+    AppointmentTypeBulkOrderRequest: {
+      /**
+       * Service Orders
+       * @description List of dicts with 'id' and 'display_order'
+       */
+      service_orders: {
+          [key: string]: unknown;
+        }[];
     };
     /**
      * AppointmentTypeDeletionValidationRequest
@@ -1152,6 +1659,71 @@ export interface components {
       name: string;
       /** Duration Minutes */
       duration_minutes: number;
+      /** Receipt Name */
+      receipt_name?: string | null;
+      /**
+       * Allow Patient Booking
+       * @default true
+       */
+      allow_patient_booking?: boolean;
+      /**
+       * Allow Patient Practitioner Selection
+       * @default true
+       */
+      allow_patient_practitioner_selection?: boolean;
+      /** Description */
+      description?: string | null;
+      /**
+       * Scheduling Buffer Minutes
+       * @default 0
+       */
+      scheduling_buffer_minutes?: number;
+      /** Service Type Group Id */
+      service_type_group_id?: number | null;
+      /**
+       * Display Order
+       * @default 0
+       */
+      display_order?: number;
+      /**
+       * Send Patient Confirmation
+       * @default true
+       */
+      send_patient_confirmation?: boolean;
+      /**
+       * Send Clinic Confirmation
+       * @default true
+       */
+      send_clinic_confirmation?: boolean;
+      /**
+       * Send Reminder
+       * @default true
+       */
+      send_reminder?: boolean;
+      /** Patient Confirmation Message */
+      patient_confirmation_message: string;
+      /** Clinic Confirmation Message */
+      clinic_confirmation_message: string;
+      /** Reminder Message */
+      reminder_message: string;
+      /**
+       * Require Notes
+       * @default false
+       */
+      require_notes?: boolean;
+      /** Notes Instructions */
+      notes_instructions?: string | null;
+    };
+    /**
+     * AssignPractitionerRequest
+     * @description Request model for assigning practitioner to patient.
+     */
+    AssignPractitionerRequest: {
+      /**
+       * User Id
+       * @description Practitioner (user) ID to assign
+       */
+      user_id: number;
     };
     /**
      * AutoAssignedAppointmentItem
@@ -1182,6 +1754,16 @@ export interface components {
       notes?: string | null;
       /** Originally Auto Assigned */
       originally_auto_assigned: boolean;
+      /**
+       * Resource Names
+       * @default []
+       */
+      resource_names?: string[];
+      /**
+       * Resource Ids
+       * @default []
+       */
+      resource_ids?: number[];
     };
     /**
      * AutoAssignedAppointmentsResponse
@@ -1368,78 +1950,6 @@ export interface components {
       results: components["schemas"]["AvailableSlotsResponse"][];
     };
     /**
-     * AppointmentConflictDetail
-     * @description Detail model for appointment conflict.
-     */
-    AppointmentConflictDetail: {
-      /** Appointment Id */
-      appointment_id: number;
-      /** Patient Name */
-      patient_name: string;
-      /** Start Time */
-      start_time: string;
-      /** End Time */
-      end_time: string;
-      /** Appointment Type */
-      appointment_type: string;
-    };
-    /**
-     * ExceptionConflictDetail
-     * @description Detail model for availability exception conflict.
-     */
-    ExceptionConflictDetail: {
-      /** Exception Id */
-      exception_id: number;
-      /** Start Time */
-      start_time: string;
-      /** End Time */
-      end_time: string;
-      /** Reason */
-      reason: string | null;
-    };
-    /**
-     * DefaultAvailabilityInfo
-     * @description Information about default availability.
-     */
-    DefaultAvailabilityInfo: {
-      /** Is Within Hours */
-      is_within_hours: boolean;
-      /** Normal Hours */
-      normal_hours: string | null;
-    };
-    /**
-     * ResourceConflictDetail
-     * @description Detail model for resource conflict.
-     */
-    ResourceConflictDetail: {
-      /** Resource Type Id */
-      resource_type_id: number;
-      /** Resource Type Name */
-      resource_type_name: string;
-      /** Required Quantity */
-      required_quantity: number;
-      /** Available Quantity */
-      available_quantity: number;
-    };
-    /**
-     * SchedulingConflictResponse
-     * @description Response model for scheduling conflict detection.
-     */
-    SchedulingConflictResponse: {
-      /** Has Conflict */
-      has_conflict: boolean;
-      /** Conflict Type */
-      conflict_type: string | null;
-      /** Appointment Conflict */
-      appointment_conflict: components["schemas"]["AppointmentConflictDetail"] | null;
-      /** Exception Conflict */
-      exception_conflict: components["schemas"]["ExceptionConflictDetail"] | null;
-      /** Resource Conflicts */
-      resource_conflicts: components["schemas"]["ResourceConflictDetail"][] | null;
-      /** Default Availability */
-      default_availability: components["schemas"]["DefaultAvailabilityInfo"];
-    };
-    /**
      * BatchCalendarDayResponse
      * @description Response model for batch calendar day data per practitioner.
      */
@@ -1504,6 +2014,87 @@ export interface components {
       results: components["schemas"]["BatchPractitionerStatusItemResponse"][];
     };
     /**
+     * BatchResourceCalendarRequest
+     * @description Request model for batch resource calendar data.
+     */
+    BatchResourceCalendarRequest: {
+      /** Resource Ids */
+      resource_ids: number[];
+      /** Start Date */
+      start_date: string;
+      /** End Date */
+      end_date: string;
+    };
+    /**
+     * BatchResourceCalendarResponse
+     * @description Response model for batch resource calendar data.
+     */
+    BatchResourceCalendarResponse: {
+      /** Results */
+      results: components["schemas"]["ResourceCalendarDayResponse"][];
+    };
+    /**
+     * BillingScenarioCreateRequest
+     * @description Request model for creating a billing scenario.
+     */
+    BillingScenarioCreateRequest: {
+      /** Name */
+      name: string;
+      /** Amount */
+      amount: number | string;
+      /** Revenue Share */
+      revenue_share: number | string;
+      /**
+       * Is Default
+       * @default false
+       */
+      is_default?: boolean;
+    };
+    /**
+     * BillingScenarioListResponse
+     * @description Response model for listing billing scenarios.
+     */
+    BillingScenarioListResponse: {
+      /** Billing Scenarios */
+      billing_scenarios: components["schemas"]["BillingScenarioResponse"][];
+    };
+    /**
+     * BillingScenarioResponse
+     * @description Response model for billing scenario.
+     */
+    BillingScenarioResponse: {
+      /** Id */
+      id: number;
+      /** Practitioner Id */
+      practitioner_id: number;
+      /** Appointment Type Id */
+      appointment_type_id: number;
+      /** Clinic Id */
+      clinic_id: number;
+      /** Name */
+      name: string;
+      /** Amount */
+      amount: string;
+      /** Revenue Share */
+      revenue_share: string;
+      /** Is Default */
+      is_default: boolean;
+    };
+    /**
+     * BillingScenarioUpdateRequest
+     * @description Request model for updating a billing scenario.
+     */
+    BillingScenarioUpdateRequest: {
+      /** Name */
+      name?: string | null;
+      /** Amount */
+      amount?: number | string | null;
+      /** Revenue Share */
+      revenue_share?: number | string | null;
+      /** Is Default */
+      is_default?: boolean | null;
+    };
+    /**
      * BookingRestrictionSettings
      * @description Booking restriction settings for clinic.
      */
@@ -1519,14 +2110,12 @@ export interface components {
        */
       minimum_booking_hours_ahead?: number;
       /**
-       * Deadline Time Day Before (24-hour format HH:MM, e.g., "08:00" for 8:00 AM)
-       * Used when booking_restriction_type is 'deadline_time_day_before'
+       * Deadline Time Day Before
        * @default 08:00
        */
-      deadline_time_day_before?: string;
+      deadline_time_day_before?: string | null;
       /**
-       * If True, deadline is on the same day as appointment (date X).
-       * If False, deadline is on the day before (date X-1).
+       * Deadline On Same Day
        * @default false
        */
       deadline_on_same_day?: boolean;
@@ -1583,6 +2172,8 @@ export interface components {
       appointment_id?: number | null;
       /** Notes */
       notes?: string | null;
+      /** Clinic Notes */
+      clinic_notes?: string | null;
       /** Patient Phone */
       patient_phone?: string | null;
       /** Patient Birthday */
@@ -1597,6 +2188,33 @@ export interface components {
       appointment_type_name?: string | null;
       /** Is Auto Assigned */
       is_auto_assigned?: boolean | null;
+      /**
+       * Resource Names
+       * @default []
+       */
+      resource_names?: string[];
+      /**
+       * Resource Ids
+       * @default []
+       */
+      resource_ids?: number[];
+      /**
+       * Has Active Receipt
+       * @default false
+       */
+      has_active_receipt?: boolean;
+      /**
+       * Has Any Receipt
+       * @default false
+       */
+      has_any_receipt?: boolean;
+      /** Receipt Id */
+      receipt_id?: number | null;
+      /**
+       * Receipt Ids
+       * @default []
+       */
+      receipt_ids?: number[];
     };
     /**
      * CancellationPreviewRequest
@@ -1636,6 +2254,99 @@ export interface components {
       session_id: string;
     };
     /**
+     * CheckRecurringConflictsRequest
+     * @description Request model for checking conflicts in recurring appointments.
+     */
+    CheckRecurringConflictsRequest: {
+      /** Practitioner Id */
+      practitioner_id: number;
+      /** Appointment Type Id */
+      appointment_type_id: number;
+      /** Occurrences */
+      occurrences: string[];
+    };
+    /**
+     * CheckoutItemRequest
+     * @description Request model for a checkout item.
+     */
+    CheckoutItemRequest: {
+      /**
+       * Item Type
+       * @description 'service_item' or 'other'
+       */
+      item_type: string;
+      /**
+       * Service Item Id
+       * @description Required if item_type is 'service_item'
+       */
+      service_item_id?: number | null;
+      /**
+       * Practitioner Id
+       * @description Practitioner ID (can be null)
+       */
+      practitioner_id?: number | null;
+      /**
+       * Billing Scenario Id
+       * @description Required if item_type is 'service_item'
+       */
+      billing_scenario_id?: number | null;
+      /**
+       * Item Name
+       * @description Required if item_type is 'other'
+       */
+      item_name?: string | null;
+      /**
+       * Amount
+       * @description Amount (>= 0, allows free services)
+       */
+      amount: number | string;
+      /** Revenue Share */
+      revenue_share: number | string;
+      /**
+       * Display Order
+       * @default 0
+       */
+      display_order?: number;
+      /**
+       * Quantity
+       * @description Quantity of items (default: 1, max: 999)
+       * @default 1
+       */
+      quantity?: number;
+    };
+    /**
+     * CheckoutRequest
+     * @description Request model for checkout.
+     */
+    CheckoutRequest: {
+      /** Items */
+      items: components["schemas"]["CheckoutItemRequest"][];
+      /**
+       * Payment Method
+       * @description 'cash', 'card', 'transfer', or 'other'
+       */
+      payment_method: string;
+    };
+    /**
+     * CheckoutResponse
+     * @description Response model for checkout.
+     */
+    CheckoutResponse: {
+      /** Receipt Id */
+      receipt_id: number;
+      /** Receipt Number */
+      receipt_number: string;
+      /** Total Amount */
+      total_amount: string;
+      /** Total Revenue Share */
+      total_revenue_share: string;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+    };
+    /**
      * ClinicAppointmentCreateRequest
      * @description Request model for creating appointment on behalf of patient.
      */
@@ -1651,8 +2362,10 @@ export interface components {
       start_time: string;
       /** Practitioner Id */
       practitioner_id: number;
-      /** Notes */
-      notes?: string | null;
+      /** Clinic Notes */
+      clinic_notes?: string | null;
+      /** Selected Resource Ids */
+      selected_resource_ids?: number[] | null;
     };
     /**
      * ClinicCreateRequest
@@ -1737,6 +2450,22 @@ export interface components {
        * @default false
        */
       require_birthday?: boolean;
+      /**
+       * Require Gender
+       * @default false
+       */
+      require_gender?: boolean;
+      /**
+       * Restrict To Assigned Practitioners
+       * @default false
+       */
+      restrict_to_assigned_practitioners?: boolean;
+      /** Query Page Instructions */
+      query_page_instructions?: string | null;
+      /** Settings Page Instructions */
+      settings_page_instructions?: string | null;
+      /** Notifications Page Instructions */
+      notifications_page_instructions?: string | null;
     };
     /**
      * ClinicPatientCreateRequest
@@ -1749,6 +2478,8 @@ export interface components {
       phone_number?: string | null;
       /** Birthday */
       birthday?: string | null;
+      /** Gender */
+      gender?: string | null;
     };
     /**
      * ClinicPatientListResponse
@@ -1777,6 +2508,8 @@ export interface components {
       phone_number?: string | null;
       /** Birthday */
       birthday?: string | null;
+      /** Gender */
+      gender?: string | null;
       /** Notes */
       notes?: string | null;
       /**
@@ -1788,6 +2521,10 @@ export interface components {
       future_appointments_count?: number | null;
       /** Max Future Appointments */
       max_future_appointments?: number | null;
+      /** Assigned Practitioners */
+      assigned_practitioners?: {
+          [key: string]: unknown;
+        }[] | null;
       /** Line User Id */
       line_user_id: string | null;
       /** Line User Display Name */
@@ -1799,6 +2536,8 @@ export interface components {
        * @default false
        */
       is_deleted?: boolean | null;
+      /** Assigned Practitioner Ids */
+      assigned_practitioner_ids?: number[] | null;
     };
     /**
      * ClinicPatientUpdateRequest
@@ -1811,8 +2550,12 @@ export interface components {
       phone_number?: string | null;
       /** Birthday */
       birthday?: string | null;
+      /** Gender */
+      gender?: string | null;
       /** Notes */
       notes?: string | null;
+      /** Assigned Practitioner Ids */
+      assigned_practitioner_ids?: number[] | null;
     };
     /**
      * ClinicResponse
@@ -1896,6 +2639,16 @@ export interface components {
       conflicts: components["schemas"]["ConflictDetail"][];
     };
     /**
+     * DefaultAvailabilityInfo
+     * @description Information about default availability.
+     */
+    DefaultAvailabilityInfo: {
+      /** Is Within Hours */
+      is_within_hours: boolean;
+      /** Normal Hours */
+      normal_hours?: string | null;
+    };
+    /**
      * DefaultScheduleRequest
      * @description Request model for updating default weekly schedule.
      */
@@ -1971,6 +2724,171 @@ export interface components {
     DuplicateCheckResponse: {
       /** Count */
       count: number;
+    };
+    /**
+     * ExceptionConflictDetail
+     * @description Detail model for availability exception conflict.
+     */
+    ExceptionConflictDetail: {
+      /** Exception Id */
+      exception_id: number;
+      /** Start Time */
+      start_time: string;
+      /** End Time */
+      end_time: string;
+      /** Reason */
+      reason?: string | null;
+    };
+    /**
+     * FollowUpMessageCreateRequest
+     * @description Request model for creating a follow-up message.
+     */
+    FollowUpMessageCreateRequest: {
+      /**
+       * Timing Mode
+       * @description Timing mode: 'hours_after' or 'specific_time'
+       * @enum {string}
+       */
+      timing_mode: "hours_after" | "specific_time";
+      /**
+       * Hours After
+       * @description For Mode A: hours after appointment end (x >= 0)
+       */
+      hours_after?: number | null;
+      /**
+       * Days After
+       * @description For Mode B: days after appointment date (y >= 0)
+       */
+      days_after?: number | null;
+      /**
+       * Time Of Day
+       * @description For Mode B: specific time in HH:MM format (e.g., '21:00')
+       */
+      time_of_day?: string | null;
+      /**
+       * Message Template
+       * @description Message template with placeholders
+       */
+      message_template: string;
+      /**
+       * Is Enabled
+       * @description Whether this follow-up message is enabled
+       * @default true
+       */
+      is_enabled?: boolean;
+      /**
+       * Display Order
+       * @description Display order for sorting multiple follow-up messages
+       * @default 0
+       */
+      display_order?: number;
+    };
+    /**
+     * FollowUpMessageListResponse
+     * @description Response model for list of follow-up messages.
+     */
+    FollowUpMessageListResponse: {
+      /** Follow Up Messages */
+      follow_up_messages: components["schemas"]["FollowUpMessageResponse"][];
+    };
+    /**
+     * FollowUpMessagePreviewRequest
+     * @description Request model for previewing a follow-up message.
+     */
+    FollowUpMessagePreviewRequest: {
+      /**
+       * Appointment Type Id
+       * @description Appointment type ID (optional for new items with temporary IDs)
+       */
+      appointment_type_id?: number | null;
+      /**
+       * Appointment Type Name
+       * @description Appointment type name (required if appointment_type_id is not provided or is a temporary ID)
+       */
+      appointment_type_name?: string | null;
+      /**
+       * Timing Mode
+       * @enum {string}
+       */
+      timing_mode: "hours_after" | "specific_time";
+      /** Hours After */
+      hours_after?: number | null;
+      /** Days After */
+      days_after?: number | null;
+      /** Time Of Day */
+      time_of_day?: string | null;
+      /** Message Template */
+      message_template: string;
+    };
+    /**
+     * FollowUpMessagePreviewResponse
+     * @description Response model for follow-up message preview.
+     */
+    FollowUpMessagePreviewResponse: {
+      /** Preview Message */
+      preview_message: string;
+      /** Used Placeholders */
+      used_placeholders: {
+        [key: string]: string;
+      };
+      /** Completeness Warnings */
+      completeness_warnings?: string[] | null;
+    };
+    /**
+     * FollowUpMessageResponse
+     * @description Response model for a follow-up message.
+     */
+    FollowUpMessageResponse: {
+      /** Id */
+      id: number;
+      /** Appointment Type Id */
+      appointment_type_id: number;
+      /** Clinic Id */
+      clinic_id: number;
+      /** Timing Mode */
+      timing_mode: string;
+      /** Hours After */
+      hours_after: number | null;
+      /** Days After */
+      days_after: number | null;
+      /** Time Of Day */
+      time_of_day: string | null;
+      /** Message Template */
+      message_template: string;
+      /** Is Enabled */
+      is_enabled: boolean;
+      /** Display Order */
+      display_order: number;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Updated At
+       * Format: date-time
+       */
+      updated_at: string;
+    };
+    /**
+     * FollowUpMessageUpdateRequest
+     * @description Request model for updating a follow-up message.
+     */
+    FollowUpMessageUpdateRequest: {
+      /** Timing Mode */
+      timing_mode?: ("hours_after" | "specific_time") | null;
+      /** Hours After */
+      hours_after?: number | null;
+      /** Days After */
+      days_after?: number | null;
+      /** Time Of Day */
+      time_of_day?: string | null;
+      /** Message Template */
+      message_template?: string | null;
+      /** Is Enabled */
+      is_enabled?: boolean | null;
+      /** Display Order */
+      display_order?: number | null;
     };
     /** HTTPValidationError */
     HTTPValidationError: {
@@ -2075,6 +2993,8 @@ export interface components {
       patient_count: number;
       /** Patient Names */
       patient_names: string[];
+      /** Patient Info */
+      patient_info: components["schemas"]["PatientInfo"][];
       /** Ai Disabled */
       ai_disabled: boolean;
       /** Disabled At */
@@ -2146,6 +3066,37 @@ export interface components {
        * Format: date-time
        */
       created_at: string;
+      /** Patient Booking Allowed */
+      patient_booking_allowed?: boolean | null;
+      /** Step Size Minutes */
+      step_size_minutes?: number | null;
+    };
+    /**
+     * MessagePreviewRequest
+     * @description Request model for appointment message preview.
+     */
+    MessagePreviewRequest: {
+      /**
+       * Appointment Type Id
+       * @description Appointment type ID (optional for new items)
+       */
+      appointment_type_id?: number | null;
+      /**
+       * Message Type
+       * @description Message type
+       * @enum {string}
+       */
+      message_type: "patient_confirmation" | "clinic_confirmation" | "reminder";
+      /**
+       * Template
+       * @description Template to preview
+       */
+      template: string;
+      /**
+       * Appointment Type Name
+       * @description Appointment type name (required if appointment_type_id is not provided)
+       */
+      appointment_type_name?: string | null;
     };
     /**
      * MonthInfo
@@ -2275,6 +3226,16 @@ export interface components {
       reminder_hours_before?: number;
     };
     /**
+     * OccurrenceRequest
+     * @description Single occurrence in recurring appointment request.
+     */
+    OccurrenceRequest: {
+      /** Start Time */
+      start_time: string;
+      /** Selected Resource Ids */
+      selected_resource_ids?: number[] | null;
+    };
+    /**
      * PatientCreateRequest
      * @description Request model for creating patient.
      */
@@ -2285,6 +3246,8 @@ export interface components {
       phone_number: string;
       /** Birthday */
       birthday?: string | null;
+      /** Gender */
+      gender?: string | null;
     };
     /**
      * PatientCreateResponse
@@ -2299,6 +3262,8 @@ export interface components {
       phone_number?: string | null;
       /** Birthday */
       birthday?: string | null;
+      /** Gender */
+      gender?: string | null;
       /** Notes */
       notes?: string | null;
       /**
@@ -2306,6 +3271,16 @@ export interface components {
        * Format: date-time
        */
       created_at: string;
+    };
+    /**
+     * PatientInfo
+     * @description Patient information with ID and name.
+     */
+    PatientInfo: {
+      /** Id */
+      id: number;
+      /** Name */
+      name: string;
     };
     /**
      * PatientListResponse
@@ -2328,6 +3303,8 @@ export interface components {
       phone_number?: string | null;
       /** Birthday */
       birthday?: string | null;
+      /** Gender */
+      gender?: string | null;
       /** Notes */
       notes?: string | null;
       /**
@@ -2339,6 +3316,10 @@ export interface components {
       future_appointments_count?: number | null;
       /** Max Future Appointments */
       max_future_appointments?: number | null;
+      /** Assigned Practitioners */
+      assigned_practitioners?: {
+          [key: string]: unknown;
+        }[] | null;
     };
     /**
      * PatientUpdateRequest
@@ -2351,6 +3332,8 @@ export interface components {
       phone_number?: string | null;
       /** Birthday */
       birthday?: string | null;
+      /** Gender */
+      gender?: string | null;
     };
     /**
      * PractitionerAppointmentTypesResponse
@@ -2393,6 +3376,16 @@ export interface components {
       offered_types: number[];
     };
     /**
+     * PractitionerSettingsUpdateRequest
+     * @description Request model for updating practitioner settings.
+     */
+    PractitionerSettingsUpdateRequest: {
+      /** Settings */
+      settings: {
+        [key: string]: unknown;
+      };
+    };
+    /**
      * PractitionerStatusResponse
      * @description Response model for practitioner's configuration status.
      */
@@ -2415,6 +3408,11 @@ export interface components {
       email: string;
       /** Full Name */
       full_name: string;
+      /**
+       * Title
+       * @default
+       */
+      title?: string;
       /** Roles */
       roles: string[];
       /** Active Clinic Id */
@@ -2443,10 +3441,162 @@ export interface components {
     ProfileUpdateRequest: {
       /** Full Name */
       full_name?: string | null;
+      /** Title */
+      title?: string | null;
       /** Settings */
       settings?: {
         [key: string]: unknown;
       } | null;
+    };
+    /**
+     * ReceiptItemResponse
+     * @description Response model for a receipt item.
+     */
+    ReceiptItemResponse: {
+      /** Item Type */
+      item_type: string;
+      /** Service Item */
+      service_item?: {
+        [key: string]: unknown;
+      } | null;
+      /** Item Name */
+      item_name?: string | null;
+      /** Practitioner */
+      practitioner?: {
+        [key: string]: unknown;
+      } | null;
+      /** Billing Scenario */
+      billing_scenario?: {
+        [key: string]: unknown;
+      } | null;
+      /** Amount */
+      amount: string;
+      /** Revenue Share */
+      revenue_share: string;
+      /** Display Order */
+      display_order: number;
+      /**
+       * Quantity
+       * @default 1
+       */
+      quantity?: number;
+    };
+    /**
+     * ReceiptPreviewRequest
+     * @description Request model for receipt preview.
+     */
+    ReceiptPreviewRequest: {
+      /** Custom Notes */
+      custom_notes?: string | null;
+      /**
+       * Show Stamp
+       * @default false
+       */
+      show_stamp?: boolean;
+    };
+    /**
+     * ReceiptResponse
+     * @description Response model for receipt details.
+     */
+    ReceiptResponse: {
+      /** Receipt Id */
+      receipt_id: number;
+      /** Receipt Number */
+      receipt_number: string;
+      /** Appointment Id */
+      appointment_id: number;
+      /**
+       * Issue Date
+       * Format: date-time
+       */
+      issue_date: string;
+      /**
+       * Visit Date
+       * Format: date-time
+       */
+      visit_date: string;
+      /** Total Amount */
+      total_amount: string;
+      /** Total Revenue Share */
+      total_revenue_share: string;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /** Checked Out By */
+      checked_out_by: {
+        [key: string]: unknown;
+      };
+      /** Clinic */
+      clinic: {
+        [key: string]: unknown;
+      };
+      /** Patient */
+      patient: {
+        [key: string]: unknown;
+      };
+      /** Items */
+      items: components["schemas"]["ReceiptItemResponse"][];
+      /** Payment Method */
+      payment_method: string;
+      /** Custom Notes */
+      custom_notes?: string | null;
+      /** Stamp */
+      stamp: {
+        [key: string]: unknown;
+      };
+      /** Void Info */
+      void_info: {
+        [key: string]: unknown;
+      };
+    };
+    /**
+     * ReceiptSettings
+     * @description Receipt settings for clinic.
+     */
+    ReceiptSettings: {
+      /** Custom Notes */
+      custom_notes?: string | null;
+      /**
+       * Show Stamp
+       * @default false
+       */
+      show_stamp?: boolean;
+    };
+    /**
+     * RecurringAppointmentCreateRequest
+     * @description Request model for creating recurring appointments.
+     */
+    RecurringAppointmentCreateRequest: {
+      /** Patient Id */
+      patient_id: number;
+      /** Appointment Type Id */
+      appointment_type_id: number;
+      /** Practitioner Id */
+      practitioner_id: number;
+      /** Clinic Notes */
+      clinic_notes?: string | null;
+      /** Occurrences */
+      occurrences: components["schemas"]["OccurrenceRequest"][];
+    };
+    /**
+     * RefreshUserDataResponse
+     * @description Response for refreshing user data with current roles.
+     */
+    RefreshUserDataResponse: {
+      /** Access Token */
+      access_token: string;
+      /** Refresh Token */
+      refresh_token: string;
+      /** Token Type */
+      token_type: string;
+      /** Expires In */
+      expires_in: string;
+      /** User */
+      user: {
+        [key: string]: unknown;
+      };
     };
     /**
      * ReminderPreviewRequest
@@ -2473,6 +3623,266 @@ export interface components {
       new_notes?: string | null;
     };
     /**
+     * ResourceAllocationResponse
+     * @description Response model for resource allocation.
+     */
+    ResourceAllocationResponse: {
+      /** Resources */
+      resources: components["schemas"]["api__clinic__appointments__ResourceResponse"][];
+    };
+    /**
+     * ResourceAvailabilityResponse
+     * @description Response model for resource availability.
+     */
+    ResourceAvailabilityResponse: {
+      /** Requirements */
+      requirements: {
+          [key: string]: unknown;
+        }[];
+      /** Suggested Allocation */
+      suggested_allocation: {
+          [key: string]: unknown;
+        }[];
+      /** Conflicts */
+      conflicts: {
+          [key: string]: unknown;
+        }[];
+    };
+    /**
+     * ResourceCalendarDayResponse
+     * @description Response model for resource calendar day data.
+     */
+    ResourceCalendarDayResponse: {
+      /** Resource Id */
+      resource_id: number;
+      /** Date */
+      date: string;
+      /** Events */
+      events: components["schemas"]["CalendarEventResponse"][];
+    };
+    /**
+     * ResourceConflictDetail
+     * @description Detail model for resource conflict.
+     */
+    ResourceConflictDetail: {
+      /** Resource Type Id */
+      resource_type_id: number;
+      /** Resource Type Name */
+      resource_type_name: string;
+      /** Required Quantity */
+      required_quantity: number;
+      /** Total Resources */
+      total_resources: number;
+      /** Allocated Count */
+      allocated_count: number;
+    };
+    /**
+     * ResourceCreateRequest
+     * @description Request model for creating a resource.
+     */
+    ResourceCreateRequest: {
+      /** Name */
+      name?: string | null;
+      /** Description */
+      description?: string | null;
+    };
+    /**
+     * ResourceListResponse
+     * @description Response model for resource list.
+     */
+    ResourceListResponse: {
+      /** Resources */
+      resources: components["schemas"]["api__clinic__resources__ResourceResponse"][];
+    };
+    /**
+     * ResourceRequirementCreateRequest
+     * @description Request model for creating a resource requirement.
+     */
+    ResourceRequirementCreateRequest: {
+      /** Resource Type Id */
+      resource_type_id: number;
+      /** Quantity */
+      quantity: number;
+    };
+    /**
+     * ResourceRequirementListResponse
+     * @description Response model for resource requirement list.
+     */
+    ResourceRequirementListResponse: {
+      /** Requirements */
+      requirements: components["schemas"]["ResourceRequirementResponse"][];
+    };
+    /**
+     * ResourceRequirementResponse
+     * @description Response model for resource requirement.
+     */
+    ResourceRequirementResponse: {
+      /** Id */
+      id: number;
+      /** Appointment Type Id */
+      appointment_type_id: number;
+      /** Resource Type Id */
+      resource_type_id: number;
+      /** Resource Type Name */
+      resource_type_name: string;
+      /** Quantity */
+      quantity: number;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Updated At
+       * Format: date-time
+       */
+      updated_at: string;
+    };
+    /**
+     * ResourceRequirementUpdateRequest
+     * @description Request model for updating a resource requirement.
+     */
+    ResourceRequirementUpdateRequest: {
+      /** Quantity */
+      quantity: number;
+    };
+    /**
+     * ResourceTypeCreateRequest
+     * @description Request model for creating a resource type.
+     */
+    ResourceTypeCreateRequest: {
+      /** Name */
+      name: string;
+    };
+    /**
+     * ResourceTypeListResponse
+     * @description Response model for resource type list.
+     */
+    ResourceTypeListResponse: {
+      /** Resource Types */
+      resource_types: components["schemas"]["ResourceTypeResponse"][];
+    };
+    /**
+     * ResourceTypeResponse
+     * @description Response model for resource type.
+     */
+    ResourceTypeResponse: {
+      /** Id */
+      id: number;
+      /** Clinic Id */
+      clinic_id: number;
+      /** Name */
+      name: string;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Updated At
+       * Format: date-time
+       */
+      updated_at: string;
+    };
+    /**
+     * ResourceTypeUpdateRequest
+     * @description Request model for updating a resource type.
+     */
+    ResourceTypeUpdateRequest: {
+      /** Name */
+      name: string;
+    };
+    /**
+     * ResourceUpdateRequest
+     * @description Request model for updating a resource.
+     */
+    ResourceUpdateRequest: {
+      /** Name */
+      name: string;
+      /** Description */
+      description?: string | null;
+    };
+    /**
+     * SchedulingConflictResponse
+     * @description Response model for scheduling conflict detection.
+     */
+    SchedulingConflictResponse: {
+      /** Has Conflict */
+      has_conflict: boolean;
+      /** Conflict Type */
+      conflict_type?: string | null;
+      appointment_conflict?: components["schemas"]["AppointmentConflictDetail"] | null;
+      exception_conflict?: components["schemas"]["ExceptionConflictDetail"] | null;
+      /** Resource Conflicts */
+      resource_conflicts?: components["schemas"]["ResourceConflictDetail"][] | null;
+      default_availability: components["schemas"]["DefaultAvailabilityInfo"];
+    };
+    /**
+     * ServiceTypeGroupBulkOrderRequest
+     * @description Request model for bulk updating group display order.
+     */
+    ServiceTypeGroupBulkOrderRequest: {
+      /**
+       * Group Orders
+       * @description List of dicts with 'id' and 'display_order'
+       */
+      group_orders: {
+          [key: string]: unknown;
+        }[];
+    };
+    /**
+     * ServiceTypeGroupCreateRequest
+     * @description Request model for creating a service type group.
+     */
+    ServiceTypeGroupCreateRequest: {
+      /** Name */
+      name: string;
+      /** Display Order */
+      display_order?: number | null;
+    };
+    /**
+     * ServiceTypeGroupListResponse
+     * @description Response model for list of service type groups.
+     */
+    ServiceTypeGroupListResponse: {
+      /** Groups */
+      groups: components["schemas"]["ServiceTypeGroupResponse"][];
+    };
+    /**
+     * ServiceTypeGroupResponse
+     * @description Response model for service type group.
+     */
+    ServiceTypeGroupResponse: {
+      /** Id */
+      id: number;
+      /** Clinic Id */
+      clinic_id: number;
+      /** Name */
+      name: string;
+      /** Display Order */
+      display_order: number;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Updated At
+       * Format: date-time
+       */
+      updated_at: string;
+    };
+    /**
+     * ServiceTypeGroupUpdateRequest
+     * @description Request model for updating a service type group.
+     */
+    ServiceTypeGroupUpdateRequest: {
+      /** Name */
+      name?: string | null;
+      /** Display Order */
+      display_order?: number | null;
+    };
+    /**
      * SettingsResponse
      * @description Response model for clinic settings.
      */
@@ -2492,9 +3902,12 @@ export interface components {
       notification_settings: components["schemas"]["NotificationSettings"];
       booking_restriction_settings: components["schemas"]["BookingRestrictionSettings"];
       clinic_info_settings: components["schemas"]["ClinicInfoSettings"];
-      chat_settings: components["schemas"]["api__clinic__ChatSettings"];
-      /** Liff Urls - Dictionary of mode -> URL (excluding 'home') */
-      liff_urls?: Record<string, string> | null;
+      chat_settings: components["schemas"]["api__clinic__settings__ChatSettings"];
+      receipt_settings: components["schemas"]["ReceiptSettings"];
+      /** Liff Urls */
+      liff_urls?: {
+        [key: string]: string;
+      } | null;
     };
     /**
      * SignupLinkResponse
@@ -2563,14 +3976,6 @@ export interface components {
       time_window: "morning" | "afternoon" | "evening";
     };
     /**
-     * UpdateEventNameRequest
-     * @description Request model for updating calendar event name.
-     */
-    UpdateEventNameRequest: {
-      /** Event Name */
-      event_name?: string | null;
-    };
-    /**
      * UpdateLineUserDisplayNameRequest
      * @description Request model for updating LINE user clinic display name.
      */
@@ -2591,10 +3996,116 @@ export interface components {
       type: string;
     };
     /**
+     * VoidReceiptRequest
+     * @description Request model for voiding a receipt.
+     */
+    VoidReceiptRequest: {
+      /**
+       * Reason
+       * @description 作廢原因（必填）
+       */
+      reason: string;
+    };
+    /**
+     * VoidReceiptResponse
+     * @description Response model for voiding a receipt.
+     */
+    VoidReceiptResponse: {
+      /** Receipt Id */
+      receipt_id: number;
+      /** Voided */
+      voided: boolean;
+      /**
+       * Voided At
+       * Format: date-time
+       */
+      voided_at: string;
+      /** Voided By */
+      voided_by: {
+        [key: string]: unknown;
+      };
+      /** Reason */
+      reason?: string | null;
+    };
+    /**
+     * ResourceResponse
+     * @description Response model for resource.
+     */
+    api__clinic__appointments__ResourceResponse: {
+      /** Id */
+      id: number;
+      /** Resource Type Id */
+      resource_type_id: number;
+      /** Resource Type Name */
+      resource_type_name: string;
+      /** Clinic Id */
+      clinic_id: number;
+      /** Name */
+      name: string;
+      /** Description */
+      description: string | null;
+      /** Is Deleted */
+      is_deleted: boolean;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Updated At
+       * Format: date-time
+       */
+      updated_at: string;
+    };
+    /**
+     * UpdateEventNameRequest
+     * @description Request model for updating calendar event name.
+     */
+    api__clinic__appointments__UpdateEventNameRequest: {
+      /** Event Name */
+      event_name?: string | null;
+    };
+    /**
+     * PractitionerListResponse
+     * @description Response model for practitioner list.
+     */
+    api__clinic__practitioners__PractitionerListResponse: {
+      /** Practitioners */
+      practitioners: components["schemas"]["PractitionerListItemResponse"][];
+    };
+    /**
+     * ResourceResponse
+     * @description Response model for resource.
+     */
+    api__clinic__resources__ResourceResponse: {
+      /** Id */
+      id: number;
+      /** Resource Type Id */
+      resource_type_id: number;
+      /** Clinic Id */
+      clinic_id: number;
+      /** Name */
+      name: string;
+      /** Description */
+      description: string | null;
+      /** Is Deleted */
+      is_deleted: boolean;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Updated At
+       * Format: date-time
+       */
+      updated_at: string;
+    };
+    /**
      * ChatSettings
      * @description Chat/chatbot settings for clinic.
      */
-    api__clinic__ChatSettings: {
+    api__clinic__settings__ChatSettings: {
       /**
        * Chat Enabled
        * @default false
@@ -2624,14 +4135,6 @@ export interface components {
       other_info?: string | null;
       /** Ai Guidance */
       ai_guidance?: string | null;
-    };
-    /**
-     * PractitionerListResponse
-     * @description Response model for practitioner list.
-     */
-    api__clinic__PractitionerListResponse: {
-      /** Practitioners */
-      practitioners: components["schemas"]["PractitionerListItemResponse"][];
     };
     /**
      * PractitionerListResponse
@@ -2966,6 +4469,31 @@ export interface operations {
         content: {
           "application/json": components["schemas"]["HTTPValidationError"];
         };
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * Refresh user data with current roles
+   * @description Refresh user data by fetching current roles from database and issuing new tokens.
+   *
+   * This endpoint is used when user roles may have changed (e.g., after role updates)
+   * to ensure the frontend has the most current permission data.
+   */
+  refresh_user_data_api_auth_refresh_user_data_post: {
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["RefreshUserDataResponse"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
       };
       /** @description Internal server error */
       500: {
@@ -3670,20 +5198,17 @@ export interface operations {
     };
   };
   /**
-   * List all clinic members
-   * @description Get all members of the current user's clinic.
+   * List all service type groups
+   * @description List all service type groups for the clinic.
    *
-   * For admins: Returns both active and inactive members.
-   * For other users: Returns only active members.
-   *
-   * Available to all clinic members (including read-only users).
+   * Available to all clinic members.
    */
-  list_members_api_clinic_members_get: {
+  list_service_type_groups_api_clinic_service_type_groups_get: {
     responses: {
       /** @description Successful Response */
       200: {
         content: {
-          "application/json": components["schemas"]["MemberListResponse"];
+          "application/json": components["schemas"]["ServiceTypeGroupListResponse"];
         };
       };
       /** @description Unauthorized */
@@ -3705,18 +5230,1244 @@ export interface operations {
     };
   };
   /**
-   * List all practitioners for current clinic
-   * @description Get all practitioners for the current user's clinic.
+   * Create a service type group
+   * @description Create a new service type group.
    *
-   * Returns basic information (id, full_name) for all practitioners.
-   * Available to all clinic members (including read-only users).
+   * Admin-only.
    */
-  list_practitioners_api_clinic_practitioners_get: {
+  create_service_type_group_api_clinic_service_type_groups_post: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ServiceTypeGroupCreateRequest"];
+      };
+    };
     responses: {
       /** @description Successful Response */
       200: {
         content: {
-          "application/json": components["schemas"]["api__clinic__PractitionerListResponse"];
+          "application/json": components["schemas"]["ServiceTypeGroupResponse"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
+      };
+      /** @description Forbidden */
+      403: {
+        content: never;
+      };
+      /** @description Resource not found */
+      404: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * Bulk update group display order
+   * @description Bulk update display order for multiple groups.
+   *
+   * Admin-only.
+   */
+  bulk_update_group_order_api_clinic_service_type_groups_bulk_order_put: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ServiceTypeGroupBulkOrderRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
+      };
+      /** @description Forbidden */
+      403: {
+        content: never;
+      };
+      /** @description Resource not found */
+      404: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * Update a service type group
+   * @description Update a service type group.
+   *
+   * Admin-only.
+   */
+  update_service_type_group_api_clinic_service_type_groups__group_id__put: {
+    parameters: {
+      path: {
+        group_id: number;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ServiceTypeGroupUpdateRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ServiceTypeGroupResponse"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
+      };
+      /** @description Forbidden */
+      403: {
+        content: never;
+      };
+      /** @description Resource not found */
+      404: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * Delete a service type group
+   * @description Delete a service type group.
+   *
+   * Sets service_type_group_id to NULL for all appointment types in this group.
+   * Admin-only.
+   */
+  delete_service_type_group_api_clinic_service_type_groups__group_id__delete: {
+    parameters: {
+      path: {
+        group_id: number;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
+      };
+      /** @description Forbidden */
+      403: {
+        content: never;
+      };
+      /** @description Resource not found */
+      404: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * Bulk update appointment type display order
+   * @description Bulk update display order for multiple appointment types.
+   *
+   * Admin-only.
+   */
+  bulk_update_appointment_type_order_api_clinic_appointment_types_bulk_order_put: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["AppointmentTypeBulkOrderRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
+      };
+      /** @description Forbidden */
+      403: {
+        content: never;
+      };
+      /** @description Resource not found */
+      404: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * Get follow-up messages for an appointment type
+   * @description Get all follow-up messages for an appointment type.
+   */
+  get_follow_up_messages_api_clinic_appointment_types__appointment_type_id__follow_up_messages_get: {
+    parameters: {
+      path: {
+        appointment_type_id: number;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["FollowUpMessageListResponse"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
+      };
+      /** @description Forbidden */
+      403: {
+        content: never;
+      };
+      /** @description Resource not found */
+      404: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * Create a follow-up message
+   * @description Create a follow-up message for an appointment type.
+   */
+  create_follow_up_message_api_clinic_appointment_types__appointment_type_id__follow_up_messages_post: {
+    parameters: {
+      path: {
+        appointment_type_id: number;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["FollowUpMessageCreateRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["FollowUpMessageResponse"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
+      };
+      /** @description Forbidden */
+      403: {
+        content: never;
+      };
+      /** @description Resource not found */
+      404: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * Update a follow-up message
+   * @description Update a follow-up message.
+   */
+  update_follow_up_message_api_clinic_appointment_types__appointment_type_id__follow_up_messages__message_id__put: {
+    parameters: {
+      path: {
+        appointment_type_id: number;
+        message_id: number;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["FollowUpMessageUpdateRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["FollowUpMessageResponse"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
+      };
+      /** @description Forbidden */
+      403: {
+        content: never;
+      };
+      /** @description Resource not found */
+      404: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * Delete a follow-up message
+   * @description Delete a follow-up message.
+   */
+  delete_follow_up_message_api_clinic_appointment_types__appointment_type_id__follow_up_messages__message_id__delete: {
+    parameters: {
+      path: {
+        appointment_type_id: number;
+        message_id: number;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
+      };
+      /** @description Forbidden */
+      403: {
+        content: never;
+      };
+      /** @description Resource not found */
+      404: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * Preview a follow-up message
+   * @description Preview a follow-up message with sample data.
+   */
+  preview_follow_up_message_api_clinic_follow_up_message_preview_post: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["FollowUpMessagePreviewRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["FollowUpMessagePreviewResponse"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
+      };
+      /** @description Forbidden */
+      403: {
+        content: never;
+      };
+      /** @description Resource not found */
+      404: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * List all LINE users for clinic with AI status
+   * @description Get all LINE users who have patients or messages in this clinic, with AI status.
+   *
+   * Any authenticated clinic user can access this endpoint.
+   * Returns LINE users with their patient count, patient names, and AI disable status.
+   * Includes users who have sent messages but haven't created patients yet.
+   * Supports pagination via page and page_size parameters (preferred) or offset/limit (deprecated).
+   * Supports search via search parameter to filter by LINE user display_name or patient names.
+   * If pagination parameters are not provided, returns all line users (backward compatible).
+   * Note: page and page_size must both be provided together, or offset and limit together, or all omitted.
+   */
+  get_line_users_api_clinic_line_users_get: {
+    parameters: {
+      query?: {
+        /** @description Page number (1-indexed). Must be provided with page_size. Takes precedence over offset/limit. */
+        page?: number | null;
+        /** @description Items per page. Must be provided with page. Takes precedence over offset/limit. */
+        page_size?: number | null;
+        /** @description Offset for pagination (deprecated, use page/page_size instead). Must be provided with limit. */
+        offset?: number | null;
+        /** @description Limit for pagination (deprecated, use page/page_size instead). Must be provided with offset. */
+        limit?: number | null;
+        /** @description Search query to filter LINE users by display_name or patient names. Maximum length: 200 characters. */
+        search?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["LineUserListResponse"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
+      };
+      /** @description Forbidden */
+      403: {
+        content: never;
+      };
+      /** @description Resource not found */
+      404: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * Disable AI for a LINE user
+   * @description Permanently disable AI auto response for a LINE user.
+   *
+   * Any authenticated clinic user can disable AI. The setting persists until manually changed.
+   * This is different from the temporary opt-out system which expires after 24 hours.
+   *
+   * Args:
+   *     line_user_id: LINE user ID string (from LINE platform)
+   *     request: Optional reason for audit trail
+   */
+  disable_ai_for_line_user_endpoint_api_clinic_line_users__line_user_id__disable_ai_post: {
+    parameters: {
+      path: {
+        line_user_id: string;
+      };
+    };
+    requestBody?: {
+      content: {
+        "application/json": components["schemas"]["DisableAiRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": {
+            [key: string]: string;
+          };
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
+      };
+      /** @description Forbidden */
+      403: {
+        content: never;
+      };
+      /** @description Resource not found */
+      404: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * Enable AI for a LINE user
+   * @description Re-enable AI auto response for a LINE user.
+   *
+   * Any authenticated clinic user can enable AI. This removes the permanent disable setting.
+   *
+   * Args:
+   *     line_user_id: LINE user ID string (from LINE platform)
+   */
+  enable_ai_for_line_user_endpoint_api_clinic_line_users__line_user_id__enable_ai_post: {
+    parameters: {
+      path: {
+        line_user_id: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": {
+            [key: string]: string;
+          };
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
+      };
+      /** @description Forbidden */
+      403: {
+        content: never;
+      };
+      /** @description Resource not found */
+      404: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * Update LINE user clinic display name
+   * @description Update the clinic display name for a LINE user (clinic internal only).
+   *
+   * Any authenticated clinic user can update the display name. This allows clinics
+   * to customize how they see LINE users internally. If clinic_display_name is set,
+   * it will be shown everywhere instead of the original display_name. Set to null
+   * to clear and fall back to the original display_name.
+   *
+   * Args:
+   *     line_user_id: LINE user ID string (from LINE platform)
+   *     request: New clinic display name (or null to clear)
+   */
+  update_line_user_display_name_api_clinic_line_users__line_user_id__display_name_put: {
+    parameters: {
+      path: {
+        line_user_id: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["UpdateLineUserDisplayNameRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["LineUserWithStatusResponse"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
+      };
+      /** @description Forbidden */
+      403: {
+        content: never;
+      };
+      /** @description Resource not found */
+      404: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * List auto-assigned appointments (admin only)
+   * @description List all upcoming auto-assigned appointments that are still hidden from practitioners.
+   *
+   * Only clinic admins can view this list. Appointments are sorted by date.
+   * After admin reassigns an appointment, it will no longer appear in this list.
+   *
+   * Note: Only future appointments are returned. In theory, there shouldn't be any past
+   * auto-assigned appointments since the system automatically assigns them when the
+   * recency limit (minimum_booking_hours_ahead) is reached. However, we filter them out
+   * as defensive programming in case of edge cases (e.g., cron job failures, timezone issues).
+   */
+  list_auto_assigned_appointments_api_clinic_pending_review_appointments_get: {
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["AutoAssignedAppointmentsResponse"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
+      };
+      /** @description Forbidden */
+      403: {
+        content: never;
+      };
+      /** @description Resource not found */
+      404: {
+        content: never;
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * Get clinic dashboard metrics
+   * @description Get aggregated dashboard metrics for the clinic.
+   *
+   * Returns metrics for past 3 months + current month, including:
+   * - Patient statistics (active patients, new patients)
+   * - Appointment statistics (counts, cancellation rates, types, practitioners)
+   * - Message statistics (paid messages, AI replies)
+   *
+   * Clinic users only.
+   */
+  get_dashboard_metrics_api_clinic_dashboard_metrics_get: {
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ClinicDashboardMetricsResponse"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
+      };
+      /** @description Forbidden */
+      403: {
+        content: never;
+      };
+      /** @description Resource not found */
+      404: {
+        content: never;
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * Get business insights data
+   * @description Get business insights data for a date range.
+   *
+   * Returns summary statistics, revenue trend, and breakdowns by service item and practitioner.
+   * Clinic users only.
+   */
+  get_business_insights_api_clinic_dashboard_business_insights_get: {
+    parameters: {
+      query: {
+        /** @description Start date in YYYY-MM-DD format */
+        start_date: string;
+        /** @description End date in YYYY-MM-DD format */
+        end_date: string;
+        /** @description Optional practitioner ID to filter by, or 'null' to filter for items without practitioners */
+        practitioner_id?: number | string | null;
+        /** @description Optional service item ID or 'custom:name' to filter by */
+        service_item_id?: string | null;
+        /** @description Optional service type group ID to filter by, or '-1' for ungrouped */
+        service_type_group_id?: number | string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
+      };
+      /** @description Forbidden */
+      403: {
+        content: never;
+      };
+      /** @description Resource not found */
+      404: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * Get revenue distribution data
+   * @description Get revenue distribution data for a date range.
+   *
+   * Returns summary statistics and paginated list of receipt items.
+   * Clinic users only. Non-admin users can only view their own data.
+   */
+  get_revenue_distribution_api_clinic_dashboard_revenue_distribution_get: {
+    parameters: {
+      query: {
+        /** @description Start date in YYYY-MM-DD format */
+        start_date: string;
+        /** @description End date in YYYY-MM-DD format */
+        end_date: string;
+        /** @description Optional practitioner ID to filter by, or 'null' to filter for items without practitioners */
+        practitioner_id?: number | string | null;
+        /** @description Optional service item ID or 'custom:name' to filter by */
+        service_item_id?: string | null;
+        /** @description Optional service type group ID to filter by, or '-1' for ungrouped */
+        service_type_group_id?: number | string | null;
+        /** @description Only show items with overwritten billing scenario */
+        show_overwritten_only?: boolean;
+        /** @description Page number (1-indexed) */
+        page?: number;
+        /** @description Items per page */
+        page_size?: number;
+        /** @description Column to sort by */
+        sort_by?: string;
+        /** @description Sort order */
+        sort_order?: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
+      };
+      /** @description Forbidden */
+      403: {
+        content: never;
+      };
+      /** @description Resource not found */
+      404: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * List all patients
+   * @description Get all patients for the current user's clinic.
+   *
+   * Available to all clinic members (including read-only users).
+   * Supports pagination via page and page_size parameters.
+   * Supports search via search parameter to filter by patient name, phone number, or LINE user display name.
+   * Supports filtering by practitioner via practitioner_id parameter.
+   * If pagination parameters are not provided, returns all patients (backward compatible).
+   * Note: page and page_size must both be provided together or both omitted.
+   */
+  list_patients_api_clinic_patients_get: {
+    parameters: {
+      query?: {
+        /** @description Page number (1-indexed). Must be provided with page_size. */
+        page?: number | null;
+        /** @description Items per page. Must be provided with page. */
+        page_size?: number | null;
+        /** @description Search query to filter patients by name, phone, or LINE user display name. Maximum length: 200 characters. */
+        search?: string | null;
+        /** @description Filter patients by assigned practitioner (user ID) */
+        practitioner_id?: number | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ClinicPatientListResponse"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
+      };
+      /** @description Forbidden */
+      403: {
+        content: never;
+      };
+      /** @description Resource not found */
+      404: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * Create patient (clinic users)
+   * @description Create a new patient record for the clinic.
+   *
+   * Available to clinic admins and practitioners.
+   * Phone number and birthday are optional.
+   * Duplicate phone numbers are allowed.
+   */
+  create_patient_api_clinic_patients_post: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ClinicPatientCreateRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["PatientCreateResponse"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
+      };
+      /** @description Forbidden */
+      403: {
+        content: never;
+      };
+      /** @description Resource not found */
+      404: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * Check for duplicate patient names
+   * @description Check for existing patients with exact same name (case-insensitive).
+   *
+   * Used for duplicate detection in patient creation form.
+   * Returns count of patients with matching name (excluding soft-deleted).
+   * Available to all clinic users (including read-only).
+   */
+  check_duplicate_patient_name_api_clinic_patients_check_duplicate_get: {
+    parameters: {
+      query: {
+        /** @description Patient name to check (exact match, case-insensitive) */
+        name: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["DuplicateCheckResponse"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
+      };
+      /** @description Forbidden */
+      403: {
+        content: never;
+      };
+      /** @description Resource not found */
+      404: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * Get patient details
+   * @description Get patient details by ID.
+   *
+   * Available to all clinic members (including read-only users).
+   */
+  get_patient_api_clinic_patients__patient_id__get: {
+    parameters: {
+      path: {
+        patient_id: number;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ClinicPatientResponse"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
+      };
+      /** @description Forbidden */
+      403: {
+        content: never;
+      };
+      /** @description Resource not found */
+      404: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * Update patient information
+   * @description Update patient information.
+   *
+   * Available to clinic admins and practitioners only.
+   * Read-only users cannot update patients.
+   */
+  update_patient_api_clinic_patients__patient_id__put: {
+    parameters: {
+      path: {
+        patient_id: number;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ClinicPatientUpdateRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ClinicPatientResponse"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
+      };
+      /** @description Forbidden */
+      403: {
+        content: never;
+      };
+      /** @description Resource not found */
+      404: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * Assign practitioner to patient
+   * @description Assign a practitioner to a patient.
+   *
+   * Available to clinic admins and practitioners only.
+   */
+  assign_practitioner_api_clinic_patients__patient_id__assign_practitioner_post: {
+    parameters: {
+      path: {
+        patient_id: number;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["AssignPractitionerRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ClinicPatientResponse"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
+      };
+      /** @description Forbidden */
+      403: {
+        content: never;
+      };
+      /** @description Resource not found */
+      404: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * Remove practitioner assignment from patient
+   * @description Remove a practitioner assignment from a patient.
+   *
+   * Available to clinic admins and practitioners only.
+   */
+  remove_practitioner_assignment_api_clinic_patients__patient_id__assign_practitioner__practitioner_id__delete: {
+    parameters: {
+      path: {
+        patient_id: number;
+        practitioner_id: number;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ClinicPatientResponse"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
+      };
+      /** @description Forbidden */
+      403: {
+        content: never;
+      };
+      /** @description Resource not found */
+      404: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * Get patient appointments
+   * @description Get appointments for a specific patient.
+   *
+   * Available to all clinic members (including read-only users).
+   */
+  get_patient_appointments_api_clinic_patients__patient_id__appointments_get: {
+    parameters: {
+      query?: {
+        /** @description Filter by status: confirmed, canceled_by_patient, canceled_by_clinic */
+        status?: string | null;
+        /** @description Filter for upcoming appointments only */
+        upcoming_only?: boolean;
+      };
+      path: {
+        patient_id: number;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["AppointmentListResponse"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
+      };
+      /** @description Forbidden */
+      403: {
+        content: never;
+      };
+      /** @description Resource not found */
+      404: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * List all clinic members
+   * @description Get all members of the current user's clinic.
+   *
+   * For admins: Returns both active and inactive members.
+   * For other users: Returns only active members.
+   *
+   * Available to all clinic members (including read-only users).
+   */
+  list_members_api_clinic_members_get: {
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["MemberListResponse"];
         };
       };
       /** @description Unauthorized */
@@ -4088,867 +6839,6 @@ export interface operations {
     };
   };
   /**
-   * Generate reminder message preview
-   * @description Generate a preview of what a LINE reminder message would look like.
-   *
-   * This endpoint allows clinic admins to see exactly how their reminder
-   * messages will appear to patients before they are sent.
-   */
-  generate_reminder_preview_api_clinic_reminder_preview_post: {
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["ReminderPreviewRequest"];
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      200: {
-        content: {
-          "application/json": {
-            [key: string]: string;
-          };
-        };
-      };
-      /** @description Unauthorized */
-      401: {
-        content: never;
-      };
-      /** @description Forbidden */
-      403: {
-        content: never;
-      };
-      /** @description Resource not found */
-      404: {
-        content: never;
-      };
-      /** @description Validation Error */
-      422: {
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        content: never;
-      };
-    };
-  };
-  /**
-   * Generate cancellation message preview
-   * @description Generate a preview of what a LINE cancellation message would look like.
-   *
-   * This endpoint allows clinic admins to see exactly how their cancellation
-   * messages will appear to patients before they are sent.
-   */
-  generate_cancellation_preview_api_clinic_cancellation_preview_post: {
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["CancellationPreviewRequest"];
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      200: {
-        content: {
-          "application/json": {
-            [key: string]: string;
-          };
-        };
-      };
-      /** @description Unauthorized */
-      401: {
-        content: never;
-      };
-      /** @description Forbidden */
-      403: {
-        content: never;
-      };
-      /** @description Resource not found */
-      404: {
-        content: never;
-      };
-      /** @description Validation Error */
-      422: {
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        content: never;
-      };
-    };
-  };
-  /**
-   * Test chatbot with current settings
-   * @description Test chatbot with current (unsaved) chat settings.
-   *
-   * This endpoint allows clinic users to test how the chatbot will respond
-   * using their current settings before saving them. The test uses the provided
-   * chat_settings instead of the clinic's saved settings.
-   *
-   * Available to all clinic members (including read-only users).
-   */
-  test_chatbot_api_clinic_chat_test_post: {
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["ChatTestRequest"];
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      200: {
-        content: {
-          "application/json": components["schemas"]["ChatTestResponse"];
-        };
-      };
-      /** @description Unauthorized */
-      401: {
-        content: never;
-      };
-      /** @description Forbidden */
-      403: {
-        content: never;
-      };
-      /** @description Resource not found */
-      404: {
-        content: never;
-      };
-      /** @description Validation Error */
-      422: {
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        content: never;
-      };
-    };
-  };
-  /**
-   * List all patients
-   * @description Get all patients for the current user's clinic.
-   *
-   * Available to all clinic members (including read-only users).
-   * Supports pagination via page and page_size parameters.
-   * Supports search via search parameter to filter by patient name, phone number, or LINE user display name.
-   * If pagination parameters are not provided, returns all patients (backward compatible).
-   * Note: page and page_size must both be provided together or both omitted.
-   */
-  get_patients_api_clinic_patients_get: {
-    parameters: {
-      query?: {
-        /** @description Page number (1-indexed). Must be provided with page_size. */
-        page?: number | null;
-        /** @description Items per page. Must be provided with page. */
-        page_size?: number | null;
-        /** @description Search query to filter patients by name, phone, or LINE user display name. Maximum length: 200 characters. */
-        search?: string | null;
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      200: {
-        content: {
-          "application/json": components["schemas"]["ClinicPatientListResponse"];
-        };
-      };
-      /** @description Unauthorized */
-      401: {
-        content: never;
-      };
-      /** @description Forbidden */
-      403: {
-        content: never;
-      };
-      /** @description Resource not found */
-      404: {
-        content: never;
-      };
-      /** @description Validation Error */
-      422: {
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        content: never;
-      };
-    };
-  };
-  /**
-   * Create patient (clinic users)
-   * @description Create a new patient record for the clinic.
-   *
-   * Available to clinic admins and practitioners.
-   * Phone number and birthday are optional.
-   * Duplicate phone numbers are allowed.
-   */
-  create_patient_api_clinic_patients_post: {
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["ClinicPatientCreateRequest"];
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      200: {
-        content: {
-          "application/json": components["schemas"]["PatientCreateResponse"];
-        };
-      };
-      /** @description Unauthorized */
-      401: {
-        content: never;
-      };
-      /** @description Forbidden */
-      403: {
-        content: never;
-      };
-      /** @description Resource not found */
-      404: {
-        content: never;
-      };
-      /** @description Validation Error */
-      422: {
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        content: never;
-      };
-    };
-  };
-  /**
-   * Check for duplicate patient names
-   * @description Check for existing patients with exact same name (case-insensitive).
-   *
-   * Used for duplicate detection in patient creation form.
-   * Returns count of patients with matching name (excluding soft-deleted).
-   * Available to all clinic users (including read-only).
-   */
-  check_duplicate_patient_name_api_clinic_patients_check_duplicate_get: {
-    parameters: {
-      query: {
-        /** @description Patient name to check (exact match, case-insensitive) */
-        name: string;
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      200: {
-        content: {
-          "application/json": components["schemas"]["DuplicateCheckResponse"];
-        };
-      };
-      /** @description Unauthorized */
-      401: {
-        content: never;
-      };
-      /** @description Forbidden */
-      403: {
-        content: never;
-      };
-      /** @description Resource not found */
-      404: {
-        content: never;
-      };
-      /** @description Validation Error */
-      422: {
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        content: never;
-      };
-    };
-  };
-  /**
-   * Get patient details
-   * @description Get patient details by ID.
-   *
-   * Available to all clinic members (including read-only users).
-   */
-  get_patient_api_clinic_patients__patient_id__get: {
-    parameters: {
-      path: {
-        patient_id: number;
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      200: {
-        content: {
-          "application/json": components["schemas"]["ClinicPatientResponse"];
-        };
-      };
-      /** @description Unauthorized */
-      401: {
-        content: never;
-      };
-      /** @description Forbidden */
-      403: {
-        content: never;
-      };
-      /** @description Resource not found */
-      404: {
-        content: never;
-      };
-      /** @description Validation Error */
-      422: {
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        content: never;
-      };
-    };
-  };
-  /**
-   * Update patient information
-   * @description Update patient information.
-   *
-   * Available to clinic admins and practitioners only.
-   * Read-only users cannot update patients.
-   */
-  update_patient_api_clinic_patients__patient_id__put: {
-    parameters: {
-      path: {
-        patient_id: number;
-      };
-    };
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["ClinicPatientUpdateRequest"];
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      200: {
-        content: {
-          "application/json": components["schemas"]["ClinicPatientResponse"];
-        };
-      };
-      /** @description Unauthorized */
-      401: {
-        content: never;
-      };
-      /** @description Forbidden */
-      403: {
-        content: never;
-      };
-      /** @description Resource not found */
-      404: {
-        content: never;
-      };
-      /** @description Validation Error */
-      422: {
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        content: never;
-      };
-    };
-  };
-  /**
-   * Get patient appointments
-   * @description Get appointments for a specific patient.
-   *
-   * Available to all clinic members (including read-only users).
-   */
-  get_patient_appointments_api_clinic_patients__patient_id__appointments_get: {
-    parameters: {
-      query?: {
-        /** @description Filter by status: confirmed, canceled_by_patient, canceled_by_clinic */
-        status?: string | null;
-        /** @description Filter for upcoming appointments only */
-        upcoming_only?: boolean;
-      };
-      path: {
-        patient_id: number;
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      200: {
-        content: {
-          "application/json": components["schemas"]["AppointmentListResponse"];
-        };
-      };
-      /** @description Unauthorized */
-      401: {
-        content: never;
-      };
-      /** @description Forbidden */
-      403: {
-        content: never;
-      };
-      /** @description Resource not found */
-      404: {
-        content: never;
-      };
-      /** @description Validation Error */
-      422: {
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        content: never;
-      };
-    };
-  };
-  /**
-   * Edit appointment
-   * @description Edit an appointment (time and/or practitioner).
-   *
-   * Admin can edit any appointment.
-   * Practitioners can only edit their own appointments.
-   * Read-only users cannot edit.
-   */
-  edit_clinic_appointment_api_clinic_appointments__appointment_id__put: {
-    parameters: {
-      path: {
-        appointment_id: number;
-      };
-    };
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["AppointmentEditRequest"];
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      200: {
-        content: {
-          "application/json": unknown;
-        };
-      };
-      /** @description Unauthorized */
-      401: {
-        content: never;
-      };
-      /** @description Forbidden */
-      403: {
-        content: never;
-      };
-      /** @description Resource not found */
-      404: {
-        content: never;
-      };
-      /** @description Validation Error */
-      422: {
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        content: never;
-      };
-    };
-  };
-  /**
-   * Cancel appointment by clinic admin or practitioner
-   * @description Cancel an appointment by clinic admin or practitioner.
-   *
-   * Practitioners can only cancel their own appointments.
-   * Admins can cancel any appointment in their clinic.
-   *
-   * Updates appointment status to 'canceled_by_clinic'
-   * and sends LINE notification to patient.
-   */
-  cancel_clinic_appointment_api_clinic_appointments__appointment_id__delete: {
-    parameters: {
-      query?: {
-        note?: string | null;
-      };
-      path: {
-        appointment_id: number;
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      200: {
-        content: {
-          "application/json": unknown;
-        };
-      };
-      /** @description Unauthorized */
-      401: {
-        content: never;
-      };
-      /** @description Forbidden */
-      403: {
-        content: never;
-      };
-      /** @description Resource not found */
-      404: {
-        content: never;
-      };
-      /** @description Validation Error */
-      422: {
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        content: never;
-      };
-    };
-  };
-  /**
-   * Create appointment on behalf of patient
-   * @description Create an appointment on behalf of an existing patient.
-   *
-   * Admin and practitioners can create appointments for any patient.
-   * Read-only users cannot create appointments.
-   */
-  create_clinic_appointment_api_clinic_appointments_post: {
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["ClinicAppointmentCreateRequest"];
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      200: {
-        content: {
-          "application/json": unknown;
-        };
-      };
-      /** @description Unauthorized */
-      401: {
-        content: never;
-      };
-      /** @description Forbidden */
-      403: {
-        content: never;
-      };
-      /** @description Resource not found */
-      404: {
-        content: never;
-      };
-      /** @description Validation Error */
-      422: {
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        content: never;
-      };
-    };
-  };
-  /**
-   * Preview edit notification
-   * @description Preview edit notification message before confirming edit.
-   *
-   * Also validates conflicts and returns whether notification will be sent.
-   */
-  preview_edit_notification_api_clinic_appointments__appointment_id__edit_preview_post: {
-    parameters: {
-      path: {
-        appointment_id: number;
-      };
-    };
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["AppointmentEditPreviewRequest"];
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      200: {
-        content: {
-          "application/json": unknown;
-        };
-      };
-      /** @description Unauthorized */
-      401: {
-        content: never;
-      };
-      /** @description Forbidden */
-      403: {
-        content: never;
-      };
-      /** @description Resource not found */
-      404: {
-        content: never;
-      };
-      /** @description Validation Error */
-      422: {
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        content: never;
-      };
-    };
-  };
-  /**
-   * Update calendar event name
-   * @description Update the custom event name for a calendar event (appointment or availability exception).
-   *
-   * Admin can edit any event.
-   * Practitioners can only edit their own events.
-   * Read-only users cannot edit.
-   *
-   * If event_name is null or empty, the default format will be used:
-   * - For appointments: "{patient_name} - {appointment_type_name}"
-   * - For availability exceptions: "休診"
-   */
-  update_calendar_event_name_api_clinic_calendar_events__calendar_event_id__event_name_put: {
-    parameters: {
-      path: {
-        calendar_event_id: number;
-      };
-    };
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["UpdateEventNameRequest"];
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      200: {
-        content: {
-          "application/json": {
-            [key: string]: unknown;
-          };
-        };
-      };
-      /** @description Unauthorized */
-      401: {
-        content: never;
-      };
-      /** @description Forbidden */
-      403: {
-        content: never;
-      };
-      /** @description Resource not found */
-      404: {
-        content: never;
-      };
-      /** @description Validation Error */
-      422: {
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        content: never;
-      };
-    };
-  };
-  /**
-   * Get practitioner's appointment types
-   * @description Get all appointment types offered by a practitioner.
-   *
-   * Practitioners can view their own appointment types.
-   * Clinic admins can view any practitioner's appointment types.
-   */
-  get_practitioner_appointment_types_api_clinic_practitioners__user_id__appointment_types_get: {
-    parameters: {
-      path: {
-        user_id: number;
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      200: {
-        content: {
-          "application/json": components["schemas"]["PractitionerAppointmentTypesResponse"];
-        };
-      };
-      /** @description Unauthorized */
-      401: {
-        content: never;
-      };
-      /** @description Forbidden */
-      403: {
-        content: never;
-      };
-      /** @description Resource not found */
-      404: {
-        content: never;
-      };
-      /** @description Validation Error */
-      422: {
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        content: never;
-      };
-    };
-  };
-  /**
-   * Update practitioner's appointment types
-   * @description Update the appointment types offered by a practitioner.
-   *
-   * Practitioners can only update their own appointment types.
-   * Clinic admins can update any practitioner's appointment types.
-   */
-  update_practitioner_appointment_types_api_clinic_practitioners__user_id__appointment_types_put: {
-    parameters: {
-      path: {
-        user_id: number;
-      };
-    };
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["PractitionerAppointmentTypesUpdateRequest"];
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      200: {
-        content: {
-          "application/json": unknown;
-        };
-      };
-      /** @description Unauthorized */
-      401: {
-        content: never;
-      };
-      /** @description Forbidden */
-      403: {
-        content: never;
-      };
-      /** @description Resource not found */
-      404: {
-        content: never;
-      };
-      /** @description Validation Error */
-      422: {
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        content: never;
-      };
-    };
-  };
-  /**
-   * Get practitioner's configuration status
-   * @description Get practitioner's configuration status for warnings.
-   *
-   * This endpoint checks if a practitioner has configured appointment types
-   * and availability settings, used for displaying warnings to admins.
-   */
-  get_practitioner_status_api_clinic_practitioners__user_id__status_get: {
-    parameters: {
-      path: {
-        user_id: number;
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      200: {
-        content: {
-          "application/json": components["schemas"]["PractitionerStatusResponse"];
-        };
-      };
-      /** @description Unauthorized */
-      401: {
-        content: never;
-      };
-      /** @description Forbidden */
-      403: {
-        content: never;
-      };
-      /** @description Resource not found */
-      404: {
-        content: never;
-      };
-      /** @description Validation Error */
-      422: {
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        content: never;
-      };
-    };
-  };
-  /**
-   * Get practitioner status for multiple practitioners
-   * @description Get configuration status for multiple practitioners in a single request.
-   *
-   * This endpoint efficiently fetches status for multiple practitioners,
-   * reducing API calls from N to 1. Used for displaying warnings to admins.
-   *
-   * Args:
-   *     request: Batch request with list of practitioner IDs
-   *
-   * Returns:
-   *     BatchPractitionerStatusResponse with status for each practitioner
-   *
-   * Raises:
-   *     HTTPException: If validation fails or practitioners don't exist
-   */
-  get_batch_practitioner_status_api_clinic_practitioners_status_batch_post: {
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["BatchPractitionerStatusRequest"];
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      200: {
-        content: {
-          "application/json": components["schemas"]["BatchPractitionerStatusResponse"];
-        };
-      };
-      /** @description Unauthorized */
-      401: {
-        content: never;
-      };
-      /** @description Forbidden */
-      403: {
-        content: never;
-      };
-      /** @description Resource not found */
-      404: {
-        content: never;
-      };
-      /** @description Validation Error */
-      422: {
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        content: never;
-      };
-    };
-  };
-  /**
    * Get practitioner's default weekly schedule
    * @description Get practitioner's default weekly schedule.
    *
@@ -5146,6 +7036,101 @@ export interface operations {
     };
   };
   /**
+   * Get calendar data for resource
+   * @description Get calendar data for a resource.
+   *
+   * Returns daily calendar data (appointments using this resource).
+   * Only shows confirmed appointments (excludes canceled appointments).
+   */
+  get_resource_calendar_data_api_clinic_resources__resource_id__availability_calendar_get: {
+    parameters: {
+      query: {
+        /** @description Date in YYYY-MM-DD format for daily view */
+        date: string;
+      };
+      path: {
+        resource_id: number;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
+      };
+      /** @description Forbidden */
+      403: {
+        content: never;
+      };
+      /** @description Resource not found */
+      404: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * Get calendar data for multiple resources and date range
+   * @description Get calendar data for multiple resources across a date range.
+   *
+   * This endpoint efficiently fetches calendar data for multiple resources
+   * in a single request, reducing API calls from N to 1.
+   *
+   * Returns daily calendar data (appointments) for each resource for each day in the date range.
+   * Only shows confirmed appointments (excludes canceled appointments).
+   */
+  get_batch_resource_calendar_api_clinic_resources_calendar_batch_post: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["BatchResourceCalendarRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["BatchResourceCalendarResponse"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
+      };
+      /** @description Forbidden */
+      403: {
+        content: never;
+      };
+      /** @description Resource not found */
+      404: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
    * Get available time slots for booking
    * @description Get available time slots for booking.
    *
@@ -5204,6 +7189,66 @@ export interface operations {
     };
   };
   /**
+   * Check scheduling conflicts for a specific time
+   * @description Check for scheduling conflicts at a specific time.
+   *
+   * Returns conflict information in priority order:
+   * 1. Past appointment (highest priority)
+   * 2. Appointment conflicts
+   * 3. Availability exception conflicts (medium priority)
+   * 4. Outside default availability (lowest priority)
+   *
+   * Used by frontend to show conflict warnings when scheduling appointments
+   * outside normal availability (override mode).
+   */
+  check_scheduling_conflicts_api_clinic_practitioners__user_id__availability_conflicts_get: {
+    parameters: {
+      query: {
+        /** @description Date in YYYY-MM-DD format */
+        date: string;
+        /** @description Start time in HH:MM format */
+        start_time: string;
+        /** @description Appointment type ID */
+        appointment_type_id: number;
+        /** @description Calendar event ID to exclude from conflict checking (for appointment editing) */
+        exclude_calendar_event_id?: number | null;
+      };
+      path: {
+        user_id: number;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["SchedulingConflictResponse"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
+      };
+      /** @description Forbidden */
+      403: {
+        content: never;
+      };
+      /** @description Resource not found */
+      404: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
    * Get available time slots for multiple dates
    * @description Get available time slots for multiple dates in a single request.
    *
@@ -5212,22 +7257,6 @@ export interface operations {
    *
    * Returns available time slots for a specific practitioner on multiple dates
    * for a specific appointment type. Used by appointment creation/editing flows.
-   *
-   * Considers:
-   * - Default weekly schedule
-   * - Availability exceptions (takes precedence)
-   * - Existing appointments
-   * - Appointment type duration
-   *
-   * Args:
-   *     user_id: Practitioner user ID
-   *     request: Batch request with dates, appointment_type_id, and optional exclude_calendar_event_id
-   *
-   * Returns:
-   *     BatchAvailableSlotsResponse with one AvailableSlotsResponse per date
-   *
-   * Raises:
-   *     HTTPException: If validation fails or dates are invalid
    */
   get_available_slots_batch_api_clinic_practitioners__user_id__availability_slots_batch_post: {
     parameters: {
@@ -5366,195 +7395,35 @@ export interface operations {
     };
   };
   /**
-   * List all LINE users for clinic with AI status
-   * @description Get all LINE users who have patients or messages in this clinic, with AI status.
+   * Update calendar event name
+   * @description Update the custom event name for a calendar event (appointment or availability exception).
    *
-   * Any authenticated clinic user can access this endpoint.
-   * Returns LINE users with their patient count, patient names, and AI disable status.
-   * Includes users who have sent messages but haven't created patients yet.
-   * Supports pagination via page and page_size parameters (preferred) or offset/limit (deprecated).
-   * Supports search via search parameter to filter by LINE user display_name or patient names.
-   * If pagination parameters are not provided, returns all line users (backward compatible).
-   * Note: page and page_size must both be provided together, or offset and limit together, or all omitted.
+   * Admin can edit any event.
+   * Practitioners can only edit their own events.
+   * Read-only users cannot edit.
+   *
+   * If event_name is null or empty, the default format will be used:
+   * - For appointments: "{patient_name} - {appointment_type_name}"
+   * - For availability exceptions: "休診"
    */
-  get_line_users_api_clinic_line_users_get: {
-    parameters: {
-      query?: {
-        /** @description Page number (1-indexed). Must be provided with page_size. Takes precedence over offset/limit. */
-        page?: number | null;
-        /** @description Items per page. Must be provided with page. Takes precedence over offset/limit. */
-        page_size?: number | null;
-        /** @description Offset for pagination (deprecated, use page/page_size instead). Must be provided with limit. */
-        offset?: number | null;
-        /** @description Limit for pagination (deprecated, use page/page_size instead). Must be provided with offset. */
-        limit?: number | null;
-        /** @description Search query to filter LINE users by display_name or patient names. Maximum length: 200 characters. */
-        search?: string | null;
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      200: {
-        content: {
-          "application/json": components["schemas"]["LineUserListResponse"];
-        };
-      };
-      /** @description Unauthorized */
-      401: {
-        content: never;
-      };
-      /** @description Forbidden */
-      403: {
-        content: never;
-      };
-      /** @description Resource not found */
-      404: {
-        content: never;
-      };
-      /** @description Validation Error */
-      422: {
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        content: never;
-      };
-    };
-  };
-  /**
-   * Disable AI for a LINE user
-   * @description Permanently disable AI auto response for a LINE user.
-   *
-   * Any authenticated clinic user can disable AI. The setting persists until manually changed.
-   * This is different from the temporary opt-out system which expires after 24 hours.
-   *
-   * Args:
-   *     line_user_id: LINE user ID string (from LINE platform)
-   *     request: Optional reason for audit trail
-   */
-  disable_ai_for_line_user_endpoint_api_clinic_line_users__line_user_id__disable_ai_post: {
+  update_calendar_event_name_api_clinic_calendar_events__calendar_event_id__event_name_put: {
     parameters: {
       path: {
-        line_user_id: string;
-      };
-    };
-    requestBody?: {
-      content: {
-        "application/json": components["schemas"]["DisableAiRequest"];
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      200: {
-        content: {
-          "application/json": {
-            [key: string]: string;
-          };
-        };
-      };
-      /** @description Unauthorized */
-      401: {
-        content: never;
-      };
-      /** @description Forbidden */
-      403: {
-        content: never;
-      };
-      /** @description Resource not found */
-      404: {
-        content: never;
-      };
-      /** @description Validation Error */
-      422: {
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        content: never;
-      };
-    };
-  };
-  /**
-   * Enable AI for a LINE user
-   * @description Re-enable AI auto response for a LINE user.
-   *
-   * Any authenticated clinic user can enable AI. This removes the permanent disable setting.
-   *
-   * Args:
-   *     line_user_id: LINE user ID string (from LINE platform)
-   */
-  enable_ai_for_line_user_endpoint_api_clinic_line_users__line_user_id__enable_ai_post: {
-    parameters: {
-      path: {
-        line_user_id: string;
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      200: {
-        content: {
-          "application/json": {
-            [key: string]: string;
-          };
-        };
-      };
-      /** @description Unauthorized */
-      401: {
-        content: never;
-      };
-      /** @description Forbidden */
-      403: {
-        content: never;
-      };
-      /** @description Resource not found */
-      404: {
-        content: never;
-      };
-      /** @description Validation Error */
-      422: {
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        content: never;
-      };
-    };
-  };
-  /**
-   * Update LINE user clinic display name
-   * @description Update the clinic display name for a LINE user (clinic internal only).
-   *
-   * Any authenticated clinic user can update the display name. This allows clinics
-   * to customize how they see LINE users internally. If clinic_display_name is set,
-   * it will be shown everywhere instead of the original display_name. Set to null
-   * to clear and fall back to the original display_name.
-   *
-   * Args:
-   *     line_user_id: LINE user ID string (from LINE platform)
-   *     request: New clinic display name (or null to clear)
-   */
-  update_line_user_display_name_api_clinic_line_users__line_user_id__display_name_put: {
-    parameters: {
-      path: {
-        line_user_id: string;
+        calendar_event_id: number;
       };
     };
     requestBody: {
       content: {
-        "application/json": components["schemas"]["UpdateLineUserDisplayNameRequest"];
+        "application/json": components["schemas"]["api__clinic__appointments__UpdateEventNameRequest"];
       };
     };
     responses: {
       /** @description Successful Response */
       200: {
         content: {
-          "application/json": components["schemas"]["LineUserWithStatusResponse"];
+          "application/json": {
+            [key: string]: unknown;
+          };
         };
       };
       /** @description Unauthorized */
@@ -5582,23 +7451,765 @@ export interface operations {
     };
   };
   /**
-   * List auto-assigned appointments (admin only)
-   * @description List all upcoming auto-assigned appointments that are still hidden from practitioners.
+   * List all practitioners for current clinic
+   * @description Get all practitioners for the current user's clinic.
    *
-   * Only clinic admins can view this list. Appointments are sorted by date.
-   * After admin reassigns an appointment, it will no longer appear in this list.
+   * Optionally filter by appointment type to get only practitioners who offer that type.
    *
-   * Note: Only future appointments are returned. In theory, there shouldn't be any past
-   * auto-assigned appointments since the system automatically assigns them when the
-   * recency limit (minimum_booking_hours_ahead) is reached. However, we filter them out
-   * as defensive programming in case of edge cases (e.g., cron job failures, timezone issues).
+   * Returns basic information (id, full_name) for all practitioners (or filtered list).
+   * Available to all clinic members (including read-only users).
    */
-  list_auto_assigned_appointments_api_clinic_pending_review_appointments_get: {
+  list_practitioners_api_clinic_practitioners_get: {
+    parameters: {
+      query?: {
+        /** @description Optional appointment type ID to filter practitioners */
+        appointment_type_id?: number | null;
+      };
+    };
     responses: {
       /** @description Successful Response */
       200: {
         content: {
-          "application/json": components["schemas"]["AutoAssignedAppointmentsResponse"];
+          "application/json": components["schemas"]["api__clinic__practitioners__PractitionerListResponse"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
+      };
+      /** @description Forbidden */
+      403: {
+        content: never;
+      };
+      /** @description Resource not found */
+      404: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * Get practitioner's appointment types
+   * @description Get all appointment types offered by a practitioner.
+   *
+   * Practitioners can view their own appointment types.
+   * Clinic admins can view any practitioner's appointment types.
+   */
+  get_practitioner_appointment_types_api_clinic_practitioners__user_id__appointment_types_get: {
+    parameters: {
+      path: {
+        user_id: number;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["PractitionerAppointmentTypesResponse"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
+      };
+      /** @description Forbidden */
+      403: {
+        content: never;
+      };
+      /** @description Resource not found */
+      404: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * Update practitioner's appointment types
+   * @description Update the appointment types offered by a practitioner.
+   *
+   * Practitioners can only update their own appointment types.
+   * Clinic admins can update any practitioner's appointment types.
+   */
+  update_practitioner_appointment_types_api_clinic_practitioners__user_id__appointment_types_put: {
+    parameters: {
+      path: {
+        user_id: number;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["PractitionerAppointmentTypesUpdateRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
+      };
+      /** @description Forbidden */
+      403: {
+        content: never;
+      };
+      /** @description Resource not found */
+      404: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * Update practitioner settings
+   * @description Update practitioner settings (admin only).
+   *
+   * Only clinic admins can update practitioner settings.
+   * This includes settings like patient_booking_allowed.
+   */
+  update_practitioner_settings_api_clinic_practitioners__user_id__settings_put: {
+    parameters: {
+      path: {
+        user_id: number;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["PractitionerSettingsUpdateRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
+      };
+      /** @description Forbidden */
+      403: {
+        content: never;
+      };
+      /** @description Resource not found */
+      404: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * Get practitioner's configuration status
+   * @description Get practitioner's configuration status for warnings.
+   *
+   * This endpoint checks if a practitioner has configured appointment types
+   * and availability settings, used for displaying warnings to admins.
+   */
+  get_practitioner_status_api_clinic_practitioners__user_id__status_get: {
+    parameters: {
+      path: {
+        user_id: number;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["PractitionerStatusResponse"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
+      };
+      /** @description Forbidden */
+      403: {
+        content: never;
+      };
+      /** @description Resource not found */
+      404: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * Get practitioner status for multiple practitioners
+   * @description Get configuration status for multiple practitioners in a single request.
+   *
+   * This endpoint efficiently fetches status for multiple practitioners,
+   * reducing API calls from N to 1. Used for displaying warnings to admins.
+   *
+   * Args:
+   *     request: Batch request with list of practitioner IDs
+   *
+   * Returns:
+   *     BatchPractitionerStatusResponse with status for each practitioner
+   *
+   * Raises:
+   *     HTTPException: If validation fails or practitioners don't exist
+   */
+  get_batch_practitioner_status_api_clinic_practitioners_status_batch_post: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["BatchPractitionerStatusRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["BatchPractitionerStatusResponse"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
+      };
+      /** @description Forbidden */
+      403: {
+        content: never;
+      };
+      /** @description Resource not found */
+      404: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * Get resource availability for a time slot
+   * @description Get resource availability and suggested allocation for a time slot.
+   */
+  get_resource_availability_api_clinic_appointments_resource_availability_get: {
+    parameters: {
+      query: {
+        appointment_type_id: number;
+        practitioner_id: number;
+        /** @description YYYY-MM-DD */
+        date: string;
+        /** @description HH:MM */
+        start_time: string;
+        /** @description HH:MM */
+        end_time: string;
+        exclude_calendar_event_id?: number | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ResourceAvailabilityResponse"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
+      };
+      /** @description Forbidden */
+      403: {
+        content: never;
+      };
+      /** @description Resource not found */
+      404: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * Get appointment details
+   * @description Get appointment details by calendar_event_id.
+   *
+   * Available to all clinic members (including read-only users).
+   * Note: The appointment_id parameter is actually the calendar_event_id.
+   */
+  get_appointment_details_api_clinic_appointments__appointment_id__get: {
+    parameters: {
+      path: {
+        appointment_id: number;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["AppointmentListItem"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
+      };
+      /** @description Forbidden */
+      403: {
+        content: never;
+      };
+      /** @description Resource not found */
+      404: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * Edit appointment
+   * @description Edit an appointment (time and/or practitioner).
+   *
+   * Admin can edit any appointment.
+   * Practitioners can only edit their own appointments.
+   * Read-only users cannot edit.
+   */
+  edit_clinic_appointment_api_clinic_appointments__appointment_id__put: {
+    parameters: {
+      path: {
+        appointment_id: number;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["AppointmentEditRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
+      };
+      /** @description Forbidden */
+      403: {
+        content: never;
+      };
+      /** @description Resource not found */
+      404: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * Cancel appointment by clinic admin or practitioner
+   * @description Cancel an appointment by clinic admin or practitioner.
+   *
+   * Practitioners can only cancel their own appointments.
+   * Admins can cancel any appointment in their clinic.
+   *
+   * Updates appointment status to 'canceled_by_clinic'
+   * and sends LINE notification to patient.
+   */
+  cancel_clinic_appointment_api_clinic_appointments__appointment_id__delete: {
+    parameters: {
+      query?: {
+        note?: string | null;
+      };
+      path: {
+        appointment_id: number;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
+      };
+      /** @description Forbidden */
+      403: {
+        content: never;
+      };
+      /** @description Resource not found */
+      404: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * Create appointment on behalf of patient
+   * @description Create an appointment on behalf of an existing patient.
+   *
+   * Admin and practitioners can create appointments for any patient.
+   * Read-only users cannot create appointments.
+   */
+  create_clinic_appointment_api_clinic_appointments_post: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ClinicAppointmentCreateRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
+      };
+      /** @description Forbidden */
+      403: {
+        content: never;
+      };
+      /** @description Resource not found */
+      404: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * Check conflicts for recurring appointments
+   * @description Check for conflicts in a list of appointment occurrences.
+   *
+   * Returns conflict status for each occurrence, including:
+   * - Past appointment conflicts (highest priority)
+   * - Availability conflicts
+   * - Existing appointment conflicts
+   * - Duplicate occurrences within the list
+   * - Booking restriction violations (for patients, not clinic admins)
+   */
+  check_recurring_conflicts_api_clinic_appointments_check_recurring_conflicts_post: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CheckRecurringConflictsRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
+      };
+      /** @description Forbidden */
+      403: {
+        content: never;
+      };
+      /** @description Resource not found */
+      404: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * Create recurring appointments
+   * @description Create multiple recurring appointments for a patient.
+   *
+   * Each occurrence is created in a separate transaction to allow partial success.
+   * Clinic notes are replicated to all successfully created appointments.
+   */
+  create_recurring_appointments_api_clinic_appointments_recurring_post: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["RecurringAppointmentCreateRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
+      };
+      /** @description Forbidden */
+      403: {
+        content: never;
+      };
+      /** @description Resource not found */
+      404: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * Preview edit notification
+   * @description Preview edit notification message before confirming edit.
+   *
+   * Also validates conflicts and returns whether notification will be sent.
+   */
+  preview_edit_notification_api_clinic_appointments__appointment_id__edit_preview_post: {
+    parameters: {
+      path: {
+        appointment_id: number;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["AppointmentEditPreviewRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
+      };
+      /** @description Forbidden */
+      403: {
+        content: never;
+      };
+      /** @description Resource not found */
+      404: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * Get resources allocated to an appointment
+   * @description Get all resources allocated to an appointment.
+   */
+  get_appointment_resources_api_clinic_appointments__appointment_id__resources_get: {
+    parameters: {
+      path: {
+        appointment_id: number;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ResourceAllocationResponse"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
+      };
+      /** @description Forbidden */
+      403: {
+        content: never;
+      };
+      /** @description Resource not found */
+      404: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * Update resource allocation for an appointment
+   * @description Manually update resource allocation for an appointment.
+   */
+  update_appointment_resources_api_clinic_appointments__appointment_id__resources_put: {
+    parameters: {
+      path: {
+        appointment_id: number;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": number[];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
+      };
+      /** @description Forbidden */
+      403: {
+        content: never;
+      };
+      /** @description Resource not found */
+      404: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * List all resource types for clinic
+   * @description Get all resource types for the current clinic.
+   */
+  list_resource_types_api_clinic_resource_types_get: {
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ResourceTypeListResponse"];
         };
       };
       /** @description Unauthorized */
@@ -5620,22 +8231,20 @@ export interface operations {
     };
   };
   /**
-   * Get clinic dashboard metrics
-   * @description Get aggregated dashboard metrics for the clinic.
-   *
-   * Returns metrics for past 3 months + current month, including:
-   * - Patient statistics (active patients, new patients)
-   * - Appointment statistics (counts, cancellation rates, types, practitioners)
-   * - Message statistics (paid messages, AI replies)
-   *
-   * Available to all clinic members (including read-only users).
+   * Create a new resource type
+   * @description Create a new resource type for the clinic.
    */
-  get_dashboard_metrics_api_clinic_dashboard_metrics_get: {
+  create_resource_type_api_clinic_resource_types_post: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ResourceTypeCreateRequest"];
+      };
+    };
     responses: {
       /** @description Successful Response */
       200: {
         content: {
-          "application/json": components["schemas"]["ClinicDashboardMetricsResponse"];
+          "application/json": components["schemas"]["ResourceTypeResponse"];
         };
       };
       /** @description Unauthorized */
@@ -5649,6 +8258,722 @@ export interface operations {
       /** @description Resource not found */
       404: {
         content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * Update a resource type
+   * @description Update a resource type.
+   */
+  update_resource_type_api_clinic_resource_types__resource_type_id__put: {
+    parameters: {
+      path: {
+        resource_type_id: number;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ResourceTypeUpdateRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ResourceTypeResponse"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
+      };
+      /** @description Forbidden */
+      403: {
+        content: never;
+      };
+      /** @description Resource not found */
+      404: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * Delete a resource type
+   * @description Delete a resource type. Prevents deletion if resources have active allocations.
+   */
+  delete_resource_type_api_clinic_resource_types__resource_type_id__delete: {
+    parameters: {
+      path: {
+        resource_type_id: number;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
+      };
+      /** @description Forbidden */
+      403: {
+        content: never;
+      };
+      /** @description Resource not found */
+      404: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * List resources for a resource type
+   * @description Get all resources for a resource type.
+   */
+  list_resources_api_clinic_resource_types__resource_type_id__resources_get: {
+    parameters: {
+      path: {
+        resource_type_id: number;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ResourceListResponse"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
+      };
+      /** @description Forbidden */
+      403: {
+        content: never;
+      };
+      /** @description Resource not found */
+      404: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * Create a new resource
+   * @description Create a new resource. Auto-generates name if not provided.
+   */
+  create_resource_api_clinic_resource_types__resource_type_id__resources_post: {
+    parameters: {
+      path: {
+        resource_type_id: number;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ResourceCreateRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["api__clinic__resources__ResourceResponse"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
+      };
+      /** @description Forbidden */
+      403: {
+        content: never;
+      };
+      /** @description Resource not found */
+      404: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * Update a resource
+   * @description Update a resource.
+   */
+  update_resource_api_clinic_resources__resource_id__put: {
+    parameters: {
+      path: {
+        resource_id: number;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ResourceUpdateRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["api__clinic__resources__ResourceResponse"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
+      };
+      /** @description Forbidden */
+      403: {
+        content: never;
+      };
+      /** @description Resource not found */
+      404: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * Delete a resource (soft delete)
+   * @description Soft delete a resource. Prevents deletion if resource has active allocations.
+   */
+  delete_resource_api_clinic_resources__resource_id__delete: {
+    parameters: {
+      path: {
+        resource_id: number;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
+      };
+      /** @description Forbidden */
+      403: {
+        content: never;
+      };
+      /** @description Resource not found */
+      404: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * Get appointment types that require a resource type
+   * @description Get all appointment types that require a specific resource type.
+   */
+  get_appointment_types_by_resource_type_api_clinic_resource_types__resource_type_id__appointment_types_get: {
+    parameters: {
+      path: {
+        resource_type_id: number;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": {
+            [key: string]: unknown;
+          };
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
+      };
+      /** @description Forbidden */
+      403: {
+        content: never;
+      };
+      /** @description Resource not found */
+      404: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * Get resource requirements for appointment type
+   * @description Get all resource requirements for an appointment type.
+   */
+  get_resource_requirements_api_clinic_appointment_types__appointment_type_id__resource_requirements_get: {
+    parameters: {
+      path: {
+        appointment_type_id: number;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ResourceRequirementListResponse"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
+      };
+      /** @description Forbidden */
+      403: {
+        content: never;
+      };
+      /** @description Resource not found */
+      404: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * Create a resource requirement
+   * @description Create a resource requirement for an appointment type.
+   */
+  create_resource_requirement_api_clinic_appointment_types__appointment_type_id__resource_requirements_post: {
+    parameters: {
+      path: {
+        appointment_type_id: number;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ResourceRequirementCreateRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ResourceRequirementResponse"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
+      };
+      /** @description Forbidden */
+      403: {
+        content: never;
+      };
+      /** @description Resource not found */
+      404: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * Update a resource requirement
+   * @description Update a resource requirement.
+   */
+  update_resource_requirement_api_clinic_appointment_types__appointment_type_id__resource_requirements__requirement_id__put: {
+    parameters: {
+      path: {
+        appointment_type_id: number;
+        requirement_id: number;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ResourceRequirementUpdateRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ResourceRequirementResponse"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
+      };
+      /** @description Forbidden */
+      403: {
+        content: never;
+      };
+      /** @description Resource not found */
+      404: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * Delete a resource requirement
+   * @description Delete a resource requirement.
+   */
+  delete_resource_requirement_api_clinic_appointment_types__appointment_type_id__resource_requirements__requirement_id__delete: {
+    parameters: {
+      path: {
+        appointment_type_id: number;
+        requirement_id: number;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
+      };
+      /** @description Forbidden */
+      403: {
+        content: never;
+      };
+      /** @description Resource not found */
+      404: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * Generate reminder message preview
+   * @description Generate a preview of what a LINE reminder message would look like.
+   *
+   * This endpoint allows clinic admins to see exactly how their reminder
+   * messages will appear to patients before they are sent.
+   */
+  generate_reminder_preview_api_clinic_reminder_preview_post: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ReminderPreviewRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": {
+            [key: string]: string;
+          };
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
+      };
+      /** @description Forbidden */
+      403: {
+        content: never;
+      };
+      /** @description Resource not found */
+      404: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * Generate cancellation message preview
+   * @description Generate a preview of what a LINE cancellation message would look like.
+   *
+   * This endpoint allows clinic admins to see exactly how their cancellation
+   * messages will appear to patients before they are sent.
+   */
+  generate_cancellation_preview_api_clinic_cancellation_preview_post: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CancellationPreviewRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": {
+            [key: string]: string;
+          };
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
+      };
+      /** @description Forbidden */
+      403: {
+        content: never;
+      };
+      /** @description Resource not found */
+      404: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * Preview appointment message
+   * @description Preview appointment message with actual context data.
+   *
+   * Uses actual context: current user as practitioner, actual service item name, real clinic data.
+   * Returns preview message, used placeholders, and completeness warnings.
+   */
+  preview_appointment_message_api_clinic_appointment_message_preview_post: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["MessagePreviewRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": {
+            [key: string]: unknown;
+          };
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
+      };
+      /** @description Forbidden */
+      403: {
+        content: never;
+      };
+      /** @description Resource not found */
+      404: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * Generate receipt preview
+   * @description Generate a preview of what a receipt would look like with current settings.
+   *
+   * This endpoint allows clinic admins to see exactly how their receipts
+   * will appear with the current receipt settings (custom_notes, show_stamp).
+   * Uses dummy data for preview purposes.
+   */
+  generate_receipt_preview_api_clinic_settings_receipts_preview_post: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ReceiptPreviewRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "text/html": string;
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
+      };
+      /** @description Forbidden */
+      403: {
+        content: never;
+      };
+      /** @description Resource not found */
+      404: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * Test chatbot with current settings
+   * @description Test chatbot with current (unsaved) chat settings.
+   *
+   * This endpoint allows clinic users to test how the chatbot will respond
+   * using their current settings before saving them. The test uses the provided
+   * chat_settings instead of the clinic's saved settings.
+   *
+   * Available to all clinic members (including read-only users).
+   */
+  test_chatbot_api_clinic_chat_test_post: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ChatTestRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ChatTestResponse"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
+      };
+      /** @description Forbidden */
+      403: {
+        content: never;
+      };
+      /** @description Resource not found */
+      404: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
       };
       /** @description Internal server error */
       500: {
@@ -5682,31 +9007,11 @@ export interface operations {
           "application/json": components["schemas"]["LiffLoginResponse"];
         };
       };
-      /** @description Unauthorized */
-      401: {
-        content: never;
-      };
-      /** @description Forbidden */
-      403: {
-        content: never;
-      };
-      /** @description Resource not found */
-      404: {
-        content: never;
-      };
-      /** @description Conflict */
-      409: {
-        content: never;
-      };
       /** @description Validation Error */
       422: {
         content: {
           "application/json": components["schemas"]["HTTPValidationError"];
         };
-      };
-      /** @description Internal server error */
-      500: {
-        content: never;
       };
     };
   };
@@ -5725,26 +9030,6 @@ export interface operations {
         content: {
           "application/json": components["schemas"]["PatientListResponse"];
         };
-      };
-      /** @description Unauthorized */
-      401: {
-        content: never;
-      };
-      /** @description Forbidden */
-      403: {
-        content: never;
-      };
-      /** @description Resource not found */
-      404: {
-        content: never;
-      };
-      /** @description Conflict */
-      409: {
-        content: never;
-      };
-      /** @description Internal server error */
-      500: {
-        content: never;
       };
     };
   };
@@ -5769,31 +9054,11 @@ export interface operations {
           "application/json": components["schemas"]["PatientCreateResponse"];
         };
       };
-      /** @description Unauthorized */
-      401: {
-        content: never;
-      };
-      /** @description Forbidden */
-      403: {
-        content: never;
-      };
-      /** @description Resource not found */
-      404: {
-        content: never;
-      };
-      /** @description Conflict */
-      409: {
-        content: never;
-      };
       /** @description Validation Error */
       422: {
         content: {
           "application/json": components["schemas"]["HTTPValidationError"];
         };
-      };
-      /** @description Internal server error */
-      500: {
-        content: never;
       };
     };
   };
@@ -5827,31 +9092,11 @@ export interface operations {
           "application/json": components["schemas"]["PatientCreateResponse"];
         };
       };
-      /** @description Unauthorized */
-      401: {
-        content: never;
-      };
-      /** @description Forbidden */
-      403: {
-        content: never;
-      };
-      /** @description Resource not found */
-      404: {
-        content: never;
-      };
-      /** @description Conflict */
-      409: {
-        content: never;
-      };
       /** @description Validation Error */
       422: {
         content: {
           "application/json": components["schemas"]["HTTPValidationError"];
         };
-      };
-      /** @description Internal server error */
-      500: {
-        content: never;
       };
     };
   };
@@ -5875,31 +9120,11 @@ export interface operations {
           "application/json": unknown;
         };
       };
-      /** @description Unauthorized */
-      401: {
-        content: never;
-      };
-      /** @description Forbidden */
-      403: {
-        content: never;
-      };
-      /** @description Resource not found */
-      404: {
-        content: never;
-      };
-      /** @description Conflict */
-      409: {
-        content: never;
-      };
       /** @description Validation Error */
       422: {
         content: {
           "application/json": components["schemas"]["HTTPValidationError"];
         };
-      };
-      /** @description Internal server error */
-      500: {
-        content: never;
       };
     };
   };
@@ -5916,26 +9141,6 @@ export interface operations {
           "application/json": components["schemas"]["AppointmentTypeListResponse"];
         };
       };
-      /** @description Unauthorized */
-      401: {
-        content: never;
-      };
-      /** @description Forbidden */
-      403: {
-        content: never;
-      };
-      /** @description Resource not found */
-      404: {
-        content: never;
-      };
-      /** @description Conflict */
-      409: {
-        content: never;
-      };
-      /** @description Internal server error */
-      500: {
-        content: never;
-      };
     };
   };
   /**
@@ -5944,11 +9149,17 @@ export interface operations {
    *
    * If no appointment_type_id provided, returns all practitioners.
    * Clinic isolation is enforced through LIFF token context.
+   *
+   * When restrict_to_assigned_practitioners is True and patient_id is provided:
+   * - Filters to show only assigned practitioners
+   * - If no assigned practitioners or appointment type not offered by assigned practitioners, shows all practitioners
    */
   list_practitioners_api_liff_practitioners_get: {
     parameters: {
       query?: {
         appointment_type_id?: number | null;
+        /** @description Optional patient ID for filtering by assigned practitioners */
+        patient_id?: number | null;
       };
     };
     responses: {
@@ -5958,31 +9169,11 @@ export interface operations {
           "application/json": components["schemas"]["api__responses__PractitionerListResponse"];
         };
       };
-      /** @description Unauthorized */
-      401: {
-        content: never;
-      };
-      /** @description Forbidden */
-      403: {
-        content: never;
-      };
-      /** @description Resource not found */
-      404: {
-        content: never;
-      };
-      /** @description Conflict */
-      409: {
-        content: never;
-      };
       /** @description Validation Error */
       422: {
         content: {
           "application/json": components["schemas"]["HTTPValidationError"];
         };
-      };
-      /** @description Internal server error */
-      500: {
-        content: never;
       };
     };
   };
@@ -6013,31 +9204,11 @@ export interface operations {
           "application/json": components["schemas"]["AvailabilityResponse"];
         };
       };
-      /** @description Unauthorized */
-      401: {
-        content: never;
-      };
-      /** @description Forbidden */
-      403: {
-        content: never;
-      };
-      /** @description Resource not found */
-      404: {
-        content: never;
-      };
-      /** @description Conflict */
-      409: {
-        content: never;
-      };
       /** @description Validation Error */
       422: {
         content: {
           "application/json": components["schemas"]["HTTPValidationError"];
         };
-      };
-      /** @description Internal server error */
-      500: {
-        content: never;
       };
     };
   };
@@ -6072,31 +9243,11 @@ export interface operations {
           "application/json": components["schemas"]["BatchAvailabilityResponse"];
         };
       };
-      /** @description Unauthorized */
-      401: {
-        content: never;
-      };
-      /** @description Forbidden */
-      403: {
-        content: never;
-      };
-      /** @description Resource not found */
-      404: {
-        content: never;
-      };
-      /** @description Conflict */
-      409: {
-        content: never;
-      };
       /** @description Validation Error */
       422: {
         content: {
           "application/json": components["schemas"]["HTTPValidationError"];
         };
-      };
-      /** @description Internal server error */
-      500: {
-        content: never;
       };
     };
   };
@@ -6118,31 +9269,11 @@ export interface operations {
           "application/json": components["schemas"]["AppointmentListResponse"];
         };
       };
-      /** @description Unauthorized */
-      401: {
-        content: never;
-      };
-      /** @description Forbidden */
-      403: {
-        content: never;
-      };
-      /** @description Resource not found */
-      404: {
-        content: never;
-      };
-      /** @description Conflict */
-      409: {
-        content: never;
-      };
       /** @description Validation Error */
       422: {
         content: {
           "application/json": components["schemas"]["HTTPValidationError"];
         };
-      };
-      /** @description Internal server error */
-      500: {
-        content: never;
       };
     };
   };
@@ -6167,31 +9298,11 @@ export interface operations {
           "application/json": components["schemas"]["AppointmentResponse"];
         };
       };
-      /** @description Unauthorized */
-      401: {
-        content: never;
-      };
-      /** @description Forbidden */
-      403: {
-        content: never;
-      };
-      /** @description Resource not found */
-      404: {
-        content: never;
-      };
-      /** @description Conflict */
-      409: {
-        content: never;
-      };
       /** @description Validation Error */
       422: {
         content: {
           "application/json": components["schemas"]["HTTPValidationError"];
         };
-      };
-      /** @description Internal server error */
-      500: {
-        content: never;
       };
     };
   };
@@ -6219,31 +9330,11 @@ export interface operations {
           "application/json": unknown;
         };
       };
-      /** @description Unauthorized */
-      401: {
-        content: never;
-      };
-      /** @description Forbidden */
-      403: {
-        content: never;
-      };
-      /** @description Resource not found */
-      404: {
-        content: never;
-      };
-      /** @description Conflict */
-      409: {
-        content: never;
-      };
       /** @description Validation Error */
       422: {
         content: {
           "application/json": components["schemas"]["HTTPValidationError"];
         };
-      };
-      /** @description Internal server error */
-      500: {
-        content: never;
       };
     };
   };
@@ -6267,21 +9358,36 @@ export interface operations {
           "application/json": unknown;
         };
       };
-      /** @description Unauthorized */
-      401: {
-        content: never;
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
       };
-      /** @description Forbidden */
-      403: {
-        content: never;
+    };
+  };
+  /**
+   * Get Appointment Receipt
+   * @description Get active receipt for an appointment (patient view).
+   *
+   * Patients can only see active (non-voided) receipts.
+   * Returns 404 if no active receipt exists (security best practice).
+   * Clinic isolation is enforced through LIFF token context.
+   */
+  get_appointment_receipt_api_liff_appointments__appointment_id__receipt_get: {
+    parameters: {
+      path: {
+        appointment_id: number;
       };
-      /** @description Resource not found */
-      404: {
-        content: never;
-      };
-      /** @description Conflict */
-      409: {
-        content: never;
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": {
+            [key: string]: unknown;
+          };
+        };
       };
       /** @description Validation Error */
       422: {
@@ -6289,9 +9395,35 @@ export interface operations {
           "application/json": components["schemas"]["HTTPValidationError"];
         };
       };
-      /** @description Internal server error */
-      500: {
-        content: never;
+    };
+  };
+  /**
+   * Get Appointment Receipt Html
+   * @description Get active receipt as HTML for an appointment (patient view).
+   *
+   * Patients can only see active (non-voided) receipts.
+   * Returns 404 if no active receipt exists (security best practice).
+   * Clinic isolation is enforced through LIFF token context.
+   * Uses the same HTML template as the admin receipt view for consistency.
+   */
+  get_appointment_receipt_html_api_liff_appointments__appointment_id__receipt_html_get: {
+    parameters: {
+      path: {
+        appointment_id: number;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "text/html": string;
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
       };
     };
   };
@@ -6321,31 +9453,11 @@ export interface operations {
           "application/json": unknown;
         };
       };
-      /** @description Unauthorized */
-      401: {
-        content: never;
-      };
-      /** @description Forbidden */
-      403: {
-        content: never;
-      };
-      /** @description Resource not found */
-      404: {
-        content: never;
-      };
-      /** @description Conflict */
-      409: {
-        content: never;
-      };
       /** @description Validation Error */
       422: {
         content: {
           "application/json": components["schemas"]["HTTPValidationError"];
         };
-      };
-      /** @description Internal server error */
-      500: {
-        content: never;
       };
     };
   };
@@ -6364,26 +9476,6 @@ export interface operations {
             [key: string]: unknown;
           };
         };
-      };
-      /** @description Unauthorized */
-      401: {
-        content: never;
-      };
-      /** @description Forbidden */
-      403: {
-        content: never;
-      };
-      /** @description Resource not found */
-      404: {
-        content: never;
-      };
-      /** @description Conflict */
-      409: {
-        content: never;
-      };
-      /** @description Internal server error */
-      500: {
-        content: never;
       };
     };
   };
@@ -6405,31 +9497,11 @@ export interface operations {
           "application/json": components["schemas"]["AvailabilityNotificationListResponse"];
         };
       };
-      /** @description Unauthorized */
-      401: {
-        content: never;
-      };
-      /** @description Forbidden */
-      403: {
-        content: never;
-      };
-      /** @description Resource not found */
-      404: {
-        content: never;
-      };
-      /** @description Conflict */
-      409: {
-        content: never;
-      };
       /** @description Validation Error */
       422: {
         content: {
           "application/json": components["schemas"]["HTTPValidationError"];
         };
-      };
-      /** @description Internal server error */
-      500: {
-        content: never;
       };
     };
   };
@@ -6450,31 +9522,11 @@ export interface operations {
           "application/json": components["schemas"]["AvailabilityNotificationResponse"];
         };
       };
-      /** @description Unauthorized */
-      401: {
-        content: never;
-      };
-      /** @description Forbidden */
-      403: {
-        content: never;
-      };
-      /** @description Resource not found */
-      404: {
-        content: never;
-      };
-      /** @description Conflict */
-      409: {
-        content: never;
-      };
       /** @description Validation Error */
       422: {
         content: {
           "application/json": components["schemas"]["HTTPValidationError"];
         };
-      };
-      /** @description Internal server error */
-      500: {
-        content: never;
       };
     };
   };
@@ -6497,31 +9549,11 @@ export interface operations {
           };
         };
       };
-      /** @description Unauthorized */
-      401: {
-        content: never;
-      };
-      /** @description Forbidden */
-      403: {
-        content: never;
-      };
-      /** @description Resource not found */
-      404: {
-        content: never;
-      };
-      /** @description Conflict */
-      409: {
-        content: never;
-      };
       /** @description Validation Error */
       422: {
         content: {
           "application/json": components["schemas"]["HTTPValidationError"];
         };
-      };
-      /** @description Internal server error */
-      500: {
-        content: never;
       };
     };
   };
@@ -6545,6 +9577,490 @@ export interface operations {
       200: {
         content: {
           "application/json": components["schemas"]["LanguagePreferenceResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Checkout Appointment
+   * @description Checkout an appointment (create receipt).
+   *
+   * Clinic users only. Creates a receipt with immutable snapshot of all billing information.
+   *
+   * Validates:
+   * - Payment method is valid (cash, card, transfer, other)
+   * - All items have amount >= 0 (allows free services)
+   * - Revenue share <= amount for each item
+   * - Billing scenarios exist and are not deleted (if provided)
+   * - Service items exist and are not deleted
+   * - Quantity is between 1 and 999 (enforced by Pydantic model)
+   * - Receipt number sequence is not exhausted
+   */
+  checkout_appointment_api_appointments__appointment_id__checkout_post: {
+    parameters: {
+      path: {
+        appointment_id: number;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CheckoutRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["CheckoutResponse"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
+      };
+      /** @description Forbidden */
+      403: {
+        content: never;
+      };
+      /** @description Resource not found */
+      404: {
+        content: never;
+      };
+      /** @description Conflict */
+      409: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * Get Appointment Receipt
+   * @description Get receipt for an appointment.
+   *
+   * Clinic users only. Returns active receipt if exists, otherwise most recent voided receipt.
+   */
+  get_appointment_receipt_api_appointments__appointment_id__receipt_get: {
+    parameters: {
+      path: {
+        appointment_id: number;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ReceiptResponse"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
+      };
+      /** @description Forbidden */
+      403: {
+        content: never;
+      };
+      /** @description Resource not found */
+      404: {
+        content: never;
+      };
+      /** @description Conflict */
+      409: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * Void Receipt
+   * @description Void a receipt.
+   *
+   * Clinic users only. Voids a receipt for corrections while maintaining audit trail.
+   */
+  void_receipt_api_receipts__receipt_id__void_post: {
+    parameters: {
+      path: {
+        receipt_id: number;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["VoidReceiptRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["VoidReceiptResponse"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
+      };
+      /** @description Forbidden */
+      403: {
+        content: never;
+      };
+      /** @description Resource not found */
+      404: {
+        content: never;
+      };
+      /** @description Conflict */
+      409: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * List Billing Scenarios
+   * @description List billing scenarios for a practitioner-service combination.
+   *
+   * Clinic users only. Non-admin users can only view their own billing scenarios.
+   */
+  list_billing_scenarios_api_clinic_service_items__service_item_id__practitioners__practitioner_id__billing_scenarios_get: {
+    parameters: {
+      path: {
+        service_item_id: number;
+        practitioner_id: number;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["BillingScenarioListResponse"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
+      };
+      /** @description Forbidden */
+      403: {
+        content: never;
+      };
+      /** @description Resource not found */
+      404: {
+        content: never;
+      };
+      /** @description Conflict */
+      409: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * Create Billing Scenario
+   * @description Create a new billing scenario.
+   *
+   * Admin-only.
+   */
+  create_billing_scenario_api_clinic_service_items__service_item_id__practitioners__practitioner_id__billing_scenarios_post: {
+    parameters: {
+      path: {
+        service_item_id: number;
+        practitioner_id: number;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["BillingScenarioCreateRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["BillingScenarioResponse"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
+      };
+      /** @description Forbidden */
+      403: {
+        content: never;
+      };
+      /** @description Resource not found */
+      404: {
+        content: never;
+      };
+      /** @description Conflict */
+      409: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * Update Billing Scenario
+   * @description Update a billing scenario.
+   *
+   * Admin-only.
+   */
+  update_billing_scenario_api_clinic_service_items__service_item_id__practitioners__practitioner_id__billing_scenarios__scenario_id__put: {
+    parameters: {
+      path: {
+        service_item_id: number;
+        practitioner_id: number;
+        scenario_id: number;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["BillingScenarioUpdateRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["BillingScenarioResponse"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
+      };
+      /** @description Forbidden */
+      403: {
+        content: never;
+      };
+      /** @description Resource not found */
+      404: {
+        content: never;
+      };
+      /** @description Conflict */
+      409: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * Delete Billing Scenario
+   * @description Soft delete a billing scenario.
+   *
+   * Admin-only.
+   */
+  delete_billing_scenario_api_clinic_service_items__service_item_id__practitioners__practitioner_id__billing_scenarios__scenario_id__delete: {
+    parameters: {
+      path: {
+        service_item_id: number;
+        practitioner_id: number;
+        scenario_id: number;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
+      };
+      /** @description Forbidden */
+      403: {
+        content: never;
+      };
+      /** @description Resource not found */
+      404: {
+        content: never;
+      };
+      /** @description Conflict */
+      409: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * Download Receipt Pdf
+   * @description Download receipt as PDF.
+   *
+   * Clinic users only. Returns PDF file with receipt information.
+   */
+  download_receipt_pdf_api_receipts__receipt_id__download_get: {
+    parameters: {
+      path: {
+        receipt_id: number;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
+      };
+      /** @description Forbidden */
+      403: {
+        content: never;
+      };
+      /** @description Resource not found */
+      404: {
+        content: never;
+      };
+      /** @description Conflict */
+      409: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * Get Receipt Html
+   * @description Get receipt as HTML for LIFF display.
+   *
+   * Clinic users only. Returns HTML page with receipt information.
+   * Same template as PDF to ensure consistency.
+   */
+  get_receipt_html_api_receipts__receipt_id__html_get: {
+    parameters: {
+      path: {
+        receipt_id: number;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "text/html": string;
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
+      };
+      /** @description Forbidden */
+      403: {
+        content: never;
+      };
+      /** @description Resource not found */
+      404: {
+        content: never;
+      };
+      /** @description Conflict */
+      409: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
+   * Get Receipt By Id
+   * @description Get receipt by ID (clinic users only).
+   */
+  get_receipt_by_id_api_receipts__receipt_id__get: {
+    parameters: {
+      path: {
+        receipt_id: number;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ReceiptResponse"];
         };
       };
       /** @description Unauthorized */
@@ -6683,13 +10199,15 @@ export interface operations {
   };
 }
 
-// Manual additions (not auto-generated)
-// These types and utilities are used throughout the codebase for error handling
+// ===== Type Aliases for Generated Types =====
+// These aliases make the generated types easier to import and use
 
-import i18n from '../i18n';
+export type SchedulingConflictResponse = components["schemas"]["SchedulingConflictResponse"];
+
+// ===== Error Types =====
 
 /**
- * Standard API error response structure
+ * API error interface
  */
 export interface ApiError {
   message: string;
@@ -6698,12 +10216,23 @@ export interface ApiError {
 }
 
 /**
- * Axios error response structure (common pattern in the codebase)
+ * Validation error detail
+ */
+export interface ValidationErrorDetail {
+  msg: string;
+  type: string;
+  loc?: string[];
+}
+
+// ===== Error Types and Utilities =====
+
+/**
+ * Axios error response structure
  */
 export interface AxiosErrorResponse {
   response?: {
     data?: {
-      detail?: string | Array<{ msg: string; type?: string }>;
+      detail?: string | ValidationErrorDetail[];
       message?: string;
       error?: string;
     };
@@ -6713,83 +10242,72 @@ export interface AxiosErrorResponse {
 }
 
 /**
- * Validation error detail from FastAPI
+ * API error type union
  */
-export interface ValidationErrorDetail {
-  msg: string;
-  type?: string;
-}
+export type ApiErrorType = AxiosErrorResponse | Error | ApiError | string | unknown | null | undefined;
 
 /**
- * Generic error type for catch blocks
+ * Extract error message from various error types
  */
-export type ApiErrorType = AxiosErrorResponse | Error | ApiError | unknown;
+export function getErrorMessage(error: ApiErrorType): string {
+  // Handle null/undefined
+  if (!error) {
+    return '發生未知錯誤，請稍後再試';
+  }
 
-/**
- * Result type for API operations
- */
-export interface ApiResult<T> {
-  data?: T;
-  error?: ApiError;
-  success: boolean;
-}
+  // Handle string errors
+  if (typeof error === 'string') {
+    return '發生未知錯誤，請稍後再試';
+  }
 
-// Conflict detection types
-export type SchedulingConflictResponse = components["schemas"]["SchedulingConflictResponse"];
-export type AppointmentConflictDetail = components["schemas"]["AppointmentConflictDetail"];
-export type ExceptionConflictDetail = components["schemas"]["ExceptionConflictDetail"];
-export type ResourceConflictDetail = components["schemas"]["ResourceConflictDetail"];
-export type DefaultAvailabilityInfo = components["schemas"]["DefaultAvailabilityInfo"];
+  // Handle standard Error objects
+  if (error instanceof Error) {
+    return error.message;
+  }
 
-/**
- * Helper function to extract error message from various error types
- * Strips FastAPI's "Value error, " prefix and ensures messages are user-friendly
- */
-export const getErrorMessage = (error: ApiErrorType): string => {
-  let message = '';
+  // Type guard for objects
+  if (typeof error === 'object' && error !== null) {
+    const errObj = error as Record<string, unknown>;
 
-  // Axios error with response
-  if (typeof error === 'object' && error && 'response' in error) {
-    const axiosError = error as AxiosErrorResponse;
+    // Handle ApiError interface
+    if ('message' in errObj && typeof errObj.message === 'string') {
+      return errObj.message;
+    }
 
-    // FastAPI validation error (422)
-    if (axiosError.response?.data?.detail) {
-      const detail = axiosError.response.data.detail;
-      if (Array.isArray(detail)) {
-        message = detail.map(d => d.msg).join(', ');
-      } else if (typeof detail === 'string') {
-        message = detail;
+    // Handle Axios error response
+    if ('response' in errObj && errObj.response && typeof errObj.response === 'object') {
+      const response = errObj.response as Record<string, unknown>;
+      if ('data' in response && response.data && typeof response.data === 'object') {
+        const data = response.data as Record<string, unknown>;
+
+        // Handle array of validation errors
+        if ('detail' in data && Array.isArray(data.detail)) {
+          return (data.detail as ValidationErrorDetail[]).map(detail => detail.msg).join(', ');
+        }
+
+        // Handle string detail
+        if ('detail' in data && typeof data.detail === 'string') {
+          return data.detail;
+        }
+
+        // Handle message field
+        if ('message' in data && typeof data.message === 'string') {
+          return data.message;
+        }
+
+        // Handle error field
+        if ('error' in data && typeof data.error === 'string') {
+          return data.error;
+        }
       }
     }
 
-    // Other API error messages
-    if (!message && axiosError.response?.data?.message) {
-      message = axiosError.response.data.message;
-    }
-
-    if (!message && axiosError.response?.data?.error) {
-      message = axiosError.response.data.error;
+    // Handle direct message on Axios error
+    if ('message' in errObj && typeof errObj.message === 'string') {
+      return errObj.message;
     }
   }
 
-  // Standard Error object
-  if (!message && error instanceof Error) {
-    message = error.message;
-  }
-
-  // ApiError interface
-  if (!message && typeof error === 'object' && error && 'message' in error) {
-    message = (error as ApiError).message;
-  }
-
-  // Fallback - use i18n for translation
-  if (!message) {
-    return i18n.t('common.unknownError');
-  }
-
-  // Strip FastAPI's "Value error, " prefix (case-insensitive)
-  // FastAPI automatically prefixes ValueError messages with "Value error, "
-  message = message.replace(/^Value error,\s*/i, '');
-
-  return message;
-};
+  // Fallback
+  return '發生未知錯誤，請稍後再試';
+}

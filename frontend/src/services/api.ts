@@ -15,6 +15,7 @@ import {
   UserRole,
   ClinicsListResponse,
   SwitchClinicResponse,
+  RefreshUserDataResponse,
   PractitionerWithDetails,
   LineUserWithStatus,
   ServiceTypeGroup
@@ -176,6 +177,11 @@ export class ApiService {
     const response = await this.client.post('/auth/switch-clinic', {
       clinic_id: clinicId
     });
+    return response.data;
+  }
+
+  async refreshUserData(): Promise<RefreshUserDataResponse> {
+    const response = await this.client.post('/auth/refresh-user-data');
     return response.data;
   }
 

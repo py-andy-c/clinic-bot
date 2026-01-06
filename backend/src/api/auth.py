@@ -891,6 +891,15 @@ class SwitchClinicResponse(BaseModel):
     clinic: dict[str, Any]
 
 
+class RefreshUserDataResponse(BaseModel):
+    """Response for refreshing user data with current roles."""
+    access_token: str
+    refresh_token: str
+    token_type: str
+    expires_in: str
+    user: dict[str, Any]
+
+
 # ===== Clinic Management Endpoints =====
 
 @router.get("/clinics", summary="List available clinics for current user")
@@ -1107,4 +1116,106 @@ async def switch_clinic(
             "name": association.clinic.name,
             "display_name": association.clinic.name  # Use name as display_name for now
         }
+    )
+
+
+@router.post("/refresh-user-data", summary="Refresh user data with current roles")
+async def refresh_user_data(
+    current_user: UserContext = Depends(require_authenticated),
+    db: Session = Depends(get_db)
+) -> RefreshUserDataResponse:
+    """
+    Refresh user data by fetching current roles from database and issuing new tokens.
+
+    This endpoint is used when user roles may have changed (e.g., after role updates)
+    to ensure the frontend has the most current permission data.
+    """
+    try:
+        # Get user record
+        user = db.query(User).filter(User.id == current_user.user_id).first()
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+
+        logger.info(f"Refresh user data requested for user: {user.email} (ID: {user.id})")
+        logger.info(f"Current user context roles: {current_user.roles}")
+
+        # Get clinic-specific data for token creation
+        clinic_data = get_clinic_user_token_data(user, db)
+        logger.info(f"Database roles for user: {clinic_data['clinic_roles']}")
+        logger.info(f"Active clinic ID: {clinic_data['active_clinic_id']}")
+
+        # Determine user type based on clinic associations
+        has_association = db.query(UserClinicAssociation).filter(
+            UserClinicAssociation.user_id == user.id,
+            UserClinicAssociation.is_active == True
+        ).first()
+        is_system_admin = not has_association
+
+        # Unified token payload creation for both system admins and clinic users
+        payload = TokenPayload(
+            sub=str(user.google_subject_id),
+            user_id=user.id,
+            email=user.email,
+            user_type="system_admin" if is_system_admin else "clinic_user",
+            roles=[] if is_system_admin else clinic_data["clinic_roles"],  # System admins don't have clinic roles
+            active_clinic_id=clinic_data["active_clinic_id"],  # Currently selected clinic for clinic users
+            name=clinic_data["clinic_name"]  # Clinic-specific name for clinic users
+        )
+
+        # Create new token pair
+        token_data = jwt_service.create_token_pair(payload)
+
+    # Create new refresh token (following clinic switching pattern - don't revoke old token)
+
+        # Create new refresh token record
+        new_refresh_token_hash = token_data["refresh_token_hash"]
+        new_refresh_token_hash_sha256 = token_data.get("refresh_token_hash_sha256")
+
+        new_refresh_token_record = RefreshToken(
+            user_id=user.id,
+            token_hash=new_refresh_token_hash,
+            token_hash_sha256=new_refresh_token_hash_sha256,
+            expires_at=jwt_service.get_token_expiry("refresh"),
+            email=None,
+            google_subject_id=None,
+            name=None
+        )
+        db.add(new_refresh_token_record)
+        db.commit()
+
+        # Return response with new tokens and user data
+        response_data = RefreshUserDataResponse(
+            access_token=token_data["access_token"],
+            refresh_token=token_data["refresh_token"],
+            token_type="bearer",
+            expires_in=str(token_data["expires_in"]),
+            user={
+                "user_id": user.id,
+                "active_clinic_id": clinic_data["active_clinic_id"],
+                "email": user.email,
+                "full_name": clinic_data["clinic_name"],
+                "user_type": "system_admin" if is_system_admin else "clinic_user",
+                "roles": [] if is_system_admin else clinic_data["clinic_roles"]
+            }
+        )
+
+        logger.info(
+            f"User data refresh successful - user: {user.email}, "
+            f"user_type: {'system_admin' if is_system_admin else 'clinic_user'}, "
+            f"token_rotated: True"
+        )
+
+        return response_data
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Error refreshing user data: {e}")
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="無法重新整理使用者資料"
     )
