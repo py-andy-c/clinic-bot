@@ -303,7 +303,110 @@ class TestAppointmentEditing:
         calendar_event = appointment.calendar_event
         assert calendar_event.date == new_start_time.date()
         assert calendar_event.start_time == new_start_time.time()
-        assert appointment.clinic_notes == new_clinic_notes
+
+    def test_edit_appointment_type_changes_duration_and_resources(
+        self, db_session: Session
+    ):
+        """Test editing appointment type recalculates duration and reallocates resources."""
+        # Setup clinic
+        clinic = Clinic(
+            name="Test Clinic",
+            line_channel_id="test_channel",
+            line_channel_secret="test_secret",
+            line_channel_access_token="test_token"
+        )
+        db_session.add(clinic)
+        db_session.commit()
+
+        practitioner, _ = create_user_with_clinic_association(
+            db_session, clinic, "practitioner@test.com", "p_google", "Dr. Test", ["practitioner"]
+        )
+
+        # Create two appointment types with different durations
+        appointment_type_30min = AppointmentType(
+            clinic_id=clinic.id,
+            name="30 Minute Service",
+            duration_minutes=30,
+            is_deleted=False
+        )
+        appointment_type_60min = AppointmentType(
+            clinic_id=clinic.id,
+            name="60 Minute Service",
+            duration_minutes=60,
+            is_deleted=False
+        )
+        db_session.add(appointment_type_30min)
+        db_session.add(appointment_type_60min)
+        db_session.commit()
+
+        # Associate practitioner with both appointment types
+        for apt_type in [appointment_type_30min, appointment_type_60min]:
+            pat = PractitionerAppointmentTypes(
+                user_id=practitioner.id,
+                clinic_id=clinic.id,
+                appointment_type_id=apt_type.id
+            )
+            db_session.add(pat)
+        db_session.commit()
+
+        # Create availability (long enough for 60min appointment)
+        tomorrow = (taiwan_now() + timedelta(days=1)).date()
+        day_of_week = tomorrow.weekday()
+        create_practitioner_availability_with_clinic(
+            db_session, practitioner, clinic, day_of_week, time(9, 0), time(17, 0)
+        )
+
+        patient = Patient(
+            clinic_id=clinic.id,
+            full_name="Test Patient",
+            phone_number="0912345678"
+        )
+        db_session.add(patient)
+        db_session.commit()
+
+        # Create appointment with 30min type
+        start_time = taiwan_now().replace(hour=10, minute=0, second=0, microsecond=0) + timedelta(days=1)
+        result = AppointmentService.create_appointment(
+            db=db_session,
+            clinic_id=clinic.id,
+            patient_id=patient.id,
+            appointment_type_id=appointment_type_30min.id,
+            start_time=start_time,
+            practitioner_id=practitioner.id,
+            line_user_id=None
+        )
+        appointment_id = result['appointment_id']
+
+        # Verify initial appointment has 30min duration
+        appointment = db_session.query(Appointment).filter(
+            Appointment.calendar_event_id == appointment_id
+        ).first()
+        calendar_event = appointment.calendar_event
+        assert calendar_event.start_time == time(10, 0)
+        assert calendar_event.end_time == time(10, 30)  # 30 minutes later
+        assert appointment.appointment_type_id == appointment_type_30min.id
+
+        # Change appointment type to 60min service
+        edit_result = AppointmentService.update_appointment(
+            db=db_session,
+            appointment_id=appointment_id,
+            new_appointment_type_id=appointment_type_60min.id,
+            new_start_time=None,  # Keep same start time
+            new_practitioner_id=None,
+            apply_booking_constraints=False,
+            allow_auto_assignment=False,
+            reassigned_by_user_id=practitioner.id
+        )
+
+        assert edit_result['success'] is True
+
+        # Verify appointment type was changed and duration recalculated
+        db_session.refresh(appointment)
+        db_session.refresh(calendar_event)
+
+        assert appointment.appointment_type_id == appointment_type_60min.id
+        assert calendar_event.start_time == time(10, 0)  # Start time unchanged
+        assert calendar_event.end_time == time(11, 0)  # End time recalculated to 60 minutes later        assert appointment.clinic_notes == new_clinic_notes
 
     def test_clinic_notes_not_exposed_to_line_users(
         self, db_session: Session
@@ -914,10 +1017,10 @@ class TestAppointmentAuthorization:
         """Test that admin can edit appointments belonging to other practitioners."""
         # Setup
         clinic = Clinic(
-            name="Test Clinic",
-            line_channel_id="test_channel",
-            line_channel_secret="test_secret",
-            line_channel_access_token="test_token"
+            name="Test Clinic Auth",
+            line_channel_id="test_channel_auth",
+            line_channel_secret="test_secret_auth",
+            line_channel_access_token="test_token_auth"
         )
         db_session.add(clinic)
         db_session.commit()
@@ -998,4 +1101,102 @@ class TestAppointmentAuthorization:
         calendar_event = appointment.calendar_event
         assert calendar_event.date == new_start_time.date()
         assert calendar_event.start_time == new_start_time.time()
+        # Setup clinic
+        clinic = Clinic(
+            name="Test Clinic",
+            line_channel_id="test_channel",
+            line_channel_secret="test_secret",
+            line_channel_access_token="test_token"
+        )
+        db_session.add(clinic)
+        db_session.commit()
 
+        practitioner, _ = create_user_with_clinic_association(
+            db_session, clinic, "practitioner@test.com", "p_google", "Dr. Test", ["practitioner"]
+        )
+
+        # Create two appointment types with different durations
+        appointment_type_30min = AppointmentType(
+            clinic_id=clinic.id,
+            name="30 Minute Service",
+            duration_minutes=30,
+            is_deleted=False
+        )
+        appointment_type_60min = AppointmentType(
+            clinic_id=clinic.id,
+            name="60 Minute Service",
+            duration_minutes=60,
+            is_deleted=False
+        )
+        db_session.add(appointment_type_30min)
+        db_session.add(appointment_type_60min)
+        db_session.commit()
+
+        # Associate practitioner with both appointment types
+        for apt_type in [appointment_type_30min, appointment_type_60min]:
+            pat = PractitionerAppointmentTypes(
+                user_id=practitioner.id,
+                clinic_id=clinic.id,
+                appointment_type_id=apt_type.id
+            )
+            db_session.add(pat)
+        db_session.commit()
+
+        # Create availability (long enough for 60min appointment)
+        tomorrow = (taiwan_now() + timedelta(days=1)).date()
+        day_of_week = tomorrow.weekday()
+        create_practitioner_availability_with_clinic(
+            db_session, practitioner, clinic, day_of_week, time(9, 0), time(17, 0)
+        )
+
+        patient = Patient(
+            clinic_id=clinic.id,
+            full_name="Test Patient",
+            phone_number="0912345678"
+        )
+        db_session.add(patient)
+        db_session.commit()
+
+        # Create appointment with 30min type
+        start_time = taiwan_now().replace(hour=10, minute=0, second=0, microsecond=0) + timedelta(days=1)
+        result = AppointmentService.create_appointment(
+            db=db_session,
+            clinic_id=clinic.id,
+            patient_id=patient.id,
+            appointment_type_id=appointment_type_30min.id,
+            start_time=start_time,
+            practitioner_id=practitioner.id,
+            line_user_id=None
+        )
+        appointment_id = result['appointment_id']
+
+        # Verify initial appointment has 30min duration
+        appointment = db_session.query(Appointment).filter(
+            Appointment.calendar_event_id == appointment_id
+        ).first()
+        calendar_event = appointment.calendar_event
+        assert calendar_event.start_time == time(10, 0)
+        assert calendar_event.end_time == time(10, 30)  # 30 minutes later
+        assert appointment.appointment_type_id == appointment_type_30min.id
+
+        # Change appointment type to 60min service
+        edit_result = AppointmentService.update_appointment(
+            db=db_session,
+            appointment_id=appointment_id,
+            new_appointment_type_id=appointment_type_60min.id,
+            new_start_time=None,  # Keep same start time
+            new_practitioner_id=None,
+            apply_booking_constraints=False,
+            allow_auto_assignment=False,
+            reassigned_by_user_id=practitioner.id
+        )
+
+        assert edit_result['success'] is True
+
+        # Verify appointment type was changed and duration recalculated
+        db_session.refresh(appointment)
+        db_session.refresh(calendar_event)
+
+        assert appointment.appointment_type_id == appointment_type_60min.id
+        assert calendar_event.start_time == time(10, 0)  # Start time unchanged
+        assert calendar_event.end_time == time(11, 0)  # End time recalculated to 60 minutes later

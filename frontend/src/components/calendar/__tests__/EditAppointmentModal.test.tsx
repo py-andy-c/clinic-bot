@@ -40,6 +40,7 @@ vi.mock('../../../services/api', () => ({
   },
 }));
 
+
 // Mock DateTimePicker to report available slots and conditionally set date/time
 vi.mock('../DateTimePicker', () => ({
   DateTimePicker: ({ onHasAvailableSlotsChange, onDateSelect, onTimeSelect, selectedPractitionerId }: any) => {

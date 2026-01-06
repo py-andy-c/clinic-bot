@@ -938,6 +938,48 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
   // Render preview step content (without buttons)
   const renderPreviewStepContent = () => (
     <div className="space-y-4">
+      {/* Changes Summary */}
+      {(changeDetails.appointmentTypeChanged || changeDetails.practitionerChanged || changeDetails.timeChanged || changeDetails.dateChanged || changeDetails.resourcesChanged) && (
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            變更內容
+          </label>
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-2">
+            {changeDetails.appointmentTypeChanged && (
+              <div className="text-sm text-gray-700">
+                <span className="font-medium">預約類型：</span>
+                <span className="text-red-600 line-through">{changeDetails.originalAppointmentTypeName}</span>
+                <span className="mx-2">→</span>
+                <span className="text-green-600">{changeDetails.newAppointmentTypeName}</span>
+              </div>
+            )}
+            {changeDetails.practitionerChanged && (
+              <div className="text-sm text-gray-700">
+                <span className="font-medium">治療師：</span>
+                <span className="text-red-600 line-through">{changeDetails.originalPractitionerName}</span>
+                <span className="mx-2">→</span>
+                <span className="text-green-600">{changeDetails.newPractitionerName}</span>
+              </div>
+            )}
+            {(changeDetails.timeChanged || changeDetails.dateChanged) && (
+              <div className="text-sm text-gray-700">
+                <span className="font-medium">時間：</span>
+                <span className="text-red-600 line-through">{changeDetails.originalStartTime}</span>
+                <span className="mx-2">→</span>
+                <span className="text-green-600">{changeDetails.newStartTime}</span>
+              </div>
+            )}
+            {changeDetails.resourcesChanged && (
+              <div className="text-sm text-gray-700">
+                <span className="font-medium">資源：</span>
+                <span className="text-blue-600">已變更</span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* LINE Message Preview */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">
           病患將收到此LINE訊息

@@ -376,12 +376,18 @@ export const useAppointmentForm = ({
   // Check if any changes have been made (for edit mode)
   const changeDetails = useMemo(() => {
     if (mode !== 'edit' || !event || !selectedAppointmentTypeId || !selectedPractitionerId || !selectedTime) {
-      return { appointmentTypeChanged: false, practitionerChanged: false, timeChanged: false, dateChanged: false };
+      return {
+        appointmentTypeChanged: false,
+        practitionerChanged: false,
+        timeChanged: false,
+        dateChanged: false,
+        resourcesChanged: false
+      };
     }
 
     const originalStartTime = moment(event.start).tz('Asia/Taipei');
     const newStartTime = moment.tz(`${selectedDate}T${selectedTime}`, 'Asia/Taipei');
-    
+
     const timeChanged = !newStartTime.isSame(originalStartTime, 'minute');
     const dateChanged = !newStartTime.isSame(originalStartTime, 'day');
     const practitionerChanged = selectedPractitionerId !== event.resource.practitioner_id;
@@ -392,8 +398,29 @@ export const useAppointmentForm = ({
       !selectedResourceIds.every(id => initialResourceIds.includes(id)) ||
       !initialResourceIds.every(id => selectedResourceIds.includes(id));
 
-    return { appointmentTypeChanged, practitionerChanged, timeChanged, dateChanged, resourcesChanged };
-  }, [mode, event, selectedDate, selectedTime, selectedPractitionerId, selectedAppointmentTypeId, selectedResourceIds, initialResourceIds]);
+    // Get appointment type names for display
+    const originalAppointmentType = _appointmentTypes.find(t => t.id === event.resource.appointment_type_id);
+    const newAppointmentType = _appointmentTypes.find(t => t.id === selectedAppointmentTypeId);
+
+    // Get practitioner names for display
+    const originalPractitioner = allPractitioners.find(p => p.id === event.resource.practitioner_id);
+    const newPractitioner = allPractitioners.find(p => p.id === selectedPractitionerId);
+
+    return {
+      appointmentTypeChanged,
+      practitionerChanged,
+      timeChanged,
+      dateChanged,
+      resourcesChanged,
+      // Include actual values for preview display
+      originalAppointmentTypeName: originalAppointmentType?.name || 'Unknown',
+      newAppointmentTypeName: newAppointmentType?.name || 'Unknown',
+      originalPractitionerName: originalPractitioner?.full_name || 'Unknown',
+      newPractitionerName: newPractitioner?.full_name || 'Unknown',
+      originalStartTime: originalStartTime.format('YYYY-MM-DD HH:mm'),
+      newStartTime: newStartTime.format('YYYY-MM-DD HH:mm')
+    };
+  }, [mode, event, selectedDate, selectedTime, selectedPractitionerId, selectedAppointmentTypeId, selectedResourceIds, initialResourceIds, _appointmentTypes, allPractitioners]);
 
   const hasChanges = useMemo(() => {
     return changeDetails.appointmentTypeChanged || changeDetails.practitionerChanged || changeDetails.timeChanged || changeDetails.dateChanged || changeDetails.resourcesChanged;

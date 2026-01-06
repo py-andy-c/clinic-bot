@@ -310,22 +310,32 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     const currentNotes = current.resource.clinic_notes || '';
     const updatedNotes = updated.resource?.clinic_notes || '';
     if (currentNotes !== updatedNotes) return true;
-    
+
+    // Check timing changes
+    if (current.start.getTime() !== updated.start.getTime() ||
+        current.end.getTime() !== updated.end.getTime()) return true;
+
+    // Check appointment-specific fields
+    if (current.resource.type === 'appointment' && updated.resource?.type === 'appointment') {
+      if (current.resource.appointment_type_id !== updated.resource.appointment_type_id) return true;
+      if (current.resource.practitioner_id !== updated.resource.practitioner_id) return true;
+    }
+
     // Check receipt-related fields
     const currentHasActiveReceipt = current.resource.has_active_receipt || false;
     const updatedHasActiveReceipt = updated.resource?.has_active_receipt || false;
     if (currentHasActiveReceipt !== updatedHasActiveReceipt) return true;
-    
+
     const currentHasAnyReceipt = current.resource.has_any_receipt || false;
     const updatedHasAnyReceipt = updated.resource?.has_any_receipt || false;
     if (currentHasAnyReceipt !== updatedHasAnyReceipt) return true;
-    
+
     // Check receipt_ids array
     const currentReceiptIds = current.resource.receipt_ids || [];
     const updatedReceiptIds = updated.resource?.receipt_ids || [];
     if (currentReceiptIds.length !== updatedReceiptIds.length) return true;
     if (currentReceiptIds.some((id, idx) => id !== updatedReceiptIds[idx])) return true;
-    
+
     return false;
   }, []);
 

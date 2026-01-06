@@ -1430,11 +1430,17 @@ class AppointmentService:
             appointment.reassigned_by_user_id = reassigned_by_user_id
             appointment.reassigned_at = taiwan_now()
 
-        # Update calendar event if time changed
+        # Update calendar event if time changed or duration changed (appointment type change)
         if new_start_time is not None:
             calendar_event.date = new_start_time.date()
             calendar_event.start_time = new_start_time.time()
             end_time = new_start_time + timedelta(minutes=duration_minutes)
+            calendar_event.end_time = end_time.time()
+        elif new_appointment_type_id is not None:
+            # Appointment type changed but start time stayed the same - recalculate end time based on new duration
+            assert calendar_event.start_time is not None, "start_time should be set for appointment events"
+            current_start_datetime = datetime.combine(calendar_event.date, calendar_event.start_time).replace(tzinfo=TAIWAN_TZ)
+            end_time = current_start_datetime + timedelta(minutes=duration_minutes)
             calendar_event.end_time = end_time.time()
 
         # CRITICAL: Check if auto-assigned appointment is now within recency limit
