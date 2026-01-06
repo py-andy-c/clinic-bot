@@ -10,6 +10,10 @@
 
 set -e  # Exit on any error
 
+# Permission guard to prevent sandbox execution
+source "$(dirname "$0")/scripts/test_permission_guard.sh"
+enforce_permissions
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
