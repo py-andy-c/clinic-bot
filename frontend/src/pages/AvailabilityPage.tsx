@@ -28,7 +28,7 @@ const AvailabilityPage: React.FC = () => {
   const [defaultPractitionerId, setDefaultPractitionerId] = useState<number | null>(null);
   const [showPractitionerModal, setShowPractitionerModal] = useState(false);
   const [resources, setResources] = useState<Resource[]>([]);
-  
+
   // Scroll to top when component mounts
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -280,8 +280,8 @@ const AvailabilityPage: React.FC = () => {
 
   // Determine the primary user ID for calendar display
   // If user is practitioner, use their ID; otherwise use default practitioner
-  const primaryUserId = isPractitioner && user?.user_id 
-    ? user.user_id 
+  const primaryUserId = isPractitioner && user?.user_id
+    ? user.user_id
     : defaultPractitionerId;
 
   return (
@@ -337,6 +337,7 @@ const AvailabilityPage: React.FC = () => {
               <button
                 onClick={handleCreateAppointment}
                 className="w-full md:w-auto inline-flex items-center justify-center rounded-md bg-green-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-green-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-600 whitespace-nowrap"
+                data-testid="create-appointment-button"
               >
                 新增預約
               </button>
@@ -358,7 +359,7 @@ const AvailabilityPage: React.FC = () => {
       {/* Calendar View - Full width on mobile, constrained on desktop */}
       <div className="-mx-4 sm:-mx-6 md:mx-0 -my-2 md:-my-6">
         {primaryUserId && (
-          <CalendarView 
+          <CalendarView
             userId={primaryUserId}
             additionalPractitionerIds={displayedPractitionerIds.filter(id => id !== primaryUserId)}
             practitioners={practitioners}

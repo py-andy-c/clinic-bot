@@ -15,6 +15,11 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./src/test/setup.ts'],
+    exclude: [
+      '**/tests/e2e/**', // Exclude E2E tests from unit test runner
+      '**/node_modules/**',
+      '**/dist/**',
+    ],
   },
   // Configure environment variables for tests (hardcoded to avoid .env file loading issues)
   // These values are used instead of loading from .env file

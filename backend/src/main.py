@@ -265,9 +265,9 @@ if os.getenv("E2E_TEST_MODE") == "true":
         tags=["test"],
         responses={
             403: {"description": "Forbidden - E2E test mode required"},
-            500: {"description": "Internal server error"},
-        },
-    )
+        500: {"description": "Internal server error"},
+    },
+)
 
 # Serve static files from frontend dist directory
 # This allows the backend to serve the frontend app for LIFF routes

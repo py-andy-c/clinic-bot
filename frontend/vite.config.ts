@@ -14,6 +14,13 @@ export default defineConfig({
     hmr: {
       clientPort: 443, // Use HTTPS port for ngrok (development)
     },
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8001',
+        changeOrigin: true,
+        secure: false,
+      },
+    },
   },
   optimizeDeps: {
     include: ['react', 'react-dom', 'react/jsx-runtime'],

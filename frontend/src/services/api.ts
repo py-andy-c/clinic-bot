@@ -228,8 +228,20 @@ export class ApiService {
   async getPractitioners(appointmentTypeId?: number, signal?: AbortSignal): Promise<{ id: number; full_name: string }[]> {
     const config = signal ? { signal } : {};
     const params = appointmentTypeId ? { appointment_type_id: appointmentTypeId } : {};
-    const response = await this.client.get('/clinic/practitioners', { ...config, params });
-    return response.data.practitioners;
+
+    try {
+      const response = await this.client.get('/clinic/practitioners', { ...config, params });
+      return response.data.practitioners;
+    } catch (error) {
+      const err = error as any;
+      logger.error('Failed to fetch practitioners', {
+        message: err?.message,
+        status: err?.response?.status,
+        url: err?.config?.url,
+        appointmentTypeId
+      });
+      throw error;
+    }
   }
 
   async inviteMember(inviteData: MemberInviteData): Promise<{ signup_url: string; expires_at: string }> {

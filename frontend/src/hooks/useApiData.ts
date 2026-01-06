@@ -473,6 +473,7 @@ export function useApiData<T>(
   fetchFn: () => Promise<T>,
   options: UseApiDataOptions<T> = {}
 ): UseApiDataResult<T> {
+
   const {
     enabled = true,
     dependencies = [],

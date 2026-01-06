@@ -772,7 +772,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
           <label className="block text-sm font-medium text-gray-700 mb-1">
             病患 <span className="text-red-500">*</span>
           </label>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2" data-testid="patient-selector">
             <div className="flex-1">
               <SearchInput
                 ref={searchInputRef}
@@ -791,6 +791,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
                 className="flex-shrink-0 w-10 h-10 flex items-center justify-center bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
                 aria-label="新增病患"
                 title="新增病患"
+                data-testid="create-patient-button"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -1291,6 +1292,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
         onClick={handleSave}
         disabled={isSaving}
         className="btn-primary"
+        data-testid="create-appointment-submit"
       >
         {isSaving ? '建立中...' : '確認建立'}
       </button>

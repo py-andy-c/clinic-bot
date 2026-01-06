@@ -6,7 +6,7 @@ Practitioner Management API endpoints.
 import logging
 from typing import Dict, List, Optional, Any
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from fastapi import status as http_status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -72,21 +72,22 @@ class BatchPractitionerStatusResponse(BaseModel):
 
 @router.get("/practitioners", summary="List all practitioners for current clinic")
 async def list_practitioners(
+    request: Request,
     appointment_type_id: Optional[int] = Query(None, description="Optional appointment type ID to filter practitioners"),
     current_user: UserContext = Depends(require_authenticated),
     db: Session = Depends(get_db)
 ) -> PractitionerListResponse:
     """
     Get all practitioners for the current user's clinic.
-    
+
     Optionally filter by appointment type to get only practitioners who offer that type.
-    
+
     Returns basic information (id, full_name) for all practitioners (or filtered list).
     Available to all clinic members (including read-only users).
     """
     # Check clinic access first (raises HTTPException if denied)
     clinic_id = ensure_clinic_access(current_user)
-    
+
     try:
         # Get practitioners using service
         practitioners_data = PractitionerService.list_practitioners_for_clinic(
@@ -94,7 +95,7 @@ async def list_practitioners(
             clinic_id=clinic_id,
             appointment_type_id=appointment_type_id  # Filter by appointment type if provided
         )
-        
+
         # Build response
         practitioner_list = [
             PractitionerListItemResponse(
@@ -103,8 +104,9 @@ async def list_practitioners(
             )
             for p in practitioners_data
         ]
-        
-        return PractitionerListResponse(practitioners=practitioner_list)
+
+        response = PractitionerListResponse(practitioners=practitioner_list)
+        return response
 
     except HTTPException:
         raise

@@ -4,13 +4,12 @@ Appointment Management API endpoints.
 """
 
 import logging
-import re
 from datetime import datetime, time
 from typing import Dict, List, Optional, Any
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi import status as http_status
-from pydantic import BaseModel, Field, model_validator, field_validator
+from pydantic import BaseModel, model_validator, field_validator
 from sqlalchemy.orm import Session, joinedload
 
 from core.database import get_db

@@ -53,6 +53,7 @@ class PractitionerService:
             UserClinicAssociation.clinic_id == clinic_id,
             UserClinicAssociation.is_active == True
         )
+
         # Filter by practitioner role using JSON array check
         query = filter_by_role(query, 'practitioner')
 
@@ -68,11 +69,13 @@ class PractitionerService:
 
         # Get associations for all practitioners in one query
         practitioner_ids = [p.id for p in practitioners]
+
         associations = db.query(UserClinicAssociation).filter(
             UserClinicAssociation.user_id.in_(practitioner_ids),
             UserClinicAssociation.clinic_id == clinic_id,
             UserClinicAssociation.is_active == True
         ).all()
+
         association_lookup = {a.user_id: a for a in associations}
 
         # Format response

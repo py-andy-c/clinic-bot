@@ -134,14 +134,3 @@ fi
 # Run the tests
 print_status "Starting Playwright tests..."
 eval $PW_CMD
-
-# Check test result
-if [ $? -eq 0 ]; then
-    print_success "🎉 All E2E tests passed!"
-    echo ""
-    echo "To open last HTML report run:"
-    echo "  cd frontend && npx playwright show-report"
-else
-    print_error "❌ E2E tests failed"
-    exit 1
-fi

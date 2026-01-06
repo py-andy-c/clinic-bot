@@ -43,7 +43,7 @@ export default defineConfig({
       timeout: 60000, // 60s for frontend
       retries: 3, // Retry health check 3 times
       env: {
-        VITE_API_BASE_URL: 'http://localhost:8001/api',
+        VITE_API_BASE_URL: '/api',
       },
     },
   ],

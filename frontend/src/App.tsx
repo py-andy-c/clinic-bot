@@ -31,7 +31,8 @@ const SettingsRemindersPage = lazy(() => import('./pages/settings/SettingsRemind
 const SettingsChatPage = lazy(() => import('./pages/settings/SettingsChatPage'));
 const SettingsReceiptsPage = lazy(() => import('./pages/settings/SettingsReceiptsPage'));
 const SettingsResourcesPage = lazy(() => import('./pages/settings/SettingsResourcesPage'));
-const AvailabilityPage = lazy(() => import('./pages/AvailabilityPage'));
+// const AvailabilityPage = lazy(() => import('./pages/AvailabilityPage'));
+import AvailabilityPage from './pages/AvailabilityPage';
 const DashboardLayout = lazy(() => import('./components/DashboardLayout'));
 const DashboardIndexPage = lazy(() => import('./pages/dashboard/DashboardIndexPage'));
 const BusinessInsightsPage = lazy(() => import('./pages/dashboard/BusinessInsightsPage'));

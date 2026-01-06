@@ -5,6 +5,7 @@ Provides test-only authentication that bypasses OAuth flow.
 Only available when E2E_TEST_MODE=true.
 """
 
+import logging
 from fastapi import APIRouter, HTTPException, Depends
 from typing import Dict, Any
 from pydantic import BaseModel
@@ -13,6 +14,8 @@ from sqlalchemy.orm import Session
 from core.database import get_db
 from services.jwt_service import jwt_service, TokenPayload
 from models import User, UserClinicAssociation, Clinic
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 

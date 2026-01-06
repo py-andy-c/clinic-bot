@@ -94,6 +94,7 @@ def get_current_user(
 ) -> UserContext:
     """Get authenticated user context from JWT token."""
     if not payload:
+        logger.warning("[AUTH] No payload provided - authentication failed")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authentication credentials not provided"
@@ -341,20 +342,20 @@ def get_active_clinic_association(user: User, db: Session) -> Optional[UserClini
 def ensure_clinic_access(user: UserContext) -> int:
     """
     Ensure user has clinic access and return clinic_id.
-    
+
     Raises HTTPException if user doesn't have clinic access.
     This is a helper function to avoid repeating the same check.
-    
+
     Gets `active_clinic_id` from user context.
-    
+
     System admins are not allowed to access clinic endpoints - they should use system endpoints.
-    
+
     Args:
         user: UserContext to check
-        
+
     Returns:
         int: The clinic_id (from active_clinic_id or clinic_id)
-        
+
     Raises:
         HTTPException: If user doesn't have clinic access
     """

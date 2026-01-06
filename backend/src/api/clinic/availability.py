@@ -9,7 +9,7 @@ from typing import Dict, List, Optional, Any, Union
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi import status as http_status
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, field_validator
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 
