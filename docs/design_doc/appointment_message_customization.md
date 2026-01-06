@@ -568,10 +568,10 @@ When creating new appointment types (frontend or backend):
 - Invalid placeholder highlighting (optional) can help catch these
 
 ### 21. Patient Confirmation When Booking Disabled
-**Scenario:** `send_patient_confirmation = true` but `allow_patient_booking = false` for appointment type
-**Solution:** 
+**Scenario:** `send_patient_confirmation = true` but `allow_new_patient_booking = false AND allow_existing_patient_booking = false` for appointment type
+**Solution:**
 - Patient confirmation only sent when patient actually books via LIFF
-- If `allow_patient_booking = false`, patients can't book via LIFF, so confirmation won't be sent
+- If neither new nor existing patients can book via LIFF, patients can't book, so confirmation won't be sent
 - No conflict - toggle is per-appointment-type setting, booking restriction is separate
 
 ### 22. Cancelled Appointments

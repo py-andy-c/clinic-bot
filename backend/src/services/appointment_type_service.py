@@ -101,6 +101,45 @@ class AppointmentTypeService:
         return get_active_appointment_types_for_clinic_with_active_practitioners(db, clinic_id)
 
     @staticmethod
+    def list_appointment_types_for_patient_booking(
+        db: Session,
+        clinic_id: int,
+        patient_id: Optional[int] = None
+    ) -> List[AppointmentType]:
+        """
+        List appointment types available for patient booking based on patient status.
+
+        This method filters appointment types based on whether they are available for
+        new patients (no practitioner assignments) or existing patients (have assignments).
+
+        Args:
+            db: Database session
+            clinic_id: Clinic ID
+            patient_id: Optional patient ID to determine visibility rules
+
+        Returns:
+            List of AppointmentType objects available for the patient
+        """
+        from services.patient_service import PatientService
+
+        # Get base list (active types with practitioners)
+        base_types = get_active_appointment_types_for_clinic_with_active_practitioners(db, clinic_id)
+
+        if patient_id is None:
+            # No patient selected - show new patient types
+            return [at for at in base_types if at.allow_new_patient_booking]
+
+        # Patient selected - check patient status
+        has_practitioners = PatientService.has_assigned_practitioners(db, patient_id, clinic_id)
+
+        if has_practitioners:
+            # Existing patient - show existing patient types
+            return [at for at in base_types if at.allow_existing_patient_booking]
+        else:
+            # New patient (no practitioners) - show new patient types
+            return [at for at in base_types if at.allow_new_patient_booking]
+
+    @staticmethod
     def soft_delete_appointment_type(
         db: Session,
         appointment_type_id: int,

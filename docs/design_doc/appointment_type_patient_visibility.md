@@ -111,7 +111,7 @@ class AppointmentType(Base):
 Add composite index on `patient_practitioner_assignments` table for optimal patient classification query performance:
 ```sql
 CREATE INDEX idx_patient_practitioner_assignments_classification
-ON patient_practitioner_assignments (patient_id, clinic_id, is_active);
+ON patient_practitioner_assignments (patient_id, clinic_id);
 ```
 
 ### API Endpoints
@@ -250,7 +250,7 @@ class AppointmentTypeService:
 - **Patient Selection Changes**: Refetch appointment types when patient changes in Flow 2
 - **Clinic Switching**: Cache invalidation and refetch with new clinic context
 - **No Appointment Types Available**: Show appropriate empty state message
-- **Mixed Active/Inactive Assignments**: Explicitly count as "existing patient" if they have ANY active assignments within the clinic. Inactive assignments are ignored for classification purposes.
+- **Patient Assignment Status**: All patient-practitioner assignments are considered active. The model does not support inactive assignments, so any existing assignment classifies the patient as "existing".
 
 #### Error Scenarios
 - **API Failure**: Show "無法載入服務項目，請重新整理" with retry option

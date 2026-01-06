@@ -59,7 +59,13 @@ class AppointmentType(Base):
     """Name to display on receipt (can differ from name). Defaults to name if not set."""
 
     allow_patient_booking: Mapped[bool] = mapped_column(default=True)
-    """Whether patients can book this service via LIFF. Default: true."""
+    """Whether patients can book this service via LIFF. Default: true. DEPRECATED: Use allow_new_patient_booking and allow_existing_patient_booking instead."""
+
+    allow_new_patient_booking: Mapped[bool] = mapped_column(default=True)
+    """Whether new patients (no practitioner assignments) can book this service via LIFF. Default: true."""
+
+    allow_existing_patient_booking: Mapped[bool] = mapped_column(default=True)
+    """Whether existing patients (have practitioner assignments) can book this service via LIFF. Default: true."""
 
     allow_patient_practitioner_selection: Mapped[bool] = mapped_column(default=True)
     """Whether patients can specify a practitioner when booking. Default: true."""

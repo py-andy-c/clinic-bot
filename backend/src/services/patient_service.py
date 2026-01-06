@@ -12,7 +12,7 @@ from datetime import date
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from models import Patient, LineUser
+from models import Patient, LineUser, PatientPractitionerAssignment
 from utils.datetime_utils import taiwan_now
 from utils.patient_validators import validate_gender_field
 
@@ -457,4 +457,34 @@ class PatientService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="更新病患資料失敗"
             )
+
+    @staticmethod
+    def has_assigned_practitioners(
+        db: Session,
+        patient_id: int,
+        clinic_id: int
+    ) -> bool:
+        """
+        Check if a patient has any practitioner assignments at a clinic.
+
+        Used to classify patients as "new" (no assignments) vs "existing" (has assignments)
+        for appointment type visibility filtering.
+
+        Note: All patient-practitioner assignments are considered active.
+        The model does not support inactive assignments.
+
+        Args:
+            db: Database session
+            patient_id: Patient ID to check
+            clinic_id: Clinic ID to check within
+
+        Returns:
+            True if patient has at least one practitioner assignment, False otherwise
+        """
+        count = db.query(PatientPractitionerAssignment).filter(
+            PatientPractitionerAssignment.patient_id == patient_id,
+            PatientPractitionerAssignment.clinic_id == clinic_id
+        ).count()
+
+        return count > 0
 

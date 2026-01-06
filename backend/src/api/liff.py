@@ -784,19 +784,30 @@ async def delete_patient(
 
 @router.get("/appointment-types", response_model=AppointmentTypeListResponse)
 async def list_appointment_types(
+    patient_id: Optional[int] = None,
     line_user_clinic: tuple[LineUser, Clinic] = Depends(get_current_line_user_with_clinic),
     db: Session = Depends(get_db)
 ):
     """
-    List all appointment types available at the clinic.
+    List appointment types available for booking at the clinic.
+
+    Filters appointment types based on patient status:
+    - No patient_id: Shows appointment types available for new patients
+    - With patient_id: Shows appointment types based on whether the patient has practitioner assignments
+
     Clinic context comes from LIFF token for proper isolation.
     """
     _, clinic = line_user_clinic
 
+    # Validate patient_id belongs to the line user if provided
+    if patient_id is not None:
+        from services.patient_service import PatientService
+        PatientService.validate_patient_ownership(db, patient_id, line_user_clinic[0].id, clinic.id)
+
     try:
-        # Get appointment types available for booking (only those with active practitioners)
-        appointment_types = AppointmentTypeService.list_appointment_types_for_booking(
-            db, clinic.id
+        # Get appointment types available for booking based on patient status
+        appointment_types = AppointmentTypeService.list_appointment_types_for_patient_booking(
+            db, clinic.id, patient_id
         )
 
         return AppointmentTypeListResponse(
@@ -807,7 +818,9 @@ async def list_appointment_types(
                     name=at.name,
                     duration_minutes=at.duration_minutes,
                     receipt_name=at.receipt_name,
-                    allow_patient_booking=at.allow_patient_booking,
+                    allow_patient_booking=at.allow_patient_booking,  # DEPRECATED
+                    allow_new_patient_booking=at.allow_new_patient_booking,
+                    allow_existing_patient_booking=at.allow_existing_patient_booking,
                     allow_patient_practitioner_selection=at.allow_patient_practitioner_selection,
                     description=at.description,
                     scheduling_buffer_minutes=at.scheduling_buffer_minutes,

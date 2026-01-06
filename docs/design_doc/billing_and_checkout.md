@@ -14,7 +14,8 @@ This document defines the business logic and technical design for billing, check
 
 **Additional Fields**:
 - `receipt_name`: Name to display on receipt (can differ from `name`)
-- `allow_patient_booking`: Whether patients can book this service via LIFF (default: true)
+- `allow_new_patient_booking`: Whether new patients can book this service via LIFF (default: true)
+- `allow_existing_patient_booking`: Whether existing patients can book this service via LIFF (default: true)
 - `description`: Service description shown on LIFF
 - `scheduling_buffer_minutes`: Additional minutes added to duration for scheduling (default: 0)
 

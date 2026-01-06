@@ -10,7 +10,7 @@ Allow clinics to customize appointment notes (備註) requirements and instructi
 
 1. **Require Notes** (`require_notes: bool`)
    - When `true`, patients must fill out notes before completing appointment booking
-   - Only applies to service types with `allow_patient_booking = true`
+   - Only applies to service types available for patient booking (`allow_new_patient_booking = true` or `allow_existing_patient_booking = true`)
    - Default: `false` for all existing and new service types
 
 2. **Notes Instructions** (`notes_instructions: Optional[str]`)
@@ -22,8 +22,8 @@ Allow clinics to customize appointment notes (備註) requirements and instructi
 
 ### UI Behavior
 
-- All fields are always visible, regardless of `allow_patient_booking` setting
-- Show inline warning when `allow_patient_booking = false` for LIFF-only fields:
+- All fields are always visible, regardless of patient booking settings
+- Show inline warning when `allow_new_patient_booking = false AND allow_existing_patient_booking = false` for LIFF-only fields:
   - "要求填寫備註" (require_notes)
   - "備註填寫指引" (notes_instructions)
   - "預約確認訊息（病患自行預約）" (patient_confirmation_message)
@@ -65,8 +65,8 @@ notes_instructions: text (nullable, default: null)
 ### Backend Validation
 
 **LIFF Appointment Creation Endpoint** (`POST /liff/appointments`):
-- Check `appointment_type.allow_patient_booking = true` before enforcing `require_notes`
-- If `require_notes = true` and `allow_patient_booking = true`, validate that `notes` is provided and not empty
+- Check that appointment type is available for the patient type before enforcing `require_notes`
+- If `require_notes = true` and appointment type is available for booking, validate that `notes` is provided and not empty
 - Validation error: "此服務項目需要填寫備註"
 
 **Notes Instructions Resolution**:
@@ -87,10 +87,10 @@ notes_instructions: text (nullable, default: null)
 
 ### Service Item Edit Modal
 
-**New Fields Section** (shown only when `allow_patient_booking = true`):
+**New Fields Section** (shown only when `allow_new_patient_booking = true OR allow_existing_patient_booking = true`):
 - Checkbox: "要求填寫備註" (`require_notes`)
 - Textarea: "備註填寫指引" (`notes_instructions`)
-- Inline warning when `allow_patient_booking = false`: "此設定僅適用於開放病患自行預約的服務項目"
+- Inline warning when `allow_new_patient_booking = false AND allow_existing_patient_booking = false`: "此設定僅適用於開放病患自行預約的服務項目"
 
 **Location**: Add after "說明" (description) field, before "訊息設定" section
 
@@ -116,7 +116,7 @@ notes_instructions: text (nullable, default: null)
 ## Edge Cases
 
 ### Data Consistency
-- If `allow_patient_booking = false` but `require_notes = true` or `notes_instructions` is set:
+- If `allow_new_patient_booking = false AND allow_existing_patient_booking = false` but `require_notes = true` or `notes_instructions` is set:
   - Allow saving (show warning only)
   - Settings preserved but not enforced (useful if clinic plans to enable LIFF later)
 
@@ -130,7 +130,7 @@ notes_instructions: text (nullable, default: null)
 - Backend normalizes empty strings to null before saving
 
 ### Backend Validation
-- Only enforce `require_notes` when `allow_patient_booking = true`
+- Only enforce `require_notes` when appointment type is available for patient booking
 - If service type is not available on LIFF, skip notes requirement validation
 
 ## Implementation Notes

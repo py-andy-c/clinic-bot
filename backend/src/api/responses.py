@@ -48,7 +48,9 @@ class AppointmentTypeResponse(BaseModel):
     name: str
     duration_minutes: int
     receipt_name: Optional[str] = None
-    allow_patient_booking: bool = True
+    allow_patient_booking: bool = True  # DEPRECATED: Use allow_new_patient_booking and allow_existing_patient_booking
+    allow_new_patient_booking: bool = True
+    allow_existing_patient_booking: bool = True
     allow_patient_practitioner_selection: bool = True
     description: Optional[str] = None
     scheduling_buffer_minutes: int = 0

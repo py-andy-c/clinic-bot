@@ -4,6 +4,8 @@
 
 This feature adds a new appointment type setting that controls whether patients can specify a practitioner when booking appointments via LIFF. When disabled, appointments are automatically assigned and patients cannot select or change practitioners.
 
+**Note:** This archived document references the deprecated `allow_patient_booking` field. The current implementation uses `allow_new_patient_booking` and `allow_existing_patient_booking` fields instead.
+
 ## Feature Description
 
 ### New Setting: `allow_patient_practitioner_selection`

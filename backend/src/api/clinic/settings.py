@@ -192,7 +192,9 @@ async def get_settings(
                 name=at.name,
                 duration_minutes=at.duration_minutes,
                 receipt_name=at.receipt_name,
-                allow_patient_booking=at.allow_patient_booking,
+                allow_patient_booking=at.allow_patient_booking,  # DEPRECATED
+                allow_new_patient_booking=at.allow_new_patient_booking,
+                allow_existing_patient_booking=at.allow_existing_patient_booking,
                 allow_patient_practitioner_selection=at.allow_patient_practitioner_selection,
                 description=at.description,
                 scheduling_buffer_minutes=at.scheduling_buffer_minutes,
@@ -549,6 +551,11 @@ async def update_settings(
                     existing_type.receipt_name = incoming_data.get("receipt_name")
                 if "allow_patient_booking" in incoming_data:
                     existing_type.allow_patient_booking = incoming_data.get("allow_patient_booking", True)
+                # Handle new patient visibility fields
+                if "allow_new_patient_booking" in incoming_data:
+                    existing_type.allow_new_patient_booking = incoming_data.get("allow_new_patient_booking", True)
+                if "allow_existing_patient_booking" in incoming_data:
+                    existing_type.allow_existing_patient_booking = incoming_data.get("allow_existing_patient_booking", True)
                 # Only update if explicitly provided (not None/undefined)
                 if "allow_patient_practitioner_selection" in incoming_data:
                     raw_value = incoming_data.get("allow_patient_practitioner_selection")
@@ -579,6 +586,11 @@ async def update_settings(
                     existing_type.receipt_name = incoming_data.get("receipt_name")
                 if "allow_patient_booking" in incoming_data:
                     existing_type.allow_patient_booking = incoming_data.get("allow_patient_booking", True)
+                # Handle new patient visibility fields
+                if "allow_new_patient_booking" in incoming_data:
+                    existing_type.allow_new_patient_booking = incoming_data.get("allow_new_patient_booking", True)
+                if "allow_existing_patient_booking" in incoming_data:
+                    existing_type.allow_existing_patient_booking = incoming_data.get("allow_existing_patient_booking", True)
                 # Only update if explicitly provided (not None/undefined)
                 if "allow_patient_practitioner_selection" in incoming_data:
                     raw_value = incoming_data.get("allow_patient_practitioner_selection")
@@ -654,6 +666,11 @@ async def update_settings(
                     existing.receipt_name = at_data.get("receipt_name")
                 if "allow_patient_booking" in at_data:
                     existing.allow_patient_booking = at_data.get("allow_patient_booking", True)
+                # Handle new patient visibility fields
+                if "allow_new_patient_booking" in at_data:
+                    existing.allow_new_patient_booking = at_data.get("allow_new_patient_booking", True)
+                if "allow_existing_patient_booking" in at_data:
+                    existing.allow_existing_patient_booking = at_data.get("allow_existing_patient_booking", True)
                 # Only update if explicitly provided (not None/undefined)
                 if "allow_patient_practitioner_selection" in at_data:
                     raw_value = at_data.get("allow_patient_practitioner_selection")
@@ -730,7 +747,9 @@ async def update_settings(
                     name=name,
                     duration_minutes=duration,
                     receipt_name=at_data.get("receipt_name"),
-                    allow_patient_booking=at_data.get("allow_patient_booking", True),
+                    allow_patient_booking=at_data.get("allow_patient_booking", True),  # DEPRECATED
+                    allow_new_patient_booking=at_data.get("allow_new_patient_booking", True),
+                    allow_existing_patient_booking=at_data.get("allow_existing_patient_booking", True),
                     allow_patient_practitioner_selection=allow_practitioner_selection,
                     description=at_data.get("description"),
                     scheduling_buffer_minutes=at_data.get("scheduling_buffer_minutes", 0),

@@ -4,6 +4,8 @@
 
 This document describes the design for adding billing and receipt functionality to the clinic management system. The system will support multiple billing scenarios per practitioner per service item, checkout workflows, and receipt generation.
 
+**Note:** This archived document references the deprecated `allow_patient_booking` field. The current implementation uses `allow_new_patient_booking` and `allow_existing_patient_booking` fields instead.
+
 
 ## Objectives
 
