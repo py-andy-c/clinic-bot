@@ -624,6 +624,8 @@ ReceiptListModal
   - Receipt viewing: All clinic users can view receipts
   - Receipt voiding: Admin-only
   - Receipt downloading: All clinic users
+  - Billing scenarios viewing: All clinic users can view billing scenarios during checkout
+  - Billing scenarios management (create/update/delete): Admin-only
 
 - [x] **Input validation**:
   - All checkout data validated on frontend and backend
