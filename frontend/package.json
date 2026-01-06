@@ -9,6 +9,7 @@
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
     "generate-types": "openapi-typescript http://localhost:8000/openapi.json --output src/types/api.ts",
+    "pretest": "bash -c 'source ../scripts/test_permission_guard.sh && enforce_permissions'",
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:run": "vitest run"
