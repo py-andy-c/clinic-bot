@@ -533,6 +533,8 @@ const SettingsServiceItemsPage: React.FC = () => {
         duration_minutes: item.duration_minutes,
         receipt_name: item.receipt_name || null,
         allow_patient_booking: item.allow_patient_booking ?? true,
+        allow_new_patient_booking: item.allow_new_patient_booking ?? true,
+        allow_existing_patient_booking: item.allow_existing_patient_booking ?? true,
         allow_patient_practitioner_selection: item.allow_patient_practitioner_selection ?? true,
         description: item.description || null,
         scheduling_buffer_minutes: item.scheduling_buffer_minutes || 0,
