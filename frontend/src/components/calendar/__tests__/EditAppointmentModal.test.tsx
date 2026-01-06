@@ -505,7 +505,7 @@ describe('EditAppointmentModal', () => {
 
       vi.mocked(apiService.getPractitioners)
         .mockResolvedValueOnce([{ id: 1, full_name: 'Dr. Test' }]) // Type 1 - original practitioner
-        .mockResolvedValueOnce([{ id: 2, full_name: 'Dr. Assigned' }, { id: 1, full_name: 'Dr. Test' }]); // Type 2 - has assigned practitioner
+        .mockResolvedValueOnce([{ id: 2, full_name: 'Dr. Assigned' }]); // Type 2 - only assigned practitioner available (original practitioner cannot handle this type)
 
       renderWithModal(
         <EditAppointmentModal

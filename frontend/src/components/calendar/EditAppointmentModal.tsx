@@ -160,21 +160,22 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
     return ids.length > 0 ? new Set(ids) : undefined;
   }, [currentPatient]);
 
-  // Auto-select first assigned practitioner when user changes appointment type
+  // Auto-select first assigned practitioner when user changes appointment type and original practitioner cannot handle it
   useEffect(() => {
     // Only auto-select if:
     // 1. Patient is loaded
     // 2. Appointment type is selected
     // 3. Available practitioners are loaded
     // 4. User has changed appointment type (not initial load)
-    // 5. Current practitioner selection is null or was the original (user hasn't manually selected a different one)
+    // 5. Original practitioner is not available for the new appointment type
     const appointmentTypeChanged = selectedAppointmentTypeId !== originalAppointmentTypeId;
-    const shouldAutoSelect = appointmentTypeChanged && 
+    const originalPractitionerUnavailable = !availablePractitioners.some(p => p.id === originalPractitionerId);
+    const shouldAutoSelect = appointmentTypeChanged &&
       currentPatient &&
       selectedAppointmentTypeId &&
       availablePractitioners.length > 0 &&
       !isLoadingPractitioners &&
-      (!selectedPractitionerId || selectedPractitionerId === originalPractitionerId);
+      originalPractitionerUnavailable;
 
     if (shouldAutoSelect) {
       const assignedIds = getAssignedPractitionerIds(currentPatient);
@@ -182,7 +183,7 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
       if (assignedIds.length > 0) {
         // Find the first assigned practitioner that is available for the selected appointment type
         const firstAssignedAvailable = availablePractitioners.find((p) => assignedIds.includes(p.id));
-        
+
         if (firstAssignedAvailable) {
           setSelectedPractitionerId(firstAssignedAvailable.id);
         }
@@ -191,8 +192,7 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
   }, [
     currentPatient,
     selectedAppointmentTypeId,
-    availablePractitioners.length,
-    selectedPractitionerId,
+    availablePractitioners,
     isLoadingPractitioners,
     originalAppointmentTypeId,
     originalPractitionerId,
