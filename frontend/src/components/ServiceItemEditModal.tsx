@@ -23,7 +23,9 @@ const ServiceItemFormSchema = z.object({
   name: z.string().min(1, '項目名稱不能為空'),
   duration_minutes: z.coerce.number().min(15, '時長至少需 15 分鐘').max(480, '時長最多 480 分鐘'),
   receipt_name: z.string().nullable().optional(),
-  allow_patient_booking: z.boolean().optional(),
+  allow_patient_booking: z.boolean().optional(), // DEPRECATED: Use allow_new_patient_booking and allow_existing_patient_booking
+  allow_new_patient_booking: z.boolean().optional(),
+  allow_existing_patient_booking: z.boolean().optional(),
   allow_patient_practitioner_selection: z.boolean().optional(),
   description: z.string().nullable().optional(),
   scheduling_buffer_minutes: z.coerce.number().min(0, '排程緩衝時間不能小於 0').max(60, '排程緩衝時間不能超過 60 分鐘').optional(),
@@ -114,7 +116,9 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
       name: appointmentType.name || '',
       duration_minutes: appointmentType.duration_minutes || 30,
       receipt_name: appointmentType.receipt_name || null,
-      allow_patient_booking: appointmentType.allow_patient_booking ?? true,
+      allow_patient_booking: appointmentType.allow_patient_booking ?? true, // DEPRECATED
+      allow_new_patient_booking: appointmentType.allow_new_patient_booking ?? true,
+      allow_existing_patient_booking: appointmentType.allow_existing_patient_booking ?? true,
       allow_patient_practitioner_selection: appointmentType.allow_patient_practitioner_selection ?? true,
       description: appointmentType.description || null,
       scheduling_buffer_minutes: appointmentType.scheduling_buffer_minutes || 0,
@@ -132,7 +136,9 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
   const name = watch('name');
   const duration_minutes = watch('duration_minutes');
   const receipt_name = watch('receipt_name');
-  const allow_patient_booking = watch('allow_patient_booking');
+  const allow_patient_booking = watch('allow_patient_booking'); // DEPRECATED
+  const allow_new_patient_booking = watch('allow_new_patient_booking');
+  const allow_existing_patient_booking = watch('allow_existing_patient_booking');
   const allow_patient_practitioner_selection = watch('allow_patient_practitioner_selection');
   const description = watch('description');
   const scheduling_buffer_minutes = watch('scheduling_buffer_minutes');
@@ -160,7 +166,9 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
         name: appointmentType.name || '',
         duration_minutes: appointmentType.duration_minutes || 30,
         receipt_name: appointmentType.receipt_name || null,
-        allow_patient_booking: appointmentType.allow_patient_booking ?? true,
+        allow_patient_booking: appointmentType.allow_patient_booking ?? true, // DEPRECATED
+        allow_new_patient_booking: appointmentType.allow_new_patient_booking ?? true,
+        allow_existing_patient_booking: appointmentType.allow_existing_patient_booking ?? true,
         allow_patient_practitioner_selection: appointmentType.allow_patient_practitioner_selection ?? true,
         description: appointmentType.description || null,
         scheduling_buffer_minutes: appointmentType.scheduling_buffer_minutes || 0,
@@ -198,6 +206,8 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
   // Info modals
   const [showDurationModal, setShowDurationModal] = useState(false);
   const [showBufferModal, setShowBufferModal] = useState(false);
+  const [showAllowNewPatientBookingModal, setShowAllowNewPatientBookingModal] = useState(false);
+  const [showAllowExistingPatientBookingModal, setShowAllowExistingPatientBookingModal] = useState(false);
   const [showReceiptNameModal, setShowReceiptNameModal] = useState(false);
   const [showBillingScenarioModal, setShowBillingScenarioModal] = useState(false);
 
@@ -372,7 +382,9 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
       name: appointmentType.name || '',
       duration_minutes: appointmentType.duration_minutes || 30,
       receipt_name: appointmentType.receipt_name || null,
-      allow_patient_booking: appointmentType.allow_patient_booking ?? true,
+      allow_patient_booking: appointmentType.allow_patient_booking ?? true, // DEPRECATED
+      allow_new_patient_booking: appointmentType.allow_new_patient_booking ?? true,
+      allow_existing_patient_booking: appointmentType.allow_existing_patient_booking ?? true,
       allow_patient_practitioner_selection: appointmentType.allow_patient_practitioner_selection ?? true,
       description: appointmentType.description || null,
       scheduling_buffer_minutes: appointmentType.scheduling_buffer_minutes || 0,
@@ -646,7 +658,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                         label={
                           <div className="flex items-center gap-2">
                             <span>說明</span>
-                            {!allow_patient_booking && (
+                            {!allow_new_patient_booking && !allow_existing_patient_booking && (
                               <WarningPopover message="此服務項目未開放病患自行預約，此設定不會生效。">
                                 <span className="text-amber-600 hover:text-amber-700 cursor-pointer">⚠️</span>
                               </WarningPopover>
@@ -661,11 +673,20 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                       <div className="pt-4">
                         <div className="flex flex-col gap-3">
                           <label className="flex items-center cursor-pointer">
-                            <input type="checkbox" {...register('allow_patient_booking')} className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 mr-3" disabled={!isClinicAdmin} />
+                            <input type="checkbox" {...register('allow_new_patient_booking')} className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 mr-3" disabled={!isClinicAdmin} />
                             <div className="flex flex-col">
-                              <span className="text-sm font-medium text-gray-900">開放病患自行預約</span>
-                              <span className="text-xs text-gray-500">病患可透過 LINE 預約系統看到並選擇此服務</span>
+                              <span className="text-sm font-medium text-gray-900">新病患可自行預約</span>
+                              <span className="text-xs text-gray-500">新病患可透過 LINE 預約系統看到並選擇此服務</span>
                             </div>
+                            <InfoButton onClick={() => setShowAllowNewPatientBookingModal(true)} />
+                          </label>
+                          <label className="flex items-center cursor-pointer">
+                            <input type="checkbox" {...register('allow_existing_patient_booking')} className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 mr-3" disabled={!isClinicAdmin} />
+                            <div className="flex flex-col">
+                              <span className="text-sm font-medium text-gray-900">舊病患可自行預約</span>
+                              <span className="text-xs text-gray-500">舊病患可透過 LINE 預約系統看到並選擇此服務</span>
+                            </div>
+                            <InfoButton onClick={() => setShowAllowExistingPatientBookingModal(true)} />
                           </label>
                           <label className="flex items-center cursor-pointer">
                             <input type="checkbox" {...register('allow_patient_practitioner_selection')} className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 mr-3" disabled={!isClinicAdmin} />
@@ -673,7 +694,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                               <span className="text-sm font-medium text-gray-900">開放病患指定治療師</span>
                               <span className="text-xs text-gray-500">病患預約時可自由選擇想看診的治療師</span>
                             </div>
-                            {!allow_patient_booking && (
+                            {!allow_new_patient_booking && !allow_existing_patient_booking && (
                               <WarningPopover message="此服務項目未開放病患自行預約，此設定不會生效。">
                                 <span className="ml-2 text-amber-600 hover:text-amber-700">⚠️</span>
                               </WarningPopover>
@@ -691,7 +712,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                                 <span className="text-sm font-medium text-gray-900">要求填寫備註</span>
                                 <span className="text-xs text-gray-500">病患透過Line自行預約此服務時必須填寫備註</span>
                               </div>
-                              {!allow_patient_booking && (
+                              {!allow_new_patient_booking && !allow_existing_patient_booking && (
                                 <WarningPopover message="此服務項目未開放病患自行預約，此設定不會生效。">
                                   <span className="ml-2 text-amber-600 hover:text-amber-700">⚠️</span>
                                 </WarningPopover>
@@ -705,7 +726,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                         label={
                           <div className="flex items-center gap-2">
                             <span>備註填寫指引</span>
-                            {!allow_patient_booking && (
+                            {!allow_new_patient_booking && !allow_existing_patient_booking && (
                               <WarningPopover message="此服務項目未開放病患自行預約，此設定不會生效。">
                                 <span className="text-amber-600 hover:text-amber-700 cursor-pointer">⚠️</span>
                               </WarningPopover>
@@ -988,6 +1009,20 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
       </InfoModal>
       <InfoModal isOpen={showReceiptNameModal} onClose={() => setShowReceiptNameModal(false)} title="收據項目名稱">
         <p>此名稱會顯示在收據上，取代服務項目名稱...</p>
+      </InfoModal>
+      <InfoModal isOpen={showAllowNewPatientBookingModal} onClose={() => setShowAllowNewPatientBookingModal(false)} title="新病患可自行預約">
+        <div className="space-y-2">
+          <p>啟用後，新病患可透過 LINE 預約系統看到並選擇此服務項目。</p>
+          <p className="text-sm text-gray-600"><strong>新病患定義：</strong>尚未指派過治療師的病患（不論是否曾經預約過）。</p>
+          <p className="text-sm text-gray-600">系統會檢查病患是否已有治療師指派記錄，而非檢查過往預約記錄。</p>
+        </div>
+      </InfoModal>
+      <InfoModal isOpen={showAllowExistingPatientBookingModal} onClose={() => setShowAllowExistingPatientBookingModal(false)} title="舊病患可自行預約">
+        <div className="space-y-2">
+          <p>啟用後，已指派治療師的病患可透過 LINE 預約系統看到並選擇此服務項目。</p>
+          <p className="text-sm text-gray-600"><strong>舊病患定義：</strong>已指派過治療師的病患。</p>
+          <p className="text-sm text-gray-600">系統會檢查病患是否已有治療師指派記錄，而非檢查過往預約記錄。</p>
+        </div>
       </InfoModal>
       <InfoModal isOpen={showBillingScenarioModal} onClose={() => setShowBillingScenarioModal(false)} title="計費方案說明">
         <p>計費方案讓您為每位治療師的每項服務設定多種定價選項...</p>

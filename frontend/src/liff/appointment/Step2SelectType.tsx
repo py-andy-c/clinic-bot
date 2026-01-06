@@ -5,12 +5,12 @@ import { useAppointmentStore } from '../../stores/appointmentStore';
 import { AppointmentType } from '../../types';
 import { useAppointmentTypesQuery } from '../../hooks/useAppointmentTypes';
 
-const Step1SelectType: React.FC = () => {
+const Step2SelectType: React.FC = () => {
   const { setAppointmentType, setAppointmentTypeInstructions, appointmentTypeInstructions, patient } = useAppointmentStore();
   const { t } = useTranslation();
 
-  // For Step1SelectType (Flow 1), we pass null to get appointment types for new patients
-  const { data, isLoading, error } = useAppointmentTypesQuery(null);
+  // For Step2SelectType (Flow 2), we use the selected patient's ID for filtering
+  const { data, isLoading, error } = useAppointmentTypesQuery(patient?.id);
 
   // Update store with appointment type instructions when data loads
   React.useEffect(() => {
@@ -23,7 +23,7 @@ const Step1SelectType: React.FC = () => {
     setAppointmentType(type.id, type);
   };
 
-  // Use appointment types from React Query (already filtered by backend)
+  // Use appointment types from React Query (already filtered by backend based on patient status)
   const activeAppointmentTypes = data?.appointmentTypes || [];
 
   if (isLoading) {
@@ -104,4 +104,4 @@ const Step1SelectType: React.FC = () => {
   );
 };
 
-export default Step1SelectType;
+export default Step2SelectType;

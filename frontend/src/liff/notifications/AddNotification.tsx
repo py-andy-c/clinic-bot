@@ -95,10 +95,10 @@ const AddNotification: React.FC = () => {
     loadAppointmentTypes();
   }, [clinicId]);
 
-  // Filter by allow_patient_booking (default to true if not set)
-  // Reuse the same filtering logic as Step1SelectType
+  // Filter by patient booking availability (show types available to ANY patients)
+  // Show appointment types that allow either new patients OR existing patients to book
   const activeAppointmentTypes = appointmentTypes.filter(
-    type => type.allow_patient_booking !== false
+    type => type.allow_new_patient_booking === true || type.allow_existing_patient_booking === true
   );
 
   // Get selected appointment type object

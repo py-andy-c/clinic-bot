@@ -9,6 +9,7 @@ import { logger } from '../../utils/logger';
 
 // Import step components
 import Step1SelectType from './Step1SelectType';
+import Step2SelectType from './Step2SelectType';
 import Step2SelectPractitioner from './Step2SelectPractitioner';
 import Step3SelectPractitioner from './Step3SelectPractitioner';
 import Step3SelectDateTime from './Step3SelectDateTime';
@@ -162,7 +163,7 @@ const AppointmentFlow: React.FC = () => {
         case 1:
           return <Step4SelectPatient />; // Reuse patient selection component
         case 2:
-          return <Step1SelectType />; // Reuse appointment type selection
+          return <Step2SelectType />; // Appointment type selection for existing patients
         case 3:
           return <Step3SelectPractitioner />; // New component for Flow 2 practitioner selection
         case 4:

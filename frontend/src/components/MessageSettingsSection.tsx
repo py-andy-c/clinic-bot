@@ -216,7 +216,7 @@ export const MessageSettingsSection: React.FC<MessageSettingsSectionProps> = ({
             <div className="text-left">
               <div className="text-sm font-medium text-gray-900 flex items-center gap-2">
                 <span>{MESSAGE_TYPE_LABELS[type]}</span>
-                {type === 'patient_confirmation' && !appointmentType.allow_patient_booking && (
+                {type === 'patient_confirmation' && !appointmentType.allow_new_patient_booking && !appointmentType.allow_existing_patient_booking && (
                   <WarningPopover message="此服務項目未開放病患自行預約，此設定不會生效。">
                     <span className="text-amber-600 hover:text-amber-700 cursor-pointer">⚠️</span>
                   </WarningPopover>

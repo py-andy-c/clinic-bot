@@ -175,7 +175,9 @@ export interface AppointmentType {
   name: string;
   duration_minutes: number;
   receipt_name?: string | null | undefined;
-  allow_patient_booking?: boolean | undefined;
+  allow_patient_booking?: boolean | undefined; // DEPRECATED: Use allow_new_patient_booking and allow_existing_patient_booking
+  allow_new_patient_booking?: boolean | undefined;
+  allow_existing_patient_booking?: boolean | undefined;
   allow_patient_practitioner_selection?: boolean | undefined;
   description?: string | null | undefined;
   scheduling_buffer_minutes?: number | undefined;

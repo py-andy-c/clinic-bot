@@ -52,7 +52,8 @@ export const AppointmentTypeField: React.FC<AppointmentTypeFieldProps> = ({
 
   const [showDurationModal, setShowDurationModal] = useState(false);
   const [showBufferModal, setShowBufferModal] = useState(false);
-  const [showAllowBookingModal, setShowAllowBookingModal] = useState(false);
+  const [showAllowNewPatientBookingModal, setShowAllowNewPatientBookingModal] = useState(false);
+  const [showAllowExistingPatientBookingModal, setShowAllowExistingPatientBookingModal] = useState(false);
   const [showAllowPractitionerSelectionModal, setShowAllowPractitionerSelectionModal] = useState(false);
   const [showReceiptNameModal, setShowReceiptNameModal] = useState(false);
   const [showBillingScenarioModal, setShowBillingScenarioModal] = useState(false);
@@ -185,7 +186,7 @@ export const AppointmentTypeField: React.FC<AppointmentTypeFieldProps> = ({
               <div className="flex-1">
                 <div className="flex items-center gap-2">
                   <span className="font-medium text-gray-900">{appointmentType.name || <span className="text-gray-400 italic">未命名服務項目</span>}</span>
-                  {appointmentType.allow_patient_booking === false && <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">不開放預約</span>}
+                  {appointmentType.allow_new_patient_booking === false && appointmentType.allow_existing_patient_booking === false && <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">不開放預約</span>}
                   {appointmentType.service_type_group_id && groups.find(g => g.id === appointmentType.service_type_group_id) && (
                     <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">
                       {groups.find(g => g.id === appointmentType.service_type_group_id)?.name}
@@ -314,9 +315,14 @@ export const AppointmentTypeField: React.FC<AppointmentTypeFieldProps> = ({
 
             <div className="flex flex-col gap-2">
               <label className="flex items-center">
-                <input type="checkbox" {...register(`appointment_types.${index}.allow_patient_booking`)} className="mr-2" disabled={!isClinicAdmin} />
-                <span className="text-sm font-medium text-gray-700">開放病患自行預約</span>
-                <InfoButton onClick={() => setShowAllowBookingModal(true)} />
+                <input type="checkbox" {...register(`appointment_types.${index}.allow_new_patient_booking`)} className="mr-2" disabled={!isClinicAdmin} />
+                <span className="text-sm font-medium text-gray-700">新病患可自行預約</span>
+                <InfoButton onClick={() => setShowAllowNewPatientBookingModal(true)} />
+              </label>
+              <label className="flex items-center">
+                <input type="checkbox" {...register(`appointment_types.${index}.allow_existing_patient_booking`)} className="mr-2" disabled={!isClinicAdmin} />
+                <span className="text-sm font-medium text-gray-700">舊病患可自行預約</span>
+                <InfoButton onClick={() => setShowAllowExistingPatientBookingModal(true)} />
               </label>
               <label className="flex items-center">
                 <input type="checkbox" {...register(`appointment_types.${index}.allow_patient_practitioner_selection`)} className="mr-2" disabled={!isClinicAdmin} />
@@ -447,7 +453,20 @@ export const AppointmentTypeField: React.FC<AppointmentTypeFieldProps> = ({
       {/* Info Modals */}
       <InfoModal isOpen={showDurationModal} onClose={() => setShowDurationModal(false)} title="服務時長 (分鐘)"><p>此為實際服務時間長度...</p></InfoModal>
       <InfoModal isOpen={showBufferModal} onClose={() => setShowBufferModal(false)} title="排程緩衝時間 (分鐘)"><p>此為排程時額外保留的時間...</p></InfoModal>
-      <InfoModal isOpen={showAllowBookingModal} onClose={() => setShowAllowBookingModal(false)} title="開放病患自行預約"><p>啟用後，病患可透過 LINE 預約系統選擇此服務項目...</p></InfoModal>
+      <InfoModal isOpen={showAllowNewPatientBookingModal} onClose={() => setShowAllowNewPatientBookingModal(false)} title="新病患可自行預約">
+        <div className="space-y-2">
+          <p>啟用後，新病患可透過 LINE 預約系統看到並選擇此服務項目。</p>
+          <p className="text-sm text-gray-600"><strong>新病患定義：</strong>尚未指派過治療師的病患（不論是否曾經預約過）。</p>
+          <p className="text-sm text-gray-600">系統會檢查病患是否已有治療師指派記錄，而非檢查過往預約記錄。</p>
+        </div>
+      </InfoModal>
+      <InfoModal isOpen={showAllowExistingPatientBookingModal} onClose={() => setShowAllowExistingPatientBookingModal(false)} title="舊病患可自行預約">
+        <div className="space-y-2">
+          <p>啟用後，已指派治療師的病患可透過 LINE 預約系統看到並選擇此服務項目。</p>
+          <p className="text-sm text-gray-600"><strong>舊病患定義：</strong>已指派過治療師的病患。</p>
+          <p className="text-sm text-gray-600">系統會檢查病患是否已有治療師指派記錄，而非檢查過往預約記錄。</p>
+        </div>
+      </InfoModal>
       <InfoModal isOpen={showAllowPractitionerSelectionModal} onClose={() => setShowAllowPractitionerSelectionModal(false)} title="開放病患指定治療師"><p>啟用後，病患在預約時可以選擇指定的治療師...</p></InfoModal>
       <InfoModal isOpen={showReceiptNameModal} onClose={() => setShowReceiptNameModal(false)} title="收據項目名稱"><p>此名稱會顯示在收據上，取代服務項目名稱...</p></InfoModal>
       <InfoModal isOpen={showBillingScenarioModal} onClose={() => setShowBillingScenarioModal(false)} title="計費方案說明"><p>計費方案讓您為每位治療師的每項服務設定多種定價選項...</p></InfoModal>
