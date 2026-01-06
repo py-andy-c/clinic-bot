@@ -1,6 +1,7 @@
 import React, { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { I18nextProvider } from 'react-i18next';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import { UnsavedChangesProvider } from './contexts/UnsavedChangesContext';
 import { ModalProvider } from './contexts/ModalContext';
@@ -9,6 +10,7 @@ import { SettingsProvider } from './contexts/SettingsContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import { LoadingSpinner } from './components/shared';
 import i18n from './i18n';
+import { queryClient } from './lib/queryClient';
 // Lazy load page components for code splitting
 const LandingPage = lazy(() => import('./pages/LandingPage'));
 const FreeTrialPage = lazy(() => import('./pages/FreeTrialPage'));
@@ -165,17 +167,19 @@ const AdminRoutes: React.FC = () => {
 const App: React.FC = () => {
   return (
     <ErrorBoundary>
-      <I18nextProvider i18n={i18n}>
-        <AuthProvider>
-          <ModalProvider>
-            <ModalQueueProvider>
-              <UnsavedChangesProvider>
-                <AppRoutes />
-              </UnsavedChangesProvider>
-            </ModalQueueProvider>
-          </ModalProvider>
-        </AuthProvider>
-      </I18nextProvider>
+      <QueryClientProvider client={queryClient}>
+        <I18nextProvider i18n={i18n}>
+          <AuthProvider>
+            <ModalProvider>
+              <ModalQueueProvider>
+                <UnsavedChangesProvider>
+                  <AppRoutes />
+                </UnsavedChangesProvider>
+              </ModalQueueProvider>
+            </ModalProvider>
+          </AuthProvider>
+        </I18nextProvider>
+      </QueryClientProvider>
     </ErrorBoundary>
   );
 };

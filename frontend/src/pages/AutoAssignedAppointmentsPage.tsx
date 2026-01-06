@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useModal } from '../contexts/ModalContext';
 import { useModalQueue } from '../contexts/ModalQueueContext';
@@ -6,7 +6,7 @@ import { apiService } from '../services/api';
 import { logger } from '../utils/logger';
 import { LoadingSpinner, ErrorMessage } from '../components/shared';
 import { EditAppointmentModal } from '../components/calendar/EditAppointmentModal';
-import { useApiData } from '../hooks/useApiData';
+import { useAutoAssignedAppointments } from '../hooks/queries';
 import { BaseModal } from '../components/shared/BaseModal';
 import moment from 'moment-timezone';
 import { CalendarEvent } from '../utils/calendarDataAdapter';
@@ -38,7 +38,7 @@ interface AutoAssignedAppointment {
 }
 
 const AutoAssignedAppointmentsPage: React.FC = () => {
-  const { isClinicAdmin, user: currentUser, isAuthenticated, isLoading } = useAuth();
+  const { isClinicAdmin, isAuthenticated } = useAuth();
   const { alert } = useModal();
   const { enqueueModal, showNext } = useModalQueue();
   const [selectedAppointment, setSelectedAppointment] = useState<AutoAssignedAppointment | null>(null);
@@ -113,23 +113,10 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
     );
   }
 
-  // Fetch auto-assigned appointments
-  const fetchAppointments = useCallback(
-    () => apiService.getAutoAssignedAppointments(),
-    []
-  );
+  const { data: appointmentsData, isLoading: loading, error, refetch } = useAutoAssignedAppointments();
 
-  const { data: appointmentsData, loading, error, refetch } = useApiData<{
-    appointments: AutoAssignedAppointment[];
-  }>(
-    fetchAppointments,
-    {
-      enabled: !isLoading && isAuthenticated && isClinicAdmin,
-      dependencies: [isLoading, isAuthenticated, currentUser?.active_clinic_id],
-      defaultErrorMessage: '無法載入待審核預約列表',
-      initialData: { appointments: [] },
-    }
-  );
+  // Handle error messages (React Query doesn't provide defaultErrorMessage)
+  const errorMessage = error ? '無法載入待審核預約列表' : null;
 
   // Fetch practitioners and appointment types when modal opens
   React.useEffect(() => {
@@ -423,7 +410,7 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
     );
   }
 
-  if (error) {
+  if (errorMessage) {
     return (
       <>
         <div className="mb-2 md:mb-8">
@@ -440,7 +427,7 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
             </button>
           </h1>
         </div>
-        <ErrorMessage message={error} />
+        <ErrorMessage message={errorMessage} />
       </>
     );
   }

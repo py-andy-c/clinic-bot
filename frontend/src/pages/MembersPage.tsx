@@ -1,17 +1,16 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useModal } from '../contexts/ModalContext';
 import { apiService } from '../services/api';
 import { Member, UserRole, MemberInviteData } from '../types';
 import { logger } from '../utils/logger';
 import { LoadingSpinner, ErrorMessage } from '../components/shared';
-import { useApiData } from '../hooks/useApiData';
+import { useMembers } from '../hooks/queries';
 import PageHeader from '../components/PageHeader';
 import { getErrorMessage } from '../types/api';
 
 const MembersPage: React.FC = () => {
-  const { isClinicAdmin, user: currentUser, isAuthenticated, checkAuthStatus, refreshUserData, isLoading } = useAuth();
-  const activeClinicId = currentUser?.active_clinic_id;
+  const { isClinicAdmin, user: currentUser, isAuthenticated, checkAuthStatus, refreshUserData } = useAuth();
   const { alert, confirm } = useModal();
   
   // Scroll to top when component mounts
@@ -31,18 +30,10 @@ const MembersPage: React.FC = () => {
     );
   }
 
-  // Stable fetch function using useCallback
-  const fetchMembers = useCallback(() => apiService.getMembers(), []);
+  const { data: members, isLoading: loading, error, refetch } = useMembers();
 
-  const { data: members, loading, error, refetch } = useApiData<Member[]>(
-    fetchMembers,
-    {
-      enabled: !isLoading && isAuthenticated,
-      dependencies: [isLoading, isAuthenticated, activeClinicId],
-      defaultErrorMessage: '無法載入成員列表',
-      initialData: [],
-    }
-  );
+  // Handle error messages (React Query doesn't provide defaultErrorMessage)
+  const errorMessage = error ? '無法載入成員列表' : null;
 
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [showRoleModal, setShowRoleModal] = useState<Member | null>(null);
@@ -173,11 +164,11 @@ const MembersPage: React.FC = () => {
     );
   }
 
-  if (error) {
+  if (errorMessage) {
     return (
       <>
         <PageHeader title="成員管理" />
-        <ErrorMessage message={error} onRetry={refetch} />
+        <ErrorMessage message={errorMessage} onRetry={refetch} />
       </>
     );
   }
@@ -204,7 +195,7 @@ const MembersPage: React.FC = () => {
 
       <div className="space-y-8">
         {/* Error Message */}
-        {error && (
+        {errorMessage && (
           <div className="bg-red-50 border border-red-200 rounded-md p-4">
             <div className="flex">
               <div className="flex-shrink-0">
@@ -215,7 +206,7 @@ const MembersPage: React.FC = () => {
               <div className="ml-3">
                 <h3 className="text-sm font-medium text-red-800">載入錯誤</h3>
                 <div className="mt-2 text-sm text-red-700">
-                  <p>{error}</p>
+                  <p>{errorMessage}</p>
                 </div>
               </div>
             </div>
