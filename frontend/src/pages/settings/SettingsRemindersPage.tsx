@@ -57,11 +57,16 @@ const SettingsRemindersPage: React.FC = () => {
   // Watch for settings update after updateData, then trigger save
   useEffect(() => {
     if (pendingFormDataRef.current && isSavingRef.current && settings?.notification_settings) {
-      // Check if settings match what we're trying to save
-      const pendingStr = JSON.stringify(pendingFormDataRef.current.notification_settings);
-      const currentStr = JSON.stringify(settings.notification_settings);
-      
-      if (pendingStr === currentStr) {
+      // Check if the notification settings are actually equal (ignoring property order)
+      const pendingSettings = pendingFormDataRef.current.notification_settings;
+      const currentSettings = settings.notification_settings;
+      const settingsEqual = (
+        pendingSettings.reminder_timing_mode === currentSettings.reminder_timing_mode &&
+        pendingSettings.reminder_hours_before === currentSettings.reminder_hours_before &&
+        pendingSettings.reminder_previous_day_time === currentSettings.reminder_previous_day_time
+      );
+
+      if (settingsEqual) {
         // Settings have been updated, now save
         const performSave = async () => {
           try {

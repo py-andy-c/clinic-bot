@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { useFormContext } from 'react-hook-form';
+import { useFormContext, Controller } from 'react-hook-form';
 import { apiService } from '../services/api';
 import { logger } from '../utils/logger';
-import { InfoButton, InfoModal } from './shared';
+import { InfoButton, InfoModal, TimeInput } from './shared';
 import { FormField, FormInput } from './forms';
-import { TimeInput } from './shared';
 import { RemindersSettingsFormData } from '../pages/settings/SettingsRemindersPage';
 
 interface ClinicReminderSettingsProps {
@@ -21,7 +20,7 @@ const ClinicReminderSettings: React.FC<ClinicReminderSettingsProps> = ({
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [showTimingModeModal, setShowTimingModeModal] = useState(false);
 
-  const { watch, setValue, formState: { errors } } = useFormContext<RemindersSettingsFormData>();
+  const { watch, register, control, formState: { errors } } = useFormContext<RemindersSettingsFormData>();
   const reminderTimingMode = watch('notification_settings.reminder_timing_mode') || 'hours_before';
 
   // Generate preview when settings are saved (refreshTrigger changes)
@@ -66,8 +65,7 @@ const ClinicReminderSettings: React.FC<ClinicReminderSettingsProps> = ({
                 id="timing-mode-hours-before"
                 type="radio"
                 value="hours_before"
-                checked={reminderTimingMode === 'hours_before'}
-                onChange={(e) => setValue('notification_settings.reminder_timing_mode', e.target.value as 'hours_before' | 'previous_day', { shouldDirty: true })}
+                {...register('notification_settings.reminder_timing_mode')}
                 disabled={!isClinicAdmin}
                 className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
               />
@@ -96,8 +94,7 @@ const ClinicReminderSettings: React.FC<ClinicReminderSettingsProps> = ({
                 id="timing-mode-previous-day"
                 type="radio"
                 value="previous_day"
-                checked={reminderTimingMode === 'previous_day'}
-                onChange={(e) => setValue('notification_settings.reminder_timing_mode', e.target.value as 'hours_before' | 'previous_day', { shouldDirty: true })}
+                {...register('notification_settings.reminder_timing_mode')}
                 disabled={!isClinicAdmin}
                 className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
               />
@@ -108,11 +105,17 @@ const ClinicReminderSettings: React.FC<ClinicReminderSettingsProps> = ({
             {reminderTimingMode === 'previous_day' && (
               <div className="ml-6 mt-2">
                 <FormField name="notification_settings.reminder_previous_day_time">
-                  <TimeInput
-                    value={watch('notification_settings.reminder_previous_day_time') || ''}
-                    onChange={(value) => setValue('notification_settings.reminder_previous_day_time', value, { shouldDirty: true })}
-                    error={errors?.notification_settings?.reminder_previous_day_time?.message || null}
-                    disabled={!isClinicAdmin}
+                  <Controller
+                    name="notification_settings.reminder_previous_day_time"
+                    control={control}
+                    render={({ field }) => (
+                      <TimeInput
+                        value={field.value || ''}
+                        onChange={field.onChange}
+                        error={errors?.notification_settings?.reminder_previous_day_time?.message || null}
+                        disabled={!isClinicAdmin}
+                      />
+                    )}
                   />
                 </FormField>
               </div>
