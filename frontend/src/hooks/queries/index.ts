@@ -8,3 +8,14 @@ export { useRevenueDistribution } from './useRevenueDistribution';
 export { useLineUsage } from './useLineUsage';
 export { useBusinessInsights } from './useBusinessInsights';
 export { useServiceTypeGroups } from './useServiceTypeGroups';
+
+// New hooks for migration completion
+export { usePatientDetail } from './usePatientDetail';
+export { usePatientAppointments } from './usePatientAppointments';
+// export { useAppointments, type AppointmentsFilters } from './useAppointments'; // Not implemented - no API method
+export { useLineUsers } from './useLineUsers';
+export { useSystemClinics } from './useSystemClinics';
+export { useUserProfile } from './useUserProfile';
+export { usePractitionerStatus } from './usePractitionerStatus';
+export { useBatchPractitionerStatus } from './useBatchPractitionerStatus';
+export { useClinicDetails, type ClinicDetailsData } from './useClinicDetails';

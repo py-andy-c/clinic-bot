@@ -99,7 +99,7 @@ else
     exit 1
 fi
 
-# Run ESLint (includes custom clinic-cache rule)
+# Run ESLint (clinic-cache rule removed after useApiData migration)
 # Temporarily disabled due to pre-existing ESLint errors (542 issues)
 # TODO: Re-enable after fixing pre-existing ESLint errors
 # print_status "Running ESLint..."

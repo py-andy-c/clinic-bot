@@ -17,7 +17,6 @@ import PageHeader from '../../components/PageHeader';
 import { useServiceItemsStagingStore } from '../../stores/serviceItemsStagingStore';
 import { useServiceItemsStore, BillingScenario } from '../../stores/serviceItemsStore';
 import { useUnsavedChangesDetection } from '../../hooks/useUnsavedChangesDetection';
-import { sharedFetchFunctions } from '../../services/api';
 import { isTemporaryServiceItemId, isTemporaryGroupId, isRealId } from '../../utils/idUtils';
 import { mapTemporaryIds } from '../../utils/idMappingUtils';
 import { useDebouncedSearch } from '../../utils/searchUtils';
@@ -147,7 +146,7 @@ const SettingsServiceItemsPage: React.FC = () => {
     const loadData = async () => {
       try {
         setLoadingSettings(true);
-        const settingsData = await sharedFetchFunctions.getClinicSettings();
+        const settingsData = await apiService.getClinicSettings();
         setSettings(settingsData);
         
         // Load groups
@@ -576,7 +575,7 @@ const SettingsServiceItemsPage: React.FC = () => {
       await apiService.updateClinicSettings(updatedSettings);
       
       // Reload settings to get real IDs
-      const freshSettings = await sharedFetchFunctions.getClinicSettings();
+      const freshSettings = await apiService.getClinicSettings();
       const savedServiceItems = freshSettings?.appointment_types || [];
       
       // Update order using bulk update API if we have multiple items
@@ -854,7 +853,7 @@ const SettingsServiceItemsPage: React.FC = () => {
       }
       
       // Reload all data to ensure consistency
-      const finalSettings = await sharedFetchFunctions.getClinicSettings();
+      const finalSettings = await apiService.getClinicSettings();
       const finalGroupsResponse = await apiService.getServiceTypeGroups();
       const finalGroups = finalGroupsResponse.groups.sort((a, b) => a.display_order - b.display_order);
       
@@ -908,7 +907,7 @@ const SettingsServiceItemsPage: React.FC = () => {
     if (confirmed) {
       discardChanges();
       // Reload original data
-      const settingsData = await sharedFetchFunctions.getClinicSettings();
+      const settingsData = await apiService.getClinicSettings();
       const groupsResponse = await apiService.getServiceTypeGroups();
       const sortedGroups = groupsResponse.groups.sort((a, b) => a.display_order - b.display_order);
       setSettings(settingsData);

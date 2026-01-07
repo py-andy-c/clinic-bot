@@ -3,8 +3,8 @@ import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useUnsavedChanges } from '../contexts/UnsavedChangesContext';
 import { useModal } from '../contexts/ModalContext';
-import { useApiData, invalidateCacheForFunction, invalidateCacheByPattern } from '../hooks/useApiData';
-import { apiService, sharedFetchFunctions } from '../services/api';
+import { useClinicSettings, useMembers, usePractitionerStatus, useBatchPractitionerStatus } from '../hooks/queries';
+import { useQueryClient } from '@tanstack/react-query';
 import { logger } from '../utils/logger';
 import ClinicSwitcher from './ClinicSwitcher';
 
@@ -16,6 +16,7 @@ interface ClinicLayoutProps {
 const GlobalWarnings: React.FC = () => {
   const { user, isClinicAdmin, hasRole, isLoading } = useAuth();
   const location = useLocation();
+  const queryClient = useQueryClient();
   const [warnings, setWarnings] = useState<{
     clinicWarnings: { hasAppointmentTypes: boolean };
     practitionerWarnings: { hasAppointmentTypes: boolean; hasAvailability: boolean };
@@ -29,39 +30,12 @@ const GlobalWarnings: React.FC = () => {
   const previousPathnameRef = useRef<string | null>(null);
 
   // Use shared fetch functions for cache key consistency
-  const fetchClinicSettingsFn = sharedFetchFunctions.getClinicSettings;
-  const { data: clinicSettingsData, error: clinicSettingsError } = useApiData(
-    fetchClinicSettingsFn,
-    {
-      enabled: !isLoading && isClinicAdmin,
-      dependencies: [isLoading, isClinicAdmin, user?.active_clinic_id],
-      cacheTTL: 5 * 60 * 1000, // 5 minutes cache
-    }
-  );
+  const { data: clinicSettingsData, error: clinicSettingsError } = useClinicSettings();
 
-  const fetchMembersFn = sharedFetchFunctions.getMembers;
-  const { data: membersData, error: membersError } = useApiData(
-    fetchMembersFn,
-    {
-      enabled: !isLoading && isClinicAdmin,
-      dependencies: [isLoading, isClinicAdmin, user?.active_clinic_id],
-      cacheTTL: 5 * 60 * 1000, // 5 minutes cache
-    }
-  );
+  const { data: membersData, error: membersError } = useMembers();
 
-  // Use useApiData for practitioner status to enable caching and request deduplication
-  const fetchPractitionerStatusFn = useCallback(
-    () => user?.user_id ? apiService.getPractitionerStatus(user.user_id) : Promise.reject(new Error('No user ID')),
-    [user?.user_id]
-  );
-  const { data: practitionerStatusData, error: practitionerStatusError } = useApiData(
-    fetchPractitionerStatusFn,
-    {
-      enabled: !isLoading && user?.user_id !== undefined && hasRole && hasRole('practitioner'),
-      dependencies: [isLoading, user?.user_id, hasRole],
-      cacheTTL: 5 * 60 * 1000, // 5 minutes cache
-    }
-  );
+  // Use React Query for practitioner status to enable caching and request deduplication
+  const { data: practitionerStatusData, error: practitionerStatusError } = usePractitionerStatus(user?.user_id);
 
   // Compute practitioner IDs from members data
   const practitionerIds = useMemo(() => {
@@ -72,21 +46,8 @@ const GlobalWarnings: React.FC = () => {
     return practitionerMembers.map(m => m.id).sort((a, b) => a - b); // Sort for stable cache key
   }, [isClinicAdmin, membersData]);
 
-  // Use useApiData for batch practitioner status to enable caching and request deduplication
-  const fetchBatchPractitionerStatusFn = useCallback(
-    () => practitionerIds.length > 0 
-      ? apiService.getBatchPractitionerStatus(practitionerIds)
-      : Promise.resolve({ results: [] }),
-    [practitionerIds]
-  );
-  const { data: batchPractitionerStatusData, error: batchPractitionerStatusError } = useApiData(
-    fetchBatchPractitionerStatusFn,
-    {
-      enabled: !isLoading && isClinicAdmin && practitionerIds.length > 0,
-      dependencies: [isLoading, isClinicAdmin, practitionerIds],
-      cacheTTL: 5 * 60 * 1000, // 5 minutes cache
-    }
-  );
+  // Use React Query for batch practitioner status to enable caching and request deduplication
+  const { data: batchPractitionerStatusData, error: batchPractitionerStatusError } = useBatchPractitionerStatus(practitionerIds);
 
   // Compute warnings from fetched data
   useEffect(() => {
@@ -179,7 +140,7 @@ const GlobalWarnings: React.FC = () => {
   }, [isLoading, user, isClinicAdmin, hasRole, clinicSettingsData, membersData, practitionerStatusData, batchPractitionerStatusData]);
 
   // Refresh warnings when navigating away from settings/profile pages
-  // We'll invalidate the useApiData cache instead of using our own cache
+  // Invalidate React Query cache when navigating away from settings
   useEffect(() => {
     const previousPathname = previousPathnameRef.current;
     const currentPathname = location.pathname;
@@ -190,18 +151,17 @@ const GlobalWarnings: React.FC = () => {
     // Only refresh if navigating away from settings pages
     if (previousPathname && isSettingsPage(previousPathname) && !isSettingsPage(currentPathname)) {
       // Invalidate cache to ensure fresh data after settings changes
-      invalidateCacheForFunction(sharedFetchFunctions.getClinicSettings);
-      invalidateCacheForFunction(sharedFetchFunctions.getMembers);
-      
-      // Also invalidate practitioner status caches (parameterized functions)
-      // These use patterns like "api_getPractitionerStatus_*" and "api_getBatchPractitionerStatus_*"
-      invalidateCacheByPattern('api_getPractitionerStatus_');
-      invalidateCacheByPattern('api_getBatchPractitionerStatus_');
+      queryClient.invalidateQueries({ queryKey: ['clinic-settings'] });
+      queryClient.invalidateQueries({ queryKey: ['members'] });
+
+      // Also invalidate practitioner status caches
+      queryClient.invalidateQueries({ queryKey: ['practitioner-status'] });
+      queryClient.invalidateQueries({ queryKey: ['batch-practitioner-status'] });
     }
 
     // Update previous pathname for next navigation
     previousPathnameRef.current = currentPathname;
-  }, [location.pathname, user, isClinicAdmin, hasRole]);
+  }, [location.pathname, user, isClinicAdmin, hasRole, queryClient]);
 
   const hasAnyWarnings = !warnings.clinicWarnings.hasAppointmentTypes ||
     !warnings.practitionerWarnings.hasAppointmentTypes ||

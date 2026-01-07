@@ -1,13 +1,12 @@
-import React, { useCallback, useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { LoadingSpinner, ErrorMessage, SearchInput, PaginationControls } from '../components/shared';
-import { apiService, sharedFetchFunctions } from '../services/api';
+import { apiService } from '../services/api';
 import { Patient } from '../types';
 import { useAuth } from '../hooks/useAuth';
-import { useApiData } from '../hooks/useApiData';
+import { usePatients, useClinicSettings, usePractitioners } from '../hooks/queries';
 import { useHighlightRow } from '../hooks/useHighlightRow';
 import PageHeader from '../components/PageHeader';
-import { ClinicSettings } from '../schemas/api';
 import { useDebouncedSearch } from '../utils/searchUtils';
 import { PatientCreationModal } from '../components/PatientCreationModal';
 import { PatientCreationSuccessModal } from '../components/PatientCreationSuccessModal';
@@ -54,8 +53,7 @@ const ProfilePictureWithFallback: React.FC<{
 
 const PatientsPage: React.FC = () => {
   const navigate = useNavigate();
-  const { isLoading, isAuthenticated, user } = useAuth();
-  const activeClinicId = user?.active_clinic_id;
+  const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   
   // Scroll to top when component mounts
@@ -98,33 +96,12 @@ const PatientsPage: React.FC = () => {
     return practitionerIdParam ? parseInt(practitionerIdParam, 10) : undefined;
   });
 
-  // Memoize fetch functions to ensure stable cache keys
-  // Only search if debouncedSearchQuery has a value (empty string becomes undefined)
-  const fetchPatients = useCallback(
-    () => apiService.getPatients(
-      currentPage,
-      pageSize,
-      undefined, // no signal
-      debouncedSearchQuery || undefined, // search parameter (empty string becomes undefined)
-      selectedPractitionerId // practitioner filter
-    ),
-    [currentPage, pageSize, debouncedSearchQuery, selectedPractitionerId]
-  );
-  const fetchClinicSettings = useCallback(() => apiService.getClinicSettings(), []);
 
-  const { data: patientsData, loading, error, refetch } = useApiData<{
-    patients: Patient[];
-    total: number;
-    page: number;
-    page_size: number;
-  }>(
-    fetchPatients,
-    {
-      enabled: !isLoading && isAuthenticated,
-      dependencies: [isLoading, isAuthenticated, activeClinicId, currentPage, pageSize, debouncedSearchQuery, selectedPractitionerId],
-      defaultErrorMessage: '無法載入病患列表',
-      initialData: { patients: [], total: 0, page: 1, page_size: 25 },
-    }
+  const { data: patientsData, isLoading: loading, error, refetch } = usePatients(
+    currentPage,
+    pageSize,
+    debouncedSearchQuery || undefined,
+    selectedPractitionerId || undefined
   );
 
   // Keep previous data visible during loading to prevent flicker
@@ -163,16 +140,7 @@ const PatientsPage: React.FC = () => {
   const validatedPage = Math.max(1, Math.min(currentPage, totalPages || 1));
 
   // Fetch clinic settings to check if birthday column should be shown
-  // Use useApiData with caching to avoid redundant API calls
-  const { data: clinicSettings } = useApiData<ClinicSettings>(
-    fetchClinicSettings,
-    {
-      enabled: !isLoading && isAuthenticated,
-      dependencies: [isLoading, isAuthenticated, activeClinicId],
-      defaultErrorMessage: '無法載入診所設定',
-      cacheTTL: 5 * 60 * 1000, // 5 minutes cache
-    }
-  );
+  const { data: clinicSettings } = useClinicSettings();
 
   // Birthday column removed - no longer shown in patient list
   const hasHandledQueryRef = useRef(false);
@@ -180,15 +148,7 @@ const PatientsPage: React.FC = () => {
   const { alert } = useModal();
 
   // Fetch practitioners for appointment modal and filter dropdown
-  const fetchPractitioners = useCallback(() => sharedFetchFunctions.getPractitioners(), []);
-  const { data: practitionersData } = useApiData(
-    fetchPractitioners,
-    {
-      enabled: !isLoading && isAuthenticated,
-      dependencies: [isLoading, isAuthenticated],
-      cacheTTL: 5 * 60 * 1000, // 5 minutes cache
-    }
-  );
+  const { data: practitionersData } = usePractitioners();
 
   const practitioners = practitionersData || [];
   const appointmentTypes = clinicSettings?.appointment_types || [];
@@ -329,7 +289,7 @@ const PatientsPage: React.FC = () => {
     return (
       <>
         {pageHeader}
-        <ErrorMessage message={error} onRetry={refetch} />
+        <ErrorMessage message={error?.message || 'Unable to load patients'} onRetry={refetch} />
       </>
     );
   }

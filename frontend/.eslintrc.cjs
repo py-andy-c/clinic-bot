@@ -11,7 +11,6 @@ module.exports = {
   plugins: [
     '@typescript-eslint',
     'react-refresh',
-    'eslint-plugin-clinic-cache',
   ],
   rules: {
     'react-refresh/only-export-components': [
@@ -19,6 +18,5 @@ module.exports = {
       { allowConstantExport: true },
     ],
     'no-console': 'error',
-    'clinic-cache/require-clinic-id-in-deps': 'warn',
   },
 }

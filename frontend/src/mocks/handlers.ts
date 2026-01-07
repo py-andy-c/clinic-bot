@@ -172,4 +172,118 @@ export const handlers = [
       },
     ]);
   }),
+
+  // Individual Patient API
+  http.get('/api/clinic/patients/:id', () => {
+    return HttpResponse.json({
+      id: 1,
+      full_name: 'John Doe',
+      email: 'john@example.com',
+      phone: '+1234567890',
+      date_of_birth: '1990-01-01',
+      gender: 'male',
+      address: '123 Main St',
+      emergency_contact_name: 'Jane Doe',
+      emergency_contact_phone: '+0987654321',
+      medical_history: 'No known allergies',
+      notes: 'Regular patient',
+    });
+  }),
+
+  // Patient Appointments API
+  http.get('/api/clinic/patients/:id/appointments', () => {
+    return HttpResponse.json({
+      appointments: [
+        {
+          id: 1,
+          calendar_event_id: 1,
+          patient_id: 1,
+          patient_name: 'John Doe',
+          practitioner_id: 1,
+          practitioner_name: 'Dr. Smith',
+          appointment_type_id: 1,
+          appointment_type_name: 'General Treatment',
+          start_time: '2024-01-15T10:00:00Z',
+          end_time: '2024-01-15T11:00:00Z',
+          status: 'confirmed',
+          notes: 'Regular checkup',
+          clinic_notes: 'Patient arrived on time',
+          created_at: '2024-01-10T09:00:00Z',
+          updated_at: '2024-01-14T15:00:00Z',
+        },
+      ],
+    });
+  }),
+
+  // Line Users API
+  http.get('/api/line-users', () => {
+    return HttpResponse.json({
+      line_users: [
+        {
+          id: 1,
+          line_user_id: 'line123',
+          display_name: 'John Line',
+          picture_url: 'https://example.com/picture.jpg',
+          status: 'active',
+          created_at: '2024-01-01T00:00:00Z',
+          linked_at: '2024-01-01T00:00:00Z',
+        },
+      ],
+      total: 1,
+      page: 1,
+      page_size: 25,
+    });
+  }),
+
+  // System Clinics API
+  http.get('/api/clinics', () => {
+    return HttpResponse.json([
+      {
+        id: 1,
+        name: 'Main Clinic',
+        address: '123 Main St',
+        phone: '+1234567890',
+        email: 'clinic@example.com',
+        is_active: true,
+        created_at: '2024-01-01T00:00:00Z',
+      },
+    ]);
+  }),
+
+  // User Profile API
+  http.get('/api/profile', () => {
+    return HttpResponse.json({
+      id: 1,
+      email: 'user@example.com',
+      full_name: 'Dr. Smith',
+      roles: ['practitioner'],
+      active_clinic_id: 1,
+      settings: {},
+    });
+  }),
+
+  // Practitioner Status API
+  http.get('/api/practitioners/:id/status', () => {
+    return HttpResponse.json({
+      availability_status: 'available',
+      next_appointment: '2024-01-15T14:00:00Z',
+      working_hours_today: {
+        start: '09:00',
+        end: '17:00',
+      },
+    });
+  }),
+
+  // Batch Practitioner Status API
+  http.post('/api/practitioners/batch-status', () => {
+    return HttpResponse.json({
+      results: [
+        {
+          practitioner_id: 1,
+          availability_status: 'available',
+          next_appointment: '2024-01-15T14:00:00Z',
+        },
+      ],
+    });
+  }),
 ];

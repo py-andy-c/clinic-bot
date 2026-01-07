@@ -7,7 +7,12 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import React from 'react';
 import { CreateAppointmentModal } from '../CreateAppointmentModal';
 import { apiService } from '../../../services/api';
-import { useApiData } from '../../../hooks/useApiData';
+import { usePatients } from '../../../hooks/queries';
+
+// Mock React Query hooks
+vi.mock('@tanstack/react-query', () => ({
+  useQuery: vi.fn(),
+}));
 import { ModalProvider } from '../../../contexts/ModalContext';
 import { ModalQueueProvider } from '../../../contexts/ModalQueueContext';
 
@@ -68,7 +73,9 @@ vi.mock('../../../hooks/useAuth', () => ({
   }),
 }));
 
-vi.mock('../../../hooks/useApiData');
+vi.mock('../../../hooks/queries', () => ({
+  usePatients: vi.fn(),
+}));
 
 vi.mock('../../../utils/searchUtils', () => ({
   useDebouncedSearch: (query: string) => query,
@@ -109,9 +116,9 @@ describe('CreateAppointmentModal', () => {
       { id: 1, full_name: 'Dr. Test' },
       { id: 2, full_name: 'Dr. Another' },
     ]);
-    vi.mocked(useApiData).mockReturnValue({
+    vi.mocked(usePatients).mockReturnValue({
       data: { patients: mockPatients, total: 1, page: 1, page_size: 100 },
-      loading: false,
+      isLoading: false,
       error: null,
       refetch: vi.fn(),
     });

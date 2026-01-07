@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { useApiData } from '../hooks/useApiData';
+import { usePractitioners } from '../hooks/queries';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { useCalendarSelection } from '../hooks/useCalendarSelection';
 import { LoadingSpinner } from '../components/shared';
@@ -12,7 +12,7 @@ import CalendarSelector from '../components/CalendarSelector';
 import PractitionerChips from '../components/PractitionerChips';
 import ResourceChips from '../components/ResourceChips';
 import FloatingActionButton from '../components/FloatingActionButton';
-import { sharedFetchFunctions, apiService } from '../services/api';
+import { apiService } from '../services/api';
 import { calendarStorage } from '../utils/storage';
 import { getDateString } from '../utils/calendarUtils';
 import { logger } from '../utils/logger';
@@ -39,19 +39,8 @@ const AvailabilityPage: React.FC = () => {
     ? parseInt(searchParams.get('createAppointment') || '0', 10) 
     : undefined;
 
-  // Use shared fetch function for cache key consistency
-  const fetchPractitionersFn = sharedFetchFunctions.getPractitioners;
-
-  // Use useApiData for practitioners with caching and request deduplication
-  // Include active_clinic_id in dependencies to refetch when clinic changes
-  const { data: practitionersData, loading: practitionersLoading } = useApiData(
-    fetchPractitionersFn,
-    {
-      enabled: !authLoading && isAuthenticated,
-      dependencies: [authLoading, isAuthenticated, user?.active_clinic_id],
-      cacheTTL: 5 * 60 * 1000, // 5 minutes cache
-    }
-  );
+  // Use React Query for practitioners with caching and request deduplication
+  const { data: practitionersData, isLoading: practitionersLoading } = usePractitioners();
 
   const practitioners = practitionersData || [];
   

@@ -526,4 +526,4 @@ This document covers:
 
 All business rules are enforced at both frontend (UX) and backend (source of truth) levels.
 
-**Migration Status**: This document has been migrated to the new template format. Frontend sections reflect current implementation. LINE integration is primarily backend-focused with webhook processing, with minimal frontend components for notifications and LIFF availability management.
+**Migration Status**: ✅ COMPLETED. This document has been migrated to the new template format. Frontend sections now use React Query hooks instead of the old `useApiData` implementation. LINE integration is primarily backend-focused with webhook processing, with minimal frontend components for notifications and LIFF availability management. React Query migration completed in Phase 2 Week 5.

@@ -7,7 +7,7 @@ import { LineUserWithStatus } from '../types';
 import { logger } from '../utils/logger';
 import { LoadingSpinner, ErrorMessage, SearchInput, PaginationControls } from '../components/shared';
 import { BaseModal } from '../components/shared/BaseModal';
-import { useApiData } from '../hooks/useApiData';
+import { useLineUsers } from '../hooks/queries';
 import { useHighlightRow } from '../hooks/useHighlightRow';
 import PageHeader from '../components/PageHeader';
 import { useDebouncedSearch } from '../utils/searchUtils';
@@ -51,8 +51,7 @@ const ProfilePictureWithFallback: React.FC<{
 
 const LineUsersPage: React.FC = () => {
   const navigate = useNavigate();
-  const { user: currentUser, isAuthenticated, isLoading } = useAuth();
-  const activeClinicId = currentUser?.active_clinic_id;
+  const { isAuthenticated } = useAuth();
   const { alert, confirm } = useModal();
   
   // If not authenticated, show a message
@@ -90,31 +89,11 @@ const LineUsersPage: React.FC = () => {
   const [editingDisplayName, setEditingDisplayName] = useState<string>('');
   const [isSaving, setIsSaving] = useState(false);
 
-  // Stable fetch function using useCallback
-  // Only search if debouncedSearchQuery has a value (empty string means no search)
-  const fetchLineUsers = useCallback(
-    () => apiService.getLineUsers(
-      currentPage,
-      pageSize,
-      undefined, // no signal
-      debouncedSearchQuery || undefined // search parameter (empty string becomes undefined)
-    ),
-    [currentPage, pageSize, debouncedSearchQuery]
-  );
 
-  const { data: lineUsersData, loading, error, refetch } = useApiData<{
-    line_users: LineUserWithStatus[];
-    total: number;
-    page: number;
-    page_size: number;
-  }>(
-    fetchLineUsers,
-    {
-      enabled: !isLoading && isAuthenticated,
-      dependencies: [isLoading, isAuthenticated, activeClinicId, currentPage, pageSize, debouncedSearchQuery],
-      defaultErrorMessage: '無法載入LINE使用者列表',
-      initialData: { line_users: [], total: 0, page: 1, page_size: 25 },
-    }
+  const { data: lineUsersData, isLoading: loading, error, refetch } = useLineUsers(
+    currentPage,
+    pageSize,
+    debouncedSearchQuery || undefined
   );
 
   // Keep previous data visible during loading to prevent flicker
@@ -338,7 +317,7 @@ const LineUsersPage: React.FC = () => {
     return (
       <>
         {pageHeader}
-        <ErrorMessage message={error} onRetry={refetch} />
+        <ErrorMessage message={error?.message || 'Unable to load line users'} onRetry={refetch} />
       </>
     );
   }

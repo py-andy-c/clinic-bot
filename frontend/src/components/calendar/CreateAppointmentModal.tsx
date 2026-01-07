@@ -17,7 +17,7 @@ import { SearchInput } from '../shared';
 import { Patient, AppointmentType, ServiceTypeGroup } from '../../types';
 import moment from 'moment-timezone';
 import { formatAppointmentDateTime } from '../../utils/calendarUtils';
-import { useApiData } from '../../hooks/useApiData';
+import { usePatients } from '../../hooks/queries';
 import { useAuth } from '../../hooks/useAuth';
 import { useDebouncedSearch, shouldTriggerSearch } from '../../utils/searchUtils';
 import { PatientCreationModal } from '../PatientCreationModal';
@@ -359,36 +359,18 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
   const hasValidSearch = debouncedSearchQuery.trim().length > 0 && shouldTriggerSearch(debouncedSearchQuery);
   const shouldFetchForPreSelected = !!selectedPatientId && !hasValidSearch;
   
-  const { isLoading: authLoading, isAuthenticated } = useAuth();
-  const fetchPatientsFn = useCallback(
-    () => {
-      if (shouldFetchForPreSelected) {
-        return apiService.getPatients(1, 100, undefined, undefined);
-      }
-      return apiService.getPatients(1, 100, undefined, debouncedSearchQuery);
-    },
-    [debouncedSearchQuery, shouldFetchForPreSelected]
-  );
+  const { } = useAuth();
   
-  const { 
-    data: patientsData, 
-    loading: isLoadingPatients,
+  const {
+    data: patientsData,
+    isLoading: isLoadingPatients,
     error: patientsError,
     refetch: refetchPatients
-  } = useApiData<{
-    patients: Patient[];
-    total: number;
-    page: number;
-    page_size: number;
-  }>(
-    fetchPatientsFn,
-    {
-      enabled: !authLoading && isAuthenticated && (hasValidSearch || shouldFetchForPreSelected),
-      dependencies: [authLoading, isAuthenticated, selectedPatientId, debouncedSearchQuery, hasValidSearch, shouldFetchForPreSelected],
-      cacheTTL: 5 * 60 * 1000,
-      defaultErrorMessage: '無法載入病患列表',
-      initialData: { patients: [], total: 0, page: 1, page_size: 1 },
-    }
+  } = usePatients(
+    1, // page
+    50, // pageSize - larger for search results
+    hasValidSearch ? debouncedSearchQuery : undefined,
+    undefined // practitionerId
   );
   
   // Keep previous data visible during loading to prevent flicker
@@ -418,7 +400,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
   
   useEffect(() => {
     if (patientsError) {
-      setError(patientsError);
+      setError(patientsError.message || 'Unable to load patients');
     }
   }, [patientsError, setError]);
 

@@ -1,18 +1,13 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { logger } from '../utils/logger';
 import { LoadingSpinner, ErrorMessage } from '../components/shared';
 import { useModal } from '../contexts/ModalContext';
 import moment from 'moment-timezone';
 import { Link, useParams } from 'react-router-dom';
 import { apiService } from '../services/api';
-import { Clinic, ClinicCreateData, ClinicHealth, PractitionerWithDetails } from '../types';
-import { useApiData } from '../hooks/useApiData';
+import { ClinicCreateData } from '../types';
+import { useSystemClinics, useClinicDetails } from '../hooks/queries';
 
-interface ClinicDetailsData {
-  clinic: Clinic;
-  health: ClinicHealth;
-  practitioners?: PractitionerWithDetails[];
-}
 
 const SystemClinicsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -28,48 +23,22 @@ const SystemClinicsPage: React.FC = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [id]);
 
-  // Stable fetch functions using useCallback
-  const fetchClinics = useCallback(() => apiService.getClinics(), []);
-  const fetchClinicDetails = useCallback(async (): Promise<ClinicDetailsData> => {
-    if (!id) {
-      throw new Error('Clinic ID is required');
-    }
-    const [clinicData, healthData, practitionersData] = await Promise.all([
-      apiService.getClinicDetails(parseInt(id)),
-      apiService.getClinicHealth(parseInt(id)),
-      apiService.getClinicPractitioners(parseInt(id)).catch(() => ({ practitioners: [] }))
-    ]);
-    return {
-      clinic: clinicData,
-      health: healthData,
-      practitioners: practitionersData.practitioners || []
-    };
-  }, [id]);
 
   // Fetch clinics list when no ID
   const {
     data: clinics,
-    loading: clinicsLoading,
+    isLoading: clinicsLoading,
     error: clinicsError,
     refetch: refetchClinics,
-    setData: setClinics,
-  } = useApiData<Clinic[]>(fetchClinics, {
-    enabled: !id,
-    dependencies: [id],
-    initialData: [],
-  });
+  } = useSystemClinics();
 
   // Fetch clinic details when ID exists
   const {
     data: clinicDetails,
-    loading: detailsLoading,
+    isLoading: detailsLoading,
     error: detailsError,
     refetch: refetchDetails,
-  } = useApiData<ClinicDetailsData>(fetchClinicDetails, {
-    enabled: !!id,
-    dependencies: [id],
-    // Cache key now includes clinic id via dependencies, so caching is safe
-  });
+  } = useClinicDetails(id ? parseInt(id, 10) : undefined);
 
   const selectedClinic = clinicDetails?.clinic ?? null;
   const clinicHealth = clinicDetails?.health ?? null;
@@ -80,8 +49,9 @@ const SystemClinicsPage: React.FC = () => {
   const handleCreateClinic = async (clinicData: ClinicCreateData) => {
     try {
       setCreating(true);
-      const newClinic = await apiService.createClinic(clinicData);
-      setClinics([...(clinics || []), newClinic]);
+      await apiService.createClinic(clinicData);
+      // Refetch the clinics list to include the new clinic
+      await refetchClinics();
       setShowCreateModal(false);
     } catch (err) {
       logger.error('Create clinic error:', err);
@@ -285,7 +255,7 @@ const SystemClinicsPage: React.FC = () => {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <ErrorMessage
-          message={error}
+          message={typeof error === 'string' ? error : error?.message || 'Unable to load data'}
           onRetry={id ? refetchDetails : refetchClinics}
         />
       </div>
@@ -620,6 +590,7 @@ const SystemClinicsPage: React.FC = () => {
                   <dt className="text-sm font-medium text-gray-500">錯誤</dt>
                   <dd className="mt-1 text-sm text-red-600 sm:mt-0 sm:col-span-2">
                     <ul className="list-disc list-inside">
+                      {/* @ts-ignore - Pre-existing implicit any type in clinicHealth.error_messages */}
                       {clinicHealth.error_messages.map((error, index) => (
                         <li key={index}>{error}</li>
                       ))}
@@ -816,6 +787,7 @@ const SystemClinicsPage: React.FC = () => {
                       <h5 className="text-sm font-medium text-gray-700 mb-2">預約類型:</h5>
                       {practitioner.appointment_types && practitioner.appointment_types.length > 0 ? (
                         <ul className="list-disc list-inside text-sm text-gray-600 space-y-1">
+                          {/* @ts-ignore - Pre-existing implicit any type in practitioner.appointment_types */}
                           {practitioner.appointment_types.map((at) => (
                             <li key={at.id}>{at.name} ({at.duration_minutes} 分鐘)</li>
                           ))}
@@ -843,10 +815,11 @@ const SystemClinicsPage: React.FC = () => {
                             return (
                               <div key={day} className="text-sm">
                                 <span className="font-medium">{dayNames[day] || day}:</span>{' '}
-                                {intervals.map((interval, idx: number) => (
+                                {/* @ts-ignore - Pre-existing implicit any type in intervals */}
+                                {(intervals as any[]).map((interval, idx: number) => (
                                   <span key={idx} className="text-gray-600">
                                     {interval.start_time} - {interval.end_time}
-                                    {idx < intervals.length - 1 && '、'}
+                                    {idx < (intervals as any[]).length - 1 && '、'}
                                   </span>
                                 ))}
                               </div>

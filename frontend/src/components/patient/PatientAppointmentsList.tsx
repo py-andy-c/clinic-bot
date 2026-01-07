@@ -1,10 +1,7 @@
 import React, { useState, useCallback, useEffect } from "react";
-import {
-  useApiData,
-  invalidateCacheForFunction,
-  invalidateCacheByPattern,
-} from "../../hooks/useApiData";
-import { apiService } from "../../services/api";
+import { usePatientAppointments } from "../../hooks/queries";
+import { useQueryClient } from '@tanstack/react-query';
+import { apiService } from '../../services/api';
 import { LoadingSpinner, ErrorMessage } from "../shared";
 import moment from "moment-timezone";
 import { formatAppointmentTimeRange } from "../../utils/calendarUtils";
@@ -71,6 +68,7 @@ export const PatientAppointmentsList: React.FC<
   const [activeTab, setActiveTab] = useState<TabType>("future");
   const { alert } = useModal();
   const { hasRole, user, isClinicUser } = useAuth();
+  const queryClient = useQueryClient();
 
   // Event modal state
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(
@@ -132,22 +130,7 @@ export const PatientAppointmentsList: React.FC<
   );
 
   // Fetch ALL appointments once (no filters) so we can calculate accurate counts for all tabs
-  const fetchAppointments = useCallback(() => {
-    return apiService.getPatientAppointments(
-      patientId,
-      undefined, // No status filter - get all appointments
-      false, // No upcoming_only filter - get all appointments
-    );
-  }, [patientId]);
-
-  const { data, loading, error, refetch, setData } = useApiData<{
-    appointments: Appointment[];
-  }>(fetchAppointments, {
-    enabled: !!patientId,
-    dependencies: [patientId], // Only depend on patientId, not activeTab
-    defaultErrorMessage: "無法載入預約記錄",
-    // Cache key now includes patientId via dependencies, so caching is safe
-  });
+  const { data, isLoading: loading, error, refetch } = usePatientAppointments(patientId);
 
   const allAppointments = data?.appointments || [];
 
@@ -223,21 +206,12 @@ export const PatientAppointmentsList: React.FC<
 
   // Helper function to refresh appointments list after mutations
   const refreshAppointmentsList = useCallback(async () => {
-    // Invalidate cache for appointments list using pattern to catch all variations
-    invalidateCacheByPattern(`api_getPatientAppointments`);
-    invalidateCacheForFunction(fetchAppointments);
+    // Invalidate cache for appointments list
+    queryClient.invalidateQueries({ queryKey: ['patient-appointments', patientId] });
 
-    // Force a fresh fetch by directly calling the API and updating data
-    // This ensures we get fresh data regardless of cache state
-    try {
-      const freshData = await fetchAppointments();
-      setData(freshData);
-    } catch (fetchError) {
-      // If direct fetch fails, try refetch as fallback
-      logger.warn("Direct fetch failed, trying refetch:", fetchError);
-      await refetch();
-    }
-  }, [fetchAppointments, setData, refetch]);
+    // Refetch the data
+    await refetch();
+  }, [queryClient, patientId, refetch]);
 
   // Expose refetch function to parent component
   useEffect(() => {
@@ -478,7 +452,7 @@ export const PatientAppointmentsList: React.FC<
   if (error) {
     return (
       <div className="bg-white rounded-lg shadow-md p-4 sm:p-6">
-        <ErrorMessage message={error} onRetry={refetch} />
+        <ErrorMessage message={error?.message || 'Unable to load appointments'} onRetry={refetch} />
       </div>
     );
   }
@@ -585,12 +559,6 @@ export const PatientAppointmentsList: React.FC<
                   <div className="text-sm text-gray-600 mt-2">
                     <span className="font-medium">病患備註：</span>
                     {appointment.notes}
-                  </div>
-                )}
-                {appointment.clinic_notes && (
-                  <div className="text-sm text-gray-600 mt-2">
-                    <span className="font-medium">診所備注：</span>
-                    {appointment.clinic_notes}
                   </div>
                 )}
 

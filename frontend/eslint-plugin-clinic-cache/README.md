@@ -1,6 +1,10 @@
 # ESLint Plugin: Clinic Cache
 
-Custom ESLint rule to warn when clinic-specific endpoints are used with `useApiData` without explicit `activeClinicId` in dependencies.
+**⚠️ OBSOLETE - Migrated to React Query**
+
+This ESLint plugin was designed to warn when clinic-specific endpoints were used with the old `useApiData` hook without explicit `activeClinicId` in dependencies.
+
+**Status**: All components have been migrated from `useApiData` to React Query hooks. This plugin is no longer needed as React Query automatically handles clinic-specific caching.
 
 ## Purpose
 

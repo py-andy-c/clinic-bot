@@ -678,7 +678,7 @@ const RevenueDistributionPage: React.FC = () => {
           }}
           onReceiptVoided={() => {
             // Refetch data after voiding
-            // The useApiData hook will automatically refetch when dependencies change
+            // React Query will automatically refetch when data changes
           }}
           isClinicUser={isClinicUser || false}
         />
@@ -697,7 +697,7 @@ const RevenueDistributionPage: React.FC = () => {
           practitioners={practitioners}
           onReceiptCreated={() => {
             // Refetch data after receipt creation
-            // The useApiData hook will automatically refetch when dependencies change
+            // React Query will automatically refetch when data changes
           }}
         />
       )}
