@@ -37,30 +37,19 @@ export const test = authTest.extend<{
   };
 }>({
   seededPage: async ({ authenticatedPage, request }, use, testInfo) => {
+    console.log(`🔧 Setting up seededPage for test: "${testInfo.title}"`);
     const page = authenticatedPage;
     const scenario = testInfo.title.includes('minimal') ? 'minimal' :
                      'standard'; // Default to standard for all other tests
 
-    // Get token from already authenticated page
-    const access_token = await page.evaluate(() => localStorage.getItem('auth_access_token'));
+    console.log(`📋 Using scenario: ${scenario}`);
 
-    // Decode token to get user/clinic info for seeding
-    let userId, clinicId;
-    try {
-      const tokenPayload = JSON.parse(atob(access_token!.split('.')[1]));
-      userId = tokenPayload.user_id;
-      clinicId = tokenPayload.active_clinic_id;
-    } catch (e) {
-      throw new Error('Could not decode auth token');
-    }
+    // For E2E tests, use fixed test user/clinic IDs
+    const userId = 1; // test@example.com user
+    const clinicId = 2; // test clinic
 
-    // First test if seed API is available
-    const healthResponse = await request.get('http://localhost:8001/api/test/seed/health');
-    if (!healthResponse.ok()) {
-      throw new Error(`Seed API health check failed: ${healthResponse.status()} ${healthResponse.statusText()}`);
-    }
-
-    // Request scenario data from seed API with user/clinic context
+    // Request scenario data from seed API
+    console.log('🌱 Requesting seed data...');
     const seedResponse = await request.post('http://localhost:8001/api/test/seed/seed', {
       data: {
         scenario,
@@ -75,20 +64,49 @@ export const test = authTest.extend<{
     }
 
     const scenarioData: ScenarioData = await seedResponse.json();
+    console.log(`✅ Seed data received: ${scenarioData.users.length} users, ${scenarioData.appointment_types.length} appointment types`);
 
-    // Set auth tokens in localStorage and navigate to calendar
+    // Create storage state with auth tokens
+    const primaryToken = scenarioData.tokens[0];
+    console.log('🔑 Creating storage state with authentication...');
+
+    const storageState = {
+      cookies: [],
+      origins: [{
+        origin: 'http://localhost:5174',
+        localStorage: [{
+          name: 'auth_access_token',
+          value: primaryToken.access_token
+        }, {
+          name: 'auth_refresh_token',
+          value: primaryToken.refresh_token
+        }]
+      }]
+    };
+
+    // Apply storage state to the context
+    await page.context().addCookies(storageState.cookies);
+    // Note: addInitScript for localStorage would be better, but let's try storage state
+
+    // Navigate to calendar page
+    console.log('🏠 Navigating to calendar page...');
     await page.goto('/admin/calendar');
-    await page.evaluate((token) => {
-      localStorage.setItem('auth_access_token', token);
-      localStorage.setItem('auth_refresh_token', 'dummy_refresh_token');
-    }, access_token);
-
-    // Reload the page to ensure React picks up the auth token
-    await page.reload();
+    console.log('📄 Waiting for page load...');
     await page.waitForLoadState('networkidle');
+    console.log(`📍 Final URL: ${page.url()}`);
 
-    // NOTE: Not mocking practitioners API - we want to test the real API call
+    // Manually set localStorage after navigation
+    await page.evaluate((token) => {
+      try {
+        localStorage.setItem('auth_access_token', token.access_token);
+        localStorage.setItem('auth_refresh_token', token.refresh_token);
+        console.log('Auth tokens set in localStorage');
+      } catch (e) {
+        console.log('Failed to set localStorage:', e.message);
+      }
+    }, primaryToken);
 
+    // Mock practitioners API for testing
     await page.route('**/clinic/practitioners/status/batch', async route => {
       await route.fulfill({
         status: 200,
@@ -106,7 +124,7 @@ export const test = authTest.extend<{
     const result = {
       page,
       scenarioData,
-      adminToken: access_token
+      adminToken: scenarioData.tokens[0].access_token // Use token from seeded data
     };
 
     await use(result);

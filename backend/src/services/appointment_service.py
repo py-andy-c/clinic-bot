@@ -6,6 +6,7 @@ between different API endpoints (LIFF, clinic admin, etc.).
 """
 
 import logging
+import os
 from datetime import datetime, timedelta, time
 from typing import List, Optional, Dict, Any, Tuple, TypedDict
 
@@ -285,8 +286,8 @@ class AppointmentService:
             practitioner = db.query(User).get(assigned_practitioner_id)
             patient = db.query(Patient).get(patient_id)
 
-            # Send LINE notifications (unless skipped for consolidated notifications)
-            if not skip_notifications:
+            # Send LINE notifications (unless skipped for consolidated notifications or E2E test mode)
+            if not skip_notifications and not os.getenv("E2E_TEST_MODE"):
                 from services.notification_service import NotificationService
                 from utils.practitioner_helpers import get_practitioner_name_for_notification
                 from models.user_clinic_association import UserClinicAssociation

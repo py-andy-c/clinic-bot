@@ -801,7 +801,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
             <LoadingSpinner size="sm" />
           </div>
         ) : (
-          <div className="grid grid-cols-7 gap-1">
+          <div className="grid grid-cols-7 gap-1" data-testid="date-picker">
             {calendarDays.map((date, index) => {
               if (!date) {
                 return <div key={`empty-${index}`} className="h-9" />;
@@ -881,10 +881,12 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
                   <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-gray-400"></div>
                 )}
               </div>
-              <TimeInput
-                value={freeFormTime}
-                onChange={handleFreeFormTimeChange}
-              />
+              <div data-testid="time-picker">
+                <TimeInput
+                  value={freeFormTime}
+                  onChange={handleFreeFormTimeChange}
+                />
+              </div>
             </div>
           ) : error && allTimeSlots.length === 0 ? (
             // Only show error if there are no time slots available

@@ -8,9 +8,9 @@ import logging
 from core.database import get_db
 from models import (
     User, UserClinicAssociation, Clinic,
-    AppointmentType, Patient
+    AppointmentType, Patient, PractitionerAppointmentTypes, PractitionerAvailability
 )
-from datetime import datetime, date, timezone
+from datetime import datetime, date, timezone, time
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -100,8 +100,8 @@ def create_standard_clinic(db: Session, user_id: int | None = None, clinic_id: i
     clinic_id = result["clinic_id"]
 
     # Create practitioner user with unique identifier
-    import time
-    unique_id = f"{int(time.time())}_{secrets.token_hex(3)}"
+    import time as time_module
+    unique_id = f"{int(time_module.time())}_{secrets.token_hex(3)}"
     practitioner = User(
         email=f"practitioner_{unique_id}@test.com",
         google_subject_id=f"google_{secrets.token_hex(8)}"
@@ -142,6 +142,27 @@ def create_standard_clinic(db: Session, user_id: int | None = None, clinic_id: i
     db.add(appt_type)
     db.commit()
     db.refresh(appt_type)
+
+    # Create practitioner-appointment type mapping
+    pat_mapping = PractitionerAppointmentTypes(
+        user_id=practitioner.id,
+        appointment_type_id=appt_type.id,
+        clinic_id=clinic_id,
+        is_deleted=False
+    )
+    db.add(pat_mapping)
+    db.commit()
+
+    # Create practitioner availability intervals (Monday 9 AM - 5 PM)
+    monday_availability = PractitionerAvailability(
+        user_id=practitioner.id,
+        clinic_id=clinic_id,
+        day_of_week=0,  # Monday (0=Monday, 6=Sunday)
+        start_time=time(9, 0),   # 9:00 AM
+        end_time=time(17, 0)     # 5:00 PM
+    )
+    db.add(monday_availability)
+    db.commit()
 
     # Create patient
     patient = Patient(

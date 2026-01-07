@@ -941,7 +941,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
           />
         )}
 
-        <div>
+        <div data-testid="clinic-notes">
           <label className="block text-sm font-medium text-gray-700 mb-1">診所備註</label>
           <ClinicNotesTextarea
             value={clinicNotes}

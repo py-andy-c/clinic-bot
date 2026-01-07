@@ -36,6 +36,7 @@ export const AppointmentTypeSelector: React.FC<AppointmentTypeSelectorProps> = (
         disabled={disabled}
         className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
         required
+        data-testid="appointment-type-selector"
       >
         <option value="">選擇預約類型</option>
         {sortedOptions.map((type) => (
