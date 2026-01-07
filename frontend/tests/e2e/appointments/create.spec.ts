@@ -1,6 +1,8 @@
 import { test } from '../fixtures';
 import { expect } from '@playwright/test';
 import moment from 'moment-timezone';
+import { findActualSelector, analyzeDropdownStructure, waitForDropdownReady } from '../helpers/dom-helpers';
+import { logTestPerformance } from '../../../src/utils/schema-validation';
 
 test.describe('Appointment Creation', () => {
   // Helper function for deterministic timing
@@ -27,6 +29,9 @@ test.describe('Appointment Creation', () => {
   // - Complete appointment creation flow
 
   test('create full appointment @critical @appointment', async ({ browser, request }) => {
+    const startTime = Date.now();
+    logTestPerformance('create full appointment', startTime);
+
     // Create a fresh browser context for this test to avoid fixture conflicts
     const context = await browser.newContext();
     const page = await context.newPage();
@@ -83,21 +88,49 @@ test.describe('Appointment Creation', () => {
     await searchInput.fill('Test'); // Type to trigger search
     await page.waitForLoadState('networkidle'); // Wait for patient list to load
 
-    // Select Test Patient from the dropdown
-    const testPatientButton = page.locator('button').filter({ hasText: 'Test Patient' });
-    await testPatientButton.waitFor({ state: 'visible', timeout: 5000 });
-    await testPatientButton.click();
+    // Wait for patient buttons to appear in the dropdown
+    await page.waitForSelector('button:has-text("Test Patient")', { timeout: 10000 });
+
+    // Find the specific Test Patient button (not navigation elements)
+    const patientButtons = page.locator('button').filter({ hasText: 'Test Patient' });
+
+    // Ensure we have at least one button and click the first one
+    const buttonCount = await patientButtons.count();
+    if (buttonCount === 0) {
+      // Enhanced error reporting
+      const allPatientButtons = await page.locator('button').all();
+      const buttonTexts = await Promise.all(
+        allPatientButtons.map(async (btn) => ({
+          text: await btn.textContent(),
+          visible: await btn.isVisible()
+        }))
+      );
+
+      throw new Error(`Test Patient button not found. Available patient buttons: ${JSON.stringify(buttonTexts.filter(b => b.visible).slice(0, 10), null, 2)}`);
+    }
+
+    await patientButtons.first().click();
 
     // 2. Select appointment type
     const appointmentTypeSelector = page.getByTestId('appointment-type-selector');
 
-    // Wait for appointment types to load (more than just the placeholder option)
-    await page.waitForFunction(() => {
-      const selector = document.querySelector('[data-testid="appointment-type-selector"]') as HTMLSelectElement;
-      return selector && selector.options.length > 1;
-    }, { timeout: 10000 });
+    // Use helper to wait for dropdown and analyze its structure
+    const dropdownAnalysis = await waitForDropdownReady(page, 'appointment-type-selector', 2);
 
-    // Select the appointment type (includes duration in the label)
+    if (dropdownAnalysis.error) {
+      throw new Error(`Appointment type dropdown failed to load: ${dropdownAnalysis.error}`);
+    }
+
+    // Verify we have the expected appointment type
+    const hasExpectedType = dropdownAnalysis.options?.some((opt: any) =>
+      opt.text.includes('一般治療 (60分鐘)')
+    );
+
+    if (!hasExpectedType) {
+      throw new Error(`Expected appointment type "一般治療 (60分鐘)" not found. Available options: ${JSON.stringify(dropdownAnalysis.options, null, 2)}`);
+    }
+
+    // Select the appointment type
     await appointmentTypeSelector.selectOption({ label: '一般治療 (60分鐘)' });
 
     // 3. Select practitioner
@@ -109,11 +142,16 @@ test.describe('Appointment Creation', () => {
       return selector && !selector.disabled;
     }, { timeout: 5000 });
 
-    // Wait for practitioners to load
-    await page.waitForFunction(() => {
-      const selector = document.querySelector('[data-testid="practitioner-selector"]') as HTMLSelectElement;
-      return selector && selector.options.length > 1;
-    }, { timeout: 10000 });
+    // Use helper to wait for practitioner dropdown
+    const practitionerAnalysis = await waitForDropdownReady(page, 'practitioner-selector', 2);
+
+    if (practitionerAnalysis.error) {
+      throw new Error(`Practitioner dropdown failed to load: ${practitionerAnalysis.error}`);
+    }
+
+    if (practitionerAnalysis.options?.length <= 1) {
+      throw new Error(`No practitioners available for selected appointment type. Dropdown analysis: ${JSON.stringify(practitionerAnalysis, null, 2)}`);
+    }
 
     // Select the first available practitioner (should be our seeded one)
     await practitionerSelector.selectOption({ index: 1 }); // Skip index 0 which is "選擇治療師"
@@ -147,6 +185,9 @@ test.describe('Appointment Creation', () => {
 
     // 9. Verify appointment appears in calendar (optional - would require checking calendar display)
     // For now, the success message is sufficient proof that the appointment was created
+
+    // Log test completion performance
+    logTestPerformance('create full appointment', startTime, Date.now());
 
     // Close context after test
     await context.close();

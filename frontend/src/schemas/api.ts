@@ -1,43 +1,56 @@
 import { z } from 'zod';
+import { createValidatedSchema } from '../utils/schema-validation';
 import { logger } from '../utils/logger';
 
 // Base API response schema
-export const ApiResponseSchema = z.object({
-  data: z.any().optional(),
-  error: z.string().optional(),
-  message: z.string().optional(),
-});
+export const ApiResponseSchema = createValidatedSchema(
+  z.object({
+    data: z.any().optional(),
+    error: z.string().optional(),
+    message: z.string().optional(),
+  }),
+  'ApiResponseSchema'
+);
 
 // Clinic Settings schemas
-export const NotificationSettingsSchema = z.object({
-  reminder_hours_before: z.union([z.number(), z.string()]),
-});
+export const NotificationSettingsSchema = createValidatedSchema(
+  z.object({
+    reminder_hours_before: z.union([z.number(), z.string()]),
+  }),
+  'NotificationSettingsSchema'
+);
 
-export const BookingRestrictionSettingsSchema = z.object({
-  booking_restriction_type: z.string(),
-  minimum_booking_hours_ahead: z.union([z.number(), z.string()]),
-  deadline_time_day_before: z.string().optional(),
-  deadline_on_same_day: z.boolean().optional(),
-  step_size_minutes: z.union([z.number(), z.string()]).optional(),
-  max_future_appointments: z.union([z.number(), z.string()]).optional(),
-  max_booking_window_days: z.union([z.number(), z.string()]).optional(),
-  minimum_cancellation_hours_before: z.union([z.number(), z.string()]).optional(),
-  allow_patient_deletion: z.boolean().optional(),
-});
+export const BookingRestrictionSettingsSchema = createValidatedSchema(
+  z.object({
+    booking_restriction_type: z.string(),
+    minimum_booking_hours_ahead: z.union([z.number(), z.string()]),
+    deadline_time_day_before: z.string().optional(),
+    deadline_on_same_day: z.boolean().optional(),
+    step_size_minutes: z.union([z.number(), z.string()]).optional(),
+    max_future_appointments: z.union([z.number(), z.string()]).optional(),
+    max_booking_window_days: z.union([z.number(), z.string()]).optional(),
+    minimum_cancellation_hours_before: z.union([z.number(), z.string()]).optional(),
+    allow_patient_deletion: z.boolean().optional(),
+  }),
+  'BookingRestrictionSettingsSchema'
+);
 
-export const ClinicInfoSettingsSchema = z.object({
-  display_name: z.string().nullable().optional(),
-  address: z.string().nullable().optional(),
-  phone_number: z.string().nullable().optional(),
-  appointment_type_instructions: z.string().nullable().optional(),
-  appointment_notes_instructions: z.string().nullable().optional(),
-  require_birthday: z.boolean().optional(),
-  require_gender: z.boolean().optional(),
-  restrict_to_assigned_practitioners: z.boolean().optional(),
-  query_page_instructions: z.string().nullable().optional(),
-  settings_page_instructions: z.string().nullable().optional(),
-  notifications_page_instructions: z.string().nullable().optional(),
-});
+export const ClinicInfoSettingsSchema = createValidatedSchema(
+  z.object({
+    display_name: z.string().nullable().optional(),
+    address: z.string().nullable().optional(),
+    phone_number: z.string().nullable().optional(),
+    appointment_type_instructions: z.string().nullable().optional(),
+    appointment_notes_instructions: z.string().nullable().optional(),
+    require_birthday: z.boolean().optional(),
+    require_gender: z.boolean().optional(),
+    restrict_to_assigned_practitioners: z.boolean().optional(),
+    query_page_instructions: z.string().nullable().optional(),
+    settings_page_instructions: z.string().nullable().optional(),
+    notifications_page_instructions: z.string().nullable().optional(),
+  }),
+  'ClinicInfoSettingsSchema'
+);
 
 // Strict schemas for forms
 export const ClinicInfoFormSchema = z.object({
@@ -118,26 +131,32 @@ export const AppointmentsSettingsFormSchema = z.object({
   })),
 });
 
-export const ChatSettingsSchema = z.object({
-  chat_enabled: z.boolean(),
-  clinic_description: z.string().nullable().optional(),
-  therapist_info: z.string().nullable().optional(),
-  treatment_details: z.string().nullable().optional(),
-  service_item_selection_guide: z.string().nullable().optional(),
-  operating_hours: z.string().nullable().optional(),
-  location_details: z.string().nullable().optional(),
-  booking_policy: z.string().nullable().optional(),
-  payment_methods: z.string().nullable().optional(),
-  equipment_facilities: z.string().nullable().optional(),
-  common_questions: z.string().nullable().optional(),
-  other_info: z.string().nullable().optional(),
-  ai_guidance: z.string().nullable().optional(),
-});
+export const ChatSettingsSchema = createValidatedSchema(
+  z.object({
+    chat_enabled: z.boolean(),
+    clinic_description: z.string().nullable().optional(),
+    therapist_info: z.string().nullable().optional(),
+    treatment_details: z.string().nullable().optional(),
+    service_item_selection_guide: z.string().nullable().optional(),
+    operating_hours: z.string().nullable().optional(),
+    location_details: z.string().nullable().optional(),
+    booking_policy: z.string().nullable().optional(),
+    payment_methods: z.string().nullable().optional(),
+    equipment_facilities: z.string().nullable().optional(),
+    common_questions: z.string().nullable().optional(),
+    other_info: z.string().nullable().optional(),
+    ai_guidance: z.string().nullable().optional(),
+  }),
+  'ChatSettingsSchema'
+);
 
-export const ReceiptSettingsSchema = z.object({
-  custom_notes: z.string().nullable().optional(),
-  show_stamp: z.boolean().optional(),
-});
+export const ReceiptSettingsSchema = createValidatedSchema(
+  z.object({
+    custom_notes: z.string().nullable().optional(),
+    show_stamp: z.boolean().optional(),
+  }),
+  'ReceiptSettingsSchema'
+);
 
 export const BusinessHoursSchema = z.record(z.string(), z.object({
   start: z.string(),
@@ -145,74 +164,86 @@ export const BusinessHoursSchema = z.record(z.string(), z.object({
   enabled: z.boolean(),
 }));
 
-export const AppointmentTypeSchema = z.object({
-  id: z.number(),
-  clinic_id: z.number(),
-  name: z.string(),
-  duration_minutes: z.number(),
-  receipt_name: z.string().nullable().optional(),
-  allow_patient_booking: z.boolean().optional(),
-  allow_patient_practitioner_selection: z.boolean().optional(),
-  description: z.string().nullable().optional(),
-  scheduling_buffer_minutes: z.number().optional(),
-  service_type_group_id: z.number().nullable().optional(),
-  display_order: z.number().optional(),
-  // Message customization fields
-  send_patient_confirmation: z.boolean().optional(),
-  send_clinic_confirmation: z.boolean().optional(),
-  send_reminder: z.boolean().optional(),
-  patient_confirmation_message: z.string().optional(),
-  clinic_confirmation_message: z.string().optional(),
-  reminder_message: z.string().optional(),
-  // Notes customization fields
-  require_notes: z.boolean().optional(),
-  notes_instructions: z.string().nullable().optional(),
-  // Note: follow_up_messages and resource_requirements are intentionally excluded
-  // as they are loaded separately via dedicated API endpoints
-}).passthrough(); // Preserve unknown fields to prevent silent data loss.
+export const AppointmentTypeSchema = createValidatedSchema(
+  z.object({
+    id: z.number(),
+    clinic_id: z.number(),
+    name: z.string(),
+    duration_minutes: z.number(),
+    receipt_name: z.string().nullable().optional(),
+    allow_patient_booking: z.boolean().optional(),
+    allow_patient_practitioner_selection: z.boolean().optional(),
+    description: z.string().nullable().optional(),
+    scheduling_buffer_minutes: z.number().optional(),
+    service_type_group_id: z.number().nullable().optional(),
+    display_order: z.number().optional(),
+    // Message customization fields
+    send_patient_confirmation: z.boolean().optional(),
+    send_clinic_confirmation: z.boolean().optional(),
+    send_reminder: z.boolean().optional(),
+    patient_confirmation_message: z.string().optional(),
+    clinic_confirmation_message: z.string().optional(),
+    reminder_message: z.string().optional(),
+    // Notes customization fields
+    require_notes: z.boolean().optional(),
+    notes_instructions: z.string().nullable().optional(),
+    // Note: follow_up_messages and resource_requirements are intentionally excluded
+    // as they are loaded separately via dedicated API endpoints
+  }).passthrough(), // Preserve unknown fields to prevent silent data loss.
+  'AppointmentTypeSchema'
+);
 // WARNING: .passthrough() allows unknown fields through without validation.
 // This prevents data loss but is less strict - unknown fields won't be type-checked.
 // All known fields should be explicitly defined in the schema above.
 
-export const ClinicSettingsSchema = z.object({
-  clinic_id: z.number(),
-  clinic_name: z.string(),
-  business_hours: BusinessHoursSchema,
-  appointment_types: z.array(AppointmentTypeSchema),
-  notification_settings: NotificationSettingsSchema,
-  booking_restriction_settings: BookingRestrictionSettingsSchema,
-  clinic_info_settings: ClinicInfoSettingsSchema,
-  chat_settings: ChatSettingsSchema,
-  receipt_settings: ReceiptSettingsSchema.optional(),
-  liff_urls: z.record(z.string(), z.string()).nullish(), // Dictionary of mode -> URL (excluding 'home')
-});
+export const ClinicSettingsSchema = createValidatedSchema(
+  z.object({
+    clinic_id: z.number(),
+    clinic_name: z.string(),
+    business_hours: BusinessHoursSchema,
+    appointment_types: z.array(AppointmentTypeSchema),
+    notification_settings: NotificationSettingsSchema,
+    booking_restriction_settings: BookingRestrictionSettingsSchema,
+    clinic_info_settings: ClinicInfoSettingsSchema,
+    chat_settings: ChatSettingsSchema,
+    receipt_settings: ReceiptSettingsSchema.optional(),
+    liff_urls: z.record(z.string(), z.string()).nullish(), // Dictionary of mode -> URL (excluding 'home')
+  }),
+  'ClinicSettingsSchema'
+);
 
 
 // User/Member schemas
 export const UserRoleSchema = z.enum(['admin', 'practitioner']);
 export const UserTypeSchema = z.enum(['system_admin', 'clinic_user']);
 
-export const UserSchema = z.object({
-  id: z.number(),
-  email: z.string(),
-  full_name: z.string(),
-  roles: z.array(UserRoleSchema),
-  clinic_id: z.number().optional(),
-  user_type: UserTypeSchema,
-  created_at: z.string(),
-  updated_at: z.string(),
-  last_login_at: z.string().optional(),
-});
+export const UserSchema = createValidatedSchema(
+  z.object({
+    id: z.number(),
+    email: z.string(),
+    full_name: z.string(),
+    roles: z.array(UserRoleSchema),
+    clinic_id: z.number().optional(),
+    user_type: UserTypeSchema,
+    created_at: z.string(),
+    updated_at: z.string(),
+    last_login_at: z.string().optional(),
+  }),
+  'UserSchema'
+);
 
 // Auth schemas
-export const AuthUserSchema = z.object({
-  user_id: z.number(),
-  email: z.string(),
-  full_name: z.string(),
-  roles: z.array(UserRoleSchema),
-  clinic_id: z.number().optional(),
-  user_type: UserTypeSchema,
-});
+export const AuthUserSchema = createValidatedSchema(
+  z.object({
+    user_id: z.number(),
+    email: z.string(),
+    full_name: z.string(),
+    roles: z.array(UserRoleSchema),
+    clinic_id: z.number().optional(),
+    user_type: UserTypeSchema,
+  }),
+  'AuthUserSchema'
+);
 
 export const SignupResponseSchema = z.object({
   access_token: z.string(),
