@@ -32,8 +32,27 @@ print_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
+# Function to check if there are changes in a directory
+has_backend_changes() {
+    git status --porcelain | grep -q "backend/"
+}
+
+has_frontend_changes() {
+    git status --porcelain | grep -q "frontend/"
+}
+
 # Parse command line arguments
 NO_CACHE=false
+
+# Determine which test suites to run based on changes
+RUN_BACKEND=false
+RUN_FRONTEND=false
+if has_backend_changes; then
+    RUN_BACKEND=true
+fi
+if has_frontend_changes; then
+    RUN_FRONTEND=true
+fi
 for arg in "$@"; do
     case $arg in
         --no-cache)
@@ -99,29 +118,50 @@ cleanup_temp_files() {
 }
 trap cleanup_temp_files EXIT
 
-# Start backend tests in background
-print_status "Running backend and frontend tests in parallel..."
-(
-    bash $BACKEND_CMD > "$BACKEND_OUTPUT" 2>&1
-    echo $? > "$BACKEND_EXIT_FILE"
-) &
-BACKEND_PID=$!
+# Start tests in background based on changes
+BACKEND_PID=""
+FRONTEND_PID=""
 
-# Start frontend tests in background
-(
-    bash $FRONTEND_CMD > "$FRONTEND_OUTPUT" 2>&1
-    echo $? > "$FRONTEND_EXIT_FILE"
-) &
-FRONTEND_PID=$!
+if [ "$RUN_BACKEND" = true ]; then
+    print_status "Running backend tests..."
+    (
+        bash $BACKEND_CMD > "$BACKEND_OUTPUT" 2>&1
+        echo $? > "$BACKEND_EXIT_FILE"
+    ) &
+    BACKEND_PID=$!
+else
+    print_status "Skipping backend tests (no changes detected)"
+    echo 0 > "$BACKEND_EXIT_FILE"  # Mark as successful for skipped tests
+fi
 
-# Wait for both processes to complete
+if [ "$RUN_FRONTEND" = true ]; then
+    print_status "Running frontend tests..."
+    (
+        bash $FRONTEND_CMD > "$FRONTEND_OUTPUT" 2>&1
+        echo $? > "$FRONTEND_EXIT_FILE"
+    ) &
+    FRONTEND_PID=$!
+else
+    print_status "Skipping frontend tests (no changes detected)"
+    echo 0 > "$FRONTEND_EXIT_FILE"  # Mark as successful for skipped tests
+fi
+
+# Wait for processes to complete (only wait for processes that were started)
 # Temporarily disable set -e to allow wait to return non-zero exit codes
 # (which is expected when background processes fail)
 set +e
-wait $BACKEND_PID
-BACKEND_WAIT_EXIT=$?
-wait $FRONTEND_PID
-FRONTEND_WAIT_EXIT=$?
+BACKEND_WAIT_EXIT=0
+FRONTEND_WAIT_EXIT=0
+
+if [ -n "$BACKEND_PID" ]; then
+    wait $BACKEND_PID
+    BACKEND_WAIT_EXIT=$?
+fi
+
+if [ -n "$FRONTEND_PID" ]; then
+    wait $FRONTEND_PID
+    FRONTEND_WAIT_EXIT=$?
+fi
 set -e
 
 # Give processes a moment to write exit codes to files
@@ -177,21 +217,40 @@ fi
 # Display summary
 echo ""
 print_status "=== Test Summary ==="
-if [ "$BACKEND_EXIT" -eq 0 ]; then
-    print_success "Backend:  ✅ PASSED"
+if [ "$RUN_BACKEND" = true ]; then
+    if [ "$BACKEND_EXIT" -eq 0 ]; then
+        print_success "Backend:  ✅ PASSED"
+    else
+        print_error "Backend:  ❌ FAILED"
+    fi
 else
-    print_error "Backend:  ❌ FAILED"
+    echo -e "${BLUE}[INFO]${NC} Backend:  ⏭️  SKIPPED (no changes)"
 fi
 
-if [ "$FRONTEND_EXIT" -eq 0 ]; then
-    print_success "Frontend: ✅ PASSED"
+if [ "$RUN_FRONTEND" = true ]; then
+    if [ "$FRONTEND_EXIT" -eq 0 ]; then
+        print_success "Frontend: ✅ PASSED"
+    else
+        print_error "Frontend: ❌ FAILED"
+    fi
 else
-    print_error "Frontend: ❌ FAILED"
+    echo -e "${BLUE}[INFO]${NC} Frontend: ⏭️  SKIPPED (no changes)"
 fi
 echo ""
 
-# Exit with error if either failed
-if [ "$BACKEND_EXIT" -ne 0 ] || [ "$FRONTEND_EXIT" -ne 0 ]; then
+# Exit with error if any test that was supposed to run failed
+BACKEND_FAILED=false
+FRONTEND_FAILED=false
+
+if [ "$RUN_BACKEND" = true ] && [ "$BACKEND_EXIT" -ne 0 ]; then
+    BACKEND_FAILED=true
+fi
+
+if [ "$RUN_FRONTEND" = true ] && [ "$FRONTEND_EXIT" -ne 0 ]; then
+    FRONTEND_FAILED=true
+fi
+
+if [ "$BACKEND_FAILED" = true ] || [ "$FRONTEND_FAILED" = true ]; then
     exit 1
 fi
 
