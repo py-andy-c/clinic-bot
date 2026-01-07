@@ -1,7 +1,6 @@
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import moment from 'moment-timezone';
-import { useApiData } from '../../hooks/useApiData';
-import { apiService } from '../../services/api';
+import { useMembers, useClinicSettings, useBusinessInsights, useServiceTypeGroups } from '../../hooks/queries';
 import { LoadingSpinner, ErrorMessage } from '../../components/shared';
 import { InfoButton, InfoModal } from '../../components/shared';
 import { RevenueTrendChart, ChartView } from '../../components/dashboard/RevenueTrendChart';
@@ -65,18 +64,9 @@ const BusinessInsightsPage: React.FC = () => {
   });
 
   // Load practitioners and service items
-  const { data: membersData } = useApiData(() => apiService.getMembers(), { 
-    cacheTTL: 5 * 60 * 1000,
-    dependencies: [activeClinicId], // Include activeClinicId to prevent cross-clinic cache reuse
-  });
-  const { data: settingsData } = useApiData(() => apiService.getClinicSettings(), { 
-    cacheTTL: 5 * 60 * 1000,
-    dependencies: [activeClinicId], // Include activeClinicId to prevent cross-clinic cache reuse
-  });
-  const { data: groupsData } = useApiData(() => apiService.getServiceTypeGroups(), {
-    cacheTTL: 5 * 60 * 1000,
-    dependencies: [activeClinicId],
-  });
+  const { data: membersData } = useMembers();
+  const { data: settingsData } = useClinicSettings();
+  const { data: groupsData } = useServiceTypeGroups();
 
   const groups = useMemo<ServiceTypeGroupOption[]>(() => {
     if (!groupsData?.groups) return [];
@@ -107,47 +97,47 @@ const BusinessInsightsPage: React.FC = () => {
 
   // Fetch business insights data for custom items extraction (unfiltered by service_item_id and practitioner_id)
   // This ensures all custom items and null practitioners always appear in the dropdown, even when filtering
-  const fetchBusinessInsightsForCustomItems = useCallback(() => {
-    return apiService.getBusinessInsights({
-      start_date: startDate,
-      end_date: endDate,
-      practitioner_id: null, // Always fetch without practitioner_id filter to get all practitioners (including null)
-      service_item_id: null, // Always fetch without service_item_id filter to get all custom items
-    });
-  }, [startDate, endDate]);
-
-  // Fetch business insights data with filters for display
-  const fetchBusinessInsights = useCallback(() => {
-    const practitionerParam = typeof selectedPractitionerId === 'number' 
-      ? selectedPractitionerId 
-      : selectedPractitionerId === 'null' 
-        ? 'null' 
-        : null;
-    const groupParam = typeof selectedGroupId === 'number'
-      ? selectedGroupId
-      : selectedGroupId === '-1'
-        ? '-1'
-        : null;
-    return apiService.getBusinessInsights({
-      start_date: startDate,
-      end_date: endDate,
-      practitioner_id: practitionerParam,
-      service_item_id: selectedServiceItemId || null,
-      service_type_group_id: groupParam,
-    });
-  }, [startDate, endDate, selectedPractitionerId, selectedServiceItemId, selectedGroupId]);
-
   // Fetch unfiltered data for custom items extraction
-  const { data: customItemsData } = useApiData(fetchBusinessInsightsForCustomItems, {
-    cacheTTL: 2 * 60 * 1000, // 2 minutes cache
-    dependencies: [startDate, endDate, activeClinicId], // Note: no selectedPractitionerId or selectedServiceItemId
-  });
+  const customItemsParams = {
+    start_date: startDate,
+    end_date: endDate,
+    practitioner_id: null, // Always fetch without practitioner_id filter to get all practitioners (including null)
+    service_item_id: null, // Always fetch without service_item_id filter to get all custom items
+  };
+  const { data: customItemsData } = useBusinessInsights(customItemsParams);
 
   // Fetch filtered data for display
-  const { data, loading, error } = useApiData(fetchBusinessInsights, {
-    cacheTTL: 2 * 60 * 1000, // 2 minutes cache
-    dependencies: [startDate, endDate, selectedPractitionerId, selectedServiceItemId, selectedGroupId, activeClinicId], // Include activeClinicId to prevent cross-clinic cache reuse
-  });
+  const businessInsightsParams: {
+    start_date: string;
+    end_date: string;
+    practitioner_id?: number | 'null' | null;
+    service_item_id?: number | string | null;
+    service_type_group_id?: number | string | null;
+  } = {
+    start_date: startDate,
+    end_date: endDate,
+  };
+
+  if (typeof selectedPractitionerId === 'number') {
+    businessInsightsParams.practitioner_id = selectedPractitionerId;
+  } else if (selectedPractitionerId === 'null') {
+    businessInsightsParams.practitioner_id = 'null';
+  } else {
+    businessInsightsParams.practitioner_id = null;
+  }
+
+  if (selectedServiceItemId) {
+    businessInsightsParams.service_item_id = selectedServiceItemId;
+  }
+
+  if (typeof selectedGroupId === 'number') {
+    businessInsightsParams.service_type_group_id = selectedGroupId;
+  } else if (selectedGroupId === '-1') {
+    businessInsightsParams.service_type_group_id = '-1';
+  } else {
+    businessInsightsParams.service_type_group_id = null;
+  }
+  const { data, isLoading: loading, error } = useBusinessInsights(businessInsightsParams);
 
   // Helper function to generate a consistent numeric ID from a string
   const stringToId = (str: string): number => {
@@ -290,7 +280,7 @@ const BusinessInsightsPage: React.FC = () => {
   }
 
   if (error) {
-    return <ErrorMessage message={error} />;
+    return <ErrorMessage message={error.message || '載入資料失敗'} />;
   }
 
   if (!data) {

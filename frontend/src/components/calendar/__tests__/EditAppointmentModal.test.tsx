@@ -37,6 +37,7 @@ vi.mock('../../../services/api', () => ({
       suggested_allocation: [],
       available_resources: [],
     }),
+    getServiceTypeGroups: vi.fn().mockResolvedValue({ groups: [] }),
   },
 }));
 

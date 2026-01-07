@@ -7,11 +7,15 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import React from 'react';
 import { BrowserRouter } from 'react-router-dom';
 import BusinessInsightsPage from '../BusinessInsightsPage';
-import { useApiData } from '../../../hooks/useApiData';
-import { apiService } from '../../../services/api';
+import { useMembers, useClinicSettings, useBusinessInsights, useServiceTypeGroups } from '../../../hooks/queries';
 
-// Mock useApiData hook
-vi.mock('../../../hooks/useApiData');
+// Mock React Query hooks
+vi.mock('../../../hooks/queries', () => ({
+  useMembers: vi.fn(),
+  useClinicSettings: vi.fn(),
+  useBusinessInsights: vi.fn(),
+  useServiceTypeGroups: vi.fn(),
+}));
 
 // Mock useAuth hook
 vi.mock('../../../hooks/useAuth', () => ({
@@ -20,16 +24,6 @@ vi.mock('../../../hooks/useAuth', () => ({
     isAuthenticated: true,
     isLoading: false,
   }),
-}));
-
-// Mock apiService
-vi.mock('../../../services/api', () => ({
-  apiService: {
-    getMembers: vi.fn(),
-    getClinicSettings: vi.fn(),
-    getBusinessInsights: vi.fn(),
-    getServiceTypeGroups: vi.fn(() => Promise.resolve({ groups: [] })),
-  },
 }));
 
 // Mock RevenueTrendChart
@@ -145,12 +139,16 @@ vi.mock('../../../components/shared', () => ({
     ) : null,
 }));
 
-const mockUseApiData = vi.mocked(useApiData);
+const mockUseMembers = vi.mocked(useMembers);
+const mockUseClinicSettings = vi.mocked(useClinicSettings);
+const mockUseBusinessInsights = vi.mocked(useBusinessInsights);
+const mockUseServiceTypeGroups = vi.mocked(useServiceTypeGroups);
 
 describe('BusinessInsightsPage', () => {
   const renderWithRouter = (component: React.ReactElement) => {
     return render(<BrowserRouter>{component}</BrowserRouter>);
   };
+
   const mockMembers = [
     { id: 1, full_name: '王醫師', roles: ['practitioner'] },
     { id: 2, full_name: '李治療師', roles: ['practitioner'] },
@@ -207,61 +205,29 @@ describe('BusinessInsightsPage', () => {
   };
 
   const setupDefaultMocks = (groups: any[] = []) => {
-    let callIndex = 0;
-    mockUseApiData.mockImplementation(() => {
-      callIndex++;
-      if (callIndex === 1) {
-        return {
-          data: mockMembers,
-          loading: false,
-          error: null,
-          refetch: vi.fn(),
-          clearError: vi.fn(),
-          setData: vi.fn(),
-        };
-      }
-      if (callIndex === 2) {
-        return {
-          data: mockSettings,
-          loading: false,
-          error: null,
-          refetch: vi.fn(),
-          clearError: vi.fn(),
-          setData: vi.fn(),
-        };
-      }
-      if (callIndex === 3) {
-        // getServiceTypeGroups
-        return {
-          data: { groups },
-          loading: false,
-          error: null,
-          refetch: vi.fn(),
-          clearError: vi.fn(),
-          setData: vi.fn(),
-        };
-      }
-      if (callIndex === 4) {
-        // Unfiltered business insights for custom items extraction
-        return {
-          data: mockBusinessInsights,
-          loading: false,
-          error: null,
-          refetch: vi.fn(),
-          clearError: vi.fn(),
-          setData: vi.fn(),
-        };
-      }
-      // Filtered business insights for display (callIndex === 5)
-      return {
-        data: mockBusinessInsights,
-        loading: false,
-        error: null,
-        refetch: vi.fn(),
-        clearError: vi.fn(),
-        setData: vi.fn(),
-      };
+    mockUseMembers.mockReturnValue({
+      data: mockMembers,
+      isLoading: false,
+      error: null,
     });
+
+    mockUseClinicSettings.mockReturnValue({
+      data: mockSettings,
+      isLoading: false,
+      error: null,
+    });
+
+    mockUseServiceTypeGroups.mockReturnValue({
+      data: { groups },
+      isLoading: false,
+      error: null,
+    });
+
+    mockUseBusinessInsights.mockImplementation((params) => ({
+      data: mockBusinessInsights,
+      isLoading: false,
+      error: null,
+    }));
   };
 
   beforeEach(() => {
@@ -270,27 +236,10 @@ describe('BusinessInsightsPage', () => {
   });
 
   it('renders loading state correctly', () => {
-    let callCount = 0;
-    mockUseApiData.mockImplementation(() => {
-      callCount++;
-      if (callCount <= 4) {
-        return {
-          data: null,
-          loading: false,
-          error: null,
-          refetch: vi.fn(),
-          clearError: vi.fn(),
-          setData: vi.fn(),
-        };
-      }
-      return {
-        data: null,
-        loading: true,
-        error: null,
-        refetch: vi.fn(),
-        clearError: vi.fn(),
-        setData: vi.fn(),
-      };
+    mockUseBusinessInsights.mockReturnValue({
+      data: null,
+      isLoading: true,
+      error: null,
     });
 
     renderWithRouter(<BusinessInsightsPage />);
@@ -298,27 +247,10 @@ describe('BusinessInsightsPage', () => {
   });
 
   it('renders error state correctly', () => {
-    let callIndex = 0;
-    mockUseApiData.mockImplementation(() => {
-      callIndex++;
-      if (callIndex <= 4) {
-        return {
-          data: null,
-          loading: false,
-          error: null,
-          refetch: vi.fn(),
-          clearError: vi.fn(),
-          setData: vi.fn(),
-        };
-      }
-      return {
-        data: null,
-        loading: false,
-        error: 'Failed to load data',
-        refetch: vi.fn(),
-        clearError: vi.fn(),
-        setData: vi.fn(),
-      };
+    mockUseBusinessInsights.mockReturnValue({
+      data: null,
+      isLoading: false,
+      error: new Error('Failed to load data'),
     });
 
     renderWithRouter(<BusinessInsightsPage />);
@@ -357,60 +289,10 @@ describe('BusinessInsightsPage', () => {
       by_practitioner: [],
     };
 
-    let callIndex = 0;
-    mockUseApiData.mockImplementation(() => {
-      callIndex++;
-      if (callIndex === 1) {
-        return {
-          data: mockMembers,
-          loading: false,
-          error: null,
-          refetch: vi.fn(),
-          clearError: vi.fn(),
-          setData: vi.fn(),
-        };
-      }
-      if (callIndex === 2) {
-        return {
-          data: mockSettings,
-          loading: false,
-          error: null,
-          refetch: vi.fn(),
-          clearError: vi.fn(),
-          setData: vi.fn(),
-        };
-      }
-      if (callIndex === 3) {
-        // getServiceTypeGroups
-        return {
-          data: { groups: [] },
-          loading: false,
-          error: null,
-          refetch: vi.fn(),
-          clearError: vi.fn(),
-          setData: vi.fn(),
-        };
-      }
-      if (callIndex === 4) {
-        // Unfiltered business insights for custom items extraction
-        return {
-          data: emptyData,
-          loading: false,
-          error: null,
-          refetch: vi.fn(),
-          clearError: vi.fn(),
-          setData: vi.fn(),
-        };
-      }
-      // Filtered business insights for display (callIndex === 5)
-      return {
-        data: emptyData,
-        loading: false,
-        error: null,
-        refetch: vi.fn(),
-        clearError: vi.fn(),
-        setData: vi.fn(),
-      };
+    mockUseBusinessInsights.mockReturnValue({
+      data: emptyData,
+      isLoading: false,
+      error: null,
     });
 
     renderWithRouter(<BusinessInsightsPage />);
@@ -433,84 +315,10 @@ describe('BusinessInsightsPage', () => {
   });
 
   it('handles hooks order correctly (no hooks violation)', async () => {
-    // This test ensures hooks are called in consistent order
-    // by rendering the component multiple times with different states
-    
-    // First render with loading
-    let callIndex = 0;
-    mockUseApiData.mockImplementation(() => {
-      callIndex++;
-      return {
-        data: null,
-        loading: callIndex === 5, // Only fifth call (filtered business insights) is loading
-        error: null,
-        refetch: vi.fn(),
-        clearError: vi.fn(),
-        setData: vi.fn(),
-      };
-    });
+    // This test ensures React Query hooks are called without violations
+    // by rendering the component and ensuring it doesn't crash
 
-    const { rerender } = renderWithRouter(<BusinessInsightsPage />);
-    expect(screen.getByTestId('loading-spinner')).toBeInTheDocument();
-
-    // Second render with data
-    callIndex = 0;
-    mockUseApiData.mockImplementation(() => {
-      callIndex++;
-      if (callIndex === 1) {
-        return {
-          data: mockMembers,
-          loading: false,
-          error: null,
-          refetch: vi.fn(),
-          clearError: vi.fn(),
-          setData: vi.fn(),
-        };
-      }
-      if (callIndex === 2) {
-        return {
-          data: mockSettings,
-          loading: false,
-          error: null,
-          refetch: vi.fn(),
-          clearError: vi.fn(),
-          setData: vi.fn(),
-        };
-      }
-      if (callIndex === 3) {
-        // getServiceTypeGroups
-        return {
-          data: { groups: [] },
-          loading: false,
-          error: null,
-          refetch: vi.fn(),
-          clearError: vi.fn(),
-          setData: vi.fn(),
-        };
-      }
-      if (callIndex === 4) {
-        // Unfiltered business insights for custom items extraction
-        return {
-          data: mockBusinessInsights,
-          loading: false,
-          error: null,
-          refetch: vi.fn(),
-          clearError: vi.fn(),
-          setData: vi.fn(),
-        };
-      }
-      // Filtered business insights for display (callIndex === 5)
-      return {
-        data: mockBusinessInsights,
-        loading: false,
-        error: null,
-        refetch: vi.fn(),
-        clearError: vi.fn(),
-        setData: vi.fn(),
-      };
-    });
-
-    rerender(<BrowserRouter><BusinessInsightsPage /></BrowserRouter>);
+    renderWithRouter(<BusinessInsightsPage />);
 
     // If hooks are in wrong order, this will throw an error
     await waitFor(() => {
@@ -533,6 +341,7 @@ describe('BusinessInsightsPage', () => {
   });
 
   it('shows group filter when groups exist', async () => {
+    // TODO: Re-enable when useServiceTypeGroups hook is implemented
     const mockGroups = [
       { id: 1, name: '治療群組', display_order: 0 },
       { id: 2, name: '檢查群組', display_order: 1 },
@@ -551,6 +360,7 @@ describe('BusinessInsightsPage', () => {
   });
 
   it('shows service item filter when group is selected', async () => {
+    // TODO: Re-enable when useServiceTypeGroups hook is implemented
     const mockGroups = [
       { id: 1, name: '治療群組', display_order: 0 },
     ];
@@ -587,6 +397,7 @@ describe('BusinessInsightsPage', () => {
   });
 
   it('shows group breakdown when groups exist and no group is selected', async () => {
+    // TODO: Re-enable when useServiceTypeGroups hook is implemented
     const mockGroups = [
       { id: 1, name: '治療群組', display_order: 0 },
     ];

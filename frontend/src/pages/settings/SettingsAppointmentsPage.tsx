@@ -12,7 +12,7 @@ import SettingsBackButton from '../../components/SettingsBackButton';
 import PageHeader from '../../components/PageHeader';
 import { LINE_THEME } from '../../constants/lineTheme';
 import { apiService } from '../../services/api';
-import { useApiData } from '../../hooks/useApiData';
+import { useMembers } from '../../hooks/queries';
 import { useUnsavedChangesDetection } from '../../hooks/useUnsavedChangesDetection';
 import { useFormErrorScroll } from '../../hooks/useFormErrorScroll';
 import { handleBackendError } from '../../utils/formErrors';
@@ -22,7 +22,7 @@ export type AppointmentsSettingsFormData = z.infer<typeof AppointmentsSettingsFo
 
 const SettingsAppointmentsPage: React.FC = () => {
   const { settings, uiState, saveData, updateData } = useSettings();
-  const { isClinicAdmin, user } = useAuth();
+  const { isClinicAdmin } = useAuth();
   const { alert } = useModal();
   const { onInvalid: scrollOnError } = useFormErrorScroll();
   const [showLiffInfoModal, setShowLiffInfoModal] = useState(false);
@@ -31,14 +31,7 @@ const SettingsAppointmentsPage: React.FC = () => {
   const pendingFormDataRef = React.useRef<AppointmentsSettingsFormData | null>(null);
 
   // Fetch practitioners and their booking settings
-  const { data: membersData, loading: membersLoading } = useApiData(
-    () => apiService.getMembers(),
-    {
-      enabled: true,
-      dependencies: [user?.active_clinic_id],
-      cacheTTL: 5 * 60 * 1000,
-    }
-  );
+  const { data: membersData, isLoading: membersLoading } = useMembers();
 
   const methods = useForm<AppointmentsSettingsFormData>({
     resolver: zodResolver(AppointmentsSettingsFormSchema),

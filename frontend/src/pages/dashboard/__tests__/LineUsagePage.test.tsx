@@ -7,11 +7,12 @@ import { render, screen, waitFor } from '@testing-library/react';
 import React from 'react';
 import { BrowserRouter } from 'react-router-dom';
 import LineUsagePage from '../LineUsagePage';
-import { useApiData } from '../../../hooks/useApiData';
-import { apiService } from '../../../services/api';
+import { useLineUsage } from '../../../hooks/queries';
 
-// Mock useApiData hook
-vi.mock('../../../hooks/useApiData');
+// Mock useLineUsage hook
+vi.mock('../../../hooks/queries', () => ({
+  useLineUsage: vi.fn(),
+}));
 
 // Mock useAuth hook
 vi.mock('../../../hooks/useAuth', () => ({
@@ -20,13 +21,6 @@ vi.mock('../../../hooks/useAuth', () => ({
     isAuthenticated: true,
     isLoading: false,
   }),
-}));
-
-// Mock apiService
-vi.mock('../../../services/api', () => ({
-  apiService: {
-    getDashboardMetrics: vi.fn(),
-  },
 }));
 
 // Mock shared components
@@ -48,7 +42,7 @@ vi.mock('../../../components/shared', () => ({
     ) : null,
 }));
 
-const mockUseApiData = vi.mocked(useApiData);
+const mockUseLineUsage = vi.mocked(useLineUsage);
 
 describe('LineUsagePage', () => {
   const mockDashboardMetrics = {
@@ -105,14 +99,11 @@ describe('LineUsagePage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
-    mockUseApiData.mockImplementation(() => ({
+    mockUseLineUsage.mockReturnValue({
       data: mockDashboardMetrics,
-      loading: false,
+      isLoading: false,
       error: null,
-      refetch: vi.fn(),
-      clearError: vi.fn(),
-      setData: vi.fn(),
-    }));
+    });
   });
 
   const renderWithRouter = (component: React.ReactElement) => {
@@ -120,28 +111,22 @@ describe('LineUsagePage', () => {
   };
 
   it('renders loading state correctly', () => {
-    mockUseApiData.mockImplementation(() => ({
+    mockUseLineUsage.mockReturnValue({
       data: null,
-      loading: true,
+      isLoading: true,
       error: null,
-      refetch: vi.fn(),
-      clearError: vi.fn(),
-      setData: vi.fn(),
-    }));
+    });
 
     renderWithRouter(<LineUsagePage />);
     expect(screen.getByTestId('loading-spinner')).toBeInTheDocument();
   });
 
   it('renders error state correctly', () => {
-    mockUseApiData.mockImplementation(() => ({
+    mockUseLineUsage.mockReturnValue({
       data: null,
-      loading: false,
-      error: 'Failed to load data',
-      refetch: vi.fn(),
-      clearError: vi.fn(),
-      setData: vi.fn(),
-    }));
+      isLoading: false,
+      error: new Error('Failed to load data'),
+    });
 
     renderWithRouter(<LineUsagePage />);
     expect(screen.getByTestId('error-message')).toBeInTheDocument();
@@ -216,14 +201,11 @@ describe('LineUsagePage', () => {
       ai_reply_messages_by_month: [],
     };
 
-    mockUseApiData.mockImplementation(() => ({
+    mockUseLineUsage.mockReturnValue({
       data: incompleteData,
-      loading: false,
+      isLoading: false,
       error: null,
-      refetch: vi.fn(),
-      clearError: vi.fn(),
-      setData: vi.fn(),
-    }));
+    });
 
     renderWithRouter(<LineUsagePage />);
 
