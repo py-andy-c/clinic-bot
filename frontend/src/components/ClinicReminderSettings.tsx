@@ -4,6 +4,7 @@ import { apiService } from '../services/api';
 import { logger } from '../utils/logger';
 import { InfoButton, InfoModal } from './shared';
 import { FormField, FormInput } from './forms';
+import { TimeInput } from './shared';
 import { RemindersSettingsFormData } from '../pages/settings/SettingsRemindersPage';
 
 interface ClinicReminderSettingsProps {
@@ -20,7 +21,7 @@ const ClinicReminderSettings: React.FC<ClinicReminderSettingsProps> = ({
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [showTimingModeModal, setShowTimingModeModal] = useState(false);
 
-  const { watch, setValue } = useFormContext<RemindersSettingsFormData>();
+  const { watch, setValue, formState: { errors } } = useFormContext<RemindersSettingsFormData>();
   const reminderTimingMode = watch('notification_settings.reminder_timing_mode') || 'hours_before';
 
   // Generate preview when settings are saved (refreshTrigger changes)
@@ -59,58 +60,65 @@ const ClinicReminderSettings: React.FC<ClinicReminderSettingsProps> = ({
           <InfoButton onClick={() => setShowTimingModeModal(true)} />
         </div>
         <div className="space-y-3 mb-4">
-          <div className="flex items-center">
-            <input
-              id="timing-mode-hours-before"
-              type="radio"
-              value="hours_before"
-              checked={reminderTimingMode === 'hours_before'}
-              onChange={(e) => setValue('notification_settings.reminder_timing_mode', e.target.value as 'hours_before' | 'previous_day', { shouldDirty: true })}
-              disabled={!isClinicAdmin}
-              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
-            />
-            <label htmlFor="timing-mode-hours-before" className="ml-2 block text-sm text-gray-900">
-              預約前幾小時發送提醒
-            </label>
+          <div>
+            <div className="flex items-center">
+              <input
+                id="timing-mode-hours-before"
+                type="radio"
+                value="hours_before"
+                checked={reminderTimingMode === 'hours_before'}
+                onChange={(e) => setValue('notification_settings.reminder_timing_mode', e.target.value as 'hours_before' | 'previous_day', { shouldDirty: true })}
+                disabled={!isClinicAdmin}
+                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+              />
+              <label htmlFor="timing-mode-hours-before" className="ml-2 block text-sm text-gray-900">
+                預約前幾小時發送提醒
+              </label>
+            </div>
+            {reminderTimingMode === 'hours_before' && (
+              <div className="ml-6 mt-2">
+                <FormField name="notification_settings.reminder_hours_before">
+                  <FormInput
+                    name="notification_settings.reminder_hours_before"
+                    type="number"
+                    min="1"
+                    max="72"
+                    disabled={!isClinicAdmin}
+                    placeholder="24"
+                  />
+                </FormField>
+              </div>
+            )}
           </div>
-          <div className="flex items-center">
-            <input
-              id="timing-mode-previous-day"
-              type="radio"
-              value="previous_day"
-              checked={reminderTimingMode === 'previous_day'}
-              onChange={(e) => setValue('notification_settings.reminder_timing_mode', e.target.value as 'hours_before' | 'previous_day', { shouldDirty: true })}
-              disabled={!isClinicAdmin}
-              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
-            />
-            <label htmlFor="timing-mode-previous-day" className="ml-2 block text-sm text-gray-900">
-              前一天特定時間發送提醒
-            </label>
+          <div>
+            <div className="flex items-center">
+              <input
+                id="timing-mode-previous-day"
+                type="radio"
+                value="previous_day"
+                checked={reminderTimingMode === 'previous_day'}
+                onChange={(e) => setValue('notification_settings.reminder_timing_mode', e.target.value as 'hours_before' | 'previous_day', { shouldDirty: true })}
+                disabled={!isClinicAdmin}
+                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+              />
+              <label htmlFor="timing-mode-previous-day" className="ml-2 block text-sm text-gray-900">
+                前一天特定時間發送提醒
+              </label>
+            </div>
+            {reminderTimingMode === 'previous_day' && (
+              <div className="ml-6 mt-2">
+                <FormField name="notification_settings.reminder_previous_day_time">
+                  <TimeInput
+                    value={watch('notification_settings.reminder_previous_day_time') || ''}
+                    onChange={(value) => setValue('notification_settings.reminder_previous_day_time', value, { shouldDirty: true })}
+                    error={errors?.notification_settings?.reminder_previous_day_time?.message || null}
+                    disabled={!isClinicAdmin}
+                  />
+                </FormField>
+              </div>
+            )}
           </div>
         </div>
-
-        {/* Conditional Input Fields */}
-        {reminderTimingMode === 'hours_before' ? (
-          <FormField name="notification_settings.reminder_hours_before">
-            <FormInput
-              name="notification_settings.reminder_hours_before"
-              type="number"
-              min="1"
-              max="72"
-              disabled={!isClinicAdmin}
-              placeholder="24"
-            />
-          </FormField>
-        ) : (
-          <FormField name="notification_settings.reminder_previous_day_time">
-            <FormInput
-              name="notification_settings.reminder_previous_day_time"
-              type="time"
-              disabled={!isClinicAdmin}
-              placeholder="21:00"
-            />
-          </FormField>
-        )}
 
         <div className="mt-6 pt-6 border-t border-gray-200 md:pt-0 md:border-t-0">
           <label className="block text-sm font-medium text-gray-700 mb-2">
