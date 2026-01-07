@@ -8,8 +8,9 @@ with its own LINE Official Account.
 
 from datetime import datetime
 from typing import Optional, Dict, Any
+import re
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, model_validator, field_validator
 from sqlalchemy import String, TIMESTAMP, Integer, Text, Boolean
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -22,6 +23,16 @@ from core.constants import MAX_STRING_LENGTH
 class NotificationSettings(BaseModel):
     """Schema for notification settings."""
     reminder_hours_before: int = Field(default=24, ge=1, le=168)
+    reminder_timing_mode: str = Field(default="hours_before", description="Reminder timing mode: 'hours_before' or 'previous_day'")
+    reminder_previous_day_time: Optional[str] = Field(default="21:00", description="Time to send reminder on previous day (24-hour format HH:MM)")
+
+    @field_validator('reminder_previous_day_time')
+    @classmethod
+    def validate_time_format(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None:
+            if not re.match(r'^(0[0-9]|1[0-9]|2[0-3]):[0-5][0-9]$', v):
+                raise ValueError('Time must be in 24-hour format HH:MM')
+        return v
 
 
 class BookingRestrictionSettings(BaseModel):
@@ -361,6 +372,30 @@ class Clinic(Base):
         """Set reminder hours before setting."""
         notification_settings = self.settings.get("notification_settings", {})
         notification_settings["reminder_hours_before"] = value
+        self.settings["notification_settings"] = notification_settings
+
+    @property
+    def reminder_timing_mode(self) -> str:
+        """Get reminder timing mode setting with default."""
+        return self.settings.get("notification_settings", {}).get("reminder_timing_mode", "hours_before")
+
+    @reminder_timing_mode.setter
+    def reminder_timing_mode(self, value: str):
+        """Set reminder timing mode setting."""
+        notification_settings = self.settings.get("notification_settings", {})
+        notification_settings["reminder_timing_mode"] = value
+        self.settings["notification_settings"] = notification_settings
+
+    @property
+    def reminder_previous_day_time(self) -> str:
+        """Get reminder previous day time setting with default."""
+        return self.settings.get("notification_settings", {}).get("reminder_previous_day_time", "21:00")
+
+    @reminder_previous_day_time.setter
+    def reminder_previous_day_time(self, value: str):
+        """Set reminder previous day time setting."""
+        notification_settings = self.settings.get("notification_settings", {})
+        notification_settings["reminder_previous_day_time"] = value
         self.settings["notification_settings"] = notification_settings
 
     @property

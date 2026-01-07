@@ -18,9 +18,10 @@ const ClinicReminderSettings: React.FC<ClinicReminderSettingsProps> = ({
   const [previewMessage, setPreviewMessage] = useState<string>('');
   const [previewLoading, setPreviewLoading] = useState<boolean>(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
-  const [showReminderHoursModal, setShowReminderHoursModal] = useState(false);
+  const [showTimingModeModal, setShowTimingModeModal] = useState(false);
 
-  useFormContext<RemindersSettingsFormData>();
+  const { watch, setValue } = useFormContext<RemindersSettingsFormData>();
+  const reminderTimingMode = watch('notification_settings.reminder_timing_mode') || 'hours_before';
 
   // Generate preview when settings are saved (refreshTrigger changes)
   useEffect(() => {
@@ -50,21 +51,66 @@ const ClinicReminderSettings: React.FC<ClinicReminderSettingsProps> = ({
 
   return (
     <div className="max-w-md">
+        {/* Timing Mode Selector */}
         <div className="flex items-center gap-2 mb-2">
           <label className="block text-sm font-medium text-gray-700">
-            預約前幾小時發送提醒
+            提醒時間設定
           </label>
-          <InfoButton onClick={() => setShowReminderHoursModal(true)} />
+          <InfoButton onClick={() => setShowTimingModeModal(true)} />
         </div>
-        <FormField name="notification_settings.reminder_hours_before">
-          <FormInput
-            name="notification_settings.reminder_hours_before"
-            type="number"
-            min="1"
-            max="168"
-            disabled={!isClinicAdmin}
-          />
-        </FormField>
+        <div className="space-y-3 mb-4">
+          <div className="flex items-center">
+            <input
+              id="timing-mode-hours-before"
+              type="radio"
+              value="hours_before"
+              checked={reminderTimingMode === 'hours_before'}
+              onChange={(e) => setValue('notification_settings.reminder_timing_mode', e.target.value as 'hours_before' | 'previous_day', { shouldDirty: true })}
+              disabled={!isClinicAdmin}
+              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+            />
+            <label htmlFor="timing-mode-hours-before" className="ml-2 block text-sm text-gray-900">
+              預約前幾小時發送提醒
+            </label>
+          </div>
+          <div className="flex items-center">
+            <input
+              id="timing-mode-previous-day"
+              type="radio"
+              value="previous_day"
+              checked={reminderTimingMode === 'previous_day'}
+              onChange={(e) => setValue('notification_settings.reminder_timing_mode', e.target.value as 'hours_before' | 'previous_day', { shouldDirty: true })}
+              disabled={!isClinicAdmin}
+              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+            />
+            <label htmlFor="timing-mode-previous-day" className="ml-2 block text-sm text-gray-900">
+              前一天特定時間發送提醒
+            </label>
+          </div>
+        </div>
+
+        {/* Conditional Input Fields */}
+        {reminderTimingMode === 'hours_before' ? (
+          <FormField name="notification_settings.reminder_hours_before">
+            <FormInput
+              name="notification_settings.reminder_hours_before"
+              type="number"
+              min="1"
+              max="72"
+              disabled={!isClinicAdmin}
+              placeholder="24"
+            />
+          </FormField>
+        ) : (
+          <FormField name="notification_settings.reminder_previous_day_time">
+            <FormInput
+              name="notification_settings.reminder_previous_day_time"
+              type="time"
+              disabled={!isClinicAdmin}
+              placeholder="21:00"
+            />
+          </FormField>
+        )}
 
         <div className="mt-6 pt-6 border-t border-gray-200 md:pt-0 md:border-t-0">
           <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -88,12 +134,21 @@ const ClinicReminderSettings: React.FC<ClinicReminderSettingsProps> = ({
 
         {/* Info Modal */}
         <InfoModal
-          isOpen={showReminderHoursModal}
-          onClose={() => setShowReminderHoursModal(false)}
-          title="預約前幾小時發送提醒"
-          ariaLabel="預約前幾小時發送提醒說明"
+          isOpen={showTimingModeModal}
+          onClose={() => setShowTimingModeModal(false)}
+          title="提醒時間設定說明"
+          ariaLabel="提醒時間設定說明"
         >
-          <p>系統會在預約時間前 X 小時自動發送 LINE 提醒訊息給病患。例如設定 24 小時，病患會在預約前一天相同時間收到提醒。此提醒包含預約時間、服務項目和治療師資訊。</p>
+          <div className="space-y-3">
+            <div>
+              <h4 className="font-medium text-gray-900">預約前幾小時發送提醒</h4>
+              <p className="text-sm text-gray-600">系統會在預約時間前 X 小時自動發送 LINE 提醒訊息給病患。例如設定 24 小時，病患會在預約前一天相同時間收到提醒。</p>
+            </div>
+            <div>
+              <h4 className="font-medium text-gray-900">前一天特定時間發送提醒</h4>
+              <p className="text-sm text-gray-600">系統會在前一天的指定時間發送提醒訊息。例如設定 21:00，病患會在前一天晚上 9 點收到提醒。適用於希望在固定時間發送提醒的診所。</p>
+            </div>
+          </div>
         </InfoModal>
     </div>
   );

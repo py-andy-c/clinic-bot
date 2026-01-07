@@ -16,6 +16,8 @@ export const ApiResponseSchema = createValidatedSchema(
 export const NotificationSettingsSchema = createValidatedSchema(
   z.object({
     reminder_hours_before: z.union([z.number(), z.string()]),
+    reminder_timing_mode: z.enum(['hours_before', 'previous_day']).optional().default('hours_before'),
+    reminder_previous_day_time: z.string().optional().default('21:00'),
   }),
   'NotificationSettingsSchema'
 );
@@ -81,6 +83,40 @@ export const BookingRestrictionFormSchema = z.object({
 
 export const NotificationFormSchema = z.object({
   reminder_hours_before: z.coerce.number().min(1, '至少 1 小時').max(72, '最多 72 小時'),
+  reminder_timing_mode: z.enum(['hours_before', 'previous_day'], {
+    errorMap: () => ({ message: '請選擇提醒時間模式' })
+  }),
+  reminder_previous_day_time: z.string().optional(),
+}).superRefine((data, ctx) => {
+  // Validate time format if provided
+  if (data.reminder_previous_day_time) {
+    if (!/^(0[0-9]|1[0-9]|2[0-3]):[0-5][0-9]$/.test(data.reminder_previous_day_time)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: '時間格式必須為 HH:MM',
+        path: ['reminder_previous_day_time'],
+      });
+    }
+  }
+
+  // Conditional requirements based on timing mode
+  if (data.reminder_timing_mode === 'previous_day') {
+    if (!data.reminder_previous_day_time) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: '請選擇前一天的提醒時間',
+        path: ['reminder_previous_day_time'],
+      });
+    }
+  } else if (data.reminder_timing_mode === 'hours_before') {
+    if (!data.reminder_hours_before) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: '請輸入提醒的小時數',
+        path: ['reminder_hours_before'],
+      });
+    }
+  }
 });
 
 export const RemindersSettingsFormSchema = z.object({

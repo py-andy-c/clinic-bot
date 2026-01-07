@@ -9,13 +9,50 @@ import logging
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 
-from models import Appointment, ScheduledLineMessage
+from models import Appointment, ScheduledLineMessage, Clinic, CalendarEvent
 from utils.datetime_utils import taiwan_now, ensure_taiwan, TAIWAN_TZ
 
 logger = logging.getLogger(__name__)
 
 
 class ReminderSchedulingService:
+
+    @staticmethod
+    def calculate_previous_day_send_time(calendar_event: CalendarEvent, clinic: Clinic) -> datetime:
+        """
+        Calculate reminder send time for previous day mode.
+
+        Args:
+            calendar_event: CalendarEvent to calculate reminder time for
+            clinic: Clinic with reminder configuration
+
+        Returns:
+            datetime: When to send the reminder (on previous day at configured time)
+        """
+        # Get appointment datetime (same as existing hours_before logic)
+        if calendar_event.start_time is None:
+            raise ValueError("Calendar event start_time cannot be None for reminder scheduling")
+
+        appointment_dt = datetime.combine(
+            calendar_event.date,
+            calendar_event.start_time
+        )
+        appointment_dt = ensure_taiwan(appointment_dt)
+
+        if appointment_dt is None:
+            raise ValueError("Failed to ensure timezone for appointment datetime")
+
+        # Parse configured time (e.g., "21:00" -> hour=21, minute=0)
+        configured_time_str = clinic.reminder_previous_day_time
+        time_parts = configured_time_str.split(':')
+        configured_hour = int(time_parts[0])
+        configured_minute = int(time_parts[1])
+
+        # Create reminder time on the previous day at configured time
+        reminder_dt = appointment_dt.replace(hour=configured_hour, minute=configured_minute)
+        reminder_send_time = reminder_dt - timedelta(days=1)
+
+        return reminder_send_time
     """Service for scheduling appointment reminders."""
 
     @staticmethod
@@ -54,19 +91,30 @@ class ReminderSchedulingService:
         if not clinic:
             logger.warning(f"Appointment {appointment.calendar_event_id} has no clinic")
             return
-        
-        reminder_hours_before = clinic.reminder_hours_before
-        
-        # Calculate reminder send time: appointment start time - reminder_hours_before
-        start_datetime = datetime.combine(
-            appointment.calendar_event.date,
-            appointment.calendar_event.start_time
-        )
-        start_datetime = ensure_taiwan(start_datetime)
-        if start_datetime is None:
-            raise ValueError("Failed to ensure timezone for start_datetime")
-        
-        reminder_send_time = start_datetime - timedelta(hours=reminder_hours_before)
+
+        # Calculate reminder send time based on timing mode
+        reminder_hours_before = clinic.reminder_hours_before  # Always define for later use
+        if clinic.reminder_timing_mode == "previous_day":
+            reminder_send_time = ReminderSchedulingService.calculate_previous_day_send_time(
+                appointment.calendar_event, clinic
+            )
+
+            # Skip if appointment is today (can't send reminder yesterday)
+            current_time = taiwan_now()
+            if reminder_send_time.date() >= current_time.date():
+                logger.debug(f"Skipping previous day reminder for same-day appointment {appointment.calendar_event_id}")
+                return
+        else:
+            # Hours before mode: existing logic
+            start_datetime = datetime.combine(
+                appointment.calendar_event.date,
+                appointment.calendar_event.start_time
+            )
+            start_datetime = ensure_taiwan(start_datetime)
+            if start_datetime is None:
+                raise ValueError("Failed to ensure timezone for start_datetime")
+
+            reminder_send_time = start_datetime - timedelta(hours=reminder_hours_before)
         
         # Check if patient has LINE user
         patient = appointment.patient

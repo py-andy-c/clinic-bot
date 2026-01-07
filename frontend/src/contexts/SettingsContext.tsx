@@ -72,7 +72,9 @@ export const SettingsProvider: React.FC<SettingsProviderProps> = ({ children }) 
         ...data,
         notification_settings: {
           ...data.notification_settings,
-          reminder_hours_before: parseInt(String(data.notification_settings.reminder_hours_before)) || 24
+          reminder_hours_before: parseInt(String(data.notification_settings.reminder_hours_before)) || 24,
+          reminder_timing_mode: data.notification_settings.reminder_timing_mode || 'hours_before',
+          reminder_previous_day_time: data.notification_settings.reminder_previous_day_time || '21:00'
         },
         booking_restriction_settings: {
           ...data.booking_restriction_settings,

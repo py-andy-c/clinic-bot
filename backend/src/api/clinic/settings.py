@@ -6,11 +6,12 @@ Settings Management API endpoints.
 import logging
 import secrets
 import os
+import re
 from typing import Dict, List, Optional, Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi import status as http_status
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, model_validator, field_validator
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
@@ -39,6 +40,16 @@ router = APIRouter()
 class NotificationSettings(BaseModel):
     """Notification settings for clinic."""
     reminder_hours_before: int = 24
+    reminder_timing_mode: str = "hours_before"
+    reminder_previous_day_time: Optional[str] = "21:00"
+
+    @field_validator('reminder_previous_day_time')
+    @classmethod
+    def validate_time_format(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None:
+            if not re.match(r'^(0[0-9]|1[0-9]|2[0-3]):[0-5][0-9]$', v):
+                raise ValueError('Time must be in 24-hour format HH:MM')
+        return v
 
 
 class BookingRestrictionSettings(BaseModel):

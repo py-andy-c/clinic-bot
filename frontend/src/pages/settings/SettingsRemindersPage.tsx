@@ -27,7 +27,11 @@ const SettingsRemindersPage: React.FC = () => {
   const methods = useForm<RemindersSettingsFormData>({
     resolver: zodResolver(RemindersSettingsFormSchema),
     defaultValues: {
-      notification_settings: settings?.notification_settings as any || { reminder_hours_before: 24 },
+      notification_settings: {
+        reminder_timing_mode: (settings?.notification_settings?.reminder_timing_mode as 'hours_before' | 'previous_day') || 'hours_before',
+        reminder_hours_before: Number(settings?.notification_settings?.reminder_hours_before) || 24,
+        reminder_previous_day_time: settings?.notification_settings?.reminder_previous_day_time || '21:00',
+      },
     },
     mode: 'onBlur',
   });
@@ -91,7 +95,11 @@ const SettingsRemindersPage: React.FC = () => {
     try {
       // Update context - this will trigger the useEffect above to save once state is updated
       updateData({
-        notification_settings: data.notification_settings,
+        notification_settings: {
+          reminder_timing_mode: data.notification_settings.reminder_timing_mode || 'hours_before',
+          reminder_hours_before: Number(data.notification_settings.reminder_hours_before) || 24,
+          reminder_previous_day_time: data.notification_settings.reminder_previous_day_time || '21:00',
+        },
       });
     } catch (err: any) {
       isSavingRef.current = false;

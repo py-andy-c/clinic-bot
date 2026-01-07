@@ -146,6 +146,70 @@ class TestClinicModel:
         clinic.display_name = "Custom Display Name"
         assert clinic.effective_display_name == "Custom Display Name"
 
+    def test_notification_settings_validation_valid_times(self):
+        """Test NotificationSettings accepts valid time formats."""
+        from models.clinic import NotificationSettings
+
+        # Test valid times
+        valid_times = ["00:00", "09:30", "14:45", "23:59"]
+        for time_str in valid_times:
+            settings = NotificationSettings(
+                reminder_timing_mode="previous_day",
+                reminder_previous_day_time=time_str
+            )
+            assert settings.reminder_previous_day_time == time_str
+
+    def test_notification_settings_validation_invalid_times(self):
+        """Test NotificationSettings rejects invalid time formats."""
+        from models.clinic import NotificationSettings
+        from pydantic import ValidationError
+
+        # Test invalid time formats
+        invalid_times = ["9:00", "24:00", "12:60", "ab:cd", "12:34:56", "1234"]
+        for time_str in invalid_times:
+            with pytest.raises(ValidationError) as exc_info:
+                NotificationSettings(
+                    reminder_timing_mode="previous_day",
+                    reminder_previous_day_time=time_str
+                )
+            assert "Time must be in 24-hour format HH:MM" in str(exc_info.value)
+
+    def test_notification_settings_defaults(self):
+        """Test NotificationSettings defaults work correctly."""
+        from models.clinic import NotificationSettings
+
+        settings = NotificationSettings()
+        assert settings.reminder_hours_before == 24
+        assert settings.reminder_timing_mode == "hours_before"
+        assert settings.reminder_previous_day_time == "21:00"
+
+    def test_notification_settings_timing_mode_validation(self):
+        """Test NotificationSettings accepts valid timing modes."""
+        from models.clinic import NotificationSettings
+
+        # Valid modes
+        settings1 = NotificationSettings(reminder_timing_mode="hours_before")
+        assert settings1.reminder_timing_mode == "hours_before"
+
+        settings2 = NotificationSettings(reminder_timing_mode="previous_day")
+        assert settings2.reminder_timing_mode == "previous_day"
+
+    def test_notification_settings_optional_time_field(self):
+        """Test reminder_previous_day_time is optional."""
+        from models.clinic import NotificationSettings
+
+        # Should work without specifying time (uses default)
+        settings = NotificationSettings(reminder_timing_mode="hours_before")
+        assert settings.reminder_previous_day_time == "21:00"  # default value
+
+        # Should work with explicit None (field allows None)
+        settings2 = NotificationSettings(
+            reminder_timing_mode="hours_before",
+            reminder_previous_day_time=None
+        )
+        # When explicitly set to None, it stays None
+        assert settings2.reminder_previous_day_time is None
+
 
 class TestUserModel:
     """Test cases for User model."""

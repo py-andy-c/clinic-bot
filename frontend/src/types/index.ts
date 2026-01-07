@@ -30,6 +30,8 @@ export interface Clinic {
   settings?: {
     notification_settings?: {
       reminder_hours_before?: number;
+      reminder_timing_mode?: string;
+      reminder_previous_day_time?: string;
     };
     booking_restriction_settings?: {
       booking_restriction_type?: string;

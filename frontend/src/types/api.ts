@@ -3224,6 +3224,16 @@ export interface components {
        * @default 24
        */
       reminder_hours_before?: number;
+      /**
+       * Reminder Timing Mode
+       * @default "hours_before"
+       */
+      reminder_timing_mode?: string;
+      /**
+       * Reminder Previous Day Time
+       * @default "21:00"
+       */
+      reminder_previous_day_time?: string;
     };
     /**
      * OccurrenceRequest
