@@ -39,7 +39,7 @@ class ClinicCreateRequest(BaseModel):
     @model_validator(mode='after')
     def validate_liff_id(self):
         """Validate LIFF ID format if provided."""
-        if self.liff_id is not None:
+        if self.liff_id is not None and self.liff_id.strip():  # Check for non-empty string
             if not validate_liff_id_format(self.liff_id):
                 raise ValueError("Invalid LIFF ID format. Expected format: {channel_id}-{random_string} (e.g., '1234567890-abcdefgh')")
         return self
@@ -57,7 +57,7 @@ class ClinicUpdateRequest(BaseModel):
     @model_validator(mode='after')
     def validate_liff_id(self):
         """Validate LIFF ID format if provided."""
-        if self.liff_id is not None:
+        if self.liff_id is not None and self.liff_id.strip():  # Check for non-empty string
             if not validate_liff_id_format(self.liff_id):
                 raise ValueError("Invalid LIFF ID format. Expected format: {channel_id}-{random_string} (e.g., '1234567890-abcdefgh')")
         return self
