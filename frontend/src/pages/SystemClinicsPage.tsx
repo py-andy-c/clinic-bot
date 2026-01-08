@@ -7,11 +7,13 @@ import { Link, useParams } from 'react-router-dom';
 import { apiService } from '../services/api';
 import { ClinicCreateData } from '../types';
 import { useSystemClinics, useClinicDetails } from '../hooks/queries';
+import { useQueryClient } from '@tanstack/react-query';
 
 
 const SystemClinicsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const { alert } = useModal();
+  const queryClient = useQueryClient();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [creating, setCreating] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -116,8 +118,11 @@ const SystemClinicsPage: React.FC = () => {
       }
 
       await apiService.updateClinic(selectedClinic.id, updateData);
-      // Refetch clinic details to get updated data
-      await refetchDetails();
+      // Invalidate clinic queries to force fresh data fetch
+      const clinicId = selectedClinic.id;
+      await queryClient.invalidateQueries({ queryKey: ['clinic-details', clinicId] });
+      await queryClient.invalidateQueries({ queryKey: ['clinic-health', clinicId] });
+      await queryClient.invalidateQueries({ queryKey: ['clinic-practitioners', clinicId] });
       setIsEditing(false);
       setEditingClinic({});
       try {
