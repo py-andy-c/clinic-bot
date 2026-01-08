@@ -10,7 +10,7 @@ import { SettingsProvider } from './contexts/SettingsContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import { LoadingSpinner } from './components/shared';
 import i18n from './i18n';
-import { queryClient } from './lib/queryClient';
+import { queryClient } from './lib/queryClient.ts';
 // Lazy load page components for code splitting
 const LandingPage = lazy(() => import('./pages/LandingPage'));
 const FreeTrialPage = lazy(() => import('./pages/FreeTrialPage'));
