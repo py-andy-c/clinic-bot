@@ -7,7 +7,7 @@ filtering, and dashboard breakdowns.
 """
 
 from datetime import datetime
-from sqlalchemy import String, ForeignKey, TIMESTAMP, Integer, UniqueConstraint
+from sqlalchemy import String, ForeignKey, TIMESTAMP, Integer, UniqueConstraint, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from core.database import Base
@@ -51,8 +51,10 @@ class ServiceTypeGroup(Base):
     )
     """Relationship to all AppointmentType instances in this group."""
 
-    # Unique constraint: (clinic_id, name)
+    # Unique constraint and indexes
     __table_args__ = (
         UniqueConstraint('clinic_id', 'name', name='uq_service_type_group_clinic_name'),
+        # Index for bulk query performance (ORDER BY clinic_id, display_order)
+        Index('idx_service_type_groups_clinic_display_order', 'clinic_id', 'display_order'),
     )
 

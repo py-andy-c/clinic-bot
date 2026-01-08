@@ -25,6 +25,17 @@ engine = create_engine(
     DATABASE_URL,
     pool_pre_ping=True,  # Verify connections before use
     pool_recycle=DB_POOL_RECYCLE_SECONDS,
+    # Connection pool configuration for service management performance optimization
+    # Rationale: Service management page previously made 100+ individual API calls (N+1 queries)
+    # With bulk operations, we reduce to 1-2 queries per page load, but concurrent users
+    # loading service management pages simultaneously can still cause connection pool pressure.
+    # Pool size increased from 5 to 15 (200% increase) to handle concurrent bulk operations.
+    # Max overflow increased from 10 to 20 (100% increase) for peak load handling.
+    # Total connections: 15 (pool) + 20 (overflow) = 35 maximum concurrent connections.
+    # Monitor utilization in staging - if <60% consistent usage, consider reducing to 10-12.
+    pool_size=15,        # Increased from default 5 (200% increase)
+    max_overflow=20,     # Increased from default 10 (100% increase)
+    pool_timeout=30,     # Keep existing timeout
     echo=False,          # Disable SQL logging
     future=True,         # Use SQLAlchemy 2.0 style
 )
