@@ -109,7 +109,7 @@ def api_contract_client(db_session):
 # Frontend Zod schemas converted to JSON Schema for validation
 CLINIC_SETTINGS_SCHEMA = {
     "type": "object",
-    "required": ["clinic_id", "clinic_name", "business_hours", "has_appointment_types", "notification_settings"],
+    "required": ["clinic_id", "clinic_name", "business_hours", "appointment_types", "notification_settings"],
     "properties": {
         "clinic_id": {"type": "number"},
         "clinic_name": {"type": "string"},
@@ -127,7 +127,19 @@ CLINIC_SETTINGS_SCHEMA = {
                 }
             }
         },
-        "has_appointment_types": {"type": "boolean"},
+        "appointment_types": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["id", "clinic_id", "name", "duration_minutes"],
+                "properties": {
+                    "id": {"type": "number"},
+                    "clinic_id": {"type": "number"},
+                    "name": {"type": "string"},
+                    "duration_minutes": {"type": "number"}
+                }
+            }
+        },
         "notification_settings": {
             "type": "object",
             "required": ["reminder_hours_before"],
@@ -187,7 +199,7 @@ class TestAPIContracts:
         assert "clinic_id" in response_data
         assert "clinic_name" in response_data
         assert "business_hours" in response_data
-        assert "has_appointment_types" in response_data
+        assert "appointment_types" in response_data
         assert "notification_settings" in response_data
 
         # Validate notification_settings structure
