@@ -65,43 +65,21 @@ const practitioners = members.filter(m => m.roles.includes('practitioner'));
 
 **Rationale**: Eliminates N+1 query pattern with single API call providing atomic data loading for complete service management UI.
 
-### Data Loading Strategy Decision
+### Data Loading Strategy: Hybrid Approach
 
-**Hybrid Approach: Bulk Data for Management + On-Demand Filtering for Operations**
+**Bulk Data for Management + On-Demand Filtering for Operations**
 
-#### Why Not Bulk Data Everywhere?
-The alternative would be loading all association data upfront everywhere, then filtering on the frontend. However, this creates significant overhead:
-
-- **150KB+ payload** for every page load (20x more data)
+**Why not bulk data everywhere?**
+- **150KB+ payload** for every page load (20x more data than needed)
 - **Memory waste** storing unused association data
 - **Slow initial loads** waiting for large payloads
-- **Stale data risks** with cached associations
+- **95% less data transfer** with on-demand filtering (150KB → ~7KB)
 
-#### Why On-Demand Filtering Wins
-**Appointment creation/checkout flows** only need practitioner filtering occasionally:
-
-```typescript
-// Current efficient approach:
-const practitioners = await apiService.getPractitioners(selectedAppointmentTypeId);
-// → 2KB filtered response
-
-// vs. Bulk everywhere approach:
-const { associations } = await getServiceManagementData(); // 150KB
-const practitioners = allPractitioners.filter(p =>
-  associations.practitioner_assignments[selectedAppointmentTypeId]?.includes(p.id)
-); // Frontend filtering
-```
-
-**Benefits:**
-- **95% less data transfer** (150KB → ~7KB total)
-- **3x faster initial loads** (no large payload wait)
-- **Better error resilience** (partial failures don't break everything)
-- **Mobile-friendly** (smaller payloads for slower connections)
-
-#### Implementation Strategy
-- **Service Management Page**: Uses bulk `/clinic/service-management-data` (needs full associations for editing)
-- **Appointment Creation/Checkout**: Uses on-demand `getPractitioners(appointmentTypeId)` filtering
-- **Other Pages**: Use basic appointment types + all practitioners (no associations needed)
+**Implementation:**
+- **Service Management**: Uses `/clinic/service-management-data` (full associations)
+- **Appointment Creation**: Uses `/clinic/appointment-types` + `getPractitioners(appointmentTypeId)`
+- **Dashboard Analytics**: Uses `/clinic/appointment-types`
+- **Clinic Config**: Uses `/clinic/settings` (no appointment types)
 
 ---
 
@@ -245,6 +223,23 @@ const practitioners = allPractitioners.filter(p =>
 - **Response**: Appointment types, service type groups, practitioners
 - **Use Case**: For components that need service data without full associations
 
+##### `GET /clinic/appointment-types` (Lightweight)
+- **Description**: Basic appointment type data for components that don't need associations
+- **Parameters**: None (clinic context from auth)
+- **Response**:
+```json
+[
+  {
+    "id": 1,
+    "name": "Initial Consultation",
+    "duration_minutes": 60,
+    "service_type_group_id": 1,
+    "display_order": 1
+  }
+]
+```
+- **Use Case**: Appointment creation, dashboards, basic displays
+
 ##### `POST /clinic/service-management-data/save`
 - **Description**: Bulk save all service management data in a single transaction
 - **Request Body**:
@@ -261,7 +256,30 @@ const practitioners = allPractitioners.filter(p =>
 }
 ```
 - **Response**: Success confirmation
-- **Errors**: Transaction rollback on any failure
+- **Errors**: Field-level validation errors with specific item identification
+
+**Error Response Structure**:
+```json
+{
+  "errors": {
+    "service_items": {
+      "1": ["duration_minutes must be positive"],
+      "2": ["name cannot be empty"]
+    },
+    "billing_scenarios": {
+      "1-101": ["revenue_share exceeds 100%"]
+    },
+    "practitioner_assignments": {
+      "1": ["practitioner not found"]
+    }
+  }
+}
+```
+
+**Concurrent Edit Resolution**:
+- **Optimistic Locking**: Version fields on service items and associations
+- **Conflict Detection**: Compare timestamps/version numbers on save
+- **Resolution Strategy**: Last-write-wins for non-conflicting changes, manual merge dialog for conflicts
 
 ### Database Schema
 
@@ -272,6 +290,21 @@ const practitioners = allPractitioners.filter(p =>
 - Separate tables for billing scenarios, resource requirements, follow-up messages
 
 **Rationale**: The issue is API design, not database design. Current schema enables efficient bulk queries.
+
+### Required Database Indexes
+**Audit and verify these indexes exist for optimal bulk query performance**:
+
+- `appointment_types(clinic_id, display_order)` - For clinic-specific ordering
+- `service_type_groups(clinic_id, display_order)` - For clinic-specific ordering
+- `practitioner_appointment_types(appointment_type_id, practitioner_id)` - For association queries
+- `billing_scenarios(appointment_type_id, practitioner_id)` - For association queries
+- `appointment_resource_requirements(appointment_type_id)` - For resource associations
+- `follow_up_messages(appointment_type_id)` - For message associations
+
+**Index Maintenance Plan**:
+- Verify indexes during Phase 1 backend implementation
+- Monitor query performance with EXPLAIN ANALYZE
+- Add missing indexes before bulk operations deployment
 
 ### Database Connection Pool Configuration
 
@@ -344,11 +377,22 @@ alerts = {
 class ServiceManagementService:
     @staticmethod
     def get_service_management_data(db: Session, clinic_id: int) -> Dict[str, Any]:
-        """Single optimized query loading all service management data"""
+        """Single optimized query loading all service management data with proper JOINs"""
 
     @staticmethod
     def save_service_management_data(db: Session, clinic_id: int, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Save all service management data in a single transaction"""
+        """Save all service management data in a single SERIALIZABLE transaction for consistency"""
+
+        # Transaction configuration for bulk saves
+        transaction_config = {
+            'isolation_level': 'SERIALIZABLE',  # Prevent phantom reads during bulk operations
+            'timeout': 30,  # 30-second timeout for bulk operations
+        }
+
+        with db.begin(**transaction_config):
+            # Bulk operations with proper error handling
+            # Rollback entire transaction on any validation failure
+            pass
 ```
 
 **Query Optimization**:
@@ -598,10 +642,28 @@ pool_metrics = {
 - **Cache Hit Rate**: >90% for service management data
 
 ### Database Performance Metrics
-- **Query Execution Time**: Monitor bulk query performance
-- **Transaction Duration**: Bulk save transaction times
+- **Query Execution Time**: Monitor bulk query performance (p95/p99 percentiles)
+- **Transaction Duration**: Bulk save transaction times with 30s timeout
 - **Connection Pool Utilization**: % of pool in use over time
 - **Deadlock Frequency**: Monitor and alert on deadlocks
+- **Rollback Rate**: Track partial save scenarios
+
+### Circuit Breaker Pattern
+**For Bulk Operations Exceeding Thresholds**:
+```python
+BULK_OPERATION_TIMEOUT = 30  # seconds
+
+if operation_duration > BULK_OPERATION_TIMEOUT:
+    # Automatic fallback to individual API calls
+    logger.warning(f"Bulk operation timeout ({operation_duration}s), falling back to individual calls")
+    return await fallback_to_individual_operations(data)
+```
+
+### Post-Deployment Monitoring (24h Critical Period)
+- **API Response Times**: Track p95/p99 for all endpoints
+- **Error Rates**: Monitor for increased failures during migration
+- **Connection Pool Usage**: Validate 15+20 pool provides sufficient headroom
+- **Cache Hit Rates**: Ensure React Query caching works effectively
 
 ---
 
@@ -625,23 +687,63 @@ pool_metrics = {
 
 ### **Phase 1: Backend Implementation (Weeks 1-3)**
 - [ ] Create ServiceManagementService with bulk operations
-- [ ] Implement `/clinic/service-management-data` endpoint
-- [ ] Modify `/clinic/settings` to remove appointment_types
-- [ ] Update database pool configuration (15+20)
+- [ ] Implement `/clinic/service-management-data` endpoint (full data with associations)
+- [ ] Implement `/clinic/appointment-types` endpoint (lightweight basic data)
+- [ ] Modify `/clinic/settings` to remove appointment_types (add `has_appointment_types` flag)
+- [ ] **Verify Database Indexes**: Audit and create required indexes for bulk query performance
+- [ ] Update database pool configuration (15+20 connections)
 - [ ] Add comprehensive monitoring and error handling
-- [ ] Load testing with 1000+ service items
+- [ ] Load testing with 1000+ service items across all endpoints
 
 ### **Phase 2: Frontend Migration (Weeks 4-5)**
-- [ ] Create new React Query hooks for service management data
-- [ ] Extend Zustand store with bulk methods
-- [ ] **CRITICAL**: Update ALL components using `getClinicSettings()` for appointment_types:
-  - SettingsServiceItemsPage
-  - AutoAssignedAppointmentsPage
-  - ProfilePage
-  - PractitionerAppointmentTypes
-  - ServiceItemsSettings
+
+#### **CRITICAL: Complete API Migration Audit**
+
+**ALL locations using `getClinicSettings()` have been audited. Migration required for components that depend on `appointment_types`.**
+
+##### **🚨 HIGH PRIORITY: Will Break (Use appointment_types)**
+
+**Service Management (Use New Bulk Endpoint)**
+- [ ] `SettingsServiceItemsPage` → `getServiceManagementData()` (main service management)
+- [ ] `ServiceItemsSettings` → `getServiceManagementData()` or lightweight endpoint
+- [ ] `PractitionerAppointmentTypes` → `getServiceManagementData()` or lightweight endpoint
+
+**Appointment Creation (Use Lightweight Endpoint)**
+- [ ] `PatientsPage` → `getAppointmentTypes()` (passes to CreateAppointmentModal)
+- [ ] `PatientDetailPage` → `getAppointmentTypes()` (passes to CreateAppointmentModal)
+- [ ] `CalendarView` → `getAppointmentTypes()` (for modal display)
+
+**Dashboard & Scheduling (Use Lightweight Endpoint)**
+- [ ] `RevenueDistributionPage` → `getAppointmentTypes()` (revenue breakdown)
+- [ ] `BusinessInsightsPage` → `getAppointmentTypes()` (business analytics)
+- [ ] `AutoAssignedAppointmentsPage` → `getAppointmentTypes()` (appointment type access)
+
+**Settings Context (Use Bulk or Separate Endpoint)**
+- [ ] `SettingsContext` → `getServiceManagementData()` (settings forms)
+
+##### **🚨 CRITICAL: AutoAssignedAppointmentsPage Migration Gap**
+- [ ] `AutoAssignedAppointmentsPage` → **MOVED TO HIGH PRIORITY** - Uses `settings.appointment_types` but was incorrectly marked safe
+
+##### **⚠️ MEDIUM PRIORITY: Warning Logic (Will Break)**
+- [ ] `ClinicLayout` → Use new `has_appointment_types` field from clinic settings
+
+##### **✅ SAFE: No Changes Needed (Don't Use appointment_types)**
+- `ProfilePage` → Only uses `booking_restriction_settings` (safe)
+- `PatientInfoSection` → Only uses `clinic_info_settings` (safe)
+
+##### **🔍 ADDITIONAL: Double-Check These**
+- [ ] `frontend/src/stores/createSettingsFormStore.ts` → Generic store factory may call `getClinicSettings()`
+- [ ] `frontend/src/components/PractitionerAppointmentTypes.tsx` → Line 67 fallback to `getClinicSettings()`
+- [ ] `SettingsContext.tsx` → Error handling may access `appointment_types`
+
+#### **Implementation Steps**
+- [ ] Create `useServiceManagementData` hook for bulk service data
+- [ ] Create/update `useAppointmentTypes` hook for lightweight appointment data
+- [ ] Extend Zustand store with bulk methods for service management
+- [ ] Update all components according to migration priorities above
 - [ ] Implement fallback mechanisms for partial failures
-- [ ] Comprehensive integration testing
+- [ ] Comprehensive integration testing covering all migrated components
+- [ ] Update test mocks and API contracts for new endpoints
 
 ### **Phase 3: Coordinated Deployment (Week 6)**
 - [ ] **Communication**: Notify users of 5-10 minute maintenance window
