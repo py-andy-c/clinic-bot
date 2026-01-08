@@ -118,11 +118,13 @@ const SystemClinicsPage: React.FC = () => {
       }
 
       await apiService.updateClinic(selectedClinic.id, updateData);
+
       // Invalidate clinic queries to force fresh data fetch
       const clinicId = selectedClinic.id;
       await queryClient.invalidateQueries({ queryKey: ['clinic-details', clinicId] });
       await queryClient.invalidateQueries({ queryKey: ['clinic-health', clinicId] });
       await queryClient.invalidateQueries({ queryKey: ['clinic-practitioners', clinicId] });
+
       setIsEditing(false);
       setEditingClinic({});
       try {

@@ -163,6 +163,10 @@ async def create_clinic(
         else:
             logger.info(f"Generated LIFF access token for newly created clinic {clinic.id} (shared LIFF)")
 
+        # Generate LIFF URL for response (dynamic, not stored on model)
+        from utils.liff_token import generate_liff_url
+        liff_url = generate_liff_url(clinic)
+
         return ClinicResponse(
             id=clinic.id,
             name=clinic.name,
@@ -170,7 +174,8 @@ async def create_clinic(
             subscription_status=clinic.subscription_status,
             trial_ends_at=clinic.trial_ends_at,
             created_at=clinic.created_at,
-            liff_id=clinic.liff_id  # Include LIFF ID for clinic-specific LIFF apps
+            liff_id=clinic.liff_id,  # Include LIFF ID for clinic-specific LIFF apps
+            liff_url=liff_url  # Include generated LIFF URL
         )
 
     except HTTPException:
@@ -365,7 +370,8 @@ async def update_clinic(
             clinic.subscription_status = clinic_data.subscription_status
 
         # Update liff_id if provided (can be set to None to clear it)
-        if clinic_data.liff_id is not None:
+        # Since frontend only sends liff_id when it changes, always update when present
+        if 'liff_id' in clinic_data.__dict__:
             clinic.liff_id = clinic_data.liff_id if clinic_data.liff_id else None
 
         # If LINE credentials were updated, refresh bot info
@@ -388,15 +394,21 @@ async def update_clinic(
         db.commit()
         db.refresh(clinic)
 
-        return ClinicResponse(
+        # Generate LIFF URL for response (dynamic, not stored on model)
+        from utils.liff_token import generate_liff_url
+        liff_url = generate_liff_url(clinic)
+
+        response_data = ClinicResponse(
             id=clinic.id,
             name=clinic.name,
             line_channel_id=clinic.line_channel_id,
             subscription_status=clinic.subscription_status,
             trial_ends_at=clinic.trial_ends_at,
             created_at=clinic.created_at,
-            liff_id=clinic.liff_id  # Include LIFF ID for clinic-specific LIFF apps
+            liff_id=clinic.liff_id,  # Include LIFF ID for clinic-specific LIFF apps
+            liff_url=liff_url  # Include generated LIFF URL
         )
+        return response_data
 
     except HTTPException:
         raise
