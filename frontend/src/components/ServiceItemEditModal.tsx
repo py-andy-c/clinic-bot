@@ -60,6 +60,7 @@ interface ServiceItemEditModalProps {
   onUpdatePractitionerAssignments: (practitionerIds: number[]) => void;
   onUpdateBillingScenarios: (key: string, scenarios: BillingScenario[]) => void;
   onUpdateResourceRequirements: (requirements: ResourceRequirement[]) => void;
+  updateResourceRequirements: (serviceItemId: number, requirements: ResourceRequirement[]) => void; // Direct store function
   clinicInfoAvailability?: {
     has_address?: boolean;
     has_phone?: boolean;
@@ -82,6 +83,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
   onUpdatePractitionerAssignments,
   onUpdateBillingScenarios,
   onUpdateResourceRequirements: _onUpdateResourceRequirements,
+  updateResourceRequirements,
 }) => {
   const {
     loadBillingScenarios,
@@ -753,7 +755,12 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                     <div className="px-4 py-4 md:px-0 md:py-0 space-y-4 md:space-y-6">
 
                       {isClinicAdmin && (
-                        <ResourceRequirementsSection appointmentTypeId={appointmentType.id} isClinicAdmin={isClinicAdmin} />
+                        <ResourceRequirementsSection
+                          appointmentTypeId={appointmentType.id}
+                          isClinicAdmin={isClinicAdmin}
+                          currentResourceRequirements={_currentResourceRequirements}
+                          updateResourceRequirements={updateResourceRequirements}
+                        />
                       )}
                     </div>
                   </div>

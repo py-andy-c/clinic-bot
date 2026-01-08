@@ -10,18 +10,22 @@ import { isTemporaryServiceItemId } from '../utils/idUtils';
 interface ResourceRequirementsSectionProps {
   appointmentTypeId: number;
   isClinicAdmin: boolean;
+  currentResourceRequirements?: ResourceRequirement[];
+  updateResourceRequirements?: (serviceItemId: number, requirements: ResourceRequirement[]) => void;
 }
 
 export const ResourceRequirementsSection: React.FC<ResourceRequirementsSectionProps> = ({
   appointmentTypeId,
   isClinicAdmin,
+  currentResourceRequirements,
+  updateResourceRequirements,
 }) => {
   const { alert } = useModal();
   const {
-    resourceRequirements,
+    resourceRequirements: storeResourceRequirements,
     loadingResourceRequirements,
     loadResourceRequirements,
-    updateResourceRequirements,
+    updateResourceRequirements: storeUpdateResourceRequirements,
   } = useServiceItemsStore();
   
   const [loading, setLoading] = useState(true);
@@ -32,7 +36,8 @@ export const ResourceRequirementsSection: React.FC<ResourceRequirementsSectionPr
   const [editingRequirementId, setEditingRequirementId] = useState<number | null>(null);
   const [editingQuantity, setEditingQuantity] = useState<number>(1);
 
-  const requirements = (appointmentTypeId && resourceRequirements[appointmentTypeId]) || [];
+  const requirements = currentResourceRequirements || (appointmentTypeId && storeResourceRequirements[appointmentTypeId]) || [];
+  const updateRequirements = updateResourceRequirements || storeUpdateResourceRequirements;
   const isLoading = appointmentTypeId ? loadingResourceRequirements.has(appointmentTypeId) : false;
 
   useEffect(() => {
@@ -90,7 +95,7 @@ export const ResourceRequirementsSection: React.FC<ResourceRequirementsSectionPr
     };
 
     // Update store (staged change, not saved yet)
-    updateResourceRequirements(appointmentTypeId, [...requirements, newRequirement]);
+    updateRequirements(appointmentTypeId, [...requirements, newRequirement]);
     setShowAddForm(false);
     setSelectedResourceTypeId(null);
     setQuantity(1);
@@ -108,7 +113,7 @@ export const ResourceRequirementsSection: React.FC<ResourceRequirementsSectionPr
         ? { ...r, quantity: editingQuantity, updated_at: new Date().toISOString() }
         : r
     );
-    updateResourceRequirements(appointmentTypeId, updated);
+    updateRequirements(appointmentTypeId, updated);
     setEditingRequirementId(null);
   };
 
@@ -119,7 +124,7 @@ export const ResourceRequirementsSection: React.FC<ResourceRequirementsSectionPr
 
     // Remove from store (staged change, not saved yet)
     const updated = requirements.filter(r => r.id !== requirementId);
-    updateResourceRequirements(appointmentTypeId, updated);
+    updateRequirements(appointmentTypeId, updated);
   };
 
   if (loading || isLoading) {

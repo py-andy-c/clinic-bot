@@ -60,7 +60,7 @@ const SettingsServiceItemsPage: React.FC = () => {
     originalGroups,
     practitionerAssignments,
     billingScenarios,
-    resourceRequirements,
+    resourceRequirements: stagedResourceRequirements,
     addServiceItem,
     updateServiceItem,
     deleteServiceItem,
@@ -640,7 +640,7 @@ const SettingsServiceItemsPage: React.FC = () => {
     
     // Map temporary IDs in resource requirements
     const mappedResourceRequirements: Record<number, ResourceRequirement[]> = {};
-    Object.entries(resourceRequirements).forEach(([tempId, requirements]) => {
+    Object.entries(stagedResourceRequirements).forEach(([tempId, requirements]) => {
       const tempIdNum = parseInt(tempId, 10);
       const realId = allMappings[tempIdNum] ?? tempIdNum;
       if (isRealId(realId)) {
@@ -1121,7 +1121,7 @@ const SettingsServiceItemsPage: React.FC = () => {
           availableGroups={availableGroups}
           practitionerAssignments={practitionerAssignments[editingItem.id] || []}
           billingScenarios={billingScenarios}
-          resourceRequirements={resourceRequirements[editingItem.id] || []}
+          resourceRequirements={stagedResourceRequirements[editingItem.id] || []}
           onUpdatePractitionerAssignments={(practitionerIds: number[]) => 
             updatePractitionerAssignments(editingItem.id, practitionerIds)
           }
@@ -1131,6 +1131,7 @@ const SettingsServiceItemsPage: React.FC = () => {
           onUpdateResourceRequirements={(requirements: ResourceRequirement[]) =>
             updateResourceRequirements(editingItem.id, requirements)
           }
+          updateResourceRequirements={updateResourceRequirements}
           clinicInfoAvailability={{
             has_address: !!settings?.clinic_info_settings?.address,
             has_phone: !!settings?.clinic_info_settings?.phone_number,
