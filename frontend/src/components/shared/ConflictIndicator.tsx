@@ -32,7 +32,7 @@ export const ConflictIndicator: React.FC<ConflictIndicatorProps> = ({
       case 'exception':
         return '⚠️';
       case 'availability':
-        return 'ℹ️';
+        return '⚠️';
       case 'resource':
         return '⚠️';
       default:

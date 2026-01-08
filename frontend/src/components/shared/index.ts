@@ -13,5 +13,6 @@ export { InfoModal } from './InfoModal';
 export { ConflictDisplay } from './ConflictDisplay';
 export { ConflictIndicator } from './ConflictIndicator';
 export { ConflictPopover } from './ConflictPopover';
+export { ConflictWarningButton } from './ConflictWarningButton';
 export { WarningPopover } from './WarningPopover';
 export { TimeInput } from './TimeInput';

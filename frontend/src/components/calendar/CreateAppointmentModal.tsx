@@ -25,7 +25,7 @@ import { PatientCreationSuccessModal } from '../PatientCreationSuccessModal';
 import { ClinicNotesTextarea } from '../shared/ClinicNotesTextarea';
 import { preventScrollWheelChange } from '../../utils/inputUtils';
 import { NumberInput } from '../shared/NumberInput';
-import { ConflictIndicator } from '../shared';
+import { ConflictIndicator, ConflictWarningButton } from '../shared';
 import { SchedulingConflictResponse } from '../../types';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { ResourceSelection } from '../ResourceSelection';
@@ -218,6 +218,32 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
     preSelectedTime,
     preSelectedClinicNotes,
   });
+
+  // Check conflicts in real-time for form validation
+  useEffect(() => {
+    const checkConflicts = async () => {
+      // Only check conflicts when we have all required fields for a single appointment
+      if (!selectedPractitionerId || !selectedAppointmentTypeId || !selectedDate || !selectedTime) {
+        setSingleAppointmentConflict(null);
+        return;
+      }
+
+      try {
+        const conflictResponse = await apiService.checkSchedulingConflicts(
+          selectedPractitionerId,
+          selectedDate,
+          selectedTime,
+          selectedAppointmentTypeId
+        );
+        setSingleAppointmentConflict(conflictResponse.has_conflict ? conflictResponse : null);
+      } catch (error) {
+        logger.error('Failed to check conflicts:', error);
+        setSingleAppointmentConflict(null);
+      }
+    };
+
+    checkConflicts();
+  }, [selectedPractitionerId, selectedAppointmentTypeId, selectedDate, selectedTime]);
 
   // Try to get patient data from sessionStorage if preSelectedPatientId is set
   const [preSelectedPatientData, setPreSelectedPatientData] = useState<Patient | null>(() => {
@@ -954,7 +980,8 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
   };
 
   const renderFormStepFooter = () => (
-    <div className="flex justify-end space-x-2 pt-4 border-t border-gray-200 flex-shrink-0" onMouseDown={(e) => e.stopPropagation()}>
+    <div className="flex justify-end items-center space-x-2 pt-4 border-t border-gray-200 flex-shrink-0" onMouseDown={(e) => e.stopPropagation()}>
+      <ConflictWarningButton conflictInfo={singleAppointmentConflict} />
       <button
         onClick={handleFormSubmit}
         disabled={!isValid || isCheckingConflicts || (recurrenceEnabled && (!occurrenceCount || occurrenceCount < 1)) || isInitialLoading}

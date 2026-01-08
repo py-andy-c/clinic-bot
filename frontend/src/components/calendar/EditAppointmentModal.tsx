@@ -17,7 +17,7 @@ import { logger } from '../../utils/logger';
 import { getPractitionerDisplayName, formatAppointmentDateTime } from '../../utils/calendarUtils';
 import moment from 'moment-timezone';
 import { ClinicNotesTextarea } from '../shared/ClinicNotesTextarea';
-import { ConflictDisplay } from '../shared/ConflictDisplay';
+import { ConflictDisplay, ConflictWarningButton } from '../shared';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { ResourceSelection } from '../ResourceSelection';
 import { useAppointmentForm } from '../../hooks/useAppointmentForm';
@@ -848,7 +848,8 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
   };
 
   const renderFormStepFooter = () => (
-    <div className="flex justify-end space-x-2 pt-4 border-t border-gray-200 flex-shrink-0">
+    <div className="flex justify-end items-center space-x-2 pt-4 border-t border-gray-200 flex-shrink-0">
+      <ConflictWarningButton conflictInfo={conflictInfo} />
       <button
         onClick={handleFormSubmit}
         disabled={!isValid || isInitialLoading}
