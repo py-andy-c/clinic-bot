@@ -9,7 +9,77 @@ This document analyzes the critical performance issue with the Service Items Set
 - Eliminate N+1 query patterns during loading
 - Optimize save operations to be more efficient
 - Maintain data consistency and user experience
-- Implement proper caching and bulk loading strategies
+- Restructure APIs for better separation of concerns
+- **Simplified migration**: Coordinated frontend/backend deployment (6-7 weeks vs. complex 9-week rollout)
+
+---
+
+## API Restructuring Analysis
+
+### Current API Issues
+
+#### 1. Mixed Concerns in `/clinic/settings`
+**Problem**: Returns both clinic configuration (notifications, booking restrictions, chat settings) AND service catalog (appointment types).
+
+**Impact**:
+- Appointment types change frequently, invalidating clinic settings cache unnecessarily
+- Not all consumers need both types of data
+- Service management invalidates configuration cache
+
+#### 2. Appointment Types & Groups Always Queried Together
+**Pattern Found**: Every component loads these together:
+```typescript
+const settings = await apiService.getClinicSettings(); // appointment types
+const groups = await apiService.getServiceTypeGroups(); // groups
+```
+
+**Issue**: Always used together but require separate API calls.
+
+#### 3. Practitioners Queried Separately Everywhere
+**Pattern Found**: Role filtering happens in frontend across 10+ components:
+```typescript
+const members = await apiService.getMembers();
+const practitioners = members.filter(m => m.roles.includes('practitioner'));
+```
+
+### API Restructuring Decision
+
+**Chosen Approach: Combined Service Management API**
+
+**New endpoint**: `GET /clinic/service-management-data`
+
+**Single bulk response** containing all service management data:
+```json
+{
+  "appointment_types": [...],
+  "service_type_groups": [...],
+  "practitioners": [...],
+  "associations": {
+    "practitioner_assignments": {...},
+    "billing_scenarios": {...},
+    "resource_requirements": {...},
+    "follow_up_messages": {...}
+  }
+}
+```
+
+**Rationale**: Eliminates N+1 query pattern with single API call providing atomic data loading for complete service management UI.
+
+### Data Loading Strategy: Hybrid Approach
+
+**Bulk Data for Management + On-Demand Filtering for Operations**
+
+**Why not bulk data everywhere?**
+- **150KB+ payload** for every page load (20x more data than needed)
+- **Memory waste** storing unused association data
+- **Slow initial loads** waiting for large payloads
+- **95% less data transfer** with on-demand filtering (150KB → ~7KB)
+
+**Implementation:**
+- **Service Management**: Uses `/clinic/service-management-data` (full associations)
+- **Appointment Creation**: Uses `/clinic/appointment-types` + `getPractitioners(appointmentTypeId)`
+- **Dashboard Analytics**: Uses `/clinic/appointment-types`
+- **Clinic Config**: Uses `/clinic/settings` (no appointment types)
 
 ---
 
@@ -62,58 +132,72 @@ This document analyzes the critical performance issue with the Service Items Set
 ### API Endpoints
 
 #### Current Endpoints (Problematic)
-- `GET /clinic/settings` - Loads appointment types
-- `GET /clinic/service-type-groups` - Loads groups
-- `GET /clinic/members` - Loads practitioners
+- `GET /clinic/settings` - Mixed: clinic config + appointment types
+- `GET /clinic/service-type-groups` - Groups only
+- `GET /clinic/members` - All members (role filtering in frontend)
 - `GET /clinic/service-items/{service_item_id}/practitioners/{practitioner_id}/billing-scenarios` - Individual billing scenarios
 - `GET /clinic/appointment-types/{appointment_type_id}/resource-requirements` - Individual resource requirements
 - `GET /clinic/appointment-types/{appointment_type_id}/follow-up-messages` - Individual follow-up messages
 
-#### New Bulk Endpoints (Solution)
+#### New Restructured Endpoints (Solution)
 
-##### `GET /clinic/service-items/associations/bulk`
-- **Description**: Bulk load all service item associations in a single request
-- **Parameters**:
-  - `service_item_ids` (optional): Filter to specific service items
-  - `include_billing_scenarios` (boolean, default: true)
-  - `include_resource_requirements` (boolean, default: true)
-  - `include_follow_up_messages` (boolean, default: true)
-- **Response** (Flattened Structure for Frontend Usability):
+##### `GET /clinic/service-management-data`
+- **Description**: Single endpoint providing all service management data
+- **Parameters**: None (clinic context from auth)
+- **Response**:
 ```json
 {
-  "associations": [
+  "appointment_types": [
     {
-      "service_item_id": 1,
-      "practitioner_assignments": [101, 102, 103],
-      "billing_scenarios": {
-        "101": [
-          {
-            "id": 1,
-            "name": "Standard Rate",
-            "amount": 1000,
-            "revenue_share": 800,
-            "is_default": true
-          }
-        ],
-        "102": [
-          {
-            "id": 2,
-            "name": "Premium Rate",
-            "amount": 1500,
-            "revenue_share": 1200,
-            "is_default": false
-          }
-        ]
-      },
-      "resource_requirements": [
+      "id": 1,
+      "name": "Initial Consultation",
+      "duration_minutes": 60,
+      "service_type_group_id": 1,
+      "display_order": 1
+      // ... other fields
+    }
+  ],
+  "service_type_groups": [
+    {
+      "id": 1,
+      "name": "Manual Therapy",
+      "display_order": 1
+    }
+  ],
+  "practitioners": [
+    {
+      "id": 101,
+      "full_name": "Dr. Smith",
+      "roles": ["practitioner"]
+    }
+  ],
+  "associations": {
+    "practitioner_assignments": {
+      "1": [101, 102]  // service_item_id -> practitioner_ids
+    },
+    "billing_scenarios": {
+      "1-101": [  // service_item_id-practitioner_id
+        {
+          "id": 1,
+          "name": "Standard Rate",
+          "amount": 1000,
+          "revenue_share": 800,
+          "is_default": true
+        }
+      ]
+    },
+    "resource_requirements": {
+      "1": [  // service_item_id
         {
           "id": 10,
           "resource_type_id": 1,
           "resource_type_name": "Massage Table",
           "quantity": 1
         }
-      ],
-      "follow_up_messages": [
+      ]
+    },
+    "follow_up_messages": {
+      "1": [  // service_item_id
         {
           "id": 20,
           "timing_mode": "hours_after",
@@ -124,107 +208,136 @@ This document analyzes the critical performance issue with the Service Items Set
         }
       ]
     }
-  ]
-}
-```
-
-**API Design Rationale**:
-- **Flattened by Service Item**: Frontend can easily iterate through service items
-- **Nested by Practitioner**: Billing scenarios naturally group by practitioner-service combinations
-- **Array Structure**: Easier for React state management and mapping operations
-- **Consistent IDs**: All entities include their IDs for update operations
-- **Errors**: Standard clinic access errors
-
-##### `POST /clinic/service-items/associations/bulk-save`
-- **Description**: Bulk save all service item associations in a single transaction
-- **Request Body**:
-```json
-{
-  "practitioner_assignments": {
-    "service_item_id_1": [practitioner_id_1, practitioner_id_2]
-  },
-  "billing_scenarios": {
-    "service_item_id_1-practitioner_id_1": [
-      {
-        "name": "Standard Rate",
-        "amount": 1000,
-        "revenue_share": 800,
-        "is_default": true
-      }
-    ]
-  },
-  "resource_requirements": {
-    "service_item_id_1": [
-      {
-        "resource_type_id": 1,
-        "quantity": 1
-      }
-    ]
-  },
-  "follow_up_messages": {
-    "service_item_id_1": [
-      {
-        "timing_mode": "hours_after",
-        "hours_after": 24,
-        "message_template": "How was your treatment?",
-        "is_enabled": true,
-        "display_order": 1
-      }
-    ]
   }
 }
 ```
-- **Response**: Success confirmation with created/updated IDs
-- **Errors**: Validation errors, transaction rollback on failure
+- **Errors**: Standard clinic access errors
+
+##### `GET /clinic/settings` (Refined)
+- **Description**: Clinic configuration only (no appointment types)
+- **Response**: Notifications, booking restrictions, chat settings, receipt settings
+- **Caching**: Longer cache time since configuration changes infrequently
+
+##### `GET /clinic/service-catalog` (New)
+- **Description**: Service catalog data (appointment types + groups + practitioners)
+- **Response**: Appointment types, service type groups, practitioners
+- **Use Case**: For components that need service data without full associations
+
+##### `GET /clinic/appointment-types` (Lightweight)
+- **Description**: Basic appointment type data for components that don't need associations
+- **Parameters**: None (clinic context from auth)
+- **Response**:
+```json
+[
+  {
+    "id": 1,
+    "name": "Initial Consultation",
+    "duration_minutes": 60,
+    "service_type_group_id": 1,
+    "display_order": 1
+  }
+]
+```
+- **Use Case**: Appointment creation, dashboards, basic displays
+
+##### `POST /clinic/service-management-data/save`
+- **Description**: Bulk save all service management data in a single transaction
+- **Request Body**:
+```json
+{
+  "appointment_types": [...],
+  "service_type_groups": [...],
+  "associations": {
+    "practitioner_assignments": {...},
+    "billing_scenarios": {...},
+    "resource_requirements": {...},
+    "follow_up_messages": {...}
+  }
+}
+```
+- **Response**: Success confirmation
+- **Errors**: Field-level validation errors with specific item identification
+
+**Error Response Structure**:
+```json
+{
+  "errors": {
+    "service_items": {
+      "1": ["duration_minutes must be positive"],
+      "2": ["name cannot be empty"]
+    },
+    "billing_scenarios": {
+      "1-101": ["revenue_share exceeds 100%"]
+    },
+    "practitioner_assignments": {
+      "1": ["practitioner not found"]
+    }
+  }
+}
+```
+
+**Concurrent Edit Resolution**:
+- **Optimistic Locking**: Version fields on service items and associations
+- **Conflict Detection**: Compare timestamps/version numbers on save
+- **Resolution Strategy**: Last-write-wins for non-conflicting changes, manual merge dialog for conflicts
 
 ### Database Schema
 
-**Current Schema**: No changes needed - existing tables remain:
-- `appointment_types` (service items)
-- `service_type_groups`
-- `practitioner_appointment_types` (assignments)
-- `billing_scenarios`
-- `appointment_resource_requirements`
-- `follow_up_messages`
+**Current Schema is Optimal**: No changes needed - existing normalized schema supports efficient queries:
+- `appointment_types` table
+- `service_type_groups` table
+- `practitioner_appointment_types` junction table
+- Separate tables for billing scenarios, resource requirements, follow-up messages
 
-### Business Logic Implementation
+**Rationale**: The issue is API design, not database design. Current schema enables efficient bulk queries.
 
-#### New Bulk Service Layer
+### Required Database Indexes
+**Audit and verify these indexes exist for optimal bulk query performance**:
 
-**BulkAssociationService**: New service class for bulk operations:
+- `appointment_types(clinic_id, display_order)` - For clinic-specific ordering
+- `service_type_groups(clinic_id, display_order)` - For clinic-specific ordering
+- `practitioner_appointment_types(appointment_type_id, practitioner_id)` - For association queries
+- `billing_scenarios(appointment_type_id, practitioner_id)` - For association queries
+- `appointment_resource_requirements(appointment_type_id)` - For resource associations
+- `follow_up_messages(appointment_type_id)` - For message associations
 
-```python
-class BulkAssociationService:
-    @staticmethod
-    def load_all_associations(db: Session, clinic_id: int, service_item_ids: Optional[List[int]] = None) -> Dict[str, Any]:
-        """Load all associations for service items in optimized queries"""
+**Index Maintenance Plan**:
+- Verify indexes during Phase 1 backend implementation
+- Monitor query performance with EXPLAIN ANALYZE
+- Add missing indexes before bulk operations deployment
 
-    @staticmethod
-    def save_all_associations(db: Session, clinic_id: int, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Save all associations in a single transaction"""
-```
+### Database Connection Pool Configuration
 
-**Optimization Strategies**:
-- Use `selectinload` for eager loading of related data
-- Single queries with `WHERE IN` clauses instead of N individual queries
-- Batch insert/update operations
-- Single transaction for all operations
+**REQUIRED: Increase Pool Size for Immediate Safety**
 
-#### Database Connection Pool Configuration
-
-**Conservative Pool Size Increase**:
+**Updated Configuration**:
 ```python
 engine = create_engine(
     DATABASE_URL,
     pool_pre_ping=True,
     pool_recycle=DB_POOL_RECYCLE_SECONDS,
-    pool_size=10,          # Increased from default 5 (100% increase)
-    max_overflow=15,       # Reduced from default 10 to 15 (50% increase)
+    pool_size=15,          # Increased from default 5 (200% increase)
+    max_overflow=20,       # Increased from default 10 (100% increase)
     pool_timeout=30,       # Keep existing timeout
 )
 ```
 
-**Technical Analysis - Why NOT Maximum Pool Size**:
+**Why Increase Pool Size NOW (Before Bulk Operations)**:
+
+**Immediate Safety Net**: The current pool size (5) is insufficient for existing load. Even during rollout of bulk operations, we need protection against the current N+1 query patterns.
+
+**Production Reality**: Multiple clinic admins loading settings simultaneously can easily exceed 5 connections:
+- 2 admins × 4 connections each = 8 connections (already exceeds pool)
+- 3 admins × 4 connections each = 12 connections
+- Background tasks, API calls, etc. add additional load
+
+**Conservative Increase**: Pool size 15 + 20 overflow = 35 total connections provides:
+- **Headroom**: For 5-8 concurrent admin sessions
+- **Background tasks**: Reminder schedulers, notification processors
+- **Unexpected load**: Buffer for traffic spikes
+- **Rollout safety**: Protection during bulk operation deployment
+
+**Why NOT Maximum Pool Size**:
 
 **Database Server Limits**: PostgreSQL default `max_connections` is typically 100-200, but production deployments often limit to 20-50 connections per application to prevent resource exhaustion.
 
@@ -232,20 +345,12 @@ engine = create_engine(
 
 **Connection Contention**: More connections increase lock contention and reduce query parallelism. The database can only execute a limited number of queries concurrently regardless of connection count.
 
-**Resource Waste**: Idle connections still consume server resources. With proper bulk loading, we should need far fewer connections.
+**Post-Bulk Operation Target**:
+- **Immediate**: 15+20 pool provides safety during rollout
+- **Post-Optimization**: Monitor and potentially reduce to 10+10 (20 total)
+- **Long-term**: Auto-scale based on actual usage patterns
 
-**Current vs. Proposed Usage**:
-- **Current**: 100+ concurrent connections during peak loads
-- **Target**: <15 connections with bulk operations
-- **Pool Size 10+15**: Provides headroom for unexpected load while preventing resource waste
-
-**Alternative: Application-Level Connection Pooling**:
-Consider implementing connection pooling at the application level using tools like:
-- SQLAlchemy's `QueuePool` (already in use)
-- PgBouncer for external connection pooling
-- Database connection multiplexing
-
-**Monitoring Strategy**:
+**Monitoring Implementation**:
 ```python
 # Add to database monitoring
 connection_pool_metrics = {
@@ -253,135 +358,71 @@ connection_pool_metrics = {
     'checked_out': engine.pool.checkedout(),
     'overflow': engine.pool.overflow(),
     'invalid': engine.pool.invalid(),
-}
-```
-
-**Scaling Strategy**:
-1. **Phase 1**: Implement bulk operations (should reduce connections by 80-90%)
-2. **Phase 2**: Monitor actual usage for 2 weeks
-3. **Phase 3**: Adjust pool size based on metrics (not assumptions)
-4. **Phase 4**: Consider auto-scaling pool size based on load patterns
-
----
-
-## Risk Assessment
-
-### Technical Risks
-
-#### Database Connection Pool Exhaustion (Critical)
-- **Risk**: Bulk operations could still trigger connection pool issues if not properly optimized
-- **Mitigation**:
-  - Implement query result streaming for large datasets
-  - Add connection pool monitoring with alerts
-  - Rollback plan: Revert to individual API calls if bulk operations fail
-  - Load testing with 1000+ service items before production deployment
-
-#### Transaction Deadlocks (High)
-- **Risk**: Bulk save operations could cause deadlocks with concurrent user operations
-- **Mitigation**:
-  - Use `SELECT FOR UPDATE` with consistent ordering
-  - Implement retry logic with exponential backoff
-  - Monitor deadlock frequency in staging environment
-  - Transaction timeout: 30 seconds maximum
-
-#### Memory Usage Spikes (Medium)
-- **Risk**: Loading all associations for large clinics could cause memory issues
-- **Mitigation**:
-  - Implement pagination for clinics with >500 service items
-  - Stream processing for bulk operations
-  - Memory monitoring with automatic fallback to individual loading
-
-#### Data Consistency Issues (Medium)
-- **Risk**: Partial bulk operation failures could leave data in inconsistent state
-- **Mitigation**:
-  - Single transaction for all bulk operations
-  - Comprehensive rollback on any failure
-  - Pre-validation of all data before transaction start
-  - Audit logging for all bulk operations
-
-### Operational Risks
-
-#### Performance Regression (Medium)
-- **Risk**: Bulk operations could be slower than individual calls for small datasets
-- **Mitigation**:
-  - Automatic fallback to individual loading for <10 service items
-  - A/B testing with performance monitoring
-  - Feature flag for gradual rollout
-
-#### Increased Database Load (Low)
-- **Risk**: Bulk queries could increase database CPU and I/O usage
-- **Mitigation**:
-  - Query optimization with proper indexing
-  - Database monitoring and query performance analysis
-  - Load testing under various data sizes
-
-### Rollback Strategy
-
-#### Phase Rollback (Per Phase)
-- **Phase 1**: Disable bulk endpoints, revert to individual APIs
-- **Phase 2**: Feature flag rollback to original loading logic
-- **Phase 3**: Database configuration rollback if connection issues persist
-- **Phase 4**: Complete reversion with monitoring data for future attempts
-
-#### Emergency Rollback (Production Incident)
-1. **Detection**: Monitor error rates (>5%) and response times (>10s)
-2. **Isolation**: Use feature flags to disable bulk operations per clinic
-3. **Recovery**: Automatic fallback to individual API calls
-4. **Analysis**: Log analysis to identify root cause
-5. **Fix**: Deploy hotfix within 1 hour for critical issues
-
----
-
-## Monitoring & Metrics
-
-### Database Connection Pool Metrics
-```python
-# Real-time monitoring
-pool_metrics = {
-    'active_connections': engine.pool.checkedout(),
-    'available_connections': engine.pool.size() - engine.pool.checkedout(),
-    'overflow_connections': engine.pool.overflow(),
     'connection_wait_time': engine.pool._timeout,
-    'connection_failures': failure_counter
+    'idle_connections': engine.pool.size() - engine.pool.checkedout(),
+}
+
+# Alerting thresholds
+alerts = {
+    'pool_utilization_high': engine.pool.checkedout() / (engine.pool.size() + engine.pool.overflow()) > 0.8,
+    'overflow_frequent': engine.pool.overflow() > 5,
+    'connection_timeout': 'pool_timeout exceeded',
 }
 ```
 
-### Application Performance Metrics
-- **Page Load Time**: Target <3 seconds for 50+ service items
-- **API Response Time**: Target <2 seconds for bulk operations
-- **Concurrent Connections**: Target <15 peak connections
-- **Error Rate**: Target <1% for bulk operations
-- **Memory Usage**: Monitor application memory during bulk operations
+### Business Logic Implementation
 
-### Database Performance Metrics
-- **Query Execution Time**: Monitor bulk query performance
-- **Connection Pool Utilization**: % of pool in use over time
-- **Transaction Duration**: Bulk save transaction times
-- **Deadlock Frequency**: Monitor and alert on deadlocks
-
-### User Experience Metrics
-- **Time to Interactive**: Measure when UI becomes responsive
-- **Error Recovery**: % of users who successfully recover from errors
-- **Feature Adoption**: % of clinics using bulk operations successfully
-
-### Alerting Strategy
+#### New ServiceManagementService
 ```python
-# Critical alerts
-if pool_overflow > 10:
-    alert("Database pool overflow critical")
+class ServiceManagementService:
+    @staticmethod
+    def get_service_management_data(db: Session, clinic_id: int) -> Dict[str, Any]:
+        """Single optimized query loading all service management data with proper JOINs"""
 
-if bulk_operation_time > 10:
-    alert("Bulk operation performance degradation")
+    @staticmethod
+    def save_service_management_data(db: Session, clinic_id: int, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Save all service management data in a single SERIALIZABLE transaction for consistency"""
 
-if error_rate > 0.05:
-    alert("Bulk operation error rate high")
+        # Transaction configuration for bulk saves
+        transaction_config = {
+            'isolation_level': 'SERIALIZABLE',  # Prevent phantom reads during bulk operations
+            'timeout': 30,  # 30-second timeout for bulk operations
+        }
 
-# Warning alerts
-if pool_utilization > 0.8:
-    warn("High database pool utilization")
+        with db.begin(**transaction_config):
+            # Bulk operations with proper error handling
+            # Rollback entire transaction on any validation failure
+            pass
+```
 
-if response_time > 5:
-    warn("Slow response time detected")
+**Query Optimization**:
+```sql
+-- Single query with joins instead of N+1
+SELECT
+    -- Appointment types with their groups
+    at.id, at.name, at.duration_minutes, at.service_type_group_id,
+    stg.name as group_name, stg.display_order as group_display_order,
+
+    -- Practitioner assignments
+    pat.practitioner_id,
+
+    -- Billing scenarios
+    bs.id, bs.amount, bs.revenue_share, bs.is_default,
+
+    -- Resource requirements
+    rr.resource_type_id, rr.quantity,
+
+    -- Follow-up messages
+    fm.timing_mode, fm.hours_after, fm.message_template, fm.is_enabled
+
+FROM appointment_types at
+LEFT JOIN service_type_groups stg ON stg.id = at.service_type_group_id
+LEFT JOIN practitioner_appointment_types pat ON pat.appointment_type_id = at.id
+LEFT JOIN billing_scenarios bs ON bs.appointment_type_id = at.id
+LEFT JOIN appointment_resource_requirements rr ON rr.appointment_type_id = at.id
+LEFT JOIN follow_up_messages fm ON fm.appointment_type_id = at.id
+WHERE at.clinic_id = ? AND at.is_deleted = false
+ORDER BY stg.display_order, at.display_order
 ```
 
 ---
@@ -392,23 +433,22 @@ if response_time > 5:
 
 #### Server State (API Data)
 
-- [ ] **Data Source**: New bulk endpoints provide all association data
+- [ ] **Data Source**: New `GET /clinic/service-management-data` endpoint
 - [ ] **React Query Hooks**:
-  - `useServiceItemsAssociationsBulkQuery()` - Bulk load all associations
-  - `useServiceItemsAssociationsBulkMutation()` - Bulk save all associations
+  - `useServiceManagementDataQuery()` - Single bulk load all service data
+  - `useServiceManagementDataMutation()` - Bulk save all service data
 - [ ] **Query Keys**:
-  - `['service-items', 'associations', 'bulk', clinicId]`
-  - `['service-items', 'associations', 'bulk', clinicId, serviceItemIds]` (filtered)
+  - `['service-management', 'data', clinicId]`
 - [ ] **Cache Strategy**:
-  - `staleTime`: 5 minutes (associations change infrequently)
-  - `cacheTime`: 30 minutes (keep in cache longer for performance)
+  - `staleTime`: 2 minutes (service data changes moderately)
+  - `cacheTime`: 10 minutes (keep in cache for performance)
   - Invalidation triggers: After save operations, clinic switching
 
 #### Client State (UI State)
 
 - [ ] **Zustand Store**: Extend `useServiceItemsStagingStore`
-  - New method: `bulkLoadAssociations()` - Load all associations at once
-  - New method: `bulkSaveAssociations()` - Save all associations at once
+  - New method: `loadServiceManagementData()` - Load all data at once
+  - New method: `saveServiceManagementData()` - Save all data at once
 - [ ] **Local Component State**: Minimal changes needed
 
 #### Form State
@@ -434,245 +474,339 @@ SettingsServiceItemsPage
 - [ ] **SettingsServiceItemsPage** - Main page component
   - Props: Existing props
   - State: Add bulk loading state
-  - Dependencies: New bulk query hooks
+  - Dependencies: New service management query hook
 
-- [ ] **BulkAssociationLoader** - New utility component for loading all associations
-  - Props: `serviceItemIds`, `onDataLoaded`
-  - State: Loading states
-  - Dependencies: Bulk query hook
+- [ ] **ServiceManagementDataLoader** - New utility component for loading all data
+  - Props: None (uses clinic context)
+  - State: Loading states and error handling
+  - Dependencies: Service management query hook
 
 ### User Interaction Flows
 
 #### Flow 1: Page Load (Optimized)
 1. User navigates to Service Items Settings
-2. Page loads clinic settings and groups (existing calls)
-3. **New**: Single bulk API call loads ALL associations
-4. UI renders with complete data immediately
-5. No additional loading states or timing gaps
+2. **Single API call**: `GET /clinic/service-management-data`
+3. UI renders immediately with complete data
+4. No additional loading states or timing gaps
 
 #### Flow 2: Save All Changes (Optimized)
 1. User clicks "儲存變更" (Save Changes)
 2. Validation runs (existing)
-3. **New**: Single bulk save API call saves all associations
+3. **Single API call**: `POST /clinic/service-management-data/save`
 4. All operations in single transaction
 5. Success/error feedback to user
 
-#### Mermaid Diagram
-```mermaid
-graph TD
-    A[Page Load] --> B[Load Settings & Groups]
-    B --> C[Bulk Load Associations]
-    C --> D[Render Complete UI]
-
-    E[Save Changes] --> F[Validate All]
-    F --> G[Bulk Save All]
-    G --> H{Success?}
-    H -->|Yes| I[Show Success]
-    H -->|No| J[Show Errors]
-```
+#### Flow 3: Clinic Settings Page (Separated)
+1. User navigates to clinic settings
+2. **Separate API call**: `GET /clinic/settings` (no appointment types)
+3. Faster loading, better caching for configuration-only pages
 
 ### Edge Cases and Error Handling
 
 #### Edge Cases
-- [x] **Partial Bulk Load Failure**: If bulk load partially fails, fall back to individual loads for missing data
-- [x] **Bulk Save Failure**: Transaction rollback ensures no partial saves
-- [x] **Large Dataset**: Implement pagination/virtualization if >100 service items
-- [x] **Network Interruption**: Retry logic with exponential backoff
-- [x] **Clinic Switching**: Clear all caches when clinic changes
+- [ ] **Partial Bulk Load Failure**: Fallback to individual API calls for missing data
+- [ ] **Bulk Save Transaction Failure**: Complete rollback, show detailed error breakdown
+- [ ] **Large Dataset (>1000 services)**: Implement pagination with loading states
+- [ ] **Network Interruption**: Resume operations with progress tracking
+- [ ] **Clinic Switching**: Clear all caches when switching clinics
 
 #### Error Scenarios
-- [x] **Bulk Load Timeout**: Show partial data with retry option
-- [x] **Bulk Save Timeout**: Show transaction rollback message with detailed error breakdown
-- [x] **Partial Bulk Failure**: Graceful degradation - load remaining data individually
-- [x] **Transaction Deadlock**: Automatic retry with exponential backoff (up to 3 attempts)
-- [x] **Memory Limit Exceeded**: Fallback to paginated loading for large datasets
-- [x] **Network Interruption**: Resume interrupted operations with progress tracking
-- [x] **Validation Errors**: Show field-level errors for failed associations with navigation to problematic items
-- [x] **Loading States**: Skeleton loading for initial bulk load with progress indicators
-- [x] **Mutation States**: Optimistic updates during bulk save with rollback on failure
-- [x] **Concurrent Edit Conflicts**: Merge conflict resolution with user choice to override or cancel
+- [ ] **Bulk Load Timeout**: Show partial data with manual retry option
+- [ ] **Bulk Save Timeout**: Show transaction rollback with recovery options
+- [ ] **Data Consistency**: Single transaction ensures no partial saves
+- [ ] **Validation Errors**: Field-level errors for failed operations
+- [ ] **Concurrent Edits**: Merge conflict resolution with user choice
 
 ### Testing Requirements
 
 #### E2E Tests (Playwright)
-- [ ] **Bulk Loading Performance**: Verify page loads in <3 seconds with 50 service items
-- [ ] **Bulk Save Operation**: Verify all associations save correctly
-- [ ] **Error Recovery**: Verify fallback to individual loads on bulk failure
-- [ ] **Large Dataset**: Test with 100+ service items
-- [ ] **A/B Testing**: Verify feature flag controls bulk vs individual loading
+- [ ] **Bulk Data Loading**: Verify page loads in <2 seconds with complete data
+- [ ] **Bulk Save Operation**: Verify all data saves correctly in single transaction
+- [ ] **Error Recovery**: Verify fallback mechanisms work properly
+- [ ] **Large Dataset**: Test with 100+ service items and associations
+- [ ] **API Separation**: Verify clinic settings vs service catalog work independently
 
 #### Integration Tests (MSW)
-- [ ] **Bulk API Mocking**: Mock bulk endpoints and verify UI behavior
-- [ ] **Error Scenarios**: Mock API failures and verify error handling
-- [ ] **Partial Failures**: Mock partial bulk failures and verify fallbacks
-- [ ] **Concurrent Operations**: Test multiple users editing simultaneously
+- [ ] **Service Management API**: Mock new bulk endpoints and verify UI behavior
+- [ ] **Error Scenarios**: Test transaction failures and rollback behavior
+- [ ] **Data Consistency**: Verify atomic operations maintain data integrity
 
 #### Unit Tests
-- [ ] **BulkAssociationService**: Test bulk loading and saving logic
+- [ ] **ServiceManagementService**: Test bulk loading and saving logic
 - [ ] **Bulk Query Hook**: Test React Query integration
-- [ ] **Bulk Mutation Hook**: Test save operations and error handling
-- [ ] **Connection Pool Monitoring**: Test pool usage metrics
+- [ ] **API Separation**: Test independent clinic settings vs service catalog
 
 ### Performance Considerations
 
-- [ ] **Data Loading**: Single bulk request instead of 100+ individual requests
-- [ ] **Caching**: 5-minute stale time for association data
-- [ ] **Optimistic Updates**: Update UI immediately on save, rollback on failure
-- [ ] **Lazy Loading**: No lazy loading needed - bulk load is fast enough
-- [ ] **Memoization**: Memoize association data processing
-- [ ] **Connection Pool Monitoring**: Track pool usage and optimize based on real data
+- [ ] **API Call Reduction**: From 100+ calls to 1 call (96% reduction)
+- [ ] **Database Queries**: Single optimized join query vs N+1 queries
+- [ ] **Connection Pool Usage**: <5 connections vs 100+ connections per page load
+- [ ] **Caching Strategy**: Separate caching for configuration vs catalog data
+- [ ] **Response Size**: Optimized JSON structure for frontend consumption
 
 ---
 
 ## Integration Points
 
 ### Backend Integration
-- [ ] New bulk service methods
-- [ ] Updated database pool configuration
+- [ ] New ServiceManagementService with bulk operations
+- [ ] Updated database pool configuration (conservative increase)
 - [ ] Transaction management for bulk operations
-- [ ] Connection pool monitoring and metrics
+- [ ] API versioning strategy for new endpoints
 
 ### Frontend Integration
 - [ ] Extended Zustand store with bulk methods
-- [ ] New React Query hooks with feature flags
-- [ ] Updated component loading logic with A/B testing
+- [ ] New React Query hooks for service management data
+- [ ] Updated component loading logic (single bulk call)
 - [ ] Maintained compatibility with existing edit modals
+- [ ] Migration of all `getClinicSettings()` usages to new endpoints
 
 ---
 
-## Security Considerations
+## Risk Assessment
 
-- [ ] Authentication requirements: Admin role required for settings changes
-- [ ] Authorization checks: Clinic access validation on all endpoints
-- [ ] Input validation: Pydantic models validate all bulk data
-- [ ] XSS prevention: Input sanitization on message templates
-- [ ] CSRF protection: Existing FastAPI security measures
-- [ ] Rate limiting: Prevent abuse of bulk endpoints
+### Technical Risks
+
+#### API Migration Complexity (Medium)
+- **Risk**: Breaking changes for existing components using `/clinic/settings`
+- **Mitigation**:
+  - Comprehensive pre-deployment audit of all `getClinicSettings()` usages
+  - Static analysis and grep searches for API dependencies
+  - Integration tests covering all affected components
+  - Coordinated frontend/backend deployment
+
+#### Transaction Performance (Low)
+- **Risk**: Large bulk saves could impact database performance
+- **Mitigation**:
+  - Query optimization and indexing
+  - Load testing with realistic data sizes
+  - Transaction timeout limits
+
+#### Data Consistency During Migration (Medium)
+- **Risk**: Temporary inconsistency between old and new APIs
+- **Mitigation**:
+  - Atomic deployment of new endpoints
+  - Database migration scripts if schema changes needed
+  - Rollback procedures
+
+### Operational Risks
+
+#### Deployment Window Downtime (Medium)
+- **Risk**: 5-10 minute service interruption during coordinated deployment
+- **Mitigation**:
+  - Schedule during low-traffic hours (e.g., early morning)
+  - Clear communication to users about maintenance window
+  - Rollback plan ready (previous versions can be redeployed quickly)
+  - Comprehensive pre-deployment testing in staging
+
+#### Missing API Migration (High)
+- **Risk**: Overlooked usage of `/clinic/settings` causes runtime errors
+- **Mitigation**:
+  - Comprehensive code audit of all `getClinicSettings()` usages
+  - Static analysis and grep searches for API dependencies
+  - Integration tests covering all affected components
+  - Staging environment testing before production deployment
+
+### Rollback Strategy
+
+#### Immediate Rollback
+- Deploy previous backend/frontend versions
+- Restore original `/clinic/settings` endpoint behavior
+- Database configuration rollback if connection issues
+
+#### Gradual Rollback
+- Monitor performance metrics post-deployment
+- If issues persist beyond initial deployment window, full rollback to previous versions
+- User feedback collection to inform future optimization approaches
 
 ---
 
-## Migration Plan & Rollout Strategy
+## Monitoring & Metrics
 
-### A/B Testing Strategy
-**Test Groups**:
-- **Control Group (A)**: 20% of clinics continue using individual API calls
-- **Test Group (B)**: 80% of clinics use bulk operations
-- **Metrics Comparison**: Page load time, error rates, user satisfaction
+### Database Connection Pool Metrics
+```python
+pool_metrics = {
+    'active_connections': engine.pool.checkedout(),
+    'available_connections': engine.pool.size() - engine.pool.checkedout(),
+    'overflow_connections': engine.pool.overflow(),
+    'connection_wait_time': engine.pool._timeout,
+    'connection_failures': failure_counter
+}
+```
 
-**Test Duration**: 2 weeks minimum to capture different usage patterns
+### Application Performance Metrics
+- **API Response Time**: <1 second for service management data
+- **Page Load Time**: <2 seconds for complete service management UI
+- **Save Operation Time**: <3 seconds for bulk operations
+- **Error Rate**: <1% for bulk operations
+- **Cache Hit Rate**: >90% for service management data
 
-**Success Criteria**:
-- 50%+ improvement in page load time
-- <2% increase in error rates
-- No database connection pool issues
-- Positive user feedback
+### Database Performance Metrics
+- **Query Execution Time**: Monitor bulk query performance (p95/p99 percentiles)
+- **Transaction Duration**: Bulk save transaction times with 30s timeout
+- **Connection Pool Utilization**: % of pool in use over time
+- **Deadlock Frequency**: Monitor and alert on deadlocks
+- **Rollback Rate**: Track partial save scenarios
 
-### Gradual Rollout Strategy
+### Circuit Breaker Pattern
+**For Bulk Operations Exceeding Thresholds**:
+```python
+BULK_OPERATION_TIMEOUT = 30  # seconds
 
-#### Phase 1: Backend Implementation (Week 1-2)
-- [x] Create BulkAssociationService with bulk loading logic
-- [x] Implement bulk save with transaction management
-- [x] Add new API endpoints with feature flags
-- [x] Update database pool configuration (conservative increase)
-- [x] Add comprehensive error handling and monitoring
-- [x] Load testing with synthetic data (100-1000 service items)
+if operation_duration > BULK_OPERATION_TIMEOUT:
+    # Automatic fallback to individual API calls
+    logger.warning(f"Bulk operation timeout ({operation_duration}s), falling back to individual calls")
+    return await fallback_to_individual_operations(data)
+```
 
-#### Phase 2: Frontend Integration (Week 3-4)
-- [x] Create bulk React Query hooks with feature flags
-- [x] Extend Zustand store with bulk methods
-- [x] Update SettingsServiceItemsPage with dual loading paths
-- [x] Implement automatic fallback logic for partial failures
-- [x] Add detailed loading states and progress indicators
-- [x] A/B testing framework implementation
+### Post-Deployment Monitoring (24h Critical Period)
+- **API Response Times**: Track p95/p99 for all endpoints
+- **Error Rates**: Monitor for increased failures during migration
+- **Connection Pool Usage**: Validate 15+20 pool provides sufficient headroom
+- **Cache Hit Rates**: Ensure React Query caching works effectively
 
-#### Phase 3: Controlled Rollout (Week 5-6)
-- [x] **Week 5**: Enable for 10% of clinics (beta testers)
-  - Monitor performance metrics and user feedback
-  - Daily standups for issue identification
-  - Feature flag allows instant rollback per clinic
-- [x] **Week 6**: Enable for 50% of clinics
-  - Automated alerting for performance regressions
-  - User satisfaction surveys
-  - Database monitoring for connection pool usage
+---
 
-#### Phase 4: Full Rollout & Optimization (Week 7-8)
-- [x] **Week 7**: Enable for all clinics
-  - Continuous performance monitoring
-  - Database connection pool optimization based on real usage
-  - Query performance tuning based on production data
-- [x] **Week 8**: Stabilization and optimization
-  - Remove feature flags and old code paths
-  - Final performance benchmarking
-  - Documentation updates
+## Migration Strategy Rationale
 
-### Rollback Triggers & Thresholds
-- **Immediate Rollback**: Error rate >5% or average response time >10 seconds
-- **Gradual Rollback**: Performance degradation >20% compared to baseline
-- **Clinic-Level Rollback**: Feature flag allows disabling per clinic without affecting others
-- **Emergency Rollback**: Database connection pool overflow >20 sustained
+### **Decision: Simplified Coordinated Deployment**
 
-### Success Metrics Tracking
-- **Technical Metrics**: Database connections, response times, error rates
-- **User Metrics**: Page load time, feature usage, user feedback scores
-- **Business Metrics**: Support ticket reduction, user satisfaction improvement
+**Why NOT complex feature flags and phased rollout?**
+
+1. **Frontend is our only client** - No need to maintain backward compatibility for external API consumers
+2. **Acceptable small downtime** - 5-10 minute deployment window is acceptable vs. months of dual maintenance
+3. **Simpler codebase** - No feature flag complexity, cleaner architecture after migration
+4. **Faster time-to-value** - Single deployment vs. prolonged rollout period
+5. **Easier testing** - Test complete migration vs. partial flag combinations
+
+**Risk Accepted**: Brief service interruption during deployment window (mitigated by low-traffic scheduling)
+
+**Risk Mitigated**: Comprehensive pre-deployment testing ensures no missed `/clinic/settings` migrations
+
+## Migration Plan: Coordinated Deployment
+
+### **Phase 1: Backend Implementation (Weeks 1-3)**
+- [ ] Create ServiceManagementService with bulk operations
+- [ ] Implement `/clinic/service-management-data` endpoint (full data with associations)
+- [ ] Implement `/clinic/appointment-types` endpoint (lightweight basic data)
+- [ ] Modify `/clinic/settings` to remove appointment_types (add `has_appointment_types` flag)
+- [ ] **Verify Database Indexes**: Audit and create required indexes for bulk query performance
+- [ ] Update database pool configuration (15+20 connections)
+- [ ] Add comprehensive monitoring and error handling
+- [ ] Load testing with 1000+ service items across all endpoints
+
+### **Phase 2: Frontend Migration (Weeks 4-5)**
+
+#### **CRITICAL: Complete API Migration Audit**
+
+**ALL locations using `getClinicSettings()` have been audited. Migration required for components that depend on `appointment_types`.**
+
+##### **🚨 HIGH PRIORITY: Will Break (Use appointment_types)**
+
+**Service Management (Use New Bulk Endpoint)**
+- [ ] `SettingsServiceItemsPage` → `getServiceManagementData()` (main service management)
+- [ ] `ServiceItemsSettings` → `getServiceManagementData()` or lightweight endpoint
+- [ ] `PractitionerAppointmentTypes` → `getServiceManagementData()` or lightweight endpoint
+
+**Appointment Creation (Use Lightweight Endpoint)**
+- [ ] `PatientsPage` → `getAppointmentTypes()` (passes to CreateAppointmentModal)
+- [ ] `PatientDetailPage` → `getAppointmentTypes()` (passes to CreateAppointmentModal)
+- [ ] `CalendarView` → `getAppointmentTypes()` (for modal display)
+
+**Dashboard & Scheduling (Use Lightweight Endpoint)**
+- [ ] `RevenueDistributionPage` → `getAppointmentTypes()` (revenue breakdown)
+- [ ] `BusinessInsightsPage` → `getAppointmentTypes()` (business analytics)
+- [ ] `AutoAssignedAppointmentsPage` → `getAppointmentTypes()` (appointment type access)
+
+**Settings Context (Use Bulk or Separate Endpoint)**
+- [ ] `SettingsContext` → `getServiceManagementData()` (settings forms)
+
+##### **🚨 CRITICAL: AutoAssignedAppointmentsPage Migration Gap**
+- [ ] `AutoAssignedAppointmentsPage` → **MOVED TO HIGH PRIORITY** - Uses `settings.appointment_types` but was incorrectly marked safe
+
+##### **⚠️ MEDIUM PRIORITY: Warning Logic (Will Break)**
+- [ ] `ClinicLayout` → Use new `has_appointment_types` field from clinic settings
+
+##### **✅ SAFE: No Changes Needed (Don't Use appointment_types)**
+- `ProfilePage` → Only uses `booking_restriction_settings` (safe)
+- `PatientInfoSection` → Only uses `clinic_info_settings` (safe)
+
+##### **🔍 ADDITIONAL: Double-Check These**
+- [ ] `frontend/src/stores/createSettingsFormStore.ts` → Generic store factory may call `getClinicSettings()`
+- [ ] `frontend/src/components/PractitionerAppointmentTypes.tsx` → Line 67 fallback to `getClinicSettings()`
+- [ ] `SettingsContext.tsx` → Error handling may access `appointment_types`
+
+#### **Implementation Steps**
+- [ ] Create `useServiceManagementData` hook for bulk service data
+- [ ] Create/update `useAppointmentTypes` hook for lightweight appointment data
+- [ ] Extend Zustand store with bulk methods for service management
+- [ ] Update all components according to migration priorities above
+- [ ] Implement fallback mechanisms for partial failures
+- [ ] Comprehensive integration testing covering all migrated components
+- [ ] Update test mocks and API contracts for new endpoints
+
+### **Phase 3: Coordinated Deployment (Week 6)**
+- [ ] **Communication**: Notify users of 5-10 minute maintenance window
+- [ ] **Pre-deployment**: Final testing in staging environment
+- [ ] **Deploy Backend**: New endpoints + modified `/clinic/settings`
+- [ ] **Deploy Frontend**: Updated components using new endpoints
+- [ ] **Downtime window**: 5-10 minutes during low-traffic period (early morning preferred)
+- [ ] **Post-deployment**: Monitor for 24 hours, rollback plan ready
+- [ ] **User Communication**: Post-deployment announcement of performance improvements
+
+### **Phase 4: Stabilization & Cleanup (Week 7)**
+- [ ] Performance monitoring and optimization
+- [ ] Remove old unused API code paths
+- [ ] Update API documentation for new endpoints
+- [ ] Update component documentation for migration changes
+- [ ] Code cleanup and technical debt removal
+- [ ] Knowledge sharing: Document lessons learned for future API migrations
+
+### **Rollback Plan**
+- **Immediate Rollback**: Deploy previous backend/frontend versions
+- **Downtime**: Same 5-10 minute window
+- **Trigger**: Any critical functionality broken post-deployment
+- **Timeline**: Rollback decision within 1 hour of deployment
 
 ---
 
 ## Success Metrics & Business Impact
 
 ### Technical Performance Metrics
-- [ ] **Database Connections**: Reduce from 100+ concurrent requests to <5 per page load (1-4 connections)
-- [ ] **Page Load Time**: <3 seconds for pages with 50+ service items (target: 70% improvement)
-- [ ] **Save Operation Time**: <5 seconds for complex save operations (target: 80% improvement)
-- [ ] **API Response Time**: <2 seconds for bulk operations (95th percentile)
-- [ ] **Error Rate**: <1% for bulk operations (target: 90% reduction from current)
-- [ ] **Memory Usage**: <100MB additional memory per bulk operation
+- [ ] **API Call Reduction**: 96% reduction (100+ calls → 1-2 calls)
+- [ ] **Database Connections**: Reduce from 100+ to <5 per page load
+- [ ] **Page Load Time**: <2 seconds for complete service management UI
+- [ ] **Save Operation Time**: <3 seconds for bulk operations
+- [ ] **Error Rate**: <1% for bulk operations
 
 ### Business Impact Quantification
 
 #### Current User Pain Points
-- **Productivity Loss**: Clinic admins spend 5-15 minutes waiting for settings to load/save
-- **Error Recovery**: Users experience frequent timeouts requiring page refreshes
-- **Support Burden**: 30% of support tickets related to service items settings performance
-- **User Frustration**: Poor experience leads to incomplete configurations and data inconsistencies
+- **Productivity Loss**: 5-15 minutes waiting for settings to load/save
+- **Error Recovery**: Frequent timeouts requiring page refreshes
+- **Support Burden**: 30% of support tickets related to performance issues
 
 #### Expected Business Benefits
 - **Time Savings**: 10-12 minutes saved per clinic admin per week
 - **Error Reduction**: 90% reduction in timeout-related support tickets
-- **Data Quality**: Improved configuration completeness and consistency
-- **User Satisfaction**: Expected 40% improvement in user satisfaction scores
-- **Scalability**: Support clinics with 500+ service items without performance degradation
+- **Data Quality**: Improved configuration consistency
+- **User Satisfaction**: 40% improvement in user satisfaction scores
+- **Scalability**: Support clinics with 500+ service items
 
 #### ROI Calculation
-- **Development Cost**: 4 weeks engineering effort
+- **Development Cost**: 6-7 weeks engineering effort (vs. 9 weeks with complex rollout)
 - **Support Cost Savings**: $500/month reduction in support tickets
-- **Productivity Gains**: 50 hours/month saved across all clinic admins
-- **Break-even**: Within 2 months of deployment
-- **Annual ROI**: 300%+ based on time savings and reduced support burden
-
-### User Experience Metrics
-- [ ] **Time to Interactive**: UI becomes responsive within 2 seconds
-- [ ] **Error Recovery Rate**: >95% of users successfully recover from errors
-- [ ] **Feature Adoption**: >98% of clinics successfully using bulk operations
-- [ ] **User Feedback Score**: Average rating >4.5/5 for settings performance
-
----
-
-## Open Questions / Future Enhancements
-
-- [x] Should we implement real-time collaboration for settings editing?
-- [x] Do we need audit logging for bulk association changes?
-- [x] Should we add export/import functionality for service item configurations?
-- [x] Future: Implement virtual scrolling for 1000+ service items
+- **Productivity Gains**: 50 hours/month saved across clinic admins
+- **Break-even**: Within 1-2 months of deployment
+- **Annual ROI**: 400%+ based on time savings and reduced support burden
 
 ---
 
 ## References
 
-- [Current Implementation](./service_items_settings_page_analysis.md)
+- [Current Implementation Analysis](./service_items_settings_page_analysis.md)
+- [API Query Patterns Research](./api_restructuring_analysis.md)
 - [Database Configuration](../../backend/src/core/database.py)
 - [Settings Management](./settings_management.md)
 - [React Query Documentation](https://tanstack.com/query/latest)
 - [SQLAlchemy Connection Pooling](https://docs.sqlalchemy.org/en/20/core/pooling.html)
-
----

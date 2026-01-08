@@ -25,6 +25,9 @@ engine = create_engine(
     DATABASE_URL,
     pool_pre_ping=True,  # Verify connections before use
     pool_recycle=DB_POOL_RECYCLE_SECONDS,
+    pool_size=15,        # Increased from default 5 (200% increase)
+    max_overflow=20,     # Increased from default 10 (100% increase)
+    pool_timeout=30,     # Keep existing timeout
     echo=False,          # Disable SQL logging
     future=True,         # Use SQLAlchemy 2.0 style
 )
