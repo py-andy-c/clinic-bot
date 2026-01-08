@@ -365,8 +365,8 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
 
   // Load month availability for calendar
   useEffect(() => {
-    // Defer loading until expanded, UNLESS a time is already selected (Create mode pre-fill)
-    const shouldLoad = isExpanded || (selectedDate && selectedTime && !excludeCalendarEventId);
+    // Only load when picker is expanded - no background loading on practitioner/appointment type changes
+    const shouldLoad = isExpanded;
     
     if (!shouldLoad || !appointmentTypeId || !selectedPractitionerId) {
       if (!shouldLoad) {
@@ -476,17 +476,8 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
     return datesWithSlots.has(dateString);
   };
 
-  // Auto-expand when empty (no date or time selected)
-  // The unavailable time check above handles expanding when time becomes unavailable
-  // But don't auto-expand if user just manually collapsed
-  useEffect(() => {
-    if ((!selectedDate || !selectedTime) && !userCollapsedRef.current) {
-      setIsExpanded(true);
-    } else if (selectedDate && selectedTime) {
-      // Reset flag when picker becomes non-empty (user has made a selection)
-      userCollapsedRef.current = false;
-    }
-  }, [selectedDate, selectedTime]);
+  // No auto-expansion - picker stays collapsed by default
+  // User must explicitly click to expand
 
   // Reset user collapse flag when picker becomes expanded (allows future auto-expand)
   useEffect(() => {
@@ -606,9 +597,11 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
     
     if (isUnavailable) {
       onTimeSelect('');
-      setIsExpanded(true);
-      setTempTime('');
-      userCollapsedRef.current = false;
+      // If already expanded, clear temp time; if collapsed, don't auto-expand
+      if (isExpanded) {
+        setTempTime('');
+      }
+      // Don't auto-expand - let user decide when to expand
     }
   }, [selectedTime, allTimeSlots, isLoadingSlots, loadingAvailability, selectedDate, selectedPractitionerId, appointmentTypeId, cachedAvailabilityData, excludeCalendarEventId, onTimeSelect, overrideMode]);
 
