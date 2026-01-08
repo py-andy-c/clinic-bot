@@ -114,27 +114,26 @@ export async function initializeServiceItemsWithAssociations(
             useServiceItemsStore.getState().practitionerAssignments;
           
           if (Object.keys(practitionerAssignments).length > 0) {
-            const billingScenariosPromises: Promise<void>[] = [];
             const failedLoads: Array<{ serviceItemId: number; practitionerId: number }> = [];
-            
+
+            // Process billing scenarios sequentially to reduce connection pool pressure
             for (const appointmentType of serviceItems) {
               const practitionerIds = practitionerAssignments[appointmentType.id];
               if (practitionerIds && practitionerIds.length > 0) {
                 for (const practitionerId of practitionerIds) {
-                  billingScenariosPromises.push(
-                    loadBillingScenarios(appointmentType.id, practitionerId).catch((err) => {
-                      failedLoads.push({ serviceItemId: appointmentType.id, practitionerId });
-                      logger.warn(
-                        `Failed to load billing scenarios for service ${appointmentType.id}, practitioner ${practitionerId}`,
-                        err
-                      );
-                      // Don't throw - allow other scenarios to load
-                    })
-                  );
+                  try {
+                    await loadBillingScenarios(appointmentType.id, practitionerId);
+                  } catch (err) {
+                    failedLoads.push({ serviceItemId: appointmentType.id, practitionerId });
+                    logger.warn(
+                      `Failed to load billing scenarios for service ${appointmentType.id}, practitioner ${practitionerId}`,
+                      err
+                    );
+                    // Continue with other scenarios
+                  }
                 }
               }
             }
-            await Promise.all(billingScenariosPromises);
             const { billingScenarios } = useServiceItemsStore.getState();
             associations.billingScenarios = billingScenarios;
             
@@ -160,17 +159,18 @@ export async function initializeServiceItemsWithAssociations(
         associations.resourceRequirements = useSavedAssociations.resourceRequirements;
       } else {
         try {
-          // Load from API
-          const resourceRequirementsPromises: Promise<void>[] = [];
+          // Load resource requirements sequentially to reduce connection pool pressure
           for (const appointmentType of serviceItems) {
             // Skip temporary IDs (will be loaded after save)
             if (!isTemporaryServiceItemId(appointmentType.id)) {
-              resourceRequirementsPromises.push(
-                loadResourceRequirements(appointmentType.id)
-              );
+              try {
+                await loadResourceRequirements(appointmentType.id);
+              } catch (err) {
+                logger.warn(`Failed to load resource requirements for service ${appointmentType.id}`, err);
+                // Continue with other requirements
+              }
             }
           }
-          await Promise.all(resourceRequirementsPromises);
           const { resourceRequirements } = useServiceItemsStore.getState();
           associations.resourceRequirements = resourceRequirements;
         } catch (err) {
