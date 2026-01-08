@@ -856,8 +856,8 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
         </div>
       )}
 
-      {/* Time Selection */}
-      {displayDate ? (
+      {/* Time Selection - hide completely during batch availability loading */}
+      {displayDate && !loadingAvailability ? (
         <div>
           {isLoadingSlots ? (
             <div className="flex items-center justify-center py-4">
@@ -921,6 +921,10 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
               <p className="text-sm text-gray-400 mt-2">請選擇其他日期</p>
             </div>
           )}
+        </div>
+      ) : displayDate && loadingAvailability ? (
+        <div className="flex items-center justify-center py-4">
+          <LoadingSpinner size="sm" />
         </div>
       ) : null}
       </div>
