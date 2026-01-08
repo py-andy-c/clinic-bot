@@ -109,7 +109,7 @@ def api_contract_client(db_session):
 # Frontend Zod schemas converted to JSON Schema for validation
 CLINIC_SETTINGS_SCHEMA = {
     "type": "object",
-    "required": ["clinic_id", "clinic_name", "business_hours", "appointment_types", "notification_settings"],
+    "required": ["clinic_id", "clinic_name", "business_hours", "has_appointment_types", "notification_settings"],
     "properties": {
         "clinic_id": {"type": "number"},
         "clinic_name": {"type": "string"},
@@ -127,19 +127,7 @@ CLINIC_SETTINGS_SCHEMA = {
                 }
             }
         },
-        "appointment_types": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "required": ["id", "clinic_id", "name", "duration_minutes"],
-                "properties": {
-                    "id": {"type": "number"},
-                    "clinic_id": {"type": "number"},
-                    "name": {"type": "string"},
-                    "duration_minutes": {"type": "number"}
-                }
-            }
-        },
+        "has_appointment_types": {"type": "boolean"},
         "notification_settings": {
             "type": "object",
             "required": ["reminder_hours_before"],
@@ -199,7 +187,7 @@ class TestAPIContracts:
         assert "clinic_id" in response_data
         assert "clinic_name" in response_data
         assert "business_hours" in response_data
-        assert "appointment_types" in response_data
+        assert "has_appointment_types" in response_data
         assert "notification_settings" in response_data
 
         # Validate notification_settings structure
@@ -297,3 +285,95 @@ class TestAPIContracts:
             assert "end" in day_data
             assert "enabled" in day_data
             assert isinstance(day_data["enabled"], bool)
+
+    def test_service_management_data_contract(self, api_contract_client):
+        """Test that /api/clinic/service-management-data returns complete service management data."""
+        response = api_contract_client.get('/api/clinic/service-management-data')
+        assert response.status_code == 200
+        response_data = response.json()
+
+        # Validate top-level structure
+        assert "appointment_types" in response_data
+        assert "service_type_groups" in response_data
+        assert "practitioners" in response_data
+        assert "associations" in response_data
+
+        # Validate appointment_types structure
+        assert isinstance(response_data["appointment_types"], list)
+        if response_data["appointment_types"]:
+            at = response_data["appointment_types"][0]
+            assert "id" in at
+            assert "name" in at
+            assert "duration_minutes" in at
+
+        # Validate service_type_groups structure
+        assert isinstance(response_data["service_type_groups"], list)
+        if response_data["service_type_groups"]:
+            stg = response_data["service_type_groups"][0]
+            assert "id" in stg
+            assert "name" in stg
+            assert "display_order" in stg
+
+        # Validate practitioners structure
+        assert isinstance(response_data["practitioners"], list)
+        if response_data["practitioners"]:
+            p = response_data["practitioners"][0]
+            assert "id" in p
+            assert "full_name" in p
+            assert "roles" in p
+
+        # Validate associations structure
+        associations = response_data["associations"]
+        assert "practitioner_assignments" in associations
+        assert "billing_scenarios" in associations
+        assert "resource_requirements" in associations
+        assert "follow_up_messages" in associations
+
+    def test_appointment_types_basic_contract(self, api_contract_client):
+        """Test that /api/clinic/appointment-types returns basic appointment type data."""
+        response = api_contract_client.get('/api/clinic/appointment-types')
+        assert response.status_code == 200
+        response_data = response.json()
+
+        # Validate structure
+        assert "appointment_types" in response_data
+        assert isinstance(response_data["appointment_types"], list)
+
+        # Validate each appointment type has basic fields only
+        for at in response_data["appointment_types"]:
+            assert "id" in at
+            assert "name" in at
+            assert "duration_minutes" in at
+            assert "service_type_group_id" in at
+            assert "display_order" in at
+            # Should NOT have detailed fields like receipt_name, description, etc.
+            assert "receipt_name" not in at
+            assert "description" not in at
+
+    def test_service_management_save_contract(self, api_contract_client):
+        """Test that /api/clinic/service-management-data/save can save service management data."""
+        # First get current data
+        get_response = api_contract_client.get('/api/clinic/service-management-data')
+        assert get_response.status_code == 200
+        current_data = get_response.json()
+
+        # Modify some data (add a new appointment type)
+        save_data = {
+            "appointment_types": current_data["appointment_types"] + [{
+                "name": "Test Service",
+                "duration_minutes": 30,
+                "display_order": 999
+            }],
+            "service_type_groups": current_data["service_type_groups"],
+            "associations": current_data["associations"]
+        }
+
+        # Save the data
+        save_response = api_contract_client.post('/api/clinic/service-management-data/save', json=save_data)
+        assert save_response.status_code == 200
+        save_result = save_response.json()
+
+        # Validate response structure
+        assert "success" in save_result
+        assert "errors" in save_result
+        assert isinstance(save_result["errors"], list)

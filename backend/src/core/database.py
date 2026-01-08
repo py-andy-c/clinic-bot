@@ -20,11 +20,13 @@ from core.constants import DB_POOL_RECYCLE_SECONDS
 
 logger = logging.getLogger(__name__)
 
-# Create SQLAlchemy engine with optimized settings
+# Create SQLAlchemy engine with optimized settings for bulk operations
 engine = create_engine(
     DATABASE_URL,
     pool_pre_ping=True,  # Verify connections before use
     pool_recycle=DB_POOL_RECYCLE_SECONDS,
+    pool_size=15,        # Increased from default 5 (200% increase)
+    max_overflow=20,     # Increased from default 10 (100% increase)
     echo=False,          # Disable SQL logging
     future=True,         # Use SQLAlchemy 2.0 style
 )

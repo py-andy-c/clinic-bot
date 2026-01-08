@@ -20,6 +20,7 @@ from auth.dependencies import require_admin_role, require_authenticated, UserCon
 from models import Clinic, AppointmentType, UserClinicAssociation
 from services import AppointmentTypeService
 from services.availability_service import AvailabilityService
+from services.service_management_service import ServiceManagementService
 from models.clinic import ClinicSettings
 from utils.datetime_utils import taiwan_now
 from utils.appointment_queries import (
@@ -153,11 +154,11 @@ class ReceiptSettings(BaseModel):
 
 
 class SettingsResponse(BaseModel):
-    """Response model for clinic settings."""
+    """Response model for clinic configuration settings."""
     clinic_id: int
     clinic_name: str
     business_hours: Dict[str, Dict[str, Any]]
-    appointment_types: List[AppointmentTypeResponse]
+    has_appointment_types: bool  # Whether clinic has any appointment types configured
     notification_settings: NotificationSettings
     booking_restriction_settings: BookingRestrictionSettings
     clinic_info_settings: ClinicInfoSettings
@@ -171,19 +172,20 @@ class AppointmentTypeDeletionValidationRequest(BaseModel):
     appointment_type_ids: List[int]
 
 
-@router.get("/settings", summary="Get clinic settings")
+@router.get("/settings", summary="Get clinic configuration settings")
 async def get_settings(
     current_user: UserContext = Depends(require_authenticated),
     db: Session = Depends(get_db)
 ) -> SettingsResponse:
     """
-    Get clinic settings including appointment types.
+    Get clinic configuration settings (notifications, booking restrictions, etc.).
 
+    Does NOT include appointment types - use /clinic/service-management-data for service catalog.
     Available to all clinic members (including read-only users).
     """
     try:
         clinic_id = ensure_clinic_access(current_user)
-        
+
         # Get clinic info
         clinic = db.query(Clinic).filter(Clinic.id == clinic_id).first()
         if not clinic:
@@ -192,36 +194,11 @@ async def get_settings(
                 detail="找不到診所"
             )
 
-        appointment_types = AppointmentTypeService.list_appointment_types_for_clinic(
-            db, clinic_id
-        )
-
-        appointment_type_list = [
-            AppointmentTypeResponse(
-                id=at.id,
-                clinic_id=at.clinic_id,
-                name=at.name,
-                duration_minutes=at.duration_minutes,
-                receipt_name=at.receipt_name,
-                allow_patient_booking=at.allow_patient_booking,  # DEPRECATED
-                allow_new_patient_booking=at.allow_new_patient_booking,
-                allow_existing_patient_booking=at.allow_existing_patient_booking,
-                allow_patient_practitioner_selection=at.allow_patient_practitioner_selection,
-                description=at.description,
-                scheduling_buffer_minutes=at.scheduling_buffer_minutes,
-                service_type_group_id=at.service_type_group_id,
-                display_order=at.display_order,
-                send_patient_confirmation=at.send_patient_confirmation,
-                send_clinic_confirmation=at.send_clinic_confirmation,
-                send_reminder=at.send_reminder,
-                patient_confirmation_message=at.patient_confirmation_message,
-                clinic_confirmation_message=at.clinic_confirmation_message,
-                reminder_message=at.reminder_message,
-                require_notes=at.require_notes,
-                notes_instructions=at.notes_instructions
-            )
-            for at in appointment_types
-        ]
+        # Check if clinic has appointment types (for UI warnings)
+        has_appointment_types = db.query(AppointmentType).filter(
+            AppointmentType.clinic_id == clinic_id,
+            AppointmentType.is_deleted == False
+        ).first() is not None
 
         # Default business hours
         business_hours = {
@@ -266,7 +243,7 @@ async def get_settings(
             clinic_id=clinic.id,
             clinic_name=clinic.name,
             business_hours=business_hours,
-            appointment_types=appointment_type_list,
+            has_appointment_types=has_appointment_types,
             # Convert from models to API response models - automatically includes all fields
             notification_settings=NotificationSettings.model_validate(validated_settings.notification_settings.model_dump()),
             booking_restriction_settings=BookingRestrictionSettings.model_validate(validated_settings.booking_restriction_settings.model_dump()),
@@ -937,5 +914,123 @@ async def regenerate_liff_token(
         raise HTTPException(
             status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法重新產生 token"
+        )
+
+
+# ===== Service Management Endpoints =====
+
+class ServiceManagementDataResponse(BaseModel):
+    """Response model for complete service management data."""
+    appointment_types: List[Dict[str, Any]]
+    service_type_groups: List[Dict[str, Any]]
+    practitioners: List[Dict[str, Any]]
+    associations: Dict[str, Any]
+
+
+class AppointmentTypesBasicResponse(BaseModel):
+    """Response model for basic appointment types data."""
+    appointment_types: List[Dict[str, Any]]
+
+
+class ServiceManagementSaveRequest(BaseModel):
+    """Request model for saving service management data."""
+    appointment_types: Optional[List[Dict[str, Any]]] = None
+    service_type_groups: Optional[List[Dict[str, Any]]] = None
+    associations: Optional[Dict[str, Any]] = None
+
+
+class ServiceManagementSaveResponse(BaseModel):
+    """Response model for service management save operation."""
+    success: bool
+    errors: List[str]
+
+
+@router.get("/service-management-data", summary="Get complete service management data")
+async def get_service_management_data(
+    current_user: UserContext = Depends(require_authenticated),
+    db: Session = Depends(get_db)
+) -> ServiceManagementDataResponse:
+    """
+    Get complete service management data for the clinic.
+
+    Includes appointment types, service groups, practitioners, and all associations
+    (practitioner assignments, billing scenarios, resource requirements, follow-up messages).
+
+    Available to all clinic members (including read-only users).
+    """
+    try:
+        clinic_id = ensure_clinic_access(current_user)
+
+        data = ServiceManagementService.get_service_management_data(db, clinic_id)
+
+        return ServiceManagementDataResponse(**data)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Error getting service management data: {e}")
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="無法取得服務管理資料"
+        )
+
+
+@router.get("/appointment-types", summary="Get basic appointment types data")
+async def get_appointment_types_basic(
+    current_user: UserContext = Depends(require_authenticated),
+    db: Session = Depends(get_db)
+) -> AppointmentTypesBasicResponse:
+    """
+    Get basic appointment types data for components that don't need associations.
+
+    Includes id, name, duration, group_id, display_order for each appointment type.
+
+    Available to all clinic members (including read-only users).
+    """
+    try:
+        clinic_id = ensure_clinic_access(current_user)
+
+        appointment_types = ServiceManagementService.get_appointment_types_basic(db, clinic_id)
+
+        return AppointmentTypesBasicResponse(appointment_types=appointment_types)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Error getting basic appointment types: {e}")
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="無法取得預約類型資料"
+        )
+
+
+@router.post("/service-management-data/save", summary="Save complete service management data")
+async def save_service_management_data(
+    request: ServiceManagementSaveRequest,
+    current_user: UserContext = Depends(require_admin_role),
+    db: Session = Depends(get_db)
+) -> ServiceManagementSaveResponse:
+    """
+    Save complete service management data in a single transaction.
+
+    Updates appointment types, service groups, and all associations atomically.
+
+    Admin-only.
+    """
+    try:
+        clinic_id = ensure_clinic_access(current_user)
+
+        data = request.model_dump()
+        result = ServiceManagementService.save_service_management_data(db, clinic_id, data)
+
+        return ServiceManagementSaveResponse(**result)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Error saving service management data: {e}")
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="無法儲存服務管理資料"
         )
 
