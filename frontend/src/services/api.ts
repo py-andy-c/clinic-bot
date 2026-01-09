@@ -49,7 +49,7 @@ const redirectToLogin = (): void => {
   if (window.location.pathname === '/admin/login') {
     return;
   }
-  
+
   requestAnimationFrame(() => {
     try {
       window.location.replace('/admin/login');
@@ -108,7 +108,7 @@ export class ApiService {
 
         const requestUrl = error.config?.url || '';
         const isRefreshRequest = requestUrl.includes('/auth/refresh');
-        
+
         // Don't handle refresh token requests (avoid infinite loops)
         if (isRefreshRequest) {
           return Promise.reject(error);
@@ -124,10 +124,41 @@ export class ApiService {
         }
 
         try {
+          // "Sticky Clinic Context" logic:
+          // Extract activeClinicId from current (expired) token to maintain context during refresh.
+          // This prevents unexpected clinic switching in multi-tab scenarios where the
+          // 'last_accessed_at' in the database might have been updated by another tab.
+          let activeClinicId: number | null = null;
+          const currentToken = authStorage.getAccessToken();
+
+          if (currentToken) {
+            try {
+              interface DecodedToken {
+                active_clinic_id?: number;
+                exp?: number;
+                sub?: string;
+              }
+
+              const parts = currentToken.split('.');
+              if (parts.length > 1 && parts[1]) {
+                // Decode base64url (replace - with +, _ with /)
+                const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+                const payload = JSON.parse(atob(base64)) as DecodedToken;
+                activeClinicId = payload.active_clinic_id ?? null;
+              }
+            } catch (e) {
+              if (e instanceof SyntaxError) {
+                logger.log('Invalid JWT payload format during clinic context extraction');
+              } else {
+                logger.log('Failed to decode activeClinicId from current token');
+              }
+            }
+          }
+
           // Refresh token using centralized service
           // TokenRefreshService handles concurrent refresh requests automatically
-          await tokenRefreshService.refreshToken();
-          
+          await tokenRefreshService.refreshToken({ activeClinicId });
+
           // Update request with new token and retry manually
           const newToken = authStorage.getAccessToken();
           if (newToken && error.config) {
@@ -139,7 +170,7 @@ export class ApiService {
           }
         } catch (refreshError) {
           logger.error('ApiService: Token refresh failed:', refreshError);
-          
+
           // Refresh failed - clear auth and redirect to login
           authStorage.clearAuth();
           redirectToLogin();
@@ -1286,20 +1317,22 @@ export class ApiService {
   }
 
   // Follow-Up Message Management APIs
-  async getFollowUpMessages(appointmentTypeId: number): Promise<{ follow_up_messages: Array<{
-    id: number;
-    appointment_type_id: number;
-    clinic_id: number;
-    timing_mode: 'hours_after' | 'specific_time';
-    hours_after?: number | null;
-    days_after?: number | null;
-    time_of_day?: string | null;
-    message_template: string;
-    is_enabled: boolean;
-    display_order: number;
-    created_at: string;
-    updated_at: string;
-  }> }> {
+  async getFollowUpMessages(appointmentTypeId: number): Promise<{
+    follow_up_messages: Array<{
+      id: number;
+      appointment_type_id: number;
+      clinic_id: number;
+      timing_mode: 'hours_after' | 'specific_time';
+      hours_after?: number | null;
+      days_after?: number | null;
+      time_of_day?: string | null;
+      message_template: string;
+      is_enabled: boolean;
+      display_order: number;
+      created_at: string;
+      updated_at: string;
+    }>
+  }> {
     const response = await this.client.get(`/clinic/appointment-types/${appointmentTypeId}/follow-up-messages`);
     return response.data;
   }

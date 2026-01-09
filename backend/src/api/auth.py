@@ -15,12 +15,13 @@ from sqlalchemy.orm import Session
 logger = logging.getLogger(__name__)
 
 from datetime import datetime, timezone, timedelta
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from core.database import get_db
 from core.config import API_BASE_URL, SYSTEM_ADMIN_EMAILS, FRONTEND_URL, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
 from services.jwt_service import jwt_service, TokenPayload
 from models import RefreshToken, User, Clinic, UserClinicAssociation
 from models.clinic import ClinicSettings
+from utils.datetime_utils import taiwan_now
 from auth.dependencies import get_active_clinic_association, require_authenticated, UserContext
 from pydantic import BaseModel
 
@@ -57,7 +58,11 @@ def check_clinic_switch_rate_limit(user_id: int) -> None:
     user_switches.append(now)
 
 
-def get_clinic_user_token_data(user: User, db: Session) -> Dict[str, Any]:
+def get_clinic_user_token_data(
+    user: User, 
+    db: Session, 
+    preferred_clinic_id: Optional[int] = None
+) -> Dict[str, Any]:
     """
     Get clinic-specific data for token creation.
     
@@ -68,6 +73,9 @@ def get_clinic_user_token_data(user: User, db: Session) -> Dict[str, Any]:
     Args:
         user: User to get clinic data for
         db: Database session
+        preferred_clinic_id: Optional clinic ID to prioritize. If provided, the system
+            will maintain this clinic context even if other clinics were more
+            recently accessed (providing "Sticky Clinic Context" for multi-tab sessions).
         
     Returns:
         Dictionary with:
@@ -80,7 +88,7 @@ def get_clinic_user_token_data(user: User, db: Session) -> Dict[str, Any]:
     clinic_name = user.email  # System admins use email as name
     
     # Get active clinic association for clinic users
-    association = get_active_clinic_association(user, db)
+    association = get_active_clinic_association(user, db, preferred_clinic_id=preferred_clinic_id)
     if association:
         active_clinic_id = association.clinic_id
         clinic_roles = association.roles or []
@@ -88,7 +96,7 @@ def get_clinic_user_token_data(user: User, db: Session) -> Dict[str, Any]:
         
         # Update last_accessed_at for default clinic selection
         try:
-            association.last_accessed_at = datetime.now(timezone.utc)
+            association.last_accessed_at = taiwan_now()
             db.flush()  # Use flush instead of commit to reduce blocking
         except Exception as e:
             logger.warning(f"Failed to update last_accessed_at for user {user.id}: {e}")
@@ -437,9 +445,11 @@ async def refresh_access_token(
     try:
         body = await request.json()
         refresh_token = body.get("refresh_token")
+        active_clinic_id = body.get("active_clinic_id")
     except Exception as e:
         logger.debug(f"Could not read request body as JSON: {e}")
         refresh_token = None
+        active_clinic_id = None
     
     # Validate refresh token format
     if not refresh_token:
@@ -584,7 +594,8 @@ async def refresh_access_token(
             )
     
     # Get clinic-specific data for token creation
-    clinic_data = get_clinic_user_token_data(user, db)
+    # Pass optional active_clinic_id from request to maintain clinic context
+    clinic_data = get_clinic_user_token_data(user, db, preferred_clinic_id=active_clinic_id)
     
     # Unified token payload creation for both system admins and clinic users
     payload = TokenPayload(
@@ -1068,7 +1079,7 @@ async def switch_clinic(
     
     # Update last_accessed_at
     try:
-        association.last_accessed_at = datetime.now(timezone.utc)
+        association.last_accessed_at = taiwan_now()
         db.flush()
     except Exception as e:
         logger.warning(f"Failed to update last_accessed_at for user {user.id}: {e}")
@@ -1143,7 +1154,9 @@ async def refresh_user_data(
         logger.info(f"Current user context roles: {current_user.roles}")
 
         # Get clinic-specific data for token creation
-        clinic_data = get_clinic_user_token_data(user, db)
+        # Pass current_user.active_clinic_id to ensure we refresh data for the SAME clinic
+        # rather than switching to the most recently used one if multiple clinics are open.
+        clinic_data = get_clinic_user_token_data(user, db, preferred_clinic_id=current_user.active_clinic_id)
         logger.info(f"Database roles for user: {clinic_data['clinic_roles']}")
         logger.info(f"Active clinic ID: {clinic_data['active_clinic_id']}")
 
@@ -1213,9 +1226,9 @@ async def refresh_user_data(
     except HTTPException:
         raise
     except Exception as e:
-        logger.exception(f"Error refreshing user data: {e}")
+        logger.exception(f"Error refreshing user data for user {current_user.email} (ID: {current_user.user_id}): {e}")
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="無法重新整理使用者資料"
-    )
+            detail=f"無法重新整理使用者資料: {str(e)}"
+        )

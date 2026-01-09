@@ -302,16 +302,27 @@ def require_practitioner_or_admin(user: UserContext = Depends(get_current_user))
 # # Use: require_role("practitioner") or require_role("admin")
 
 
-def get_active_clinic_association(user: User, db: Session) -> Optional[UserClinicAssociation]:
+def get_active_clinic_association(
+    user: User, 
+    db: Session, 
+    preferred_clinic_id: Optional[int] = None
+) -> Optional[UserClinicAssociation]:
     """
     Get the active clinic association for a clinic user.
     
-    Selects the most recently accessed clinic (by last_accessed_at), 
-    or the first active association if none have been accessed.
+    If preferred_clinic_id is provided, attempts to get that specific association.
+    This provides "Sticky Clinic Context" for multi-tab sessions, preventing
+    one tab from switching focus because another tab updated the global
+    'last_accessed_at' ordering.
+    
+    If preferred_clinic_id is not provided or not found, selects the most 
+    recently accessed clinic (by last_accessed_at), or the first active 
+    association if none have been accessed.
     
     Args:
         user: User to get clinic association for
         db: Database session
+        preferred_clinic_id: Optional clinic ID to prioritize
         
     Returns:
         UserClinicAssociation if found, None if user has no associations
@@ -320,14 +331,22 @@ def get_active_clinic_association(user: User, db: Session) -> Optional[UserClini
         This function does NOT update last_accessed_at. Callers should update it
         when creating tokens to track clinic usage.
     """
-    # Get all active associations for this user
-    # System admins will have no associations, which is expected
-    associations = db.query(UserClinicAssociation).filter(
+    # Base query for active associations with active clinics
+    query = db.query(UserClinicAssociation).filter(
         UserClinicAssociation.user_id == user.id,
         UserClinicAssociation.is_active == True
     ).join(Clinic).filter(
         Clinic.is_active == True
-    ).order_by(
+    )
+
+    # If preferred_clinic_id is provided, try to find that specific one first
+    if preferred_clinic_id:
+        association = query.filter(UserClinicAssociation.clinic_id == preferred_clinic_id).first()
+        if association:
+            return association
+
+    # Fallback: Get most recently used or oldest association
+    associations = query.order_by(
         UserClinicAssociation.last_accessed_at.desc().nulls_last(),
         UserClinicAssociation.id.asc()  # Fallback: oldest association if no last_accessed_at
     ).all()
