@@ -58,7 +58,11 @@ const LiffApp: FC = () => {
             clinicInfo.clinic_name,
             clinicInfo.display_name,
             clinicInfo.address,
-            clinicInfo.phone_number
+            clinicInfo.phone_number,
+            clinicInfo.require_birthday || false,
+            clinicInfo.require_gender || false,
+            clinicInfo.minimum_cancellation_hours_before || 24,
+            clinicInfo.restrict_to_assigned_practitioners || false
           );
           setAppointmentNotesInstructions(clinicInfo.appointment_notes_instructions || null);
           setPageInstructions(

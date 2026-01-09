@@ -1625,8 +1625,8 @@ export interface components {
        * @description List of dicts with 'id' and 'display_order'
        */
       service_orders: {
-          [key: string]: unknown;
-        }[];
+        [key: string]: unknown;
+      }[];
     };
     /**
      * AppointmentTypeDeletionValidationRequest
@@ -1849,8 +1849,8 @@ export interface components {
       practitioner_name: string | null;
       /** Time Windows */
       time_windows: {
-          [key: string]: string;
-        }[];
+        [key: string]: string;
+      }[];
       /**
        * Created At
        * Format: date-time
@@ -2523,8 +2523,8 @@ export interface components {
       max_future_appointments?: number | null;
       /** Assigned Practitioners */
       assigned_practitioners?: {
-          [key: string]: unknown;
-        }[] | null;
+        [key: string]: unknown;
+      }[] | null;
       /** Line User Id */
       line_user_id: string | null;
       /** Line User Display Name */
@@ -3328,8 +3328,8 @@ export interface components {
       max_future_appointments?: number | null;
       /** Assigned Practitioners */
       assigned_practitioners?: {
-          [key: string]: unknown;
-        }[] | null;
+        [key: string]: unknown;
+      }[] | null;
     };
     /**
      * PatientUpdateRequest
@@ -3647,16 +3647,16 @@ export interface components {
     ResourceAvailabilityResponse: {
       /** Requirements */
       requirements: {
-          [key: string]: unknown;
-        }[];
+        [key: string]: unknown;
+      }[];
       /** Suggested Allocation */
       suggested_allocation: {
-          [key: string]: unknown;
-        }[];
+        [key: string]: unknown;
+      }[];
       /** Conflicts */
       conflicts: {
-          [key: string]: unknown;
-        }[];
+        [key: string]: unknown;
+      }[];
     };
     /**
      * ResourceCalendarDayResponse
@@ -3837,8 +3837,8 @@ export interface components {
        * @description List of dicts with 'id' and 'display_order'
        */
       group_orders: {
-          [key: string]: unknown;
-        }[];
+        [key: string]: unknown;
+      }[];
     };
     /**
      * ServiceTypeGroupCreateRequest
@@ -10279,23 +10279,18 @@ export function getErrorMessage(error: ApiErrorType): string {
   if (typeof error === 'object' && error !== null) {
     const errObj = error as Record<string, unknown>;
 
-    // Handle ApiError interface
-    if ('message' in errObj && typeof errObj.message === 'string') {
-      return errObj.message;
-    }
-
-    // Handle Axios error response
+    // 1. Handle Axios error response (most specific)
     if ('response' in errObj && errObj.response && typeof errObj.response === 'object') {
       const response = errObj.response as Record<string, unknown>;
       if ('data' in response && response.data && typeof response.data === 'object') {
         const data = response.data as Record<string, unknown>;
 
-        // Handle array of validation errors
+        // Handle array of validation errors (Pydantic style)
         if ('detail' in data && Array.isArray(data.detail)) {
           return (data.detail as ValidationErrorDetail[]).map(detail => detail.msg).join(', ');
         }
 
-        // Handle string detail
+        // Handle string detail (FastAPI style)
         if ('detail' in data && typeof data.detail === 'string') {
           return data.detail;
         }
@@ -10312,8 +10307,8 @@ export function getErrorMessage(error: ApiErrorType): string {
       }
     }
 
-    // Handle direct message on Axios error
-    if ('message' in errObj && typeof errObj.message === 'string') {
+    // 2. Handle object with message field (e.g. from our services)
+    if ('message' in errObj && typeof errObj.message === 'string' && !errObj.message.includes('status code')) {
       return errObj.message;
     }
   }

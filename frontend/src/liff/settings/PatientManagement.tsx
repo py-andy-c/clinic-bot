@@ -18,7 +18,7 @@ import { PatientSummary } from '../../services/liffApi';
 
 const PatientManagement: React.FC = () => {
   const { t } = useTranslation();
-  const { clinicId, settingsPageInstructions } = useAppointmentStore();
+  const { clinicId, settingsPageInstructions, requireBirthday, requireGender } = useAppointmentStore();
   const { alert: showAlert, confirm: showConfirm } = useModal();
   const [patients, setPatients] = useState<PatientSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -31,30 +31,12 @@ const PatientManagement: React.FC = () => {
   const [editPatientBirthday, setEditPatientBirthday] = useState('');
   const [editPatientGender, setEditPatientGender] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
-  const [requireBirthday, setRequireBirthday] = useState(false);
-  const [requireGender, setRequireGender] = useState(false);
 
   // Enable back button navigation - always goes back to home
   useLiffBackButton('settings');
 
   useEffect(() => {
     loadPatients();
-  }, [clinicId]);
-
-  // Fetch clinic settings to check if birthday or gender is required
-  useEffect(() => {
-    const fetchClinicSettings = async () => {
-      if (!clinicId) return;
-      try {
-        const clinicInfo = await liffApiService.getClinicInfo();
-        setRequireBirthday(clinicInfo.require_birthday || false);
-        setRequireGender(clinicInfo.require_gender || false);
-      } catch (err) {
-        logger.error('Failed to fetch clinic settings:', err);
-        // Don't block if we can't fetch settings
-      }
-    };
-    fetchClinicSettings();
   }, [clinicId]);
 
   const loadPatients = async () => {
@@ -146,7 +128,7 @@ const PatientManagement: React.FC = () => {
       setEditingPatientId(null);
     } catch (err: ApiErrorType) {
       logger.error('Failed to update patient:', err);
-      
+
       setError(getErrorMessage(err));
     } finally {
       setIsUpdating(false);
@@ -181,10 +163,10 @@ const PatientManagement: React.FC = () => {
           // Check for known error messages (both English and Chinese versions from backend)
           // TODO: Consider using error codes instead of string matching for better maintainability
           if (errorDetail === "Cannot delete patient with future appointments" ||
-              errorDetail === "無法刪除此就診人，因為該就診人尚有未來的預約記錄。\n\n請先刪除或取消相關預約後再試。") {
+            errorDetail === "無法刪除此就診人，因為該就診人尚有未來的預約記錄。\n\n請先刪除或取消相關預約後再試。") {
             await showAlert(t('patient.errors.cannotDeleteWithAppointments'), t('status.error'));
           } else if (errorDetail === "至少需保留一位就診人" ||
-                     errorDetail === "Cannot delete the last patient") {
+            errorDetail === "Cannot delete the last patient") {
             await showAlert(t('patient.errors.cannotDeleteLast'), t('status.error'));
           } else {
             await showAlert(t('patient.errors.deleteFailed'), t('status.error'));
@@ -212,9 +194,9 @@ const PatientManagement: React.FC = () => {
           <p className="text-sm text-gray-500 mb-6">
             {t('home.managePatientsDesc')}
           </p>
-          
+
           <PageInstructions instructions={settingsPageInstructions} />
-          
+
           <div className="flex items-center justify-center py-12">
             <LoadingSpinner />
           </div>
@@ -237,9 +219,9 @@ const PatientManagement: React.FC = () => {
           <p className="text-sm text-gray-500 mb-6">
             {t('home.managePatientsDesc')}
           </p>
-          
+
           <PageInstructions instructions={settingsPageInstructions} />
-          
+
           <div className="my-8">
             <ErrorMessage message={error} onRetry={loadPatients} />
           </div>
@@ -407,9 +389,9 @@ const PatientManagement: React.FC = () => {
                 requireGender={requireGender}
                 onSubmit={handleAddPatient}
                 onCancel={() => {
-                    setShowAddForm(false);
-                    setError(null);
-                  }}
+                  setShowAddForm(false);
+                  setError(null);
+                }}
                 error={error}
                 isLoading={isAdding}
               />
