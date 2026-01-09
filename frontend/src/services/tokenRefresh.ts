@@ -24,7 +24,7 @@ export interface RefreshTokenResponse {
 }
 
 export interface RefreshTokenOptions {
-  // validateToken option removed - user data is now always included in refresh response
+  activeClinicId?: number | null;
 }
 
 export interface RefreshTokenResult {
@@ -67,7 +67,7 @@ export class TokenRefreshService {
 
       // Always create a new axios client to avoid interceptor loops
       const client = this.createAxiosClient();
-      
+
       // Get refresh token from localStorage
       const refreshToken = authStorage.getRefreshToken();
       if (!refreshToken) {
@@ -75,10 +75,11 @@ export class TokenRefreshService {
         throw new Error('找不到重新整理權杖');
       }
 
-      logger.log('TokenRefreshService: Sending refresh request to /auth/refresh');
+      logger.log('TokenRefreshService: Sending refresh request to /auth/refresh', { active_clinic_id: _options.activeClinicId });
       // Send refresh request with token in request body
       const response = await client.post<RefreshTokenResponse>('/auth/refresh', {
         refresh_token: refreshToken,
+        active_clinic_id: _options.activeClinicId,
       });
 
       // Extract tokens and user data from response
@@ -97,11 +98,11 @@ export class TokenRefreshService {
         accessToken: data.access_token,
         ...(userData && { userData }),
       };
-      
+
       if (data.refresh_token) {
         result.refreshToken = data.refresh_token;
       }
-      
+
       return result;
     } catch (error: unknown) {
       logger.error('TokenRefreshService: Token refresh failed:', error);

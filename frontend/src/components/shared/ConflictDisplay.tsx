@@ -4,6 +4,7 @@ import { SchedulingConflictResponse } from '../../types';
 interface ConflictDisplayProps {
   conflictInfo: SchedulingConflictResponse | null;
   className?: string;
+  ariaLive?: 'off' | 'polite' | 'assertive';
 }
 
 /**
@@ -16,6 +17,7 @@ interface ConflictDisplayProps {
 export const ConflictDisplay: React.FC<ConflictDisplayProps> = ({
   conflictInfo,
   className = '',
+  ariaLive = 'polite',
 }) => {
   if (!conflictInfo || !conflictInfo.has_conflict) {
     return null;
@@ -159,13 +161,19 @@ export const ConflictDisplay: React.FC<ConflictDisplayProps> = ({
   }
 
   return (
-    <div className={`space-y-2 ${className}`}>
+    <div
+      className={`space-y-2 ${className}`}
+      aria-live={ariaLive}
+      aria-atomic="true"
+      role="status"
+      aria-label="預約衝突警告"
+    >
       {conflicts.map((conflict, index) => (
         <div key={index} className={`rounded-md border p-3 ${conflict.display.borderClass}`}>
           <div className={`flex items-start gap-2 ${conflict.display.textClass}`}>
-            <span className="text-lg flex-shrink-0">{conflict.display.icon}</span>
+            <span className="text-lg flex-shrink-0" aria-hidden="true">{conflict.display.icon}</span>
             <div className="flex-1 min-w-0">
-              <div className="font-medium text-sm mb-1">
+              <div className="font-medium text-sm mb-1" role="heading" aria-level={3}>
                 {conflict.display.title}
               </div>
               {conflict.display.details.map((detail, detailIndex) => (

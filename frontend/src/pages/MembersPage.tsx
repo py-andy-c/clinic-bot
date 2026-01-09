@@ -10,9 +10,9 @@ import PageHeader from '../components/PageHeader';
 import { getErrorMessage } from '../types/api';
 
 const MembersPage: React.FC = () => {
-  const { isClinicAdmin, user: currentUser, isAuthenticated, checkAuthStatus, refreshUserData } = useAuth();
+  const { isClinicAdmin, user: currentUser, isAuthenticated, refreshUserData } = useAuth();
   const { alert, confirm } = useModal();
-  
+
   // Scroll to top when component mounts
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -69,7 +69,6 @@ const MembersPage: React.FC = () => {
       // Only refresh user data if the current user updated their own roles
       // Note: When updating other users' roles, their permissions won't update until they refresh their browser
       if (currentUser && userId === currentUser.user_id) {
-        await checkAuthStatus();
         await refreshUserData();
       }
     } catch (err: any) {
@@ -216,95 +215,95 @@ const MembersPage: React.FC = () => {
         {/* Members List */}
         <div className="bg-white rounded-lg shadow-md overflow-hidden">
           <ul role="list" className="divide-y divide-gray-200">
-          {!members || members.length === 0 ? (
-            <div className="text-center py-12">
-              <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-              </svg>
-              <h3 className="mt-2 text-sm font-medium text-gray-900">無成員</h3>
-              <p className="mt-1 text-sm text-gray-500">
-                {isClinicAdmin ? '邀請第一位成員加入您的診所' : '目前沒有其他成員'}
-              </p>
-              {isClinicAdmin && (
-                <div className="mt-6">
-                  <button
-                    onClick={() => setShowInviteModal(true)}
-                    className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-                  >
-                    <svg className="-ml-1 mr-2 h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                      <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
-                    </svg>
-                    邀請成員
-                  </button>
-                </div>
-              )}
-            </div>
-          ) : (
-            members?.map((member) => (
-              <li key={member.id}>
-                <div className={`px-4 py-4 sm:px-6 ${!member.is_active ? 'bg-gray-50 opacity-75' : ''}`}>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center">
-                      <div>
-                        <div className={`text-sm font-medium ${!member.is_active ? 'text-gray-500' : 'text-gray-900'}`}>
-                          {member.full_name}
-                          {!member.is_active && ' (已停用)'}
-                        </div>
-                        <div className={`text-sm ${!member.is_active ? 'text-gray-400' : 'text-gray-500'}`}>{member.email}</div>
-                        <div className="mt-1 flex items-center space-x-2">
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getRoleColor(member.roles)}`}>
-                            {getRoleDisplay(member.roles)}
-                          </span>
-                          {!member.is_active && (
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                              已停用
+            {!members || members.length === 0 ? (
+              <div className="text-center py-12">
+                <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+                <h3 className="mt-2 text-sm font-medium text-gray-900">無成員</h3>
+                <p className="mt-1 text-sm text-gray-500">
+                  {isClinicAdmin ? '邀請第一位成員加入您的診所' : '目前沒有其他成員'}
+                </p>
+                {isClinicAdmin && (
+                  <div className="mt-6">
+                    <button
+                      onClick={() => setShowInviteModal(true)}
+                      className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+                    >
+                      <svg className="-ml-1 mr-2 h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
+                      </svg>
+                      邀請成員
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              members?.map((member) => (
+                <li key={member.id}>
+                  <div className={`px-4 py-4 sm:px-6 ${!member.is_active ? 'bg-gray-50 opacity-75' : ''}`}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center">
+                        <div>
+                          <div className={`text-sm font-medium ${!member.is_active ? 'text-gray-500' : 'text-gray-900'}`}>
+                            {member.full_name}
+                            {!member.is_active && ' (已停用)'}
+                          </div>
+                          <div className={`text-sm ${!member.is_active ? 'text-gray-400' : 'text-gray-500'}`}>{member.email}</div>
+                          <div className="mt-1 flex items-center space-x-2">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getRoleColor(member.roles)}`}>
+                              {getRoleDisplay(member.roles)}
                             </span>
+                            {!member.is_active && (
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                已停用
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center space-x-3">
+                        {/* Actions */}
+                        <div className="flex items-center space-x-2">
+                          {isClinicAdmin && (
+                            <>
+                              {member.is_active ? (
+                                <>
+                                  <button
+                                    onClick={() => setShowRoleModal(member)}
+                                    className="inline-flex items-center px-2.5 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+                                  >
+                                    編輯角色
+                                  </button>
+
+                                  {member.id !== currentUser?.user_id && (
+                                    <button
+                                      onClick={() => handleRemoveMember(member.id)}
+                                      className="inline-flex items-center px-2.5 py-1.5 border border-red-300 shadow-sm text-xs font-medium rounded text-red-700 bg-white hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                                    >
+                                      停用
+                                    </button>
+                                  )}
+                                </>
+                              ) : (
+                                <button
+                                  onClick={() => handleReactivateMember(member.id)}
+                                  className="inline-flex items-center px-2.5 py-1.5 border border-green-300 shadow-sm text-xs font-medium rounded text-green-700 bg-white hover:bg-green-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                                >
+                                  重新啟用
+                                </button>
+                              )}
+                            </>
                           )}
                         </div>
                       </div>
                     </div>
-
-                    <div className="flex items-center space-x-3">
-                      {/* Actions */}
-                      <div className="flex items-center space-x-2">
-                        {isClinicAdmin && (
-                          <>
-                            {member.is_active ? (
-                              <>
-                                <button
-                                  onClick={() => setShowRoleModal(member)}
-                                  className="inline-flex items-center px-2.5 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-                                >
-                                  編輯角色
-                                </button>
-
-                                {member.id !== currentUser?.user_id && (
-                                  <button
-                                    onClick={() => handleRemoveMember(member.id)}
-                                    className="inline-flex items-center px-2.5 py-1.5 border border-red-300 shadow-sm text-xs font-medium rounded text-red-700 bg-white hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-                                  >
-                                    停用
-                                  </button>
-                                )}
-                              </>
-                            ) : (
-                              <button
-                                onClick={() => handleReactivateMember(member.id)}
-                                className="inline-flex items-center px-2.5 py-1.5 border border-green-300 shadow-sm text-xs font-medium rounded text-green-700 bg-white hover:bg-green-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
-                              >
-                                重新啟用
-                              </button>
-                            )}
-                          </>
-                        )}
-                      </div>
-                    </div>
                   </div>
-                </div>
-              </li>
-            ))
-          )}
-        </ul>
+                </li>
+              ))
+            )}
+          </ul>
         </div>
       </div>
 

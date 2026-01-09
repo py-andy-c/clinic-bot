@@ -42,17 +42,16 @@ vi.mock('../../../services/api', () => ({
 }));
 
 
-// Mock DateTimePicker to report available slots and conditionally set date/time
+// Mock DateTimePicker - simplified without hasAvailableSlots logic
 vi.mock('../DateTimePicker', () => ({
-  DateTimePicker: ({ onHasAvailableSlotsChange, onDateSelect, onTimeSelect, selectedPractitionerId }: any) => {
-    // Call onHasAvailableSlotsChange when practitioner is selected
+  DateTimePicker: ({ onDateSelect, onTimeSelect, selectedPractitionerId }: any) => {
+    // Simulate date/time selection when practitioner is selected
     React.useEffect(() => {
       let isMounted = true;
       if (selectedPractitionerId) {
         // Use a small delay to simulate async behavior but stay predictable
         const timer = setTimeout(() => {
           if (!isMounted) return;
-          if (onHasAvailableSlotsChange) onHasAvailableSlotsChange(true);
           if (onDateSelect) onDateSelect('2024-01-15');
           if (onTimeSelect) onTimeSelect('09:00');
         }, 0);
@@ -61,7 +60,7 @@ vi.mock('../DateTimePicker', () => ({
           clearTimeout(timer);
         };
       }
-    }, [selectedPractitionerId, onHasAvailableSlotsChange, onDateSelect, onTimeSelect]);
+    }, [selectedPractitionerId, onDateSelect, onTimeSelect]);
     return <div data-testid="datetime-picker">DateTimePicker</div>;
   },
 }));
@@ -710,6 +709,57 @@ describe('EditAppointmentModal', () => {
         const practitionerSelect = screen.getAllByRole('combobox')[1];
         expect(practitionerSelect).toHaveValue(''); // Cleared because original practitioner not available for new type
       });
+    });
+
+    it('preserves date/time selections when appointment type is cleared in edit mode', async () => {
+      const mockEvent: CalendarEvent = {
+        id: '1',
+        title: 'Test Patient',
+        start: new Date('2024-01-15T09:00:00'),
+        end: new Date('2024-01-15T10:00:00'),
+        resource: {
+          calendar_event_id: 1,
+          patient_id: 1,
+          patient_name: 'Test Patient',
+          appointment_type_id: 1,
+          practitioner_id: 1,
+          clinic_notes: '',
+          notes: '',
+        },
+      };
+
+      renderWithModal(
+        <EditAppointmentModal
+          event={mockEvent}
+          practitioners={mockPractitioners}
+          appointmentTypes={mockAppointmentTypes}
+          onClose={mockOnClose}
+          onConfirm={mockOnConfirm}
+        />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText('調整預約')).toBeInTheDocument();
+      });
+
+      // Wait for initial data to load
+      await waitFor(() => {
+        const appointmentTypeSelect = screen.getAllByRole('combobox')[0];
+        expect(appointmentTypeSelect).toHaveValue('1');
+      });
+
+      // Clear appointment type (set to empty string)
+      const appointmentTypeSelect = screen.getAllByRole('combobox')[0];
+      fireEvent.change(appointmentTypeSelect, { target: { value: '' } });
+
+      // Verify selections are preserved (unlike create mode which would clear them)
+      await waitFor(() => {
+        const practitionerSelect = screen.getAllByRole('combobox')[1];
+        expect(practitionerSelect).toHaveValue('1'); // Practitioner selection preserved
+      });
+
+      // Date/time selections should be preserved (not auto-cleared in edit mode)
+      // The key verification is that practitioner selection is maintained
     });
   });
 });

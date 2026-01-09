@@ -333,36 +333,30 @@ export const useAppointmentForm = ({
     };
   }, [selectedAppointmentTypeId, allPractitioners, isInitialLoading]);
 
-  // Auto-deselection logic: when available practitioners change, check if current selection is still valid
-  useEffect(() => {
-    if (isInitialLoading || !selectedPractitionerId) return;
-
-    if (!availablePractitioners.find(p => p.id === selectedPractitionerId)) {
-      setSelectedPractitionerId(null);
-      setSelectedTime('');
-    }
-  }, [availablePractitioners, selectedPractitionerId, isInitialLoading]);
-
-  // Auto-deselection logic when type is null
+  // Auto-deselection logic - conditional on mode
+  // For create/duplicate modes: clear dependent selections when appointment type is cleared (user intent)
+  // For edit mode: preserve selections always (design requirement)
   useEffect(() => {
     if (isInitialMountRef.current || isInitialLoading) return;
+    if (mode === 'edit') return; // Preserve selections in edit mode
 
     if (selectedAppointmentTypeId === null && (selectedPractitionerId !== null || selectedTime !== '')) {
       setSelectedPractitionerId(null);
       setSelectedDate(null);
       setSelectedTime('');
     }
-  }, [selectedAppointmentTypeId, selectedPractitionerId, selectedTime, isInitialLoading]);
+  }, [mode, selectedAppointmentTypeId, selectedPractitionerId, selectedTime, isInitialLoading]);
 
-  // Handle practitioner null state
+  // Handle practitioner null state - conditional on mode
   useEffect(() => {
     if (isInitialMountRef.current || isInitialLoading) return;
+    if (mode === 'edit') return; // Preserve selections in edit mode
 
     if (selectedPractitionerId === null && (selectedDate !== null || selectedTime !== '')) {
       setSelectedDate(null);
       setSelectedTime('');
     }
-  }, [selectedPractitionerId, selectedDate, selectedTime, isInitialLoading]);
+  }, [mode, selectedPractitionerId, selectedDate, selectedTime, isInitialLoading]);
 
   // Form validity check
   const isValid = useMemo(() => {

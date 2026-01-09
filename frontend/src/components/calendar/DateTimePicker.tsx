@@ -6,10 +6,9 @@
  */
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { LoadingSpinner, TimeInput, ConflictDisplay, InfoButton, InfoModal } from '../shared';
+import { LoadingSpinner, TimeInput, InfoButton, InfoModal } from '../shared';
 import { apiService } from '../../services/api';
 import { logger } from '../../utils/logger';
-import { SchedulingConflictResponse } from '../../types';
 import { useDateSlotSelection } from '../../hooks/useDateSlotSelection';
 import { useDebounce } from '../../hooks/useDebounce';
 import {
@@ -116,9 +115,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
   // Override mode state
   const [overrideMode, setOverrideMode] = useState(false);
   const [freeFormTime, setFreeFormTime] = useState('');
-  const [conflictInfo, setConflictInfo] = useState<SchedulingConflictResponse | null>(null);
   const [isCheckingConflict, setIsCheckingConflict] = useState(false);
-  const [conflictCheckError, setConflictCheckError] = useState<string | null>(null);
   const [showOverrideInfoModal, setShowOverrideInfoModal] = useState(false);
 
   // Determine which date/time to use for display and slot loading
@@ -202,8 +199,6 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
 
     // Skip if missing required values
     if (!checkDate || !checkTime || !selectedPractitionerId || !appointmentTypeId) {
-      setConflictInfo(null);
-      setConflictCheckError(null);
       return;
     }
 
@@ -232,8 +227,6 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
       selectedPractitionerId === initialValuesRef.current.practitionerId;
     
     if (isOriginalValue && excludeCalendarEventId) {
-      setConflictInfo(null);
-      setConflictCheckError(null);
       return;
     }
 
@@ -244,16 +237,13 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
       // This provides a snappy UX for standard slot selection.
       // Final validation still happens on the backend during save.
       if (allTimeSlots.includes(checkTime)) {
-        setConflictInfo(null);
-        setConflictCheckError(null);
         setIsCheckingConflict(false);
         return;
       }
 
       setIsCheckingConflict(true);
-      setConflictCheckError(null);
       try {
-        const response = await apiService.checkSchedulingConflicts(
+        await apiService.checkSchedulingConflicts(
           selectedPractitionerId,
           checkDate,
           checkTime,
@@ -261,15 +251,11 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
           excludeCalendarEventId ?? undefined,
           abortController.signal
         );
-        // Only update conflict info once we have the result to prevent UI flashing
-        setConflictInfo(response);
+        // Conflict checking complete - loading state will be cleared
       } catch (error: any) {
         if (error?.name === 'CanceledError' || error?.name === 'AbortError') return;
         logger.error('Failed to check scheduling conflicts:', error);
-        // Show user-friendly error message per design doc
-        setConflictCheckError('無法檢查時間衝突，請稍後再試');
-        // Clear conflict info on error - don't block scheduling
-        setConflictInfo(null);
+        // Continue without blocking - conflicts will be checked by parent component
       } finally {
         setIsCheckingConflict(false);
       }
@@ -350,7 +336,6 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
       if (overrideMode) {
         setOverrideMode(false);
         onOverrideChange?.(false);
-        setConflictInfo(null);
         setFreeFormTime('');
       }
     }
@@ -365,8 +350,8 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
 
   // Load month availability for calendar
   useEffect(() => {
-    // Defer loading until expanded, UNLESS a time is already selected (Create mode pre-fill)
-    const shouldLoad = isExpanded || (selectedDate && selectedTime && !excludeCalendarEventId);
+    // Only load when picker is expanded - no background loading on practitioner/appointment type changes
+    const shouldLoad = isExpanded;
     
     if (!shouldLoad || !appointmentTypeId || !selectedPractitionerId) {
       if (!shouldLoad) {
@@ -476,17 +461,8 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
     return datesWithSlots.has(dateString);
   };
 
-  // Auto-expand when empty (no date or time selected)
-  // The unavailable time check above handles expanding when time becomes unavailable
-  // But don't auto-expand if user just manually collapsed
-  useEffect(() => {
-    if ((!selectedDate || !selectedTime) && !userCollapsedRef.current) {
-      setIsExpanded(true);
-    } else if (selectedDate && selectedTime) {
-      // Reset flag when picker becomes non-empty (user has made a selection)
-      userCollapsedRef.current = false;
-    }
-  }, [selectedDate, selectedTime]);
+  // No auto-expansion - picker stays collapsed by default
+  // User must explicitly click to expand
 
   // Reset user collapse flag when picker becomes expanded (allows future auto-expand)
   useEffect(() => {
@@ -606,9 +582,11 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
     
     if (isUnavailable) {
       onTimeSelect('');
-      setIsExpanded(true);
-      setTempTime('');
-      userCollapsedRef.current = false;
+      // If already expanded, clear temp time; if collapsed, don't auto-expand
+      if (isExpanded) {
+        setTempTime('');
+      }
+      // Don't auto-expand - let user decide when to expand
     }
   }, [selectedTime, allTimeSlots, isLoadingSlots, loadingAvailability, selectedDate, selectedPractitionerId, appointmentTypeId, cachedAvailabilityData, excludeCalendarEventId, onTimeSelect, overrideMode]);
 
@@ -674,8 +652,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
     onOverrideChange?.(enabled);
 
     if (!enabled) {
-      // When turning off override mode, clear conflict info and reset to dropdown mode
-      setConflictInfo(null);
+      // When turning off override mode, reset to dropdown mode
       setFreeFormTime('');
       // If current time is not in available slots, clear it
       if (displayTime && !availableSlots.includes(displayTime)) {
@@ -731,22 +708,6 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
         </button>
         {error && (
           <p className="mt-1 text-sm text-red-600">{error}</p>
-        )}
-        {/* Conflict Display - always visible when there's a conflict */}
-        {selectedDate && selectedTime && (
-          <>
-            {conflictCheckError ? (
-              <div className="mt-2 text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-md p-2">
-                {conflictCheckError}
-              </div>
-            ) : (
-              <div className="mt-2">
-                <ConflictDisplay
-                  conflictInfo={conflictInfo}
-                />
-              </div>
-            )}
-          </>
         )}
       </div>
     );
@@ -863,8 +824,8 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
         </div>
       )}
 
-      {/* Time Selection */}
-      {displayDate ? (
+      {/* Time Selection - hide completely during batch availability loading */}
+      {displayDate && !loadingAvailability ? (
         <div>
           {isLoadingSlots ? (
             <div className="flex items-center justify-center py-4">
@@ -929,25 +890,14 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
             </div>
           )}
         </div>
+      ) : displayDate && loadingAvailability ? (
+        <div className="flex items-center justify-center py-4">
+          <LoadingSpinner size="sm" />
+        </div>
       ) : null}
       </div>
       
-      {/* Conflict Display - always visible when there's a conflict, outside collapsible section */}
-      {displayDate && displayTime && (
-        <>
-          {conflictCheckError ? (
-            <div className="mt-3 text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-md p-2">
-              {conflictCheckError}
-            </div>
-          ) : (
-            <div className="mt-3">
-              <ConflictDisplay
-                conflictInfo={conflictInfo}
-              />
-            </div>
-          )}
-        </>
-      )}
+      {/* Conflict Display moved to parent component (EditAppointmentModal) to avoid duplication */}
       
       {/* Override Mode Info Modal */}
       <InfoModal
