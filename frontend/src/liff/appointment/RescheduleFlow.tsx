@@ -38,7 +38,11 @@ const RescheduleFlow: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const appointmentId = searchParams.get('appointmentId');
-  const { clinicId } = useAppointmentStore();
+  const {
+    clinicId,
+    minimumCancellationHoursBefore: minimumCancellationHours,
+    restrictToAssignedPractitioners: restrictToAssigned
+  } = useAppointmentStore();
 
   // Enable back button navigation
   useLiffBackButton('query');
@@ -50,7 +54,6 @@ const RescheduleFlow: React.FC = () => {
   const [isLoadingDetails, setIsLoadingDetails] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [minimumCancellationHours, setMinimumCancellationHours] = useState<number | null>(null);
 
   // Appointment details
   const [appointmentDetails, setAppointmentDetails] = useState<{
@@ -93,27 +96,8 @@ const RescheduleFlow: React.FC = () => {
   const [loadingAvailability, setLoadingAvailability] = useState(false);
   const [cachedAvailabilityData, setCachedAvailabilityData] = useState<Map<string, { slots: AvailabilitySlot[] }>>(new Map());
 
-  // State for assigned practitioners and restriction setting
+  // State for assigned practitioners
   const [assignedPractitionerIds, setAssignedPractitionerIds] = useState<Set<number>>(new Set());
-  const [restrictToAssigned, setRestrictToAssigned] = useState(false);
-
-  // Load clinic info for minimum cancellation hours and restrict_to_assigned_practitioners
-  useEffect(() => {
-    const loadClinicInfo = async () => {
-      try {
-        const clinicInfo = await liffApiService.getClinicInfo();
-        setMinimumCancellationHours(clinicInfo.minimum_cancellation_hours_before || 24);
-        setRestrictToAssigned(clinicInfo.restrict_to_assigned_practitioners || false);
-      } catch (err) {
-        logger.error('Failed to load clinic info:', err);
-        // Use default if failed to load
-        setMinimumCancellationHours(24);
-        setRestrictToAssigned(false);
-      }
-    };
-
-    loadClinicInfo();
-  }, []);
 
   // Load appointment details
   useEffect(() => {
@@ -133,7 +117,7 @@ const RescheduleFlow: React.FC = () => {
         // Otherwise, set to the current practitioner ID
         setSelectedPractitionerId(details.is_auto_assigned ? null : details.practitioner_id);
         setNotes(details.notes || '');
-        
+
         // Set initial date/time from existing appointment
         const startMoment = moment(details.start_time).tz('Asia/Taipei');
         setSelectedDate(startMoment.format('YYYY-MM-DD'));
@@ -181,18 +165,18 @@ const RescheduleFlow: React.FC = () => {
           appointmentDetails.appointment_type_id,
           appointmentDetails.patient_id
         );
-        
+
         let allPractitioners = response.practitioners;
-        
+
         // Filter practitioners based on restrict_to_assigned_practitioners setting
         // When true, backend already filtered to assigned practitioners only
         // When false, show all practitioners (assigned ones will be highlighted using assignedPractitionerIds)
         if (restrictToAssigned && appointmentDetails.patient_id && assignedPractitionerIds.size > 0) {
           // Check if any assigned practitioners offer the selected appointment type
-          const assignedPractitioners = allPractitioners.filter(p => 
+          const assignedPractitioners = allPractitioners.filter(p =>
             assignedPractitionerIds.has(p.id)
           );
-          
+
           // Check if assigned practitioners offer this appointment type
           const assignedOfferingType = assignedPractitioners.filter(p =>
             p.offered_types.includes(appointmentDetails.appointment_type_id)
@@ -213,13 +197,13 @@ const RescheduleFlow: React.FC = () => {
         // Only sort if we have assigned practitioner IDs (patient is known and has assignments)
         const sortedPractitioners = assignedPractitionerIds.size > 0
           ? [...allPractitioners].sort((a, b) => {
-              const aIsAssigned = assignedPractitionerIds.has(a.id);
-              const bIsAssigned = assignedPractitionerIds.has(b.id);
-              
-              if (aIsAssigned && !bIsAssigned) return -1; // a comes first
-              if (!aIsAssigned && bIsAssigned) return 1;  // b comes first
-              return 0; // Keep original order for same category
-            })
+            const aIsAssigned = assignedPractitionerIds.has(a.id);
+            const bIsAssigned = assignedPractitionerIds.has(b.id);
+
+            if (aIsAssigned && !bIsAssigned) return -1; // a comes first
+            if (!aIsAssigned && bIsAssigned) return 1;  // b comes first
+            return 0; // Keep original order for same category
+          })
           : allPractitioners;
 
         setPractitioners(sortedPractitioners);
@@ -299,7 +283,7 @@ const RescheduleFlow: React.FC = () => {
         if (cachedData && cachedData.slots && cachedData.slots.length > 0) {
           const slots = cachedData.slots.map((slot: AvailabilitySlot) => slot.start_time);
           setAvailableSlots(slots);
-          
+
           // Store slot details for recommended badge display
           const detailsMap = new Map<string, SlotDetail>();
           cachedData.slots.forEach((slot: AvailabilitySlot) => {
@@ -320,7 +304,7 @@ const RescheduleFlow: React.FC = () => {
         });
         const slots = response.slots.map(slot => slot.start_time);
         setAvailableSlots(slots);
-        
+
         // Store slot details for recommended badge display
         const detailsMap = new Map<string, SlotDetail>();
         response.slots.forEach((slot: AvailabilitySlot) => {
@@ -389,7 +373,7 @@ const RescheduleFlow: React.FC = () => {
       // - If null (不指定 selected), send -1 for auto-assignment
       // - If undefined (not changed), send undefined to keep current
       let practitionerIdToSend: number | undefined;
-      
+
       // If practitioner selection is disabled, always keep current practitioner
       if (appointmentDetails.appointment_type?.allow_patient_practitioner_selection === false) {
         practitionerIdToSend = appointmentDetails.practitioner_id;
@@ -421,7 +405,7 @@ const RescheduleFlow: React.FC = () => {
       navigate('/liff?mode=query');
     } catch (err: any) {
       logger.error('Failed to reschedule appointment:', err);
-      
+
       // Check for structured error response
       const errorDetail = err?.response?.data?.detail;
       if (errorDetail && typeof errorDetail === 'object' && errorDetail.error === 'reschedule_too_soon') {
@@ -434,8 +418,8 @@ const RescheduleFlow: React.FC = () => {
         // Check for numeric pattern that works across languages
         const hoursMatch = errorMessage.match(/(\d+)/);
         if (hoursMatch && (
-          errorMessage.includes('修改') || 
-          errorMessage.includes('edit') || 
+          errorMessage.includes('修改') ||
+          errorMessage.includes('edit') ||
           errorMessage.includes('変更')
         )) {
           const hours = hoursMatch[1];
@@ -462,14 +446,14 @@ const RescheduleFlow: React.FC = () => {
       </span>
     );
   };
-  
+
   // Build time slots list - include original time only if same practitioner AND same date
   // Must be before early returns to maintain hook order
   const allTimeSlots = useMemo(() => {
     if (!selectedDate || !appointmentDetails) return availableSlots;
-    
+
     const slots = [...availableSlots];
-    
+
     // Only include original time if same practitioner AND same date
     // (The appointment being edited holds that slot, so it won't be in available slots)
     if (originalTime && originalDate) {
@@ -480,16 +464,16 @@ const RescheduleFlow: React.FC = () => {
       const isOriginalPractitioner = originalWasAutoAssigned
         ? selectedPractitionerId === null
         : selectedPractitionerId === appointmentDetails.practitioner_id;
-      
+
       if (isOriginalDate && isOriginalPractitioner && !slots.includes(originalTime)) {
         slots.push(originalTime);
         slots.sort();
       }
     }
-    
+
     return slots;
   }, [availableSlots, originalTime, originalDate, selectedDate, selectedPractitionerId, appointmentDetails]);
-  
+
   // Auto-select original time whenever it's in the displayed slots
   useEffect(() => {
     // Auto-select if:
@@ -511,9 +495,9 @@ const RescheduleFlow: React.FC = () => {
   // Check if anything changed (must be before early returns for hooks)
   const hasChanges = useMemo(() => {
     if (!appointmentDetails || !selectedDate || !selectedTime) return false;
-    
+
     const originalNotes = appointmentDetails.notes || '';
-    
+
     // For practitioner: compare selectedPractitionerId with original
     // If original was auto-assigned, selectedPractitionerId should be null to match
     // If original was specific, selectedPractitionerId should match the ID
@@ -521,11 +505,11 @@ const RescheduleFlow: React.FC = () => {
     const practitionerChanged = originalWasAutoAssigned
       ? selectedPractitionerId !== null  // Was auto-assigned, now specific = changed
       : selectedPractitionerId !== appointmentDetails.practitioner_id;  // Was specific, check if different
-    
+
     const dateChanged = selectedDate !== originalDate;
     const timeChanged = selectedTime !== originalTime;
     const notesChanged = notes !== originalNotes;
-    
+
     return practitionerChanged || dateChanged || timeChanged || notesChanged;
   }, [appointmentDetails, selectedDate, selectedTime, selectedPractitionerId, notes, originalDate, originalTime]);
 
@@ -574,10 +558,10 @@ const RescheduleFlow: React.FC = () => {
 
   const calendarDays = generateCalendarDays(currentMonth);
   const sortedTimeSlots = selectedDate ? [...allTimeSlots].sort() : [];
-  
+
   // Day names - use translation
   const dayNames = t('datetime.dayNames', { returnObjects: true }) as string[];
-  
+
   // Helper to check if date is available
   const isDateAvailable = (date: Date): boolean => {
     const dateString = formatDateString(date);
@@ -754,8 +738,8 @@ const RescheduleFlow: React.FC = () => {
                   const isOriginalPractitioner = !appointmentDetails?.is_auto_assigned && p.id === appointmentDetails?.practitioner_id;
                   const isAssigned = assignedPractitionerIds.has(p.id);
                   return (
-                    <option 
-                      key={p.id} 
+                    <option
+                      key={p.id}
                       value={p.id}
                       className={isAssigned ? 'bg-primary-50 text-primary-900' : ''}
                     >
@@ -853,13 +837,12 @@ const RescheduleFlow: React.FC = () => {
                           }
                         }}
                         disabled={!available}
-                        className={`aspect-square text-center rounded-lg transition-colors ${
-                          isSelected
-                            ? 'bg-teal-500 text-white font-semibold'
-                            : available
+                        className={`aspect-square text-center rounded-lg transition-colors ${isSelected
+                          ? 'bg-teal-500 text-white font-semibold'
+                          : available
                             ? 'bg-white text-gray-900 font-semibold hover:bg-gray-50 border border-gray-200'
                             : 'bg-gray-50 text-gray-400 cursor-not-allowed border border-gray-100'
-                        }`}
+                          }`}
                       >
                         <div className="flex flex-col items-center justify-center h-full">
                           <span className={isSelected ? 'text-white' : available ? 'text-gray-900' : 'text-gray-400'}>

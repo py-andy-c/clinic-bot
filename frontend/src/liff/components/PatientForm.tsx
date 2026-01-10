@@ -4,7 +4,6 @@ import { logger } from '../../utils/logger';
 import { NameWarning, DateInput } from '../../components/shared';
 import { validateLiffPatientForm } from '../../utils/patientFormValidation';
 import { formatDateForApi, convertApiDateToDisplay } from '../../utils/dateFormat';
-import { liffApiService } from '../../services/liffApi';
 import { GENDER_OPTIONS } from '../../utils/genderUtils';
 
 export interface PatientFormData {
@@ -54,25 +53,18 @@ export const PatientForm: React.FC<PatientFormProps> = ({
   const defaultSubmitText = submitButtonText || t('common.confirm');
   const defaultCancelText = cancelButtonText || t('common.cancel');
 
-  // Fetch clinic settings if requireBirthday or requireGender is not provided
+  // Sync props to state if they change
   useEffect(() => {
-    const fetchClinicSettings = async () => {
-      if ((requireBirthdayProp !== undefined && requireGenderProp !== undefined) || !clinicId) return;
-      try {
-        const clinicInfo = await liffApiService.getClinicInfo();
-        if (requireBirthdayProp === undefined) {
-          setRequireBirthday(clinicInfo.require_birthday || false);
-        }
-        if (requireGenderProp === undefined) {
-          setRequireGender(clinicInfo.require_gender || false);
-        }
-      } catch (err) {
-        logger.error('Failed to fetch clinic settings:', err);
-        // Don't block if we can't fetch settings
-      }
-    };
-    fetchClinicSettings();
-  }, [clinicId, requireBirthdayProp, requireGenderProp]);
+    if (requireBirthdayProp !== undefined) {
+      setRequireBirthday(requireBirthdayProp);
+    }
+  }, [requireBirthdayProp]);
+
+  useEffect(() => {
+    if (requireGenderProp !== undefined) {
+      setRequireGender(requireGenderProp);
+    }
+  }, [requireGenderProp]);
 
   // Update form when initialData changes
   useEffect(() => {

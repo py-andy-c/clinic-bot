@@ -4,6 +4,7 @@ import { config } from '../config/env';
 import { logger } from '../utils/logger';
 import { tokenRefreshService } from './tokenRefresh';
 import { authStorage } from '../utils/storage';
+import { decodeJwtPayload } from '../utils/jwtUtils';
 import {
   Clinic,
   Member,
@@ -126,44 +127,27 @@ export class ApiService {
         try {
           // "Sticky Clinic Context" logic:
           // Extract activeClinicId from current (expired) token to maintain context during refresh.
-          // This prevents unexpected clinic switching in multi-tab scenarios where the
-          // 'last_accessed_at' in the database might have been updated by another tab.
           let activeClinicId: number | null = null;
           const currentToken = authStorage.getAccessToken();
 
-          if (currentToken) {
-            try {
-              interface DecodedToken {
-                active_clinic_id?: number;
-                exp?: number;
-                sub?: string;
-              }
+          interface DecodedToken {
+            active_clinic_id?: number;
+          }
 
-              const parts = currentToken.split('.');
-              if (parts.length > 1 && parts[1]) {
-                // Decode base64url (replace - with +, _ with /)
-                const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
-                const payload = JSON.parse(atob(base64)) as DecodedToken;
-                activeClinicId = payload.active_clinic_id ?? null;
-              }
-            } catch (e) {
-              if (e instanceof SyntaxError) {
-                logger.log('Invalid JWT payload format during clinic context extraction');
-              } else {
-                logger.log('Failed to decode activeClinicId from current token');
-              }
+          if (currentToken) {
+            const payload = decodeJwtPayload<DecodedToken>(currentToken);
+            if (payload) {
+              activeClinicId = payload.active_clinic_id ?? null;
             }
           }
 
           // Refresh token using centralized service
-          // TokenRefreshService handles concurrent refresh requests automatically
           await tokenRefreshService.refreshToken({ activeClinicId });
 
           // Update request with new token and retry manually
           const newToken = authStorage.getAccessToken();
           if (newToken && error.config) {
             error.config.headers.Authorization = `Bearer ${newToken}`;
-            // Manually retry the request with the new token
             return this.client.request(error.config);
           } else {
             throw new Error('重新整理後找不到存取權杖');

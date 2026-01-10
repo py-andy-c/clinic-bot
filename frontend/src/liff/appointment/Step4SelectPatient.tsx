@@ -10,14 +10,12 @@ import { PatientForm, PatientFormData } from '../components/PatientForm';
 
 const Step4SelectPatient: React.FC = () => {
   const { t } = useTranslation();
-  const { setPatient, clinicId } = useAppointmentStore();
+  const { setPatient, clinicId, requireBirthday, requireGender } = useAppointmentStore();
   const [patients, setPatients] = useState<PatientSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
-  const [requireBirthday, setRequireBirthday] = useState(false);
-  const [requireGender, setRequireGender] = useState(false);
 
   useEffect(() => {
     loadPatients();
@@ -29,22 +27,6 @@ const Step4SelectPatient: React.FC = () => {
       setShowAddForm(true);
     }
   }, [isLoading, patients.length, showAddForm]);
-
-  // Fetch clinic settings to check if birthday or gender is required
-  useEffect(() => {
-    const fetchClinicSettings = async () => {
-      if (!clinicId) return;
-      try {
-        const clinicInfo = await liffApiService.getClinicInfo();
-        setRequireBirthday(clinicInfo.require_birthday || false);
-        setRequireGender(clinicInfo.require_gender || false);
-      } catch (err) {
-        logger.error('Failed to fetch clinic settings:', err);
-        // Don't block if we can't fetch settings
-      }
-    };
-    fetchClinicSettings();
-  }, [clinicId]);
 
   const loadPatients = async () => {
     try {
@@ -61,17 +43,17 @@ const Step4SelectPatient: React.FC = () => {
   const handlePatientSelect = (patient: PatientSummary) => {
     // Clear any previous errors
     setError(null);
-    
+
     // Check if patient has reached the appointment limit
     const futureCount = patient.future_appointments_count ?? 0;
     const maxAllowed = patient.max_future_appointments ?? 0;
-    
+
     if (maxAllowed > 0 && futureCount >= maxAllowed) {
       // Don't allow selection - show error message
       setError(t('patient.errors.maxAppointmentsReached', { count: futureCount, max: maxAllowed }));
       return;
     }
-    
+
     setPatient(patient.id, {
       id: patient.id,
       full_name: patient.full_name,
@@ -93,10 +75,10 @@ const Step4SelectPatient: React.FC = () => {
       const responseAfterReload = await liffApiService.getPatients();
       setPatients(responseAfterReload.patients);
       setShowAddForm(false);
-      
+
       // Find the newly created patient from the updated list
       const createdPatient = responseAfterReload.patients.find(p => p.id === response.patient_id);
-      
+
       if (createdPatient) {
         setPatient(createdPatient.id, {
           id: createdPatient.id,
@@ -142,17 +124,16 @@ const Step4SelectPatient: React.FC = () => {
           const futureCount = patient.future_appointments_count ?? 0;
           const maxAllowed = patient.max_future_appointments ?? 0;
           const isAtLimit = maxAllowed > 0 && futureCount >= maxAllowed;
-          
+
           return (
             <button
               key={patient.id}
               onClick={() => handlePatientSelect(patient)}
               disabled={isAtLimit}
-              className={`w-full bg-white border rounded-lg p-4 text-left transition-all duration-200 ${
-                isAtLimit
-                  ? 'border-gray-300 opacity-60 cursor-not-allowed'
-                  : 'border-gray-200 hover:border-primary-300 hover:shadow-md'
-              }`}
+              className={`w-full bg-white border rounded-lg p-4 text-left transition-all duration-200 ${isAtLimit
+                ? 'border-gray-300 opacity-60 cursor-not-allowed'
+                : 'border-gray-200 hover:border-primary-300 hover:shadow-md'
+                }`}
             >
               <div className="flex items-center justify-between">
                 <h3 className={`font-medium ${isAtLimit ? 'text-gray-500' : 'text-gray-900'}`}>
@@ -191,9 +172,9 @@ const Step4SelectPatient: React.FC = () => {
               requireGender={requireGender}
               onSubmit={handleAddPatient}
               onCancel={() => {
-                  setShowAddForm(false);
-                  setError(null);
-                }}
+                setShowAddForm(false);
+                setError(null);
+              }}
               error={error}
               isLoading={isAdding}
             />

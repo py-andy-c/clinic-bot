@@ -47,6 +47,10 @@ interface AppointmentState {
   queryPageInstructions: string | null;
   settingsPageInstructions: string | null;
   notificationsPageInstructions: string | null;
+  requireBirthday: boolean;
+  requireGender: boolean;
+  minimumCancellationHoursBefore: number | null;
+  restrictToAssignedPractitioners: boolean;
 
   // Actions
   setStep: (step: number) => void;
@@ -62,7 +66,16 @@ interface AppointmentState {
   updateNotesOnly: (notes: string) => void; // Updates notes without changing step
   setCreatedAppointment: (appointment: { appointment_id: number; calendar_event_id: number; start_time: string; end_time: string }) => void;
   setClinicId: (clinicId: number) => void;
-  setClinicInfo: (clinicName: string, clinicDisplayName: string, clinicAddress: string | null, clinicPhoneNumber: string | null) => void;
+  setClinicInfo: (
+    clinicName: string,
+    clinicDisplayName: string,
+    clinicAddress: string | null,
+    clinicPhoneNumber: string | null,
+    requireBirthday: boolean,
+    requireGender: boolean,
+    minimumCancellationHoursBefore: number | null,
+    restrictToAssignedPractitioners: boolean
+  ) => void;
   setPageInstructions: (queryPage: string | null, settingsPage: string | null, notificationsPage: string | null) => void;
   reset: () => void;
 
@@ -94,6 +107,10 @@ export const useAppointmentStore = create<AppointmentState>((set, get) => ({
   queryPageInstructions: null,
   settingsPageInstructions: null,
   notificationsPageInstructions: null,
+  requireBirthday: false,
+  requireGender: false,
+  minimumCancellationHoursBefore: null,
+  restrictToAssignedPractitioners: false,
 
   setStep: (step) => set({ step }),
 
@@ -103,7 +120,7 @@ export const useAppointmentStore = create<AppointmentState>((set, get) => ({
     const state = get();
     const flowType = state.flowType;
     const skipPractitionerStep = type.allow_patient_practitioner_selection === false;
-    
+
     // Determine next step based on flow type
     let nextStep: number;
     if (flowType === 'flow2') {
@@ -113,7 +130,7 @@ export const useAppointmentStore = create<AppointmentState>((set, get) => ({
       // Flow 1: Step 1 is appointment type, next is step 2 (practitioner) or step 3 (date/time)
       nextStep = skipPractitionerStep ? 3 : 2;
     }
-    
+
     set({
       appointmentTypeId: id,
       appointmentType: type,
@@ -138,12 +155,12 @@ export const useAppointmentStore = create<AppointmentState>((set, get) => ({
   setPractitioner: (id, practitioner, isAutoAssigned = false) => {
     const state = get();
     const flowType = state.flowType;
-    
+
     // Determine next step based on flow type
     // Flow 1: Step 2 -> Step 3 (date/time)
     // Flow 2: Step 3 -> Step 4 (date/time)
     const nextStep = flowType === 'flow2' ? 4 : 3;
-    
+
     set({
       practitionerId: id,
       practitioner: practitioner || null,
@@ -165,12 +182,12 @@ export const useAppointmentStore = create<AppointmentState>((set, get) => ({
   setDateTime: (date, time) => {
     const state = get();
     const flowType = state.flowType;
-    
+
     // Determine next step based on flow type
     // Flow 1: Step 3 -> Step 4 (patient)
     // Flow 2: Step 4 -> Step 5 (notes)
     const nextStep = flowType === 'flow2' ? 5 : 4;
-    
+
     set({
       date,
       startTime: time,
@@ -181,12 +198,12 @@ export const useAppointmentStore = create<AppointmentState>((set, get) => ({
   setPatient: (id, patient) => {
     const state = get();
     const flowType = state.flowType;
-    
+
     // Determine next step based on flow type
     // Flow 1: Step 4 -> Step 5 (notes)
     // Flow 2: Step 1 -> Step 2 (appointment type)
     const nextStep = flowType === 'flow2' ? 2 : 5;
-    
+
     set({
       patientId: id,
       patient,
@@ -209,11 +226,15 @@ export const useAppointmentStore = create<AppointmentState>((set, get) => ({
 
   setClinicId: (clinicId) => set({ clinicId }),
 
-  setClinicInfo: (clinicName, clinicDisplayName, clinicAddress, clinicPhoneNumber) => set({
+  setClinicInfo: (clinicName, clinicDisplayName, clinicAddress, clinicPhoneNumber, requireBirthday, requireGender, minimumCancellationHoursBefore, restrictToAssignedPractitioners) => set({
     clinicName,
     clinicDisplayName,
     clinicAddress,
     clinicPhoneNumber,
+    requireBirthday,
+    requireGender,
+    minimumCancellationHoursBefore,
+    restrictToAssignedPractitioners,
   }),
 
   setPageInstructions: (queryPage, settingsPage, notificationsPage) => set({
@@ -253,21 +274,21 @@ export const useAppointmentStore = create<AppointmentState>((set, get) => ({
         return state.appointmentTypeId !== null && state.practitionerId !== undefined;
       case 5:
         return state.appointmentTypeId !== null &&
-               state.practitionerId !== undefined &&
-               state.date !== null &&
-               state.startTime !== null;
+          state.practitionerId !== undefined &&
+          state.date !== null &&
+          state.startTime !== null;
       case 6:
         return state.appointmentTypeId !== null &&
-               state.practitionerId !== undefined &&
-               state.date !== null &&
-               state.startTime !== null &&
-               state.patientId !== null;
+          state.practitionerId !== undefined &&
+          state.date !== null &&
+          state.startTime !== null &&
+          state.patientId !== null;
       case 7: // Confirmation/Success
         return state.appointmentTypeId !== null &&
-               state.practitionerId !== undefined &&
-               state.date !== null &&
-               state.startTime !== null &&
-               state.patientId !== null;
+          state.practitionerId !== undefined &&
+          state.date !== null &&
+          state.startTime !== null &&
+          state.patientId !== null;
       default:
         return false;
     }

@@ -42,7 +42,11 @@ const Step7Success: React.FC = () => {
             clinicInfo.clinic_name,
             clinicInfo.display_name,
             clinicInfo.address,
-            clinicInfo.phone_number
+            clinicInfo.phone_number,
+            clinicInfo.require_birthday || false,
+            clinicInfo.require_gender || false,
+            clinicInfo.minimum_cancellation_hours_before || 24,
+            clinicInfo.restrict_to_assigned_practitioners || false
           );
         } catch (error) {
           logger.error('Failed to fetch clinic info in Step7Success:', error);
@@ -80,26 +84,26 @@ const Step7Success: React.FC = () => {
 
       // Pass Taiwan time directly (ISO format with timezone indicator)
       // For auto-assigned appointments, use "不指定" instead of practitioner name
-    const appointmentData = {
-      id: Date.now(), // Temporary ID for ICS generation
-      appointment_type_name: appointmentType.name,
-      practitioner_name: isAutoAssigned ? t('practitioner.notSpecified') : (practitioner?.full_name || t('success.practitionerPending')),
-      patient_name: patient.full_name,
+      const appointmentData = {
+        id: Date.now(), // Temporary ID for ICS generation
+        appointment_type_name: appointmentType.name,
+        practitioner_name: isAutoAssigned ? t('practitioner.notSpecified') : (practitioner?.full_name || t('success.practitionerPending')),
+        patient_name: patient.full_name,
         start_time: startDateTimeTaiwan.format(), // Taiwan time with +08:00
         end_time: endDateTimeTaiwan.format(), // Taiwan time with +08:00
-      notes: notes || undefined,
-      clinic_name: clinicDisplayName || t('success.clinicName'),
-      // Use explicit undefined instead of conditional spread for clarity and type safety
-      // This ensures the property exists even when null, making the data structure predictable
-      clinic_address: clinicAddress || undefined,
-      clinic_phone_number: clinicPhoneNumber || undefined,
-      is_auto_assigned: isAutoAssigned, // Pass flag for defensive check in ICS generator
-      allow_patient_practitioner_selection: appointmentType.allow_patient_practitioner_selection ?? true, // Pass flag to control practitioner display in ICS (default to true if undefined)
-    };
+        notes: notes || undefined,
+        clinic_name: clinicDisplayName || t('success.clinicName'),
+        // Use explicit undefined instead of conditional spread for clarity and type safety
+        // This ensures the property exists even when null, making the data structure predictable
+        clinic_address: clinicAddress || undefined,
+        clinic_phone_number: clinicPhoneNumber || undefined,
+        is_auto_assigned: isAutoAssigned, // Pass flag for defensive check in ICS generator
+        allow_patient_practitioner_selection: appointmentType.allow_patient_practitioner_selection ?? true, // Pass flag to control practitioner display in ICS (default to true if undefined)
+      };
 
       // Use Google Calendar URL (works on all platforms - iOS, Android, Desktop)
       const googleCalendarURL = generateGoogleCalendarURL(appointmentData);
-      
+
       // Try to open in default/system browser
       // On mobile/LIFF: window.open with _blank may open in external browser depending on OS/browser
       // We try window.open first, then fall back to location.href if popup is blocked
@@ -107,7 +111,7 @@ const Step7Success: React.FC = () => {
         // Try opening in new window/tab
         // On mobile, many browsers will open external URLs in system browser automatically
         const opened = window.open(googleCalendarURL, '_blank', 'noopener,noreferrer');
-        
+
         // If popup was blocked (opened is null), navigate current window
         // This will open in external browser on mobile, but navigates away from LIFF app
         if (!opened) {
@@ -138,7 +142,7 @@ const Step7Success: React.FC = () => {
           clinic_phone_number: clinicPhoneNumber || undefined,
           allow_patient_practitioner_selection: appointmentType.allow_patient_practitioner_selection ?? true, // Pass flag to control practitioner display in ICS (default to true if undefined)
         };
-    downloadAppointmentICS(appointmentData);
+        downloadAppointmentICS(appointmentData);
       } catch (fallbackError) {
         logger.error('Failed to download ICS as fallback:', fallbackError);
         showAlert(t('success.calendarErrorGeneric'), t('success.calendarErrorGenericTitle'));
