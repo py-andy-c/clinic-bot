@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { logger } from '../utils/logger';
+import { decodeJwtPayload } from '../utils/jwtUtils';
 import { LoadingSpinner } from '../components/shared';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { apiService } from '../services/api';
@@ -31,22 +32,14 @@ const NameConfirmationPage: React.FC = () => {
 
     // Parse the token to extract user data
     try {
-      // For now, we'll decode the JWT token on the frontend to get the data
-      // In a production app, you might want to make an API call to validate the token
-      if (!token) {
-        setError('缺少確認令牌');
-        setLoading(false);
-        return;
-      }
-      
-      const tokenParts = token.split('.');
-      if (tokenParts.length !== 3) {
+      const payload = decodeJwtPayload(token);
+
+      if (!payload) {
         setError('無效的確認令牌格式');
         setLoading(false);
         return;
       }
-      const payload = JSON.parse(atob(tokenParts[1]!));
-      
+
       if (payload.type !== 'name_confirmation') {
         setError('無效的確認令牌');
         setLoading(false);
@@ -59,7 +52,7 @@ const NameConfirmationPage: React.FC = () => {
         roles: payload.roles || [],
         clinic_name: payload.clinic_name
       });
-      
+
       // Prepopulate with Google name
       setFullName(payload.google_name || '');
       setLoading(false);
@@ -72,7 +65,7 @@ const NameConfirmationPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!fullName.trim()) {
       setError('請輸入您的姓名');
       return;
@@ -81,14 +74,14 @@ const NameConfirmationPage: React.FC = () => {
     try {
       setSubmitting(true);
       setError(null);
-      
+
       const response = await apiService.confirmName(token!, fullName.trim());
-      
+
       // Set refresh token as cookie
       if (response.refresh_token) {
         document.cookie = `refresh_token=${response.refresh_token}; path=/; max-age=${7 * 24 * 60 * 60}; secure; samesite=strict`;
       }
-      
+
       // Redirect to dashboard
       window.location.href = response.redirect_url;
     } catch (err: any) {

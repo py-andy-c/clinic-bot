@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { liffApiService, LiffLoginResponse } from '../services/liffApi';
 import { logger } from '../utils/logger';
+import { decodeJwtPayload } from '../utils/jwtUtils';
 import { config } from '../config/env';
 import i18n from '../i18n';
 import { isValidLanguage } from '../utils/languageUtils';
@@ -42,50 +43,20 @@ export const useLineAuth = (lineProfile: { userId: string; displayName: string; 
   };
 
 
-  // Extract clinic_id from JWT token payload
   const getClinicIdFromToken = (token: string): number | null => {
-    try {
-      // Decode JWT to get clinic_id (token already contains it from backend)
-      const parts = token.split('.');
-      if (parts.length < 2 || !parts[1]) {
-        return null;
-      }
-      const payload = JSON.parse(atob(parts[1]));
-      return payload.clinic_id ? parseInt(payload.clinic_id, 10) : null;
-    } catch (e) {
-      logger.error('Failed to decode JWT token:', e);
-      return null;
-    }
+    const payload = decodeJwtPayload(token);
+    if (!payload?.clinic_id) return null;
+    return parseInt(payload.clinic_id, 10);
   };
 
-  // Extract clinic_token from JWT token payload
   const getClinicTokenFromToken = (token: string): string | null => {
-    try {
-      const parts = token.split('.');
-      if (parts.length < 2 || !parts[1]) {
-        return null;
-      }
-      const payload = JSON.parse(atob(parts[1]));
-      return payload.clinic_token || null;
-    } catch (e) {
-      logger.error('Failed to decode JWT token:', e);
-      return null;
-    }
+    const payload = decodeJwtPayload(token);
+    return payload?.clinic_token || null;
   };
 
-  // Extract liff_id from JWT token payload
   const getLiffIdFromToken = (token: string): string | null => {
-    try {
-      const parts = token.split('.');
-      if (parts.length < 2 || !parts[1]) {
-        return null;
-      }
-      const payload = JSON.parse(atob(parts[1]));
-      return payload.liff_id || null;
-    } catch (e) {
-      logger.error('Failed to decode JWT token:', e);
-      return null;
-    }
+    const payload = decodeJwtPayload(token);
+    return payload?.liff_id || null;
   };
 
 
@@ -114,38 +85,38 @@ export const useLineAuth = (lineProfile: { userId: string; displayName: string; 
 
   // Shared helper: Validate existing JWT token
   const validateExistingToken = async (token: string, checkCancelled?: () => boolean): Promise<boolean> => {
-        try {
-          const response = await fetch(`${API_BASE_URL}/liff/patients`, {
-            method: 'GET',
-            headers: {
-              'Authorization': `Bearer ${token}`,
-            },
-          });
+    try {
+      const response = await fetch(`${API_BASE_URL}/liff/patients`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
 
       if (checkCancelled?.()) return false;
 
       if (response.ok) {
-            // Token is valid - user is authenticated
-            logger.log('JWT token validated - user is authenticated');
-            setIsAuthenticated(true);
-            setIsFirstTime(false);
+        // Token is valid - user is authenticated
+        logger.log('JWT token validated - user is authenticated');
+        setIsAuthenticated(true);
+        setIsFirstTime(false);
         // Try URL first, then JWT token as fallback
         const clinicIdValue = getClinicId(token);
         if (clinicIdValue) {
           setClinicId(clinicIdValue);
-            }
-            setIsLoading(false);
-        return true;
-          } else {
-            // Token invalid, clear it
-            localStorage.removeItem('liff_jwt_token');
-        return false;
-          }
-        } catch (error) {
-          // API error, clear token
-          localStorage.removeItem('liff_jwt_token');
-      return false;
         }
+        setIsLoading(false);
+        return true;
+      } else {
+        // Token invalid, clear it
+        localStorage.removeItem('liff_jwt_token');
+        return false;
+      }
+    } catch (error) {
+      // API error, clear token
+      localStorage.removeItem('liff_jwt_token');
+      return false;
+    }
   };
 
   // Shared helper: Authenticate with LINE profile
@@ -159,8 +130,8 @@ export const useLineAuth = (lineProfile: { userId: string; displayName: string; 
   ): Promise<void> => {
     if (checkCancelled?.()) return;
 
-        setIsLoading(true);
-        setError(null);
+    setIsLoading(true);
+    setError(null);
 
     // Get clinic identifier from URL (liff_id or clinic_token)
     const identifier = getClinicIdentifier();
@@ -210,22 +181,22 @@ export const useLineAuth = (lineProfile: { userId: string; displayName: string; 
       request.picture_url = pictureUrl;
     }
 
-        const response: LiffLoginResponse = await liffApiService.liffLogin(request);
+    const response: LiffLoginResponse = await liffApiService.liffLogin(request);
 
     if (checkCancelled?.()) return;
 
-          setIsAuthenticated(true);
-          setIsFirstTime(response.is_first_time);
-          setClinicId(response.clinic_id);
-          setDisplayName(response.display_name);
+    setIsAuthenticated(true);
+    setIsFirstTime(response.is_first_time);
+    setClinicId(response.clinic_id);
+    setDisplayName(response.display_name);
 
-          // Initialize language preference from login response
-          if (response.preferred_language && isValidLanguage(response.preferred_language)) {
-            i18n.changeLanguage(response.preferred_language);
-          } else {
-            // Default to Traditional Chinese if no preference or invalid
-            i18n.changeLanguage('zh-TW');
-          }
+    // Initialize language preference from login response
+    if (response.preferred_language && isValidLanguage(response.preferred_language)) {
+      i18n.changeLanguage(response.preferred_language);
+    } else {
+      // Default to Traditional Chinese if no preference or invalid
+      i18n.changeLanguage('zh-TW');
+    }
 
     setIsLoading(false);
   };
@@ -368,11 +339,11 @@ export const useLineAuth = (lineProfile: { userId: string; displayName: string; 
         await performAuthentication(lineProfile.userId, lineProfile.displayName, liffAccessToken, lineProfile.pictureUrl, liff, checkCancelled);
       } catch (err) {
         if (checkCancelled?.()) return;
-          logger.error('LINE authentication failed:', err);
-          setError(err instanceof Error ? err.message : t('status.authFailed'));
-          setIsAuthenticated(false);
-          setIsLoading(false);
-        }
+        logger.error('LINE authentication failed:', err);
+        setError(err instanceof Error ? err.message : t('status.authFailed'));
+        setIsAuthenticated(false);
+        setIsLoading(false);
+      }
     } else {
       // No existing auth and no LIFF profile yet - wait for LIFF to initialize
       // Keep isLoading true until we have LIFF credentials to authenticate with
@@ -380,7 +351,7 @@ export const useLineAuth = (lineProfile: { userId: string; displayName: string; 
       // clinicId is initialized from URL in a separate effect on mount
       if (checkCancelled?.()) return;
       return;
-      }
+    }
   }, [lineProfile, liffAccessToken]);
 
   // Initialize clinicId from URL on mount to prevent showing InvalidAccess prematurely
@@ -417,12 +388,12 @@ export const useLineAuth = (lineProfile: { userId: string; displayName: string; 
   const authenticate = async (lineUserId: string, displayName: string, accessToken: string) => {
     try {
       await performAuthentication(lineUserId, displayName, accessToken);
-      } catch (err) {
-        logger.error('LINE authentication failed:', err);
-        setError(err instanceof Error ? err.message : t('status.authFailed'));
-        setIsAuthenticated(false);
-        setIsLoading(false);
-      }
+    } catch (err) {
+      logger.error('LINE authentication failed:', err);
+      setError(err instanceof Error ? err.message : t('status.authFailed'));
+      setIsAuthenticated(false);
+      setIsLoading(false);
+    }
   };
 
   const logout = () => {
@@ -447,8 +418,8 @@ export const useLineAuth = (lineProfile: { userId: string; displayName: string; 
     } catch (err) {
       logger.error('Auth refresh failed:', err);
       setError(err instanceof Error ? err.message : t('status.authFailed'));
-          setIsAuthenticated(false);
-    setIsLoading(false);
+      setIsAuthenticated(false);
+      setIsLoading(false);
     }
   };
 
