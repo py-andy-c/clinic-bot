@@ -243,7 +243,7 @@ export const ClinicSettingsSchema = createValidatedSchema(
     clinic_info_settings: ClinicInfoSettingsSchema,
     chat_settings: ChatSettingsSchema,
     receipt_settings: ReceiptSettingsSchema.optional(),
-    liff_urls: z.record(z.string(), z.string()).nullish(), // Dictionary of mode -> URL (excluding 'home')
+    liff_urls: z.record(z.string(), z.string()).nullish(), // Dictionary of mode -> URL
   }),
   'ClinicSettingsSchema'
 );

@@ -97,7 +97,10 @@ let mockClinicSettings = {
   },
   liff_urls: {
     home: 'https://liff.line.me/mock-home',
-    booking: 'https://liff.line.me/mock-booking',
+    book: 'https://liff.line.me/mock-book',
+    query: 'https://liff.line.me/mock-query',
+    settings: 'https://liff.line.me/mock-settings',
+    notifications: 'https://liff.line.me/mock-notifications',
   },
 };
 

@@ -239,13 +239,12 @@ async def get_settings(
         # includes them in the API response without manual updates
         validated_settings = clinic.get_validated_settings()
         
-        # Generate LIFF URLs for all modes except 'home' and 'reschedule' (read-only operation - no auto-generation)
-        # 'home' is excluded as it's not shown in the UI (but URL still works if accessed directly)
+        # Generate LIFF URLs for all modes except 'reschedule' (read-only operation - no auto-generation)
         # 'reschedule' is excluded as it requires appointmentId parameter and is not a standalone entry point
         # Tokens should be generated via explicit endpoints or during clinic creation
         from utils.liff_token import generate_liff_url
         liff_urls: Optional[Dict[str, str]] = {}
-        modes = ['book', 'query', 'settings', 'notifications']  # All modes except 'home' and 'reschedule'
+        modes = ['home', 'book', 'query', 'settings', 'notifications']  # All modes except 'reschedule'
         try:
             for mode in modes:
                 try:
