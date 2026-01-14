@@ -47,8 +47,9 @@ import sys
 sys.path.insert(0, 'src')
 try:
     from core.database import get_db
+    from sqlalchemy import text
     with next(get_db()) as db:
-        db.execute('SELECT 1')
+        db.execute(text('SELECT 1'))
     print('✅ Database connectivity validated')
 except Exception as e:
     print(f'❌ Database connection failed: {e}')
