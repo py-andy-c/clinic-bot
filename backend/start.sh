@@ -173,6 +173,22 @@ from core.database import get_db
 
 try:
     with next(get_db()) as db:
+        # Check if migration lock function exists (defensive programming)
+        function_exists = db.execute(text('''
+            SELECT EXISTS (
+                SELECT 1 FROM pg_proc p
+                JOIN pg_namespace n ON p.pronamespace = n.oid
+                WHERE n.nspname = 'public'
+                AND p.proname = 'acquire_migration_lock'
+            )
+        ''')).scalar()
+
+        if not function_exists:
+            print('⚠️  Migration lock function not available (first deployment after upgrade)')
+            print('   Proceeding without lock - ensure no concurrent deployments')
+            exit(0)
+
+        # Function exists, try to acquire lock
         result = db.execute(text('''
             SELECT acquire_migration_lock(:deployment_id, :locker_id)
         '''), {'deployment_id': '$DEPLOYMENT_ID', 'locker_id': '$LOCKER_ID'}).scalar()
@@ -336,7 +352,7 @@ except Exception as e:
         exit 1
     fi
 
-# Release migration lock
+# Release migration lock (only if function exists)
     release_migration_lock
 
     echo "✅ All migration safety checks passed - deployment safe to proceed"
@@ -353,10 +369,22 @@ from core.database import get_db
 
 try:
     with next(get_db()) as db:
-        db.execute(text('DELETE FROM migration_lock WHERE deployment_id = :deployment_id'),
-                  {'deployment_id': '$DEPLOYMENT_ID'})
-        db.commit()
-        print('✅ Migration lock released')
+        # Check if migration lock table exists
+        table_exists = db.execute(text('''
+            SELECT EXISTS (
+                SELECT 1 FROM information_schema.tables
+                WHERE table_schema = 'public'
+                AND table_name = 'migration_lock'
+            )
+        ''')).scalar()
+
+        if table_exists:
+            db.execute(text('DELETE FROM migration_lock WHERE deployment_id = :deployment_id'),
+                      {'deployment_id': '$DEPLOYMENT_ID'})
+            db.commit()
+            print('✅ Migration lock released')
+        else:
+            print('ℹ️  Migration lock table not available - skipping lock release')
 except Exception as e:
     print(f'⚠️  Warning: Failed to release migration lock: {e}')
     "
