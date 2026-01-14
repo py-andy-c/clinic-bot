@@ -1731,6 +1731,269 @@ class AvailabilityService:
         }
 
     @staticmethod
+    def _check_conflicts_with_schedule_data(
+        db: Session,
+        practitioner_id: int,
+        date: date_type,
+        start_time: time,
+        end_time: time,
+        schedule_data: Dict[str, Any],
+        appointment_type: Any,
+        resource_requirements: List[Any],
+        clinic_id: int,
+        check_past_appointment: bool = True
+    ) -> Dict[str, Any]:
+        """
+        Check conflicts using pre-fetched schedule data.
+
+        This is a helper method for batch conflict checking.
+        """
+        from services.appointment_type_service import AppointmentTypeService
+        from models import Appointment
+
+        default_intervals = schedule_data['default_intervals']
+        events = schedule_data['events']
+
+        # Initialize conflict tracking
+        past_appointment_conflict = False
+        appointment_conflict = None
+        exception_conflict = None
+        is_within_hours = AvailabilityService.is_slot_within_default_intervals(
+            default_intervals, start_time, end_time
+        )
+        normal_hours = AvailabilityService._format_normal_hours(date, default_intervals)
+        resource_conflicts = None
+
+        # 0. Check if appointment is in the past (highest priority, only for clinic users)
+        if check_past_appointment:
+            from utils.datetime_utils import TAIWAN_TZ
+            scheduled_datetime = datetime.combine(date, start_time).replace(tzinfo=TAIWAN_TZ)
+            current_datetime = taiwan_now()
+
+            if scheduled_datetime < current_datetime:
+                past_appointment_conflict = True
+
+        # 1. Check for appointment conflicts
+        for event in events:
+            if (event.start_time and event.end_time and
+                event.event_type == 'appointment' and
+                AvailabilityService._check_time_overlap(
+                    start_time, end_time,
+                    event.start_time, event.end_time
+                )):
+                # Get appointment details
+                appointment = db.query(Appointment).filter(
+                    Appointment.calendar_event_id == event.id,
+                    Appointment.status == 'confirmed'
+                ).first()
+
+                if appointment:
+                    # Get appointment type name
+                    appointment_type_name = appointment.appointment_type.name if appointment.appointment_type else "未知"
+                    patient_name = appointment.patient.full_name if appointment.patient else "未知"
+
+                    appointment_conflict = {
+                        "appointment_id": appointment.calendar_event_id,
+                        "patient_name": patient_name,
+                        "start_time": AvailabilityService._format_time(event.start_time),
+                        "end_time": AvailabilityService._format_time(event.end_time),
+                        "appointment_type": appointment_type_name
+                    }
+                    break  # Only need first conflict of this type for display
+
+        # 2. Check for availability exception conflicts
+        for event in events:
+            if (event.start_time and event.end_time and
+                event.event_type == 'availability_exception' and
+                AvailabilityService._check_time_overlap(
+                    start_time, end_time,
+                    event.start_time, event.end_time
+                )):
+                # Get exception reason if available (use custom_event_name as reason)
+                reason = event.custom_event_name if event.custom_event_name else None
+
+                exception_conflict = {
+                    "exception_id": event.id,
+                    "start_time": AvailabilityService._format_time(event.start_time),
+                    "end_time": AvailabilityService._format_time(event.end_time),
+                    "reason": reason
+                }
+                break  # Only need first conflict for display
+
+        # 3. Check for resource conflicts
+        from services.resource_service import ResourceService
+        start_datetime = datetime.combine(date, start_time)
+        end_datetime = datetime.combine(date, end_time)
+        resource_result = ResourceService.check_resource_availability(
+            db=db,
+            appointment_type_id=appointment_type.id,
+            clinic_id=clinic_id,
+            start_time=start_datetime,
+            end_time=end_datetime,
+            exclude_calendar_event_id=None  # We'll handle exclusion per practitioner if needed
+        )
+
+        if not resource_result['is_available']:
+            resource_conflicts = resource_result['conflicts']
+
+        # Determine highest priority conflict type for backward compatibility
+        conflict_type = None
+        if past_appointment_conflict:
+            conflict_type = "past_appointment"
+        elif appointment_conflict:
+            conflict_type = "appointment"
+        elif exception_conflict:
+            conflict_type = "exception"
+        elif not is_within_hours:
+            conflict_type = "availability"
+        elif resource_conflicts:
+            conflict_type = "resource"
+
+        # Return all conflicts found
+        has_conflict = (
+            past_appointment_conflict or
+            appointment_conflict is not None or
+            exception_conflict is not None or
+            not is_within_hours or
+            resource_conflicts is not None
+        )
+
+        return {
+            "has_conflict": has_conflict,
+            "conflict_type": conflict_type,  # Highest priority for backward compatibility
+            "appointment_conflict": appointment_conflict,
+            "exception_conflict": exception_conflict,
+            "resource_conflicts": resource_conflicts,
+            "default_availability": {
+                "is_within_hours": is_within_hours,
+                "normal_hours": normal_hours
+            }
+        }
+
+    @staticmethod
+    def check_batch_scheduling_conflicts(
+        db: Session,
+        practitioners: List[Dict[str, Any]],
+        date: date_type,
+        start_time: time,
+        appointment_type_id: int,
+        clinic_id: int
+    ) -> List[Dict[str, Any]]:
+        """
+        Check for scheduling conflicts for multiple practitioners at once.
+
+        This method optimizes conflict checking by fetching schedule data in batch
+        (~2 queries total vs 2N for N practitioners) and processing conflicts in-memory.
+
+        Args:
+            db: Database session
+            practitioners: List of practitioner configs with user_id and exclude_calendar_event_id
+                [{"user_id": 1, "exclude_calendar_event_id": 123}, ...]
+            date: Date to check
+            start_time: Start time to check
+            appointment_type_id: Appointment type ID (for duration calculation)
+            clinic_id: Clinic ID
+
+        Returns:
+            List of conflict results for each practitioner:
+            [{
+                "practitioner_id": int,
+                "has_conflict": bool,
+                "conflict_type": str | None,
+                "appointment_conflict": dict | None,
+                "exception_conflict": dict | None,
+                "resource_conflicts": list | None,
+                "default_availability": dict
+            }, ...]
+        """
+        from services.appointment_type_service import AppointmentTypeService
+
+        if not practitioners:
+            return []
+
+        # Extract practitioner IDs for batch fetching
+        practitioner_ids = [p["user_id"] for p in practitioners]
+
+        # Get appointment type for duration calculation
+        appointment_type = AppointmentTypeService.get_appointment_type_by_id(
+            db, appointment_type_id, clinic_id
+        )
+
+        # Fetch schedule data for all practitioners in batch (~2 queries total)
+        schedule_data = AvailabilityService.fetch_practitioner_schedule_data(
+            db=db,
+            practitioner_ids=practitioner_ids,
+            date=date,
+            clinic_id=clinic_id,
+            exclude_calendar_event_id=None  # We'll filter per-practitioner below
+        )
+
+        results: List[Dict[str, Any]] = []
+
+        # Calculate end time for the appointment
+        total_minutes = start_time.hour * 60 + start_time.minute
+        total_minutes += appointment_type.duration_minutes
+        total_minutes += (appointment_type.scheduling_buffer_minutes or 0)
+
+        end_hour = total_minutes // 60
+        end_minute = total_minutes % 60
+
+        # Handle overflow past 23:59
+        if end_hour >= 24:
+            logger.warning(
+                f"Appointment end time overflow: start_time={start_time}, "
+                f"duration={appointment_type.duration_minutes}, "
+                f"buffer={appointment_type.scheduling_buffer_minutes}, "
+                f"calculated_end_hour={end_hour}"
+            )
+            end_hour = 23
+            end_minute = 59
+
+        end_time = time(end_hour, end_minute)
+
+        # Process conflicts for each practitioner in-memory
+        for practitioner_config in practitioners:
+            practitioner_id = practitioner_config["user_id"]
+            exclude_calendar_event_id = practitioner_config.get("exclude_calendar_event_id")
+
+            # Get practitioner's schedule data
+            practitioner_schedule = schedule_data.get(practitioner_id, {
+                'default_intervals': [],
+                'events': []
+            })
+
+            # Filter events to exclude the specified calendar event if needed
+            filtered_events = practitioner_schedule['events']
+            if exclude_calendar_event_id:
+                filtered_events = [
+                    event for event in filtered_events
+                    if event.id != exclude_calendar_event_id
+                ]
+
+            # Check conflicts using the helper method
+            conflict_result = AvailabilityService._check_conflicts_with_schedule_data(
+                db=db,
+                practitioner_id=practitioner_id,
+                date=date,
+                start_time=start_time,
+                end_time=end_time,
+                schedule_data={
+                    'default_intervals': practitioner_schedule['default_intervals'],
+                    'events': filtered_events
+                },
+                appointment_type=appointment_type,
+                resource_requirements=[],  # Resource conflicts are checked within the method
+                clinic_id=clinic_id,
+                check_past_appointment=False  # Handled by frontend for modal
+            )
+
+            # Add practitioner_id to result
+            conflict_result["practitioner_id"] = practitioner_id
+            results.append(conflict_result)
+
+        return results
+
+    @staticmethod
     def get_batch_available_slots_for_clinic(
         db: Session,
         clinic_id: int,

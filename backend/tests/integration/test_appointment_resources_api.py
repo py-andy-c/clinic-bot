@@ -281,7 +281,220 @@ class TestGetAppointmentResources:
                     assert resource_response["resource_type_name"] == resource_type1.name
                 elif resource_response["id"] == resource2.id:
                     assert resource_response["resource_type_name"] == resource_type2.name
-            
+
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
+
+
+class TestResourceConflicts:
+    """Integration tests for resource conflicts endpoint."""
+
+    def test_resource_conflicts_no_conflicts(self, client: TestClient, db_session: Session, test_clinic_and_user):
+        """Test resource conflicts when no conflicts exist."""
+        from datetime import datetime
+        clinic, user = test_clinic_and_user
+
+        # Create an appointment type for testing
+        appointment_type = AppointmentType(
+            name="Test Type",
+            duration_minutes=30,
+            clinic_id=clinic.id
+        )
+        db_session.add(appointment_type)
+        db_session.commit()
+
+        # Mock authentication
+        def override_get_current_user():
+            return UserContext(
+                user_type="clinic_user",
+                user_id=user.id,
+                email=user.email,
+                active_clinic_id=clinic.id,
+                roles=["practitioner"],
+                google_subject_id="test_sub",
+                name="Test Practitioner"
+            )
+
+        app.dependency_overrides[get_current_user] = override_get_current_user
+
+        try:
+            start_time = datetime.now().isoformat()
+            end_time = (datetime.now().replace(hour=23, minute=59)).isoformat()
+
+            response = client.get(
+                "/api/clinic/appointments/check-resource-conflicts",
+                params={
+                    "appointment_type_id": appointment_type.id,
+                    "start_time": start_time,
+                    "end_time": end_time
+                }
+            )
+
+            if response.status_code != 200:
+                print(f"Response status: {response.status_code}")
+                print(f"Response content: {response.json()}")
+
+            assert response.status_code == 200
+            data = response.json()
+
+            assert data["has_conflict"] is False
+            assert data["conflict_type"] is None
+            assert data["resource_conflicts"] is None
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
+
+    def test_resource_conflicts_with_conflicts(self, client: TestClient, db_session: Session, test_clinic_and_user):
+        """Test resource conflicts when resources are not available."""
+        from datetime import datetime, time, date
+        clinic, user = test_clinic_and_user
+
+        # Create appointment type
+        appointment_type = AppointmentType(
+            name="Test Type",
+            duration_minutes=30,
+            clinic_id=clinic.id
+        )
+        db_session.add(appointment_type)
+        db_session.flush()
+
+        # Create resource type and resource
+        resource_type = ResourceType(
+            name="Test Equipment",
+            clinic_id=clinic.id
+        )
+        db_session.add(resource_type)
+        db_session.flush()
+
+        resource = Resource(
+            name="Test Machine",
+            resource_type_id=resource_type.id,
+            clinic_id=clinic.id
+        )
+        db_session.add(resource)
+        db_session.flush()
+
+        # Create resource requirement
+        requirement = AppointmentResourceRequirement(
+            appointment_type_id=appointment_type.id,
+            resource_type_id=resource_type.id,
+            quantity=1
+        )
+        db_session.add(requirement)
+        db_session.flush()
+
+        # Create conflicting appointment
+        calendar_event = create_calendar_event_with_clinic(
+            db_session, user, clinic,
+            event_type="appointment",
+            event_date=date.today(),
+            start_time=time(10, 0),
+            end_time=time(10, 30),
+            custom_event_name="Conflicting Appointment"
+        )
+        db_session.commit()
+
+        # Create a patient for the appointment
+        patient = Patient(
+            clinic_id=clinic.id,
+            full_name="Test Patient",
+            birthday=date(1990, 1, 1)
+        )
+        db_session.add(patient)
+        db_session.flush()
+
+        appointment = Appointment(
+            calendar_event_id=calendar_event.id,
+            patient_id=patient.id,
+            appointment_type_id=appointment_type.id,
+            status="confirmed"
+        )
+        db_session.add(appointment)
+        db_session.flush()
+
+        # Allocate the resource to the appointment
+        allocation = AppointmentResourceAllocation(
+            appointment_id=appointment.calendar_event_id,
+            resource_id=resource.id
+        )
+        db_session.add(allocation)
+        db_session.commit()
+
+        # Mock authentication
+        def override_get_current_user():
+            return UserContext(
+                user_type="clinic_user",
+                user_id=user.id,
+                email=user.email,
+                active_clinic_id=clinic.id,
+                roles=["practitioner"],
+                google_subject_id="test_sub",
+                name="Test Practitioner"
+            )
+
+        app.dependency_overrides[get_current_user] = override_get_current_user
+
+        try:
+            # Test resource conflict detection
+            start_time = datetime.combine(date.today(), time(10, 0)).isoformat()
+            end_time = datetime.combine(date.today(), time(10, 30)).isoformat()
+
+            response = client.get(
+                "/api/clinic/appointments/check-resource-conflicts",
+                params={
+                    "appointment_type_id": appointment_type.id,
+                    "start_time": start_time,
+                    "end_time": end_time
+                }
+            )
+
+            assert response.status_code == 200
+            data = response.json()
+
+            assert data["has_conflict"] is True
+            assert data["conflict_type"] == "resource"
+            assert data["resource_conflicts"] is not None
+            assert len(data["resource_conflicts"]) > 0
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
+
+    def test_resource_conflicts_invalid_datetime(self, client: TestClient, db_session: Session, test_clinic_and_user):
+        """Test resource conflicts with invalid datetime format."""
+        clinic, user = test_clinic_and_user
+
+        # Create an appointment type for testing
+        appointment_type = AppointmentType(
+            name="Test Type",
+            duration_minutes=30,
+            clinic_id=clinic.id
+        )
+        db_session.add(appointment_type)
+        db_session.commit()
+
+        # Mock authentication
+        def override_get_current_user():
+            return UserContext(
+                user_type="clinic_user",
+                user_id=user.id,
+                email=user.email,
+                active_clinic_id=clinic.id,
+                roles=["practitioner"],
+                google_subject_id="test_sub",
+                name="Test Practitioner"
+            )
+
+        app.dependency_overrides[get_current_user] = override_get_current_user
+
+        try:
+            response = client.get(
+                "/api/clinic/appointments/check-resource-conflicts",
+                params={
+                    "appointment_type_id": appointment_type.id,
+                    "start_time": "invalid-datetime",
+                    "end_time": "2024-01-15T11:00:00"
+                }
+            )
+
+            assert response.status_code == 400
         finally:
             app.dependency_overrides.pop(get_current_user, None)
 

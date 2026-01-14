@@ -25,7 +25,7 @@ from utils.datetime_utils import parse_date_string
 from utils.practitioner_helpers import verify_practitioner_in_clinic, get_practitioner_display_name_for_appointment
 from api.responses import (
     AvailableSlotsResponse, AvailableSlotResponse, ConflictWarningResponse, ConflictDetail,
-    SchedulingConflictResponse, AppointmentConflictDetail, ExceptionConflictDetail, ResourceConflictDetail, DefaultAvailabilityInfo
+    SchedulingConflictResponse, BatchSchedulingConflictResponse, AppointmentConflictDetail, ExceptionConflictDetail, ResourceConflictDetail, DefaultAvailabilityInfo
 )
 
 logger = logging.getLogger(__name__)
@@ -39,6 +39,34 @@ class TimeInterval(BaseModel):
     """Time interval model for availability periods."""
     start_time: str  # Format: "HH:MM"
     end_time: str    # Format: "HH:MM"
+
+
+class BatchPractitionerConfig(BaseModel):
+    """Configuration for a practitioner in batch conflict checking."""
+    user_id: int
+    exclude_calendar_event_id: Optional[int] = None
+
+
+class BatchConflictCheckRequest(BaseModel):
+    """Request model for batch conflict checking."""
+    practitioners: List[BatchPractitionerConfig] = []
+    date: str
+    start_time: str
+    appointment_type_id: int
+
+    @field_validator('practitioners')
+    @classmethod
+    def validate_practitioners(cls, v: List[BatchPractitionerConfig]) -> List[BatchPractitionerConfig]:
+        if not v:
+            raise ValueError('At least one practitioner must be specified')
+        if len(v) > 10:
+            raise ValueError('Maximum 10 practitioners allowed per request')
+        return v
+
+
+class BatchConflictCheckResponse(BaseModel):
+    """Response model for batch conflict checking."""
+    results: List[BatchSchedulingConflictResponse] = []
 
 
 class DefaultScheduleRequest(BaseModel):
@@ -1769,5 +1797,77 @@ async def update_calendar_event_name(
         raise HTTPException(
             status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="更新事件名稱失敗"
+        )
+
+
+@router.post("/practitioners/availability/conflicts/batch", response_model=BatchConflictCheckResponse)
+async def check_batch_scheduling_conflicts(
+    request: BatchConflictCheckRequest,
+    db: Session = Depends(get_db),
+    current_user: UserContext = Depends(require_practitioner_or_admin)
+) -> BatchConflictCheckResponse:
+    """
+    Check scheduling conflicts for multiple practitioners at once.
+
+    This endpoint optimizes conflict checking by batching database queries
+    and processing conflicts in-memory, reducing API calls from N to ~2 total.
+
+    Returns conflict information for each practitioner in priority order:
+    1. Appointment conflicts
+    2. Availability exception conflicts
+    3. Outside default availability
+    4. Resource conflicts
+
+    Used by the practitioner selection modal to efficiently check conflicts
+    for multiple practitioners when date/time is selected.
+    """
+    try:
+        clinic_id = ensure_clinic_access(current_user)
+
+        # Parse date
+        requested_date = parse_date_string(request.date)
+
+        # Parse start_time
+        try:
+            hour, minute = map(int, request.start_time.split(':'))
+            if not (0 <= hour <= 23 and 0 <= minute <= 59):
+                raise ValueError("Invalid time range")
+            start_time_obj = time(hour, minute)
+        except (ValueError, AttributeError):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="無效的時間格式（請使用 HH:MM）"
+            )
+
+        # Verify all practitioners exist and are active in the clinic
+        practitioner_ids = [p.user_id for p in request.practitioners]
+        for practitioner_id in practitioner_ids:
+            verify_practitioner_in_clinic(db, practitioner_id, clinic_id)
+
+        # Check batch conflicts
+        conflict_results = AvailabilityService.check_batch_scheduling_conflicts(
+            db=db,
+            practitioners=[{"user_id": p.user_id, "exclude_calendar_event_id": p.exclude_calendar_event_id}
+                          for p in request.practitioners],
+            date=requested_date,
+            start_time=start_time_obj,
+            appointment_type_id=request.appointment_type_id,
+            clinic_id=clinic_id
+        )
+
+        # Convert dict results to proper response objects
+        results: List[BatchSchedulingConflictResponse] = []
+        for result in conflict_results:
+            results.append(BatchSchedulingConflictResponse(**result))
+
+        return BatchConflictCheckResponse(results=results)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Failed to check batch scheduling conflicts: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="檢查衝突失敗，請稍後再試"
         )
 
