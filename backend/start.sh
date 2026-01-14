@@ -21,18 +21,43 @@ echo "PORT: ${PORT:-8000}"
 echo "=========================================="
 
 # Fix alembic directory structure if Nixpacks flattened it
-# This handles a known Nixpacks quirk where subdirectories may be flattened
-if [ ! -d "alembic" ] && [ -f "alembic.ini" ]; then
-    if [ -f "env.py" ] || [ -d "versions" ]; then
-        echo "Fixing alembic directory structure..."
-        mkdir -p alembic
-        [ -f "env.py" ] && mv env.py alembic/ || true
-        [ -f "script.py.mako" ] && mv script.py.mako alembic/ || true
-        [ -d "versions" ] && [ ! -d "alembic/versions" ] && mv versions alembic/ || true
-    fi
-fi
+[ ! -d "alembic" ] && [ -f "alembic.ini" ] && [ -f "env.py" -o -d "versions" ] && {
+    echo "Fixing alembic directory structure..."
+    mkdir -p alembic
+    mv env.py script.py.mako alembic/ 2>/dev/null || true
+    [ -d "versions" ] && mv versions alembic/ || true
+}
 
-# Helper functions (defined at top for bash function availability)
+# Helper functions
+is_railway_env() {
+    [ -n "$RAILWAY_PROJECT_ID" ] && [ -n "$RAILWAY_ENVIRONMENT_ID" ]
+}
+
+validate_environment() {
+    if is_railway_env; then
+        if [ "$RAILWAY_ENVIRONMENT_NAME" = "production" ]; then
+            echo "✅ Railway production environment detected"
+            echo "   Railway provides automated PostgreSQL backups and point-in-time recovery"
+        elif [ "$RAILWAY_ENVIRONMENT_NAME" = "staging" ]; then
+            echo "✅ Railway staging environment detected"
+            echo "   Railway provides automated PostgreSQL backups and point-in-time recovery"
+        else
+            echo "✅ Railway environment detected ($RAILWAY_ENVIRONMENT_NAME)"
+            echo "   Railway provides automated PostgreSQL backups and point-in-time recovery"
+        fi
+    else
+        echo "⚠️  Non-Railway environment detected"
+        echo "   This deployment environment may not have automated backup guarantees"
+        if [ "$ALLOW_NO_BACKUP" != "true" ]; then
+            echo "❌ ERROR: Non-Railway deployments require explicit backup confirmation"
+            echo "   Set ALLOW_NO_BACKUP=true if you have verified backup arrangements"
+            exit 1
+        else
+            echo "⚠️  Proceeding with ALLOW_NO_BACKUP=true override"
+        fi
+    fi
+}
+
 release_migration_lock() {
     DEPLOYMENT_ID=${DEPLOYMENT_ID:-$(date +%s)}
 
@@ -44,12 +69,10 @@ from core.database import get_db
 
 try:
     with next(get_db()) as db:
-        # Check if migration lock table exists
         table_exists = db.execute(text('''
             SELECT EXISTS (
                 SELECT 1 FROM information_schema.tables
-                WHERE table_schema = 'public'
-                AND table_name = 'migration_lock'
+                WHERE table_schema = 'public' AND table_name = 'migration_lock'
             )
         ''')).scalar()
 
@@ -134,31 +157,7 @@ except Exception as e:
     fi
 
     # 1.3 Environment validation
-    if [ -n "$RAILWAY_PROJECT_ID" ] && [ -n "$RAILWAY_ENVIRONMENT_ID" ]; then
-        # Railway environment detected - Railway provides automated backups
-        if [ "$RAILWAY_ENVIRONMENT_NAME" = "production" ]; then
-            echo "✅ Railway production environment detected"
-            echo "   Railway provides automated PostgreSQL backups and point-in-time recovery"
-        elif [ "$RAILWAY_ENVIRONMENT_NAME" = "staging" ]; then
-            echo "✅ Railway staging environment detected"
-            echo "   Railway provides automated PostgreSQL backups and point-in-time recovery"
-        else
-            echo "✅ Railway environment detected ($RAILWAY_ENVIRONMENT_NAME)"
-            echo "   Railway provides automated PostgreSQL backups and point-in-time recovery"
-        fi
-    else
-        echo "⚠️  Non-Railway environment detected"
-        echo "   This deployment environment may not have automated backup guarantees"
-        if [ "$ALLOW_NO_BACKUP" != "true" ]; then
-            echo "❌ ERROR: Non-Railway deployments require explicit backup confirmation"
-            echo "   Set ALLOW_NO_BACKUP=true if you have verified backup arrangements"
-            echo "   Or deploy to Railway for automated backup guarantees"
-            exit 1
-        else
-            echo "⚠️  Proceeding with ALLOW_NO_BACKUP=true override"
-            echo "   Ensure external backup systems are in place and tested"
-        fi
-    fi
+    validate_environment
 
     # Phase 2: Migration state validation
     echo "🔍 Phase 2: Migration state validation..."
