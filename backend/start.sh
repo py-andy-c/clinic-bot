@@ -1,9 +1,63 @@
 #!/bin/bash
 set -e
 
-# Railway deployment startup script
-# Ensures proper directory structure and runs migrations before starting the app
-# Best practice: Fail fast if migrations fail - do not start app with inconsistent schema
+# =============================================================================
+# PRODUCTION DATABASE MIGRATION SAFETY SYSTEM - Railway Deployment Script
+# =============================================================================
+#
+# PURPOSE:
+#   Railway deployment startup script with comprehensive database migration safety.
+#   Ensures database integrity before application startup with zero-downtime deployment.
+#
+# SAFETY PHILOSOPHY:
+#   "Fail fast, fail safe" - Any uncertainty blocks deployment to prevent data corruption.
+#   Railway environments trusted for backup infrastructure, non-Railway require explicit confirmation.
+#
+# PREVENTED ISSUES:
+#   ✅ Data Loss: Post-migration validation catches corruption before app startup
+#   ✅ Schema Inconsistencies: Mandatory pre-migration schema validation
+#   ✅ Concurrent Corruption: Database-level migration locks prevent simultaneous migrations
+#   ✅ Railway Timeouts: Timeout monitoring with graceful failure handling
+#   ✅ Silent Failures: Comprehensive logging and error reporting
+#   ✅ Unknown States: Revision validation blocks deployments with diverged migration history
+#
+# 4-PHASE SAFETY SYSTEM:
+#   Phase 1: Pre-flight Validation
+#     - Database connectivity and permissions
+#     - Schema integrity (critical tables exist)
+#     - Environment validation (Railway backup trust model)
+#
+#   Phase 2: Migration State Validation
+#     - Current revision verification
+#     - Unknown revision blocking with recovery guidance
+#
+#   Phase 3: Safe Migration Execution
+#     - Migration lock acquisition (prevents concurrency)
+#     - Timeout-protected execution (Railway deployment aware)
+#     - Success/failure handling with cleanup
+#
+#   Phase 4: Post-Migration Validation
+#     - Alembic version verification
+#     - Table/data integrity checks (environment-aware thresholds)
+#     - Critical application query testing
+#
+# KNOWN LIMITATIONS:
+#   ❌ Cannot prevent data loss DURING migration execution (PostgreSQL DDL limitation)
+#   ❌ Cannot rollback DDL operations (PostgreSQL transaction limitation)
+#   ❌ Cannot validate migration logic intent (only execution results)
+#   ❌ Railway backup status not programmatically verifiable
+#
+# EMERGENCY PROCEDURES:
+#   🚨 Unknown Revision: Set ALLOW_UNKNOWN_REVISION=true (requires bridge migration)
+#   🚨 Non-Railway Deploy: Set ALLOW_NO_BACKUP=true (requires manual backup verification)
+#   🚨 Lock Issues: Wait for other deployment or manual lock cleanup
+#
+# RECOVERY:
+#   - Railway auto-rollback on failure (previous version remains running)
+#   - Railway point-in-time recovery for data restoration
+#   - Comprehensive logging guides manual intervention
+#
+# =============================================================================
 
 # Enable verbose output for debugging (shows each command as it runs)
 # Comment out if too verbose: set -x
