@@ -133,16 +133,30 @@ except Exception as e:
         exit 1
     fi
 
-    # 1.3 Backup readiness validation (production only)
+    # 1.3 Backup readiness validation
     if [ -n "$RAILWAY_PROJECT_ID" ] && [ -n "$RAILWAY_ENVIRONMENT_ID" ]; then
-        echo "✅ Running in Railway production environment"
-        echo "   Railway provides automated PostgreSQL backups"
+        # Railway environment detected
+        if [ "$RAILWAY_ENVIRONMENT_NAME" = "production" ]; then
+            echo "✅ Running in Railway production environment"
+            echo "   Railway provides automated PostgreSQL backups"
+        elif [ "$RAILWAY_ENVIRONMENT_NAME" = "staging" ]; then
+            echo "⚠️  Running in Railway staging environment"
+            echo "   Railway may provide backups - proceeding with caution"
+            echo "   Consider enabling backups for staging if data loss is a concern"
+        else
+            echo "ℹ️  Running in Railway environment ($RAILWAY_ENVIRONMENT_NAME)"
+            echo "   Assuming Railway backup capabilities"
+        fi
     elif [ "$ALLOW_NO_BACKUP" = "true" ]; then
         echo "⚠️  WARNING: Proceeding without backup validation (ALLOW_NO_BACKUP=true)"
         echo "   This should only be used in emergency situations"
+        echo "   Ensure you have manual backups or accept data loss risk"
     else
         echo "❌ ERROR: Cannot validate backup readiness"
-        echo "   Deploy to Railway production or set ALLOW_NO_BACKUP=true for emergency"
+        echo "   Solutions:"
+        echo "   1. Deploy to Railway (automated backups)"
+        echo "   2. Set ALLOW_NO_BACKUP=true (emergency only)"
+        echo "   3. Configure external backup validation"
         exit 1
     fi
 
