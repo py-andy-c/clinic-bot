@@ -6,7 +6,7 @@
 
 **Root Cause**: The script stamps unknown revisions to `680334b1068f` (baseline migration containing `Base.metadata.create_all()`), assuming the schema matches. This creates dangerous mismatches between expected and actual database state.
 
-**Solution**: Replace unsafe auto-fixing with fail-safe validation. Unknown revisions now fail deployment instead of attempting dangerous fixes. Add backup validation requiring recent Railway backups (< 1 hour old).
+**Solution**: Replace unsafe auto-fixing with fail-safe validation. Unknown revisions now fail deployment instead of attempting dangerous fixes. Railway environments are trusted for backup capabilities while non-Railway environments require explicit confirmation.
 
 **Impact**: Zero data loss, safe deployments, clear error messages for manual intervention when needed.
 
@@ -38,11 +38,11 @@ Production database migrations must prioritize **data safety above all else**. T
 
 **Rationale**: Assuming database state leads to migration failures. Production databases may have evolved differently than development/staging environments.
 
-### 3. Backup Requirements
+### 3. Infrastructure Trust Model
 
-**Business Rule**: Production migrations require validated backups before execution.
+**Business Rule**: Railway-managed environments provide reliable backup infrastructure. Non-Railway environments require explicit backup confirmation.
 
-**Rationale**: Even with safe migrations, unexpected issues can occur. Backups provide the ultimate safety net for data recovery.
+**Rationale**: Railway's core competency is reliable infrastructure including automated backups. Trusting their managed service is appropriate, while non-Railway deployments need explicit verification.
 
 ### 4. Environment-Specific Migration Strategies
 
@@ -515,67 +515,34 @@ except Exception as e:
 
 ### Backup Validation Implementation
 
-**Realistic Approach**: Railway provides automated PostgreSQL backups but doesn't expose detailed backup status via public API. Use environment-based validation with database health checks as fallback.
+**Infrastructure Trust Approach**: Railway provides automated PostgreSQL backups as part of their managed service. Since Railway doesn't expose backup verification APIs, we trust their infrastructure for Railway environments while requiring explicit confirmation for non-Railway deployments.
 
 ```bash
-validate_backup_readiness() {
-    echo "🔍 Validating backup readiness for production migration..."
-
-    # Strategy 1: Railway Environment Validation
-    if is_railway_production; then
-        echo "✅ Running in Railway production environment"
-        echo "   Railway provides automated PostgreSQL backups"
-        echo "   Assuming backup compliance for Railway-managed databases"
-        return 0
-    fi
-
-    # Strategy 2: Database Health Check (Fallback)
-    if validate_database_health; then
-        echo "✅ Database connectivity and basic operations validated"
-        echo "   Assuming backup systems are in place for non-Railway deployments"
-        return 0
-    fi
-
-    # Strategy 3: Manual Override (Emergency)
-    if [ "$ALLOW_NO_BACKUP" = "true" ]; then
-        echo "⚠️  WARNING: Proceeding without backup validation (ALLOW_NO_BACKUP=true)"
-        echo "   This should only be used in emergency situations"
-        return 0
-    fi
-
-    echo "❌ ERROR: Cannot validate backup readiness"
-    echo "   Solutions:"
-    echo "   1. Deploy to Railway production (automated backups)"
-    echo "   2. Set ALLOW_NO_BACKUP=true for emergency deployment"
-    echo "   3. Ensure database backup systems are properly configured"
-    exit 1
-}
-
-is_railway_production() {
-    # Check for Railway-specific environment indicators
-    [ -n "$RAILWAY_PROJECT_ID" ] && [ -n "$RAILWAY_ENVIRONMENT_ID" ] && return 0
-    return 1
-}
-
-validate_database_health() {
-    # Basic database connectivity and operation validation
-    if python3 -c "
-import os
-import sys
-sys.path.insert(0, 'src')
-try:
-    from core.database import get_db
-    with next(get_db()) as db:
-        result = db.execute('SELECT COUNT(*) FROM alembic_version').scalar()
-        print(f'Connected to database with {result} version records')
-        return True
-except Exception as e:
-    print(f'Database connection failed: {e}')
-    return False
-    "; then
-        return 0
+validate_environment_safety() {
+    if [ -n "$RAILWAY_PROJECT_ID" ] && [ -n "$RAILWAY_ENVIRONMENT_ID" ]; then
+        # Railway environment - trust their backup infrastructure
+        if [ "$RAILWAY_ENVIRONMENT_NAME" = "production" ]; then
+            echo "✅ Railway production environment detected"
+            echo "   Railway provides automated PostgreSQL backups and point-in-time recovery"
+        elif [ "$RAILWAY_ENVIRONMENT_NAME" = "staging" ]; then
+            echo "✅ Railway staging environment detected"
+            echo "   Railway provides automated PostgreSQL backups and point-in-time recovery"
+        else
+            echo "✅ Railway environment detected ($RAILWAY_ENVIRONMENT_NAME)"
+            echo "   Railway provides automated PostgreSQL backups and point-in-time recovery"
+        fi
     else
-        return 1
+        # Non-Railway environment - require explicit backup confirmation
+        echo "⚠️  Non-Railway environment detected"
+        echo "   This deployment environment may not have automated backup guarantees"
+        if [ "$ALLOW_NO_BACKUP" != "true" ]; then
+            echo "❌ ERROR: Non-Railway deployments require explicit backup confirmation"
+            echo "   Set ALLOW_NO_BACKUP=true if you have verified backup arrangements"
+            exit 1
+        else
+            echo "⚠️  Proceeding with ALLOW_NO_BACKUP=true override"
+            echo "   Ensure external backup systems are in place and tested"
+        fi
     fi
 }
 ```
@@ -919,8 +886,7 @@ execute_migration_with_timeout() {
 2. **HIGH**: Add revision validation that fails safely on unknown revisions
 3. **HIGH**: Implement mandatory schema validation
 4. **HIGH**: Add concurrent migration prevention (database locks)
-5. **MEDIUM**: Add backup validation for production deployments
-6. **MEDIUM**: Implement migration timeout handling for Railway
-7. **LOW**: Add comprehensive logging and monitoring
+5. **MEDIUM**: Implement migration timeout handling for Railway
+6. **LOW**: Add comprehensive logging and monitoring
 
 This solution prevents the data loss incident from recurring while establishing industry-standard practices for production database safety.

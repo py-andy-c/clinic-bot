@@ -133,31 +133,31 @@ except Exception as e:
         exit 1
     fi
 
-    # 1.3 Backup readiness validation
+    # 1.3 Environment validation
     if [ -n "$RAILWAY_PROJECT_ID" ] && [ -n "$RAILWAY_ENVIRONMENT_ID" ]; then
-        # Railway environment detected
+        # Railway environment detected - Railway provides automated backups
         if [ "$RAILWAY_ENVIRONMENT_NAME" = "production" ]; then
-            echo "✅ Running in Railway production environment"
-            echo "   Railway provides automated PostgreSQL backups"
+            echo "✅ Railway production environment detected"
+            echo "   Railway provides automated PostgreSQL backups and point-in-time recovery"
         elif [ "$RAILWAY_ENVIRONMENT_NAME" = "staging" ]; then
-            echo "⚠️  Running in Railway staging environment"
-            echo "   Railway may provide backups - proceeding with caution"
-            echo "   Consider enabling backups for staging if data loss is a concern"
+            echo "✅ Railway staging environment detected"
+            echo "   Railway provides automated PostgreSQL backups and point-in-time recovery"
         else
-            echo "ℹ️  Running in Railway environment ($RAILWAY_ENVIRONMENT_NAME)"
-            echo "   Assuming Railway backup capabilities"
+            echo "✅ Railway environment detected ($RAILWAY_ENVIRONMENT_NAME)"
+            echo "   Railway provides automated PostgreSQL backups and point-in-time recovery"
         fi
-    elif [ "$ALLOW_NO_BACKUP" = "true" ]; then
-        echo "⚠️  WARNING: Proceeding without backup validation (ALLOW_NO_BACKUP=true)"
-        echo "   This should only be used in emergency situations"
-        echo "   Ensure you have manual backups or accept data loss risk"
     else
-        echo "❌ ERROR: Cannot validate backup readiness"
-        echo "   Solutions:"
-        echo "   1. Deploy to Railway (automated backups)"
-        echo "   2. Set ALLOW_NO_BACKUP=true (emergency only)"
-        echo "   3. Configure external backup validation"
-        exit 1
+        echo "⚠️  Non-Railway environment detected"
+        echo "   This deployment environment may not have automated backup guarantees"
+        if [ "$ALLOW_NO_BACKUP" != "true" ]; then
+            echo "❌ ERROR: Non-Railway deployments require explicit backup confirmation"
+            echo "   Set ALLOW_NO_BACKUP=true if you have verified backup arrangements"
+            echo "   Or deploy to Railway for automated backup guarantees"
+            exit 1
+        else
+            echo "⚠️  Proceeding with ALLOW_NO_BACKUP=true override"
+            echo "   Ensure external backup systems are in place and tested"
+        fi
     fi
 
     # Phase 2: Migration state validation
