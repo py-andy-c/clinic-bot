@@ -32,6 +32,39 @@ if [ ! -d "alembic" ] && [ -f "alembic.ini" ]; then
     fi
 fi
 
+# Helper functions (defined at top for bash function availability)
+release_migration_lock() {
+    DEPLOYMENT_ID=${DEPLOYMENT_ID:-$(date +%s)}
+
+    python3 -c "
+import sys
+sys.path.insert(0, 'src')
+from sqlalchemy import text
+from core.database import get_db
+
+try:
+    with next(get_db()) as db:
+        # Check if migration lock table exists
+        table_exists = db.execute(text('''
+            SELECT EXISTS (
+                SELECT 1 FROM information_schema.tables
+                WHERE table_schema = 'public'
+                AND table_name = 'migration_lock'
+            )
+        ''')).scalar()
+
+        if table_exists:
+            db.execute(text('DELETE FROM migration_lock WHERE deployment_id = :deployment_id'),
+                      {'deployment_id': '$DEPLOYMENT_ID'})
+            db.commit()
+            print('✅ Migration lock released')
+        else:
+            print('ℹ️  Migration lock table not available - skipping lock release')
+except Exception as e:
+    print(f'⚠️  Warning: Failed to release migration lock: {e}')
+    "
+}
+
 # Run database migrations - CRITICAL: Must succeed before starting app
 if [ -d "alembic" ] && [ -f "alembic.ini" ]; then
     echo "=========================================="
@@ -301,11 +334,27 @@ try:
 
         # Validation 2: Verify critical tables exist and have reasonable data
         inspector = inspect(connection)
-        critical_checks = {
-            'users': 1,
-            'clinics': 1,
-            'appointments': 0,  # Can be 0 in new deployments
-        }
+
+        # Adjust validation thresholds based on environment
+        import os
+        is_staging = os.environ.get('RAILWAY_ENVIRONMENT_NAME') == 'staging'
+
+        if is_staging:
+            # Staging: Allow empty databases (no seed data)
+            critical_checks = {
+                'users': 0,        # Allow empty in staging
+                'clinics': 0,      # Allow empty in staging
+                'appointments': 0, # Always allow empty
+            }
+            print('ℹ️  Staging environment detected - allowing empty tables')
+        else:
+            # Production: Require minimum data for safety
+            critical_checks = {
+                'users': 1,        # Require at least 1 user
+                'clinics': 1,      # Require at least 1 clinic
+                'appointments': 0, # Always allow empty
+            }
+            print('ℹ️  Production environment - enforcing minimum data requirements')
 
         for table, min_records in critical_checks.items():
             if not inspector.has_table(table):
@@ -357,38 +406,6 @@ except Exception as e:
 
     echo "✅ All migration safety checks passed - deployment safe to proceed"
 
-# Helper functions
-release_migration_lock() {
-    DEPLOYMENT_ID=${DEPLOYMENT_ID:-$(date +%s)}
-
-    python3 -c "
-import sys
-sys.path.insert(0, 'src')
-from sqlalchemy import text
-from core.database import get_db
-
-try:
-    with next(get_db()) as db:
-        # Check if migration lock table exists
-        table_exists = db.execute(text('''
-            SELECT EXISTS (
-                SELECT 1 FROM information_schema.tables
-                WHERE table_schema = 'public'
-                AND table_name = 'migration_lock'
-            )
-        ''')).scalar()
-
-        if table_exists:
-            db.execute(text('DELETE FROM migration_lock WHERE deployment_id = :deployment_id'),
-                      {'deployment_id': '$DEPLOYMENT_ID'})
-            db.commit()
-            print('✅ Migration lock released')
-        else:
-            print('ℹ️  Migration lock table not available - skipping lock release')
-except Exception as e:
-    print(f'⚠️  Warning: Failed to release migration lock: {e}')
-    "
-}
 
 else
     echo "❌ CRITICAL: Alembic directory or config not found. Cannot proceed without migrations."
