@@ -67,7 +67,9 @@ from sqlalchemy import inspect, text
 from core.database import get_db
 
 try:
-    with next(get_db()) as connection:
+    with next(get_db()) as session:
+        # Get connection from session for inspection
+        connection = session.connection()
         inspector = inspect(connection)
 
         # Check critical tables exist
@@ -270,7 +272,10 @@ from core.database import get_db
 validation_errors = []
 
 try:
-    with next(get_db()) as connection:
+    with next(get_db()) as session:
+        # Get connection from session for inspection and queries
+        connection = session.connection()
+
         # Validation 1: Check alembic version updated
         result = connection.execute(text('SELECT version_num FROM alembic_version')).fetchone()
         if not result:
