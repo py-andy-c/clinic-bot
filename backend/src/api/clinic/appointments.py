@@ -25,12 +25,81 @@ from utils.datetime_utils import datetime_validator, parse_date_string, parse_da
 from utils.practitioner_helpers import get_practitioner_display_name_for_appointment
 from api.responses import (
     AppointmentListItem,
-    AppointmentConflictDetail, ExceptionConflictDetail, ResourceConflictDetail, DefaultAvailabilityInfo
+    AppointmentConflictDetail, ExceptionConflictDetail, ResourceConflictDetail, DefaultAvailabilityInfo,
+    SchedulingConflictResponse
 )
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+# ===== Resource Conflicts Endpoint =====
+
+@router.get("/appointments/check-resource-conflicts", response_model=SchedulingConflictResponse)
+async def check_resource_conflicts(
+    appointment_type_id: int = Query(..., description="Appointment type ID"),
+    start_time: str = Query(..., description="Start time in ISO datetime format"),
+    end_time: str = Query(..., description="End time in ISO datetime format"),
+    exclude_calendar_event_id: int | None = Query(None, description="Calendar event ID to exclude from conflict checking"),
+    db: Session = Depends(get_db),
+    current_user: UserContext = Depends(require_practitioner_or_admin)
+) -> SchedulingConflictResponse:
+    """
+    Check resource conflicts for an appointment time slot.
+
+    This endpoint focuses solely on resource availability conflicts,
+    excluding practitioner-specific conflicts. Used by the appointment
+    modal to show resource conflicts independently of practitioner selection.
+
+    Returns resource conflict information only.
+    """
+    try:
+        clinic_id = ensure_clinic_access(current_user)
+
+        # Parse datetime strings
+        try:
+            start_datetime = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
+            end_datetime = datetime.fromisoformat(end_time.replace('Z', '+00:00'))
+        except ValueError as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"無效的時間格式: {e}"
+            )
+
+        # Check resource conflicts only
+        from services.resource_service import ResourceService
+        resource_result = ResourceService.check_resource_availability(
+            db=db,
+            appointment_type_id=appointment_type_id,
+            clinic_id=clinic_id,
+            start_time=start_datetime,
+            end_time=end_datetime,
+            exclude_calendar_event_id=exclude_calendar_event_id
+        )
+
+        # Return only resource conflict information
+        has_conflict = not resource_result['is_available']
+        resource_conflicts = resource_result['conflicts'] if not resource_result['is_available'] else None
+
+        return SchedulingConflictResponse(
+            has_conflict=has_conflict,
+            conflict_type="resource" if has_conflict else None,
+            resource_conflicts=resource_conflicts,
+            default_availability=DefaultAvailabilityInfo(
+                is_within_hours=True,  # Not applicable for resource-only check
+                normal_hours=None
+            )
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Failed to check resource conflicts: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="檢查資源衝突失敗，請稍後再試"
+        )
 
 
 # ===== Request/Response Models =====
@@ -1493,3 +1562,4 @@ async def update_appointment_resources(
             status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法更新資源分配"
         )
+

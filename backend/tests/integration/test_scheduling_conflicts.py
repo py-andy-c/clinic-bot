@@ -1071,3 +1071,85 @@ class TestRecurringConflicts:
         # Third: no conflict
         assert data["occurrences"][2]["has_conflict"] is False
         assert data["occurrences"][2]["conflict_type"] is None
+
+
+class TestBatchSchedulingConflicts:
+    """Integration tests for batch scheduling conflict detection endpoint."""
+
+    def test_batch_conflicts_empty_practitioners(self, client: TestClient, test_clinic_and_practitioner):
+        """Test batch conflicts with empty practitioner list."""
+        clinic, practitioner = test_clinic_and_practitioner
+        token = get_auth_token(client, practitioner.email)
+
+        response = client.post(
+            "/api/clinic/practitioners/availability/conflicts/batch",
+            json={
+                "practitioners": [],
+                "date": "2024-01-15",
+                "start_time": "10:00",
+                "appointment_type_id": 1
+            },
+            headers={"Authorization": f"Bearer {token}"}
+        )
+
+        assert response.status_code == 422  # Validation error
+
+    def test_batch_conflicts_validation(self, client: TestClient, test_clinic_and_practitioner):
+        """Test batch conflicts validation."""
+        clinic, practitioner = test_clinic_and_practitioner
+        token = get_auth_token(client, practitioner.email)
+
+        # Test too many practitioners
+        practitioners = [{"user_id": i} for i in range(11)]
+        response = client.post(
+            "/api/clinic/practitioners/availability/conflicts/batch",
+            json={
+                "practitioners": practitioners,
+                "date": "2024-01-15",
+                "start_time": "10:00",
+                "appointment_type_id": 1
+            },
+            headers={"Authorization": f"Bearer {token}"}
+        )
+
+        assert response.status_code == 422  # Validation error
+
+
+
+    def test_batch_conflicts_validation(self, client: TestClient, test_clinic_and_practitioner):
+        """Test batch conflicts validation."""
+        clinic, practitioner = test_clinic_and_practitioner
+        token = get_auth_token(client, practitioner.email)
+
+        # Test too many practitioners
+        practitioners = [{"user_id": i} for i in range(11)]
+        response = client.post(
+            "/api/clinic/practitioners/availability/conflicts/batch",
+            json={
+                "practitioners": practitioners,
+                "date": "2024-01-15",
+                "start_time": "10:00",
+                "appointment_type_id": 1
+            },
+            headers={"Authorization": f"Bearer {token}"}
+        )
+
+        assert response.status_code == 422  # Validation error
+
+    def test_batch_conflicts_invalid_time(self, client: TestClient, test_clinic_and_practitioner):
+        """Test batch conflicts with invalid time format."""
+        clinic, practitioner = test_clinic_and_practitioner
+        token = get_auth_token(client, practitioner.email)
+
+        response = client.post(
+            "/api/clinic/practitioners/availability/conflicts/batch",
+            json={
+                "practitioners": [{"user_id": practitioner.id}],
+                "date": "2024-01-15",
+                "start_time": "25:00",  # Invalid hour
+                "appointment_type_id": 1
+            },
+            headers={"Authorization": f"Bearer {token}"}
+        )
+
+        assert response.status_code == 400

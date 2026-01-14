@@ -470,3 +470,14 @@ class SchedulingConflictResponse(BaseModel):
     exception_conflict: Optional[ExceptionConflictDetail] = None
     resource_conflicts: Optional[List[ResourceConflictDetail]] = None
     default_availability: DefaultAvailabilityInfo
+
+
+class BatchSchedulingConflictResponse(BaseModel):
+    """Response model for batch scheduling conflict detection."""
+    practitioner_id: int
+    has_conflict: bool
+    conflict_type: Optional[str] = None  # "appointment" | "exception" | "availability" | "resource" | null
+    appointment_conflict: Optional[AppointmentConflictDetail] = None
+    exception_conflict: Optional[ExceptionConflictDetail] = None
+    resource_conflicts: Optional[List[ResourceConflictDetail]] = None
+    default_availability: DefaultAvailabilityInfo

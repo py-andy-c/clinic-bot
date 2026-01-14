@@ -451,3 +451,68 @@ class TestBookingWindowFiltering:
         # Should return empty list
         assert len(result) == 0
 
+
+class TestBatchSchedulingConflicts:
+    """Test batch scheduling conflict checking."""
+
+    def test_batch_conflicts_empty_practitioners(self, db_session):
+        """Test batch conflicts with empty practitioner list."""
+        from datetime import date, time
+
+        result = AvailabilityService.check_batch_scheduling_conflicts(
+            db=db_session,
+            practitioners=[],
+            date=date.today(),
+            start_time=time(10, 0),
+            appointment_type_id=1,
+            clinic_id=1
+        )
+
+        assert result == []
+
+    def test_batch_conflicts_calls_fetch_schedule_data(self, db_session):
+        """Test that batch conflicts method calls fetch_practitioner_schedule_data correctly."""
+        from unittest.mock import patch, Mock
+        from datetime import date, time
+
+        # Mock appointment type
+        mock_appointment_type = Mock()
+        mock_appointment_type.id = 1
+        mock_appointment_type.duration_minutes = 30
+        mock_appointment_type.scheduling_buffer_minutes = 0
+
+        # Mock the appointment type service
+        with patch('services.appointment_type_service.AppointmentTypeService.get_appointment_type_by_id') as mock_get_type:
+            mock_get_type.return_value = mock_appointment_type
+
+            # Mock the fetch_practitioner_schedule_data method
+            with patch.object(AvailabilityService, 'fetch_practitioner_schedule_data') as mock_fetch:
+                mock_fetch.return_value = {
+                    1: {
+                        'default_intervals': [],
+                        'events': []
+                    }
+                }
+
+                result = AvailabilityService.check_batch_scheduling_conflicts(
+                    db=db_session,
+                    practitioners=[{"user_id": 1, "exclude_calendar_event_id": None}],
+                    date=date.today(),
+                    start_time=time(10, 0),
+                    appointment_type_id=1,
+                    clinic_id=1
+                )
+
+                # Verify fetch_practitioner_schedule_data was called with correct params
+                mock_fetch.assert_called_once_with(
+                    db=db_session,
+                    practitioner_ids=[1],
+                    date=date.today(),
+                    clinic_id=1,
+                    exclude_calendar_event_id=None
+                )
+
+                assert isinstance(result, list)
+                assert len(result) == 1
+                assert result[0]["practitioner_id"] == 1
+
