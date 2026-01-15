@@ -1,5 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import { formatAppointmentDateOnly } from '../../../utils/calendarUtils';
 
 interface SelectedSlotsDisplayProps {
   selectedTimeSlots: Array<{date: string, time: string}>;
@@ -25,16 +26,7 @@ const SelectedSlotsDisplay: React.FC<SelectedSlotsDisplayProps> = ({
     }
   };
 
-  // Format date for display
-  const formatSelectedDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('zh-TW', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      weekday: 'long'
-    });
-  };
+  // Format date for display using standardized LIFF format
 
   // Group slots by date
   const groupedSlots = selectedTimeSlots.reduce((acc, slot) => {
@@ -56,12 +48,12 @@ const SelectedSlotsDisplay: React.FC<SelectedSlotsDisplayProps> = ({
         .map(([date, slots]) => (
           <div key={date} className="mb-3 last:mb-0">
             <div className="text-sm text-primary-700 font-medium mb-2">
-              {formatSelectedDate(date)}
+              {formatAppointmentDateOnly(date)}
             </div>
             <div
               className="flex flex-wrap gap-1"
               role="group"
-              aria-label={`${t('datetime.selectedSlotsGroup')} - ${formatSelectedDate(date)}`}
+              aria-label={`${t('datetime.selectedSlotsGroup')} - ${formatAppointmentDateOnly(date)}`}
             >
               {slots.sort((a, b) => a.time.localeCompare(b.time)).map((slot) => (
                 <span

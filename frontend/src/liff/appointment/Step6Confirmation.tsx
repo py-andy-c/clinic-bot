@@ -4,7 +4,7 @@ import { logger } from '../../utils/logger';
 import moment from 'moment-timezone';
 import { useAppointmentStore } from '../../stores/appointmentStore';
 import { liffApiService } from '../../services/liffApi';
-import { formatAppointmentDateTime } from '../../utils/calendarUtils';
+import { formatAppointmentDateTime, formatAppointmentDateOnly } from '../../utils/calendarUtils';
 import { getErrorMessage } from '../../types/api';
 
 const Step6Confirmation: React.FC = () => {
@@ -146,23 +146,14 @@ const Step6Confirmation: React.FC = () => {
                     return acc;
                   }, {} as Record<string, Array<{date: string, time: string}>>);
 
-                  // Format date for display
-                  const formatSelectedDate = (dateString: string) => {
-                    const date = new Date(dateString);
-                    return date.toLocaleDateString('zh-TW', {
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric',
-                      weekday: 'long'
-                    });
-                  };
+                  // Format date for display using standardized LIFF format
 
                   return Object.entries(groupedSlots)
                     .sort(([dateA], [dateB]) => dateA.localeCompare(dateB))
                     .map(([date, slots]) => (
                       <div key={date} className="mb-3 last:mb-0">
                         <div className="text-sm text-gray-700 font-medium mb-2">
-                          {formatSelectedDate(date)}
+                          {formatAppointmentDateOnly(date)}
                         </div>
                         <div className="flex flex-wrap gap-1">
                           {slots.sort((a, b) => a.time.localeCompare(b.time)).map((slot) => (

@@ -135,6 +135,23 @@ export const formatAppointmentDateTime = (dateTime: Date | string): string => {
 };
 
 /**
+ * Format appointment date only with weekday
+ * Format: "2025/12/8(一)"
+ *
+ * Standardized format for appointment dates in LIFF.
+ *
+ * @param date - Date to format
+ * @returns Formatted date string with weekday
+ */
+export const formatAppointmentDateOnly = (date: Date | string): string => {
+  const taiwanMoment = moment(date).tz(TAIWAN_TIMEZONE);
+  const weekdayNames = getWeekdayNames();
+  const weekday = weekdayNames[taiwanMoment.day()] || '';
+  const dateStr = taiwanMoment.format('YYYY/M/D');
+  return `${dateStr}(${weekday})`;
+};
+
+/**
  * Format appointment time range with date and weekday
  * Format: "2025/12/8(一) 09:00 - 10:00"
  * 
