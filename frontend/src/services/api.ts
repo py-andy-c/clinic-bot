@@ -778,6 +778,36 @@ export class ApiService {
     return response.data;
   }
 
+  async checkBatchPractitionerConflicts(data: {
+    practitioners: Array<{ user_id: number; exclude_calendar_event_id?: number }>;
+    date: string;
+    start_time: string;
+    appointment_type_id: number;
+  }, signal?: AbortSignal): Promise<{ results: SchedulingConflictResponse[] }> {
+    const config: any = {};
+    if (signal) {
+      config.signal = signal;
+    }
+    const response = await this.client.post('/clinic/practitioners/availability/conflicts/batch', data, config);
+    return response.data;
+  }
+
+  async checkResourceConflicts(data: {
+    appointment_type_id: number;
+    start_time: string; // ISO datetime string
+    end_time: string; // ISO datetime string
+    exclude_calendar_event_id?: number;
+  }, signal?: AbortSignal): Promise<SchedulingConflictResponse> {
+    const config: any = {
+      params: data
+    };
+    if (signal) {
+      config.signal = signal;
+    }
+    const response = await this.client.get('/clinic/appointments/check-resource-conflicts', config);
+    return response.data;
+  }
+
   // Appointment Management APIs
   async cancelClinicAppointment(appointmentId: number, note?: string): Promise<{ success: boolean; message: string; appointment_id: number }> {
     const params = note ? { note } : {};

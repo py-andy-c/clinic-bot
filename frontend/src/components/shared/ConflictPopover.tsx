@@ -8,6 +8,7 @@ interface ConflictPopoverProps {
   conflictInfo: SchedulingConflictResponse | null;
   children: React.ReactNode;
   className?: string;
+  filterTypes?: string[] | undefined;
 }
 
 /**
@@ -21,6 +22,7 @@ export const ConflictPopover: React.FC<ConflictPopoverProps> = ({
   conflictInfo,
   children,
   className = '',
+  filterTypes,
 }) => {
   const { isOpen, setIsOpen, position, popoverRef, triggerRef } = usePopover({
     popoverWidth: 320, // w-80 = 320px
@@ -50,7 +52,7 @@ export const ConflictPopover: React.FC<ConflictPopoverProps> = ({
             zIndex: 10000, // Above all layers including modals
           }}
         >
-          <ConflictDisplay conflictInfo={conflictInfo} />
+          <ConflictDisplay conflictInfo={conflictInfo} filterTypes={filterTypes} />
         </div>,
         document.body
       )}

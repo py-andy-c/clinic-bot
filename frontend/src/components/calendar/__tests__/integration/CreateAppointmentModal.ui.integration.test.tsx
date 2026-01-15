@@ -89,16 +89,24 @@ const SimplifiedAppointmentBooking = ({
 
       {/* Practitioner Selection */}
       <div>
-        <label>Select Practitioner</label>
-        <select
+        <label>治療師 <span style={{color: 'red'}}>*</span></label>
+        <button
           data-testid="practitioner-selector"
-          value={selectedPractitioner}
-          onChange={(e) => setSelectedPractitioner(e.target.value)}
+          onClick={() => {
+            // Mock modal opening - in real implementation this would open PractitionerSelectionModal
+            setSelectedPractitioner(selectedPractitioner || 'Dr. Smith');
+          }}
+          style={{
+            width: '100%',
+            border: '1px solid #d1d5db',
+            borderRadius: '0.375rem',
+            padding: '0.5rem 0.75rem',
+            textAlign: 'left',
+            backgroundColor: 'white'
+          }}
         >
-          <option value="">Select Practitioner</option>
-          <option value="Dr. Smith">Dr. Smith</option>
-          <option value="Dr. Johnson">Dr. Johnson</option>
-        </select>
+          {selectedPractitioner || '選擇治療師'}
+        </button>
       </div>
 
       {/* Notes */}
@@ -210,12 +218,12 @@ describe('Appointment Creation - UI Component Integration', () => {
       // Verify selection
       expect(screen.getByDisplayValue('General Treatment')).toBeInTheDocument();
 
-      // Step 4: Select practitioner
-      const practitionerSelector = screen.getByTestId('practitioner-selector');
-      await user.selectOptions(practitionerSelector, 'Dr. Smith');
+      // Step 4: Select practitioner (button click simulates modal selection)
+      const practitionerButton = screen.getByTestId('practitioner-selector');
+      await user.click(practitionerButton);
 
-      // Verify selection
-      expect(screen.getByDisplayValue('Dr. Smith')).toBeInTheDocument();
+      // Verify selection is shown on the button
+      expect(screen.getByRole('button', { name: /Dr\. Smith/ })).toBeInTheDocument();
 
       // Step 5: Verify no validation errors are shown
       expect(screen.queryByText(/Please select/)).not.toBeInTheDocument();
@@ -249,7 +257,7 @@ describe('Appointment Creation - UI Component Integration', () => {
       // Select required fields first
       await user.selectOptions(screen.getByTestId('patient-selector'), 'John Doe');
       await user.selectOptions(screen.getByTestId('appointment-type-selector'), 'General Treatment');
-      await user.selectOptions(screen.getByTestId('practitioner-selector'), 'Dr. Smith');
+      await user.click(screen.getByTestId('practitioner-selector'));
 
       // Fill in notes before submitting
       const notesTextarea = screen.getByTestId('appointment-notes');
@@ -305,7 +313,10 @@ describe('Appointment Creation - UI Component Integration', () => {
       // Fill all required fields
       await user.selectOptions(screen.getByTestId('patient-selector'), 'John Doe');
       await user.selectOptions(screen.getByTestId('appointment-type-selector'), 'General Treatment');
-      await user.selectOptions(screen.getByTestId('practitioner-selector'), 'Dr. Smith');
+
+      // Select practitioner (button click simulates selection)
+      const practitionerButton = screen.getByTestId('practitioner-selector');
+      await user.click(practitionerButton);
 
       // Validation errors should disappear
       expect(screen.queryByText(/Please select/)).not.toBeInTheDocument();
@@ -382,7 +393,7 @@ describe('Appointment Creation - UI Component Integration', () => {
       // Complete the form and submit
       await user.selectOptions(screen.getByTestId('patient-selector'), 'John Doe');
       await user.selectOptions(screen.getByTestId('appointment-type-selector'), 'General Treatment');
-      await user.selectOptions(screen.getByTestId('practitioner-selector'), 'Dr. Smith');
+      await user.click(screen.getByTestId('practitioner-selector'));
 
       await user.click(screen.getByTestId('create-appointment-submit'));
 

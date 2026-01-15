@@ -11,22 +11,23 @@ import { ServiceItemSelectionModal } from './ServiceItemSelectionModal';
 import { DateTimePicker } from './DateTimePicker';
 import { CalendarEvent } from '../../utils/calendarDataAdapter';
 import { apiService } from '../../services/api';
-import { Resource, Patient, AppointmentType, ServiceTypeGroup } from '../../types';
+import { Resource, Patient, AppointmentType, ServiceTypeGroup, SchedulingConflictResponse } from '../../types';
 import { getErrorMessage } from '../../types/api';
 import { logger } from '../../utils/logger';
 import { getPractitionerDisplayName, formatAppointmentDateTime } from '../../utils/calendarUtils';
 import moment from 'moment-timezone';
 import { ClinicNotesTextarea } from '../shared/ClinicNotesTextarea';
 import { ConflictDisplay, ConflictWarningButton } from '../shared';
+import { useBatchPractitionerConflicts } from '../../hooks/queries/usePractitionerConflicts';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { ResourceSelection } from '../ResourceSelection';
 import { useAppointmentForm } from '../../hooks/useAppointmentForm';
-import { 
-  AppointmentReferenceHeader, 
-  AppointmentTypeSelector, 
-  PractitionerSelector, 
-  AppointmentFormSkeleton 
+import {
+  AppointmentReferenceHeader,
+  AppointmentTypeSelector,
+  AppointmentFormSkeleton
 } from './form';
+import { PractitionerSelectionModal } from './PractitionerSelectionModal';
 import { shouldPromptForAssignment } from '../../hooks/usePractitionerAssignmentPrompt';
 import { PractitionerAssignmentPromptModal } from '../PractitionerAssignmentPromptModal';
 import { PractitionerAssignmentConfirmationModal } from '../PractitionerAssignmentConfirmationModal';
@@ -108,9 +109,21 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
   const [groups, setGroups] = useState<ServiceTypeGroup[]>([]);
   const [isServiceItemModalOpen, setIsServiceItemModalOpen] = useState(false);
 
+  // Practitioner selection modal state
+  const [isPractitionerModalOpen, setIsPractitionerModalOpen] = useState(false);
+
   // Conflict checking state
   const [conflictInfo, setConflictInfo] = useState<any>(null);
   const [conflictCheckError, setConflictCheckError] = useState<string | null>(null);
+
+  // Batch practitioner conflicts for modal
+  const practitionerConflictsQuery = useBatchPractitionerConflicts(
+    availablePractitioners.length > 0 ? availablePractitioners.map(p => ({ user_id: p.id })) : null,
+    selectedDate,
+    selectedTime,
+    selectedAppointmentTypeId,
+    !!selectedDate && !!selectedTime && !!selectedAppointmentTypeId && availablePractitioners.length > 0
+  ) || { data: null, isLoading: false };
 
   // Assignment prompt state
   const [currentPatient, setCurrentPatient] = useState<Patient | null>(null);
@@ -773,14 +786,49 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
           />
         )}
 
-        <PractitionerSelector
-          value={selectedPractitionerId}
-          options={availablePractitioners}
-          onChange={setSelectedPractitionerId}
-          isLoading={isLoadingPractitioners}
-          originalPractitionerId={event.resource.practitioner_id}
-          appointmentTypeSelected={!!selectedAppointmentTypeId}
-          assignedPractitionerIds={assignedPractitionerIdsSet}
+        {/* Practitioner Selection Button */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            治療師 <span className="text-red-500">*</span>
+          </label>
+          <button
+            type="button"
+            onClick={() => setIsPractitionerModalOpen(true)}
+            disabled={!selectedAppointmentTypeId || isLoadingPractitioners}
+            className="w-full border border-gray-300 rounded-md px-3 py-2 text-left focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors"
+          >
+            {isLoadingPractitioners ? (
+              '載入中...'
+            ) : selectedPractitionerId ? (
+              availablePractitioners.find(p => p.id === selectedPractitionerId)?.full_name || '未知治療師'
+            ) : (
+              '選擇治療師'
+            )}
+          </button>
+          {selectedAppointmentTypeId && !isLoadingPractitioners && availablePractitioners.length === 0 && (
+            <p className="text-sm text-gray-500 mt-1">此預約類型目前沒有可用的治療師</p>
+          )}
+        </div>
+
+        {/* Practitioner Selection Modal */}
+        <PractitionerSelectionModal
+          isOpen={isPractitionerModalOpen}
+          onClose={() => setIsPractitionerModalOpen(false)}
+          onSelect={(practitionerId) => {
+            setSelectedPractitionerId(practitionerId);
+            setIsPractitionerModalOpen(false);
+          }}
+          practitioners={availablePractitioners}
+          selectedPractitionerId={selectedPractitionerId}
+          originalPractitionerId={event.resource.practitioner_id || null}
+          assignedPractitionerIds={assignedPractitionerIdsSet || []}
+          practitionerConflicts={practitionerConflictsQuery?.data?.results?.reduce((acc: Record<number, SchedulingConflictResponse>, result: any) => {
+            if (result.practitioner_id) {
+              acc[result.practitioner_id] = result;
+            }
+            return acc;
+          }, {}) || {}}
+          isLoadingConflicts={practitionerConflictsQuery.isLoading}
         />
 
         <AppointmentReferenceHeader referenceDateTime={referenceDateTime} />
@@ -810,7 +858,9 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
           </div>
         ) : conflictInfo && conflictInfo.has_conflict ? (
           <div className="mt-2">
-            <ConflictDisplay conflictInfo={conflictInfo} />
+            <ConflictDisplay
+              conflictInfo={conflictInfo}
+            />
           </div>
         ) : null}
 

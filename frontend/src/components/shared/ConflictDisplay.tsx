@@ -5,6 +5,7 @@ interface ConflictDisplayProps {
   conflictInfo: SchedulingConflictResponse | null;
   className?: string;
   ariaLive?: 'off' | 'polite' | 'assertive';
+  filterTypes?: string[] | undefined; // Optional filter for specific conflict types
 }
 
 /**
@@ -18,6 +19,7 @@ export const ConflictDisplay: React.FC<ConflictDisplayProps> = ({
   conflictInfo,
   className = '',
   ariaLive = 'polite',
+  filterTypes,
 }) => {
   if (!conflictInfo || !conflictInfo.has_conflict) {
     return null;
@@ -115,44 +117,59 @@ export const ConflictDisplay: React.FC<ConflictDisplayProps> = ({
   
   const conflicts: Array<{ type: string; display: ConflictDisplay }> = [];
   
+  // Show all conflicts by default, or filter if filterTypes is specified
+  const shouldShowConflict = (conflictType: string) => {
+    return !filterTypes || filterTypes.includes(conflictType);
+  };
+
   // Check for past appointment conflict (highest priority)
   // Backend sets conflict_type to "past_appointment" when appointment is in the past
-  if (conflictInfo.conflict_type === 'past_appointment') {
-    const display = getConflictDisplay('past_appointment');
-    if (display) {
-      conflicts.push({ type: 'past_appointment', display });
+  if (shouldShowConflict('past_appointment')) {
+    if (conflictInfo.conflict_type === 'past_appointment') {
+      const display = getConflictDisplay('past_appointment');
+      if (display) {
+        conflicts.push({ type: 'past_appointment', display });
+      }
     }
   }
-  
+
   // Check for appointment conflict
-  if (conflictInfo.appointment_conflict) {
-    const display = getConflictDisplay('appointment');
-    if (display) {
-      conflicts.push({ type: 'appointment', display });
+  if (shouldShowConflict('appointment')) {
+    if (conflictInfo.appointment_conflict) {
+      const display = getConflictDisplay('appointment');
+      if (display) {
+        conflicts.push({ type: 'appointment', display });
+      }
     }
   }
-  
+
   // Check for exception conflict
-  if (conflictInfo.exception_conflict) {
-    const display = getConflictDisplay('exception');
-    if (display) {
-      conflicts.push({ type: 'exception', display });
+  if (shouldShowConflict('exception')) {
+    if (conflictInfo.exception_conflict) {
+      const display = getConflictDisplay('exception');
+      if (display) {
+        conflicts.push({ type: 'exception', display });
+      }
     }
   }
-  
+
   // Check for availability conflict
-  if (conflictInfo.default_availability && !conflictInfo.default_availability.is_within_hours) {
-    const display = getConflictDisplay('availability');
-    if (display) {
-      conflicts.push({ type: 'availability', display });
+  if (shouldShowConflict('availability')) {
+    if (conflictInfo.default_availability && !conflictInfo.default_availability.is_within_hours) {
+      const display = getConflictDisplay('availability');
+      if (display) {
+        conflicts.push({ type: 'availability', display });
+      }
     }
   }
-  
+
   // Check for resource conflict
-  if (conflictInfo.resource_conflicts && conflictInfo.resource_conflicts.length > 0) {
-    const display = getConflictDisplay('resource');
-    if (display) {
-      conflicts.push({ type: 'resource', display });
+  if (shouldShowConflict('resource')) {
+    if (conflictInfo.resource_conflicts && conflictInfo.resource_conflicts.length > 0) {
+      const display = getConflictDisplay('resource');
+      if (display) {
+        conflicts.push({ type: 'resource', display });
+      }
     }
   }
 

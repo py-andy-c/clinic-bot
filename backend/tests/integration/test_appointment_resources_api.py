@@ -281,7 +281,7 @@ class TestGetAppointmentResources:
                     assert resource_response["resource_type_name"] == resource_type1.name
                 elif resource_response["id"] == resource2.id:
                     assert resource_response["resource_type_name"] == resource_type2.name
-
+            
         finally:
             app.dependency_overrides.pop(get_current_user, None)
 

@@ -108,6 +108,8 @@ def setup_test_database(db_engine):
         # Drop any leftover tables from previous implementations first
         conn.execute(text("DROP TABLE IF EXISTS practitioner_line_link_tokens CASCADE"))
         conn.execute(text("DROP TABLE IF EXISTS alembic_version CASCADE"))
+        # Drop migration lock table to prevent conflicts from previous test runs
+        conn.execute(text("DROP TABLE IF EXISTS migration_lock CASCADE"))
         conn.commit()
 
     # Now drop all tables using SQLAlchemy metadata

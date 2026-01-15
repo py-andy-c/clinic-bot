@@ -19,3 +19,4 @@ export { useUserProfile } from './useUserProfile';
 export { usePractitionerStatus } from './usePractitionerStatus';
 export { useBatchPractitionerStatus } from './useBatchPractitionerStatus';
 export { useClinicDetails, type ClinicDetailsData } from './useClinicDetails';
+export { usePractitionerConflicts, useBatchPractitionerConflicts, useResourceConflicts } from './usePractitionerConflicts';

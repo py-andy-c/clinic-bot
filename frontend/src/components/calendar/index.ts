@@ -34,3 +34,6 @@ export type { DateTimePickerProps } from './DateTimePicker';
 
 export { ServiceItemSelectionModal } from './ServiceItemSelectionModal';
 
+export { PractitionerSelectionModal } from './PractitionerSelectionModal';
+export type { PractitionerSelectionModalProps } from './PractitionerSelectionModal';
+

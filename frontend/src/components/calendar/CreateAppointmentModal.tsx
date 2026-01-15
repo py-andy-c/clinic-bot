@@ -25,18 +25,19 @@ import { PatientCreationSuccessModal } from '../PatientCreationSuccessModal';
 import { ClinicNotesTextarea } from '../shared/ClinicNotesTextarea';
 import { preventScrollWheelChange } from '../../utils/inputUtils';
 import { NumberInput } from '../shared/NumberInput';
-import { ConflictIndicator, ConflictWarningButton } from '../shared';
+import { ConflictIndicator, ConflictWarningButton, ConflictDisplay } from '../shared';
 import { SchedulingConflictResponse } from '../../types';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { ResourceSelection } from '../ResourceSelection';
 import { useAppointmentForm } from '../../hooks/useAppointmentForm';
 import { CalendarEvent } from '../../utils/calendarDataAdapter';
-import { 
-  AppointmentReferenceHeader, 
-  AppointmentTypeSelector, 
-  PractitionerSelector, 
-  AppointmentFormSkeleton 
+import {
+  AppointmentReferenceHeader,
+  AppointmentTypeSelector,
+  AppointmentFormSkeleton
 } from './form';
+import { PractitionerSelectionModal } from './PractitionerSelectionModal';
+import { useBatchPractitionerConflicts } from '../../hooks/queries/usePractitionerConflicts';
 import { shouldPromptForAssignment } from '../../hooks/usePractitionerAssignmentPrompt';
 import { PractitionerAssignmentPromptModal } from '../PractitionerAssignmentPromptModal';
 import { PractitionerAssignmentConfirmationModal } from '../PractitionerAssignmentConfirmationModal';
@@ -180,6 +181,9 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
   const { enqueueModal, showNext } = useModalQueue();
   const { alert } = useModal();
   const [step, setStep] = useState<CreateStep>('form');
+
+  // Practitioner selection modal state
+  const [isPractitionerModalOpen, setIsPractitionerModalOpen] = useState(false);
   
   // Duplication mode detection
   const isDuplication = !!preSelectedTime || !!event;
@@ -219,7 +223,16 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
     preSelectedClinicNotes,
   });
 
-  // Check conflicts in real-time for form validation
+  // Conflict checking hooks
+  const practitionerConflictsQuery = useBatchPractitionerConflicts(
+    availablePractitioners.length > 0 ? availablePractitioners.map(p => ({ user_id: p.id })) : null,
+    selectedDate,
+    selectedTime,
+    selectedAppointmentTypeId,
+    !!selectedDate && !!selectedTime && !!selectedAppointmentTypeId && availablePractitioners.length > 0
+  ) || { data: null, isLoading: false };
+
+  // Check conflicts in real-time for form validation (single practitioner)
   useEffect(() => {
     const checkConflicts = async () => {
       // Only check conflicts when we have all required fields for a single appointment
@@ -870,13 +883,49 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
           />
         )}
 
-        <PractitionerSelector
-          value={selectedPractitionerId}
-          options={availablePractitioners}
-          onChange={setSelectedPractitionerId}
-          isLoading={isLoadingPractitioners}
-          appointmentTypeSelected={!!selectedAppointmentTypeId}
-          assignedPractitionerIds={assignedPractitionerIdsSet}
+        {/* Practitioner Selection Button */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            治療師 <span className="text-red-500">*</span>
+          </label>
+          <button
+            type="button"
+            onClick={() => setIsPractitionerModalOpen(true)}
+            disabled={!selectedAppointmentTypeId || isLoadingPractitioners}
+            className="w-full border border-gray-300 rounded-md px-3 py-2 text-left focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors"
+          >
+            {isLoadingPractitioners ? (
+              '載入中...'
+            ) : selectedPractitionerId ? (
+              availablePractitioners.find(p => p.id === selectedPractitionerId)?.full_name || '未知治療師'
+            ) : (
+              '選擇治療師'
+            )}
+          </button>
+          {selectedAppointmentTypeId && !isLoadingPractitioners && availablePractitioners.length === 0 && (
+            <p className="text-sm text-gray-500 mt-1">此預約類型目前沒有可用的治療師</p>
+          )}
+        </div>
+
+        {/* Practitioner Selection Modal */}
+        <PractitionerSelectionModal
+          isOpen={isPractitionerModalOpen}
+          onClose={() => setIsPractitionerModalOpen(false)}
+          onSelect={(practitionerId) => {
+            setSelectedPractitionerId(practitionerId);
+            setIsPractitionerModalOpen(false);
+          }}
+          practitioners={availablePractitioners}
+          selectedPractitionerId={selectedPractitionerId}
+          originalPractitionerId={isDuplication ? event?.resource.practitioner_id || null : null}
+          assignedPractitionerIds={assignedPractitionerIdsSet || []}
+          practitionerConflicts={practitionerConflictsQuery?.data?.results?.reduce((acc: Record<number, SchedulingConflictResponse>, result: any) => {
+            if (result.practitioner_id) {
+              acc[result.practitioner_id] = result as SchedulingConflictResponse;
+            }
+            return acc;
+          }, {}) || {}}
+          isLoadingConflicts={practitionerConflictsQuery.isLoading}
         />
 
         <AppointmentReferenceHeader referenceDateTime={referenceDateTime} />
@@ -965,6 +1014,15 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
             onSelectionChange={setSelectedResourceIds}
             skipInitialDebounce={isDuplication}
           />
+        )}
+
+        {/* Conflict display - show conflicts when they exist */}
+        {singleAppointmentConflict && singleAppointmentConflict.has_conflict && (
+          <div className="mt-2">
+            <ConflictDisplay
+              conflictInfo={singleAppointmentConflict}
+            />
+          </div>
         )}
 
         <div data-testid="clinic-notes">
