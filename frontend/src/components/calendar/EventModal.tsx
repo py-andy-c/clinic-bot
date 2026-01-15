@@ -93,16 +93,20 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
           const dateStr = moment(event.start).tz('Asia/Taipei').format('YYYY-MM-DD');
           const timeStr = moment(event.start).tz('Asia/Taipei').format('HH:mm');
           
-          const conflictInfo = await apiService.checkSchedulingConflicts(
-            event.resource.practitioner_id!,
-            dateStr,
-            timeStr,
-            event.resource.appointment_type_id!,
-            event.resource.calendar_event_id
-          );
-          
+          const result = await apiService.checkBatchPractitionerConflicts({
+            practitioners: [{
+              user_id: event.resource.practitioner_id!,
+              exclude_calendar_event_id: event.resource.calendar_event_id
+            }],
+            date: dateStr,
+            start_time: timeStr,
+            appointment_type_id: event.resource.appointment_type_id!,
+          });
+
+          const conflictInfo = result.results[0];
+
           // Only update once data is received to prevent UI flashing
-          setResourceConflictInfo(conflictInfo.has_conflict ? conflictInfo : null);
+          setResourceConflictInfo(conflictInfo?.has_conflict ? conflictInfo : null);
         } catch (err) {
           logger.error('Failed to check resource conflicts:', err);
           setResourceConflictInfo(null);

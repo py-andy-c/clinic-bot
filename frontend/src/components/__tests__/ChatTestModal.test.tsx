@@ -241,10 +241,10 @@ describe('ChatTestModal', () => {
 
   // Skipped: Timeout test requires complex timer mocking - functionality verified manually
   it.skip('should handle request timeout', async () => {
-    vi.useFakeTimers();
-    vi.mocked(apiService.testChatbot).mockImplementation(
-      () => new Promise(() => {}) // Never resolves
-    );
+    // Mock API to reject with AbortError (simulating timeout/abort)
+    const abortError = new Error('Request aborted');
+    abortError.name = 'AbortError';
+    vi.mocked(apiService.testChatbot).mockRejectedValue(abortError);
 
     render(
       <ChatTestModal
@@ -260,17 +260,10 @@ describe('ChatTestModal', () => {
     fireEvent.change(textarea, { target: { value: '測試' } });
     fireEvent.click(sendButton);
 
-    // Fast-forward 30 seconds
-    await act(async () => {
-      vi.advanceTimersByTime(30000);
-    });
-
     await waitFor(() => {
       expect(screen.getByText('抱歉，我暫時無法處理您的訊息。請稍後再試，或直接聯繫診所。')).toBeInTheDocument();
     });
-
-    vi.useRealTimers();
-  }, 10000);
+  });
 
   // Skipped: Complex async state management test - covered by integration tests
   it.skip('should use session_id from previous response', async () => {

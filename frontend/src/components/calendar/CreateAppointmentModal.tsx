@@ -37,7 +37,7 @@ import {
   AppointmentFormSkeleton
 } from './form';
 import { PractitionerSelectionModal } from './PractitionerSelectionModal';
-import { useBatchPractitionerConflicts } from '../../hooks/queries/usePractitionerConflicts';
+import { useBatchPractitionerConflicts, usePractitionerConflicts } from '../../hooks/queries/usePractitionerConflicts';
 import { shouldPromptForAssignment } from '../../hooks/usePractitionerAssignmentPrompt';
 import { PractitionerAssignmentPromptModal } from '../PractitionerAssignmentPromptModal';
 import { PractitionerAssignmentConfirmationModal } from '../PractitionerAssignmentConfirmationModal';
@@ -232,31 +232,24 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
     !!selectedDate && !!selectedTime && !!selectedAppointmentTypeId && availablePractitioners.length > 0
   ) || { data: null, isLoading: false };
 
-  // Check conflicts in real-time for form validation (single practitioner)
+  // Single practitioner conflict checking for form validation
+  const singlePractitionerConflictsQuery = usePractitionerConflicts(
+    selectedPractitionerId,
+    selectedDate,
+    selectedTime,
+    selectedAppointmentTypeId,
+    undefined, // excludeCalendarEventId
+    !!selectedPractitionerId && !!selectedDate && !!selectedTime && !!selectedAppointmentTypeId
+  );
+
+  // Update single appointment conflict state from hook result
   useEffect(() => {
-    const checkConflicts = async () => {
-      // Only check conflicts when we have all required fields for a single appointment
-      if (!selectedPractitionerId || !selectedAppointmentTypeId || !selectedDate || !selectedTime) {
-        setSingleAppointmentConflict(null);
-        return;
-      }
-
-      try {
-        const conflictResponse = await apiService.checkSchedulingConflicts(
-          selectedPractitionerId,
-          selectedDate,
-          selectedTime,
-          selectedAppointmentTypeId
-        );
-        setSingleAppointmentConflict(conflictResponse.has_conflict ? conflictResponse : null);
-      } catch (error) {
-        logger.error('Failed to check conflicts:', error);
-        setSingleAppointmentConflict(null);
-      }
-    };
-
-    checkConflicts();
-  }, [selectedPractitionerId, selectedAppointmentTypeId, selectedDate, selectedTime]);
+    if (singlePractitionerConflictsQuery?.data) {
+      setSingleAppointmentConflict(singlePractitionerConflictsQuery.data.has_conflict ? singlePractitionerConflictsQuery.data : null);
+    } else {
+      setSingleAppointmentConflict(null);
+    }
+  }, [singlePractitionerConflictsQuery?.data]);
 
   // Try to get patient data from sessionStorage if preSelectedPatientId is set
   const [preSelectedPatientData, setPreSelectedPatientData] = useState<Patient | null>(() => {
@@ -586,13 +579,15 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
       setError(null);
       if (selectedDate && selectedTime && selectedPractitionerId && selectedAppointmentTypeId) {
         try {
-          const conflictResponse = await apiService.checkSchedulingConflicts(
-            selectedPractitionerId,
-            selectedDate,
-            selectedTime,
-            selectedAppointmentTypeId
-          );
-          setSingleAppointmentConflict(conflictResponse.has_conflict ? conflictResponse : null);
+          // Use batch API for consistency
+          const result = await apiService.checkBatchPractitionerConflicts({
+            practitioners: [{ user_id: selectedPractitionerId }],
+            date: selectedDate,
+            start_time: selectedTime,
+            appointment_type_id: selectedAppointmentTypeId,
+          });
+          const conflictResponse = result.results[0];
+          setSingleAppointmentConflict(conflictResponse?.has_conflict ? conflictResponse : null);
         } catch (error) {
           logger.error('Failed to check single appointment conflicts:', error);
           setSingleAppointmentConflict(null);

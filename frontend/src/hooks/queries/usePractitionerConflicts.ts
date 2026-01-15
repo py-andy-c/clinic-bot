@@ -32,17 +32,32 @@ export const usePractitionerConflicts = (
       practitionerId,
       excludeCalendarEventId
     ],
-    queryFn: () => {
+    queryFn: async () => {
       if (!practitionerId || !debouncedDate || !debouncedStartTime || !debouncedAppointmentTypeId) {
         throw new Error('Missing required parameters');
       }
-      return apiService.checkSchedulingConflicts(
-        practitionerId,
-        debouncedDate,
-        debouncedStartTime,
-        debouncedAppointmentTypeId,
-        excludeCalendarEventId || undefined
-      );
+
+      // Use batch API with single practitioner for backward compatibility
+      const practitioner: { user_id: number; exclude_calendar_event_id?: number } = { user_id: practitionerId };
+      if (excludeCalendarEventId != null) {
+        practitioner.exclude_calendar_event_id = excludeCalendarEventId;
+      }
+      const practitioners = [practitioner];
+
+      const result = await apiService.checkBatchPractitionerConflicts({
+        practitioners,
+        date: debouncedDate,
+        start_time: debouncedStartTime,
+        appointment_type_id: debouncedAppointmentTypeId,
+      });
+
+      // Extract the single practitioner result from batch response
+      const practitionerResult = result.results.find((r: any) => r.practitioner_id === practitionerId);
+      if (!practitionerResult) {
+        throw new Error('Practitioner not found in batch response');
+      }
+
+      return practitionerResult;
     },
     enabled: enabled && !!activeClinicId && !!practitionerId && !!debouncedDate && !!debouncedStartTime && !!debouncedAppointmentTypeId,
     staleTime: 5 * 60 * 1000, // 5 minutes

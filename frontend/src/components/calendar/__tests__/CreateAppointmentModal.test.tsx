@@ -38,7 +38,6 @@ vi.mock('../../../services/api', () => ({
     getPractitioners: vi.fn(),
     createPatient: vi.fn(),
     getPatient: vi.fn(),
-    checkSchedulingConflicts: vi.fn(),
     getServiceTypeGroups: vi.fn().mockResolvedValue({ groups: [] }),
   },
 }));
@@ -79,6 +78,21 @@ vi.mock('../../../hooks/queries', () => ({
   useBatchPractitionerConflicts: vi.fn(() => ({
     data: {
       results: []
+    },
+    isLoading: false,
+    error: null,
+  })),
+  usePractitionerConflicts: vi.fn(() => ({
+    data: {
+      has_conflict: false,
+      conflict_type: null,
+      appointment_conflict: null,
+      exception_conflict: null,
+      resource_conflicts: null,
+      default_availability: {
+        is_within_hours: true,
+        normal_hours: null,
+      },
     },
     isLoading: false,
     error: null,
@@ -525,19 +539,7 @@ describe('CreateAppointmentModal', () => {
   });
 
   it('should enable submit button when all required fields are filled', async () => {
-    // Mock all dependencies to ensure button is enabled
-    vi.mocked(apiService.checkSchedulingConflicts).mockResolvedValue({
-      has_conflict: false,
-      conflict_type: null,
-      appointment_conflict: null,
-      exception_conflict: null,
-      resource_conflicts: null,
-      default_availability: {
-        is_available: true,
-        working_hours: [],
-        exceptions: []
-      }
-    });
+    // Uses default mock which returns no conflicts
 
     // Mock the hook to return a fully valid form state with no conflicts
     vi.mocked(useAppointmentForm).mockReturnValue({
@@ -596,19 +598,7 @@ describe('CreateAppointmentModal', () => {
   });
 
   it('should show confirmation step when form is submitted', async () => {
-    // Mock all dependencies for successful form submission
-    vi.mocked(apiService.checkSchedulingConflicts).mockResolvedValue({
-      has_conflict: false,
-      conflict_type: null,
-      appointment_conflict: null,
-      exception_conflict: null,
-      resource_conflicts: null,
-      default_availability: {
-        is_available: true,
-        working_hours: [],
-        exceptions: []
-      }
-    });
+    // Uses default mock which returns no conflicts
 
     vi.mocked(useAppointmentForm).mockReturnValue({
       selectedPatientId: 1,

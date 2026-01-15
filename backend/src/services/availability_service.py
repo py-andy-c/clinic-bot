@@ -1984,7 +1984,7 @@ class AvailabilityService:
                 appointment_type=appointment_type,
                 resource_requirements=[],  # Resource conflicts are checked within the method
                 clinic_id=clinic_id,
-                check_past_appointment=False  # Handled by frontend for modal
+                check_past_appointment=True  # Check past appointments for consistency with single API
             )
 
             # Add practitioner_id to result

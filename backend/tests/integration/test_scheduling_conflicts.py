@@ -100,10 +100,11 @@ class TestSchedulingConflicts:
         # Get authentication token
         token = get_auth_token(client, practitioner.email)
 
-        # Test checking conflict for past appointment
-        response = client.get(
-            f"/api/clinic/practitioners/{practitioner.id}/availability/conflicts",
-            params={
+        # Test checking conflict for past appointment using batch API
+        response = client.post(
+            "/api/clinic/practitioners/availability/conflicts/batch",
+            json={
+                "practitioners": [{"user_id": practitioner.id}],
                 "date": past_date.isoformat(),
                 "start_time": "10:00",
                 "appointment_type_id": appointment_type.id
@@ -113,11 +114,13 @@ class TestSchedulingConflicts:
 
         assert response.status_code == 200
         data = response.json()
-        
-        assert data["has_conflict"] is True
-        assert data["conflict_type"] == "past_appointment"
-        assert data["appointment_conflict"] is None
-        assert data["exception_conflict"] is None
+
+        assert len(data["results"]) == 1
+        practitioner_result = data["results"][0]
+        assert practitioner_result["has_conflict"] is True
+        assert practitioner_result["conflict_type"] == "past_appointment"
+        assert practitioner_result["appointment_conflict"] is None
+        assert practitioner_result["exception_conflict"] is None
 
     def test_check_scheduling_conflicts_past_appointment_priority(self, client: TestClient, db_session: Session, test_clinic_and_practitioner):
         """Test that past appointment takes priority over other conflicts."""
@@ -175,9 +178,10 @@ class TestSchedulingConflicts:
         token = get_auth_token(client, practitioner.email)
 
         # Test checking conflict - should show past_appointment (highest priority), not appointment conflict
-        response = client.get(
-            f"/api/clinic/practitioners/{practitioner.id}/availability/conflicts",
-            params={
+        response = client.post(
+            "/api/clinic/practitioners/availability/conflicts/batch",
+            json={
+                "practitioners": [{"user_id": practitioner.id}],
                 "date": past_date.isoformat(),
                 "start_time": "10:15",
                 "appointment_type_id": appointment_type.id
@@ -187,12 +191,15 @@ class TestSchedulingConflicts:
 
         assert response.status_code == 200
         data = response.json()
-        
+
+        assert len(data["results"]) == 1
+        practitioner_result = data["results"][0]
+
         # Should show past_appointment (highest priority), but also include appointment conflict
-        assert data["has_conflict"] is True
-        assert data["conflict_type"] == "past_appointment"  # Highest priority for backward compatibility
+        assert practitioner_result["has_conflict"] is True
+        assert practitioner_result["conflict_type"] == "past_appointment"  # Highest priority for backward compatibility
         # With new behavior, all conflicts are returned, so appointment_conflict should be populated
-        assert data["appointment_conflict"] is not None
+        assert practitioner_result["appointment_conflict"] is not None
 
     def test_check_scheduling_conflicts_appointment_conflict(self, client: TestClient, db_session: Session, test_clinic_and_practitioner):
         """Test checking scheduling conflicts - appointment conflict (highest priority)."""
@@ -250,9 +257,10 @@ class TestSchedulingConflicts:
         token = get_auth_token(client, practitioner.email)
 
         # Test checking conflict at overlapping time
-        response = client.get(
-            f"/api/clinic/practitioners/{practitioner.id}/availability/conflicts",
-            params={
+        response = client.post(
+            "/api/clinic/practitioners/availability/conflicts/batch",
+            json={
+                "practitioners": [{"user_id": practitioner.id}],
                 "date": future_date.isoformat(),
                 "start_time": "10:15",
                 "appointment_type_id": appointment_type.id
@@ -262,14 +270,17 @@ class TestSchedulingConflicts:
 
         assert response.status_code == 200
         data = response.json()
-        
-        assert data["has_conflict"] is True
-        assert data["conflict_type"] == "appointment"
-        assert data["appointment_conflict"] is not None
-        assert data["appointment_conflict"]["patient_name"] == "Existing Patient"
-        assert data["appointment_conflict"]["start_time"] == "10:00"
-        assert data["appointment_conflict"]["end_time"] == "10:30"
-        assert data["exception_conflict"] is None
+
+        assert len(data["results"]) == 1
+        practitioner_result = data["results"][0]
+
+        assert practitioner_result["has_conflict"] is True
+        assert practitioner_result["conflict_type"] == "appointment"
+        assert practitioner_result["appointment_conflict"] is not None
+        assert practitioner_result["appointment_conflict"]["patient_name"] == "Existing Patient"
+        assert practitioner_result["appointment_conflict"]["start_time"] == "10:00"
+        assert practitioner_result["appointment_conflict"]["end_time"] == "10:30"
+        assert practitioner_result["exception_conflict"] is None
 
     def test_check_scheduling_conflicts_exception_conflict(self, client: TestClient, db_session: Session, test_clinic_and_practitioner):
         """Test checking scheduling conflicts - availability exception conflict (medium priority)."""
@@ -317,9 +328,10 @@ class TestSchedulingConflicts:
         token = get_auth_token(client, practitioner.email)
 
         # Test checking conflict at overlapping time
-        response = client.get(
-            f"/api/clinic/practitioners/{practitioner.id}/availability/conflicts",
-            params={
+        response = client.post(
+            "/api/clinic/practitioners/availability/conflicts/batch",
+            json={
+                "practitioners": [{"user_id": practitioner.id}],
                 "date": future_date.isoformat(),
                 "start_time": "14:30",
                 "appointment_type_id": appointment_type.id
@@ -329,14 +341,17 @@ class TestSchedulingConflicts:
 
         assert response.status_code == 200
         data = response.json()
-        
-        assert data["has_conflict"] is True
-        assert data["conflict_type"] == "exception"
-        assert data["exception_conflict"] is not None
-        assert data["exception_conflict"]["start_time"] == "14:00"
-        assert data["exception_conflict"]["end_time"] == "16:00"
-        assert data["exception_conflict"]["reason"] == "個人請假"
-        assert data["appointment_conflict"] is None
+
+        assert len(data["results"]) == 1
+        practitioner_result = data["results"][0]
+
+        assert practitioner_result["has_conflict"] is True
+        assert practitioner_result["conflict_type"] == "exception"
+        assert practitioner_result["exception_conflict"] is not None
+        assert practitioner_result["exception_conflict"]["start_time"] == "14:00"
+        assert practitioner_result["exception_conflict"]["end_time"] == "16:00"
+        assert practitioner_result["exception_conflict"]["reason"] == "個人請假"
+        assert practitioner_result["appointment_conflict"] is None
 
     def test_check_scheduling_conflicts_outside_availability(self, client: TestClient, db_session: Session, test_clinic_and_practitioner):
         """Test checking scheduling conflicts - outside default availability (lowest priority)."""
@@ -367,9 +382,10 @@ class TestSchedulingConflicts:
         token = get_auth_token(client, practitioner.email)
 
         # Test checking conflict outside normal hours (8 AM)
-        response = client.get(
-            f"/api/clinic/practitioners/{practitioner.id}/availability/conflicts",
-            params={
+        response = client.post(
+            "/api/clinic/practitioners/availability/conflicts/batch",
+            json={
+                "practitioners": [{"user_id": practitioner.id}],
                 "date": future_date.isoformat(),
                 "start_time": "08:00",
                 "appointment_type_id": appointment_type.id
@@ -379,14 +395,17 @@ class TestSchedulingConflicts:
 
         assert response.status_code == 200
         data = response.json()
-        
-        assert data["has_conflict"] is True
-        assert data["conflict_type"] == "availability"
-        assert data["default_availability"]["is_within_hours"] is False
-        assert data["default_availability"]["normal_hours"] is not None
-        assert "09:00" in data["default_availability"]["normal_hours"]
-        assert data["appointment_conflict"] is None
-        assert data["exception_conflict"] is None
+
+        assert len(data["results"]) == 1
+        practitioner_result = data["results"][0]
+
+        assert practitioner_result["has_conflict"] is True
+        assert practitioner_result["conflict_type"] == "availability"
+        assert practitioner_result["default_availability"]["is_within_hours"] is False
+        assert practitioner_result["default_availability"]["normal_hours"] is not None
+        assert "09:00" in practitioner_result["default_availability"]["normal_hours"]
+        assert practitioner_result["appointment_conflict"] is None
+        assert practitioner_result["exception_conflict"] is None
 
     def test_check_scheduling_conflicts_no_conflict(self, client: TestClient, db_session: Session, test_clinic_and_practitioner):
         """Test checking scheduling conflicts - no conflict."""
@@ -417,9 +436,10 @@ class TestSchedulingConflicts:
         token = get_auth_token(client, practitioner.email)
 
         # Test checking conflict at available time
-        response = client.get(
-            f"/api/clinic/practitioners/{practitioner.id}/availability/conflicts",
-            params={
+        response = client.post(
+            "/api/clinic/practitioners/availability/conflicts/batch",
+            json={
+                "practitioners": [{"user_id": practitioner.id}],
                 "date": future_date.isoformat(),
                 "start_time": "11:00",
                 "appointment_type_id": appointment_type.id
@@ -429,12 +449,15 @@ class TestSchedulingConflicts:
 
         assert response.status_code == 200
         data = response.json()
-        
-        assert data["has_conflict"] is False
-        assert data["conflict_type"] is None
-        assert data["default_availability"]["is_within_hours"] is True
-        assert data["appointment_conflict"] is None
-        assert data["exception_conflict"] is None
+
+        assert len(data["results"]) == 1
+        practitioner_result = data["results"][0]
+
+        assert practitioner_result["has_conflict"] is False
+        assert practitioner_result["conflict_type"] is None
+        assert practitioner_result["default_availability"]["is_within_hours"] is True
+        assert practitioner_result["appointment_conflict"] is None
+        assert practitioner_result["exception_conflict"] is None
 
     def test_check_scheduling_conflicts_exclude_calendar_event(self, client: TestClient, db_session: Session, test_clinic_and_practitioner):
         """Test checking scheduling conflicts with exclude_calendar_event_id (for editing appointments)."""
@@ -492,23 +515,26 @@ class TestSchedulingConflicts:
         token = get_auth_token(client, practitioner.email)
 
         # Test checking conflict at same time but excluding the existing appointment
-        response = client.get(
-            f"/api/clinic/practitioners/{practitioner.id}/availability/conflicts",
-            params={
+        response = client.post(
+            "/api/clinic/practitioners/availability/conflicts/batch",
+            json={
+                "practitioners": [{"user_id": practitioner.id, "exclude_calendar_event_id": existing_event.id}],
                 "date": future_date.isoformat(),
                 "start_time": "10:00",
-                "appointment_type_id": appointment_type.id,
-                "exclude_calendar_event_id": existing_event.id
+                "appointment_type_id": appointment_type.id
             },
             headers={"Authorization": f"Bearer {token}"}
         )
 
         assert response.status_code == 200
         data = response.json()
-        
+
+        assert len(data["results"]) == 1
+        practitioner_result = data["results"][0]
+
         # Should not show conflict since we're excluding the existing appointment
-        assert data["has_conflict"] is False
-        assert data["conflict_type"] is None
+        assert practitioner_result["has_conflict"] is False
+        assert practitioner_result["conflict_type"] is None
 
     def test_check_scheduling_conflicts_priority_order(self, client: TestClient, db_session: Session, test_clinic_and_practitioner):
         """Test that appointment conflicts take priority over exception conflicts."""
@@ -583,9 +609,10 @@ class TestSchedulingConflicts:
         token = get_auth_token(client, practitioner.email)
 
         # Test checking conflict - should show appointment conflict (higher priority)
-        response = client.get(
-            f"/api/clinic/practitioners/{practitioner.id}/availability/conflicts",
-            params={
+        response = client.post(
+            "/api/clinic/practitioners/availability/conflicts/batch",
+            json={
+                "practitioners": [{"user_id": practitioner.id}],
                 "date": future_date.isoformat(),
                 "start_time": "10:45",
                 "appointment_type_id": appointment_type.id
@@ -595,13 +622,16 @@ class TestSchedulingConflicts:
 
         assert response.status_code == 200
         data = response.json()
-        
+
+        assert len(data["results"]) == 1
+        practitioner_result = data["results"][0]
+
         # Should show appointment conflict (highest priority), but also include exception conflict
-        assert data["has_conflict"] is True
-        assert data["conflict_type"] == "appointment"  # Highest priority for backward compatibility
-        assert data["appointment_conflict"] is not None
+        assert practitioner_result["has_conflict"] is True
+        assert practitioner_result["conflict_type"] == "appointment"  # Highest priority for backward compatibility
+        assert practitioner_result["appointment_conflict"] is not None
         # With new behavior, all conflicts are returned, so exception_conflict should be populated
-        assert data["exception_conflict"] is not None
+        assert practitioner_result["exception_conflict"] is not None
 
 
 class TestRecurringConflicts:

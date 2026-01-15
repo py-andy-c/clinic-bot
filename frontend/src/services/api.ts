@@ -753,31 +753,6 @@ export class ApiService {
     return response.data;
   }
 
-  async checkSchedulingConflicts(
-    userId: number,
-    date: string,
-    startTime: string,
-    appointmentTypeId: number,
-    excludeCalendarEventId?: number,
-    signal?: AbortSignal
-  ): Promise<SchedulingConflictResponse> {
-    const config: any = {
-      params: {
-        date,
-        start_time: startTime,
-        appointment_type_id: appointmentTypeId,
-      }
-    };
-    if (excludeCalendarEventId !== undefined) {
-      config.params.exclude_calendar_event_id = excludeCalendarEventId;
-    }
-    if (signal) {
-      config.signal = signal;
-    }
-    const response = await this.client.get(`/clinic/practitioners/${userId}/availability/conflicts`, config);
-    return response.data;
-  }
-
   async checkBatchPractitionerConflicts(data: {
     practitioners: Array<{ user_id: number; exclude_calendar_event_id?: number }>;
     date: string;

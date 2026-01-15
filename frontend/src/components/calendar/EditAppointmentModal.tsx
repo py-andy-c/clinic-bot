@@ -18,7 +18,7 @@ import { getPractitionerDisplayName, formatAppointmentDateTime } from '../../uti
 import moment from 'moment-timezone';
 import { ClinicNotesTextarea } from '../shared/ClinicNotesTextarea';
 import { ConflictDisplay, ConflictWarningButton } from '../shared';
-import { useBatchPractitionerConflicts } from '../../hooks/queries/usePractitionerConflicts';
+import { useBatchPractitionerConflicts, usePractitionerConflicts } from '../../hooks/queries/usePractitionerConflicts';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { ResourceSelection } from '../ResourceSelection';
 import { useAppointmentForm } from '../../hooks/useAppointmentForm';
@@ -125,6 +125,16 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
     !!selectedDate && !!selectedTime && !!selectedAppointmentTypeId && availablePractitioners.length > 0
   ) || { data: null, isLoading: false };
 
+  // Single practitioner conflicts for form validation
+  const singlePractitionerConflictsQuery = usePractitionerConflicts(
+    selectedPractitionerId,
+    selectedDate,
+    selectedTime,
+    selectedAppointmentTypeId,
+    event.resource.calendar_event_id,
+    !!selectedPractitionerId && !!selectedDate && !!selectedTime && !!selectedAppointmentTypeId
+  );
+
   // Assignment prompt state
   const [currentPatient, setCurrentPatient] = useState<Patient | null>(null);
   const { enqueueModal, showNext } = useModalQueue();
@@ -159,82 +169,18 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
     fetchGroups();
   }, []);
 
-  // Check conflicts on mount for edit mode
+  // Update conflict info from hook result
   useEffect(() => {
-    const checkInitialConflicts = async () => {
-      // Only run conflict check on mount for edit mode
-      // EditAppointmentModal is always in edit mode
+    if (singlePractitionerConflictsQuery?.data) {
+      setConflictInfo(singlePractitionerConflictsQuery.data);
+      setConflictCheckError(null);
+    } else if (singlePractitionerConflictsQuery?.error) {
+      logger.error('Failed to check conflicts:', singlePractitionerConflictsQuery.error);
+      setConflictCheckError('無法檢查時間衝突，請稍後再試');
+      setConflictInfo(null);
+    }
+  }, [singlePractitionerConflictsQuery?.data, singlePractitionerConflictsQuery?.error]);
 
-      const abortController = new AbortController();
-
-      const runCheck = async () => {
-        // Skip if missing required values
-        if (!selectedPractitionerId || !selectedAppointmentTypeId || !selectedDate || !selectedTime) {
-          return;
-        }
-
-        setConflictCheckError(null);
-
-        try {
-          const response = await apiService.checkSchedulingConflicts(
-            selectedPractitionerId,
-            selectedDate,
-            selectedTime,
-            selectedAppointmentTypeId,
-            event.resource.calendar_event_id,
-            abortController.signal
-          );
-          setConflictInfo(response);
-        } catch (error: any) {
-          if (error?.name === 'CanceledError' || error?.name === 'AbortError') return;
-          logger.error('Failed to check initial conflicts:', error);
-          setConflictCheckError('無法檢查時間衝突，請稍後再試');
-          setConflictInfo(null);
-        }
-      };
-
-      runCheck();
-      return () => abortController.abort();
-    };
-
-    checkInitialConflicts();
-  }, []); // Only run once on mount
-
-  // Check conflicts when practitioner changes
-  useEffect(() => {
-    const checkPractitionerConflicts = async () => {
-      // Skip if this is the initial load (already handled above)
-      if (!selectedPractitionerId || !selectedAppointmentTypeId || !selectedDate || !selectedTime) {
-        return;
-      }
-
-      const abortController = new AbortController();
-
-      try {
-        setConflictCheckError(null);
-
-        const response = await apiService.checkSchedulingConflicts(
-          selectedPractitionerId,
-          selectedDate,
-          selectedTime,
-          selectedAppointmentTypeId,
-          event.resource.calendar_event_id,
-          abortController.signal
-        );
-
-        setConflictInfo(response);
-      } catch (error: any) {
-        if (error?.name === 'CanceledError' || error?.name === 'AbortError') return;
-        logger.error('Failed to check practitioner conflicts:', error);
-        setConflictCheckError('無法檢查時間衝突，請稍後再試');
-        setConflictInfo(null);
-      }
-
-      return () => abortController.abort();
-    };
-
-    checkPractitionerConflicts();
-  }, [selectedPractitionerId, selectedAppointmentTypeId, selectedDate, selectedTime]);
 
   const hasGrouping = groups.length > 0;
 

@@ -243,14 +243,19 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
 
       setIsCheckingConflict(true);
       try {
-        await apiService.checkSchedulingConflicts(
-          selectedPractitionerId,
-          checkDate,
-          checkTime,
-          appointmentTypeId,
-          excludeCalendarEventId ?? undefined,
-          abortController.signal
-        );
+        // Use batch API for consistency - just check if conflicts exist
+        const practitioner: { user_id: number; exclude_calendar_event_id?: number } = { user_id: selectedPractitionerId };
+        if (excludeCalendarEventId != null) {
+          practitioner.exclude_calendar_event_id = excludeCalendarEventId;
+        }
+        const practitioners = [practitioner];
+
+        await apiService.checkBatchPractitionerConflicts({
+          practitioners,
+          date: checkDate,
+          start_time: checkTime,
+          appointment_type_id: appointmentTypeId,
+        });
         // Conflict checking complete - loading state will be cleared
       } catch (error: any) {
         if (error?.name === 'CanceledError' || error?.name === 'AbortError') return;

@@ -44,7 +44,6 @@ vi.mock('../../../services/api', () => ({
       available_resources: [],
     }),
     getServiceTypeGroups: vi.fn().mockResolvedValue({ groups: [] }),
-    checkSchedulingConflicts: vi.fn(),
   },
 }));
 
@@ -60,6 +59,21 @@ vi.mock('../../../hooks/queries', () => ({
   useBatchPractitionerConflicts: vi.fn(() => ({
     data: {
       results: []
+    },
+    isLoading: false,
+    error: null,
+  })),
+  usePractitionerConflicts: vi.fn(() => ({
+    data: {
+      has_conflict: false,
+      conflict_type: null,
+      appointment_conflict: null,
+      exception_conflict: null,
+      resource_conflicts: null,
+      default_availability: {
+        is_within_hours: true,
+        normal_hours: null,
+      },
     },
     isLoading: false,
     error: null,
@@ -313,19 +327,7 @@ describe('EditAppointmentModal', () => {
 
   describe('Review Step', () => {
     it('should show review step when form is submitted with changes', async () => {
-      // Mock conflict check to return no conflicts
-      vi.mocked(apiService.checkSchedulingConflicts).mockResolvedValue({
-        has_conflict: false,
-        conflict_type: null,
-        appointment_conflict: null,
-        exception_conflict: null,
-        resource_conflicts: null,
-        default_availability: {
-          is_available: true,
-          working_hours: [],
-          exceptions: []
-        }
-      });
+      // Uses default mock which returns no conflicts
 
       // Mock the hook to show that practitioner has changed
       vi.mocked(useAppointmentForm).mockReturnValue({

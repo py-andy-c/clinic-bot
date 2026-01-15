@@ -22,7 +22,7 @@ vi.mock('react-dom', async () => {
 vi.mock('../../../services/api', () => ({
   apiService: {
     getBatchAvailableSlots: vi.fn(),
-    checkSchedulingConflicts: vi.fn(),
+    checkBatchPractitionerConflicts: vi.fn(),
   },
 }));
 
@@ -86,16 +86,20 @@ describe('DateTimePicker', () => {
       isLoadingSlots: false,
     });
 
-    // Default mock for checkSchedulingConflicts
-    vi.mocked(apiService.checkSchedulingConflicts).mockResolvedValue({
-      has_conflict: false,
-      conflict_type: null,
-      appointment_conflict: null,
-      exception_conflict: null,
-      default_availability: {
-        is_within_hours: true,
-        normal_hours: null,
-      },
+    // Default mock for checkBatchPractitionerConflicts
+    vi.mocked(apiService.checkBatchPractitionerConflicts).mockResolvedValue({
+      results: [{
+        practitioner_id: 1,
+        has_conflict: false,
+        conflict_type: null,
+        appointment_conflict: null,
+        exception_conflict: null,
+        resource_conflicts: null,
+        default_availability: {
+          is_within_hours: true,
+          normal_hours: null,
+        },
+      }],
     });
 
     // Default mock for getBatchAvailableSlots
@@ -543,15 +547,19 @@ describe('DateTimePicker', () => {
 
   describe.skip('Conflict Detection', () => {
     beforeEach(() => {
-      vi.mocked(apiService.checkSchedulingConflicts).mockResolvedValue({
-        has_conflict: false,
-        conflict_type: null,
-        appointment_conflict: null,
-        exception_conflict: null,
-        default_availability: {
-          is_within_hours: true,
-          normal_hours: null,
-        },
+      vi.mocked(apiService.checkBatchPractitionerConflicts).mockResolvedValue({
+        results: [{
+          practitioner_id: 1,
+          has_conflict: false,
+          conflict_type: null,
+          appointment_conflict: null,
+          exception_conflict: null,
+          resource_conflicts: null,
+          default_availability: {
+            is_within_hours: true,
+            normal_hours: null,
+          },
+        }],
       });
     });
 
@@ -571,7 +579,7 @@ describe('DateTimePicker', () => {
       // Wait a bit to ensure no conflict check happens
       await new Promise((resolve) => setTimeout(resolve, 500));
 
-      expect(apiService.checkSchedulingConflicts).not.toHaveBeenCalled();
+      expect(apiService.checkBatchPractitionerConflicts).not.toHaveBeenCalled();
     });
 
     it('should check conflicts when selected time is NOT in available slots', async () => {
@@ -590,13 +598,12 @@ describe('DateTimePicker', () => {
       // Wait for debounced conflict check
       await waitFor(
         () => {
-          expect(apiService.checkSchedulingConflicts).toHaveBeenCalledWith(
-            1,
-            '2024-01-15',
-            '11:00',
-            1,
-            undefined
-          );
+          expect(apiService.checkBatchPractitionerConflicts).toHaveBeenCalledWith({
+            practitioners: [{ user_id: 1 }],
+            date: '2024-01-15',
+            start_time: '11:00',
+            appointment_type_id: 1,
+          });
         },
         { timeout: 2000 }
       );
@@ -618,13 +625,12 @@ describe('DateTimePicker', () => {
 
       // Wait for initial check
       await waitFor(() => {
-        expect(apiService.checkSchedulingConflicts).toHaveBeenCalledWith(
-          1,
-          '2024-01-15',
-          '11:00',
-          1,
-          undefined
-        );
+        expect(apiService.checkBatchPractitionerConflicts).toHaveBeenCalledWith({
+          practitioners: [{ user_id: 1 }],
+          date: '2024-01-15',
+          start_time: '11:00',
+          appointment_type_id: 1,
+        });
       }, { timeout: 2000 });
 
       // Change practitioner
@@ -643,13 +649,12 @@ describe('DateTimePicker', () => {
 
       // Should check immediately (not debounced)
       await waitFor(() => {
-        expect(apiService.checkSchedulingConflicts).toHaveBeenCalledWith(
-          2,
-          '2024-01-15',
-          '11:00',
-          1,
-          undefined
-        );
+        expect(apiService.checkBatchPractitionerConflicts).toHaveBeenCalledWith({
+          practitioners: [{ user_id: 2 }],
+          date: '2024-01-15',
+          start_time: '11:00',
+          appointment_type_id: 1,
+        });
       }, { timeout: 2000 });
     });
 
@@ -669,7 +674,7 @@ describe('DateTimePicker', () => {
 
       // Wait for initial check
       await waitFor(() => {
-        expect(apiService.checkSchedulingConflicts).toHaveBeenCalled();
+        expect(apiService.checkBatchPractitionerConflicts).toHaveBeenCalled();
       }, { timeout: 2000 });
 
       // Change appointment type
@@ -688,26 +693,29 @@ describe('DateTimePicker', () => {
 
       // Should check immediately (not debounced)
       await waitFor(() => {
-        expect(apiService.checkSchedulingConflicts).toHaveBeenCalledWith(
-          1,
-          '2024-01-15',
-          '11:00',
-          2,
-          undefined
-        );
+        expect(apiService.checkBatchPractitionerConflicts).toHaveBeenCalledWith({
+          practitioners: [{ user_id: 1 }],
+          date: '2024-01-15',
+          start_time: '11:00',
+          appointment_type_id: 2,
+        });
       }, { timeout: 2000 });
     });
 
     it('should display conflict warning when conflict exists and time is not in slots', async () => {
-      vi.mocked(apiService.checkSchedulingConflicts).mockResolvedValue({
-        has_conflict: true,
-        conflict_type: 'availability',
-        appointment_conflict: null,
-        exception_conflict: null,
-        default_availability: {
-          is_within_hours: false,
-          normal_hours: '週一 09:00-18:00',
-        },
+      vi.mocked(apiService.checkBatchPractitionerConflicts).mockResolvedValue({
+        results: [{
+          practitioner_id: 1,
+          has_conflict: true,
+          conflict_type: 'availability',
+          appointment_conflict: null,
+          exception_conflict: null,
+          resource_conflicts: null,
+          default_availability: {
+            is_within_hours: false,
+            normal_hours: '週一 09:00-18:00',
+          },
+        }],
       });
 
       render(
@@ -729,15 +737,19 @@ describe('DateTimePicker', () => {
     });
 
     it('should display conflict warning in collapsed view and time is not in slots', async () => {
-      vi.mocked(apiService.checkSchedulingConflicts).mockResolvedValue({
-        has_conflict: true,
-        conflict_type: 'availability',
-        appointment_conflict: null,
-        exception_conflict: null,
-        default_availability: {
-          is_within_hours: false,
-          normal_hours: null,
-        },
+      vi.mocked(apiService.checkBatchPractitionerConflicts).mockResolvedValue({
+        results: [{
+          practitioner_id: 1,
+          has_conflict: true,
+          conflict_type: 'availability',
+          appointment_conflict: null,
+          exception_conflict: null,
+          resource_conflicts: null,
+          default_availability: {
+            is_within_hours: false,
+            normal_hours: null,
+          },
+        }],
       });
 
       render(
@@ -776,13 +788,12 @@ describe('DateTimePicker', () => {
       // Wait for debounced conflict check
       await waitFor(
         () => {
-          expect(apiService.checkSchedulingConflicts).toHaveBeenCalledWith(
-            1,
-            '2024-01-15',
-            '11:00',
-            1,
-            123
-          );
+          expect(apiService.checkBatchPractitionerConflicts).toHaveBeenCalledWith({
+            practitioners: [{ user_id: 1, exclude_calendar_event_id: 123 }],
+            date: '2024-01-15',
+            start_time: '11:00',
+            appointment_type_id: 1,
+          });
         },
         { timeout: 2000 }
       );
@@ -804,7 +815,7 @@ describe('DateTimePicker', () => {
       // Wait a bit to ensure no conflict check happens
       await new Promise((resolve) => setTimeout(resolve, 400));
 
-      expect(apiService.checkSchedulingConflicts).not.toHaveBeenCalled();
+      expect(apiService.checkBatchPractitionerConflicts).not.toHaveBeenCalled();
     });
   });
 
