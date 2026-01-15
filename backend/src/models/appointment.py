@@ -8,7 +8,8 @@ calendar management while maintaining specialized appointment-specific data.
 """
 
 from datetime import date as date_type, datetime
-from typing import Optional
+from typing import Optional, List
+import sqlalchemy as sa
 from sqlalchemy import String, ForeignKey, Index, TIMESTAMP, Boolean
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -93,9 +94,42 @@ class Appointment(Base):
     reassigned_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
     """
     Timestamp when appointment was reassigned from auto-assigned state.
-    
+
     NULL if appointment was never reassigned or was manually assigned from the start.
     Set when appointment is reassigned from auto-assigned (不指定) to specific practitioner.
+    """
+
+    pending_time_confirmation: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    """
+    Whether this appointment awaits time confirmation for multiple time slot selection.
+
+    True: Appointment was created with multiple time slots selected by patient, time not yet confirmed
+    False: Normal appointment or time has been confirmed
+    """
+
+    alternative_time_slots: Mapped[Optional[List[str]]] = mapped_column(sa.JSON(), nullable=True)
+    """
+    Alternative time slots selected by patient for multiple time slot selection.
+
+    Array of ISO datetime strings in ascending chronological order.
+    Only set when pending_time_confirmation = TRUE.
+    Maximum 10 slots allowed.
+    """
+
+    confirmed_by_user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True)
+    """
+    User ID who confirmed the time slot for multiple time slot selection.
+
+    NULL for auto-confirmations or regular appointments.
+    Set when clinic user manually confirms time from alternative slots.
+    """
+
+    confirmed_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
+    """
+    Timestamp when time was confirmed for multiple time slot selection.
+
+    NULL for auto-confirmations or regular appointments.
+    Set when clinic user manually confirms time from alternative slots.
     """
 
     # Relationships

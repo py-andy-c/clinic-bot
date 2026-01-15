@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi import status as http_status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import func, cast, String
+from sqlalchemy import func, cast, String, or_
 from sqlalchemy.sql import sqltypes
 
 from core.database import get_db
@@ -97,7 +97,7 @@ def _parse_practitioner_id(practitioner_id: Optional[Union[int, str]]) -> Option
 
 
 class AutoAssignedAppointmentItem(BaseModel):
-    """Response model for auto-assigned appointment item."""
+    """Response model for appointments requiring review (auto-assigned or pending time confirmation)."""
     appointment_id: int
     calendar_event_id: int
     patient_name: str
@@ -110,6 +110,8 @@ class AutoAssignedAppointmentItem(BaseModel):
     end_time: str
     notes: Optional[str] = None
     originally_auto_assigned: bool
+    pending_time_confirmation: bool = False
+    alternative_time_slots: Optional[List[str]] = None
     resource_names: List[str] = []  # Names of allocated resources
     resource_ids: List[int] = []  # IDs of allocated resources
 
@@ -119,21 +121,22 @@ class AutoAssignedAppointmentsResponse(BaseModel):
     appointments: List[AutoAssignedAppointmentItem]
 
 
-@router.get("/pending-review-appointments", summary="List auto-assigned appointments (admin only)")
-async def list_auto_assigned_appointments(
+@router.get("/pending-review-appointments", summary="List appointments requiring review (admin only)")
+async def list_pending_review_appointments(
     current_user: UserContext = Depends(require_admin_role),
     db: Session = Depends(get_db)
 ) -> AutoAssignedAppointmentsResponse:
     """
-    List all upcoming auto-assigned appointments that are still hidden from practitioners.
-    
+    List all upcoming appointments that require clinic review.
+
+    Includes both:
+    - Auto-assigned appointments (practitioner not yet assigned)
+    - Multiple time slot appointments (time not yet confirmed)
+
     Only clinic admins can view this list. Appointments are sorted by date.
-    After admin reassigns an appointment, it will no longer appear in this list.
-    
-    Note: Only future appointments are returned. In theory, there shouldn't be any past
-    auto-assigned appointments since the system automatically assigns them when the
-    recency limit (minimum_booking_hours_ahead) is reached. However, we filter them out
-    as defensive programming in case of edge cases (e.g., cron job failures, timezone issues).
+    After review/confirmation, appointments will no longer appear in this list.
+
+    Note: Only future appointments are returned as defensive programming.
     """
     try:
         clinic_id = ensure_clinic_access(current_user)
@@ -147,18 +150,23 @@ async def list_auto_assigned_appointments(
         # We need to compare timezone-naive timestamps
         now_naive = now.replace(tzinfo=None)
         
-        # Query auto-assigned appointments for this clinic
-        # Only show appointments that are:
-        # 1. Still auto-assigned (is_auto_assigned = True)
-        # 2. Confirmed status
-        # 3. In the future (defensive programming - should not exist but filter just in case)
-        # 4. Have a start_time (defensive check - confirmed appointments should always have start_time)
+        # Query appointments requiring review for this clinic
+        # Show appointments that are either:
+        # 1. Still auto-assigned (is_auto_assigned = True) - original logic
+        # 2. Pending time confirmation (pending_time_confirmation = True) - new multiple slot logic
+        # Additional filters:
+        # - Confirmed status
+        # - In the future (defensive programming)
+        # - Have a start_time (defensive check)
         # Note: CalendarEvent.date and start_time are stored as timezone-naive
         # (they represent Taiwan local time without timezone info)
         appointments = db.query(Appointment).join(
             CalendarEvent, Appointment.calendar_event_id == CalendarEvent.id
         ).filter(
-            Appointment.is_auto_assigned == True,
+            or_(
+                Appointment.is_auto_assigned == True,
+                Appointment.pending_time_confirmation == True
+            ),
             Appointment.status == 'confirmed',
             CalendarEvent.clinic_id == clinic_id,
             CalendarEvent.start_time.isnot(None),  # Defensive: ensure start_time exists
@@ -234,6 +242,8 @@ async def list_auto_assigned_appointments(
                 end_time=end_datetime.isoformat() if end_datetime else "",
                 notes=appointment.notes,
                 originally_auto_assigned=appointment.originally_auto_assigned,
+                pending_time_confirmation=appointment.pending_time_confirmation,
+                alternative_time_slots=appointment.alternative_time_slots or None,
                 resource_names=resource_names,
                 resource_ids=resource_ids
             ))

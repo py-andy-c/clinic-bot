@@ -324,6 +324,7 @@ class AppointmentEditRequest(BaseModel):
     clinic_notes: Optional[str] = None  # If provided, updates appointment.clinic_notes. If None, preserves current clinic notes.
     notification_note: Optional[str] = None  # Optional note to include in edit notification (does not update appointment.notes)
     selected_resource_ids: Optional[List[int]] = None  # Optional resource IDs selected by frontend
+    confirm_time_selection: Optional[bool] = None  # True = this is a time confirmation for pending multiple slot appointment
 
     @field_validator('clinic_notes')
     @classmethod
@@ -1185,7 +1186,8 @@ async def edit_clinic_appointment(
             notification_note=request.notification_note,
             success_message='預約已更新',
             appointment=appointment,  # Pass pre-fetched appointment to avoid duplicate query
-            selected_resource_ids=request.selected_resource_ids
+            selected_resource_ids=request.selected_resource_ids,
+            confirm_time_selection=request.confirm_time_selection
         )
         
         # Commit the transaction to ensure changes are visible to subsequent requests

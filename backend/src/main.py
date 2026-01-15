@@ -34,6 +34,10 @@ from services.auto_assignment_service import (
     start_auto_assignment_scheduler,
     stop_auto_assignment_scheduler
 )
+from services.auto_time_confirmation_service import (
+    start_auto_time_confirmation_scheduler,
+    stop_auto_time_confirmation_scheduler
+)
 from services.admin_auto_assigned_notification_service import (
     start_admin_auto_assigned_notification_scheduler,
     stop_admin_auto_assigned_notification_scheduler
@@ -86,6 +90,7 @@ async def lifespan(app: FastAPI):
         start_scheduler_safely("LINE message cleanup scheduler", start_line_message_cleanup),
         start_scheduler_safely("Availability notification scheduler", start_availability_notification_scheduler),
         start_scheduler_safely("Auto-assignment scheduler", start_auto_assignment_scheduler),
+        start_scheduler_safely("Auto-time confirmation scheduler", start_auto_time_confirmation_scheduler),
         start_scheduler_safely("Admin auto-assigned notification scheduler", start_admin_auto_assigned_notification_scheduler),
         start_scheduler_safely("Admin daily notification scheduler", start_admin_daily_notification_scheduler),
         start_scheduler_safely("Practitioner daily notification scheduler", start_practitioner_daily_notification_scheduler),
@@ -123,6 +128,13 @@ async def lifespan(app: FastAPI):
         logger.info("🛑 Auto-assignment scheduler stopped")
     except Exception as e:
         logger.exception(f"❌ Error stopping auto-assignment scheduler: {e}")
+
+    # Stop auto-time confirmation scheduler
+    try:
+        await stop_auto_time_confirmation_scheduler()
+        logger.info("🛑 Auto-time confirmation scheduler stopped")
+    except Exception as e:
+        logger.exception(f"❌ Error stopping auto-time confirmation scheduler: {e}")
 
     # Stop admin auto-assigned notification scheduler
     try:
