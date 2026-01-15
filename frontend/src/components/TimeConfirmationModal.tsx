@@ -6,6 +6,7 @@ import { logger } from '../utils/logger';
 import { getErrorMessage } from '../types/api';
 import AlternativeSlotsDisplay from './AlternativeSlotsDisplay';
 import { LoadingSpinner } from './shared';
+import { DateTimePicker } from './calendar/DateTimePicker';
 
 interface TimeConfirmationModalProps {
   appointment: {
@@ -29,6 +30,7 @@ const TimeConfirmationModal: React.FC<TimeConfirmationModalProps> = ({
   const [selectedSlot, setSelectedSlot] = useState<string>(appointment.start_time);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showDateTimePicker, setShowDateTimePicker] = useState(false);
 
   const handleConfirm = async () => {
     if (!selectedSlot) return;
@@ -84,6 +86,32 @@ const TimeConfirmationModal: React.FC<TimeConfirmationModalProps> = ({
             onSlotSelect={setSelectedSlot}
             selectedSlot={selectedSlot}
           />
+
+          <div className="mt-4">
+            <button
+              onClick={() => setShowDateTimePicker(!showDateTimePicker)}
+              className="text-sm text-primary-600 hover:text-primary-800 underline"
+            >
+              {showDateTimePicker
+                ? t('clinic.timeConfirmation.hideDateTimePicker', '隱藏完整日期時間選擇器')
+                : t('clinic.timeConfirmation.showDateTimePicker', '顯示完整日期時間選擇器')
+              }
+            </button>
+          </div>
+
+          {showDateTimePicker && (
+            <div className="mt-4 border border-gray-200 rounded-md p-4">
+              <DateTimePicker
+                selectedDate={null}
+                selectedTime={selectedSlot}
+                selectedPractitionerId={null} // Will be determined by appointment
+                appointmentTypeId={null} // Will be determined by appointment
+                onDateSelect={() => {}} // Not used in modal context
+                onTimeSelect={setSelectedSlot}
+                alternativeSlots={alternativeSlots}
+              />
+            </div>
+          )}
 
           {error && (
             <div className="mt-4 bg-red-50 border border-red-200 rounded-md p-3">

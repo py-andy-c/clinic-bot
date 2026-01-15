@@ -257,10 +257,13 @@ export default {
       confirmed: '已確認',
       canceledByPatient: '已取消',
       canceledByClinic: '診所取消',
+      timePending: '待安排',
     },
+    timePending: '待安排',
     notes: '備註：',
     cancelButton: '取消預約',
     rescheduleButton: '修改',
+    pendingTimeMessage: '時間確認前無法修改',
   },
   notifications: {
     title: '空位提醒',
@@ -333,6 +336,8 @@ export default {
       noteText: '確認後將立即通知病患，並產生行事曆事件。',
       confirming: '確認中...',
       confirm: '確認時段',
+      showDateTimePicker: '顯示完整日期時間選擇器',
+      hideDateTimePicker: '隱藏完整日期時間選擇器',
     },
   },
 };

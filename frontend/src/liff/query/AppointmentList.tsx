@@ -29,6 +29,7 @@ interface Appointment {
   has_any_receipt?: boolean; // Whether appointment has any receipt (active or voided)
   receipt_id?: number | null; // ID of active receipt (null if no active receipt)
   receipt_ids?: number[]; // List of all receipt IDs (always included, empty if none)
+  pending_time_confirmation?: boolean; // Whether appointment is waiting for time confirmation from multiple slot selection
 }
 
 type TabType = "future" | "past" | "cancelled";

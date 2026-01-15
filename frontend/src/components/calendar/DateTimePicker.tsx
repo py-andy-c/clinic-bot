@@ -48,6 +48,8 @@ export interface DateTimePickerProps {
   onOverrideChange?: (enabled: boolean) => void;
   // Optional: force override mode state from parent
   isOverrideMode?: boolean;
+  // Optional: alternative time slots to highlight (for pending appointment review)
+  alternativeSlots?: string[];
   // Optional: initial expanded state
   initialExpanded?: boolean;
 }
@@ -69,6 +71,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
   allowOverride = false,
   onOverrideChange,
   isOverrideMode: parentOverrideMode,
+  alternativeSlots,
   initialExpanded = false,
 }) => {
   const [isExpanded, setIsExpanded] = useState(initialExpanded);
@@ -871,18 +874,25 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
               <div className="grid grid-cols-4 gap-2">
                 {sortedTimeSlots.map((time) => {
                   const isSelected = displayTime === time;
+                  const isAlternative = alternativeSlots?.includes(time);
 
                   return (
                     <button
                       key={time}
                       onClick={() => handleTimeSelect(time)}
-                      className={`border rounded-md py-1.5 px-2 transition-colors text-sm font-medium ${
+                      className={`border rounded-md py-1.5 px-2 transition-colors text-sm font-medium relative ${
                         isSelected
                           ? 'bg-blue-500 text-white border-transparent'
+                          : isAlternative
+                          ? 'bg-white border-teal-300 hover:border-teal-400 hover:bg-teal-50 text-gray-900'
                           : 'bg-white border-gray-200 hover:border-primary-300 hover:bg-primary-50 text-gray-900'
                       }`}
+                      title={isAlternative ? '此時段為患者偏好選項' : undefined}
                     >
                       {time}
+                      {isAlternative && (
+                        <span className="absolute -top-1 -right-1 text-xs text-teal-600 font-bold">★</span>
+                      )}
                     </button>
                   );
                 })}
