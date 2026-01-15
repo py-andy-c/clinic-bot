@@ -283,7 +283,14 @@ const Step3SelectDateTime: React.FC = () => {
       {/* Time Selection */}
       {selectedDate ? (
         <div className="mb-6">
-          <h3 className="font-medium text-gray-900 mb-2">{t('datetime.availableSlots')}</h3>
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="font-medium text-gray-900">{t('datetime.availableSlots')}</h3>
+            {isMultipleSlotMode && (
+              <span className="text-sm text-blue-600 font-medium">
+                選擇所有您方便的時段
+              </span>
+            )}
+          </div>
 
           {isLoading ? (
             <div className="flex items-center justify-center py-8">
