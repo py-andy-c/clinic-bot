@@ -20,7 +20,6 @@ from auth.dependencies import require_admin_role, require_authenticated, UserCon
 from models import Clinic, AppointmentType, UserClinicAssociation
 from services import AppointmentTypeService
 from services.availability_service import AvailabilityService
-from models.clinic import ClinicSettings
 from utils.datetime_utils import taiwan_now
 from utils.appointment_queries import (
     count_future_appointments_for_appointment_type,
@@ -35,6 +34,182 @@ from api.responses import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+# Module-level constants for helper functions
+_DEFAULT_PATIENT_CONFIRMATION_MESSAGE = "預約成功通知：\n\n親愛的{{patient_name}}，\n\n您的{{appointment_type}}預約已成功確認。\n\n預約資訊：\n日期：{{date}}\n時間：{{time}}\n地點：{{clinic_name}}\n\n如有任何問題，請隨時聯繫我們。"
+_DEFAULT_CLINIC_CONFIRMATION_MESSAGE = "新預約通知：\n\n{{patient_name}}預約了{{appointment_type}}\n\n預約資訊：\n日期：{{date}}\n時間：{{time}}\n\n請確認預約。"
+_DEFAULT_REMINDER_MESSAGE = "預約提醒：\n\n親愛的{{patient_name}}，\n\n提醒您明天的{{appointment_type}}預約。\n\n預約資訊：\n日期：{{date}}\n時間：{{time}}\n地點：{{clinic_name}}\n\n如需取消或修改，請提前聯繫我們。"
+
+
+def _get_message_or_default(raw_message: str | None, default_message: str, toggle_on: bool) -> str:
+    """Get message from request or use default if empty/whitespace."""
+    if toggle_on:
+        if not raw_message or not raw_message.strip():
+            return default_message
+        return raw_message
+    return raw_message if raw_message else default_message
+
+
+def _update_notes_fields(appointment_type: AppointmentType, data: Dict[str, Any]) -> None:
+    """Update notes customization fields from incoming data."""
+    if "require_notes" in data:
+        appointment_type.require_notes = data.get("require_notes", False)
+    if "notes_instructions" in data:
+        # Normalize empty string to null
+        notes_instructions = data.get("notes_instructions")
+        appointment_type.notes_instructions = notes_instructions if notes_instructions and notes_instructions.strip() else None
+
+
+def _update_message_fields(appointment_type: AppointmentType, data: Dict[str, Any]) -> None:
+    """Update message customization fields from incoming data."""
+    if "send_patient_confirmation" in data:
+        appointment_type.send_patient_confirmation = data.get("send_patient_confirmation", True)
+    if "send_clinic_confirmation" in data:
+        appointment_type.send_clinic_confirmation = data.get("send_clinic_confirmation", True)
+    if "send_reminder" in data:
+        appointment_type.send_reminder = data.get("send_reminder", True)
+    if "patient_confirmation_message" in data:
+        appointment_type.patient_confirmation_message = _get_message_or_default(
+            data.get("patient_confirmation_message"),
+            _DEFAULT_PATIENT_CONFIRMATION_MESSAGE,
+            data.get("send_patient_confirmation", True)
+        )
+    if "clinic_confirmation_message" in data:
+        appointment_type.clinic_confirmation_message = _get_message_or_default(
+            data.get("clinic_confirmation_message"),
+            _DEFAULT_CLINIC_CONFIRMATION_MESSAGE,
+            data.get("send_clinic_confirmation", True)
+        )
+    if "reminder_message" in data:
+        appointment_type.reminder_message = _get_message_or_default(
+            data.get("reminder_message"),
+            _DEFAULT_REMINDER_MESSAGE,
+            data.get("send_reminder", True)
+        )
+
+
+def _process_existing_appointment_type_update(
+    existing_type: AppointmentType,
+    incoming_data: Dict[str, Any]
+) -> None:
+    """Process update for an existing appointment type."""
+    # Handle new patient visibility fields
+    if "allow_new_patient_booking" in incoming_data:
+        existing_type.allow_new_patient_booking = incoming_data.get("allow_new_patient_booking", True)
+    if "allow_existing_patient_booking" in incoming_data:
+        existing_type.allow_existing_patient_booking = incoming_data.get("allow_existing_patient_booking", True)
+
+    # Handle multiple time slot selection
+    if "allow_multiple_time_slot_selection" in incoming_data:
+        raw_value = incoming_data.get("allow_multiple_time_slot_selection")
+        if raw_value is not None:
+            existing_type.allow_multiple_time_slot_selection = bool(raw_value)
+
+    # Handle practitioner selection
+    if "allow_patient_practitioner_selection" in incoming_data:
+        raw_value = incoming_data.get("allow_patient_practitioner_selection")
+        if raw_value is not None:
+            existing_type.allow_patient_practitioner_selection = bool(raw_value)
+
+    # Handle basic fields
+    if "description" in incoming_data:
+        existing_type.description = incoming_data.get("description")
+    if "scheduling_buffer_minutes" in incoming_data:
+        existing_type.scheduling_buffer_minutes = incoming_data.get("scheduling_buffer_minutes", 0)
+
+    # Update grouping and ordering if provided
+    if "service_type_group_id" in incoming_data:
+        existing_type.service_type_group_id = incoming_data.get("service_type_group_id")
+    if "display_order" in incoming_data:
+        existing_type.display_order = incoming_data.get("display_order", 0)
+
+    # Update notes and message fields
+    _update_notes_fields(existing_type, incoming_data)
+    _update_message_fields(existing_type, incoming_data)
+
+    if existing_type.is_deleted:
+        existing_type.is_deleted = False
+        existing_type.deleted_at = None
+
+
+def _create_new_appointment_type(
+    db: Session,
+    clinic_id: int,
+    at_data: Dict[str, Any],
+    default_display_order: int
+) -> Optional[AppointmentType]:
+    """Create a new appointment type from incoming data."""
+    name = at_data.get("name")
+    duration = at_data.get("duration_minutes")
+
+    if not name or not duration:
+        return None
+
+    # Check if this type already exists (maybe was soft deleted or has different ID)
+    existing = db.query(AppointmentType).filter(
+        AppointmentType.clinic_id == clinic_id,
+        AppointmentType.name == name,
+        AppointmentType.duration_minutes == duration
+    ).first()
+
+    if existing:
+        # Reactivate if it was soft deleted and update fields
+        if existing.is_deleted:
+            existing.is_deleted = False
+            existing.deleted_at = None
+        # Update receipt name and call helper function for other fields
+        if "receipt_name" in at_data:
+            existing.receipt_name = at_data.get("receipt_name")
+        _process_existing_appointment_type_update(existing, at_data)
+        return existing
+
+    # Create new appointment type
+    allow_practitioner_selection = at_data.get("allow_patient_practitioner_selection", True)
+
+    appointment_type = AppointmentType(
+        clinic_id=clinic_id,
+        name=name,
+        duration_minutes=duration,
+        receipt_name=at_data.get("receipt_name"),
+        allow_patient_booking=at_data.get("allow_patient_booking", True),  # DEPRECATED
+        allow_new_patient_booking=at_data.get("allow_new_patient_booking", True),
+        allow_existing_patient_booking=at_data.get("allow_existing_patient_booking", True),
+        allow_patient_practitioner_selection=allow_practitioner_selection,
+        allow_multiple_time_slot_selection=at_data.get("allow_multiple_time_slot_selection", False),
+        description=at_data.get("description"),
+        scheduling_buffer_minutes=at_data.get("scheduling_buffer_minutes", 0),
+        service_type_group_id=at_data.get("service_type_group_id"),
+        display_order=at_data.get("display_order", default_display_order),
+        require_notes=at_data.get("require_notes", False),
+        notes_instructions=at_data.get("notes_instructions") if at_data.get("notes_instructions") and str(at_data.get("notes_instructions")).strip() else None,
+        send_patient_confirmation=at_data.get("send_patient_confirmation", True),
+        send_clinic_confirmation=at_data.get("send_clinic_confirmation", True),
+        send_reminder=at_data.get("send_reminder", True),
+        patient_confirmation_message=_get_message_or_default(
+            at_data.get("patient_confirmation_message"),
+            _DEFAULT_PATIENT_CONFIRMATION_MESSAGE,
+            at_data.get("send_patient_confirmation", True)
+        ),
+        clinic_confirmation_message=_get_message_or_default(
+            at_data.get("clinic_confirmation_message"),
+            _DEFAULT_CLINIC_CONFIRMATION_MESSAGE,
+            at_data.get("send_clinic_confirmation", True)
+        ),
+        reminder_message=_get_message_or_default(
+            at_data.get("reminder_message"),
+            _DEFAULT_REMINDER_MESSAGE,
+            at_data.get("send_reminder", True)
+        )
+    )
+
+    db.add(appointment_type)
+
+    # Log appointment type creation for debugging (only in development)
+    if os.getenv('ENVIRONMENT') == 'development':
+        logger.debug("Creating new appointment type: name=%s, duration=%s, clinic_id=%s, temp_id=%s",
+                    name, duration, clinic_id, at_data.get('id'))
+
+    return appointment_type
 
 
 class NotificationSettings(BaseModel):
@@ -413,25 +588,6 @@ async def update_settings(
     try:
         # Ensure clinic_id is set
         clinic_id = ensure_clinic_access(current_user)
-        
-        # Helper function to get message or default value
-        def get_message_or_default(raw_message: str | None, default_message: str, toggle_on: bool) -> str:
-            """Get message from request or use default if empty/whitespace."""
-            if toggle_on:
-                if not raw_message or not raw_message.strip():
-                    return default_message
-                return raw_message
-            return raw_message if raw_message else default_message
-
-        # Helper function to update notes customization fields
-        def update_notes_fields(appointment_type: AppointmentType, data: Dict[str, Any]) -> None:
-            """Update notes customization fields from incoming data."""
-            if "require_notes" in data:
-                appointment_type.require_notes = data.get("require_notes", False)
-            if "notes_instructions" in data:
-                # Normalize empty string to null
-                notes_instructions = data.get("notes_instructions")
-                appointment_type.notes_instructions = notes_instructions if notes_instructions and notes_instructions.strip() else None
 
         # Update appointment types
         appointment_types_data = settings.get("appointment_types", [])
@@ -558,80 +714,18 @@ async def update_settings(
                 if new_name is not None and new_duration is not None:
                     existing_type.name = new_name
                     existing_type.duration_minutes = new_duration
-                # Update billing fields if provided
+                # Update receipt name and call helper function for other fields
                 if "receipt_name" in incoming_data:
                     existing_type.receipt_name = incoming_data.get("receipt_name")
-                if "allow_patient_booking" in incoming_data:
-                    existing_type.allow_patient_booking = incoming_data.get("allow_patient_booking", True)
-                # Handle new patient visibility fields
-                if "allow_new_patient_booking" in incoming_data:
-                    existing_type.allow_new_patient_booking = incoming_data.get("allow_new_patient_booking", True)
-                if "allow_existing_patient_booking" in incoming_data:
-                    existing_type.allow_existing_patient_booking = incoming_data.get("allow_existing_patient_booking", True)
-                # Only update if explicitly provided (not None/undefined)
-                if "allow_multiple_time_slot_selection" in incoming_data:
-                    raw_value = incoming_data.get("allow_multiple_time_slot_selection")
-                    if raw_value is not None:
-                        existing_type.allow_multiple_time_slot_selection = bool(raw_value)
-                if "allow_patient_practitioner_selection" in incoming_data:
-                    raw_value = incoming_data.get("allow_patient_practitioner_selection")
-                    if raw_value is not None:
-                        existing_type.allow_patient_practitioner_selection = bool(raw_value)
-                if "description" in incoming_data:
-                    existing_type.description = incoming_data.get("description")
-                if "scheduling_buffer_minutes" in incoming_data:
-                    existing_type.scheduling_buffer_minutes = incoming_data.get("scheduling_buffer_minutes", 0)
-                # Update grouping and ordering if provided
-                if "service_type_group_id" in incoming_data:
-                    existing_type.service_type_group_id = incoming_data.get("service_type_group_id")
-                if "display_order" in incoming_data:
-                    existing_type.display_order = incoming_data.get("display_order", 0)
-                # Update notes customization fields
-                update_notes_fields(existing_type, incoming_data)
-                # Update message customization fields if provided
-                update_message_fields(existing_type, incoming_data)
-                if existing_type.is_deleted:
-                    existing_type.is_deleted = False
-                    existing_type.deleted_at = None
+                _process_existing_appointment_type_update(existing_type, incoming_data)
                 processed_combinations.add((existing_type.name, existing_type.duration_minutes))
             elif existing_type.id in incoming_by_id:
                 # Type is being kept, but may have billing field updates
                 incoming_data = incoming_by_id[existing_type.id]
-                # Update billing fields if provided
+                # Update receipt name and call helper function for other fields
                 if "receipt_name" in incoming_data:
                     existing_type.receipt_name = incoming_data.get("receipt_name")
-                if "allow_patient_booking" in incoming_data:
-                    existing_type.allow_patient_booking = incoming_data.get("allow_patient_booking", True)
-                # Handle new patient visibility fields
-                if "allow_new_patient_booking" in incoming_data:
-                    existing_type.allow_new_patient_booking = incoming_data.get("allow_new_patient_booking", True)
-                if "allow_existing_patient_booking" in incoming_data:
-                    existing_type.allow_existing_patient_booking = incoming_data.get("allow_existing_patient_booking", True)
-                # Only update if explicitly provided (not None/undefined)
-                if "allow_multiple_time_slot_selection" in incoming_data:
-                    raw_value = incoming_data.get("allow_multiple_time_slot_selection")
-                    if raw_value is not None:
-                        existing_type.allow_multiple_time_slot_selection = bool(raw_value)
-                if "allow_patient_practitioner_selection" in incoming_data:
-                    raw_value = incoming_data.get("allow_patient_practitioner_selection")
-                    if raw_value is not None:
-                        existing_type.allow_patient_practitioner_selection = bool(raw_value)
-                if "description" in incoming_data:
-                    existing_type.description = incoming_data.get("description")
-                if "scheduling_buffer_minutes" in incoming_data:
-                    existing_type.scheduling_buffer_minutes = incoming_data.get("scheduling_buffer_minutes", 0)
-                # Update grouping and ordering if provided
-                if "service_type_group_id" in incoming_data:
-                    existing_type.service_type_group_id = incoming_data.get("service_type_group_id")
-                if "display_order" in incoming_data:
-                    existing_type.display_order = incoming_data.get("display_order", 0)
-                # Update notes customization fields
-                update_notes_fields(existing_type, incoming_data)
-                # Update message customization fields if provided
-                update_message_fields(existing_type, incoming_data)
-                if existing_type.is_deleted:
-                    existing_type.is_deleted = False
-                    existing_type.deleted_at = None
+                _process_existing_appointment_type_update(existing_type, incoming_data)
                 processed_combinations.add((existing_type.name, existing_type.duration_minutes))
             elif (existing_type.name, existing_type.duration_minutes) in incoming_by_name_duration:
                 # Type is being kept (matched by name+duration, no ID in incoming)
@@ -642,7 +736,7 @@ async def update_settings(
                 if "display_order" in incoming_data:
                     existing_type.display_order = incoming_data.get("display_order", 0)
                 # Update notes customization fields
-                update_notes_fields(existing_type, incoming_data)
+                _update_notes_fields(existing_type, incoming_data)
                 # Update message customization fields if provided
                 update_message_fields(existing_type, incoming_data)
                 if existing_type.is_deleted:
@@ -657,206 +751,28 @@ async def update_settings(
                     existing_type.deleted_at = taiwan_now()
 
         # Create new appointment types (ones not matched to existing types)
+        # Get max display_order for new items first
+        max_order = db.query(func.max(AppointmentType.display_order)).filter(
+            AppointmentType.clinic_id == clinic_id
+        ).scalar()
+        default_display_order = (max_order + 1) if max_order is not None else 0
+
         for at_data in appointment_types_data:
             if not at_data.get("name") or not at_data.get("duration_minutes"):
                 continue
-            
+
             name = at_data.get("name")
             duration = at_data.get("duration_minutes")
             key = (name, duration)
-            
+
             # Skip if we've already processed this combination
             if key in processed_combinations:
                 continue
-            
-            # Check if this type already exists (maybe was soft deleted or has different ID)
-            existing = db.query(AppointmentType).filter(
-                AppointmentType.clinic_id == clinic_id,
-                AppointmentType.name == name,
-                AppointmentType.duration_minutes == duration
-            ).first()
 
-            if existing:
-                # Reactivate if it was soft deleted and update billing fields
-                if existing.is_deleted:
-                    existing.is_deleted = False
-                    existing.deleted_at = None
-                # Update billing fields if provided
-                if "receipt_name" in at_data:
-                    existing.receipt_name = at_data.get("receipt_name")
-                if "allow_patient_booking" in at_data:
-                    existing.allow_patient_booking = at_data.get("allow_patient_booking", True)
-                # Handle new patient visibility fields
-                if "allow_new_patient_booking" in at_data:
-                    existing.allow_new_patient_booking = at_data.get("allow_new_patient_booking", True)
-                if "allow_existing_patient_booking" in at_data:
-                    existing.allow_existing_patient_booking = at_data.get("allow_existing_patient_booking", True)
-                # Only update if explicitly provided (not None/undefined)
-                if "allow_multiple_time_slot_selection" in at_data:
-                    raw_value = at_data.get("allow_multiple_time_slot_selection")
-                    if raw_value is not None:
-                        existing.allow_multiple_time_slot_selection = bool(raw_value)
-                if "allow_patient_practitioner_selection" in at_data:
-                    raw_value = at_data.get("allow_patient_practitioner_selection")
-                    if raw_value is not None:
-                        existing.allow_patient_practitioner_selection = bool(raw_value)
-                if "description" in at_data:
-                    existing.description = at_data.get("description")
-                if "scheduling_buffer_minutes" in at_data:
-                    existing.scheduling_buffer_minutes = at_data.get("scheduling_buffer_minutes", 0)
-                # Update grouping and ordering if provided
-                if "service_type_group_id" in at_data:
-                    existing.service_type_group_id = at_data.get("service_type_group_id")
-                if "display_order" in at_data:
-                    existing.display_order = at_data.get("display_order", 0)
-                # Update notes customization fields
-                update_notes_fields(existing, at_data)
-                # Update message settings if provided
-                if "send_patient_confirmation" in at_data:
-                    existing.send_patient_confirmation = at_data.get("send_patient_confirmation", True)
-                if "send_clinic_confirmation" in at_data:
-                    existing.send_clinic_confirmation = at_data.get("send_clinic_confirmation", True)
-                if "send_reminder" in at_data:
-                    existing.send_reminder = at_data.get("send_reminder", True)
-                if "patient_confirmation_message" in at_data:
-                    existing.patient_confirmation_message = at_data.get("patient_confirmation_message")
-                if "clinic_confirmation_message" in at_data:
-                    existing.clinic_confirmation_message = at_data.get("clinic_confirmation_message")
-                if "reminder_message" in at_data:
-                    existing.reminder_message = at_data.get("reminder_message")
-            else:
-                # Create new
-                # Handle None as missing value (default to True)
-                raw_practitioner_selection = at_data.get("allow_patient_practitioner_selection")
-                allow_practitioner_selection = raw_practitioner_selection if raw_practitioner_selection is not None else True
-                
-                # Get max display_order for new items
-                max_order = db.query(func.max(AppointmentType.display_order)).filter(
-                    AppointmentType.clinic_id == clinic_id
-                ).scalar()
-                default_display_order = (max_order + 1) if max_order is not None else 0
-                
-                # Import default message constants
-                from core.message_template_constants import (
-                    DEFAULT_PATIENT_CONFIRMATION_MESSAGE,
-                    DEFAULT_CLINIC_CONFIRMATION_MESSAGE,
-                    DEFAULT_REMINDER_MESSAGE
-                )
-                
-                # Get message settings from request or use defaults
-                send_patient_confirmation = at_data.get("send_patient_confirmation", True)
-                send_clinic_confirmation = at_data.get("send_clinic_confirmation", True)
-                send_reminder = at_data.get("send_reminder", True)
-                
-                # For messages: use default if not provided, empty, or whitespace
-                # This handles cases where frontend sends empty string '' or None
-                patient_confirmation_message = get_message_or_default(
-                    at_data.get("patient_confirmation_message"),
-                    DEFAULT_PATIENT_CONFIRMATION_MESSAGE,
-                    send_patient_confirmation
-                )
-                clinic_confirmation_message = get_message_or_default(
-                    at_data.get("clinic_confirmation_message"),
-                    DEFAULT_CLINIC_CONFIRMATION_MESSAGE,
-                    send_clinic_confirmation
-                )
-                reminder_message = get_message_or_default(
-                    at_data.get("reminder_message"),
-                    DEFAULT_REMINDER_MESSAGE,
-                    send_reminder
-                )
-                
-                appointment_type = AppointmentType(
-                    clinic_id=clinic_id,
-                    name=name,
-                    duration_minutes=duration,
-                    receipt_name=at_data.get("receipt_name"),
-                    allow_patient_booking=at_data.get("allow_patient_booking", True),  # DEPRECATED
-                    allow_new_patient_booking=at_data.get("allow_new_patient_booking", True),
-                    allow_existing_patient_booking=at_data.get("allow_existing_patient_booking", True),
-                    allow_patient_practitioner_selection=allow_practitioner_selection,
-                    description=at_data.get("description"),
-                    scheduling_buffer_minutes=at_data.get("scheduling_buffer_minutes", 0),
-                    service_type_group_id=at_data.get("service_type_group_id"),
-                    display_order=at_data.get("display_order", default_display_order),
-                    require_notes=at_data.get("require_notes", False),
-                    notes_instructions=at_data.get("notes_instructions") if at_data.get("notes_instructions") and at_data.get("notes_instructions").strip() else None,
-                    send_patient_confirmation=send_patient_confirmation,
-                    send_clinic_confirmation=send_clinic_confirmation,
-                    send_reminder=send_reminder,
-                    patient_confirmation_message=patient_confirmation_message,
-                    clinic_confirmation_message=clinic_confirmation_message,
-                    reminder_message=reminder_message
-                )
-                db.add(appointment_type)
-                # Log appointment type creation for debugging (only in development)
-                if os.getenv('ENVIRONMENT') == 'development':
-                    logger.debug("Creating new appointment type: name=%s, duration=%s, clinic_id=%s, temp_id=%s", 
-                                name, duration, clinic_id, at_data.get('id'))
-
-        # Get clinic and update settings with validation
-        clinic = db.query(Clinic).get(clinic_id)
-        if clinic:
-            try:
-                # Remove fields that are not part of ClinicSettings model before validation
-                # appointment_types, clinic_id, and clinic_name are handled separately
-                settings_for_validation = {
-                    k: v for k, v in settings.items() 
-                    if k not in ["appointment_types", "clinic_id", "clinic_name", "business_hours"]
-                }
-                
-                # Validate incoming settings data
-                validated_settings = ClinicSettings.model_validate(settings_for_validation)
-                # Set the validated settings on the clinic
-                clinic.set_validated_settings(validated_settings)
-            except Exception as e:
-                logger.error(f"Settings validation error: {e}, settings keys: {list(settings.keys())}")
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Invalid settings format: {str(e)}"
-                )
-
-        # Validate message fields: if toggle is ON, message must be non-empty and within character limit
-        # Only validate active (non-deleted) appointment types
-        all_appointment_types = db.query(AppointmentType).filter(
-            AppointmentType.clinic_id == clinic_id,
-            AppointmentType.is_deleted == False
-        ).all()
-        for at in all_appointment_types:
-            if at.send_patient_confirmation:
-                if not at.patient_confirmation_message or not at.patient_confirmation_message.strip():
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=f"服務項目「{at.name}」：啟用病患確認訊息時，訊息模板為必填"
-                    )
-                if len(at.patient_confirmation_message) > 3500:
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=f"服務項目「{at.name}」：病患確認訊息模板長度超過限制（3500字元）"
-                    )
-            if at.send_clinic_confirmation:
-                if not at.clinic_confirmation_message or not at.clinic_confirmation_message.strip():
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=f"服務項目「{at.name}」：啟用診所確認訊息時，訊息模板為必填"
-                    )
-                if len(at.clinic_confirmation_message) > 3500:
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=f"服務項目「{at.name}」：診所確認訊息模板長度超過限制（3500字元）"
-                    )
-            if at.send_reminder:
-                if not at.reminder_message or not at.reminder_message.strip():
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=f"服務項目「{at.name}」：啟用提醒訊息時，訊息模板為必填"
-                    )
-                if len(at.reminder_message) > 3500:
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=f"服務項目「{at.name}」：提醒訊息模板長度超過限制（3500字元）"
-                    )
-
+            # Use helper function to create or update appointment type
+            appointment_type = _create_new_appointment_type(db, clinic_id, at_data, default_display_order)
+            if appointment_type:
+                processed_combinations.add(key)
         db.commit()
 
         return {"message": "設定更新成功"}
