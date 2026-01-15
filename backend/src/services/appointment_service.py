@@ -2397,7 +2397,7 @@ class AppointmentService:
         ).replace(tzinfo=TAIWAN_TZ)
 
         # Parse alternative slots from ISO strings to datetime objects
-        alternative_datetimes = []
+        alternative_datetimes: List[datetime] = []
         for slot_str in alternative_slots:
             try:
                 slot_dt = datetime.fromisoformat(slot_str.replace('Z', '+00:00'))
