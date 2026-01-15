@@ -7,7 +7,8 @@ interface SlotDetails {
 
 interface MultipleTimeSlotSelectorProps {
   availableSlots: string[];
-  selectedTimeSlots: string[];
+  selectedTimeSlots: Array<{date: string, time: string}>;
+  selectedDate: string;
   slotDetails: Map<string, SlotDetails>;
   onTimeSelect: (time: string) => void;
 }
@@ -15,6 +16,7 @@ interface MultipleTimeSlotSelectorProps {
 const MultipleTimeSlotSelector: React.FC<MultipleTimeSlotSelectorProps> = ({
   availableSlots,
   selectedTimeSlots,
+  selectedDate,
   slotDetails,
   onTimeSelect,
 }) => {
@@ -36,7 +38,7 @@ const MultipleTimeSlotSelector: React.FC<MultipleTimeSlotSelectorProps> = ({
     >
       {[...availableSlots].sort().map((time) => {
         const isRecommended = slotDetails.get(time)?.is_recommended === true;
-        const isSelected = selectedTimeSlots.includes(time);
+        const isSelected = selectedTimeSlots.some(slot => slot.date === selectedDate && slot.time === time);
         const isAtMaxSlots = selectedTimeSlots.length >= MAX_SLOTS && !isSelected;
 
         return (

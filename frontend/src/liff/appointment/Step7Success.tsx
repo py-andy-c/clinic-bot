@@ -214,11 +214,19 @@ const Step7Success: React.FC = () => {
             <div>
               <span className="text-gray-600">{t('success.selectedSlots')}</span>
               <div className="mt-1 flex flex-wrap gap-1">
-                {selectedTimeSlots.sort().map((time) => (
-                  <span key={time} className="inline-flex items-center px-2 py-1 bg-primary-100 text-primary-800 text-xs font-medium rounded">
-                    {time}
-                  </span>
-                ))}
+                {selectedTimeSlots
+                  .sort((a, b) => {
+                    // Sort by date first, then by time
+                    if (a.date !== b.date) {
+                      return a.date.localeCompare(b.date);
+                    }
+                    return a.time.localeCompare(b.time);
+                  })
+                  .map((slot) => (
+                    <span key={`${slot.date}-${slot.time}`} className="inline-flex items-center px-2 py-1 bg-primary-100 text-primary-800 text-xs font-medium rounded">
+                      {slot.date} {slot.time}
+                    </span>
+                  ))}
               </div>
             </div>
           )}

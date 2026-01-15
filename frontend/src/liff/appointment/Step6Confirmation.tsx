@@ -44,10 +44,10 @@ const Step6Confirmation: React.FC = () => {
       };
 
       if (isMultipleSlotMode) {
-        // For multiple slot mode, send all selected time slots
-        appointmentData.selected_time_slots = selectedTimeSlots.map(time => {
-          const timeWithSeconds = time.includes(':') && time.split(':').length === 2 ? `${time}:00` : time;
-          const dateTimeTaiwan = moment.tz(`${date}T${timeWithSeconds}`, taiwanTimezone);
+        // For multiple slot mode, send all selected time slots across different dates
+        appointmentData.selected_time_slots = selectedTimeSlots.map(slot => {
+          const timeWithSeconds = slot.time.includes(':') && slot.time.split(':').length === 2 ? `${slot.time}:00` : slot.time;
+          const dateTimeTaiwan = moment.tz(`${slot.date}T${timeWithSeconds}`, taiwanTimezone);
           return dateTimeTaiwan.format();
         });
         appointmentData.allow_multiple_time_slot_selection = true;
@@ -135,12 +135,45 @@ const Step6Confirmation: React.FC = () => {
           {isMultipleSlotMode && selectedTimeSlots.length > 0 && (
             <div>
               <span className="text-gray-600">{t('confirmation.selectedSlots')}</span>
-              <div className="mt-1 flex flex-wrap gap-1">
-                {selectedTimeSlots.sort().map((time) => (
-                  <span key={time} className="inline-flex items-center px-2 py-1 bg-primary-100 text-primary-800 text-xs font-medium rounded">
-                    {time}
-                  </span>
-                ))}
+              <div className="mt-2">
+                {(() => {
+                  // Group slots by date
+                  const groupedSlots = selectedTimeSlots.reduce((acc, slot) => {
+                    if (!acc[slot.date]) {
+                      acc[slot.date] = [];
+                    }
+                    acc[slot.date]!.push(slot);
+                    return acc;
+                  }, {} as Record<string, Array<{date: string, time: string}>>);
+
+                  // Format date for display
+                  const formatSelectedDate = (dateString: string) => {
+                    const date = new Date(dateString);
+                    return date.toLocaleDateString('zh-TW', {
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
+                      weekday: 'long'
+                    });
+                  };
+
+                  return Object.entries(groupedSlots)
+                    .sort(([dateA], [dateB]) => dateA.localeCompare(dateB))
+                    .map(([date, slots]) => (
+                      <div key={date} className="mb-3 last:mb-0">
+                        <div className="text-sm text-gray-700 font-medium mb-2">
+                          {formatSelectedDate(date)}
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                          {slots.sort((a, b) => a.time.localeCompare(b.time)).map((slot) => (
+                            <span key={`${slot.date}-${slot.time}`} className="inline-flex items-center px-2 py-1 bg-primary-100 text-primary-800 text-xs font-medium rounded">
+                              {slot.time}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    ));
+                })()}
               </div>
             </div>
           )}

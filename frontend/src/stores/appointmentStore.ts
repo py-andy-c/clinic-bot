@@ -22,7 +22,7 @@ interface AppointmentState {
   // Step 3: Date & Time (Flow 1) or Practitioner (Flow 2)
   date: string | null;
   startTime: string | null;
-  selectedTimeSlots: string[]; // For multiple time slot selection
+  selectedTimeSlots: Array<{date: string, time: string}>; // For multiple time slot selection across dates
 
   // Multiple slot selection mode
   isMultipleSlotMode: boolean; // Whether current appointment type supports multiple slots
@@ -65,8 +65,8 @@ interface AppointmentState {
   setPractitioner: (id: number | null, practitioner?: Practitioner, isAutoAssigned?: boolean) => void;
   updateAssignedPractitioner: (id: number, practitioner: Practitioner, isAutoAssigned?: boolean) => void; // Updates assigned practitioner without resetting date/time
   setDateTime: (date: string, time: string) => void;
-  addTimeSlot: (time: string) => void;
-  removeTimeSlot: (time: string) => void;
+  addTimeSlot: (date: string, time: string) => void;
+  removeTimeSlot: (date: string, time: string) => void;
   clearTimeSlots: () => void;
   setMultipleSlotMode: (isMultiple: boolean) => void;
   setPatient: (id: number, patient: Patient) => void;
@@ -207,26 +207,27 @@ export const useAppointmentStore = create<AppointmentState>((set, get) => ({
     });
   },
 
-  addTimeSlot: (time) => {
+  addTimeSlot: (date, time) => {
     const state = get();
     const MAX_SLOTS = 10;
-    if (!state.selectedTimeSlots.includes(time)) {
+    const slotExists = state.selectedTimeSlots.some(slot => slot.date === date && slot.time === time);
+    if (!slotExists) {
       if (state.selectedTimeSlots.length >= MAX_SLOTS) {
         // Maximum slots reached - could trigger error notification here
         return false;
       }
       set({
-        selectedTimeSlots: [...state.selectedTimeSlots, time],
+        selectedTimeSlots: [...state.selectedTimeSlots, { date, time }],
       });
       return true;
     }
     return true; // Already selected
   },
 
-  removeTimeSlot: (time) => {
+  removeTimeSlot: (date, time) => {
     const state = get();
     set({
-      selectedTimeSlots: state.selectedTimeSlots.filter(slot => slot !== time),
+      selectedTimeSlots: state.selectedTimeSlots.filter(slot => !(slot.date === date && slot.time === time)),
     });
   },
 

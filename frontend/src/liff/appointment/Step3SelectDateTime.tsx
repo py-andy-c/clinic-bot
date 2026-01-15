@@ -148,6 +148,7 @@ const Step3SelectDateTime: React.FC = () => {
     // Only allow selection if date has available slots
     if (datesWithSlots.has(dateString)) {
       setSelectedDate(dateString);
+      // Don't clear time slots - allow selection across multiple dates
     }
   };
 
@@ -155,8 +156,9 @@ const Step3SelectDateTime: React.FC = () => {
     if (selectedDate) {
       if (isMultipleSlotMode) {
         // For multiple slot mode, toggle selection
-        if (selectedTimeSlots.includes(time)) {
-          removeTimeSlot(time);
+        const slotExists = selectedTimeSlots.some(slot => slot.date === selectedDate && slot.time === time);
+        if (slotExists) {
+          removeTimeSlot(selectedDate, time);
         } else {
           // Check if we've reached the maximum slots
           const MAX_SLOTS = 10;
@@ -164,7 +166,7 @@ const Step3SelectDateTime: React.FC = () => {
             // Could show error message here
             return;
           }
-          addTimeSlot(time);
+          addTimeSlot(selectedDate, time);
         }
       } else {
         // For single slot mode, select and proceed
@@ -287,7 +289,7 @@ const Step3SelectDateTime: React.FC = () => {
             <h3 className="font-medium text-gray-900">{t('datetime.availableSlots')}</h3>
             {isMultipleSlotMode && (
               <span className="text-sm text-blue-600 font-medium">
-                選擇所有您方便的時段
+                選擇所有您方便的時段，可跨不同日期
               </span>
             )}
           </div>
@@ -304,6 +306,7 @@ const Step3SelectDateTime: React.FC = () => {
             <MultipleTimeSlotSelector
               availableSlots={availableSlots}
               selectedTimeSlots={selectedTimeSlots}
+              selectedDate={selectedDate!}
               slotDetails={slotDetails}
               onTimeSelect={handleTimeSelect}
             />
