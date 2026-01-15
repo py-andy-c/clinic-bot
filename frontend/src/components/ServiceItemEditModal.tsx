@@ -27,6 +27,7 @@ const ServiceItemFormSchema = z.object({
   allow_new_patient_booking: z.boolean().optional(),
   allow_existing_patient_booking: z.boolean().optional(),
   allow_patient_practitioner_selection: z.boolean().optional(),
+  allow_multiple_time_slot_selection: z.boolean().optional(),
   description: z.string().nullable().optional(),
   scheduling_buffer_minutes: z.coerce.number().min(0, '排程緩衝時間不能小於 0').max(60, '排程緩衝時間不能超過 60 分鐘').optional(),
   service_type_group_id: z.number().nullable().optional(),
@@ -122,6 +123,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
       allow_new_patient_booking: appointmentType.allow_new_patient_booking ?? true,
       allow_existing_patient_booking: appointmentType.allow_existing_patient_booking ?? true,
       allow_patient_practitioner_selection: appointmentType.allow_patient_practitioner_selection ?? true,
+      allow_multiple_time_slot_selection: appointmentType.allow_multiple_time_slot_selection ?? false,
       description: appointmentType.description || null,
       scheduling_buffer_minutes: appointmentType.scheduling_buffer_minutes || 0,
       service_type_group_id: appointmentType.service_type_group_id || null,
@@ -142,6 +144,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
   const allow_new_patient_booking = watch('allow_new_patient_booking');
   const allow_existing_patient_booking = watch('allow_existing_patient_booking');
   const allow_patient_practitioner_selection = watch('allow_patient_practitioner_selection');
+  const allow_multiple_time_slot_selection = watch('allow_multiple_time_slot_selection');
   const description = watch('description');
   const scheduling_buffer_minutes = watch('scheduling_buffer_minutes');
   const service_type_group_id = watch('service_type_group_id');
@@ -172,6 +175,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
         allow_new_patient_booking: appointmentType.allow_new_patient_booking ?? true,
         allow_existing_patient_booking: appointmentType.allow_existing_patient_booking ?? true,
         allow_patient_practitioner_selection: appointmentType.allow_patient_practitioner_selection ?? true,
+      allow_multiple_time_slot_selection: appointmentType.allow_multiple_time_slot_selection ?? false,
         description: appointmentType.description || null,
         scheduling_buffer_minutes: appointmentType.scheduling_buffer_minutes || 0,
         service_type_group_id: appointmentType.service_type_group_id || null,
@@ -339,6 +343,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
         allow_new_patient_booking,
         allow_existing_patient_booking,
         allow_patient_practitioner_selection,
+        allow_multiple_time_slot_selection,
         description,
         scheduling_buffer_minutes,
         service_type_group_id,
@@ -361,6 +366,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
           allow_new_patient_booking,
           allow_existing_patient_booking,
           allow_patient_practitioner_selection,
+          allow_multiple_time_slot_selection,
           description,
           scheduling_buffer_minutes,
           service_type_group_id,
@@ -392,6 +398,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
       allow_new_patient_booking: appointmentType.allow_new_patient_booking ?? true,
       allow_existing_patient_booking: appointmentType.allow_existing_patient_booking ?? true,
       allow_patient_practitioner_selection: appointmentType.allow_patient_practitioner_selection ?? true,
+      allow_multiple_time_slot_selection: appointmentType.allow_multiple_time_slot_selection ?? false,
       description: appointmentType.description || null,
       scheduling_buffer_minutes: appointmentType.scheduling_buffer_minutes || 0,
       service_type_group_id: appointmentType.service_type_group_id || null,
@@ -515,6 +522,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
       receipt_name: currentValues.receipt_name || null,
       allow_patient_booking: currentValues.allow_patient_booking ?? true,
       allow_patient_practitioner_selection: currentValues.allow_patient_practitioner_selection ?? true,
+      allow_multiple_time_slot_selection: currentValues.allow_multiple_time_slot_selection ?? false,
       description: currentValues.description || null,
       scheduling_buffer_minutes: currentValues.scheduling_buffer_minutes || 0,
       service_type_group_id: currentValues.service_type_group_id || null,
@@ -699,6 +707,18 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                             <div className="flex flex-col">
                               <span className="text-sm font-medium text-gray-900">開放病患指定治療師</span>
                               <span className="text-xs text-gray-500">病患預約時可自由選擇想看診的治療師</span>
+                            </div>
+                            {!allow_new_patient_booking && !allow_existing_patient_booking && (
+                              <WarningPopover message="此服務項目未開放病患自行預約，此設定不會生效。">
+                                <span className="ml-2 text-amber-600 hover:text-amber-700">⚠️</span>
+                              </WarningPopover>
+                            )}
+                          </label>
+                          <label className="flex items-center cursor-pointer">
+                            <input type="checkbox" {...register('allow_multiple_time_slot_selection')} className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 mr-3" disabled={!isClinicAdmin} />
+                            <div className="flex flex-col">
+                              <span className="text-sm font-medium text-gray-900">允許患者選擇多個時段</span>
+                              <span className="text-xs text-gray-500">病患預約時可選擇多個偏好時段供診所確認</span>
                             </div>
                             {!allow_new_patient_booking && !allow_existing_patient_booking && (
                               <WarningPopover message="此服務項目未開放病患自行預約，此設定不會生效。">

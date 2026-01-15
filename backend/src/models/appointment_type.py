@@ -70,6 +70,9 @@ class AppointmentType(Base):
     allow_patient_practitioner_selection: Mapped[bool] = mapped_column(default=True)
     """Whether patients can specify a practitioner when booking. Default: true."""
 
+    allow_multiple_time_slot_selection: Mapped[bool] = mapped_column(default=False)
+    """Whether patients can select multiple time slots for clinic confirmation. Default: false."""
+
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     """Service description shown on LIFF."""
 

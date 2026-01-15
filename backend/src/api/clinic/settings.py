@@ -207,6 +207,7 @@ async def get_settings(
                 allow_new_patient_booking=at.allow_new_patient_booking,
                 allow_existing_patient_booking=at.allow_existing_patient_booking,
                 allow_patient_practitioner_selection=at.allow_patient_practitioner_selection,
+                allow_multiple_time_slot_selection=at.allow_multiple_time_slot_selection,
                 description=at.description,
                 scheduling_buffer_minutes=at.scheduling_buffer_minutes,
                 service_type_group_id=at.service_type_group_id,
@@ -398,6 +399,7 @@ async def validate_appointment_type_deletion(
 
 @router.put("/settings", summary="Update clinic settings")
 async def update_settings(
+
     settings: Dict[str, Any],
     current_user: UserContext = Depends(require_admin_role),
     db: Session = Depends(get_db)
@@ -567,6 +569,10 @@ async def update_settings(
                 if "allow_existing_patient_booking" in incoming_data:
                     existing_type.allow_existing_patient_booking = incoming_data.get("allow_existing_patient_booking", True)
                 # Only update if explicitly provided (not None/undefined)
+                if "allow_multiple_time_slot_selection" in incoming_data:
+                    raw_value = incoming_data.get("allow_multiple_time_slot_selection")
+                    if raw_value is not None:
+                        existing_type.allow_multiple_time_slot_selection = bool(raw_value)
                 if "allow_patient_practitioner_selection" in incoming_data:
                     raw_value = incoming_data.get("allow_patient_practitioner_selection")
                     if raw_value is not None:
@@ -602,6 +608,10 @@ async def update_settings(
                 if "allow_existing_patient_booking" in incoming_data:
                     existing_type.allow_existing_patient_booking = incoming_data.get("allow_existing_patient_booking", True)
                 # Only update if explicitly provided (not None/undefined)
+                if "allow_multiple_time_slot_selection" in incoming_data:
+                    raw_value = incoming_data.get("allow_multiple_time_slot_selection")
+                    if raw_value is not None:
+                        existing_type.allow_multiple_time_slot_selection = bool(raw_value)
                 if "allow_patient_practitioner_selection" in incoming_data:
                     raw_value = incoming_data.get("allow_patient_practitioner_selection")
                     if raw_value is not None:
@@ -682,6 +692,10 @@ async def update_settings(
                 if "allow_existing_patient_booking" in at_data:
                     existing.allow_existing_patient_booking = at_data.get("allow_existing_patient_booking", True)
                 # Only update if explicitly provided (not None/undefined)
+                if "allow_multiple_time_slot_selection" in at_data:
+                    raw_value = at_data.get("allow_multiple_time_slot_selection")
+                    if raw_value is not None:
+                        existing.allow_multiple_time_slot_selection = bool(raw_value)
                 if "allow_patient_practitioner_selection" in at_data:
                     raw_value = at_data.get("allow_patient_practitioner_selection")
                     if raw_value is not None:

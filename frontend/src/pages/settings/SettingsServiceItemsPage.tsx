@@ -535,6 +535,7 @@ const SettingsServiceItemsPage: React.FC = () => {
         allow_new_patient_booking: item.allow_new_patient_booking ?? true,
         allow_existing_patient_booking: item.allow_existing_patient_booking ?? true,
         allow_patient_practitioner_selection: item.allow_patient_practitioner_selection ?? true,
+        allow_multiple_time_slot_selection: item.allow_multiple_time_slot_selection ?? false,
         description: item.description || null,
         scheduling_buffer_minutes: item.scheduling_buffer_minutes || 0,
         service_type_group_id: item.service_type_group_id || null,

@@ -52,6 +52,7 @@ class AppointmentTypeResponse(BaseModel):
     allow_new_patient_booking: bool = True
     allow_existing_patient_booking: bool = True
     allow_patient_practitioner_selection: bool = True
+    allow_multiple_time_slot_selection: bool = False
     description: Optional[str] = None
     scheduling_buffer_minutes: int = 0
     service_type_group_id: Optional[int] = None
