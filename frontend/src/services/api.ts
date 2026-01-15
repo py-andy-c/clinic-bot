@@ -406,6 +406,8 @@ export class ApiService {
       end_time: string;
       notes?: string | null;
       originally_auto_assigned: boolean;
+      pending_time_confirmation?: boolean;
+      alternative_time_slots?: string[] | null;
       resource_names: string[];
       resource_ids: number[];
     }>;
@@ -912,6 +914,7 @@ export class ApiService {
     clinic_notes?: string;
     notification_note?: string; // Optional note for notification (does not update appointment.notes)
     selected_resource_ids?: number[];
+    confirm_time_selection?: boolean; // True = this is a time confirmation for pending multiple slot appointment
   }): Promise<{ success: boolean; appointment_id: number; message: string }> {
     const response = await this.client.put(`/clinic/appointments/${appointmentId}`, data);
     return response.data;

@@ -320,5 +320,20 @@ export default {
       description: '設定空位提醒，當有可用時段時我們會透過 LINE 通知您',
     },
   },
+
+  clinic: {
+    timeConfirmation: {
+      title: '選擇最終時段',
+      description: '請選擇最適合的時段，此選擇將成為最終預約時間。',
+      availableSlots: '可用時段',
+      selectSlot: '選擇時段',
+      currentSlot: '目前時段',
+      modalTitle: '確認預約時段',
+      note: '注意事項',
+      noteText: '確認後將立即通知病患，並產生行事曆事件。',
+      confirming: '確認中...',
+      confirm: '確認時段',
+    },
+  },
 };
 

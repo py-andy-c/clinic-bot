@@ -6,7 +6,8 @@ import { apiService } from '../services/api';
 import { logger } from '../utils/logger';
 import { LoadingSpinner, ErrorMessage } from '../components/shared';
 import { EditAppointmentModal } from '../components/calendar/EditAppointmentModal';
-import { useAutoAssignedAppointments } from '../hooks/queries';
+import TimeConfirmationModal from '../components/TimeConfirmationModal';
+import { useAutoAssignedAppointments, AutoAssignedAppointment } from '../hooks/queries';
 import { BaseModal } from '../components/shared/BaseModal';
 import moment from 'moment-timezone';
 import { CalendarEvent } from '../utils/calendarDataAdapter';
@@ -20,22 +21,6 @@ import { PractitionerAssignmentConfirmationModal } from '../components/Practitio
 import { getErrorMessage } from '../types/api';
 import { AppointmentType } from '../types';
 
-interface AutoAssignedAppointment {
-  appointment_id: number;
-  calendar_event_id: number;
-  patient_name: string;
-  patient_id: number;
-  practitioner_id: number;
-  practitioner_name: string;
-  appointment_type_id: number;
-  appointment_type_name: string;
-  start_time: string;
-  end_time: string;
-  notes?: string | null;
-  originally_auto_assigned: boolean;
-  resource_names: string[];
-  resource_ids: number[];
-}
 
 const AutoAssignedAppointmentsPage: React.FC = () => {
   const { isClinicAdmin, isAuthenticated } = useAuth();
@@ -45,6 +30,7 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
   const [practitioners, setPractitioners] = useState<{ id: number; full_name: string }[]>([]);
   const [appointmentTypes, setAppointmentTypes] = useState<AppointmentType[]>([]);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isTimeConfirmationModalOpen, setIsTimeConfirmationModalOpen] = useState(false);
   const [calendarEvent, setCalendarEvent] = useState<CalendarEvent | null>(null);
   const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
   const [minimumBookingHoursAhead, setMinimumBookingHoursAhead] = useState<number | null>(null);
@@ -201,42 +187,50 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
 
   const handleAppointmentClick = async (appointment: AutoAssignedAppointment) => {
     try {
-      // Ensure practitioners and appointment types are loaded before opening modal
-      if (practitioners.length === 0 || appointmentTypes.length === 0) {
-        const [practitionersData, settings] = await Promise.all([
-          apiService.getPractitioners(),
-          apiService.getClinicSettings()
-        ]);
-        setPractitioners(practitionersData);
-        setAppointmentTypes(settings.appointment_types);
-      }
-      
-      // Use shared utility to create CalendarEvent from appointment data
-      const event = appointmentToCalendarEvent({
-        id: appointment.appointment_id,
-        calendar_event_id: appointment.calendar_event_id,
-        patient_id: appointment.patient_id,
-        patient_name: appointment.patient_name,
-        practitioner_id: appointment.practitioner_id,
-        practitioner_name: appointment.practitioner_name,
-        appointment_type_id: appointment.appointment_type_id,
-        appointment_type_name: appointment.appointment_type_name,
-        start_time: appointment.start_time,
-        end_time: appointment.end_time,
-        status: 'confirmed',
-        notes: appointment.notes ?? null,
-        originally_auto_assigned: appointment.originally_auto_assigned,
-        is_auto_assigned: true, // All appointments from this page are currently auto-assigned
-        resource_names: appointment.resource_names,
-        resource_ids: appointment.resource_ids,
-      });
-      
       setSelectedAppointment(appointment);
-      setCalendarEvent(event);
-      setIsEditModalOpen(true);
+
+      // Check if this is a time confirmation appointment
+      if (appointment.pending_time_confirmation) {
+        // Open time confirmation modal
+        setIsTimeConfirmationModalOpen(true);
+      } else {
+        // This is a practitioner assignment appointment - open edit modal
+        // Ensure practitioners and appointment types are loaded before opening modal
+        if (practitioners.length === 0 || appointmentTypes.length === 0) {
+          const [practitionersData, settings] = await Promise.all([
+            apiService.getPractitioners(),
+            apiService.getClinicSettings()
+          ]);
+          setPractitioners(practitionersData);
+          setAppointmentTypes(settings.appointment_types);
+        }
+
+        // Use shared utility to create CalendarEvent from appointment data
+        const event = appointmentToCalendarEvent({
+          id: appointment.appointment_id,
+          calendar_event_id: appointment.calendar_event_id,
+          patient_id: appointment.patient_id,
+          patient_name: appointment.patient_name,
+          practitioner_id: appointment.practitioner_id,
+          practitioner_name: appointment.practitioner_name,
+          appointment_type_id: appointment.appointment_type_id,
+          appointment_type_name: appointment.appointment_type_name,
+          start_time: appointment.start_time,
+          end_time: appointment.end_time,
+          status: 'confirmed',
+          notes: appointment.notes ?? null,
+          originally_auto_assigned: appointment.originally_auto_assigned,
+          is_auto_assigned: true, // All appointments from this page are currently auto-assigned
+          resource_names: appointment.resource_names,
+          resource_ids: appointment.resource_ids,
+        });
+
+        setCalendarEvent(event);
+        setIsEditModalOpen(true);
+      }
     } catch (err) {
-      logger.error('Failed to open edit modal:', err);
-      alert('無法開啟編輯視窗', '錯誤');
+      logger.error('Failed to open modal:', err);
+      alert('無法開啟視窗', '錯誤');
     }
   };
 
@@ -456,66 +450,122 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
       ) : (
         <div className="bg-white md:shadow md:overflow-hidden md:rounded-md">
           <ul className="divide-y divide-gray-200">
-            {appointments.map((appointment) => (
-              <li
-                key={appointment.appointment_id}
-                onClick={() => handleAppointmentClick(appointment)}
-                className="px-2 py-2 md:px-6 md:py-4 hover:bg-gray-50 cursor-pointer transition-colors"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center">
-                      <p className="text-sm font-medium text-gray-900">
-                        {appointment.patient_name}
-                      </p>
-                      <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                        {appointment.appointment_type_name}
-                      </span>
+            {appointments.map((appointment) => {
+              const isTimeConfirmation = appointment.pending_time_confirmation;
+
+              return (
+                <li
+                  key={appointment.appointment_id}
+                  onClick={() => handleAppointmentClick(appointment)}
+                  className="px-2 py-2 md:px-6 md:py-4 hover:bg-gray-50 cursor-pointer transition-colors"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center">
+                        <p className="text-sm font-medium text-gray-900">
+                          {appointment.patient_name}
+                        </p>
+                        <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                          {appointment.appointment_type_name}
+                        </span>
+                        {isTimeConfirmation && (
+                          <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                            待確認時段
+                          </span>
+                        )}
+                      </div>
+
+                      {isTimeConfirmation ? (
+                        // Time confirmation appointment display
+                        <>
+                          <div className="mt-2 flex items-center text-sm text-gray-500">
+                            <svg className="flex-shrink-0 mr-1.5 h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                            目前預約時間: {formatDateTime(appointment.start_time)}
+                          </div>
+                          <div className="mt-1 flex items-center text-sm text-amber-600">
+                            <svg className="flex-shrink-0 mr-1.5 h-4 w-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            等待確認最終時段
+                          </div>
+                          {appointment.alternative_time_slots && appointment.alternative_time_slots.length > 0 && (
+                            <div className="mt-1 flex items-center text-sm text-gray-600">
+                              <svg className="flex-shrink-0 mr-1.5 h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                              </svg>
+                              可選時段: {appointment.alternative_time_slots.length} 個選項
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        // Practitioner assignment appointment display
+                        <>
+                          <div className="mt-2 flex items-center text-sm text-gray-500">
+                            <svg className="flex-shrink-0 mr-1.5 h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                            {formatDateTime(appointment.start_time)}
+                          </div>
+                          <div className="mt-1 flex items-center text-sm text-gray-500">
+                            <svg className="flex-shrink-0 mr-1.5 h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                            </svg>
+                            目前指派給: {appointment.practitioner_name}
+                          </div>
+                          {formatAutoAssignmentTime(appointment.start_time) && (
+                            <div className="mt-1 flex items-center text-sm text-amber-600">
+                              <svg className="flex-shrink-0 mr-1.5 h-4 w-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                              {formatAutoAssignmentTime(appointment.start_time)}
+                            </div>
+                          )}
+                        </>
+                      )}
+
+                      {appointment.notes && (
+                        <div className="mt-1 text-sm text-gray-500">
+                          備註: {appointment.notes}
+                        </div>
+                      )}
+                      {appointment.resource_names && appointment.resource_names.length > 0 && (
+                        <div className="mt-1 flex items-center text-sm text-gray-500">
+                          <svg className="flex-shrink-0 mr-1.5 h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                          </svg>
+                          資源: {appointment.resource_names.join(', ')}
+                        </div>
+                      )}
                     </div>
-                    <div className="mt-2 flex items-center text-sm text-gray-500">
-                      <svg className="flex-shrink-0 mr-1.5 h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    <div className="ml-4 flex-shrink-0">
+                      <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                       </svg>
-                      {formatDateTime(appointment.start_time)}
                     </div>
-                    <div className="mt-1 flex items-center text-sm text-gray-500">
-                      <svg className="flex-shrink-0 mr-1.5 h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                      </svg>
-                      目前指派給: {appointment.practitioner_name}
-                    </div>
-                    {formatAutoAssignmentTime(appointment.start_time) && (
-                      <div className="mt-1 flex items-center text-sm text-amber-600">
-                        <svg className="flex-shrink-0 mr-1.5 h-4 w-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        {formatAutoAssignmentTime(appointment.start_time)}
-                      </div>
-                    )}
-                    {appointment.notes && (
-                      <div className="mt-1 text-sm text-gray-500">
-                        備註: {appointment.notes}
-                      </div>
-                    )}
-                    {appointment.resource_names && appointment.resource_names.length > 0 && (
-                      <div className="mt-1 flex items-center text-sm text-gray-500">
-                        <svg className="flex-shrink-0 mr-1.5 h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                        </svg>
-                        資源: {appointment.resource_names.join(', ')}
-                      </div>
-                    )}
                   </div>
-                  <div className="ml-4 flex-shrink-0">
-                    <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
-                  </div>
-                </div>
-              </li>
-            ))}
+                </li>
+              );
+            })}
           </ul>
         </div>
+      )}
+
+      {isTimeConfirmationModalOpen && selectedAppointment && (
+        <TimeConfirmationModal
+          appointment={selectedAppointment}
+          onClose={() => {
+            setIsTimeConfirmationModalOpen(false);
+            setSelectedAppointment(null);
+          }}
+          onConfirm={async () => {
+            setIsTimeConfirmationModalOpen(false);
+            setSelectedAppointment(null);
+            await refetch();
+            await alert('預約時段已確認', '成功');
+          }}
+        />
       )}
 
       {isEditModalOpen && calendarEvent && selectedAppointment && (
