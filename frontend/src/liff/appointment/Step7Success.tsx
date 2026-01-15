@@ -24,7 +24,9 @@ const Step7Success: React.FC = () => {
     clinicDisplayName,
     clinicAddress,
     clinicPhoneNumber,
-    setClinicInfo
+    setClinicInfo,
+    isMultipleSlotMode,
+    selectedTimeSlots
   } = useAppointmentStore();
   const { alert: showAlert } = useModal();
 
@@ -151,6 +153,11 @@ const Step7Success: React.FC = () => {
   };
 
   const formatDateTime = () => {
+    if (isMultipleSlotMode) {
+      // For multiple slot appointments, show "待安排"
+      return '待安排';
+    }
+
     if (!createdAppointment) return '';
 
     // Parse the start_time from created appointment as Taiwan time
@@ -203,6 +210,18 @@ const Step7Success: React.FC = () => {
             <span className="text-gray-600">{t('success.dateTime')}</span>
             <span className="font-medium">{formatDateTime()}</span>
           </div>
+          {isMultipleSlotMode && selectedTimeSlots.length > 0 && (
+            <div>
+              <span className="text-gray-600">{t('success.selectedSlots')}</span>
+              <div className="mt-1 flex flex-wrap gap-1">
+                {selectedTimeSlots.sort().map((time) => (
+                  <span key={time} className="inline-flex items-center px-2 py-1 bg-primary-100 text-primary-800 text-xs font-medium rounded">
+                    {time}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="flex justify-between">
             <span className="text-gray-600">{t('success.patient')}</span>
             <span className="font-medium">{patient?.full_name}</span>
@@ -229,12 +248,13 @@ const Step7Success: React.FC = () => {
 
         <button
           onClick={handleAddToCalendar}
-          className="w-full bg-primary-600 text-white py-3 px-4 rounded-md hover:bg-primary-700 flex items-center justify-center"
+          disabled={isMultipleSlotMode}
+          className="w-full bg-primary-600 text-white py-3 px-4 rounded-md hover:bg-primary-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center"
         >
           <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
           </svg>
-          {t('success.addToCalendar')}
+          {isMultipleSlotMode ? t('success.calendarPending') : t('success.addToCalendar')}
         </button>
       </div>
     </div>

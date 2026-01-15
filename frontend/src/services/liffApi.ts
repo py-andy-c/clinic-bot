@@ -105,6 +105,7 @@ export interface AppointmentSummary {
   end_time: string;
   status: 'confirmed' | 'canceled_by_patient' | 'canceled_by_clinic';
   notes?: string;
+  pending_time_confirmation?: boolean;
 }
 
 export interface AppointmentsResponse {

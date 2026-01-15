@@ -113,9 +113,12 @@ class AppointmentType(Base):
     # Notes customization fields
     require_notes: Mapped[bool] = mapped_column(default=False)
     """Whether notes are required when patients book this service via LIFF. Only applies when allow_patient_booking = true."""
-    
+
     notes_instructions: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     """Custom instructions shown to patients when filling out notes. Replaces global appointment_notes_instructions if not null."""
+
+    allow_multiple_time_slot_selection: Mapped[bool] = mapped_column(default=False)
+    """Whether patients can select multiple preferred time slots for this appointment type. When enabled, appointments are created with pending_time_confirmation = TRUE."""
 
     # Relationships
     clinic = relationship("Clinic", back_populates="appointment_types")

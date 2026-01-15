@@ -321,6 +321,8 @@ class AppointmentCreateRequest(BaseModel):
     practitioner_id: Optional[int] = None  # null for "不指定"
     start_time: datetime
     notes: Optional[str] = None
+    selected_time_slots: Optional[List[str]] = None  # For multiple time slot selection
+    allow_multiple_time_slot_selection: Optional[bool] = None
 
     @field_validator('notes')
     @classmethod
@@ -1088,6 +1090,35 @@ async def create_appointment(
                 detail="此服務類型不允許指定治療師"
             )
 
+        # Validate multiple time slot selection
+        if request.allow_multiple_time_slot_selection and not appointment_type.allow_multiple_time_slot_selection:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="此服務類型不支援多時段選擇"
+            )
+
+        # Validate selected_time_slots for multiple slot selection
+        if request.allow_multiple_time_slot_selection:
+            if not request.selected_time_slots or len(request.selected_time_slots) == 0:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="多時段選擇需要至少選擇一個時段"
+                )
+            if len(request.selected_time_slots) > 10:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="最多只能選擇10個時段"
+                )
+            # Validate each time slot format and ensure they are datetime strings
+            try:
+                for time_slot in request.selected_time_slots:
+                    datetime.fromisoformat(time_slot.replace('Z', '+00:00'))
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="時段格式無效"
+                )
+
         # Validate notes requirement if appointment type requires it and allows patient booking
         if appointment_type.allow_patient_booking and appointment_type.require_notes:
             if not request.notes or not request.notes.strip():
@@ -1108,7 +1139,9 @@ async def create_appointment(
             start_time=request.start_time,
             practitioner_id=practitioner_id,
             notes=request.notes,
-            line_user_id=line_user.id
+            line_user_id=line_user.id,
+            selected_time_slots=request.selected_time_slots,
+            allow_multiple_time_slot_selection=request.allow_multiple_time_slot_selection
         )
 
         return AppointmentResponse(**appointment_data)

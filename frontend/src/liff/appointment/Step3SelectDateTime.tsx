@@ -5,6 +5,8 @@ import { LoadingSpinner } from '../../components/shared';
 import { useAppointmentStore } from '../../stores/appointmentStore';
 import { liffApiService } from '../../services/liffApi';
 import AvailabilityNotificationButton from '../components/AvailabilityNotificationButton';
+import MultipleTimeSlotSelector from './components/MultipleTimeSlotSelector';
+import SelectedSlotsDisplay from './components/SelectedSlotsDisplay';
 import {
   generateCalendarDays,
   isToday,
@@ -15,7 +17,7 @@ import {
 
 const Step3SelectDateTime: React.FC = () => {
   const { t } = useTranslation();
-  const { appointmentTypeId, practitionerId, setDateTime, clinicId } = useAppointmentStore();
+  const { appointmentTypeId, practitionerId, setDateTime, clinicId, isMultipleSlotMode, selectedTimeSlots, addTimeSlot, removeTimeSlot } = useAppointmentStore();
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [availableSlots, setAvailableSlots] = useState<string[]>([]);
   const [slotDetails, setSlotDetails] = useState<Map<string, { is_recommended?: boolean }>>(new Map());
@@ -151,7 +153,23 @@ const Step3SelectDateTime: React.FC = () => {
 
   const handleTimeSelect = (time: string) => {
     if (selectedDate) {
-      setDateTime(selectedDate, time);
+      if (isMultipleSlotMode) {
+        // For multiple slot mode, toggle selection
+        if (selectedTimeSlots.includes(time)) {
+          removeTimeSlot(time);
+        } else {
+          // Check if we've reached the maximum slots
+          const MAX_SLOTS = 10;
+          if (selectedTimeSlots.length >= MAX_SLOTS) {
+            // Could show error message here
+            return;
+          }
+          addTimeSlot(time);
+        }
+      } else {
+        // For single slot mode, select and proceed
+        setDateTime(selectedDate, time);
+      }
     }
   };
 
@@ -276,34 +294,25 @@ const Step3SelectDateTime: React.FC = () => {
               <p className="text-sm text-red-600">{error}</p>
             </div>
           ) : availableSlots.length > 0 ? (
-            <div className="grid grid-cols-3 gap-2">
-              {[...availableSlots].sort().map((time) => {
-                const isRecommended = slotDetails.get(time)?.is_recommended === true;
-                return (
-                  <button
-                    key={time}
-                    onClick={() => handleTimeSelect(time)}
-                    className={`relative bg-white border rounded-md py-2 px-2 hover:border-primary-300 hover:bg-primary-50 transition-colors text-sm font-medium text-gray-900 ${
-                      isRecommended ? 'border-teal-400 border-2' : 'border-gray-200'
-                    }`}
-                  >
-                    {time}
-                    {isRecommended && (
-                      <span className="absolute -top-2 -right-2 bg-teal-500 text-white text-xs font-medium px-1.5 py-0.5 rounded shadow-sm">
-                        {t('datetime.recommended')}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
+            <MultipleTimeSlotSelector
+              availableSlots={availableSlots}
+              selectedTimeSlots={selectedTimeSlots}
+              slotDetails={slotDetails}
+              onTimeSelect={handleTimeSelect}
+            />
           ) : (
             <div className="text-center py-8">
               <p className="text-gray-500">{t('datetime.noSlots')}</p>
               <p className="text-sm text-gray-400 mt-2">{t('datetime.noSlotsDesc')}</p>
             </div>
           )}
-          
+
+            <SelectedSlotsDisplay
+              selectedTimeSlots={selectedTimeSlots}
+              onRemoveSlot={removeTimeSlot}
+              onConfirmSlots={() => setDateTime(selectedDate!, '')}
+            />
+
           {/* Availability Notification Button - shown under time slots */}
           {selectedDate && (
             <AvailabilityNotificationButton className="mt-4" />

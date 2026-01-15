@@ -9,7 +9,7 @@ import { getErrorMessage } from '../../types/api';
 
 const Step6Confirmation: React.FC = () => {
   const { t } = useTranslation();
-  const { appointmentType, practitioner, practitionerId, isAutoAssigned, date, startTime, patient, notes, clinicId, setCreatedAppointment } = useAppointmentStore();
+  const { appointmentType, practitioner, practitionerId, isAutoAssigned, date, startTime, selectedTimeSlots, isMultipleSlotMode, patient, notes, clinicId, setCreatedAppointment } = useAppointmentStore();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -35,15 +35,28 @@ const Step6Confirmation: React.FC = () => {
         return;
       }
 
-      // Send Taiwan time with timezone indicator to API
-      // Format as ISO string with timezone offset (e.g., 2024-11-03T11:00:00+08:00)
-      const response = await liffApiService.createAppointment({
+      // Prepare appointment creation data
+      const appointmentData: any = {
         patient_id: patient.id,
         appointment_type_id: appointmentType.id,
         practitioner_id: practitioner?.id ?? undefined,
-        start_time: startDateTimeTaiwan.format(),
         notes: notes || undefined,
-      });
+      };
+
+      if (isMultipleSlotMode) {
+        // For multiple slot mode, send all selected time slots
+        appointmentData.selected_time_slots = selectedTimeSlots.map(time => {
+          const timeWithSeconds = time.includes(':') && time.split(':').length === 2 ? `${time}:00` : time;
+          const dateTimeTaiwan = moment.tz(`${date}T${timeWithSeconds}`, taiwanTimezone);
+          return dateTimeTaiwan.format();
+        });
+        appointmentData.allow_multiple_time_slot_selection = true;
+      } else {
+        // For single slot mode, send the selected time
+        appointmentData.start_time = startDateTimeTaiwan.format();
+      }
+
+      const response = await liffApiService.createAppointment(appointmentData);
 
       // For auto-assigned appointments, don't update practitioner in store
       // Patient should continue to see "不指定" even after appointment is created
@@ -69,19 +82,24 @@ const Step6Confirmation: React.FC = () => {
   };
 
   const formatDateTime = () => {
+    if (isMultipleSlotMode) {
+      // For multiple slot appointments, show "待安排"
+      return '待安排';
+    }
+
     if (!date || !startTime) return '';
-    
+
     // Parse as Taiwan time for display
     const taiwanTimezone = 'Asia/Taipei';
-    const timeWithSeconds = startTime.includes(':') && startTime.split(':').length === 2 
-      ? `${startTime}:00` 
+    const timeWithSeconds = startTime.includes(':') && startTime.split(':').length === 2
+      ? `${startTime}:00`
       : startTime;
     const dateTimeTaiwan = moment.tz(`${date}T${timeWithSeconds}`, taiwanTimezone);
-    
+
     if (!dateTimeTaiwan.isValid()) {
       return '';
     }
-    
+
     // Use shared formatting utility
     return formatAppointmentDateTime(dateTimeTaiwan.toDate());
   };
@@ -114,6 +132,18 @@ const Step6Confirmation: React.FC = () => {
             <span className="text-gray-600">{t('confirmation.dateTime')}</span>
             <span className="font-medium">{formatDateTime()}</span>
           </div>
+          {isMultipleSlotMode && selectedTimeSlots.length > 0 && (
+            <div>
+              <span className="text-gray-600">{t('confirmation.selectedSlots')}</span>
+              <div className="mt-1 flex flex-wrap gap-1">
+                {selectedTimeSlots.sort().map((time) => (
+                  <span key={time} className="inline-flex items-center px-2 py-1 bg-primary-100 text-primary-800 text-xs font-medium rounded">
+                    {time}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="flex justify-between">
             <span className="text-gray-600">{t('confirmation.patient')}</span>
             <span className="font-medium">{patient?.full_name}</span>

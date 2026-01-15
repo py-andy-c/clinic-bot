@@ -7,12 +7,18 @@ export interface AutoAssignedAppointment {
   calendar_event_id: number;
   patient_name: string;
   patient_id: number;
+  practitioner_id: number;
+  practitioner_name: string;
+  appointment_type_id: number;
   appointment_type_name: string;
-  scheduled_at: string;
-  assigned_practitioner_name: string;
-  assigned_practitioner_id: number;
-  notes?: string;
-  clinic_notes?: string;
+  start_time: string;
+  end_time: string;
+  notes?: string | null;
+  originally_auto_assigned: boolean;
+  pending_time_confirmation?: boolean;
+  alternative_time_slots?: string[] | null;
+  resource_names: string[];
+  resource_ids: number[];
 }
 
 export interface AutoAssignedAppointmentsResponse {

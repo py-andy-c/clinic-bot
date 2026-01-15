@@ -17,6 +17,7 @@ interface Appointment {
   has_any_receipt?: boolean; // Whether appointment has any receipt (active or voided)
   receipt_id?: number | null; // ID of active receipt (null if no active receipt)
   receipt_ids?: number[]; // List of all receipt IDs (always included, empty if none)
+  pending_time_confirmation?: boolean; // Whether appointment is waiting for time confirmation from multiple slot selection
 }
 
 interface AppointmentCardProps {
@@ -47,11 +48,13 @@ const AppointmentCard: React.FC<AppointmentCardProps> = ({ appointment, onCancel
     }
   };
 
-  const formattedDateTime = appointment.start_time 
-    ? formatAppointmentDateTime(appointment.start_time)
-    : '';
-  const canCancel = appointment.status === 'confirmed';
-  const canModify = !appointment.has_any_receipt; // Constraint 1: Cannot modify if has any receipt
+  const formattedDateTime = appointment.pending_time_confirmation
+    ? t('appointmentCard.timePending', '待安排')
+    : appointment.start_time
+      ? formatAppointmentDateTime(appointment.start_time)
+      : '';
+  const canCancel = appointment.status === 'confirmed' && !appointment.pending_time_confirmation;
+  const canModify = !appointment.has_any_receipt && !appointment.pending_time_confirmation; // Constraint 1: Cannot modify if has any receipt. Constraint 2: Cannot modify if pending time confirmation
   const showReceiptButton = appointment.has_active_receipt && onViewReceipt;
 
   return (
@@ -61,6 +64,11 @@ const AppointmentCard: React.FC<AppointmentCardProps> = ({ appointment, onCancel
           <h3 className="font-medium text-gray-900">{appointment.patient_name}</h3>
           <p className="text-sm text-gray-600">{appointment.appointment_type_name}</p>
         </div>
+        {appointment.pending_time_confirmation && (
+          <span className="px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap flex-shrink-0 bg-amber-100 text-amber-800">
+            {t('appointmentCard.status.timePending', '待安排')}
+          </span>
+        )}
         {getStatusColor(appointment.status) && (
           <span className={`px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap flex-shrink-0 ${getStatusColor(appointment.status)}`}>
             {getStatusText(appointment.status)}
@@ -121,6 +129,11 @@ const AppointmentCard: React.FC<AppointmentCardProps> = ({ appointment, onCancel
               {t('appointmentCard.cancelButton')}
             </button>
           )}
+        </div>
+      )}
+      {appointment.pending_time_confirmation && (
+        <div className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-md p-2">
+          {t('appointmentCard.pendingTimeMessage', '時間確認前無法修改')}
         </div>
       )}
       
