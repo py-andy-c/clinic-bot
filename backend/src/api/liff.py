@@ -824,6 +824,7 @@ async def list_appointment_types(
                     allow_new_patient_booking=at.allow_new_patient_booking,
                     allow_existing_patient_booking=at.allow_existing_patient_booking,
                     allow_patient_practitioner_selection=at.allow_patient_practitioner_selection,
+                    allow_multiple_time_slot_selection=at.allow_multiple_time_slot_selection,
                     description=at.description,
                     scheduling_buffer_minutes=at.scheduling_buffer_minutes,
                     send_patient_confirmation=at.send_patient_confirmation,
