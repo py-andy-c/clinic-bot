@@ -181,6 +181,7 @@ export interface AppointmentType {
   allow_new_patient_booking?: boolean | undefined;
   allow_existing_patient_booking?: boolean | undefined;
   allow_patient_practitioner_selection?: boolean | undefined;
+  allow_multiple_time_slot_selection?: boolean | undefined;
   description?: string | null | undefined;
   scheduling_buffer_minutes?: number | undefined;
   service_type_group_id?: number | null | undefined;

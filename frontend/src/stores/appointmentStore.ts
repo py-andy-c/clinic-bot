@@ -22,6 +22,10 @@ interface AppointmentState {
   // Step 3: Date & Time (Flow 1) or Practitioner (Flow 2)
   date: string | null;
   startTime: string | null;
+  selectedTimeSlots: string[]; // For multiple time slot selection
+
+  // Multiple slot selection mode
+  isMultipleSlotMode: boolean; // Whether current appointment type supports multiple slots
 
   // Step 4: Patient (Flow 1) or Date & Time (Flow 2)
   patientId: number | null;
@@ -61,6 +65,10 @@ interface AppointmentState {
   setPractitioner: (id: number | null, practitioner?: Practitioner, isAutoAssigned?: boolean) => void;
   updateAssignedPractitioner: (id: number, practitioner: Practitioner, isAutoAssigned?: boolean) => void; // Updates assigned practitioner without resetting date/time
   setDateTime: (date: string, time: string) => void;
+  addTimeSlot: (time: string) => void;
+  removeTimeSlot: (time: string) => void;
+  clearTimeSlots: () => void;
+  setMultipleSlotMode: (isMultiple: boolean) => void;
   setPatient: (id: number, patient: Patient) => void;
   setNotes: (notes: string) => void;
   updateNotesOnly: (notes: string) => void; // Updates notes without changing step
@@ -95,6 +103,8 @@ export const useAppointmentStore = create<AppointmentState>((set, get) => ({
   isAutoAssigned: false,
   date: null,
   startTime: null,
+  selectedTimeSlots: [],
+  isMultipleSlotMode: false,
   patientId: null,
   patient: null,
   notes: '',
@@ -141,6 +151,8 @@ export const useAppointmentStore = create<AppointmentState>((set, get) => ({
       isAutoAssigned: skipPractitionerStep ? true : false, // Auto-assign if skipped
       date: null,
       startTime: null,
+      selectedTimeSlots: [],
+      isMultipleSlotMode: type.allow_multiple_time_slot_selection === true,
     });
   },
 
@@ -194,6 +206,37 @@ export const useAppointmentStore = create<AppointmentState>((set, get) => ({
       step: nextStep,
     });
   },
+
+  addTimeSlot: (time) => {
+    const state = get();
+    const MAX_SLOTS = 10;
+    if (!state.selectedTimeSlots.includes(time)) {
+      if (state.selectedTimeSlots.length >= MAX_SLOTS) {
+        // Maximum slots reached - could trigger error notification here
+        return false;
+      }
+      set({
+        selectedTimeSlots: [...state.selectedTimeSlots, time],
+      });
+      return true;
+    }
+    return true; // Already selected
+  },
+
+  removeTimeSlot: (time) => {
+    const state = get();
+    set({
+      selectedTimeSlots: state.selectedTimeSlots.filter(slot => slot !== time),
+    });
+  },
+
+  clearTimeSlots: () => set({
+    selectedTimeSlots: [],
+  }),
+
+  setMultipleSlotMode: (isMultiple) => set({
+    isMultipleSlotMode: isMultiple,
+  }),
 
   setPatient: (id, patient) => {
     const state = get();
@@ -253,6 +296,8 @@ export const useAppointmentStore = create<AppointmentState>((set, get) => ({
     isAutoAssigned: false,
     date: null,
     startTime: null,
+    selectedTimeSlots: [],
+    isMultipleSlotMode: false,
     patientId: null,
     patient: null,
     notes: '',
@@ -273,6 +318,13 @@ export const useAppointmentStore = create<AppointmentState>((set, get) => ({
       case 4:
         return state.appointmentTypeId !== null && state.practitionerId !== undefined;
       case 5:
+        // For multiple slot mode, check if time slots are selected
+        if (state.isMultipleSlotMode) {
+          return state.appointmentTypeId !== null &&
+            state.practitionerId !== undefined &&
+            state.selectedTimeSlots.length > 0;
+        }
+        // For single slot mode, check date and time
         return state.appointmentTypeId !== null &&
           state.practitionerId !== undefined &&
           state.date !== null &&
