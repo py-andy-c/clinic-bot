@@ -70,8 +70,7 @@ When `allow_multiple_time_slot_selection = True`:
 
 #### Auto-Confirmation Timing
 - **Same as Practitioner Auto-Assignment**: Uses `minimum_booking_hours_ahead` hours before appointment
-- **Automatic Selection**: System automatically selects the earliest chronologically available slot from patient's preferences
-- **Cascading Fallback**: If earliest slot is unavailable, tries next earliest slot, continuing until successful
+- **Automatic Selection**: System automatically confirms the currently held slot (which is already the patient's earliest preference)
 - **Clinic Override**: Clinics can select any available time slot (not limited to patient preferences) for maximum scheduling flexibility
 
 #### After Confirmation (Manual or Auto)
@@ -133,8 +132,8 @@ When `allow_multiple_time_slot_selection = True`:
 #### Auto-Confirmation Background Service
 - **Description**: Automatically confirms time slots at booking-time `minimum_booking_hours_ahead` hours before appointment
 - **Schedule**: Runs every hour (same as practitioner auto-assignment)
-- **Logic**: Finds `pending_time_confirmation=true` appointments within recency limit, auto-selects earliest chronologically available slot from patient's alternatives
-- **Fallback**: If no alternative slots are available, marks appointment for manual clinic confirmation and sends admin notification
+- **Logic**: Finds `pending_time_confirmation=true` appointments within recency limit, confirms the currently held slot (which is already the earliest preference)
+- **Fallback**: If held slot becomes unavailable, marks appointment for manual clinic confirmation and sends admin notification
 - **Notifications**: Same notification templates used for both auto and manual confirmation (no differentiation needed)
 
 ### Database Schema
@@ -172,8 +171,8 @@ confirmed_at TIMESTAMP WITH TIME ZONE NULL
 - `get_pending_review_appointments()`: Include time confirmation pending appointments
 
 #### Key Business Logic
-- **Initial Slot Selection**: Randomly pick one slot from `selected_time_slots` for initial appointment creation (no preference ordering assumed)
-- **Auto-Confirmation Selection**: Select earliest chronologically available slot from patient's preferences (assumes patients select slots in rough preference order)
+- **Initial Slot Selection**: Always select the earliest chronologically available slot from `selected_time_slots` for initial appointment creation (prioritizes patient's first preference)
+- **Auto-Confirmation Selection**: Confirm the currently held slot (which is already the earliest preference) at `minimum_booking_hours_ahead` hours before appointment
 - **Availability Check**: Validate all selected slots are available at booking time
 - **Permission Check**: For time confirmation, check if user can access the appointment
 - **Auto-Confirmation**: Background service automatically confirms time at `minimum_booking_hours_ahead` hours before appointment
@@ -552,7 +551,7 @@ ClinicApp (Admin Review)
 
 **Resolved Design Decisions:**
 - **Slot Limits**: Maximum 10 slots (no minimum required) - balances flexibility with decision paralysis (based on UX research showing 7±2 cognitive limit)
-- **Priority Ordering**: No explicit ranking - assumes patients select slots in rough preference order (earliest = most preferred)
+- **Priority Ordering**: Explicit earliest-first selection - system always holds and confirms the chronologically earliest slot from patient's preferences
 - **Auto-confirmation**: Automatic at `minimum_booking_hours_ahead` hours before appointment (same as practitioner auto-assignment)
 - **Calendar Integration**: Handle conflicts same as single appointments
 - **Settings Changes**: Use booking-time `minimum_booking_hours_ahead` value for auto-confirmation

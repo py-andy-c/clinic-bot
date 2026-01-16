@@ -200,53 +200,42 @@ class AutoTimeConfirmationService:
                                     if hours_until > minimum_hours:
                                         continue  # Skip if not yet within limit
 
-                                # Auto-confirm time slot - select earliest available alternative
-                                alt_slots = appointment.alternative_time_slots
-                                if alt_slots and len(alt_slots) > 0:
-                                    # Sort alternatives chronologically and pick the earliest
-                                    sorted_slots = sorted(alt_slots)
-                                    confirmed_time_str = sorted_slots[0]
+                                # Auto-confirm time slot - confirm the current held slot (which is the earliest)
+                                # Since we hold the earliest slot initially, just confirm the current appointment time
+                                confirmed_datetime = appointment_datetime
 
-                                    # Update calendar event with confirmed time
-                                    confirmed_datetime = datetime.fromisoformat(confirmed_time_str.replace('Z', '+00:00'))
-                                    appointment.calendar_event.start_time = confirmed_datetime.time()
-                                    appointment.calendar_event.end_time = (confirmed_datetime + timedelta(minutes=appointment.appointment_type.duration_minutes)).time()
+                                # Update calendar event with confirmed time (no change needed since we're confirming the current slot)
+                                appointment.calendar_event.start_time = confirmed_datetime.time()
+                                appointment.calendar_event.end_time = (confirmed_datetime + timedelta(minutes=appointment.appointment_type.duration_minutes)).time()
 
-                                    # Mark appointment as confirmed
-                                    appointment.pending_time_confirmation = False
+                                # Mark appointment as confirmed
+                                appointment.pending_time_confirmation = False
 
-                                    # Commit the confirmation
-                                    db.commit()
+                                # Commit the confirmation
+                                db.commit()
 
-                                    # Send notification to patient about confirmed time
-                                    try:
-                                        # Get practitioner name for notification
-                                        practitioner = appointment.calendar_event.user
-                                        practitioner_name = practitioner.full_name if practitioner else "醫師"
-                                        NotificationService.send_appointment_confirmation(
-                                            db, appointment, practitioner_name, clinic, "auto_confirmed"
-                                        )
-                                        # Note: Practitioner notification happens in the standard flow
-                                        # since the appointment now has a confirmed time
-                                    except Exception as notify_error:
-                                        logger.error(
-                                            f"Failed to send confirmation notification for appointment "
-                                            f"{appointment.calendar_event_id}: {notify_error}"
-                                        )
-
-                                    clinic_processed += 1
-                                    total_processed += 1
-                                    logger.info(
-                                        f"Auto-confirmed time slot for appointment {appointment.calendar_event_id} "
-                                        f"at {confirmed_datetime}"
+                                # Send notification to patient about confirmed time
+                                try:
+                                    # Get practitioner name for notification
+                                    practitioner = appointment.calendar_event.user
+                                    practitioner_name = practitioner.full_name if practitioner else "醫師"
+                                    NotificationService.send_appointment_confirmation(
+                                        db, appointment, practitioner_name, clinic, "auto_confirmed"
                                     )
-                                else:
-                                    # No alternative slots available - should not happen in normal operation
-                                    logger.warning(
-                                        f"Appointment {appointment.calendar_event_id} marked for time confirmation "
-                                        f"but has no alternative slots"
+                                    # Note: Practitioner notification happens in the standard flow
+                                    # since the appointment now has a confirmed time
+                                except Exception as notify_error:
+                                    logger.error(
+                                        f"Failed to send confirmation notification for appointment "
+                                        f"{appointment.calendar_event_id}: {notify_error}"
                                     )
-                                    clinic_errors += 1
+
+                                clinic_processed += 1
+                                total_processed += 1
+                                logger.info(
+                                    f"Auto-confirmed time slot for appointment {appointment.calendar_event_id} "
+                                    f"at {confirmed_datetime}"
+                                )
 
                             except Exception as e:
                                 # Log error but continue processing other appointments

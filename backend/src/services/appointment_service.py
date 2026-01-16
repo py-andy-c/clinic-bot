@@ -240,10 +240,10 @@ class AppointmentService:
                 pending_time_confirmation = True
                 alternative_time_slots = sorted(selected_time_slots)
 
-                # Select a random slot from the alternatives for the initial appointment
-                # This provides a valid time slot while clinic reviews alternatives
-                import random
-                initial_slot = random.choice(selected_time_slots)
+                # Select the earliest slot from the alternatives for the initial appointment
+                # This prioritizes the patient's earliest preference and holds that time slot
+                sorted_slots = sorted(selected_time_slots)
+                initial_slot = sorted_slots[0]
 
                 # Update calendar event with the initial slot
                 initial_datetime = datetime.fromisoformat(initial_slot.replace('Z', '+00:00'))
