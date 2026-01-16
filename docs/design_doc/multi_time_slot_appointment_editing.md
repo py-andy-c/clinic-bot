@@ -2,67 +2,32 @@
 
 ## Overview
 
-This document defines the business logic and technical design for editing multi-time-slot appointments. Patients can modify their preferred time slots after booking, subject to clinic's edit recency constraints. The editing process mirrors the initial booking flow but operates within the existing cancellation/modification restrictions.
+This document defines the business logic and technical design for editing multi-time-slot appointments. **Changes the original behavior** where patients could only edit to single-slot selection. Now patients can fully re-select multiple time slots with a consistent user experience as creating new appointments. **Key enhancement**: If editing results in only one time slot, it behaves like a single-slot appointment (no clinic review required).
 
 ## Key Business Logic
 
-### 1. Edit Permission Rules
+### Edit Permissions
+**Same as Single Appointments**: Uses existing "預約取消/修改限制" constraint, cannot edit after clinic confirmation.
 
-**Core Rule**: Multi-time-slot appointments follow the same edit restrictions as single appointments, using the existing "預約取消/修改限制" (appointment cancellation/modification restriction) setting.
+### Edit Process
+1. **Load**: System loads current `alternative_time_slots`, filters unavailable slots
+2. **Edit**: Patient uses same date/time picker and multi-slot selection interface as booking
+3. **Save**: Updates `alternative_time_slots`
+   - **If multiple slots selected**: `pending_time_confirmation = true`, clinic review required
+   - **If single slot selected**: `pending_time_confirmation = false`, confirmed immediately (like single-slot appointment)
+4. **Confirmation**: Auto-confirmation timer restarts (multi-slot) or immediate confirmation (single-slot)
 
-- **Edit Window**: Patients can edit multi-time-slot appointments within the clinic's configured edit restriction period
-- **Post-Confirmation**: Cannot edit once clinic has confirmed the final time slot
-- **Same Constraints**: Uses identical permission and timing rules as single appointment editing
+### State Changes
+- **Multi-slot result**: Appointment returns to "待安排" status, clinic review required
+- **Single-slot result**: Appointment confirmed immediately with selected time, no clinic review
+- **Temporary slot**: Reassigned to selected slot (earliest available for multi-slot, the single slot for single-slot)
+- **Calendar events**: Generated immediately for single-slot results, pending for multi-slot
 
-### 2. Edit Process Flow
+### Unavailable Slots
+**Silent Deselection**: Unavailable slots are automatically removed from selection (no user notification needed).
 
-**Core Rule**: Editing multi-time-slot appointments allows full re-selection of preferred time slots, with automatic handling of unavailable slots.
-
-#### Patient Edit Process
-1. Patient views appointment with "待安排" status
-2. Clicks "修改預約" (modify appointment) within edit restriction window
-3. System loads current `alternative_time_slots` and checks availability
-4. Automatically deselects any slots that are no longer available
-5. Patient can modify selections using the same multi-slot interface as booking
-6. Upon saving, appointment resets to `pending_time_confirmation = true`
-7. Auto-confirmation timer restarts from edit timestamp
-
-#### State Changes on Edit
-- **Appointment Status**: Remains confirmed until edit is saved, then becomes pending
-- **Time Confirmation**: Resets to `pending_time_confirmation = true`
-- **Alternative Slots**: Updates with new patient selections
-- **Temporary Slot**: Reassigns to earliest available slot from new selections
-- **Auto-Confirmation**: Timer resets and restarts from edit time
-
-### 3. Unavailable Slots Handling
-
-**Core Rule**: When editing, unavailable slots are silently removed from selection without user notification.
-
-#### Automatic Deselection Logic
-- Load patient's current `alternative_time_slots`
-- Validate each slot against current availability
-- Remove unavailable slots from pre-selected state
-- Pre-populate UI with only available slots selected
-- Allow patient to continue editing with remaining selections
-
-#### Minimum Selection Requirement
-- If no slots remain available after deselection, patient must select at least 1 new slot
-- Cannot save edit with 0 selected slots
-- Validation prevents submission until minimum requirements met
-
-### 4. Clinic Integration
-
-**Core Rule**: Editing triggers clinic notifications and resets review workflow.
-
-#### Clinic Notifications
-- **Edit Notification**: Clinic receives notification when patient modifies preferences
-- **Priority Handling**: Edited appointments may receive higher priority in pending review queue
-- **Review State**: Any existing review progress resets on patient edit
-
-#### Auto-Confirmation Behavior
-- **Timer Reset**: Auto-confirmation timer restarts from edit timestamp
-- **Fresh Review Window**: Gives clinic full review period after patient changes
-- **Race Condition Prevention**: Edit operations take precedence over pending auto-confirmation
+### Clinic Integration
+**Same as New Bookings**: Clinic receives notification when patient edits, appointment re-enters pending review queue.
 
 ## Backend Technical Design
 
@@ -70,11 +35,16 @@ This document defines the business logic and technical design for editing multi-
 
 #### Enhanced `PUT /liff/appointments/{appointment_id}` (Patient Edit)
 - **New Request Fields**:
-  - `edit_multiple_slots?: boolean` - Flag indicating this is a multi-slot edit operation
   - `selected_time_slots?: string[]` - New array of preferred time slots
-- **Logic**: When `edit_multiple_slots=true`, validate edit permissions, update slots, reset confirmation state
-- **Validation**: Check edit recency constraint, slot availability, booking restrictions
-- **Side Effects**: Reset `pending_time_confirmation=true`, reassign temporary slot, restart auto-confirmation timer, send clinic notification
+- **Logic**:
+  - Validate edit permissions and slot availability
+  - **If length(selected_time_slots) > 1**: Set `pending_time_confirmation = true`, store alternatives, notify clinic
+  - **If length(selected_time_slots) == 1**: Set `pending_time_confirmation = false`, confirm appointment immediately
+- **Side Effects**:
+  - Update appointment time to selected slot
+  - Generate ICS calendar events for single-slot confirmations
+  - Send LINE notifications (clinic for multi-slot, patient for single-slot)
+  - Restart auto-confirmation timer for multi-slot appointments
 
 #### Enhanced `GET /liff/appointments/{appointment_id}` (Load for Edit)
 - **Response Enhancement**: Include `alternative_time_slots` and availability status for editing
@@ -86,10 +56,10 @@ This document defines the business logic and technical design for editing multi-
 ### Database Schema (No Changes Required)
 
 The existing multi-time-slot schema supports editing:
-- `pending_time_confirmation` - Reset to true on edit
-- `alternative_time_slots` - Updated with new selections
-- `confirmed_at` - Cleared on edit
-- `confirmed_by_user_id` - Cleared on edit
+- `pending_time_confirmation` - Set to true for multi-slot results, false for single-slot results
+- `alternative_time_slots` - Updated with new selections (NULL for single-slot results)
+- `confirmed_at` - Set for single-slot results, NULL for multi-slot results
+- `confirmed_by_user_id` - NULL for patient edits (auto-confirmed for single-slot)
 
 ### Business Logic Implementation
 
@@ -100,7 +70,7 @@ The existing multi-time-slot schema supports editing:
 - `filter_available_slots()`: Returns only available slots from patient's current preferences
 
 **Enhanced Methods**:
-- `update_appointment()`: Support `edit_multiple_slots` parameter with special handling
+- `update_appointment()`: Support `selected_time_slots` parameter with single/multi-slot logic
 
 #### Auto-Confirmation Service Updates
 - **Edit Detection**: Skip auto-confirmation for appointments recently edited by patient
@@ -111,60 +81,41 @@ The existing multi-time-slot schema supports editing:
 
 ### Component Architecture
 
-#### Enhanced Appointment Edit Flow
+**Consistent with Booking UX**: Reuse exact same components and layout as appointment creation flow.
+
 ```
-LiffApp
-  └── AppointmentDetailsPage
-      ├── AppointmentCard (Enhanced)
-      │   ├── TimeDisplay (shows "待安排" with edit button)
-      │   ├── EditButton (enabled when within edit window)
-      │   └── EditModal (New Component)
-      │       ├── DateTimePicker (Enhanced - highlights selected slots)
-      │       ├── MultipleTimeSlotSelector (Reused)
-      │       ├── SelectedSlotsDisplay (Reused)
-      │       └── EditActions (Save/Cancel)
+EditModal/Page (Same as Booking)
+├── DateTimePicker (from Step3SelectDateTime)
+├── MultipleTimeSlotSelector (from booking)
+├── SelectedSlotsDisplay (from booking)
+└── Action buttons
 ```
 
-#### New Components
-- **EditModal** (`frontend/src/liff/appointment/components/EditModal.tsx`)
-  - **UI Description**: Full-screen modal for multi-slot editing with date picker and slot selection
-  - **Behavior**: Pre-loads current selections, handles unavailable slot deselection, validates before save
-  - **Props**: `appointment`, `onSave`, `onCancel`
-  - **State**: Loading, editing state, validation errors
+**Pre-population**: Initialize with current appointment's date and filtered available slots selected.
 
 ### State Management Strategy
 
-#### Enhanced AppointmentStore
-**New Actions**:
-- `loadAppointmentForEdit()`: Load appointment data with availability checking
-- `editMultipleSlots()`: Update appointment with new slot selections
-- `validateEditPermissions()`: Check if edit is allowed
+**Extend Existing Store**: Add multi-slot support to existing appointment edit state management.
 
-**State Updates**:
-```typescript
-interface AppointmentStore {
-  // Existing state...
-  editingAppointment: Appointment | null;
-  availableSlotsForEdit: string[];
-  editDeadline: string | null;
-  canEditMultipleSlots: boolean;
-}
-```
+- Reuse existing `loadAppointmentForEdit()` with additional slot filtering
+- Use existing `updateAppointment()` with multi-slot parameters
+- Add `filteredAlternativeSlots` field to store available slots for editing
 
 ### User Interaction Flows
 
-#### Flow: Patient Edits Multi-Time-Slot Appointment
-1. **View Appointment**: Patient sees appointment with "待安排" status and enabled edit button
-2. **Initiate Edit**: Click "修改預約" → system checks edit permissions → opens edit modal
-3. **Load Current State**: System loads `alternative_time_slots` → filters available slots → pre-selects available ones
-4. **Modify Selections**: Patient can add/remove slots using familiar interface
-5. **Validation & Save**: System validates selections → updates appointment → resets to pending state
-6. **Confirmation**: Success message "時段偏好已更新" → appointment shows updated "待安排" status
+#### Flow: Patient Edits Multi-Time-Slot Appointment (Consistent with Booking)
+1. **View Appointment**: Patient sees "待安排" status with edit button enabled
+2. **Initiate Edit**: Click "修改預約" → opens same interface as booking flow
+3. **Date/Time Selection**: Uses identical date picker and time slot selector as Step3SelectDateTime
+4. **Slot Management**: Same "已選擇 X/10 個時段" counter and removable chips display
+5. **Save Changes**:
+   - **Multi-slot result**: "時段偏好已更新，將於稍後確認時間" → returns to "待安排" status
+   - **Single-slot result**: "預約時間已確認" → shows confirmed time immediately
 
-#### Flow: Clinic Receives Edit Notification
-1. **Notification**: Clinic receives "患者已修改時段偏好" alert
-2. **Review Queue**: Appointment reappears in pending review with updated preferences
-3. **Fresh Review**: Clinic reviews new patient preferences with full confirmation window
+#### Flow: Clinic Integration
+1. **Multi-slot edits**: Clinic receives notification, appointment enters review queue
+2. **Single-slot edits**: No clinic notification needed, appointment confirmed automatically
+3. **Review Process**: Same as new multi-slot bookings for appointments requiring review
 
 ### Edge Cases and Error Handling
 
@@ -188,47 +139,55 @@ interface AppointmentStore {
 - **Invalid Slots**: "部分時段無法預約，請重新選擇"
 - **Recency Violation**: "已超過修改期限"
 
+#### Additional Edge Cases
+- **Single Slot Result**: Editing to single slot behaves exactly like single-slot appointment creation (immediate confirmation)
+- **Zero Constraint**: If clinic sets edit restriction to 0, editing is disabled for all appointment types
+- **Calendar Events**: Cancelled for multi-slot results, generated immediately for single-slot results
+- **Mixed Availability**: Some slots available, some not - only available slots pre-selected
+- **Multiple Edits**: Cannot edit multiple appointments simultaneously (same as single appointments)
+- **Cross-Date Editing**: Patient can select slots on different dates, date picker stays flexible
+- **Practitioner Changes**: Can change practitioner if appointment type allows patient selection, cannot if disabled
+- **Confirmed Appointments**: Cannot edit appointments already confirmed by clinic
+- **All Slots Unavailable**: While editing, if all slots become unavailable, show error and prevent save
+- **Patient Double-Booking**: Cannot select slots that conflict with patient's other appointments (same validation as single-slot)
+
 ## Implementation Plan
 
-### Phase 1: Backend API Enhancement (Week 1)
-- [ ] Add `edit_multiple_slots` support to appointment update endpoint
-- [ ] Implement edit permission validation using existing recency constraint
-- [ ] Add slot availability filtering for edit operations
-- [ ] Update auto-confirmation service to handle edit resets
-- [ ] Add clinic notification for patient edits
+### Phase 1: Backend API (1-2 days)
+- [ ] Enhance `PUT /liff/appointments/{id}` to support `selected_time_slots` parameter
+- [ ] Implement single-slot vs multi-slot confirmation logic
+- [ ] Add slot availability filtering logic
+- [ ] Update auto-confirmation service to handle edits
 
-### Phase 2: Frontend Edit Modal (Week 2)
-- [ ] Create `EditModal` component reusing existing slot selection components
-- [ ] Enhance appointment details page with edit button and permissions check
-- [ ] Add edit state management to appointment store
-- [ ] Implement pre-population with filtered available slots
-- [ ] Add comprehensive validation and error handling
+### Phase 2: Frontend Enhancement (2-3 days)
+- [ ] Extend existing edit modal to show multi-slot UI conditionally
+- [ ] Add slot pre-population and filtering to existing edit flow
+- [ ] Update appointment store with multi-slot support
 
-### Phase 3: Integration & Testing (Week 3)
-- [ ] Update patient appointment list to show edit availability
-- [ ] Add Chinese translations for edit interface
-- [ ] Implement E2E tests for edit flow
-- [ ] Add integration tests for permission validation
-- [ ] Update documentation and edge case handling
+### Phase 3: Testing & Polish (1-2 days)
+- [ ] Add E2E tests for multi-slot editing
+- [ ] Test edge cases and error handling
+- [ ] Update translations if needed
 
 ## Testing Requirements
 
 ### E2E Tests
-- [ ] **Edit Permission Check**: Verify edit button availability within/outside recency window
-- [ ] **Unavailable Slot Handling**: Test automatic deselection of unavailable slots
-- [ ] **Edit Flow**: Complete edit process with slot modifications and state reset
-- [ ] **Clinic Notification**: Verify clinic receives edit notifications
-- [ ] **Race Condition**: Test edit during auto-confirmation window
+- [ ] Multi-slot edit flow: select multiple slots, save, verify pending state and clinic notification
+- [ ] Single-slot edit flow: select one slot, save, verify immediate confirmation
+- [ ] Unavailable slot handling: unavailable slots automatically deselected
+- [ ] Consistent UX: edit interface matches booking flow exactly
+- [ ] Permission validation: edit blocked outside recency window
 
 ### Integration Tests
-- [ ] **API Validation**: Edit permission checks and slot availability filtering
-- [ ] **State Management**: Appointment state reset and timer restart
-- [ ] **Notification System**: Clinic alerts for patient edits
+- [ ] API handles single-slot vs multi-slot confirmation logic
+- [ ] Auto-confirmation service resets timer for multi-slot edits only
+- [ ] Slot availability filtering works properly
+- [ ] Calendar event generation for single-slot confirmations
 
 ### Unit Tests
-- [ ] **EditModal Component**: Pre-population, validation, save logic
-- [ ] **Appointment Service**: Edit permission validation and slot filtering
-- [ ] **Auto-Confirmation**: Timer reset on patient edits
+- [ ] Single vs multi-slot confirmation logic
+- [ ] Multi-slot validation and availability filtering
+- [ ] State management for pre-populated slots
 
 ## Security Considerations
 
@@ -244,9 +203,25 @@ interface AppointmentStore {
 - **Clinic Efficiency**: Reduction in back-and-forth about time preferences
 - **System Reliability**: Error rates in edit operations
 
+## Resolved Design Decisions
+
+**Aligned with Single-Slot Editing**: All behaviors follow existing single appointment editing patterns.
+
+### Implementation Decisions
+1. **Edit Frequency Limits**: No limits (same as single-slot editing)
+2. **Constraint Changes**: New clinic settings apply to existing appointments (same as single-slot)
+3. **Appointment Type Validation**: Must respect original appointment type constraints (same as single-slot)
+
+### Edge Case Resolutions
+4. **Race Condition - Auto-confirmation**: Last operation wins (same conflict resolution as single-slot)
+5. **Practitioner Assignment**: Can change practitioner if appointment type allows (`allow_patient_practitioner_selection = true`), cannot change if disabled (same as single-slot editing)
+6. **Confirmed Single-Slot Appointments**: Cannot edit once clinic confirms any appointment (same as single-slot)
+7. **Real-time Availability**: Refresh when practitioner changes (same as single-slot editing)
+
 ## Integration Points
 
+- **Booking Flow Components**: Directly reuses `Step3SelectDateTime`, `MultipleTimeSlotSelector`, `SelectedSlotsDisplay`
 - **Existing Edit Constraint**: Uses "預約取消/修改限制" setting from clinic configuration
-- **Multi-Slot Components**: Reuses `MultipleTimeSlotSelector` and `SelectedSlotsDisplay`
 - **Appointment Store**: Extends existing state management patterns
 - **Notification System**: Integrates with existing LINE notification templates
+- **Confirmation Logic**: Same single-slot vs multi-slot behavior as appointment creation
