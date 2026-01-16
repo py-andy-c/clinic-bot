@@ -157,13 +157,7 @@ const MultiSlotDateTimeSelector: React.FC = () => {
   const dayNames = t('datetime.dayNames', { returnObjects: true }) as string[];
 
   return (
-    <div className="px-4 py-6">
-      <div className="mb-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-2">
-          {t('datetime.selectTitle')}
-        </h2>
-      </div>
-
+    <div>
       {/* Calendar View */}
       <div className="mb-6">
         <div className="flex items-center justify-between mb-4">
