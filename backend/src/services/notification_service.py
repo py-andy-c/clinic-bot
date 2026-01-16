@@ -479,10 +479,11 @@ class NotificationService:
             Formatted message string
         """
         from utils.practitioner_helpers import get_practitioner_display_name_with_title
-        
+        from datetime import datetime
+
         # Get patient name
         patient_name = appointment.patient.full_name if appointment.patient else "未知病患"
-        
+
         # Format current appointment time
         start_datetime = datetime.combine(
             appointment.calendar_event.date,
@@ -504,17 +505,44 @@ class NotificationService:
                 practitioner_name = get_practitioner_display_name_with_title(
                     db, appointment.calendar_event.user_id, clinic.id
                 )
-            
+
+            # Check if this is a multiple time slot appointment pending confirmation
+            is_pending_time_confirmation = getattr(appointment, 'pending_time_confirmation', False)
+            alternative_slots = getattr(appointment, 'alternative_time_slots', None)
+
             # Build new appointment message
             message = f"📅 新預約通知\n\n"
             message += f"治療師：{practitioner_name}\n"
             message += f"病患：{patient_name}\n"
-            message += f"時間：{formatted_datetime}\n"
-            message += f"類型：{appointment_type_name}"
-            
+
+            if is_pending_time_confirmation and alternative_slots:
+                # For multiple time slot appointments pending confirmation, show alternative slots
+                message += f"類型：{appointment_type_name}\n"
+                message += f"時間（待安排）：\n"
+
+                # Parse and format alternative slots
+                for slot_str in alternative_slots[:5]:  # Limit to first 5 slots to avoid message too long
+                    try:
+                        from datetime import datetime
+                        slot_dt = datetime.fromisoformat(slot_str.replace('Z', '+00:00'))
+                        slot_formatted = format_datetime(slot_dt)
+                        message += f"• {slot_formatted}\n"
+                    except (ValueError, AttributeError):
+                        # If parsing fails, show the raw string
+                        message += f"• {slot_str}\n"
+
+                if len(alternative_slots) > 5:
+                    message += f"... 還有 {len(alternative_slots) - 5} 個時段\n"
+
+                message += f"\n狀態：待安排時間確認"
+            else:
+                # Normal appointment with confirmed time
+                message += f"時間：{formatted_datetime}\n"
+                message += f"類型：{appointment_type_name}"
+
             if appointment.notes:
                 message += f"\n備註：{appointment.notes}"
-            
+
             return message
         
         elif event_type == 'cancel':

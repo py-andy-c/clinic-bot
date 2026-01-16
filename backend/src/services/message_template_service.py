@@ -83,27 +83,37 @@ class MessageTemplateService:
         Returns:
             Dictionary with Traditional Chinese keys for placeholder replacement
         """
-        # Format datetime
-        start_datetime = datetime.combine(
-            appointment.calendar_event.date,
-            appointment.calendar_event.start_time
-        )
-        formatted_datetime = format_datetime(start_datetime)
-        
-        # Calculate and format end datetime
-        from datetime import timedelta
-        appointment_type = appointment.appointment_type
-        duration_minutes = appointment_type.duration_minutes if appointment_type else 30
-        end_datetime = start_datetime + timedelta(minutes=duration_minutes)
-        formatted_end_datetime = format_datetime(end_datetime)
-        
-        # Format date (e.g., "2024年11月15日")
-        date_obj = appointment.calendar_event.date
-        formatted_date = f"{date_obj.year}年{date_obj.month}月{date_obj.day}日"
-        
-        # Format time only (e.g., "14:30")
-        time_obj = appointment.calendar_event.start_time
-        formatted_time = f"{time_obj.hour:02d}:{time_obj.minute:02d}"
+        # Check if this is a multiple time slot appointment pending confirmation
+        is_pending_time_confirmation = getattr(appointment, 'pending_time_confirmation', False)
+
+        if is_pending_time_confirmation:
+            # For pending multiple time slot appointments, show "時間待安排" instead of actual time
+            formatted_datetime = "時間待安排"
+            formatted_end_datetime = "時間待安排"
+            formatted_date = "時間待安排"
+            formatted_time = "時間待安排"
+        else:
+            # Format datetime normally for confirmed appointments
+            start_datetime = datetime.combine(
+                appointment.calendar_event.date,
+                appointment.calendar_event.start_time
+            )
+            formatted_datetime = format_datetime(start_datetime)
+
+            # Calculate and format end datetime
+            from datetime import timedelta
+            appointment_type = appointment.appointment_type
+            duration_minutes = appointment_type.duration_minutes if appointment_type else 30
+            end_datetime = start_datetime + timedelta(minutes=duration_minutes)
+            formatted_end_datetime = format_datetime(end_datetime)
+
+            # Format date (e.g., "2024年11月15日")
+            date_obj = appointment.calendar_event.date
+            formatted_date = f"{date_obj.year}年{date_obj.month}月{date_obj.day}日"
+
+            # Format time only (e.g., "14:30")
+            time_obj = appointment.calendar_event.start_time
+            formatted_time = f"{time_obj.hour:02d}:{time_obj.minute:02d}"
         
         # Get appointment type name
         appointment_type_name = appointment.appointment_type.name if appointment.appointment_type else "預約"
