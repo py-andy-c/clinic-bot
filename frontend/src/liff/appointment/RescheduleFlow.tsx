@@ -8,6 +8,7 @@ import { Practitioner } from '../../types';
 import { useModal } from '../../contexts/ModalContext';
 import { useLiffBackButton } from '../../hooks/useLiffBackButton';
 import { useAppointmentStore } from '../../stores/appointmentStore';
+import Step3SelectDateTime from './Step3SelectDateTime';
 import {
   generateCalendarDays,
   formatMonthYear,
@@ -41,7 +42,10 @@ const RescheduleFlow: React.FC = () => {
   const {
     clinicId,
     minimumCancellationHoursBefore: minimumCancellationHours,
-    restrictToAssignedPractitioners: restrictToAssigned
+    restrictToAssignedPractitioners: restrictToAssigned,
+    selectedTimeSlots,
+    setAppointmentType,
+    setMultipleSlotMode
   } = useAppointmentStore();
 
   // Enable back button navigation
@@ -81,6 +85,17 @@ const RescheduleFlow: React.FC = () => {
       is_active?: boolean;
     }>;
   } | null>(null);
+
+  // Check if appointment type allows multiple time slot selection
+  const allowsMultipleSlots = (appointmentDetails?.appointment_type as any)?.allow_multiple_time_slot_selection || false;
+
+  // Set appointment type in store when in multi-slot mode
+  React.useEffect(() => {
+    if (allowsMultipleSlots && appointmentDetails?.appointment_type_id && appointmentDetails?.appointment_type) {
+      setAppointmentType(appointmentDetails.appointment_type_id, appointmentDetails.appointment_type as any);
+      setMultipleSlotMode(true);
+    }
+  }, [allowsMultipleSlots, appointmentDetails, setAppointmentType, setMultipleSlotMode]);
 
   // Form state
   const [selectedPractitionerId, setSelectedPractitionerId] = useState<number | null>(null);
@@ -326,7 +341,17 @@ const RescheduleFlow: React.FC = () => {
   }, [selectedDate, selectedPractitionerId, appointmentDetails?.appointment_type_id, clinicId]);
 
   const handleFormSubmit = () => {
-    if (!appointmentId || !selectedDate || !selectedTime || !appointmentDetails) {
+    if (!appointmentId || !appointmentDetails) {
+      showAlert(t('appointment.errors.selectDateTime'), t('appointment.rescheduleFailedTitle'));
+      return;
+    }
+
+    // Check if we have valid selections based on appointment type
+    const hasValidSelection = allowsMultipleSlots
+      ? selectedTimeSlots.length > 0
+      : (selectedDate && selectedTime);
+
+    if (!hasValidSelection) {
       showAlert(t('appointment.errors.selectDateTime'), t('appointment.rescheduleFailedTitle'));
       return;
     }
@@ -363,8 +388,23 @@ const RescheduleFlow: React.FC = () => {
       setIsSubmitting(true);
       setError(null);
 
-      // Combine date and time into ISO datetime string
-      const newStartTime = moment.tz(`${selectedDate}T${selectedTime}`, 'Asia/Taipei').toISOString();
+      // Handle multi-slot vs single-slot rescheduling
+      let rescheduleData: any = {
+        new_practitioner_id: null,
+        new_notes: notes || null,
+      };
+
+      if (allowsMultipleSlots) {
+        // Multi-slot rescheduling - send selected time slots
+        const selectedSlots = selectedTimeSlots.map(slot =>
+          moment.tz(`${slot.date}T${slot.time}`, 'Asia/Taipei').toISOString()
+        );
+        rescheduleData.selected_time_slots = selectedSlots;
+      } else {
+        // Single-slot rescheduling - send start time
+        const newStartTime = moment.tz(`${selectedDate}T${selectedTime}`, 'Asia/Taipei').toISOString();
+        rescheduleData.new_start_time = newStartTime;
+      }
 
       // Determine practitioner ID to send:
       // - If practitioner selection is not allowed, always keep current practitioner
@@ -389,11 +429,9 @@ const RescheduleFlow: React.FC = () => {
       }
       // else: undefined means keep current (shouldn't happen in normal flow)
 
-      await liffApiService.rescheduleAppointment(parseInt(appointmentId), {
-        new_practitioner_id: practitionerIdToSend ?? null,
-        new_start_time: newStartTime,
-        new_notes: notes || null,
-      });
+      rescheduleData.new_practitioner_id = practitionerIdToSend ?? null;
+
+      await liffApiService.rescheduleAppointment(parseInt(appointmentId), rescheduleData);
 
       // Show success message
       await showAlert(
@@ -494,7 +532,15 @@ const RescheduleFlow: React.FC = () => {
 
   // Check if anything changed (must be before early returns for hooks)
   const hasChanges = useMemo(() => {
-    if (!appointmentDetails || !selectedDate || !selectedTime) return false;
+    if (!appointmentDetails) return false;
+
+    // For multi-slot appointments, check if time slots have been selected
+    // For single-slot appointments, check if date and time are selected
+    const hasValidTimeSelection = allowsMultipleSlots
+      ? selectedTimeSlots.length > 0
+      : (selectedDate && selectedTime);
+
+    if (!hasValidTimeSelection) return false;
 
     const originalNotes = appointmentDetails.notes || '';
 
@@ -506,17 +552,19 @@ const RescheduleFlow: React.FC = () => {
       ? selectedPractitionerId !== null  // Was auto-assigned, now specific = changed
       : selectedPractitionerId !== appointmentDetails.practitioner_id;  // Was specific, check if different
 
-    const dateChanged = selectedDate !== originalDate;
-    const timeChanged = selectedTime !== originalTime;
+    const dateChanged = !allowsMultipleSlots && selectedDate !== originalDate;
+    const timeChanged = !allowsMultipleSlots && selectedTime !== originalTime;
+    // For multi-slot appointments, any slot selection is considered a change since we start with empty selection
+    const slotsChanged = allowsMultipleSlots && selectedTimeSlots.length > 0;
     const notesChanged = notes !== originalNotes;
 
-    return practitionerChanged || dateChanged || timeChanged || notesChanged;
-  }, [appointmentDetails, selectedDate, selectedTime, selectedPractitionerId, notes, originalDate, originalTime]);
+    return practitionerChanged || dateChanged || timeChanged || slotsChanged || notesChanged;
+  }, [appointmentDetails, selectedDate, selectedTime, selectedTimeSlots, selectedPractitionerId, notes, originalDate, originalTime, allowsMultipleSlots]);
 
   // Check which specific fields changed
   const changeDetails = useMemo(() => {
-    if (!appointmentDetails || !selectedDate || !selectedTime) {
-      return { practitionerChanged: false, timeChanged: false, dateChanged: false, notesChanged: false };
+    if (!appointmentDetails) {
+      return { practitionerChanged: false, timeChanged: false, dateChanged: false, notesChanged: false, slotsChanged: false };
     }
 
     const originalNotes = appointmentDetails.notes || '';
@@ -524,12 +572,13 @@ const RescheduleFlow: React.FC = () => {
     const practitionerChanged = originalWasAutoAssigned
       ? selectedPractitionerId !== null
       : selectedPractitionerId !== appointmentDetails.practitioner_id;
-    const dateChanged = selectedDate !== originalDate;
-    const timeChanged = selectedTime !== originalTime;
+    const dateChanged = !allowsMultipleSlots && selectedDate !== originalDate;
+    const timeChanged = !allowsMultipleSlots && selectedTime !== originalTime;
+    const slotsChanged = allowsMultipleSlots && selectedTimeSlots.length > 0;
     const notesChanged = notes !== originalNotes;
 
-    return { practitionerChanged, timeChanged, dateChanged, notesChanged };
-  }, [appointmentDetails, selectedDate, selectedTime, selectedPractitionerId, notes, originalDate, originalTime]);
+    return { practitionerChanged, timeChanged, dateChanged, notesChanged, slotsChanged };
+  }, [appointmentDetails, selectedDate, selectedTime, selectedTimeSlots, selectedPractitionerId, notes, originalDate, originalTime, allowsMultipleSlots]);
 
 
   if (isLoadingDetails) {
@@ -570,10 +619,15 @@ const RescheduleFlow: React.FC = () => {
 
   // Render review step
   const renderReviewStep = () => {
-    if (!appointmentDetails || !selectedDate || !selectedTime) return null;
+    if (!appointmentDetails) return null;
 
-    const newDateStr = selectedDate;
-    const newTimeStr = selectedTime;
+    // For multi-slot appointments, show earliest selected slot
+    const newDateStr = allowsMultipleSlots && selectedTimeSlots.length > 0
+      ? selectedTimeSlots[0]!.date
+      : selectedDate || '';
+    const newTimeStr = allowsMultipleSlots && selectedTimeSlots.length > 0
+      ? selectedTimeSlots[0]!.time
+      : selectedTime || '';
     const originalDateStr = originalDate || '';
     const originalTimeStr = originalTime || '';
 
@@ -633,8 +687,17 @@ const RescheduleFlow: React.FC = () => {
                 <div>
                   <span className="text-sm text-gray-600">{t('appointment.reschedule.time') || '時間'}：</span>
                   <span className="text-sm text-gray-900">
-                    {newTimeStr}
-                    {changeDetails.timeChanged && <span className="ml-2 text-blue-600">✏️</span>}
+                    {allowsMultipleSlots ? (
+                      <>
+                        待安排 ({selectedTimeSlots.length} 個時段)
+                        {changeDetails.slotsChanged && <span className="ml-2 text-blue-600">✏️</span>}
+                      </>
+                    ) : (
+                      <>
+                        {newTimeStr}
+                        {changeDetails.timeChanged && <span className="ml-2 text-blue-600">✏️</span>}
+                      </>
+                    )}
                   </span>
                 </div>
                 {changeDetails.notesChanged && notes && (
@@ -770,127 +833,135 @@ const RescheduleFlow: React.FC = () => {
               </div>
             )}
 
-            {/* Calendar */}
-            <div className="mb-4">
-              <div className="flex items-center justify-between mb-3">
-                <button
-                  onClick={() => {
-                    const prevMonth = new Date(currentMonth);
-                    prevMonth.setMonth(prevMonth.getMonth() - 1);
-                    setCurrentMonth(prevMonth);
-                  }}
-                  className="p-2 hover:bg-gray-100 rounded"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                  </svg>
-                </button>
-                <h3 className="text-lg font-semibold">{formatMonthYear(currentMonth)}</h3>
-                <button
-                  onClick={() => {
-                    const nextMonth = new Date(currentMonth);
-                    nextMonth.setMonth(nextMonth.getMonth() + 1);
-                    setCurrentMonth(nextMonth);
-                  }}
-                  className="p-2 hover:bg-gray-100 rounded"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
-                </button>
+            {allowsMultipleSlots ? (
+              <div className="mb-4">
+                <Step3SelectDateTime />
               </div>
-
-              {/* Days of Week Header */}
-              <div className="grid grid-cols-7 gap-1 mb-2">
-                {dayNames.map((day) => (
-                  <div key={day} className="text-center text-sm font-medium text-gray-600 py-2">
-                    {day}
+            ) : (
+              <>
+                {/* Calendar */}
+                <div className="mb-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <button
+                      onClick={() => {
+                        const prevMonth = new Date(currentMonth);
+                        prevMonth.setMonth(prevMonth.getMonth() - 1);
+                        setCurrentMonth(prevMonth);
+                      }}
+                      className="p-2 hover:bg-gray-100 rounded"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                      </svg>
+                    </button>
+                    <h3 className="text-lg font-semibold">{formatMonthYear(currentMonth)}</h3>
+                    <button
+                      onClick={() => {
+                        const nextMonth = new Date(currentMonth);
+                        nextMonth.setMonth(nextMonth.getMonth() + 1);
+                        setCurrentMonth(nextMonth);
+                      }}
+                      className="p-2 hover:bg-gray-100 rounded"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </button>
                   </div>
-                ))}
-              </div>
 
-              {/* Calendar Grid */}
-              {loadingAvailability ? (
-                <div className="flex items-center justify-center py-8">
-                  <LoadingSpinner size="sm" />
-                </div>
-              ) : (
-                <div className="grid grid-cols-7 gap-1">
-                  {calendarDays.map((day, index) => {
-                    // Handle null days (padding days before month starts)
-                    if (day === null) {
-                      return <div key={`empty-${index}`} className="aspect-square" />;
-                    }
-
-                    const dateStr = formatDateString(day);
-                    const available = isDateAvailable(day);
-                    const isSelected = selectedDate === dateStr;
-                    const todayDate = isToday(day);
-
-                    return (
-                      <button
-                        key={dateStr}
-                        onClick={() => {
-                          if (available) {
-                            setSelectedDate(dateStr);
-                            setSelectedTime(null);
-                          }
-                        }}
-                        disabled={!available}
-                        className={`aspect-square text-center rounded-lg transition-colors ${isSelected
-                          ? 'bg-teal-500 text-white font-semibold'
-                          : available
-                            ? 'bg-white text-gray-900 font-semibold hover:bg-gray-50 border border-gray-200'
-                            : 'bg-gray-50 text-gray-400 cursor-not-allowed border border-gray-100'
-                          }`}
-                      >
-                        <div className="flex flex-col items-center justify-center h-full">
-                          <span className={isSelected ? 'text-white' : available ? 'text-gray-900' : 'text-gray-400'}>
-                            {day.getDate()}
-                          </span>
-                          {todayDate && (
-                            <div className={`w-4 h-0.5 mt-0.5 ${isSelected ? 'bg-white' : 'bg-gray-500'}`} />
-                          )}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            {/* Time slots */}
-            {selectedDate && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  {t('appointment.reschedule.selectTime')}
-                </label>
-                {availableSlots.length > 0 ? (
-                  <div className="grid grid-cols-3 gap-2">
-                    {sortedTimeSlots.map((slot) => {
-                      const isSelected = selectedTime === slot;
-                      const isRecommended = slotDetails.get(slot)?.is_recommended === true;
-
-                      return (
-                        <button
-                          key={slot}
-                          onClick={() => setSelectedTime(slot)}
-                          className={`
-                            py-2 px-3 rounded-md text-sm font-medium relative
-                            ${isSelected ? 'bg-blue-600 text-white' : 'bg-white border border-gray-300 text-gray-700 hover:border-blue-500'}
-                            ${isRecommended ? 'border-teal-400 border-2' : ''}
-                          `}
-                        >
-                          {renderRecommendedBadge(isRecommended)}
-                          {slot}
-                        </button>
-                      );
-                    })}
+                  {/* Days of Week Header */}
+                  <div className="grid grid-cols-7 gap-1 mb-2">
+                    {dayNames.map((day) => (
+                      <div key={day} className="text-center text-sm font-medium text-gray-600 py-2">
+                        {day}
+                      </div>
+                    ))}
                   </div>
-                ) : (
-                  <p className="text-sm text-gray-500">{t('appointment.reschedule.noSlotsAvailable')}</p>
+
+                  {/* Calendar Grid */}
+                  {loadingAvailability ? (
+                    <div className="flex items-center justify-center py-8">
+                      <LoadingSpinner size="sm" />
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-7 gap-1">
+                      {calendarDays.map((day, index) => {
+                        // Handle null days (padding days before month starts)
+                        if (day === null) {
+                          return <div key={`empty-${index}`} className="aspect-square" />;
+                        }
+
+                        const dateStr = formatDateString(day);
+                        const available = isDateAvailable(day);
+                        const isSelected = selectedDate === dateStr;
+                        const todayDate = isToday(day);
+
+                        return (
+                          <button
+                            key={dateStr}
+                            onClick={() => {
+                              if (available) {
+                                setSelectedDate(dateStr);
+                                setSelectedTime(null);
+                              }
+                            }}
+                            disabled={!available}
+                            className={`aspect-square text-center rounded-lg transition-colors ${isSelected
+                              ? 'bg-teal-500 text-white font-semibold'
+                              : available
+                                ? 'bg-white text-gray-900 font-semibold hover:bg-gray-50 border border-gray-200'
+                                : 'bg-gray-50 text-gray-400 cursor-not-allowed border border-gray-100'
+                              }`}
+                          >
+                            <div className="flex flex-col items-center justify-center h-full">
+                              <span className={isSelected ? 'text-white' : available ? 'text-gray-900' : 'text-gray-400'}>
+                                {day.getDate()}
+                              </span>
+                              {todayDate && (
+                                <div className={`w-4 h-0.5 mt-0.5 ${isSelected ? 'bg-white' : 'bg-gray-500'}`} />
+                              )}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Time slots */}
+                {selectedDate && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      {t('appointment.reschedule.selectTime')}
+                    </label>
+                    {availableSlots.length > 0 ? (
+                      <div className="grid grid-cols-3 gap-2">
+                        {sortedTimeSlots.map((slot) => {
+                          const isSelected = selectedTime === slot;
+                          const isRecommended = slotDetails.get(slot)?.is_recommended === true;
+
+                          return (
+                            <button
+                              key={slot}
+                              onClick={() => setSelectedTime(slot)}
+                              className={`
+                                py-2 px-3 rounded-md text-sm font-medium relative
+                                ${isSelected ? 'bg-blue-600 text-white' : 'bg-white border border-gray-300 text-gray-700 hover:border-blue-500'}
+                                ${isRecommended ? 'border-teal-400 border-2' : ''}
+                              `}
+                            >
+                              {renderRecommendedBadge(isRecommended)}
+                              {slot}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-500">{t('appointment.reschedule.noSlotsAvailable')}</p>
+                    )}
+                  </div>
                 )}
-              </div>
+              </>
             )}
           </div>
 
@@ -914,10 +985,14 @@ const RescheduleFlow: React.FC = () => {
           <div className="pt-4 border-t border-gray-200">
             <button
               onClick={handleFormSubmit}
-              disabled={!selectedDate || !selectedTime || isSubmitting || !hasChanges}
+              disabled={
+                (allowsMultipleSlots ? selectedTimeSlots.length === 0 : (!selectedDate || !selectedTime)) ||
+                isSubmitting ||
+                !hasChanges
+              }
               className={`
                 w-full py-3 px-4 rounded-md font-medium
-                ${!selectedDate || !selectedTime || isSubmitting || !hasChanges
+                ${(allowsMultipleSlots ? selectedTimeSlots.length === 0 : (!selectedDate || !selectedTime)) || isSubmitting || !hasChanges
                   ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                   : 'bg-blue-600 text-white hover:bg-blue-700'
                 }

@@ -53,8 +53,8 @@ const AppointmentCard: React.FC<AppointmentCardProps> = ({ appointment, onCancel
     : appointment.start_time
       ? formatAppointmentDateTime(appointment.start_time)
       : '';
-  const canCancel = appointment.status === 'confirmed' && !appointment.pending_time_confirmation;
-  const canModify = !appointment.has_any_receipt && !appointment.pending_time_confirmation; // Constraint 1: Cannot modify if has any receipt. Constraint 2: Cannot modify if pending time confirmation
+  const canCancel = appointment.status === 'confirmed';
+  const canModify = !appointment.has_any_receipt; // Constraint 1: Cannot modify if has any receipt.
   const showReceiptButton = appointment.has_active_receipt && onViewReceipt;
 
   return (
@@ -111,9 +111,9 @@ const AppointmentCard: React.FC<AppointmentCardProps> = ({ appointment, onCancel
         </button>
       )}
       
-      {canCancel && canModify && (
+      {(canModify || canCancel) && (
         <div className="flex space-x-2">
-          {onReschedule && (
+          {onReschedule && canModify && (
             <button
               onClick={onReschedule}
               className="flex-1 bg-blue-50 text-blue-600 border border-blue-200 rounded-md py-2 px-4 hover:bg-blue-100 transition-colors text-sm font-medium"
@@ -121,7 +121,7 @@ const AppointmentCard: React.FC<AppointmentCardProps> = ({ appointment, onCancel
               {t('appointmentCard.rescheduleButton')}
             </button>
           )}
-          {allowPatientDeletion && (
+          {allowPatientDeletion && canCancel && (
             <button
               onClick={onCancel}
               className="flex-1 bg-red-50 text-red-600 border border-red-200 rounded-md py-2 px-4 hover:bg-red-100 transition-colors text-sm font-medium"
@@ -131,12 +131,7 @@ const AppointmentCard: React.FC<AppointmentCardProps> = ({ appointment, onCancel
           )}
         </div>
       )}
-      {appointment.pending_time_confirmation && (
-        <div className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-md p-2">
-          {t('appointmentCard.pendingTimeMessage', '時間確認前無法修改')}
-        </div>
-      )}
-      
+
     </div>
   );
 };

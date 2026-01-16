@@ -34,6 +34,8 @@ import { PractitionerAssignmentConfirmationModal } from '../PractitionerAssignme
 import { getAssignedPractitionerIds } from '../../utils/patientUtils';
 import { useModalQueue } from '../../contexts/ModalQueueContext';
 import { useModal } from '../../contexts/ModalContext';
+import { MultiSlotTimeSelector } from './MultiSlotTimeSelector';
+import { useAppointmentStore } from '../../stores/appointmentStore';
 
 type EditStep = 'form' | 'review' | 'note' | 'preview';
 
@@ -70,7 +72,8 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
   const isMobile = useIsMobile();
   const [step, setStep] = useState<EditStep>('form');
   const [, setOverrideMode] = useState<boolean>(false);
-  
+  const [isMultiSlotSelectorOpen, setIsMultiSlotSelectorOpen] = useState(false);
+
   const {
     selectedAppointmentTypeId,
     setSelectedAppointmentTypeId,
@@ -101,6 +104,12 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
     appointmentTypes,
     practitioners,
   });
+
+  // Check if current appointment type allows multiple time slot selection
+  const currentAppointmentType = appointmentTypes.find(at => at.id === selectedAppointmentTypeId);
+  const allowsMultipleSlots = currentAppointmentType?.allow_multiple_time_slot_selection || false;
+
+  const { selectedTimeSlots } = useAppointmentStore();
 
   // UI state
   const [previewMessage, setPreviewMessage] = useState<string | null>(null);
@@ -285,11 +294,34 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
     setSelectedTime('');
   };
 
+  // Handle confirmation from multi-slot time selector
+  const handleMultiSlotConfirm = useCallback((selectedSlots: Array<{date: string, time: string}>) => {
+    if (selectedSlots.length === 0) return;
+
+    // Sort slots by date and time to find the earliest
+    const sortedSlots = selectedSlots.sort((a, b) => {
+      const dateTimeA = new Date(`${a.date}T${a.time}`);
+      const dateTimeB = new Date(`${b.date}T${b.time}`);
+      return dateTimeA.getTime() - dateTimeB.getTime();
+    });
+
+    const earliestSlot = sortedSlots[0];
+    if (!earliestSlot) return;
+
+    // Set the date and time to the earliest slot
+    setSelectedDate(earliestSlot.date);
+    setSelectedTime(earliestSlot.time);
+
+    // Clear any previous error
+    setError(null);
+  }, []);
+
   const handleFormSubmit = async () => {
     if (!isValid) {
       if (!selectedAppointmentTypeId) setError('請選擇預約類型');
       else if (!selectedPractitionerId) setError('請選擇治療師');
-      else if (!selectedTime) setError('請選擇時間');
+      else if (allowsMultipleSlots && selectedTimeSlots.length === 0) setError('請選擇時段');
+      else if (!allowsMultipleSlots && !selectedTime) setError('請選擇時間');
       return;
     }
 
@@ -780,21 +812,46 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
         <AppointmentReferenceHeader referenceDateTime={referenceDateTime} />
 
         {selectedAppointmentTypeId && selectedPractitionerId && (
-          <DateTimePicker
-            selectedDate={selectedDate}
-            selectedTime={selectedTime}
-            selectedPractitionerId={selectedPractitionerId}
-            appointmentTypeId={selectedAppointmentTypeId}
-            onDateSelect={(date) => {
-              if (date !== null) setSelectedDate(date);
-            }}
-            onTimeSelect={setSelectedTime}
-            excludeCalendarEventId={event.resource.calendar_event_id}
-            error={error && !externalErrorMessage ? error : null}
-            onPractitionerError={handlePractitionerError}
-            allowOverride={true}
-            onOverrideChange={setOverrideMode}
-          />
+          allowsMultipleSlots ? (
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-700">
+                選擇時段
+              </label>
+              <button
+                onClick={() => setIsMultiSlotSelectorOpen(true)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-left focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                {selectedTimeSlots.length > 0 ? (
+                  <span className="text-gray-900">
+                    已選擇 {selectedTimeSlots.length} 個時段
+                  </span>
+                ) : (
+                  <span className="text-gray-500">
+                    點擊選擇時段
+                  </span>
+                )}
+              </button>
+              {error && !externalErrorMessage && (
+                <p className="text-sm text-red-600">{error}</p>
+              )}
+            </div>
+          ) : (
+            <DateTimePicker
+              selectedDate={selectedDate}
+              selectedTime={selectedTime}
+              selectedPractitionerId={selectedPractitionerId}
+              appointmentTypeId={selectedAppointmentTypeId}
+              onDateSelect={(date) => {
+                if (date !== null) setSelectedDate(date);
+              }}
+              onTimeSelect={setSelectedTime}
+              excludeCalendarEventId={event.resource.calendar_event_id}
+              error={error && !externalErrorMessage ? error : null}
+              onPractitionerError={handlePractitionerError}
+              allowOverride={true}
+              onOverrideChange={setOverrideMode}
+            />
+          )
         )}
 
         {/* Conflict Display - show conflicts when they exist */}
@@ -1166,6 +1223,15 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
       selectedServiceItemId={selectedAppointmentTypeId || undefined}
       originalTypeId={event.resource.appointment_type_id}
       title="選擇預約類型"
+    />
+
+    {/* Multi-Slot Time Selector Modal */}
+    <MultiSlotTimeSelector
+      isOpen={isMultiSlotSelectorOpen}
+      onClose={() => setIsMultiSlotSelectorOpen(false)}
+      onConfirm={handleMultiSlotConfirm}
+      appointmentTypeId={selectedAppointmentTypeId || 0}
+      appointmentTypes={appointmentTypes}
     />
     </>
   );

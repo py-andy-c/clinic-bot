@@ -1289,14 +1289,15 @@ async def get_appointment_details(
             db, appointment, clinic.id
         )
 
-        # Include appointment type information for frontend to check allow_patient_practitioner_selection
+        # Include appointment type information for frontend to check allow_patient_practitioner_selection and allow_multiple_time_slot_selection
         appointment_type = appointment.appointment_type
         appointment_type_info = None
         if appointment_type:
             appointment_type_info = {
                 "id": appointment_type.id,
                 "name": appointment_type.name,
-                "allow_patient_practitioner_selection": appointment_type.allow_patient_practitioner_selection
+                "allow_patient_practitioner_selection": appointment_type.allow_patient_practitioner_selection,
+                "allow_multiple_time_slot_selection": appointment_type.allow_multiple_time_slot_selection
             }
 
         # Get assigned practitioners for the patient
@@ -1523,7 +1524,8 @@ async def get_appointment_receipt_html(
 class RescheduleAppointmentRequest(BaseModel):
     """Request model for rescheduling an appointment."""
     new_practitioner_id: Optional[int] = None  # None = keep current, -1 = auto-assign (不指定)
-    new_start_time: str  # ISO datetime string
+    new_start_time: Optional[str] = None  # ISO datetime string (for single-slot appointments)
+    selected_time_slots: Optional[List[str]] = None  # ISO datetime strings (for multi-slot appointments)
     new_notes: Optional[str] = None  # None = keep current
 
     @field_validator('new_start_time')
@@ -1554,8 +1556,41 @@ async def reschedule_appointment(
     line_user, _clinic = line_user_clinic
 
     try:
-        # Parse start time
-        new_start_time = parse_datetime_to_taiwan(request.new_start_time)
+        # Handle multi-slot vs single-slot rescheduling
+        selected_time_slots: Optional[List[str]] = None
+        if request.selected_time_slots and len(request.selected_time_slots) > 0:
+            # Multi-slot rescheduling
+            if len(request.selected_time_slots) > 10:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="最多只能選擇10個時段"
+                )
+
+            # Validate each time slot format
+            selected_slots: List[datetime] = []
+            for time_slot in request.selected_time_slots:
+                try:
+                    slot_dt = datetime.fromisoformat(time_slot.replace('Z', '+00:00'))
+                    selected_slots.append(slot_dt)
+                except ValueError:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="時段格式無效"
+                    )
+
+            # Sort slots and select earliest as initial start time
+            selected_slots.sort()
+            new_start_time = selected_slots[0]
+            selected_time_slots = [slot.isoformat() for slot in selected_slots]
+        else:
+            # Single-slot rescheduling
+            if not request.new_start_time:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="必須提供新的開始時間"
+                )
+            new_start_time = parse_datetime_to_taiwan(request.new_start_time)
+            selected_time_slots = None
 
         # Validate appointment belongs to patient (authorization check)
         # Query with eager loading to avoid duplicate query in service
@@ -1625,7 +1660,9 @@ async def reschedule_appointment(
             reassigned_by_user_id=None,  # Patient reschedule, not clinic user
             notification_note=None,  # No custom note for patient reschedule
             success_message='預約已修改',
-            appointment=appointment  # Pass pre-fetched appointment to avoid duplicate query
+            appointment=appointment,  # Pass pre-fetched appointment to avoid duplicate query
+            selected_time_slots=selected_time_slots,
+            allow_multiple_time_slot_selection=bool(selected_time_slots and len(selected_time_slots) > 1)
         )
 
         return result

@@ -2020,7 +2020,9 @@ class AppointmentService:
         appointment: Optional[Appointment] = None,
         new_appointment_type_id: Optional[int] = None,
         selected_resource_ids: Optional[List[int]] = None,
-        confirm_time_selection: Optional[bool] = None
+        confirm_time_selection: Optional[bool] = None,
+        selected_time_slots: Optional[List[str]] = None,
+        allow_multiple_time_slot_selection: Optional[bool] = None
     ) -> Dict[str, Any]:
         """
         Update an appointment (time, practitioner, and/or appointment type).
@@ -2044,6 +2046,8 @@ class AppointmentService:
             new_appointment_type_id: New appointment type ID (None = keep current)
             selected_resource_ids: Optional list of resource IDs to allocate (None = auto-allocate)
             confirm_time_selection: If True, this is a time confirmation for pending multiple slot appointment
+            selected_time_slots: List of ISO datetime strings for multiple time slot selection (patient re-selection)
+            allow_multiple_time_slot_selection: Whether appointment type supports multiple slots
 
         Returns:
             Dict with updated appointment details
@@ -2270,6 +2274,16 @@ class AppointmentService:
             new_appointment_type_id=appointment_type_id_to_use if appointment_type_actually_changed else None,
             allow_override=not apply_booking_constraints  # Allow override for clinic edits
         )
+
+        # Handle multi-slot appointment updates
+        if allow_multiple_time_slot_selection and selected_time_slots and len(selected_time_slots) > 1:
+            # Update to multi-slot appointment - patient is re-selecting slots
+            appointment.pending_time_confirmation = True
+            appointment.alternative_time_slots = sorted(selected_time_slots)
+        elif allow_multiple_time_slot_selection and selected_time_slots and len(selected_time_slots) == 1:
+            # Single slot selected for multi-slot appointment type - still keep as multi-slot but with one alternative
+            appointment.pending_time_confirmation = True
+            appointment.alternative_time_slots = sorted(selected_time_slots)
 
         # Check if resources changed by comparing current allocations with selected_resource_ids
         resources_changed = False

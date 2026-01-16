@@ -263,7 +263,6 @@ export default {
     notes: '備註：',
     cancelButton: '取消預約',
     rescheduleButton: '修改',
-    pendingTimeMessage: '時間確認前無法修改',
   },
   notifications: {
     title: '空位提醒',
