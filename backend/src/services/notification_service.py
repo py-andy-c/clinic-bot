@@ -518,8 +518,7 @@ class NotificationService:
             if is_pending_time_confirmation and alternative_slots:
                 # For multiple time slot appointments pending confirmation, show pending status
                 message += f"類型：{appointment_type_name}\n"
-                message += f"時間：（待安排）\n"
-                message += f"狀態：待安排時間確認"
+                message += f"時間：待安排"
             else:
                 # Normal appointment with confirmed time
                 message += f"時間：{formatted_datetime}\n"
@@ -992,7 +991,7 @@ class NotificationService:
             
             # Format appointment time
             if appointment.pending_time_confirmation:
-                formatted_time = "時間：（待安排）"
+                formatted_time = "時間：待安排"
             else:
                 start_datetime = datetime.combine(
                     appointment.calendar_event.date,
