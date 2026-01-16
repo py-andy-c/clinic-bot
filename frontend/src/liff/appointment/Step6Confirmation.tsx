@@ -14,45 +14,62 @@ const Step6Confirmation: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   const handleConfirm = async () => {
-    if (!appointmentType || !date || !startTime || !patient || !clinicId) return;
+    // Validate required data based on mode
+    const missingData: string[] = [];
+    if (!appointmentType) missingData.push('appointmentType');
+    if (!patient) missingData.push('patient');
+    if (!clinicId) missingData.push('clinicId');
+
+    if (isMultipleSlotMode) {
+      if (!selectedTimeSlots || selectedTimeSlots.length === 0) {
+        missingData.push('selectedTimeSlots');
+      }
+    } else {
+      if (!date) missingData.push('date');
+      if (!startTime) missingData.push('startTime');
+    }
+
+    if (missingData.length > 0) {
+      console.error(`Missing required data: ${missingData.join(', ')}`);
+      return;
+    }
 
     try {
       setIsSubmitting(true);
       setError(null);
 
-      // Parse date and time as Taiwan time (Asia/Taipei)
-      // Treat the selected time as Taiwan time regardless of browser timezone
-      const taiwanTimezone = 'Asia/Taipei';
-      const timeWithSeconds = startTime.includes(':') && startTime.split(':').length === 2 
-        ? `${startTime}:00` 
-        : startTime;
-      
-      // Parse as Taiwan time using moment-timezone
-      const startDateTimeTaiwan = moment.tz(`${date}T${timeWithSeconds}`, taiwanTimezone);
-      
-      if (!startDateTimeTaiwan.isValid()) {
-        setError(t('confirmation.dateTimeError'));
-        return;
-      }
-
       // Prepare appointment creation data
       const appointmentData: any = {
-        patient_id: patient.id,
-        appointment_type_id: appointmentType.id,
+        patient_id: patient!.id,
+        appointment_type_id: appointmentType!.id,
         practitioner_id: practitioner?.id ?? undefined,
         notes: notes || undefined,
       };
 
       if (isMultipleSlotMode) {
         // For multiple slot mode, send all selected time slots across different dates
-        appointmentData.selected_time_slots = selectedTimeSlots.map(slot => {
+        const taiwanTimezone = 'Asia/Taipei';
+        appointmentData.selected_time_slots = selectedTimeSlots!.map(slot => {
           const timeWithSeconds = slot.time.includes(':') && slot.time.split(':').length === 2 ? `${slot.time}:00` : slot.time;
           const dateTimeTaiwan = moment.tz(`${slot.date}T${timeWithSeconds}`, taiwanTimezone);
           return dateTimeTaiwan.format();
         });
         appointmentData.allow_multiple_time_slot_selection = true;
       } else {
-        // For single slot mode, send the selected time
+        // For single slot mode, parse date and time as Taiwan time
+        const taiwanTimezone = 'Asia/Taipei';
+        const timeWithSeconds = startTime!.includes(':') && startTime!.split(':').length === 2
+          ? `${startTime}:00`
+          : startTime;
+
+        // Parse as Taiwan time using moment-timezone
+        const startDateTimeTaiwan = moment.tz(`${date}T${timeWithSeconds}`, taiwanTimezone);
+
+        if (!startDateTimeTaiwan.isValid()) {
+          setError(t('confirmation.dateTimeError'));
+          return;
+        }
+
         appointmentData.start_time = startDateTimeTaiwan.format();
       }
 

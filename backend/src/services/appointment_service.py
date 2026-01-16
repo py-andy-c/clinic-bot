@@ -145,9 +145,8 @@ class AppointmentService:
             end_time = start_time + timedelta(minutes=appointment_type.duration_minutes)
 
             # Validate patient booking restrictions BEFORE practitioner assignment
-            # If this is a patient booking (line_user_id provided) and practitioner is specified,
-            # check if practitioner allows patient bookings early to avoid availability check errors
-            if line_user_id is not None and practitioner_id is not None:
+            # Skip this check for multiple time slot appointments since they require clinic review anyway
+            if line_user_id is not None and practitioner_id is not None and not allow_multiple_time_slot_selection:
                 from models.user_clinic_association import UserClinicAssociation
                 from pydantic import ValidationError
                 association = db.query(UserClinicAssociation).filter(
@@ -185,9 +184,8 @@ class AppointmentService:
             )
 
             # Validate patient booking restrictions for auto-assigned practitioners
-            # If this is a patient booking (line_user_id provided) and practitioner was auto-assigned,
-            # check if practitioner allows patient bookings
-            if line_user_id is not None and practitioner_id is None:
+            # Skip this check for multiple time slot appointments since they require clinic review anyway
+            if line_user_id is not None and practitioner_id is None and not allow_multiple_time_slot_selection:
                 from models.user_clinic_association import UserClinicAssociation
                 from pydantic import ValidationError
                 association = db.query(UserClinicAssociation).filter(

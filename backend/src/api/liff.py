@@ -319,7 +319,7 @@ class AppointmentCreateRequest(BaseModel):
     patient_id: int
     appointment_type_id: int
     practitioner_id: Optional[int] = None  # null for "不指定"
-    start_time: datetime
+    start_time: Optional[datetime] = None
     notes: Optional[str] = None
     selected_time_slots: Optional[List[str]] = None  # For multiple time slot selection
     allow_multiple_time_slot_selection: Optional[bool] = None
@@ -343,9 +343,26 @@ class AppointmentCreateRequest(BaseModel):
                 values['start_time'] = parse_datetime_to_taiwan(values['start_time'])
         return values
 
+    @model_validator(mode='after')
+    def validate_slot_selection(self) -> 'AppointmentCreateRequest':
+        """Validate that either single slot or multiple slots is provided, but not both."""
+        if self.allow_multiple_time_slot_selection:
+            # Multiple slot mode
+            if not self.selected_time_slots or len(self.selected_time_slots) == 0:
+                raise ValueError('多時段選擇需要至少選擇一個時段')
+            if self.start_time is not None:
+                raise ValueError('多時段選擇不能同時指定單一開始時間')
+        else:
+            # Single slot mode
+            if self.start_time is None:
+                raise ValueError('單一時段預約需要指定開始時間')
+            if self.selected_time_slots:
+                raise ValueError('單一時段預約不能同時指定多個時段')
+        return self
+
     @field_validator('start_time')
     @classmethod
-    def validate_time(cls, v: datetime) -> datetime:
+    def validate_time(cls, v: datetime, info: Any) -> datetime:
         # Use Taiwan time for all validations
         now = taiwan_now()
         # Ensure v is timezone-aware in Taiwan timezone
@@ -1131,13 +1148,22 @@ async def create_appointment(
         # Force practitioner_id to None if setting is False (auto-assignment)
         practitioner_id = None if not appointment_type.allow_patient_practitioner_selection else request.practitioner_id
 
+        # Determine start_time for the appointment service call
+        # For multiple slots, use the first slot as the initial appointment time
+        if request.allow_multiple_time_slot_selection and request.selected_time_slots:
+            service_start_time = parse_datetime_to_taiwan(request.selected_time_slots[0])
+        else:
+            # For single slot mode, start_time should be validated as not None by model
+            assert request.start_time is not None, "start_time should not be None for single slot appointments"
+            service_start_time = request.start_time
+
         # Create appointment using service
         appointment_data = AppointmentService.create_appointment(
             db=db,
             clinic_id=clinic.id,
             patient_id=request.patient_id,
             appointment_type_id=request.appointment_type_id,
-            start_time=request.start_time,
+            start_time=service_start_time,
             practitioner_id=practitioner_id,
             notes=request.notes,
             line_user_id=line_user.id,
