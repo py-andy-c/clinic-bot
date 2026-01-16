@@ -32,6 +32,16 @@ Multi-slot appointment booking uses:
 - **State**: Appointments created with `pending_time_confirmation = true` and temporary slot from selection
 - **Backend**: Stores alternative slots in `alternative_time_slots` JSON array
 
+### UI Conflict Resolution
+
+Initial implementation attempted complete reuse of `Step3SelectDateTime`, but this caused several UI conflicts:
+- **Duplicate headers**: "選擇日期與時間" appeared twice on the page
+- **Inappropriate content**: Availability notifications ("找不到適合時間") not suitable for reschedule context
+- **Conflicting buttons**: `SelectedSlotsDisplay` confirmation button competed with main flow's "下一步"
+- **Cramped layout**: Modal wrapper made date picker appear too small
+
+**Solution**: Selective reuse approach - extract core logic into context-appropriate components.
+
 ## Proposed Solution
 
 ### Core Design Principles
@@ -68,15 +78,28 @@ Multi-slot appointment booking uses:
 
 #### Patient Editing Multi-Slot Appointment
 
-1. **Access Editing**: Patient sees enabled "改期" (reschedule) button on multi-slot appointment card (currently disabled)
-2. **Modal Opens**: Standard `EditAppointmentModal` appears with practitioner/appointment type options
-3. **Time Selection**: When patient clicks time selection, detect multi-slot appointment type
-4. **Slot Re-selection**: Instead of single time picker, show multi-slot selection flow:
-   - Calendar date selection (reuse `Step3SelectDateTime`)
-   - Multiple time slot selection (reuse `MultipleTimeSlotSelector`)
-   - Selected slots display (reuse `SelectedSlotsDisplay`)
-5. **Confirmation**: Patient confirms new slot selection
-6. **Update**: Appointment updated with new temporary slot and alternative slots, remains `pending_time_confirmation = true`
+**Clinic Edit Modal:**
+1. **Access Editing**: Clinic user clicks edit button on multi-slot appointment
+2. **Modal Opens**: `EditAppointmentModal` appears with form fields
+3. **Time Selection**: Click time button → opens `MultiSlotTimeSelector` modal
+4. **Slot Re-selection**: Clean multi-slot selection interface:
+   - Calendar navigation (month/year controls)
+   - Date grid with availability indicators
+   - Multiple time slot selection grid
+   - Selected slots display (removable chips)
+5. **Confirmation**: Click "確認選擇" in modal → returns to main form
+6. **Save**: Complete appointment edit with new slot selections
+
+**Patient Reschedule Page:**
+1. **Access Editing**: Patient clicks "修改" button on multi-slot appointment card
+2. **Page Navigation**: Goes to reschedule page with appointment details
+3. **Slot Re-selection**: Embedded `MultiSlotDateTimeSelector`:
+   - Single "選擇日期與時間" header (no duplicates)
+   - Calendar navigation and date selection
+   - Multiple time slot selection grid
+   - Selected slots display (no conflicting confirm button)
+4. **Confirmation**: Click page's "下一步" button (no competing buttons)
+5. **Review**: Standard review and confirmation flow
 
 #### Permission Alignment
 
@@ -110,12 +133,21 @@ EditAppointmentModal (Enhanced)
 │   └── Conditional Logic:
 │       ├── Single-Slot: Standard DateTimePicker
 │       └── Multi-Slot: MultiSlotTimeSelector Modal
-│
-MultiSlotTimeSelector (New Modal Component)
-├── Step3SelectDateTime (Reused)
-├── MultipleTimeSlotSelector (Reused)
-├── SelectedSlotsDisplay (Reused)
-└── Confirm Button
+
+MultiSlotTimeSelector (Modal Wrapper)
+├── MultiSlotDateTimeSelector (Core Logic)
+│   ├── Calendar Navigation (extracted from Step3SelectDateTime)
+│   ├── MultipleTimeSlotSelector (reused)
+│   └── SelectedSlotsDisplay (reused, button optional)
+└── Modal UI (header, footer, confirm button)
+
+RescheduleFlow (Page Component)
+├── Patient/Appointment Info
+├── MultiSlotDateTimeSelector (embedded)
+│   ├── Calendar Navigation
+│   ├── MultipleTimeSlotSelector
+│   └── SelectedSlotsDisplay (no confirm button)
+└── Main Flow Controls ("下一步" button)
 ```
 
 #### API Integration
@@ -140,41 +172,91 @@ MultiSlotTimeSelector (New Modal Component)
 - Preserve other appointment fields (practitioner, type, notes) during slot re-selection
 - Clear slot selections when starting edit (no preservation of old selections)
 
+### Implementation Results
+
+#### Selective Reuse Approach
+Initial design proposed complete reuse of `Step3SelectDateTime`, but implementation revealed UI conflicts:
+- **Duplicate headers**: "選擇日期與時間" appeared twice
+- **Inappropriate content**: Availability notifications unsuitable for reschedule context
+- **Conflicting buttons**: `SelectedSlotsDisplay` confirmation competed with main flow
+
+**Solution**: Selective reuse - extracted core calendar/time logic into `MultiSlotDateTimeSelector`, made `SelectedSlotsDisplay` confirmation button optional.
+
+#### Key Components Created
+- **`MultiSlotDateTimeSelector`**: Clean calendar + multi-slot selection component
+- **Enhanced `SelectedSlotsDisplay`**: Optional confirmation button via `showConfirmButton` prop
+- **Modal wrapper**: `MultiSlotTimeSelector` for clinic editing context
+
 ### Edge Cases and Considerations
 
 #### Question 1: Should we preserve existing alternative slots?
-**Proposed Answer**: No - keep it simple. Let users re-select their preferences. This avoids complexity of merging old/new selections and potential conflicts.
+**Resolved**: No - keep it simple. Users re-select preferences to avoid merge complexity.
 
 #### Question 2: What if clinic confirms time while patient is editing?
-**Proposed Answer**: Standard conflict resolution - backend optimistic locking will catch this. Patient gets error message and can retry.
+**Resolved**: Standard conflict resolution via backend optimistic locking.
 
 #### Question 3: Should patients be able to reduce from multiple to single slot?
-**Proposed Answer**: Yes - if they select only one slot during editing, it should remain a multi-slot appointment type but with single alternative. Auto-confirmation logic handles this case.
+**Resolved**: Yes - single slot selection still creates multi-slot appointment with one alternative.
 
 #### Question 4: How to handle appointment type changes during editing?
-**Proposed Answer**: If patient changes from multi-slot to single-slot appointment type, clear `alternative_time_slots` and `pending_time_confirmation`. If changing to multi-slot type, require slot re-selection.
+**Resolved**: Type changes clear/reset slot selections as appropriate.
 
 #### Question 5: What about auto-confirmation timing?
-**Proposed Answer**: Maintain existing logic - auto-confirmation still happens at `minimum_booking_hours_ahead` hours before the temporary slot. Patient edits don't affect auto-confirmation schedule.
+**Resolved**: Maintains existing logic - edits don't affect auto-confirmation schedule.
+
+## Implementation Status
+
+### ✅ **COMPLETED - Production Ready**
+
+**Final Architecture:**
+- **Patient Reschedule**: `RescheduleFlow` → `MultiSlotDateTimeSelector`
+- **Clinic Edit**: `EditAppointmentModal` → `MultiSlotTimeSelector` → `MultiSlotDateTimeSelector`
+- **Core Components**: Selective reuse with `MultipleTimeSlotSelector` and `SelectedSlotsDisplay`
+
+**Key Improvements:**
+- **No UI Conflicts**: Resolved duplicate headers, inappropriate content, conflicting buttons
+- **Clean Architecture**: Selective reuse over complete reuse approach
+- **Context-Appropriate**: Components adapt to their usage context (modal vs embedded)
+- **Maintainable**: Clear separation of concerns and reusable components
+
+**Testing Results:**
+- ✅ **All Frontend Tests Pass**
+- ✅ **TypeScript Compilation Clean**
+- ✅ **No Breaking Changes**
+- ✅ **Backward Compatible**
+
+**Files Created/Modified:**
+- `frontend/src/components/calendar/MultiSlotTimeSelector.tsx` (modal wrapper)
+- `frontend/src/liff/appointment/components/MultiSlotDateTimeSelector.tsx` (core logic)
+- `frontend/src/liff/appointment/components/SelectedSlotsDisplay.tsx` (optional confirm button)
+- `frontend/src/liff/appointment/RescheduleFlow.tsx` (updated to use new component)
+- `frontend/src/components/calendar/EditAppointmentModal.tsx` (updated integration)
+- `frontend/src/liff/query/AppointmentCard.tsx` (removed edit constraint)
+- `backend/src/api/liff.py` (enhanced appointment details API)
+- `backend/src/services/appointment_service.py` (added multi-slot update logic)
 
 ### Implementation Plan
 
-#### Phase 1: Frontend Changes
+#### ✅ Phase 1: Frontend Changes - COMPLETED
 1. Remove `pending_time_confirmation` constraint from `AppointmentCard.tsx`
 2. Enhance `EditAppointmentModal` to detect multi-slot appointments
-3. Create `MultiSlotTimeSelector` modal component reusing booking components
-4. Update appointment store for edit-mode slot selection
+3. Create `MultiSlotDateTimeSelector` component with selective reuse of Step3 logic
+4. Create `MultiSlotTimeSelector` modal wrapper using `MultiSlotDateTimeSelector`
+5. Update `RescheduleFlow` to use `MultiSlotDateTimeSelector` directly
+6. Make `SelectedSlotsDisplay` confirmation button optional to avoid conflicts
+7. Update appointment store for edit-mode slot selection
 
-#### Phase 2: Backend Changes
+#### ✅ Phase 2: Backend Changes - COMPLETED
 1. Allow patient updates to multi-slot appointments (remove time confirmation requirement)
 2. Reset `alternative_time_slots` when patients re-select slots
 3. Maintain existing validation and permission checks
+4. Enhanced appointment details API to include `allow_multiple_time_slot_selection`
 
-#### Phase 3: Testing and Validation
-1. Test edit flow for multi-slot appointments
-2. Verify permission constraints still work
-3. Test edge cases (clinic confirmation during edit, type changes, etc.)
-4. E2E testing for complete patient edit flow
+#### ✅ Phase 3: Testing and Validation - COMPLETED
+1. ✅ Test edit flow for multi-slot appointments - All tests pass
+2. ✅ Verify permission constraints still work - Constraints maintained
+3. ✅ Test edge cases (clinic confirmation during edit, type changes, etc.) - Edge cases handled
+4. ✅ E2E testing for complete patient edit flow - Full integration tested
 
 ### Success Metrics
 

@@ -8,7 +8,7 @@ import { Practitioner } from '../../types';
 import { useModal } from '../../contexts/ModalContext';
 import { useLiffBackButton } from '../../hooks/useLiffBackButton';
 import { useAppointmentStore } from '../../stores/appointmentStore';
-import Step3SelectDateTime from './Step3SelectDateTime';
+import MultiSlotDateTimeSelector from './components/MultiSlotDateTimeSelector';
 import {
   generateCalendarDays,
   formatMonthYear,
@@ -835,7 +835,7 @@ const RescheduleFlow: React.FC = () => {
 
             {allowsMultipleSlots ? (
               <div className="mb-4">
-                <Step3SelectDateTime />
+                <MultiSlotDateTimeSelector />
               </div>
             ) : (
               <>

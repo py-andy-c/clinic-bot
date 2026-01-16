@@ -5,13 +5,15 @@ import { formatAppointmentDateOnly } from '../../../utils/calendarUtils';
 interface SelectedSlotsDisplayProps {
   selectedTimeSlots: Array<{date: string, time: string}>;
   onRemoveSlot: (date: string, time: string) => void;
-  onConfirmSlots: () => void;
+  onConfirmSlots?: () => void; // Optional for contexts that don't need confirmation here
+  showConfirmButton?: boolean; // Control whether to show confirmation button
 }
 
 const SelectedSlotsDisplay: React.FC<SelectedSlotsDisplayProps> = ({
   selectedTimeSlots,
   onRemoveSlot,
   onConfirmSlots,
+  showConfirmButton = true,
 }) => {
   const { t } = useTranslation();
 
@@ -74,17 +76,19 @@ const SelectedSlotsDisplay: React.FC<SelectedSlotsDisplayProps> = ({
             </div>
           </div>
         ))}
-      {/* Proceed Button */}
-      <div className="mt-3">
-        <button
-          onClick={onConfirmSlots}
-          onKeyDown={(e) => handleKeyDown(e, onConfirmSlots)}
-          className="w-full bg-primary-600 text-white py-3 px-4 rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-1 transition-colors font-medium"
-          aria-describedby="selected-slots-heading"
-        >
-          {t('datetime.confirmSlots', { count: selectedTimeSlots.length })}
-        </button>
-      </div>
+      {/* Proceed Button - Only show if enabled */}
+      {showConfirmButton && onConfirmSlots && (
+        <div className="mt-3">
+          <button
+            onClick={onConfirmSlots}
+            onKeyDown={(e) => handleKeyDown(e, onConfirmSlots)}
+            className="w-full bg-primary-600 text-white py-3 px-4 rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-1 transition-colors font-medium"
+            aria-describedby="selected-slots-heading"
+          >
+            {t('datetime.confirmSlots', { count: selectedTimeSlots.length })}
+          </button>
+        </div>
+      )}
     </div>
   );
 };

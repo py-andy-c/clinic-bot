@@ -3,7 +3,7 @@ import { BaseModal } from './BaseModal';
 import { useAppointmentStore } from '../../stores/appointmentStore';
 import { useTranslation } from 'react-i18next';
 import { AppointmentType } from '../../types';
-import Step3SelectDateTime from '../../liff/appointment/Step3SelectDateTime';
+import MultiSlotDateTimeSelector from '../../liff/appointment/components/MultiSlotDateTimeSelector';
 
 interface MultiSlotTimeSelectorProps {
   isOpen: boolean;
@@ -74,11 +74,11 @@ export const MultiSlotTimeSelector: React.FC<MultiSlotTimeSelectorProps> = ({
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-4">
-          <div className="mb-4 text-sm text-gray-600">
+        <div className="flex-1 overflow-y-auto">
+          <div className="mb-4 px-4 pt-4 text-sm text-gray-600">
             {t('appointment.edit.multiSlotHelp', '請重新選擇您方便的時段。之前的選擇將被清除。')}
           </div>
-          <Step3SelectDateTime />
+          <MultiSlotDateTimeSelector />
         </div>
 
         {/* Footer */}
