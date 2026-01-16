@@ -1148,6 +1148,9 @@ async def create_appointment(
         # Force practitioner_id to None if setting is False (auto-assignment)
         practitioner_id = None if not appointment_type.allow_patient_practitioner_selection else request.practitioner_id
 
+        # Determine effective multiple slot mode based on actual slots selected
+        effective_allow_multiple = bool(request.allow_multiple_time_slot_selection and request.selected_time_slots and len(request.selected_time_slots) > 1)
+
         # Determine start_time for the appointment service call
         # For multiple slots, use the first slot as the initial appointment time
         if request.allow_multiple_time_slot_selection and request.selected_time_slots:
@@ -1168,7 +1171,7 @@ async def create_appointment(
             notes=request.notes,
             line_user_id=line_user.id,
             selected_time_slots=request.selected_time_slots,
-            allow_multiple_time_slot_selection=request.allow_multiple_time_slot_selection
+            allow_multiple_time_slot_selection=effective_allow_multiple
         )
 
         return AppointmentResponse(**appointment_data)

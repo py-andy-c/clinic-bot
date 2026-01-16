@@ -2281,6 +2281,101 @@ class TestClinicAdminMustSpecifyPractitioner:
         assert appointment.calendar_event.user_id == practitioner1.id
         assert appointment.is_auto_assigned is False
 
+    def test_single_slot_selection_in_multiple_slot_type_behaves_like_regular_appointment(self, db_session):
+        """Test that selecting 1 slot in a multiple-slot appointment type behaves like a regular appointment."""
+        clinic, practitioner1, _, appointment_type, patient = self._setup_clinic_with_practitioners(db_session)
+
+        # Enable multiple time slot selection for this appointment type
+        appointment_type.allow_multiple_time_slot_selection = True
+        db_session.commit()
+
+        # Create availability for the practitioner (today)
+        target_date = taiwan_now().date()
+        day_of_week = target_date.weekday()
+        create_practitioner_availability_with_clinic(
+            db_session, practitioner1, clinic, day_of_week, time(9, 0), time(17, 0)
+        )
+
+        # Create single slot selection (only 1 slot)
+        selected_time_slots = [
+            taiwan_now().replace(hour=10, minute=0, second=0, microsecond=0).isoformat()
+        ]
+
+        # Create appointment
+        appointment_data = AppointmentService.create_appointment(
+            db=db_session,
+            clinic_id=clinic.id,
+            patient_id=patient.id,
+            appointment_type_id=appointment_type.id,
+            start_time=taiwan_now().replace(hour=10, minute=0, second=0, microsecond=0),
+            practitioner_id=practitioner1.id,
+            notes="Test single slot",
+            selected_time_slots=selected_time_slots,
+            allow_multiple_time_slot_selection=True  # This should result in effective_allow_multiple = False
+        )
+
+        # Verify appointment was created
+        appointment = db_session.query(Appointment).filter(
+            Appointment.calendar_event_id == appointment_data['appointment_id']
+        ).first()
+        assert appointment is not None
+
+        # Verify single slot appointment behaves like regular appointment
+        assert appointment.pending_time_confirmation is False  # Should not be pending
+        assert appointment.alternative_time_slots is None  # Should not have alternatives
+
+        # Verify appointment status
+        assert appointment.status == 'confirmed'
+
+    def test_multiple_slot_selection_still_requires_confirmation(self, db_session):
+        """Test that selecting 2+ slots still requires clinic confirmation."""
+        clinic, practitioner1, _, appointment_type, patient = self._setup_clinic_with_practitioners(db_session)
+
+        # Enable multiple time slot selection for this appointment type
+        appointment_type.allow_multiple_time_slot_selection = True
+        db_session.commit()
+
+        # Create availability for the practitioner (today)
+        target_date = taiwan_now().date()
+        day_of_week = target_date.weekday()
+        create_practitioner_availability_with_clinic(
+            db_session, practitioner1, clinic, day_of_week, time(9, 0), time(17, 0)
+        )
+
+        # Create multiple slot selection (2 slots)
+        base_time = taiwan_now().replace(hour=10, minute=0, second=0, microsecond=0)
+        selected_time_slots = [
+            base_time.isoformat(),
+            (base_time + timedelta(hours=1)).isoformat()
+        ]
+
+        # Create appointment
+        appointment_data = AppointmentService.create_appointment(
+            db=db_session,
+            clinic_id=clinic.id,
+            patient_id=patient.id,
+            appointment_type_id=appointment_type.id,
+            start_time=base_time,
+            practitioner_id=practitioner1.id,
+            notes="Test multiple slots",
+            selected_time_slots=selected_time_slots,
+            allow_multiple_time_slot_selection=True
+        )
+
+        # Verify appointment was created
+        appointment = db_session.query(Appointment).filter(
+            Appointment.calendar_event_id == appointment_data['appointment_id']
+        ).first()
+        assert appointment is not None
+
+        # Verify multiple slot appointment requires confirmation
+        assert appointment.pending_time_confirmation is True  # Should be pending
+        assert appointment.alternative_time_slots is not None  # Should have alternatives
+        assert len(appointment.alternative_time_slots) == 2
+
+        # Verify appointment status
+        assert appointment.status == 'confirmed'
+
     def _setup_clinic_with_practitioners(self, db_session):
         """Helper to setup clinic with two practitioners."""
         clinic = Clinic(

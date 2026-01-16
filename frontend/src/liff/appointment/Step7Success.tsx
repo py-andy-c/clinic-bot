@@ -26,7 +26,8 @@ const Step7Success: React.FC = () => {
     clinicPhoneNumber,
     setClinicInfo,
     isMultipleSlotMode,
-    selectedTimeSlots
+    selectedTimeSlots,
+    isEffectiveMultipleSlotMode
   } = useAppointmentStore();
   const { alert: showAlert } = useModal();
 
@@ -153,8 +154,8 @@ const Step7Success: React.FC = () => {
   };
 
   const formatDateTime = () => {
-    if (isMultipleSlotMode) {
-      // For multiple slot appointments, show "待安排"
+    if (isEffectiveMultipleSlotMode()) {
+      // For true multiple slot appointments (2+ slots), show "待安排"
       return '待安排';
     }
 
@@ -210,7 +211,8 @@ const Step7Success: React.FC = () => {
             <span className="text-gray-600">{t('success.dateTime')}</span>
             <span className="font-medium">{formatDateTime()}</span>
           </div>
-          {isMultipleSlotMode && selectedTimeSlots.length > 0 && (
+          {/* Only show selected slots for true multiple slot selections (2+ slots) */}
+          {isEffectiveMultipleSlotMode() && (
             <div>
               <span className="text-gray-600">{t('success.selectedSlots')}</span>
               <div className="mt-1 flex flex-wrap gap-1">
@@ -256,13 +258,13 @@ const Step7Success: React.FC = () => {
 
         <button
           onClick={handleAddToCalendar}
-          disabled={isMultipleSlotMode}
+          disabled={isEffectiveMultipleSlotMode()}
           className="w-full bg-primary-600 text-white py-3 px-4 rounded-md hover:bg-primary-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center"
         >
           <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
           </svg>
-          {isMultipleSlotMode ? t('success.calendarPending') : t('success.addToCalendar')}
+          {(isMultipleSlotMode && selectedTimeSlots && selectedTimeSlots.length > 1) ? t('success.calendarPending') : t('success.addToCalendar')}
         </button>
       </div>
     </div>

@@ -9,7 +9,7 @@ import { getErrorMessage } from '../../types/api';
 
 const Step6Confirmation: React.FC = () => {
   const { t } = useTranslation();
-  const { appointmentType, practitioner, practitionerId, isAutoAssigned, date, startTime, selectedTimeSlots, isMultipleSlotMode, patient, notes, clinicId, setCreatedAppointment } = useAppointmentStore();
+  const { appointmentType, practitioner, practitionerId, isAutoAssigned, date, startTime, selectedTimeSlots, isMultipleSlotMode, patient, notes, clinicId, setCreatedAppointment, isEffectiveMultipleSlotMode } = useAppointmentStore();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -46,8 +46,11 @@ const Step6Confirmation: React.FC = () => {
         notes: notes || undefined,
       };
 
-      if (isMultipleSlotMode) {
-        // For multiple slot mode, send all selected time slots across different dates
+      // Determine effective multiple slot mode based on actual slots selected
+      const effectiveAllowMultiple = isEffectiveMultipleSlotMode();
+
+      if (effectiveAllowMultiple) {
+        // Multiple slots (2+) selected - use pending confirmation flow
         const taiwanTimezone = 'Asia/Taipei';
         appointmentData.selected_time_slots = selectedTimeSlots!.map(slot => {
           const timeWithSeconds = slot.time.includes(':') && slot.time.split(':').length === 2 ? `${slot.time}:00` : slot.time;
@@ -56,14 +59,34 @@ const Step6Confirmation: React.FC = () => {
         });
         appointmentData.allow_multiple_time_slot_selection = true;
       } else {
-        // For single slot mode, parse date and time as Taiwan time
+        // Single slot or regular appointment - use immediate confirmation
         const taiwanTimezone = 'Asia/Taipei';
-        const timeWithSeconds = startTime!.includes(':') && startTime!.split(':').length === 2
-          ? `${startTime}:00`
-          : startTime;
+        let timeWithSeconds: string;
+        let slotDate: string;
+
+        if (isMultipleSlotMode && selectedTimeSlots && selectedTimeSlots.length === 1) {
+          // Single slot in multiple slot mode - use the selected slot
+          const slot = selectedTimeSlots[0];
+          if (!slot) {
+            setError(t('confirmation.dateTimeError'));
+            return;
+          }
+          timeWithSeconds = slot.time.includes(':') && slot.time.split(':').length === 2 ? `${slot.time}:00` : slot.time;
+          slotDate = slot.date;
+        } else {
+          // Regular single slot mode
+          if (!startTime || !date) {
+            setError(t('confirmation.dateTimeError'));
+            return;
+          }
+          timeWithSeconds = startTime.includes(':') && startTime.split(':').length === 2
+            ? `${startTime}:00`
+            : startTime;
+          slotDate = date;
+        }
 
         // Parse as Taiwan time using moment-timezone
-        const startDateTimeTaiwan = moment.tz(`${date}T${timeWithSeconds}`, taiwanTimezone);
+        const startDateTimeTaiwan = moment.tz(`${slotDate}T${timeWithSeconds}`, taiwanTimezone);
 
         if (!startDateTimeTaiwan.isValid()) {
           setError(t('confirmation.dateTimeError'));
@@ -99,9 +122,27 @@ const Step6Confirmation: React.FC = () => {
   };
 
   const formatDateTime = () => {
-    if (isMultipleSlotMode) {
-      // For multiple slot appointments, show "待安排"
+    if (isEffectiveMultipleSlotMode()) {
+      // Multiple slots (2+) - show "待安排"
       return '待安排';
+    }
+
+    // For single slot appointments (including single slots in multiple mode), show the actual time
+    if (isMultipleSlotMode && selectedTimeSlots && selectedTimeSlots.length === 1) {
+      // Single slot in multiple slot mode - show actual time
+      const slot = selectedTimeSlots[0];
+      if (!slot) {
+        return '';
+      }
+      const taiwanTimezone = 'Asia/Taipei';
+      const timeWithSeconds = slot.time.includes(':') && slot.time.split(':').length === 2 ? `${slot.time}:00` : slot.time;
+      const dateTimeTaiwan = moment.tz(`${slot.date}T${timeWithSeconds}`, taiwanTimezone);
+
+      if (!dateTimeTaiwan.isValid()) {
+        return '';
+      }
+
+      return formatAppointmentDateTime(dateTimeTaiwan.toDate());
     }
 
     if (!date || !startTime) return '';
@@ -149,7 +190,7 @@ const Step6Confirmation: React.FC = () => {
             <span className="text-gray-600">{t('confirmation.dateTime')}</span>
             <span className="font-medium">{formatDateTime()}</span>
           </div>
-          {isMultipleSlotMode && selectedTimeSlots.length > 0 && (
+          {isEffectiveMultipleSlotMode() && (
             <div>
               <span className="text-gray-600">{t('confirmation.selectedSlots')}</span>
               <div className="mt-2">

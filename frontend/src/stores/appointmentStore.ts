@@ -89,6 +89,7 @@ interface AppointmentState {
 
   // Computed properties
   canProceedToStep: (targetStep: number) => boolean;
+  isEffectiveMultipleSlotMode: () => boolean;
 }
 
 export const useAppointmentStore = create<AppointmentState>((set, get) => ({
@@ -345,5 +346,10 @@ export const useAppointmentStore = create<AppointmentState>((set, get) => ({
       default:
         return false;
     }
+  },
+
+  isEffectiveMultipleSlotMode: () => {
+    const state = get();
+    return state.isMultipleSlotMode && state.selectedTimeSlots.length > 1;
   },
 }));

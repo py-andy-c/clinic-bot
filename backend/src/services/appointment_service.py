@@ -234,9 +234,9 @@ class AppointmentService:
             pending_time_confirmation = False
             alternative_time_slots = None
 
-            if allow_multiple_time_slot_selection and selected_time_slots:
-                # For multiple time slot selection, mark as pending confirmation
-                # and store alternative slots (sorted chronologically)
+            if allow_multiple_time_slot_selection and selected_time_slots and len(selected_time_slots) > 1:
+                # Only use pending confirmation workflow when multiple slots (2+) are selected
+                # Single slot selection should behave like regular appointments
                 pending_time_confirmation = True
                 alternative_time_slots = sorted(selected_time_slots)
 
