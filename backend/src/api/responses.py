@@ -159,6 +159,7 @@ class AppointmentListItem(BaseModel):
     receipt_id: Optional[int] = None  # ID of active receipt (null if no active receipt)
     receipt_ids: List[int] = []  # List of all receipt IDs (always included, empty if none)
     pending_time_confirmation: bool = False  # Whether appointment is waiting for time confirmation from multiple slot selection
+    alternative_time_slots: Optional[List[str]] = None  # Alternative time slots for multi-slot appointments
 
 
 class AppointmentListResponse(BaseModel):

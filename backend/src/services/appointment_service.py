@@ -731,7 +731,8 @@ class AppointmentService:
                 "has_any_receipt": receipt_fields["has_any_receipt"],
                 "receipt_id": receipt_fields["receipt_id"],
                 "receipt_ids": receipt_fields["receipt_ids"],
-                "pending_time_confirmation": appointment.pending_time_confirmation
+                "pending_time_confirmation": appointment.pending_time_confirmation,
+                "alternative_time_slots": appointment.alternative_time_slots
             })
 
         return result
