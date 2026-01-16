@@ -328,11 +328,14 @@ class AdminAutoAssignedNotificationService:
                 patient_name = appointment.patient.full_name if appointment.patient else "未知病患"
                 
                 # Format appointment time
-                start_datetime = datetime.combine(
-                    appointment.calendar_event.date,
-                    appointment.calendar_event.start_time
-                )
-                formatted_time = format_datetime(start_datetime)
+                if appointment.pending_time_confirmation:
+                    formatted_time = "時間：待安排"
+                else:
+                    start_datetime = datetime.combine(
+                        appointment.calendar_event.date,
+                        appointment.calendar_event.start_time
+                    )
+                    formatted_time = format_datetime(start_datetime)
                 
                 # Get appointment type name
                 appointment_type_name = appointment.appointment_type.name if appointment.appointment_type else "預約"
