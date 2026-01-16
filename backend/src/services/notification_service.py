@@ -516,25 +516,10 @@ class NotificationService:
             message += f"病患：{patient_name}\n"
 
             if is_pending_time_confirmation and alternative_slots:
-                # For multiple time slot appointments pending confirmation, show alternative slots
+                # For multiple time slot appointments pending confirmation, show pending status
                 message += f"類型：{appointment_type_name}\n"
-                message += f"時間（待安排）：\n"
-
-                # Parse and format alternative slots
-                for slot_str in alternative_slots[:5]:  # Limit to first 5 slots to avoid message too long
-                    try:
-                        from datetime import datetime
-                        slot_dt = datetime.fromisoformat(slot_str.replace('Z', '+00:00'))
-                        slot_formatted = format_datetime(slot_dt)
-                        message += f"• {slot_formatted}\n"
-                    except (ValueError, AttributeError):
-                        # If parsing fails, show the raw string
-                        message += f"• {slot_str}\n"
-
-                if len(alternative_slots) > 5:
-                    message += f"... 還有 {len(alternative_slots) - 5} 個時段\n"
-
-                message += f"\n狀態：待安排時間確認"
+                message += f"時間：（待安排）\n"
+                message += f"狀態：待安排時間確認"
             else:
                 # Normal appointment with confirmed time
                 message += f"時間：{formatted_datetime}\n"
@@ -1007,7 +992,7 @@ class NotificationService:
             
             # Format appointment time
             if appointment.pending_time_confirmation:
-                formatted_time = "時間：待安排"
+                formatted_time = "時間：（待安排）"
             else:
                 start_datetime = datetime.combine(
                     appointment.calendar_event.date,
