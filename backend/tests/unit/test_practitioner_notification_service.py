@@ -16,23 +16,24 @@ def mock_appointment():
     appointment = Mock(spec=Appointment)
     appointment.calendar_event_id = 1
     appointment.notes = None
-    
+    appointment.pending_time_confirmation = False  # Default to confirmed appointment
+
     # Mock calendar event
     calendar_event = Mock()
     calendar_event.date = date(2025, 1, 20)
     calendar_event.start_time = time(14, 30)
     appointment.calendar_event = calendar_event
-    
+
     # Mock appointment type
     appointment_type = Mock()
     appointment_type.name = "物理治療"
     appointment.appointment_type = appointment_type
-    
+
     # Mock patient
     patient = Mock()
     patient.full_name = "王小明"
     appointment.patient = patient
-    
+
     return appointment
 
 
