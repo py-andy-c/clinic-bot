@@ -1,7 +1,8 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { formatAppointmentDateTime } from '../../utils/calendarUtils';
+import { formatAppointmentDateTime, formatAppointmentDateOnly } from '../../utils/calendarUtils';
 import { getStatusBadgeColor } from '../../utils/appointmentStatus';
+import moment from 'moment-timezone';
 
 interface Appointment {
   id: number;
@@ -18,6 +19,7 @@ interface Appointment {
   receipt_id?: number | null; // ID of active receipt (null if no active receipt)
   receipt_ids?: number[]; // List of all receipt IDs (always included, empty if none)
   pending_time_confirmation?: boolean; // Whether appointment is waiting for time confirmation from multiple slot selection
+  alternative_time_slots?: string[]; // Alternative time slots for multi-slot appointments
 }
 
 interface AppointmentCardProps {
@@ -48,8 +50,42 @@ const AppointmentCard: React.FC<AppointmentCardProps> = ({ appointment, onCancel
     }
   };
 
+  // Format date range for pending multi-slot appointments
+  const formatDateRange = (timeSlots?: string[]): string => {
+    if (!timeSlots || timeSlots.length === 0) return '';
+
+    try {
+      // Parse dates from ISO strings and find min/max dates
+      const dates = timeSlots.map(slot => {
+        const dateTime = moment(slot.replace('Z', '+00:00'));
+        return dateTime.format('YYYY-MM-DD');
+      });
+
+      const uniqueDates = [...new Set(dates)].sort();
+      if (uniqueDates.length === 0) return '';
+
+      const earliestDate = uniqueDates[0]!;
+      const latestDate = uniqueDates[uniqueDates.length - 1]!;
+
+      if (uniqueDates.length === 1) {
+        // Single date
+        return formatAppointmentDateOnly(earliestDate);
+      } else {
+        // Date range
+        const earliest = formatAppointmentDateOnly(earliestDate);
+        const latest = formatAppointmentDateOnly(latestDate);
+        return `${earliest} - ${latest}`;
+      }
+    } catch (error) {
+      console.warn('Failed to format date range:', error);
+      return '';
+    }
+  };
+
   const formattedDateTime = appointment.pending_time_confirmation
-    ? t('appointmentCard.timePending', '待安排')
+    ? appointment.alternative_time_slots && appointment.alternative_time_slots.length > 0
+      ? `${t('appointmentCard.timePending', '待安排')} ${formatDateRange(appointment.alternative_time_slots)}`
+      : t('appointmentCard.timePending', '待安排')
     : appointment.start_time
       ? formatAppointmentDateTime(appointment.start_time)
       : '';
@@ -64,11 +100,6 @@ const AppointmentCard: React.FC<AppointmentCardProps> = ({ appointment, onCancel
           <h3 className="font-medium text-gray-900">{appointment.patient_name}</h3>
           <p className="text-sm text-gray-600">{appointment.appointment_type_name}</p>
         </div>
-        {appointment.pending_time_confirmation && (
-          <span className="px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap flex-shrink-0 bg-amber-100 text-amber-800">
-            {t('appointmentCard.status.timePending', '待安排')}
-          </span>
-        )}
         {getStatusColor(appointment.status) && (
           <span className={`px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap flex-shrink-0 ${getStatusColor(appointment.status)}`}>
             {getStatusText(appointment.status)}
