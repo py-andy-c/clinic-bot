@@ -25,7 +25,6 @@ const Step7Success: React.FC = () => {
     clinicAddress,
     clinicPhoneNumber,
     setClinicInfo,
-    isMultipleSlotMode,
     selectedTimeSlots,
     isEffectiveMultipleSlotMode
   } = useAppointmentStore();
@@ -256,16 +255,17 @@ const Step7Success: React.FC = () => {
           {t('success.viewAppointments')}
         </button>
 
-        <button
-          onClick={handleAddToCalendar}
-          disabled={isEffectiveMultipleSlotMode()}
-          className="w-full bg-primary-600 text-white py-3 px-4 rounded-md hover:bg-primary-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center"
-        >
-          <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-          </svg>
-          {(isMultipleSlotMode && selectedTimeSlots && selectedTimeSlots.length > 1) ? t('success.calendarPending') : t('success.addToCalendar')}
-        </button>
+        {!isEffectiveMultipleSlotMode() && (
+          <button
+            onClick={handleAddToCalendar}
+            className="w-full bg-primary-600 text-white py-3 px-4 rounded-md hover:bg-primary-700 flex items-center justify-center"
+          >
+            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            {t('success.addToCalendar')}
+          </button>
+        )}
       </div>
     </div>
   );
