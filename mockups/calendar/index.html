@@ -24,9 +24,9 @@
                 </div>
                 <!-- Desktop Navigation -->
                 <nav class="desktop-nav">
-                    <button class="nav-item active">📅 預約管理</button>
-                    <button class="nav-item">👥 病患管理</button>
-                    <button class="nav-item">🏥 診所管理</button>
+                    <button class="nav-item active has-dropdown" data-menu="appointments">📅 預約管理</button>
+                    <button class="nav-item has-dropdown" data-menu="patients">👥 病患管理</button>
+                    <button class="nav-item has-dropdown" data-menu="clinic">🏥 診所管理</button>
                     <button class="nav-item">👤 個人設定</button>
                 </nav>
             </div>
@@ -52,6 +52,26 @@
                         <button class="today-sidebar-btn" id="sidebar-today-btn">回到今日</button>
                     </div>
 
+                    <!-- Selected Calendars Chips -->
+                    <!-- View Switcher -->
+                    <div class="view-switcher-section">
+                        <div class="view-switcher">
+                            <button class="view-option active" data-view="day">日</button>
+                            <button class="view-option" data-view="week">週</button>
+                            <button class="view-option" data-view="month">月</button>
+                        </div>
+                    </div>
+
+                    <div class="selected-calendars">
+                        <div class="calendar-chips" id="calendar-chips">
+                            <!-- Selected practitioner and resource chips will be injected here -->
+                        </div>
+                        <button class="manage-calendars-btn" id="manage-calendars-btn">
+                            <span class="settings-icon">⚙️</span>
+                            管理行事曆
+                        </button>
+                    </div>
+
                     <!-- Reusable Mini Calendar Component (also used in mobile modal) -->
                     <div class="mini-calendar-component">
                         <div class="mini-calendar-header">
@@ -64,49 +84,6 @@
                         </div>
                     </div>
 
-                    <div class="sidebar-nav">
-                        <!-- Reusable View Switcher Component -->
-                        <div class="nav-group">
-                            <h3 class="nav-title">切換視圖</h3>
-                            <div class="view-switcher">
-                                <button class="view-option active" data-view="day">日</button>
-                                <button class="view-option" data-view="week">週</button>
-                                <button class="view-option" data-view="month">月</button>
-                            </div>
-                        </div>
-
-                        <!-- Reusable Practitioner Filter Component -->
-                        <div class="nav-group">
-                            <h3 class="nav-title">治療師</h3>
-                            <div class="practitioner-filter-list">
-                                <label class="practitioner-filter-item">
-                                    <input type="checkbox" checked data-practitioner="1">
-                                    <span class="practitioner-indicator" style="background: var(--practitioner-1)"></span>
-                                    陳大文
-                                </label>
-                                <label class="practitioner-filter-item">
-                                    <input type="checkbox" checked data-practitioner="2">
-                                    <span class="practitioner-indicator" style="background: var(--practitioner-2)"></span>
-                                    林美玲
-                                </label>
-                                <label class="practitioner-filter-item">
-                                    <input type="checkbox" checked data-practitioner="3">
-                                    <span class="practitioner-indicator" style="background: var(--practitioner-3)"></span>
-                                    張志遠
-                                </label>
-                                <label class="practitioner-filter-item">
-                                    <input type="checkbox" checked data-practitioner="4">
-                                    <span class="practitioner-indicator" style="background: var(--practitioner-4)"></span>
-                                    李佳穎
-                                </label>
-                                <label class="practitioner-filter-item">
-                                    <input type="checkbox" checked data-practitioner="5">
-                                    <span class="practitioner-indicator" style="background: var(--practitioner-5)"></span>
-                                    周杰瑞
-                                </label>
-                            </div>
-                        </div>
-                    </div>
                 </div>
             </aside>
 
@@ -171,7 +148,7 @@
                         <button class="view-option-vertical" data-view="month">月視圖</button>
                     </div>
                 </div>
-                <!-- Reusable Practitioner Filter Component (also used in sidebar) -->
+                <!-- Practitioner Filter Component -->
                 <div class="setting-group">
                     <h3>顯示治療師</h3>
                     <div class="practitioner-filter-list">
@@ -202,6 +179,37 @@
                         </label>
                     </div>
                 </div>
+                <!-- Resource Filter Component -->
+                <div class="setting-group">
+                    <h3>顯示資源</h3>
+                    <div class="resource-filter-list">
+                        <label class="resource-filter-item">
+                            <input type="checkbox" checked data-resource="1">
+                            <span class="resource-indicator" style="background: var(--practitioner-6)"></span>
+                            治療室1
+                        </label>
+                        <label class="resource-filter-item">
+                            <input type="checkbox" checked data-resource="2">
+                            <span class="resource-indicator" style="background: var(--practitioner-7)"></span>
+                            治療室2
+                        </label>
+                        <label class="resource-filter-item">
+                            <input type="checkbox" data-resource="3">
+                            <span class="resource-indicator" style="background: var(--practitioner-8)"></span>
+                            治療室3
+                        </label>
+                        <label class="resource-filter-item">
+                            <input type="checkbox" data-resource="4">
+                            <span class="resource-indicator" style="background: var(--practitioner-9)"></span>
+                            設備A
+                        </label>
+                        <label class="resource-filter-item">
+                            <input type="checkbox" data-resource="5">
+                            <span class="resource-indicator" style="background: var(--practitioner-10)"></span>
+                            設備B
+                        </label>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -218,6 +226,33 @@
             </div>
         </div>
     </div>
+    <!-- Calendar Management Modal (Hidden by default) -->
+    <div id="calendar-management-modal" class="modal-overlay">
+        <div class="modal-content calendar-management-content">
+            <div class="modal-header">
+                <h2>管理行事曆</h2>
+                <button class="close-btn" onclick="closeCalendarManagementModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <!-- Practitioners Section -->
+                <div class="calendar-section">
+                    <h3>治療師</h3>
+                    <div class="practitioner-options" id="practitioner-options">
+                        <!-- Practitioner checkboxes will be injected here -->
+                    </div>
+                </div>
+
+                <!-- Resources Section -->
+                <div class="calendar-section">
+                    <h3>資源</h3>
+                    <div class="resource-options" id="resource-options">
+                        <!-- Resource checkboxes will be injected here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Mobile Date Picker Modal (Hidden by default) -->
     <div id="mobile-date-picker" class="modal-overlay">
         <div class="modal-content mobile-date-picker-content">

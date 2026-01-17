@@ -6,14 +6,79 @@ const practitioners = [
     { id: 5, name: '周杰瑞', color: '#8b5cf6', schedule: [{ start: '13:00', end: '21:00' }] }
 ];
 
+const resources = [
+    { id: 1, name: '治療室1', type: '治療室', color: '#8b5cf6' },
+    { id: 2, name: '治療室2', type: '治療室', color: '#ec4899' },
+    { id: 3, name: '治療室3', type: '治療室', color: '#06b6d4' },
+    { id: 4, name: '設備A', type: '設備', color: '#84cc16' },
+    { id: 5, name: '設備B', type: '設備', color: '#f59e0b' }
+];
+
 const mockAppointments = [
-    { pId: 1, patient: '王小明', start: '09:30', end: '10:30' },
-    { pId: 2, patient: '張先生 (衝突)', start: '13:30', end: '14:30' }
+    {
+        pId: 1,
+        patient: '王小明',
+        appointmentType: '全身按摩',
+        resources: ['治療室1'],
+        start: '09:30',
+        end: '10:30',
+        notes: '初診'
+    },
+    {
+        pId: 2,
+        patient: '張美華',
+        appointmentType: '針灸治療',
+        resources: ['治療室2', '設備A'],
+        start: '10:00',
+        end: '11:00',
+        notes: '第三次治療'
+    },
+    {
+        pId: 3,
+        patient: '李大華',
+        appointmentType: '推拿治療',
+        resources: ['治療室1'],
+        start: '14:00',
+        end: '15:00'
+    },
+    {
+        pId: 4,
+        patient: '陳小雅',
+        appointmentType: '中醫調理',
+        resources: ['治療室3', '設備B'],
+        start: '15:30',
+        end: '16:30',
+        notes: '複診'
+    },
+    {
+        pId: 5,
+        patient: '林志偉',
+        appointmentType: '整脊治療',
+        resources: ['治療室2'],
+        start: '16:00',
+        end: '17:00'
+    },
+    {
+        pId: 1,
+        patient: '黃小姐',
+        appointmentType: '芳香療法',
+        resources: ['治療室1'],
+        start: '13:30',
+        end: '14:30',
+        notes: '舒緩壓力'
+    }
 ];
 
 const mockExceptions = [
     { pId: 1, title: '午休', start: '12:00', end: '13:00' },
     { pId: 2, title: '進修研習', start: '13:00', end: '15:00' },
+    { pId: 3, title: '會議', start: '11:00', end: '12:00' }
+];
+
+const mockResourceBookings = [
+    { rId: 1, title: '設備維護', start: '10:00', end: '11:00', notes: '定期保養' },
+    { rId: 2, title: '清潔中', start: '14:00', end: '15:00' },
+    { rId: 3, title: '維修中', start: '11:30', end: '12:30', notes: '緊急維修' }
 ];
 
 // Constants
@@ -21,6 +86,16 @@ const DAYS_OF_WEEK = ['日', '一', '二', '三', '四', '五', '六'];
 const CALENDAR_WEEKDAYS = ['一', '二', '三', '四', '五', '六', '日'];
 const SCROLL_OFFSET = 60;
 const AUTO_SCROLL_DELAY = 100;
+
+// Selected calendars state
+let selectedPractitioners = [1, 2, 3]; // Default to first 3 practitioners
+let selectedResources = [1, 2]; // Default to some resources
+
+// Current view state
+let currentView = 'day'; // 'day', 'week', or 'month'
+
+// Navigation dropdown state
+let openDropdown = null;
 
 let selectedDate = new Date("2026-01-19");
 
@@ -30,6 +105,7 @@ function initCalendar() {
     renderHeaders();
     renderTimeLabels();
     renderGrid();
+    renderSelectedCalendars();
     setupEventListeners();
 
     // Auto-scroll to 9 AM
@@ -237,8 +313,29 @@ function changeDate(dateIso) {
 
 function renderHeaders() {
     const headerRow = document.getElementById('resource-headers');
-    headerRow.innerHTML = practitioners.map(p => `
-        <div class="resource-header ${p.name.length > 4 ? 'long-name' : ''}">${p.name}</div>
+
+    // Combine selected practitioners and resources
+    const selectedPractitionersData = practitioners.filter(p => selectedPractitioners.includes(p.id));
+    const selectedResourcesData = resources.filter(r => selectedResources.includes(r.id));
+
+    // Create header elements for both practitioners and resources
+    const headers = [
+        ...selectedPractitionersData.map(p => ({
+            name: p.name,
+            type: 'practitioner',
+            color: p.color
+        })),
+        ...selectedResourcesData.map(r => ({
+            name: r.name,
+            type: 'resource',
+            color: `var(--practitioner-${r.id + 5})`
+        }))
+    ];
+
+    headerRow.innerHTML = headers.map(h => `
+        <div class="resource-header ${h.name.length > 4 ? 'long-name' : ''}" data-type="${h.type}" style="border-bottom-color: ${h.color}">
+            ${h.name}
+        </div>
     `).join('');
 }
 
@@ -252,29 +349,130 @@ function renderTimeLabels() {
     timeLabels.innerHTML = html;
 }
 
+function renderSelectedCalendars() {
+    const chipsContainer = document.getElementById('calendar-chips');
+    if (!chipsContainer) return;
+
+    chipsContainer.innerHTML = '';
+
+    // Add selected practitioner chips
+    selectedPractitioners.forEach(pId => {
+        const practitioner = practitioners.find(p => p.id === pId);
+        if (practitioner) {
+            const chip = document.createElement('div');
+            chip.className = 'calendar-chip';
+            chip.innerHTML = `
+                <span class="chip-indicator" style="background: ${practitioner.color}"></span>
+                <span class="chip-label">${practitioner.name}</span>
+                <button class="chip-remove" onclick="removePractitioner(${pId})">×</button>
+            `;
+            chipsContainer.appendChild(chip);
+        }
+    });
+
+    // Add selected resource chips
+    selectedResources.forEach(rId => {
+        const resource = resources.find(r => r.id === rId);
+        if (resource) {
+            const chip = document.createElement('div');
+            chip.className = 'calendar-chip resource-chip';
+            chip.innerHTML = `
+                <span class="chip-indicator" style="background: var(--practitioner-${rId + 5})"></span>
+                <span class="chip-label">${resource.name}</span>
+                <button class="chip-remove" onclick="removeResource(${rId})">×</button>
+            `;
+            chipsContainer.appendChild(chip);
+        }
+    });
+}
+
 function renderGrid() {
     const grid = document.getElementById('calendar-grid');
     grid.innerHTML = '';
 
-    practitioners.forEach(p => {
-        const col = document.createElement('div');
-        col.className = 'practitioner-column';
-        for (let h = 0; h <= 23; h++) {
-            for (let m = 0; m < 60; m += 15) {
-                const slot = document.createElement('div');
-                const timeStr = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
-                const isAvailable = p.schedule.some(interval => timeStr >= interval.start && timeStr < interval.end);
-                slot.className = `time-slot ${!isAvailable ? 'unavailable' : ''}`;
-                if (h === 9 && m === 0) slot.id = 'slot-9am';
-                col.appendChild(slot);
-            }
-        }
+    // Render columns for selected practitioners and resources
+    const selectedCalendars = [
+        ...selectedPractitioners.map(pId => ({
+            id: pId,
+            type: 'practitioner',
+            data: practitioners.find(p => p.id === pId)
+        })),
+        ...selectedResources.map(rId => ({
+            id: rId,
+            type: 'resource',
+            data: resources.find(r => r.id === rId)
+        }))
+    ];
 
-        mockExceptions.filter(ex => ex.pId === p.id).forEach(ex => col.appendChild(createBox(ex, 'exception-layer')));
-        mockAppointments.filter(app => app.pId === p.id).forEach(app => col.appendChild(createBox(app, `calendar-event practitioner-${p.id}`, true)));
+    selectedCalendars.forEach(calendar => {
+        if (!calendar.data) return;
+
+        const col = document.createElement('div');
+        col.className = calendar.type === 'practitioner' ? 'practitioner-column' : 'resource-column';
+
+        if (calendar.type === 'practitioner') {
+            // Practitioner columns show working hours and appointments
+            const practitioner = calendar.data;
+            for (let h = 0; h <= 23; h++) {
+                for (let m = 0; m < 60; m += 15) {
+                    const slot = document.createElement('div');
+                    const timeStr = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+                    const isAvailable = practitioner.schedule.some(interval => timeStr >= interval.start && timeStr < interval.end);
+                    slot.className = `time-slot ${!isAvailable ? 'unavailable' : ''}`;
+                    if (h === 9 && m === 0) slot.id = 'slot-9am';
+                    col.appendChild(slot);
+                }
+            }
+
+            // Add exceptions and appointments for practitioners
+            mockExceptions.filter(ex => ex.pId === calendar.id).forEach(ex => col.appendChild(createBox(ex, 'exception-layer')));
+            mockAppointments.filter(app => app.pId === calendar.id).forEach(app => col.appendChild(createAppointmentBox(app, calendar.id)));
+        } else {
+            // Resource columns show availability for booking
+            const resource = calendar.data;
+            for (let h = 0; h <= 23; h++) {
+                for (let m = 0; m < 60; m += 15) {
+                    const slot = document.createElement('div');
+                    // Resources are generally available during business hours (9-17)
+                    const timeStr = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+                    const isBusinessHour = timeStr >= '09:00' && timeStr < '17:00';
+                    slot.className = `time-slot ${!isBusinessHour ? 'unavailable' : ''}`;
+                    if (h === 9 && m === 0) slot.id = 'slot-9am';
+                    col.appendChild(slot);
+                }
+            }
+
+            // Resources can have their own bookings/appointments
+            // For demo purposes, we'll show some mock resource bookings
+            getResourceBookings(calendar.id).forEach(booking => col.appendChild(createResourceBookingBox(booking, calendar.id)));
+        }
 
         grid.appendChild(col);
     });
+
+    // Re-render headers to match selected calendars
+    renderHeaders();
+}
+
+function createAppointmentBox(appointment, practitionerId) {
+    const start = appointment.start.split(':');
+    const end = appointment.end.split(':');
+    const top = parseInt(start[0]) * 60 + parseInt(start[1]);
+    const height = (parseInt(end[0]) * 60 + parseInt(end[1])) - top;
+
+    // Follow production naming pattern: {PatientName} | {AppointmentType} {ResourceNames} | {Notes}
+    const resourceText = appointment.resources && appointment.resources.length > 0 ? ` ${appointment.resources.join(' ')}` : '';
+    const title = `${appointment.patient} | ${appointment.appointmentType}${resourceText}`;
+    const displayText = appointment.notes ? `${title} | ${appointment.notes}` : title;
+
+    const div = document.createElement('div');
+    div.className = `calendar-event practitioner-${practitionerId}`;
+    div.style.top = `${top}px`;
+    div.style.height = `${height}px`;
+    // Production style: no time shown, just the event title with ellipsis for overflow
+    div.innerHTML = `<div class="event-title">${displayText}</div>`;
+    div.title = `${displayText} - ${appointment.start}-${appointment.end}`; // Tooltip with time
+    return div;
 }
 
 function createBox(data, className, isApp = false) {
@@ -287,7 +485,15 @@ function createBox(data, className, isApp = false) {
     div.className = className;
     div.style.top = `${top}px`;
     div.style.height = `${height}px`;
-    div.innerHTML = isApp ? `<b>${data.start}</b><br>${data.patient}` : data.title;
+
+    if (isApp) {
+        // This shouldn't be used for appointments anymore, but keeping for compatibility
+        div.innerHTML = data.patient || data.title;
+    } else {
+        // Exception/break events
+        div.innerHTML = data.title;
+    }
+
     return div;
 }
 
@@ -380,13 +586,195 @@ function setupEventListeners() {
         }
     };
 
+    // Navigation dropdown handlers
+    document.querySelectorAll('.nav-item.has-dropdown').forEach(button => {
+        button.onclick = (e) => {
+            e.preventDefault();
+            const menuName = button.dataset.menu;
+            toggleDropdown(menuName);
+        };
+    });
+
+    // View switcher buttons
+    document.querySelectorAll('.view-option').forEach(button => {
+        button.onclick = () => {
+            const newView = button.dataset.view;
+            switchView(newView);
+        };
+    });
+
+    // Calendar management button
+    const manageCalendarsBtn = document.getElementById('manage-calendars-btn');
+    if (manageCalendarsBtn) {
+        manageCalendarsBtn.onclick = () => {
+            openCalendarManagementModal();
+        };
+    }
+
+    // Close calendar management modal when clicking outside
+    document.getElementById('calendar-management-modal').onclick = (e) => {
+        if (e.target.id === 'calendar-management-modal') {
+            closeCalendarManagementModal();
+        }
+    };
+
+    // Close dropdown when clicking outside
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.nav-item')) {
+            if (openDropdown) {
+                document.querySelector(`.nav-item[data-menu="${openDropdown}"]`).classList.remove('open');
+                openDropdown = null;
+            }
+        }
+    });
+
     // Modal Handlers
     document.querySelector('.close-btn').onclick = () => document.getElementById('event-modal').style.display = 'none';
+}
+
+function openCalendarManagementModal() {
+    renderCalendarManagementModal();
+    document.getElementById('calendar-management-modal').classList.add('open');
+}
+
+function closeCalendarManagementModal() {
+    document.getElementById('calendar-management-modal').classList.remove('open');
+}
+
+function renderCalendarManagementModal() {
+    // Render practitioners section
+    const practitionerOptions = document.getElementById('practitioner-options');
+    practitionerOptions.innerHTML = practitioners.map(p => `
+        <label class="calendar-option">
+            <input type="checkbox"
+                   ${selectedPractitioners.includes(p.id) ? 'checked' : ''}
+                   onchange="togglePractitioner(${p.id}, this.checked)">
+            <span class="option-indicator" style="background: ${p.color}"></span>
+            <span class="option-label">${p.name}</span>
+        </label>
+    `).join('');
+
+    // Render resources section
+    const resourceOptions = document.getElementById('resource-options');
+    const resourcesByType = resources.reduce((acc, r) => {
+        if (!acc[r.type]) acc[r.type] = [];
+        acc[r.type].push(r);
+        return acc;
+    }, {});
+
+    resourceOptions.innerHTML = Object.entries(resourcesByType).map(([type, typeResources]) => `
+        <div class="resource-type-group">
+            <div class="resource-type-label">${type}</div>
+            ${typeResources.map(r => `
+                <label class="calendar-option">
+                    <input type="checkbox"
+                           ${selectedResources.includes(r.id) ? 'checked' : ''}
+                           onchange="toggleResource(${r.id}, this.checked)">
+                    <span class="option-indicator" style="background: var(--practitioner-${r.id + 5})"></span>
+                    <span class="option-label">${r.name}</span>
+                </label>
+            `).join('')}
+        </div>
+    `).join('');
+}
+
+function togglePractitioner(id, checked) {
+    if (checked) {
+        if (!selectedPractitioners.includes(id)) {
+            selectedPractitioners.push(id);
+        }
+    } else {
+        selectedPractitioners = selectedPractitioners.filter(pId => pId !== id);
+    }
+    renderSelectedCalendars();
+    renderGrid();
+}
+
+function toggleResource(id, checked) {
+    if (checked) {
+        if (!selectedResources.includes(id)) {
+            selectedResources.push(id);
+        }
+    } else {
+        selectedResources = selectedResources.filter(rId => rId !== id);
+    }
+    renderSelectedCalendars();
+    renderGrid();
+}
+
+function removePractitioner(id) {
+    selectedPractitioners = selectedPractitioners.filter(pId => pId !== id);
+    renderSelectedCalendars();
+    renderGrid();
+}
+
+function removeResource(id) {
+    selectedResources = selectedResources.filter(rId => rId !== id);
+    renderSelectedCalendars();
+    renderGrid();
+}
+
+function switchView(view) {
+    currentView = view;
+
+    // Update active state of view buttons
+    document.querySelectorAll('.view-option').forEach(button => {
+        button.classList.remove('active');
+        if (button.dataset.view === view) {
+            button.classList.add('active');
+        }
+    });
+
+    // For demo purposes, just log the view change
+    // In production, this would update the calendar component's view
+    console.log(`Switched to ${view} view`);
+}
+
+function getResourceBookings(resourceId) {
+    return mockResourceBookings.filter(booking => booking.rId === resourceId);
+}
+
+function createResourceBookingBox(booking, resourceId) {
+    const start = booking.start.split(':');
+    const end = booking.end.split(':');
+    const top = parseInt(start[0]) * 60 + parseInt(start[1]);
+    const height = (parseInt(end[0]) * 60 + parseInt(end[1])) - top;
+
+    // Find the resource name
+    const resource = resources.find(r => r.id === resourceId);
+    const resourceName = resource ? resource.name : `資源${resourceId}`;
+
+    // Format according to production pattern: [{ResourceName}] {EventTitle} | {Notes}
+    const displayTitle = booking.title;
+    const displayText = booking.notes ? `[${resourceName}] ${displayTitle} | ${booking.notes}` : `[${resourceName}] ${displayTitle}`;
+
+    const div = document.createElement('div');
+    div.className = 'resource-booking';
+    div.style.top = `${top}px`;
+    div.style.height = `${height}px`;
+    div.innerHTML = `<div class="booking-title">${displayText}</div>`;
+    div.title = `${displayText} - ${booking.start}-${booking.end}`;
+    return div;
 }
 
 function openCreateModal(hour, minute) {
     // Would open appointment creation modal in production
     console.log(`Create appointment at ${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`);
+}
+
+function toggleDropdown(menuName) {
+    // Close any open dropdown
+    if (openDropdown) {
+        document.querySelector(`.nav-item[data-menu="${openDropdown}"]`).classList.remove('open');
+    }
+
+    // Toggle the clicked dropdown
+    if (openDropdown !== menuName) {
+        document.querySelector(`.nav-item[data-menu="${menuName}"]`).classList.add('open');
+        openDropdown = menuName;
+    } else {
+        openDropdown = null;
+    }
 }
 
 window.onload = initCalendar;

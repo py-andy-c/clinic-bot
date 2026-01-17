@@ -12,6 +12,11 @@
     --practitioner-3: #f59e0b;
     --practitioner-4: #ef4444;
     --practitioner-5: #8b5cf6;
+    --practitioner-6: #8b5cf6; /* 治療室1 */
+    --practitioner-7: #ec4899; /* 治療室2 */
+    --practitioner-8: #06b6d4; /* 治療室3 */
+    --practitioner-9: #84cc16; /* 設備A */
+    --practitioner-10: #f59e0b; /* 設備B */
 }
 
 * {
@@ -75,26 +80,46 @@ body {
 }
 
 .nav-item {
-    padding: 8px 16px;
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 8px 4px 0; /* px-1 pt-1 from production */
     background: transparent;
     border: none;
-    border-radius: 6px;
+    border-bottom: 2px solid transparent; /* border-b-2 */
     font-size: 14px;
     font-weight: 500;
     color: var(--text-muted);
     cursor: pointer;
     transition: all 0.2s;
     white-space: nowrap;
+    position: relative;
 }
 
 .nav-item:hover {
-    background: var(--bg-main);
-    color: var(--text-main);
+    border-bottom-color: #d1d5db; /* hover:border-gray-300 */
+    color: #374151; /* hover:text-gray-700 */
 }
 
 .nav-item.active {
-    background: var(--primary);
-    color: white;
+    border-bottom-color: var(--primary); /* border-primary-500 */
+    color: #111827; /* text-gray-900 */
+}
+
+/* Down arrow for menu items with sub-items */
+.nav-item.has-dropdown::after {
+    content: '';
+    display: inline-block;
+    width: 0;
+    height: 0;
+    margin-left: 4px;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-top: 4px solid currentColor;
+    transition: transform 0.2s;
+}
+
+.nav-item.has-dropdown.open::after {
+    transform: rotate(180deg);
 }
 
 .nav-center {
@@ -186,6 +211,8 @@ body {
     flex-shrink: 0;
     z-index: 1001;
     display: block; /* Visible by default on desktop */
+    height: calc(100vh - 64px); /* Full height minus header */
+    overflow: hidden; /* Prevent sidebar itself from scrolling */
 }
 
 @media (max-width: 1024px) {
@@ -209,6 +236,8 @@ body {
     display: flex;
     flex-direction: column;
     gap: 24px;
+    height: 100%;
+    overflow-y: auto; /* Make sidebar content scrollable */
 }
 
 .sidebar-actions {
@@ -393,6 +422,53 @@ body {
 }
 
 .practitioner-filter-item input:checked+.practitioner-indicator::after {
+    content: '✓';
+    color: white;
+    font-size: 10px;
+    font-weight: bold;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
+/* Resource Filter Components */
+.resource-filter-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.resource-filter-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 14px;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    transition: background 0.2s;
+}
+
+.resource-filter-item:hover {
+    background: var(--bg-main);
+}
+
+.resource-filter-item input {
+    display: none;
+}
+
+.resource-indicator {
+    width: 16px;
+    height: 16px;
+    border-radius: 4px;
+    display: inline-block;
+    position: relative;
+    border: 1px solid rgba(0, 0, 0, 0.05);
+    flex-shrink: 0;
+}
+
+.resource-filter-item input:checked+.resource-indicator::after {
     content: '✓';
     color: white;
     font-size: 10px;
@@ -617,6 +693,168 @@ body {
     cursor: pointer;
 }
 
+/* View Switcher Section */
+.view-switcher-section {
+    padding: 12px;
+    background: white;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+}
+
+/* Selected Calendars Section */
+.selected-calendars {
+    margin-top: 16px;
+    padding: 12px;
+    background: white;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+}
+
+.calendar-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 12px;
+}
+
+.calendar-chip {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    background: var(--bg-main);
+    border-radius: 12px;
+    font-size: 11px;
+    border: 1px solid var(--border);
+}
+
+.chip-indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.chip-label {
+    font-weight: 500;
+    color: var(--text-main);
+}
+
+.chip-remove {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    padding: 0;
+    margin-left: 2px;
+}
+
+.chip-remove:hover {
+    color: var(--text-main);
+}
+
+.manage-calendars-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px 12px;
+    background: var(--primary);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.manage-calendars-btn:hover {
+    background: var(--primary-hover);
+}
+
+/* Calendar Management Modal */
+.calendar-management-content {
+    max-width: 500px;
+    margin: 20px auto;
+}
+
+.calendar-section {
+    margin-bottom: 24px;
+}
+
+.calendar-section h3 {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-main);
+    margin-bottom: 12px;
+}
+
+.practitioner-options,
+.resource-options {
+    space-y: 8px;
+}
+
+.calendar-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.calendar-option:hover {
+    background: var(--bg-main);
+}
+
+.calendar-option input[type="checkbox"] {
+    display: none;
+}
+
+.option-indicator {
+    width: 16px;
+    height: 16px;
+    border-radius: 4px;
+    flex-shrink: 0;
+    border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.calendar-option input:checked + .option-indicator::after {
+    content: '✓';
+    color: white;
+    font-size: 10px;
+    font-weight: bold;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
+.option-label {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-main);
+    flex: 1;
+}
+
+.resource-type-group {
+    margin-bottom: 16px;
+}
+
+.resource-type-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+}
+
 /* Sidebar toggle button removed - sidebar is hidden on mobile, use FABs instead */
 
 .date-strip {
@@ -808,6 +1046,15 @@ body {
     background: white;
 }
 
+.resource-column {
+    flex: 1;
+    /* Match header behavior */
+    min-width: 56px;
+    position: relative;
+    border-right: 1px solid var(--border);
+    background: #fafafa; /* Slightly different background for resources */
+}
+
 .time-slot {
     height: 20px;
     border-bottom: 1px solid #f8fafc;
@@ -828,7 +1075,7 @@ body {
     background-color: #f1f5f9;
 }
 
-/* Overlay Layers */
+/* Exception/Break Events */
 .exception-layer {
     position: absolute;
     left: 0;
@@ -837,10 +1084,13 @@ body {
     background: #f1f5f9;
     background-image: repeating-linear-gradient(45deg, rgba(0, 0, 0, 0.02), rgba(0, 0, 0, 0.02) 10px, rgba(0, 0, 0, 0.05) 10px, rgba(0, 0, 0, 0.05) 20px);
     border: 1px dashed var(--border);
-    padding: 5px;
+    padding: 4px 6px;
     font-size: 10px;
-    font-weight: 700;
+    font-weight: 600;
     color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .calendar-event {
@@ -848,12 +1098,53 @@ body {
     left: 4px;
     right: 4px;
     z-index: 20;
-    padding: 6px;
+    padding: 4px 6px;
     border-radius: 8px;
     color: white;
-    font-size: 11px;
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
     cursor: pointer;
+    display: flex;
+    align-items: flex-start;
+}
+
+.event-title {
+    flex: 1;
+    min-width: 0;
+    font-size: 11px;
+    line-height: 1.2;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Resource Bookings */
+.resource-booking {
+    position: absolute;
+    left: 4px;
+    right: 4px;
+    z-index: 15; /* Higher than regular events */
+    padding: 4px 6px;
+    border-radius: 6px;
+    background: linear-gradient(135deg, #fbbf24, #f59e0b); /* Yellow/orange gradient for resources */
+    color: #92400e; /* Dark brown text */
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    cursor: pointer;
+    border: 1px solid #d97706;
+    display: flex;
+    align-items: flex-start;
+}
+
+.booking-title {
+    flex: 1;
+    min-width: 0;
+    font-size: 10px;
+    line-height: 1.2;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: #92400e; /* Dark brown text for resource bookings */
 }
 
 .practitioner-1 {
@@ -866,6 +1157,14 @@ body {
 
 .practitioner-3 {
     background: var(--practitioner-3);
+}
+
+.practitioner-4 {
+    background: var(--practitioner-4);
+}
+
+.practitioner-5 {
+    background: var(--practitioner-5);
 }
 
 /* Modals & Utils */
