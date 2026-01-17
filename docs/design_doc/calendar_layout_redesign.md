@@ -80,6 +80,7 @@ During the prototyping phase, several key UX and technical decisions were made t
 - **Full-Day Coverage**: The calendar range is extended to **00:00 – 23:59**.
 - **9 AM Auto-Scroll**: To avoid starting the user at midnight, the `CalendarView` will automatically scroll to the 09:00 AM slot upon initialization.
 - **Cleaner 0:00 Hour**: Skip or hide the "0:00" time label to improve visual hygiene at the top of the grid.
+- **15-Minute Granularity**: Implement 15-minute time slots (4 slots per hour) to allow for more precise scheduling. Use an 80px height per hour (20px per 15-min slot) for comfortable mobile interaction.
 
 ### 5. Responsive Design & Visuals
 - **Simplified Headers**: Practitioner headers will display **names only** (no avatars). This provides a cleaner high-density look and avoids visual clutter in multi-column views.
@@ -126,8 +127,11 @@ The existing `handleTouchStart/End` logic in `CalendarView.tsx` currently trigge
 
 ### 5. Data Density & Cleanliness
 - **Headers**: Keep practitioner headers strictly text-only in multi-column view to prevent vertical "bloat" on mobile screens.
-- **Borders**: Ensure 30-min and 60-min slot borders are visually distinct (e.g., solid vs dashed) as seen in the mockup for easier time tracking.
-- **Time Label Alignment**: Vertically center time labels (e.g., "9:00") exactly on the horizontal hour line using `transform: translateY(-50%)`. This prevents the "descender lag" where labels appear to sit below the line they refer to.
+- **Borders**: Implement a hierarchical border system:
+    - **Solid**: Every 60 minutes.
+    - **Dashed/Light**: Every 30 minutes.
+    - **Ultra-Light**: Every 15 minutes.
+- **Time Label Alignment**: Vertically center time labels (e.g., "9:00") exactly on the horizontal hour line using `transform: translateY(-50%)`.
 
 ### 6. Global Header Integration Architecture
 - **Context Injection**: To avoid polluting other pages, do **not** hardcode the date into `ClinicLayout.tsx`.

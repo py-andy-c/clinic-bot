@@ -316,7 +316,7 @@ body {
 }
 
 .time-label {
-    height: 60px;
+    height: 80px;
     display: flex;
     align-items: flex-start;
     justify-content: center;
@@ -356,12 +356,19 @@ body {
 }
 
 .time-slot {
-    height: 30px;
+    height: 20px;
     border-bottom: 1px solid #f8fafc;
+    /* Subtle line for 15/45m */
 }
 
-.time-slot:nth-child(even) {
+.time-slot:nth-child(4n-2) {
+    border-bottom: 1px solid #f1f5f9;
+    /* Slightly darker for 30m */
+}
+
+.time-slot:nth-child(4n) {
     border-bottom: 1px solid var(--border);
+    /* Solid for the hour */
 }
 
 .time-slot.unavailable {
