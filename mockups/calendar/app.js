@@ -3,12 +3,7 @@ const practitioners = [
     { id: 2, name: '林美玲', color: '#10b981', schedule: [{ start: '10:00', end: '15:00' }, { start: '16:00', end: '20:00' }] },
     { id: 3, name: '張志遠', color: '#f59e0b', schedule: [{ start: '08:00', end: '13:00' }, { start: '14:00', end: '17:00' }] },
     { id: 4, name: '李佳穎', color: '#ef4444', schedule: [{ start: '09:00', end: '17:00' }] },
-    { id: 5, name: '周杰瑞', color: '#8b5cf6', schedule: [{ start: '13:00', end: '21:00' }] },
-    { id: 6, name: '吳佩珊', color: '#ec4899', schedule: [{ start: '10:00', end: '18:00' }] },
-    { id: 7, name: '蔡睿承', color: '#06b6d4', schedule: [{ start: '14:00', end: '22:00' }] },
-    { id: 8, name: '許曉晴', color: '#f97316', schedule: [{ start: '08:30', end: '16:30' }] },
-    { id: 9, name: '王大明偉', color: '#8b5cf6', schedule: [{ start: '09:00', end: '18:00' }] },
-    { id: 10, name: '陳小文主任醫師', color: '#3b82f6', schedule: [{ start: '08:00', end: '17:00' }] }
+    { id: 5, name: '周杰瑞', color: '#8b5cf6', schedule: [{ start: '13:00', end: '21:00' }] }
 ];
 
 const mockAppointments = [
@@ -20,6 +15,12 @@ const mockExceptions = [
     { pId: 1, title: '午休', start: '12:00', end: '13:00' },
     { pId: 2, title: '進修研習', start: '13:00', end: '15:00' },
 ];
+
+// Constants
+const DAYS_OF_WEEK = ['日', '一', '二', '三', '四', '五', '六'];
+const CALENDAR_WEEKDAYS = ['一', '二', '三', '四', '五', '六', '日'];
+const SCROLL_OFFSET = 60;
+const AUTO_SCROLL_DELAY = 100;
 
 let selectedDate = new Date("2026-01-19");
 
@@ -36,16 +37,15 @@ function initCalendar() {
         const viewport = document.getElementById('main-viewport');
         const slot9am = document.getElementById('slot-9am');
         if (slot9am && viewport) {
-            viewport.scrollTop = slot9am.offsetTop - 60; // Offset for header
+            viewport.scrollTop = slot9am.offsetTop - SCROLL_OFFSET;
         }
-    }, 100);
+    }, AUTO_SCROLL_DELAY);
 }
 
 function renderDateStrip() {
     const strip = document.getElementById('date-strip');
     const monthYearDisplay = document.getElementById('date-strip-month-year');
     if (!strip) return;
-    const days = ['日', '一', '二', '三', '四', '五', '六'];
 
     // Update month/year display
     if (monthYearDisplay) {
@@ -68,7 +68,7 @@ function renderDateStrip() {
 
         html += `
             <div class="date-item ${isSelected ? 'active' : ''} ${isToday ? 'is-today' : ''}" onclick="changeDate('${date.toISOString()}')">
-                <span class="day-label">${days[date.getDay()]}</span>
+                <span class="day-label">${DAYS_OF_WEEK[date.getDay()]}</span>
                 <span class="date-label">${date.getDate()}</span>
             </div>
         `;
@@ -109,8 +109,7 @@ function renderCalendar(containerId, monthYearId, clickHandler) {
     let html = '';
     
     // Weekday headers (Mon-Sun)
-    const weekdays = ['一', '二', '三', '四', '五', '六', '日'];
-    weekdays.forEach(day => {
+    CALENDAR_WEEKDAYS.forEach(day => {
         html += `<div class="weekday">${day}</div>`;
     });
 
@@ -324,8 +323,8 @@ function setupEventListeners() {
     const sidebarMonthYear = document.getElementById('sidebar-month-year');
 
     if (sidebarMonthYear) {
-        sidebarMonthYear.onclick = () => {
-            alert('📅 開啟全月份選擇器 (用於跨月/跨年快速跳轉)');
+        sidebarMonthYear.onclick = (e) => {
+            e.preventDefault(); // Would open full month picker in production
         };
     }
 
@@ -365,8 +364,8 @@ function setupEventListeners() {
 
     const mobileMenuTrigger = document.getElementById('mobile-menu-trigger');
     if (mobileMenuTrigger) {
-        mobileMenuTrigger.onclick = () => {
-            alert('🍔 開啟全平台導航選單 (預約管理、病患管理、診所管理、個人設定)');
+        mobileMenuTrigger.onclick = (e) => {
+            e.preventDefault(); // Would open global navigation menu in production
         };
     }
 
@@ -386,7 +385,8 @@ function setupEventListeners() {
 }
 
 function openCreateModal(hour, minute) {
-    alert(`📅 開啟新增預約視窗 (${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')})`);
+    // Would open appointment creation modal in production
+    console.log(`Create appointment at ${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`);
 }
 
 window.onload = initCalendar;

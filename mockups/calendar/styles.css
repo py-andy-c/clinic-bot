@@ -10,6 +10,8 @@
     --practitioner-1: #3b82f6;
     --practitioner-2: #10b981;
     --practitioner-3: #f59e0b;
+    --practitioner-4: #ef4444;
+    --practitioner-5: #8b5cf6;
 }
 
 * {
@@ -186,24 +188,7 @@ body {
     display: block; /* Visible by default on desktop */
 }
 
-/* Responsive visibility classes */
-.mobile-only {
-    display: none;
-}
-
-.desktop-only {
-    display: block;
-}
-
 @media (max-width: 1024px) {
-    .mobile-only {
-        display: block;
-    }
-
-    .desktop-only {
-        display: none;
-    }
-
     .sidebar {
         display: none; /* Hide sidebar completely on mobile - use FABs instead */
     }
@@ -582,6 +567,7 @@ body {
     width: max-content;
     /* Important: contain all columns */
     min-width: 100%;
+    min-height: 800px; /* Ensure minimum height for calendar grid */
     display: flex;
     flex-direction: column;
 }
@@ -1027,18 +1013,4 @@ body {
     background: var(--primary);
     color: white;
     border-color: var(--primary);
-}
-
-.mobile-only {
-    display: none;
-}
-
-@media (max-width: 1024px) {
-    .mobile-only {
-        display: flex;
-    }
-
-    .desktop-only {
-        display: none;
-    }
 }
