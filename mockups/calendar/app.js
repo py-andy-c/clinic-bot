@@ -65,22 +65,18 @@ function renderDateStrip() {
     strip.innerHTML = html;
 }
 
-function renderMiniCalendar() {
-    const miniCalendar = document.getElementById('mini-calendar');
-    const sidebarMonthYear = document.getElementById('sidebar-month-year');
-    const headerMonthYear = document.getElementById('header-month-year');
+function renderCalendar(containerId, monthYearId, clickHandler) {
+    const calendar = document.getElementById(containerId);
+    const monthYearLabel = document.getElementById(monthYearId);
     
-    if (!miniCalendar || !sidebarMonthYear) return;
+    if (!calendar || !monthYearLabel) return;
 
     const year = selectedDate.getFullYear();
     const month = selectedDate.getMonth();
     const monthText = `${year}年${month + 1}月`;
     
-    // Update both month/year labels
-    sidebarMonthYear.textContent = monthText;
-    if (headerMonthYear) {
-        headerMonthYear.textContent = monthText;
-    }
+    // Update month/year label
+    monthYearLabel.textContent = monthText;
 
     // Get first day of month and number of days
     const firstDay = new Date(year, month, 1);
@@ -124,7 +120,7 @@ function renderMiniCalendar() {
         if (isToday) classes += ' today';
         if (isSelected) classes += ' selected';
         
-        html += `<div class="${classes}" onclick="selectDate(${year}, ${month}, ${day})">${day}</div>`;
+        html += `<div class="${classes}" onclick="${clickHandler}(${year}, ${month}, ${day})">${day}</div>`;
     }
 
     // Next month padding to complete the grid (6 weeks = 42 cells)
@@ -136,99 +132,23 @@ function renderMiniCalendar() {
         html += `<div class="day other-month">${day}</div>`;
     }
 
-    miniCalendar.innerHTML = html;
+    calendar.innerHTML = html;
 }
 
-function navigateMonth(direction) {
-    const currentMonth = selectedDate.getMonth();
-    const currentYear = selectedDate.getFullYear();
+function renderMiniCalendar() {
+    renderCalendar('mini-calendar', 'sidebar-month-year', 'selectDate');
     
-    let newMonth, newYear;
-    if (direction === 'prev') {
-        newMonth = currentMonth - 1;
-        newYear = newMonth < 0 ? currentYear - 1 : currentYear;
-        if (newMonth < 0) newMonth = 11; // December
-    } else {
-        newMonth = currentMonth + 1;
-        newYear = newMonth > 11 ? currentYear + 1 : currentYear;
-        if (newMonth > 11) newMonth = 0; // January
+    // Also update header label for synchronization
+    const headerMonthYear = document.getElementById('header-month-year');
+    if (headerMonthYear) {
+        const year = selectedDate.getFullYear();
+        const month = selectedDate.getMonth();
+        headerMonthYear.textContent = `${year}年${month + 1}月`;
     }
-    
-    // Set to the first day of the new month to ensure we're in that month
-    selectedDate = new Date(newYear, newMonth, 1);
-    
-    renderMiniCalendar();
-    renderDateStrip();
-    renderGrid();
 }
 
 function renderMobileMiniCalendar() {
-    const mobileMiniCalendar = document.getElementById('mobile-mini-calendar');
-    const mobileMonthYear = document.getElementById('mobile-month-year');
-    
-    if (!mobileMiniCalendar || !mobileMonthYear) return;
-
-    const year = selectedDate.getFullYear();
-    const month = selectedDate.getMonth();
-    
-    // Update mobile month/year label
-    mobileMonthYear.textContent = `${year}年${month + 1}月`;
-
-    // Get first day of month and number of days
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-    const daysInMonth = lastDay.getDate();
-    
-    // Get the weekday of the first day (0 = Sunday, 6 = Saturday)
-    let firstDayOfWeek = firstDay.getDay();
-    
-    // Adjust for Monday-first calendar (0 = Monday, 6 = Sunday)
-    if (firstDayOfWeek === 0) firstDayOfWeek = 6;
-    else firstDayOfWeek--;
-
-    // Get previous month's last days for padding
-    const prevMonth = new Date(year, month, 0);
-    const daysInPrevMonth = prevMonth.getDate();
-
-    // Build calendar HTML
-    let html = '';
-    
-    // Weekday headers (Mon-Sun)
-    const weekdays = ['一', '二', '三', '四', '五', '六', '日'];
-    weekdays.forEach(day => {
-        html += `<div class="weekday">${day}</div>`;
-    });
-
-    // Previous month padding
-    for (let i = firstDayOfWeek - 1; i >= 0; i--) {
-        const day = daysInPrevMonth - i;
-        html += `<div class="day other-month">${day}</div>`;
-    }
-
-    // Current month days
-    const today = new Date();
-    for (let day = 1; day <= daysInMonth; day++) {
-        const currentDate = new Date(year, month, day);
-        const isToday = currentDate.toDateString() === today.toDateString();
-        const isSelected = currentDate.toDateString() === selectedDate.toDateString();
-        
-        let classes = 'day';
-        if (isToday) classes += ' today';
-        if (isSelected) classes += ' selected';
-        
-        html += `<div class="${classes}" onclick="selectDateFromMobile(${year}, ${month}, ${day})">${day}</div>`;
-    }
-
-    // Next month padding to complete the grid (6 weeks = 42 cells)
-    const totalCells = 42;
-    const currentCells = firstDayOfWeek + daysInMonth;
-    const nextMonthDays = totalCells - currentCells;
-    
-    for (let day = 1; day <= nextMonthDays; day++) {
-        html += `<div class="day other-month">${day}</div>`;
-    }
-
-    mobileMiniCalendar.innerHTML = html;
+    renderCalendar('mobile-mini-calendar', 'mobile-month-year', 'selectDateFromMobile');
 }
 
 function openMobileDatePicker() {
@@ -248,7 +168,7 @@ function selectDateFromMobile(year, month, day) {
     closeMobileDatePicker();
 }
 
-function navigateMobileMonth(direction) {
+function navigateMonth(direction, updateCallback) {
     const currentMonth = selectedDate.getMonth();
     const currentYear = selectedDate.getFullYear();
     
@@ -266,14 +186,44 @@ function navigateMobileMonth(direction) {
     // Set to the first day of the new month to ensure we're in that month
     selectedDate = new Date(newYear, newMonth, 1);
     
-    renderMobileMiniCalendar();
+    // Update the appropriate calendar(s)
+    if (updateCallback) {
+        updateCallback();
+    } else {
+        // Default: update both calendars and other components
+        renderMiniCalendar();
+        renderDateStrip();
+        renderGrid();
+    }
 }
 
-function selectDate(year, month, day) {
+// Desktop sidebar navigation
+function navigateSidebarMonth(direction) {
+    navigateMonth(direction, () => {
+        renderMiniCalendar();
+        renderDateStrip();
+        renderGrid();
+    });
+}
+
+// Mobile modal navigation
+function navigateMobileMonth(direction) {
+    navigateMonth(direction, renderMobileMiniCalendar);
+}
+
+function selectDate(year, month, day, shouldCloseModal = false) {
     selectedDate = new Date(year, month, day);
     renderDateStrip();
     renderMiniCalendar();
     renderGrid();
+    
+    if (shouldCloseModal) {
+        closeMobileDatePicker();
+    }
+}
+
+function selectDateFromMobile(year, month, day) {
+    selectDate(year, month, day, true);
 }
 
 function changeDate(dateIso) {
@@ -388,11 +338,11 @@ function setupEventListeners() {
     const nextMonthBtn = document.getElementById('next-month-btn');
     
     if (prevMonthBtn) {
-        prevMonthBtn.onclick = () => navigateMonth('prev');
+        prevMonthBtn.onclick = () => navigateSidebarMonth('prev');
     }
     
     if (nextMonthBtn) {
-        nextMonthBtn.onclick = () => navigateMonth('next');
+        nextMonthBtn.onclick = () => navigateSidebarMonth('next');
     }
 
     // Add mobile calendar navigation handlers
