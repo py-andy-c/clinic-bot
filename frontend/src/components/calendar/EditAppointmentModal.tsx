@@ -708,43 +708,6 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
           </>
         )}
 
-        {/* Alternative slots display for time confirmations */}
-        {isTimeConfirmation && alternativeSlots && alternativeSlots.length > 0 && (
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              可選時段
-            </label>
-            <div className="bg-amber-50 border border-amber-200 rounded-md p-4">
-              <div className="text-sm text-amber-800 mb-2">
-                以下是系統提供給病患的可用時段選項：
-              </div>
-              <div className="space-y-2">
-                {alternativeSlots.map((slot) => {
-                  const slotDate = moment.tz(slot, 'Asia/Taipei');
-                  const isCurrentSlot = slot === event.start.toISOString();
-                  return (
-                    <div
-                      key={slot}
-                      className={`flex items-center text-sm ${
-                        isCurrentSlot ? 'text-amber-900 font-medium' : 'text-amber-800'
-                      }`}
-                    >
-                      <svg className="w-4 h-4 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                      </svg>
-                      <span>{slotDate.format('YYYY年M月D日 HH:mm')}</span>
-                      {isCurrentSlot && (
-                        <span className="ml-2 text-xs bg-amber-200 text-amber-900 px-2 py-1 rounded">
-                          目前選擇
-                        </span>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        )}
 
         {hasGrouping ? (
           <div>
@@ -822,6 +785,51 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
         />
 
         <AppointmentReferenceHeader referenceDateTime={referenceDateTime} />
+
+        {/* Alternative slots display for time confirmations */}
+        {isTimeConfirmation && alternativeSlots && alternativeSlots.length > 0 && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              可選時段
+            </label>
+            <div className="bg-amber-50 border border-amber-200 rounded-md p-3">
+              <div className="text-sm text-amber-800 mb-2">
+                以下病患提供的額外時段：
+              </div>
+              <div className="space-y-1">
+                {(() => {
+                  // Group slots by date
+                  const groupedSlots = alternativeSlots.reduce((acc, slot) => {
+                    const slotDate = moment.tz(slot, 'Asia/Taipei');
+                    const dateKey = slotDate.format('YYYY年M月D日');
+                    if (!acc[dateKey]) {
+                      acc[dateKey] = [];
+                    }
+                    acc[dateKey].push(slot);
+                    return acc;
+                  }, {} as Record<string, string[]>);
+
+                  return Object.entries(groupedSlots).map(([dateKey, slotsForDate]) => {
+                    const sortedSlots = slotsForDate.sort();
+                    const timeStrings = sortedSlots.map(slot => {
+                      const slotDate = moment.tz(slot, 'Asia/Taipei');
+                      const isCurrentSlot = slot === event.start.toISOString();
+                      const timeStr = slotDate.format('HH:mm');
+                      return isCurrentSlot ? `${timeStr} (目前)` : timeStr;
+                    });
+
+                    return (
+                      <div key={dateKey} className="text-sm text-amber-800">
+                        <span className="font-medium">{dateKey}</span>
+                        <span className="ml-2">{timeStrings.join(' ')}</span>
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+            </div>
+          </div>
+        )}
 
         {selectedAppointmentTypeId && selectedPractitionerId && (
           <DateTimePicker
