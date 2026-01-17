@@ -22,7 +22,7 @@ import { AppointmentType } from '../types';
 
 
 const AutoAssignedAppointmentsPage: React.FC = () => {
-  const { isClinicAdmin, isAuthenticated } = useAuth();
+  const { isClinicAdmin, isAuthenticated, hasRole } = useAuth();
   const { alert } = useModal();
   const { enqueueModal, showNext } = useModalQueue();
   const [selectedAppointment, setSelectedAppointment] = useState<AutoAssignedAppointment | null>(null);
@@ -60,8 +60,9 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
     );
   }
 
-  // Only admins can access this page
-  if (!isClinicAdmin) {
+  // Only clinic admins and practitioners can access this page
+  const canAccessPage = isClinicAdmin || (hasRole && hasRole('practitioner'));
+  if (!canAccessPage) {
     return (
       <>
         <div className="mb-2 md:mb-8">
@@ -82,13 +83,13 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
           <div className="flex">
             <div className="flex-shrink-0">
               <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 0 016.32-2.906l-.78.625A7 7 0 1115.709 14l.624-.78A8 8 0 0010 18zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
               </svg>
             </div>
             <div className="ml-3">
               <h3 className="text-sm font-medium text-red-800">無權限</h3>
               <div className="mt-2 text-sm text-red-700">
-                <p>只有診所管理員可以查看和管理待審核預約。</p>
+                <p>只有診所管理員和治療師可以查看和管理待審核預約。</p>
               </div>
             </div>
           </div>
@@ -674,9 +675,13 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
             <div className="ml-3 flex-1">
               <h3 className="text-lg font-semibold text-gray-900 mb-3">說明</h3>
               <div className="text-sm text-gray-700 space-y-2">
-                <p>如果病患在預約時沒有指定治療師，系統會根據病患的時間選擇，暫時指派一名治療師以保留時段。</p>
-                <p>暫時指派的預約不會出現在治療師的行事曆或通知中，但仍會佔用該時段，無法接受其他預約。</p>
-                <p>診所管理員可以確認或更改治療師的選擇。若在預約時間前
+                <p>此頁面顯示需要診所人員確認的預約，包括：</p>
+                <ul className="list-disc list-inside ml-4 space-y-1">
+                  <li>自動指派的預約（治療師尚未確認）</li>
+                  <li>多時段預約（時間尚未確認）</li>
+                </ul>
+                <p>診所管理員可以查看所有待確認預約。治療師可以查看需要他們確認時間的多時段預約。</p>
+                <p>若在預約時間前
                   {isLoadingSettings ? (
                     <span className="inline-block w-8 h-4 bg-gray-200 animate-pulse rounded mx-1"></span>
                   ) : minimumBookingHoursAhead !== null && minimumBookingHoursAhead > 0 ? (
@@ -684,7 +689,7 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
                   ) : (
                     <span className="text-gray-500 mx-1">載入中...</span>
                   )}
-                  還未人為指派，系統會自動指派給目前暫時指派的治療師。被確認指派的治療師則會收到通知。</p>
+                  還未人為確認，系統會自動確認預約。被確認的治療師和病患會收到通知。</p>
               </div>
               <div className="mt-4 flex justify-end">
                 <button

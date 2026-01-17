@@ -243,7 +243,8 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
     switchClinic,
     availableClinics,
     isSwitchingClinic,
-    isClinicAdmin
+    isClinicAdmin,
+    hasRole
   } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
@@ -278,7 +279,7 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
       icon: '📅',
       items: [
         { name: '行事曆', href: '/admin/calendar', icon: '📅', show: true },
-        { name: '待審核預約', href: '/admin/clinic/pending-review-appointments', icon: '📋', show: isClinicAdmin },
+        { name: '待審核預約', href: '/admin/clinic/pending-review-appointments', icon: '📋', show: isClinicAdmin || (hasRole && hasRole('practitioner')) },
       ]
     },
     {

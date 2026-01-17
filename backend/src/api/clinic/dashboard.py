@@ -15,7 +15,7 @@ from sqlalchemy import func, cast, String, or_
 from sqlalchemy.sql import sqltypes
 
 from core.database import get_db
-from auth.dependencies import require_admin_role, require_clinic_user, UserContext, ensure_clinic_access
+from auth.dependencies import require_practitioner_or_admin, require_clinic_user, UserContext, ensure_clinic_access
 from models import Appointment, CalendarEvent
 from services.availability_service import AvailabilityService
 from services.resource_service import ResourceService
@@ -121,9 +121,9 @@ class AutoAssignedAppointmentsResponse(BaseModel):
     appointments: List[AutoAssignedAppointmentItem]
 
 
-@router.get("/pending-review-appointments", summary="List appointments requiring review (admin only)")
+@router.get("/pending-review-appointments", summary="List appointments requiring review")
 async def list_pending_review_appointments(
-    current_user: UserContext = Depends(require_admin_role),
+    current_user: UserContext = Depends(require_practitioner_or_admin),
     db: Session = Depends(get_db)
 ) -> AutoAssignedAppointmentsResponse:
     """
@@ -133,7 +133,9 @@ async def list_pending_review_appointments(
     - Auto-assigned appointments (practitioner not yet assigned)
     - Multiple time slot appointments (time not yet confirmed)
 
-    Only clinic admins can view this list. Appointments are sorted by date.
+    Clinic admins can view all pending appointments.
+    Practitioners can view time confirmation appointments where they are the assigned practitioner.
+    Appointments are sorted by date.
     After review/confirmation, appointments will no longer appear in this list.
 
     Note: Only future appointments are returned as defensive programming.
@@ -182,7 +184,18 @@ async def list_pending_review_appointments(
                 ),
                 sqltypes.TIMESTAMP
             ) > now_naive
-        ).options(
+        )
+
+        # Apply role-based filtering
+        # Admins can see all pending appointments
+        # Practitioners can only see time confirmation appointments where they are assigned
+        if not current_user.has_role("admin") and current_user.has_role("practitioner"):
+            appointments = appointments.filter(
+                Appointment.pending_time_confirmation == True,
+                CalendarEvent.user_id == current_user.user_id
+            )
+
+        appointments = appointments.options(
             joinedload(Appointment.patient),
             joinedload(Appointment.appointment_type),
             joinedload(Appointment.calendar_event).joinedload(CalendarEvent.user)
