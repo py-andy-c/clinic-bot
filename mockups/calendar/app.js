@@ -92,7 +92,7 @@ let selectedPractitioners = [1, 2, 3]; // Default to first 3 practitioners
 let selectedResources = [1, 2]; // Default to some resources
 
 // Current view state
-let currentView = 'day'; // 'day', 'week', or 'month'
+let currentView = 'month'; // 'day', 'week', or 'month'
 
 // Navigation dropdown state
 let openDropdown = null;
@@ -105,7 +105,6 @@ function initCalendar() {
     renderHeaders();
     renderTimeLabels();
     renderGrid();
-    renderSelectedCalendars();
     setupEventListeners();
 
     // Auto-scroll to 9 AM
@@ -349,42 +348,6 @@ function renderTimeLabels() {
     timeLabels.innerHTML = html;
 }
 
-function renderSelectedCalendars() {
-    const chipsContainer = document.getElementById('calendar-chips');
-    if (!chipsContainer) return;
-
-    chipsContainer.innerHTML = '';
-
-    // Add selected practitioner chips
-    selectedPractitioners.forEach(pId => {
-        const practitioner = practitioners.find(p => p.id === pId);
-        if (practitioner) {
-            const chip = document.createElement('div');
-            chip.className = 'calendar-chip';
-            chip.innerHTML = `
-                <span class="chip-indicator" style="background: ${practitioner.color}"></span>
-                <span class="chip-label">${practitioner.name}</span>
-                <button class="chip-remove" onclick="removePractitioner(${pId})">×</button>
-            `;
-            chipsContainer.appendChild(chip);
-        }
-    });
-
-    // Add selected resource chips
-    selectedResources.forEach(rId => {
-        const resource = resources.find(r => r.id === rId);
-        if (resource) {
-            const chip = document.createElement('div');
-            chip.className = 'calendar-chip resource-chip';
-            chip.innerHTML = `
-                <span class="chip-indicator" style="background: var(--practitioner-${rId + 5})"></span>
-                <span class="chip-label">${resource.name}</span>
-                <button class="chip-remove" onclick="removeResource(${rId})">×</button>
-            `;
-            chipsContainer.appendChild(chip);
-        }
-    });
-}
 
 function renderGrid() {
     const grid = document.getElementById('calendar-grid');
@@ -596,27 +559,29 @@ function setupEventListeners() {
     });
 
     // View switcher buttons
-    document.querySelectorAll('.view-option').forEach(button => {
+    document.querySelectorAll('.view-option-compact').forEach(button => {
         button.onclick = () => {
             const newView = button.dataset.view;
             switchView(newView);
         };
     });
 
-    // Calendar management button
-    const manageCalendarsBtn = document.getElementById('manage-calendars-btn');
-    if (manageCalendarsBtn) {
-        manageCalendarsBtn.onclick = () => {
-            openCalendarManagementModal();
+    // Practitioner filter checkboxes
+    document.querySelectorAll('input[data-practitioner]').forEach(checkbox => {
+        checkbox.onchange = function() {
+            const practitionerId = parseInt(this.dataset.practitioner);
+            togglePractitioner(practitionerId, this.checked);
         };
-    }
+    });
 
-    // Close calendar management modal when clicking outside
-    document.getElementById('calendar-management-modal').onclick = (e) => {
-        if (e.target.id === 'calendar-management-modal') {
-            closeCalendarManagementModal();
-        }
-    };
+    // Resource filter checkboxes
+    document.querySelectorAll('input[data-resource]').forEach(checkbox => {
+        checkbox.onchange = function() {
+            const resourceId = parseInt(this.dataset.resource);
+            toggleResource(resourceId, this.checked);
+        };
+    });
+
 
     // Close dropdown when clicking outside
     document.addEventListener('click', (e) => {
@@ -632,51 +597,6 @@ function setupEventListeners() {
     document.querySelector('.close-btn').onclick = () => document.getElementById('event-modal').style.display = 'none';
 }
 
-function openCalendarManagementModal() {
-    renderCalendarManagementModal();
-    document.getElementById('calendar-management-modal').classList.add('open');
-}
-
-function closeCalendarManagementModal() {
-    document.getElementById('calendar-management-modal').classList.remove('open');
-}
-
-function renderCalendarManagementModal() {
-    // Render practitioners section
-    const practitionerOptions = document.getElementById('practitioner-options');
-    practitionerOptions.innerHTML = practitioners.map(p => `
-        <label class="calendar-option">
-            <input type="checkbox"
-                   ${selectedPractitioners.includes(p.id) ? 'checked' : ''}
-                   onchange="togglePractitioner(${p.id}, this.checked)">
-            <span class="option-indicator" style="background: ${p.color}"></span>
-            <span class="option-label">${p.name}</span>
-        </label>
-    `).join('');
-
-    // Render resources section
-    const resourceOptions = document.getElementById('resource-options');
-    const resourcesByType = resources.reduce((acc, r) => {
-        if (!acc[r.type]) acc[r.type] = [];
-        acc[r.type].push(r);
-        return acc;
-    }, {});
-
-    resourceOptions.innerHTML = Object.entries(resourcesByType).map(([type, typeResources]) => `
-        <div class="resource-type-group">
-            <div class="resource-type-label">${type}</div>
-            ${typeResources.map(r => `
-                <label class="calendar-option">
-                    <input type="checkbox"
-                           ${selectedResources.includes(r.id) ? 'checked' : ''}
-                           onchange="toggleResource(${r.id}, this.checked)">
-                    <span class="option-indicator" style="background: var(--practitioner-${r.id + 5})"></span>
-                    <span class="option-label">${r.name}</span>
-                </label>
-            `).join('')}
-        </div>
-    `).join('');
-}
 
 function togglePractitioner(id, checked) {
     if (checked) {
@@ -686,7 +606,6 @@ function togglePractitioner(id, checked) {
     } else {
         selectedPractitioners = selectedPractitioners.filter(pId => pId !== id);
     }
-    renderSelectedCalendars();
     renderGrid();
 }
 
@@ -698,19 +617,6 @@ function toggleResource(id, checked) {
     } else {
         selectedResources = selectedResources.filter(rId => rId !== id);
     }
-    renderSelectedCalendars();
-    renderGrid();
-}
-
-function removePractitioner(id) {
-    selectedPractitioners = selectedPractitioners.filter(pId => pId !== id);
-    renderSelectedCalendars();
-    renderGrid();
-}
-
-function removeResource(id) {
-    selectedResources = selectedResources.filter(rId => rId !== id);
-    renderSelectedCalendars();
     renderGrid();
 }
 
@@ -718,7 +624,7 @@ function switchView(view) {
     currentView = view;
 
     // Update active state of view buttons
-    document.querySelectorAll('.view-option').forEach(button => {
+    document.querySelectorAll('.view-option-compact').forEach(button => {
         button.classList.remove('active');
         if (button.dataset.view === view) {
             button.classList.add('active');

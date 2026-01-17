@@ -53,23 +53,80 @@
                     </div>
 
                     <!-- Selected Calendars Chips -->
-                    <!-- View Switcher -->
-                    <div class="view-switcher-section">
-                        <div class="view-switcher">
-                            <button class="view-option active" data-view="day">日</button>
-                            <button class="view-option" data-view="week">週</button>
-                            <button class="view-option" data-view="month">月</button>
+                    <!-- View Switcher Section -->
+                    <div class="sidebar-section">
+                        <div class="view-switcher-compact">
+                            <span class="view-switcher-label">視圖切換</span>
+                            <div class="view-options-row">
+                                <button class="view-option-compact active" data-view="month">月</button>
+                                <button class="view-option-compact" data-view="week">週</button>
+                                <button class="view-option-compact" data-view="day">日</button>
+                            </div>
                         </div>
                     </div>
 
-                    <div class="selected-calendars">
-                        <div class="calendar-chips" id="calendar-chips">
-                            <!-- Selected practitioner and resource chips will be injected here -->
+                    <!-- Practitioner Filter Section -->
+                    <div class="sidebar-section">
+                        <h3 class="sidebar-section-title">顯示治療師</h3>
+                        <div class="practitioner-filter-list">
+                            <label class="practitioner-filter-item">
+                                <input type="checkbox" checked data-practitioner="1">
+                                <span class="practitioner-indicator" style="background: var(--practitioner-1)"></span>
+                                陳大文
+                            </label>
+                            <label class="practitioner-filter-item">
+                                <input type="checkbox" checked data-practitioner="2">
+                                <span class="practitioner-indicator" style="background: var(--practitioner-2)"></span>
+                                林美玲
+                            </label>
+                            <label class="practitioner-filter-item">
+                                <input type="checkbox" checked data-practitioner="3">
+                                <span class="practitioner-indicator" style="background: var(--practitioner-3)"></span>
+                                張志遠
+                            </label>
+                            <label class="practitioner-filter-item">
+                                <input type="checkbox" checked data-practitioner="4">
+                                <span class="practitioner-indicator" style="background: var(--practitioner-4)"></span>
+                                李佳穎
+                            </label>
+                            <label class="practitioner-filter-item">
+                                <input type="checkbox" checked data-practitioner="5">
+                                <span class="practitioner-indicator" style="background: var(--practitioner-5)"></span>
+                                周杰瑞
+                            </label>
                         </div>
-                        <button class="manage-calendars-btn" id="manage-calendars-btn">
-                            <span class="settings-icon">⚙️</span>
-                            管理行事曆
-                        </button>
+                    </div>
+
+                    <!-- Resource Filter Section -->
+                    <div class="sidebar-section">
+                        <h3 class="sidebar-section-title">顯示資源</h3>
+                        <div class="resource-filter-list">
+                            <label class="resource-filter-item">
+                                <input type="checkbox" checked data-resource="1">
+                                <span class="resource-indicator" style="background: var(--practitioner-6)"></span>
+                                治療室1
+                            </label>
+                            <label class="resource-filter-item">
+                                <input type="checkbox" checked data-resource="2">
+                                <span class="resource-indicator" style="background: var(--practitioner-7)"></span>
+                                治療室2
+                            </label>
+                            <label class="resource-filter-item">
+                                <input type="checkbox" data-resource="3">
+                                <span class="resource-indicator" style="background: var(--practitioner-8)"></span>
+                                治療室3
+                            </label>
+                            <label class="resource-filter-item">
+                                <input type="checkbox" data-resource="4">
+                                <span class="resource-indicator" style="background: var(--practitioner-9)"></span>
+                                設備A
+                            </label>
+                            <label class="resource-filter-item">
+                                <input type="checkbox" data-resource="5">
+                                <span class="resource-indicator" style="background: var(--practitioner-10)"></span>
+                                設備B
+                            </label>
+                        </div>
                     </div>
 
                     <!-- Reusable Mini Calendar Component (also used in mobile modal) -->
@@ -139,18 +196,21 @@
                 <button class="close-drawer">&times;</button>
             </div>
             <div class="drawer-body">
-                <!-- Reusable View Switcher Component (also used in sidebar) -->
-                <div class="setting-group">
-                    <h3>視圖切換</h3>
-                    <div class="view-switcher-vertical">
-                        <button class="view-option-vertical active" data-view="day">日視圖</button>
-                        <button class="view-option-vertical" data-view="week">週視圖</button>
-                        <button class="view-option-vertical" data-view="month">月視圖</button>
+                <!-- View Switcher Section -->
+                <div class="sidebar-section">
+                    <div class="view-switcher-compact">
+                        <span class="view-switcher-label">視圖切換</span>
+                        <div class="view-options-row">
+                            <button class="view-option-compact active" data-view="month">月</button>
+                            <button class="view-option-compact" data-view="week">週</button>
+                            <button class="view-option-compact" data-view="day">日</button>
+                        </div>
                     </div>
                 </div>
-                <!-- Practitioner Filter Component -->
-                <div class="setting-group">
-                    <h3>顯示治療師</h3>
+
+                <!-- Practitioner Filter Section -->
+                <div class="sidebar-section">
+                    <h3 class="sidebar-section-title">顯示治療師</h3>
                     <div class="practitioner-filter-list">
                         <label class="practitioner-filter-item">
                             <input type="checkbox" checked data-practitioner="1">
@@ -179,9 +239,10 @@
                         </label>
                     </div>
                 </div>
-                <!-- Resource Filter Component -->
-                <div class="setting-group">
-                    <h3>顯示資源</h3>
+
+                <!-- Resource Filter Section -->
+                <div class="sidebar-section">
+                    <h3 class="sidebar-section-title">顯示資源</h3>
                     <div class="resource-filter-list">
                         <label class="resource-filter-item">
                             <input type="checkbox" checked data-resource="1">
@@ -223,32 +284,6 @@
                 <p><strong>患者：</strong> <span id="modal-patient"></span></p>
                 <p><strong>時間：</strong> <span id="modal-time"></span></p>
                 <p><strong>治療師：</strong> <span id="modal-practitioner"></span></p>
-            </div>
-        </div>
-    </div>
-    <!-- Calendar Management Modal (Hidden by default) -->
-    <div id="calendar-management-modal" class="modal-overlay">
-        <div class="modal-content calendar-management-content">
-            <div class="modal-header">
-                <h2>管理行事曆</h2>
-                <button class="close-btn" onclick="closeCalendarManagementModal()">&times;</button>
-            </div>
-            <div class="modal-body">
-                <!-- Practitioners Section -->
-                <div class="calendar-section">
-                    <h3>治療師</h3>
-                    <div class="practitioner-options" id="practitioner-options">
-                        <!-- Practitioner checkboxes will be injected here -->
-                    </div>
-                </div>
-
-                <!-- Resources Section -->
-                <div class="calendar-section">
-                    <h3>資源</h3>
-                    <div class="resource-options" id="resource-options">
-                        <!-- Resource checkboxes will be injected here -->
-                    </div>
-                </div>
             </div>
         </div>
     </div>

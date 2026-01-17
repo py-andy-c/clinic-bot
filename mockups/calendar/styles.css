@@ -693,21 +693,61 @@ body {
     cursor: pointer;
 }
 
-/* View Switcher Section */
-.view-switcher-section {
-    padding: 12px;
+/* Sidebar Section */
+.sidebar-section {
+    padding: 16px;
     background: white;
     border-radius: 8px;
     border: 1px solid var(--border);
+    margin-bottom: 16px;
 }
 
-/* Selected Calendars Section */
-.selected-calendars {
-    margin-top: 16px;
-    padding: 12px;
-    background: white;
-    border-radius: 8px;
+.sidebar-section-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-main);
+    margin-bottom: 12px;
+}
+
+/* Compact View Switcher */
+.view-switcher-compact {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.view-switcher-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-main);
+}
+
+.view-options-row {
+    display: flex;
+    gap: 4px;
+}
+
+.view-option-compact {
+    padding: 6px 12px;
     border: 1px solid var(--border);
+    background: white;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-main);
+    cursor: pointer;
+    transition: all 0.2s;
+    min-width: 32px;
+}
+
+.view-option-compact:hover {
+    background: var(--bg-main);
+}
+
+.view-option-compact.active {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
 }
 
 .calendar-chips {
@@ -776,84 +816,6 @@ body {
     background: var(--primary-hover);
 }
 
-/* Calendar Management Modal */
-.calendar-management-content {
-    max-width: 500px;
-    margin: 20px auto;
-}
-
-.calendar-section {
-    margin-bottom: 24px;
-}
-
-.calendar-section h3 {
-    font-size: 16px;
-    font-weight: 600;
-    color: var(--text-main);
-    margin-bottom: 12px;
-}
-
-.practitioner-options,
-.resource-options {
-    space-y: 8px;
-}
-
-.calendar-option {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 8px;
-    border-radius: 6px;
-    cursor: pointer;
-    transition: background 0.2s;
-}
-
-.calendar-option:hover {
-    background: var(--bg-main);
-}
-
-.calendar-option input[type="checkbox"] {
-    display: none;
-}
-
-.option-indicator {
-    width: 16px;
-    height: 16px;
-    border-radius: 4px;
-    flex-shrink: 0;
-    border: 1px solid rgba(0, 0, 0, 0.05);
-}
-
-.calendar-option input:checked + .option-indicator::after {
-    content: '✓';
-    color: white;
-    font-size: 10px;
-    font-weight: bold;
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-}
-
-.option-label {
-    font-size: 14px;
-    font-weight: 500;
-    color: var(--text-main);
-    flex: 1;
-}
-
-.resource-type-group {
-    margin-bottom: 16px;
-}
-
-.resource-type-label {
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-bottom: 8px;
-}
 
 /* Sidebar toggle button removed - sidebar is hidden on mobile, use FABs instead */
 
@@ -1362,17 +1324,6 @@ body {
     overflow-y: auto;
 }
 
-.setting-group {
-    margin-bottom: 32px;
-}
-
-.setting-group h3 {
-    font-size: 14px;
-    text-transform: uppercase;
-    color: var(--text-muted);
-    margin-bottom: 16px;
-    letter-spacing: 0.05em;
-}
 
 .view-switcher-vertical {
     display: flex;
@@ -1380,9 +1331,7 @@ body {
     gap: 8px;
 }
 
-/* Legacy support for settings drawer - consider migrating to unified components */
-/* These can be removed once settings drawer is updated to use view-option-vertical and practitioner-filter-item */
-
+/* Legacy button styles - keeping for backward compatibility */
 .btn-full {
     width: 100%;
     padding: 12px;
@@ -1398,15 +1347,6 @@ body {
     background: #f1f5f9;
     border-color: var(--primary);
     color: var(--primary);
-}
-
-.check-item {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 12px 0;
-    font-weight: 500;
-    cursor: pointer;
 }
 
 .btn-pill {
