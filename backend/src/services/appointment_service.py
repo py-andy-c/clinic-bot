@@ -2406,10 +2406,6 @@ class AppointmentService:
                 detail="預約缺少開始時間"
             )
 
-        current_time = datetime.combine(
-            calendar_event.date, calendar_event.start_time
-        ).replace(tzinfo=TAIWAN_TZ)
-
         # Parse alternative slots from ISO strings to datetime objects
         alternative_datetimes: List[datetime] = []
         for slot_str in alternative_slots:
@@ -2420,20 +2416,8 @@ class AppointmentService:
                 logger.warning(f"Invalid datetime format in alternative_time_slots: {slot_str}")
                 continue
 
-        valid_slots = alternative_datetimes + [current_time]
-        confirmed_time_naive = confirmed_time.replace(tzinfo=None)
-
-        # Check if confirmed time matches any valid slot
-        time_matches = any(
-            slot.replace(tzinfo=None) == confirmed_time_naive
-            for slot in valid_slots
-        )
-
-        if not time_matches:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="確認的時間不在患者的偏好時段中"
-            )
+        # Allow selection of any valid time for both clinic and patient confirmations
+        # The original restriction to alternative_time_slots was too limiting
 
         # Validate that confirmed time is still available (not double-booked)
         clinic_id = appointment.patient.clinic_id
