@@ -338,6 +338,14 @@ function setupEventListeners() {
         };
     }
 
+    // Add sidebar toggle handler
+    const sidebarToggle = document.getElementById('sidebar-toggle');
+    if (sidebarToggle) {
+        sidebarToggle.onclick = () => {
+            document.getElementById('calendar-sidebar').classList.toggle('open');
+        };
+    }
+
     // Add month navigation handlers
     const prevMonthBtn = document.getElementById('prev-month-btn');
     const nextMonthBtn = document.getElementById('next-month-btn');
@@ -365,7 +373,7 @@ function setupEventListeners() {
     const mobileMenuTrigger = document.getElementById('mobile-menu-trigger');
     if (mobileMenuTrigger) {
         mobileMenuTrigger.onclick = () => {
-            document.getElementById('calendar-sidebar').classList.toggle('open');
+            alert('🍔 開啟全平台導航選單 (預約管理、病患管理、診所管理、個人設定)');
         };
     }
 
