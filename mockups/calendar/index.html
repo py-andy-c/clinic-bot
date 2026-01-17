@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>診所行事曆 - 概念原型</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Noto+Sans+TC:wght@300;400;500;700&display=swap"
+        rel="stylesheet">
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- Sidebar remains fixed -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <span class="logo-icon">✨</span>
+                    <span class="logo-text">ClinicBot</span>
+                </div>
+            </div>
+            <nav class="sidebar-nav">
+                <div class="nav-group">
+                    <h3 class="nav-title">治療師</h3>
+                    <div class="practitioner-list">
+                        <div class="practitioner-item active"><span>陳大文</span></div>
+                        <div class="practitioner-item active"><span>林美玲</span></div>
+                        <div class="practitioner-item active"><span>張志遠</span></div>
+                    </div>
+                </div>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header class="top-bar">
+                <div class="mobile-header mobile-only">
+                    <div class="logo-text">ClinicBot</div>
+                </div>
+                <div class="date-navigator desktop-only">
+                    <h1>2026年1月19日</h1>
+                </div>
+            </header>
+
+            <div class="date-strip-container">
+                <div class="date-strip" id="date-strip"></div>
+            </div>
+
+            <!-- Unified Scroll Viewport -->
+            <div class="calendar-viewport" id="main-viewport">
+                <div class="calendar-grid-container">
+
+                    <!-- Header Row: Sticky Top -->
+                    <div class="header-row">
+                        <div class="time-corner"></div>
+                        <div class="resource-headers" id="resource-headers">
+                            <!-- Injected JS -->
+                        </div>
+                    </div>
+
+                    <!-- Body Area: Time Column (Sticky Left) + Grid -->
+                    <div class="grid-layer">
+                        <div class="time-column" id="time-labels">
+                            <!-- Injected JS -->
+                        </div>
+                        <div class="resource-grid" id="calendar-grid">
+                            <!-- Injected JS -->
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- Floating Action Buttons -->
+            <div class="fab-container">
+                <button class="fab fab-secondary" id="today-fab" title="回今日">📅</button>
+                <button class="fab fab-secondary" id="settings-fab" title="設定">⚙️</button>
+                <button class="fab fab-primary" id="add-fab" title="新增預約">＋</button>
+            </div>
+        </main>
+    </div>
+
+    <!-- Settings Drawer (Hidden by default) -->
+    <div id="settings-drawer" class="drawer-overlay">
+        <div class="drawer-content">
+            <div class="drawer-header">
+                <h2>行事曆設定</h2>
+                <button class="close-drawer">&times;</button>
+            </div>
+            <div class="drawer-body">
+                <div class="setting-group">
+                    <h3>視圖切換</h3>
+                    <div class="view-switcher-vertical">
+                        <button class="btn-full active">日視圖</button>
+                        <button class="btn-full">週視圖</button>
+                        <button class="btn-full">月視圖</button>
+                    </div>
+                </div>
+                <div class="setting-group">
+                    <h3>顯示治療師</h3>
+                    <div class="practitioner-list">
+                        <label class="check-item"><input type="checkbox" checked> 陳大文</label>
+                        <label class="check-item"><input type="checkbox" checked> 林美玲</label>
+                        <label class="check-item"><input type="checkbox" checked> 張志遠</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="event-modal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>預約詳情</h2><button class="close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p><strong>患者：</strong> <span id="modal-patient"></span></p>
+                <p><strong>時間：</strong> <span id="modal-time"></span></p>
+                <p><strong>治療師：</strong> <span id="modal-practitioner"></span></p>
+            </div>
+        </div>
+    </div>
+    <script src="app.js"></script>
+</body>
+
+</html>
