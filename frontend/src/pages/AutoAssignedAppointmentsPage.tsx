@@ -6,7 +6,6 @@ import { apiService } from '../services/api';
 import { logger } from '../utils/logger';
 import { LoadingSpinner, ErrorMessage } from '../components/shared';
 import { EditAppointmentModal } from '../components/calendar/EditAppointmentModal';
-import TimeConfirmationModal from '../components/TimeConfirmationModal';
 import { useAutoAssignedAppointments, AutoAssignedAppointment } from '../hooks/queries';
 import { BaseModal } from '../components/shared/BaseModal';
 import moment from 'moment-timezone';
@@ -30,7 +29,6 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
   const [practitioners, setPractitioners] = useState<{ id: number; full_name: string }[]>([]);
   const [appointmentTypes, setAppointmentTypes] = useState<AppointmentType[]>([]);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [isTimeConfirmationModalOpen, setIsTimeConfirmationModalOpen] = useState(false);
   const [calendarEvent, setCalendarEvent] = useState<CalendarEvent | null>(null);
   const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
   const [minimumBookingHoursAhead, setMinimumBookingHoursAhead] = useState<number | null>(null);
@@ -189,45 +187,38 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
     try {
       setSelectedAppointment(appointment);
 
-      // Check if this is a time confirmation appointment
-      if (appointment.pending_time_confirmation) {
-        // Open time confirmation modal
-        setIsTimeConfirmationModalOpen(true);
-      } else {
-        // This is a practitioner assignment appointment - open edit modal
-        // Ensure practitioners and appointment types are loaded before opening modal
-        if (practitioners.length === 0 || appointmentTypes.length === 0) {
-          const [practitionersData, settings] = await Promise.all([
-            apiService.getPractitioners(),
-            apiService.getClinicSettings()
-          ]);
-          setPractitioners(practitionersData);
-          setAppointmentTypes(settings.appointment_types);
-        }
-
-        // Use shared utility to create CalendarEvent from appointment data
-        const event = appointmentToCalendarEvent({
-          id: appointment.appointment_id,
-          calendar_event_id: appointment.calendar_event_id,
-          patient_id: appointment.patient_id,
-          patient_name: appointment.patient_name,
-          practitioner_id: appointment.practitioner_id,
-          practitioner_name: appointment.practitioner_name,
-          appointment_type_id: appointment.appointment_type_id,
-          appointment_type_name: appointment.appointment_type_name,
-          start_time: appointment.start_time,
-          end_time: appointment.end_time,
-          status: 'confirmed',
-          notes: appointment.notes ?? null,
-          originally_auto_assigned: appointment.originally_auto_assigned,
-          is_auto_assigned: true, // All appointments from this page are currently auto-assigned
-          resource_names: appointment.resource_names,
-          resource_ids: appointment.resource_ids,
-        });
-
-        setCalendarEvent(event);
-        setIsEditModalOpen(true);
+      // Ensure practitioners and appointment types are loaded before opening modal
+      if (practitioners.length === 0 || appointmentTypes.length === 0) {
+        const [practitionersData, settings] = await Promise.all([
+          apiService.getPractitioners(),
+          apiService.getClinicSettings()
+        ]);
+        setPractitioners(practitionersData);
+        setAppointmentTypes(settings.appointment_types);
       }
+
+      // Use shared utility to create CalendarEvent from appointment data
+      const event = appointmentToCalendarEvent({
+        id: appointment.appointment_id,
+        calendar_event_id: appointment.calendar_event_id,
+        patient_id: appointment.patient_id,
+        patient_name: appointment.patient_name,
+        practitioner_id: appointment.practitioner_id,
+        practitioner_name: appointment.practitioner_name,
+        appointment_type_id: appointment.appointment_type_id,
+        appointment_type_name: appointment.appointment_type_name,
+        start_time: appointment.start_time,
+        end_time: appointment.end_time,
+        status: 'confirmed',
+        notes: appointment.notes ?? null,
+        originally_auto_assigned: appointment.originally_auto_assigned,
+        is_auto_assigned: true, // All appointments from this page are currently auto-assigned
+        resource_names: appointment.resource_names,
+        resource_ids: appointment.resource_ids,
+      });
+
+      setCalendarEvent(event);
+      setIsEditModalOpen(true);
     } catch (err) {
       logger.error('Failed to open modal:', err);
       alert('無法開啟視窗', '錯誤');
@@ -254,6 +245,7 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
         clinic_notes?: string;
         notification_note?: string;
         selected_resource_ids?: number[];
+        confirm_time_selection?: boolean;
       } = {
         practitioner_id: formData.practitioner_id,
         start_time: formData.start_time,
@@ -274,7 +266,12 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
       if (formData.selected_resource_ids !== undefined) {
         updateData.selected_resource_ids = formData.selected_resource_ids;
       }
-      
+
+      // Add confirm_time_selection flag for time confirmation appointments
+      if (selectedAppointment.pending_time_confirmation) {
+        updateData.confirm_time_selection = true;
+      }
+
       // Don't close modal here - let EditAppointmentModal handle closing via onComplete
       // This allows assignment check to happen before modal closes
       await apiService.editClinicAppointment(selectedAppointment.appointment_id, updateData);
@@ -552,21 +549,6 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
         </div>
       )}
 
-      {isTimeConfirmationModalOpen && selectedAppointment && (
-        <TimeConfirmationModal
-          appointment={selectedAppointment}
-          onClose={() => {
-            setIsTimeConfirmationModalOpen(false);
-            setSelectedAppointment(null);
-          }}
-          onConfirm={async () => {
-            setIsTimeConfirmationModalOpen(false);
-            setSelectedAppointment(null);
-            await refetch();
-            await alert('預約時段已確認', '成功');
-          }}
-        />
-      )}
 
       {isEditModalOpen && calendarEvent && selectedAppointment && (
         <EditAppointmentModal
@@ -586,20 +568,23 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
             setSelectedAppointment(null);
             setCalendarEvent(null);
             await refetch();
-            
-            // Show confirmation alert first
-            await alert('預約已重新指派', '成功');
-            
+
+            // Show appropriate confirmation alert based on appointment type
+            const alertMessage = selectedAppointment.pending_time_confirmation
+              ? '預約時段已確認'
+              : '預約已重新指派';
+            await alert(alertMessage, '成功');
+
             // After confirmation alert closes, check for assignment prompt
             const appointmentData = lastConfirmedAppointmentDataRef.current;
             if (appointmentData && appointmentData.practitionerId !== null) {
               try {
                 const patient = await apiService.getPatient(appointmentData.patientId);
                 const shouldPrompt = shouldPromptForAssignment(patient, appointmentData.practitionerId);
-                
+
                 if (shouldPrompt) {
                   const practitionerName = practitioners.find(p => p.id === appointmentData.practitionerId)?.full_name || '';
-                  
+
                   // Get current assigned practitioners to display
                   let currentAssigned: Array<{ id: number; full_name: string }> = [];
                   if (patient.assigned_practitioners && patient.assigned_practitioners.length > 0) {
@@ -614,7 +599,7 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
                       })
                       .filter((p): p is { id: number; full_name: string } => p !== null);
                   }
-                  
+
                   // Enqueue the assignment prompt modal
                   enqueueModal<React.ComponentProps<typeof PractitionerAssignmentPromptModal>>({
                     id: 'assignment-prompt',
@@ -625,18 +610,18 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
                       currentAssignedPractitioners: currentAssigned,
                       onConfirm: async () => {
                         if (!patient || !appointmentData.practitionerId) return;
-                        
+
                         try {
                           const updatedPatient = await apiService.assignPractitionerToPatient(
                             patient.id,
                             appointmentData.practitionerId
                           );
-                          
+
                           const allAssigned = updatedPatient.assigned_practitioners || [];
                           const activeAssigned = allAssigned
                             .filter((p) => p.is_active !== false)
                             .map((p) => ({ id: p.id, full_name: p.full_name }));
-                          
+
                           // Enqueue confirmation modal
                           enqueueModal<React.ComponentProps<typeof PractitionerAssignmentConfirmationModal>>({
                             id: 'assignment-confirmation',
@@ -651,7 +636,7 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
                               },
                             },
                           });
-                          
+
                           // Show the confirmation modal after the prompt modal closes
                           setTimeout(() => {
                             showNext();
@@ -667,7 +652,7 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
                       },
                     },
                   });
-                  
+
                   // Show the assignment prompt modal after a delay to ensure alert is fully closed
                   setTimeout(() => {
                     showNext();
@@ -690,6 +675,8 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
           saveButtonText="確認指派"
           allowConfirmWithoutChanges={true}
           skipAssignmentCheck={true}
+          isTimeConfirmation={selectedAppointment.pending_time_confirmation || false}
+          alternativeSlots={selectedAppointment.alternative_time_slots || null}
         />
       )}
 

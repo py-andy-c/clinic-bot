@@ -51,6 +51,8 @@ export interface EditAppointmentModalProps {
   saveButtonText?: string; // Custom text for the final save button (default: "確認更動")
   allowConfirmWithoutChanges?: boolean; // If true, allow confirmation even when nothing changed (default: false)
   skipAssignmentCheck?: boolean; // If true, skip assignment check in this modal (assignment will be handled externally) (default: false)
+  isTimeConfirmation?: boolean; // If true, this is a time confirmation modal with alternative slots display
+  alternativeSlots?: string[] | null; // Alternative time slots available for time confirmation
 }
 
 export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.memo(({
@@ -66,6 +68,8 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
   saveButtonText = '確認更動',
   allowConfirmWithoutChanges = false,
   skipAssignmentCheck = false,
+  isTimeConfirmation = false,
+  alternativeSlots = null,
 }) => {
   const isMobile = useIsMobile();
   const [step, setStep] = useState<EditStep>('form');
@@ -704,6 +708,44 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
           </>
         )}
 
+        {/* Alternative slots display for time confirmations */}
+        {isTimeConfirmation && alternativeSlots && alternativeSlots.length > 0 && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              可選時段
+            </label>
+            <div className="bg-amber-50 border border-amber-200 rounded-md p-4">
+              <div className="text-sm text-amber-800 mb-2">
+                以下是系統提供給病患的可用時段選項：
+              </div>
+              <div className="space-y-2">
+                {alternativeSlots.map((slot) => {
+                  const slotDate = moment.tz(slot, 'Asia/Taipei');
+                  const isCurrentSlot = slot === event.start.toISOString();
+                  return (
+                    <div
+                      key={slot}
+                      className={`flex items-center text-sm ${
+                        isCurrentSlot ? 'text-amber-900 font-medium' : 'text-amber-800'
+                      }`}
+                    >
+                      <svg className="w-4 h-4 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                      <span>{slotDate.format('YYYY年M月D日 HH:mm')}</span>
+                      {isCurrentSlot && (
+                        <span className="ml-2 text-xs bg-amber-200 text-amber-900 px-2 py-1 rounded">
+                          目前選擇
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
         {hasGrouping ? (
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1105,7 +1147,7 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
     </div>
   );
 
-  const modalTitle = step === 'form' ? '調整預約' : step === 'review' ? '確認變更' : step === 'note' ? '調整預約備註(選填)' : 'LINE訊息預覽';
+  const modalTitle = step === 'form' ? (isTimeConfirmation ? '確認預約時段' : '調整預約') : step === 'review' ? '確認變更' : step === 'note' ? '調整預約備註(選填)' : 'LINE訊息預覽';
 
   return (
     <>
