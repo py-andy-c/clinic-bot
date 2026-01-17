@@ -112,6 +112,7 @@ Transform the daily calendar view into a high-density, multi-practitioner worksp
 ---
 
 ## 🛠️ Implementation Checklist for `CalendarView.tsx`
+- [ ] **Production Layout Compliance**: Ensure calendar component respects the existing `ClinicLayout` structure with full-width global header
 - [ ] **Unified Scroll**: Refactor the RBC layout to ensure the entire grid (headers + body) is wrapped in a single scrollable viewport.
 - [ ] **Custom Slot Rendering**: Implement `slotPropGetter` to apply `.rbc-slot-unavailable` based on practitioner schedules.
 - [ ] **Layered Z-Indexing**: 
@@ -122,10 +123,27 @@ Transform the daily calendar view into a high-density, multi-practitioner worksp
 - [ ] **Native Swipe Override**: Use `touch-action: pan-y` on the calendar body grid to prevent horizontal swiping from triggering date changes, allowing horizontal column scrolling instead.
 - [ ] **Header Store**: Implement a simple store (or use existing state) to "teleport" the Month/Year string to the `ClinicLayout` top bar.
 - [ ] **Quarter-Hour Styling**: Use `:nth-child` CSS rules on slots to render the hierarchical border system (Solid @ 60m, Light @ 30m, Transparent @ 15/45m).
+- [ ] **CSS Architecture Cleanup**: Remove duplicate styles and establish single source of truth for component styling.
+- [ ] **Responsive Wrapper**: Add `.calendar-content` wrapper to isolate calendar layout from global layout concerns.
 
 ---
 
-## 🖥️ 9. Split-Pane Desktop Architecture
+## 🏗️ 9. Production Layout Architecture Integration
+*Critical learning: The mockup must respect the existing production layout structure.*
+
+- **Global Header Priority**: The production app uses a full-width global header at the top (64px height) that spans the entire screen width. **Rule**: The calendar mockup must place this header at the top level, not inside the sidebar layout.
+- **Layout Hierarchy**: 
+    - **Production Structure**: `app-container (column) → global-header (full-width) → main-content (flex) → sidebar + calendar-content`
+    - **Mockup Fix**: Changed from horizontal flex layout to vertical flex layout to match production
+- **Responsive Navigation Integration**:
+    - **Desktop**: Navigation items are integrated into the global header (left side)
+    - **Mobile**: Hamburger menu in header triggers slide-out sidebar that starts below the header (top: 64px)
+- **CSS Cleanup Discipline**: Duplicate CSS rules cause layout conflicts. **Rule**: Maintain single source of truth for each component's styles and remove duplicates during refactoring.
+- **Component Wrapping Strategy**: Added `.calendar-content` wrapper to properly isolate calendar-specific layout from global layout concerns, enabling clean separation between layout and component logic.
+
+---
+
+## 🖥️ 10. Split-Pane Desktop Architecture
 *Optimizing for large screens while maintaining mobile parity.*
 
 - **Permanent Left Sidebar**: On screens > 768px, a **240px sidebar** is permanently docked to the left.

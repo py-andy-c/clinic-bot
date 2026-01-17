@@ -15,109 +15,119 @@
 
 <body>
     <div class="app-container">
-        <!-- Sidebar remains fixed -->
-        <aside class="sidebar" id="calendar-sidebar">
-            <div class="sidebar-content">
-                <div class="sidebar-actions">
-                    <button class="create-btn" id="sidebar-add-btn">
-                        <span class="plus-icon">＋</span>
-                        <span class="btn-text">建立預約</span>
-                    </button>
-                    <button class="today-sidebar-btn" id="sidebar-today-btn">回到今日</button>
+        <!-- Global Header (Production Environment) -->
+        <header class="global-navbar">
+            <div class="nav-left">
+                <div class="branding">
+                    <span class="icon">🏥</span>
+                    <span class="platform-name">診所小幫手</span>
                 </div>
-
-                <div class="sidebar-nav">
-                    <div class="nav-group">
-                        <h3 class="nav-title">切換視圖</h3>
-                        <div class="view-pills">
-                            <button class="pill active">日</button>
-                            <button class="pill">週</button>
-                            <button class="pill">月</button>
-                        </div>
-                    </div>
-
-                    <div class="nav-group">
-                        <h3 class="nav-title">治療師</h3>
-                        <div class="practitioner-filters">
-                            <label class="filter-item">
-                                <input type="checkbox" checked>
-                                <span class="custom-check" style="background: var(--practitioner-1)"></span>
-                                陳大文
-                            </label>
-                            <label class="filter-item">
-                                <input type="checkbox" checked>
-                                <span class="custom-check" style="background: var(--practitioner-2)"></span>
-                                林美玲
-                            </label>
-                            <label class="filter-item">
-                                <input type="checkbox" checked>
-                                <span class="custom-check" style="background: var(--practitioner-3)"></span>
-                                張志遠
-                            </label>
-                        </div>
-                    </div>
-                </div>
+                <!-- Desktop Navigation -->
+                <nav class="desktop-nav">
+                    <button class="nav-item active">📅 預約管理</button>
+                    <button class="nav-item">👥 病患管理</button>
+                    <button class="nav-item">🏥 診所管理</button>
+                    <button class="nav-item">👤 個人設定</button>
+                </nav>
             </div>
-        </aside>
+            <div class="nav-center">
+                <h1 class="current-month-label" id="current-month-year">2026年1月</h1>
+            </div>
+            <div class="nav-right">
+                <div class="user-info desktop-only">
+                    <span class="user-name">王大明</span>
+                    <span class="user-email">admin@clinic.com</span>
+                </div>
+                <button class="menu-icon" id="mobile-menu-trigger">☰</button>
+                <!-- Logout button on desktop only -->
+                <button class="logout-btn desktop-only">🔒</button>
+            </div>
+        </header>
 
-        <!-- Main Content -->
+        <!-- Main Content Area with Sidebar -->
         <main class="main-content">
-            <!-- Global Header (Production Environment) -->
-            <header class="global-navbar">
-                <div class="nav-left">
-                    <div class="branding">
-                        <span class="icon">🏥</span>
-                        <span class="platform-name">診所小幫手</span>
+            <!-- Sidebar remains fixed -->
+            <aside class="sidebar" id="calendar-sidebar">
+                <div class="sidebar-content">
+                    <div class="sidebar-actions">
+                        <button class="create-btn" id="sidebar-add-btn">
+                            <span class="plus-icon">＋</span>
+                            <span class="btn-text">建立預約</span>
+                        </button>
+                        <button class="today-sidebar-btn" id="sidebar-today-btn">回到今日</button>
                     </div>
-                </div>
-                <div class="nav-center">
-                    <h1 class="current-month-label" id="current-month-year">2026年1月</h1>
-                </div>
-                <div class="nav-right">
-                    <div class="user-info desktop-only">
-                        <span class="user-name">王大明</span>
-                        <span class="user-email">admin@clinic.com</span>
-                    </div>
-                    <button class="menu-icon" id="mobile-menu-trigger">☰</button>
-                    <!-- Logout button on desktop only -->
-                    <button class="logout-btn desktop-only">🔒</button>
-                </div>
-            </header>
 
-            <div class="date-strip-container">
-                <div class="date-strip" id="date-strip"></div>
-            </div>
+                    <div class="sidebar-nav">
+                        <div class="nav-group">
+                            <h3 class="nav-title">切換視圖</h3>
+                            <div class="view-pills">
+                                <button class="pill active">日</button>
+                                <button class="pill">週</button>
+                                <button class="pill">月</button>
+                            </div>
+                        </div>
 
-            <!-- Unified Scroll Viewport -->
-            <div class="calendar-viewport" id="main-viewport">
-                <div class="calendar-grid-container">
-
-                    <!-- Header Row: Sticky Top -->
-                    <div class="header-row">
-                        <div class="time-corner"></div>
-                        <div class="resource-headers" id="resource-headers">
-                            <!-- Injected JS -->
+                        <div class="nav-group">
+                            <h3 class="nav-title">治療師</h3>
+                            <div class="practitioner-filters">
+                                <label class="filter-item">
+                                    <input type="checkbox" checked>
+                                    <span class="custom-check" style="background: var(--practitioner-1)"></span>
+                                    陳大文
+                                </label>
+                                <label class="filter-item">
+                                    <input type="checkbox" checked>
+                                    <span class="custom-check" style="background: var(--practitioner-2)"></span>
+                                    林美玲
+                                </label>
+                                <label class="filter-item">
+                                    <input type="checkbox" checked>
+                                    <span class="custom-check" style="background: var(--practitioner-3)"></span>
+                                    張志遠
+                                </label>
+                            </div>
                         </div>
                     </div>
-
-                    <!-- Body Area: Time Column (Sticky Left) + Grid -->
-                    <div class="grid-layer">
-                        <div class="time-column" id="time-labels">
-                            <!-- Injected JS -->
-                        </div>
-                        <div class="resource-grid" id="calendar-grid">
-                            <!-- Injected JS -->
-                        </div>
-                    </div>
-
                 </div>
-            </div>
+            </aside>
 
-            <!-- Floating Action Buttons -->
-            <div class="fab-container">
-                <button class="fab fab-secondary" id="today-fab" title="回今日">📅</button>
-                <button class="fab fab-secondary" id="settings-fab" title="設定">⚙️</button>
-                <button class="fab fab-primary" id="add-fab" title="新增預約">＋</button>
+            <!-- Calendar Content -->
+            <div class="calendar-content">
+                <div class="date-strip-container">
+                    <div class="date-strip" id="date-strip"></div>
+                </div>
+
+                <!-- Unified Scroll Viewport -->
+                <div class="calendar-viewport" id="main-viewport">
+                    <div class="calendar-grid-container">
+
+                        <!-- Header Row: Sticky Top -->
+                        <div class="header-row">
+                            <div class="time-corner"></div>
+                            <div class="resource-headers" id="resource-headers">
+                                <!-- Injected JS -->
+                            </div>
+                        </div>
+
+                        <!-- Body Area: Time Column (Sticky Left) + Grid -->
+                        <div class="grid-layer">
+                            <div class="time-column" id="time-labels">
+                                <!-- Injected JS -->
+                            </div>
+                            <div class="resource-grid" id="calendar-grid">
+                                <!-- Injected JS -->
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- Floating Action Buttons -->
+                <div class="fab-container">
+                    <button class="fab fab-secondary" id="today-fab" title="回今日">📅</button>
+                    <button class="fab fab-secondary" id="settings-fab" title="設定">⚙️</button>
+                    <button class="fab fab-primary" id="add-fab" title="新增預約">＋</button>
+                </div>
             </div>
         </main>
     </div>

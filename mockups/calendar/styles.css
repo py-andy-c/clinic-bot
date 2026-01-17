@@ -27,7 +27,153 @@ body {
 
 .app-container {
     display: flex;
+    flex-direction: column;
     height: 100vh;
+}
+
+/* Global Header - Full width like production */
+.global-navbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 64px;
+    background: white;
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+    flex-shrink: 0;
+    z-index: 1000;
+}
+
+.nav-left {
+    display: flex;
+    align-items: center;
+    gap: 32px;
+}
+
+.branding {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.branding .icon {
+    font-size: 24px;
+}
+
+.branding .platform-name {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-main);
+}
+
+.desktop-nav {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.nav-item {
+    padding: 8px 16px;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+
+.nav-item:hover {
+    background: var(--bg-main);
+    color: var(--text-main);
+}
+
+.nav-item.active {
+    background: var(--primary);
+    color: white;
+}
+
+.nav-center {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+}
+
+.current-month-label {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-main);
+    cursor: pointer;
+    padding: 8px 16px;
+    border-radius: 6px;
+    transition: background 0.2s;
+}
+
+.current-month-label:hover {
+    background: var(--bg-main);
+}
+
+.nav-right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.user-info {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+}
+
+.user-name {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-main);
+}
+
+.user-email {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.menu-icon {
+    display: none;
+    background: transparent;
+    border: none;
+    font-size: 20px;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 6px;
+}
+
+.logout-btn {
+    background: transparent;
+    border: none;
+    font-size: 16px;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 6px;
+}
+
+.logout-btn:hover {
+    background: var(--bg-main);
+}
+
+/* Main Content Area with Sidebar */
+.main-content {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+}
+
+/* Calendar Content Wrapper */
+.calendar-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
 }
 
 /* Hide static sidebar by default - now handled by FAB */
@@ -45,7 +191,7 @@ body {
     .sidebar {
         position: fixed;
         left: -240px;
-        top: 0;
+        top: 64px; /* Start below the global header */
         bottom: 0;
         transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         display: block;
@@ -54,6 +200,16 @@ body {
 
     .sidebar.open {
         left: 0;
+    }
+
+    .desktop-nav,
+    .user-info.desktop-only,
+    .logout-btn.desktop-only {
+        display: none;
+    }
+
+    .menu-icon {
+        display: block;
     }
 }
 
@@ -201,36 +357,6 @@ body {
     transform: translate(-50%, -50%);
 }
 
-.main-content {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-}
-
-/* Global Navbar Styles */
-.global-navbar {
-    height: 48px;
-    /* Compressed */
-    background: white;
-    border-bottom: 1px solid var(--border);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 16px;
-    flex-shrink: 0;
-    position: sticky;
-    top: 0;
-    z-index: 1000;
-}
-
-.nav-left {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    flex: 1;
-}
-
 .menu-icon {
     background: none;
     border: none;
@@ -240,111 +366,7 @@ body {
     padding: 4px;
 }
 
-.branding {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-
-.branding .icon {
-    font-size: 20px;
-}
-
-.branding .platform-name {
-    font-size: 18px;
-    font-weight: 700;
-    color: var(--text-main);
-    white-space: nowrap;
-}
-
-.nav-center {
-    flex: 2;
-    text-align: center;
-}
-
-.current-month-label {
-    font-size: 16px;
-    /* Slightly smaller */
-    font-weight: 700;
-    color: var(--text-main);
-    cursor: pointer;
-    padding: 4px 10px;
-    border-radius: 20px;
-    transition: background 0.2s;
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-}
-
-.current-month-label:hover {
-    background: var(--bg-main);
-}
-
-.current-month-label::after {
-    content: '▾';
-    font-size: 14px;
-    opacity: 0.5;
-    margin-top: 2px;
-}
-
-.nav-right {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 16px;
-}
-
-.user-info {
-    text-align: right;
-    line-height: 1.2;
-}
-
-.user-name {
-    display: block;
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--text-main);
-}
-
-.user-email {
-    font-size: 11px;
-    color: var(--text-muted);
-}
-
-.logout-btn {
-    background: none;
-    border: none;
-    font-size: 18px;
-    cursor: pointer;
-    opacity: 0.6;
-}
-
-@media (max-width: 768px) {
-    .nav-center {
-        position: absolute;
-        left: 50%;
-        transform: translateX(-50%);
-        width: auto;
-        z-index: 10;
-    }
-
-    .branding .platform-name {
-        display: none;
-        /* Hide name on mobile to prevent overlap */
-    }
-
-    .nav-left {
-        flex: 0 0 auto;
-    }
-
-    .nav-right {
-        flex: 1;
-        justify-content: flex-end;
-    }
-}
-
-/* Date Strip */
+/* Date Strip Container */
 .date-strip-container {
     background: white;
     border-bottom: 1px solid var(--border);
