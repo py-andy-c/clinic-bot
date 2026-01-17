@@ -465,62 +465,42 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
                         <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                           {appointment.appointment_type_name}
                         </span>
-                        {isTimeConfirmation && (
-                          <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
-                            待確認時段
-                          </span>
-                        )}
                       </div>
 
-                      {isTimeConfirmation ? (
-                        // Time confirmation appointment display
-                        <>
-                          <div className="mt-2 flex items-center text-sm text-gray-500">
-                            <svg className="flex-shrink-0 mr-1.5 h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                            </svg>
-                            目前預約時間: {formatDateTime(appointment.start_time)}
-                          </div>
+                      {/* Unified appointment details display */}
+                      <>
+                        <div className="mt-2 flex items-center text-sm text-gray-500">
+                          <svg className="flex-shrink-0 mr-1.5 h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                          {formatDateTime(appointment.start_time)}
+                          {isTimeConfirmation && (
+                            <span className="ml-2 text-xs text-gray-500">
+                              (暫定)
+                            </span>
+                          )}
+                        </div>
+                        <div className="mt-1 flex items-center text-sm text-gray-500">
+                          <svg className="flex-shrink-0 mr-1.5 h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                          </svg>
+                          {isTimeConfirmation ? (
+                            // Time confirmation: practitioner assignment is confirmed, show name only
+                            appointment.practitioner_name
+                          ) : (
+                            // Practitioner assignment pending: show temporary assignment
+                            <>目前指派給: {appointment.practitioner_name}</>
+                          )}
+                        </div>
+                        {formatAutoAssignmentTime(appointment.start_time) && (
                           <div className="mt-1 flex items-center text-sm text-amber-600">
                             <svg className="flex-shrink-0 mr-1.5 h-4 w-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>
-                            等待確認最終時段
+                            {isTimeConfirmation ? '將在' : '將在'} {formatAutoAssignmentTime(appointment.start_time)}
                           </div>
-                          {appointment.alternative_time_slots && appointment.alternative_time_slots.length > 0 && (
-                            <div className="mt-1 flex items-center text-sm text-gray-600">
-                              <svg className="flex-shrink-0 mr-1.5 h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
-                              </svg>
-                              可選時段: {appointment.alternative_time_slots.length} 個選項
-                            </div>
-                          )}
-                        </>
-                      ) : (
-                        // Practitioner assignment appointment display
-                        <>
-                          <div className="mt-2 flex items-center text-sm text-gray-500">
-                            <svg className="flex-shrink-0 mr-1.5 h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                            </svg>
-                            {formatDateTime(appointment.start_time)}
-                          </div>
-                          <div className="mt-1 flex items-center text-sm text-gray-500">
-                            <svg className="flex-shrink-0 mr-1.5 h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                            </svg>
-                            目前指派給: {appointment.practitioner_name}
-                          </div>
-                          {formatAutoAssignmentTime(appointment.start_time) && (
-                            <div className="mt-1 flex items-center text-sm text-amber-600">
-                              <svg className="flex-shrink-0 mr-1.5 h-4 w-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                              </svg>
-                              {formatAutoAssignmentTime(appointment.start_time)}
-                            </div>
-                          )}
-                        </>
-                      )}
+                        )}
+                      </>
 
                       {appointment.notes && (
                         <div className="mt-1 text-sm text-gray-500">
