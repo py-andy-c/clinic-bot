@@ -216,6 +216,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
   const [showAllowExistingPatientBookingModal, setShowAllowExistingPatientBookingModal] = useState(false);
   const [showReceiptNameModal, setShowReceiptNameModal] = useState(false);
   const [showBillingScenarioModal, setShowBillingScenarioModal] = useState(false);
+  const [showMultipleTimeSlotModal, setShowMultipleTimeSlotModal] = useState(false);
 
   // Billing scenario editing
   const [editingScenario, setEditingScenario] = useState<{ practitionerId: number; scenarioId?: number } | null>(null);
@@ -720,6 +721,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                               <span className="text-sm font-medium text-gray-900">允許患者選擇多個時段</span>
                               <span className="text-xs text-gray-500">病患預約時可選擇多個偏好時段供診所確認</span>
                             </div>
+                            <InfoButton onClick={() => setShowMultipleTimeSlotModal(true)} />
                             {!allow_new_patient_booking && !allow_existing_patient_booking && (
                               <WarningPopover message="此服務項目未開放病患自行預約，此設定不會生效。">
                                 <span className="ml-2 text-amber-600 hover:text-amber-700">⚠️</span>
@@ -1057,6 +1059,48 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
       </InfoModal>
       <InfoModal isOpen={showBillingScenarioModal} onClose={() => setShowBillingScenarioModal(false)} title="計費方案說明">
         <p>計費方案讓您為每位治療師的每項服務設定多種定價選項...</p>
+      </InfoModal>
+      <InfoModal isOpen={showMultipleTimeSlotModal} onClose={() => setShowMultipleTimeSlotModal(false)} title="多時段選擇說明">
+        <div className="space-y-4">
+          <div>
+            <h4 className="font-medium text-gray-900 mb-2">功能概述</h4>
+            <p className="text-sm text-gray-700">
+              啟用後，病患預約時可選擇多個偏好時段（最多 10 個），系統會從病患選擇的時段中保留最早的可用時段，並將預約狀態設為「待安排」，等待診所確認最終時間。
+            </p>
+          </div>
+
+          <div>
+            <h4 className="font-medium text-gray-900 mb-2">病患體驗</h4>
+            <ul className="text-sm text-gray-700 space-y-1 ml-4">
+              <li>• 在 LINE 預約系統中看到「預約時間: 待安排」</li>
+              <li>• 預約成功後收到確認訊息，顯示「待安排」狀態</li>
+              <li>• 診所確認時間後，再次收到 LINE 通知包含確定的時間</li>
+            </ul>
+          </div>
+
+          <div>
+            <h4 className="font-medium text-gray-900 mb-2">診所工作流程</h4>
+            <ul className="text-sm text-gray-700 space-y-1 ml-4">
+              <li>• 預約出現在「待確認預約」頁面中</li>
+              <li>• 管理員或指定治療師可查看病患的所有偏好時段</li>
+              <li>• 可從病患偏好中選擇最終時間，或選擇其他可用時段</li>
+              <li>• 確認後自動發送 LINE 通知給病患並產生行事曆邀請</li>
+            </ul>
+          </div>
+
+          <div>
+            <h4 className="font-medium text-gray-900 mb-2">自動確認機制</h4>
+            <p className="text-sm text-gray-700 mb-2">
+              系統會在預約時間前自動確認最早的偏好時段，確認機制取決於診所的預約限制設定：
+            </p>
+            <ul className="text-sm text-gray-700 space-y-1 ml-4">
+              <li>• <strong>小時限制模式</strong>（預設）：在預約時間前 X 小時自動確認（預設為 24 小時）</li>
+              <li>• <strong>截止時間模式</strong>：在指定截止時間自動確認（例如前一天上午 8:00 或當天上午 8:00）</li>
+              <li>• 自動確認同樣會發送 LINE 通知和行事曆邀請</li>
+            </ul>
+          </div>
+
+        </div>
       </InfoModal>
     </FormProvider>
   );
