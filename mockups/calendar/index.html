@@ -52,8 +52,8 @@
                         <button class="today-sidebar-btn" id="sidebar-today-btn">回到今日</button>
                     </div>
 
-                    <!-- Mini Monthly Calendar -->
-                    <div class="mini-calendar-container">
+                    <!-- Reusable Mini Calendar Component (also used in mobile modal) -->
+                    <div class="mini-calendar-component">
                         <div class="mini-calendar-header">
                             <button class="month-nav-btn prev-month" id="prev-month-btn">‹</button>
                             <h3 class="current-month-label" id="sidebar-month-year">2026年1月</h3>
@@ -65,32 +65,44 @@
                     </div>
 
                     <div class="sidebar-nav">
+                        <!-- Reusable View Switcher Component -->
                         <div class="nav-group">
                             <h3 class="nav-title">切換視圖</h3>
-                            <div class="view-pills">
-                                <button class="pill active">日</button>
-                                <button class="pill">週</button>
-                                <button class="pill">月</button>
+                            <div class="view-switcher">
+                                <button class="view-option active" data-view="day">日</button>
+                                <button class="view-option" data-view="week">週</button>
+                                <button class="view-option" data-view="month">月</button>
                             </div>
                         </div>
 
+                        <!-- Reusable Practitioner Filter Component -->
                         <div class="nav-group">
                             <h3 class="nav-title">治療師</h3>
-                            <div class="practitioner-filters">
-                                <label class="filter-item">
-                                    <input type="checkbox" checked>
-                                    <span class="custom-check" style="background: var(--practitioner-1)"></span>
+                            <div class="practitioner-filter-list">
+                                <label class="practitioner-filter-item">
+                                    <input type="checkbox" checked data-practitioner="1">
+                                    <span class="practitioner-indicator" style="background: var(--practitioner-1)"></span>
                                     陳大文
                                 </label>
-                                <label class="filter-item">
-                                    <input type="checkbox" checked>
-                                    <span class="custom-check" style="background: var(--practitioner-2)"></span>
+                                <label class="practitioner-filter-item">
+                                    <input type="checkbox" checked data-practitioner="2">
+                                    <span class="practitioner-indicator" style="background: var(--practitioner-2)"></span>
                                     林美玲
                                 </label>
-                                <label class="filter-item">
-                                    <input type="checkbox" checked>
-                                    <span class="custom-check" style="background: var(--practitioner-3)"></span>
+                                <label class="practitioner-filter-item">
+                                    <input type="checkbox" checked data-practitioner="3">
+                                    <span class="practitioner-indicator" style="background: var(--practitioner-3)"></span>
                                     張志遠
+                                </label>
+                                <label class="practitioner-filter-item">
+                                    <input type="checkbox" checked data-practitioner="4">
+                                    <span class="practitioner-indicator" style="background: var(--practitioner-4)"></span>
+                                    李佳穎
+                                </label>
+                                <label class="practitioner-filter-item">
+                                    <input type="checkbox" checked data-practitioner="5">
+                                    <span class="practitioner-indicator" style="background: var(--practitioner-5)"></span>
+                                    周杰瑞
                                 </label>
                             </div>
                         </div>
@@ -150,20 +162,44 @@
                 <button class="close-drawer">&times;</button>
             </div>
             <div class="drawer-body">
+                <!-- Reusable View Switcher Component (also used in sidebar) -->
                 <div class="setting-group">
                     <h3>視圖切換</h3>
                     <div class="view-switcher-vertical">
-                        <button class="btn-full active">日視圖</button>
-                        <button class="btn-full">週視圖</button>
-                        <button class="btn-full">月視圖</button>
+                        <button class="view-option-vertical active" data-view="day">日視圖</button>
+                        <button class="view-option-vertical" data-view="week">週視圖</button>
+                        <button class="view-option-vertical" data-view="month">月視圖</button>
                     </div>
                 </div>
+                <!-- Reusable Practitioner Filter Component (also used in sidebar) -->
                 <div class="setting-group">
                     <h3>顯示治療師</h3>
-                    <div class="practitioner-list">
-                        <label class="check-item"><input type="checkbox" checked> 陳大文</label>
-                        <label class="check-item"><input type="checkbox" checked> 林美玲</label>
-                        <label class="check-item"><input type="checkbox" checked> 張志遠</label>
+                    <div class="practitioner-filter-list">
+                        <label class="practitioner-filter-item">
+                            <input type="checkbox" checked data-practitioner="1">
+                            <span class="practitioner-indicator" style="background: var(--practitioner-1)"></span>
+                            陳大文
+                        </label>
+                        <label class="practitioner-filter-item">
+                            <input type="checkbox" checked data-practitioner="2">
+                            <span class="practitioner-indicator" style="background: var(--practitioner-2)"></span>
+                            林美玲
+                        </label>
+                        <label class="practitioner-filter-item">
+                            <input type="checkbox" checked data-practitioner="3">
+                            <span class="practitioner-indicator" style="background: var(--practitioner-3)"></span>
+                            張志遠
+                        </label>
+                        <label class="practitioner-filter-item">
+                            <input type="checkbox" checked data-practitioner="4">
+                            <span class="practitioner-indicator" style="background: var(--practitioner-4)"></span>
+                            李佳穎
+                        </label>
+                        <label class="practitioner-filter-item">
+                            <input type="checkbox" checked data-practitioner="5">
+                            <span class="practitioner-indicator" style="background: var(--practitioner-5)"></span>
+                            周杰瑞
+                        </label>
                     </div>
                 </div>
             </div>
@@ -190,8 +226,8 @@
                 <button class="close-btn" onclick="closeMobileDatePicker()">&times;</button>
             </div>
             <div class="modal-body">
-                <!-- Mobile Mini Calendar -->
-                <div class="mini-calendar-container mobile-calendar">
+                <!-- Reusable Mini Calendar Component -->
+                <div class="mini-calendar-component mobile-calendar">
                     <div class="mini-calendar-header">
                         <button class="month-nav-btn prev-month" id="mobile-prev-month-btn">‹</button>
                         <h3 class="current-month-label" id="mobile-month-year">2026年1月</h3>

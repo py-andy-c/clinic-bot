@@ -280,6 +280,57 @@ body {
     font-weight: 600;
 }
 
+/* Reusable View Switcher Components */
+.view-switcher {
+    display: flex;
+    gap: 8px;
+    background: var(--bg-main);
+    padding: 4px;
+    border-radius: 20px;
+}
+
+.view-option {
+    flex: 1;
+    border: none;
+    background: none;
+    padding: 6px;
+    border-radius: 16px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.view-option.active {
+    background: white;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    font-weight: 600;
+}
+
+.view-switcher-vertical {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.view-option-vertical {
+    width: 100%;
+    padding: 12px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: transparent;
+    text-align: left;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.view-option-vertical.active {
+    background: #f1f5f9;
+    border-color: var(--primary);
+    color: var(--primary);
+}
+
+/* Legacy support - remove after full migration */
 .view-pills {
     display: flex;
     gap: 8px;
@@ -305,6 +356,54 @@ body {
     font-weight: 600;
 }
 
+/* Reusable Practitioner Filter Components */
+.practitioner-filter-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.practitioner-filter-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 14px;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    transition: background 0.2s;
+}
+
+.practitioner-filter-item:hover {
+    background: var(--bg-main);
+}
+
+.practitioner-filter-item input {
+    display: none;
+}
+
+.practitioner-indicator {
+    width: 16px;
+    height: 16px;
+    border-radius: 4px;
+    display: inline-block;
+    position: relative;
+    border: 1px solid rgba(0, 0, 0, 0.05);
+    flex-shrink: 0;
+}
+
+.practitioner-filter-item input:checked+.practitioner-indicator::after {
+    content: '✓';
+    color: white;
+    font-size: 10px;
+    font-weight: bold;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
+/* Legacy support - remove after full migration */
 .practitioner-filters {
     display: flex;
     flex-direction: column;
@@ -357,7 +456,16 @@ body {
     padding: 4px;
 }
 
-/* Mini Monthly Calendar */
+/* Reusable Mini Calendar Component */
+.mini-calendar-component {
+    background: white;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    padding: 12px;
+    margin-bottom: 24px;
+}
+
+/* Legacy support - can be removed after migration */
 .mini-calendar-container {
     background: white;
     border-radius: 12px;
@@ -463,23 +571,23 @@ body {
     margin: 20px auto;
 }
 
-.mobile-calendar {
+.mini-calendar-component.mobile-calendar {
     margin: 0;
     border: none;
     padding: 0;
 }
 
-.mobile-calendar .mini-calendar-header {
+.mini-calendar-component.mobile-calendar .mini-calendar-header {
     padding: 0 0 12px 0;
     border-bottom: 1px solid var(--border);
     margin-bottom: 12px;
 }
 
-.mobile-calendar .mini-calendar {
+.mini-calendar-component.mobile-calendar .mini-calendar {
     gap: 4px;
 }
 
-.mobile-calendar .day {
+.mini-calendar-component.mobile-calendar .day {
     font-size: 12px;
     padding: 8px 0;
 }
@@ -825,23 +933,23 @@ body {
     margin: 20px auto;
 }
 
-.mobile-calendar {
+.mini-calendar-component.mobile-calendar {
     margin: 0;
     border: none;
     padding: 0;
 }
 
-.mobile-calendar .mini-calendar-header {
+.mini-calendar-component.mobile-calendar .mini-calendar-header {
     padding: 0 0 12px 0;
     border-bottom: 1px solid var(--border);
     margin-bottom: 12px;
 }
 
-.mobile-calendar .mini-calendar {
+.mini-calendar-component.mobile-calendar .mini-calendar {
     gap: 4px;
 }
 
-.mobile-calendar .day {
+.mini-calendar-component.mobile-calendar .day {
     font-size: 12px;
     padding: 8px 0;
 }
@@ -972,6 +1080,9 @@ body {
     flex-direction: column;
     gap: 8px;
 }
+
+/* Legacy support for settings drawer - consider migrating to unified components */
+/* These can be removed once settings drawer is updated to use view-option-vertical and practitioner-filter-item */
 
 .btn-full {
     width: 100%;
