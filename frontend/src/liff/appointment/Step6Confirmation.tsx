@@ -30,7 +30,7 @@ const Step6Confirmation: React.FC = () => {
     }
 
     if (missingData.length > 0) {
-      console.error(`Missing required data: ${missingData.join(', ')}`);
+      logger.error(`Missing required data: ${missingData.join(', ')}`);
       return;
     }
 

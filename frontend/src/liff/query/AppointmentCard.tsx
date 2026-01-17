@@ -2,6 +2,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { formatAppointmentDateTime, formatAppointmentDateOnly } from '../../utils/calendarUtils';
 import { getStatusBadgeColor } from '../../utils/appointmentStatus';
+import { logger } from '../../utils/logger';
 import moment from 'moment-timezone';
 
 interface Appointment {
@@ -77,7 +78,7 @@ const AppointmentCard: React.FC<AppointmentCardProps> = ({ appointment, onCancel
         return `${earliest} - ${latest}`;
       }
     } catch (error) {
-      console.warn('Failed to format date range:', error);
+      logger.warn('Failed to format date range:', error);
       return '';
     }
   };
