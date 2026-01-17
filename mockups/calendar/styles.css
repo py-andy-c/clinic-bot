@@ -205,17 +205,7 @@ body {
     }
 
     .sidebar {
-        position: fixed;
-        left: -240px;
-        top: 64px; /* Start below the global header */
-        bottom: 0;
-        transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        display: block;
-        /* Ensure it stays block when toggled */
-    }
-
-    .sidebar.open {
-        left: 0;
+        display: none; /* Hide sidebar completely on mobile - use FABs instead */
     }
 
     .desktop-nav,
@@ -534,30 +524,7 @@ body {
     cursor: pointer;
 }
 
-.sidebar-toggle-btn {
-    flex-shrink: 0;
-    background: transparent;
-    border: none;
-    font-size: 14px;
-    color: var(--text-muted);
-    cursor: pointer;
-    padding: 4px 8px;
-    border-radius: 4px;
-    margin-right: 8px;
-    transition: background 0.2s;
-    display: none; /* Hidden on desktop by default */
-}
-
-.sidebar-toggle-btn:hover {
-    background: var(--bg-main);
-    color: var(--text-main);
-}
-
-@media (max-width: 1024px) {
-    .sidebar-toggle-btn {
-        display: block; /* Show on mobile/tablet */
-    }
-}
+/* Sidebar toggle button removed - sidebar is hidden on mobile, use FABs instead */
 
 .date-strip {
     display: grid;

@@ -338,13 +338,6 @@ function setupEventListeners() {
         };
     }
 
-    // Add sidebar toggle handler
-    const sidebarToggle = document.getElementById('sidebar-toggle');
-    if (sidebarToggle) {
-        sidebarToggle.onclick = () => {
-            document.getElementById('calendar-sidebar').classList.toggle('open');
-        };
-    }
 
     // Add month navigation handlers
     const prevMonthBtn = document.getElementById('prev-month-btn');
