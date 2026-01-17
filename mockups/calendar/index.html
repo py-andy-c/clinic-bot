@@ -16,23 +16,48 @@
 <body>
     <div class="app-container">
         <!-- Sidebar remains fixed -->
-        <aside class="sidebar">
-            <div class="sidebar-header">
-                <div class="logo">
-                    <span class="logo-icon">✨</span>
-                    <span class="logo-text">ClinicBot</span>
+        <aside class="sidebar" id="calendar-sidebar">
+            <div class="sidebar-content">
+                <div class="sidebar-actions">
+                    <button class="create-btn" id="sidebar-add-btn">
+                        <span class="plus-icon">＋</span>
+                        <span class="btn-text">建立預約</span>
+                    </button>
+                    <button class="today-sidebar-btn" id="sidebar-today-btn">回到今日</button>
                 </div>
-            </div>
-            <nav class="sidebar-nav">
-                <div class="nav-group">
-                    <h3 class="nav-title">治療師</h3>
-                    <div class="practitioner-list">
-                        <div class="practitioner-item active"><span>陳大文</span></div>
-                        <div class="practitioner-item active"><span>林美玲</span></div>
-                        <div class="practitioner-item active"><span>張志遠</span></div>
+
+                <div class="sidebar-nav">
+                    <div class="nav-group">
+                        <h3 class="nav-title">切換視圖</h3>
+                        <div class="view-pills">
+                            <button class="pill active">日</button>
+                            <button class="pill">週</button>
+                            <button class="pill">月</button>
+                        </div>
+                    </div>
+
+                    <div class="nav-group">
+                        <h3 class="nav-title">治療師</h3>
+                        <div class="practitioner-filters">
+                            <label class="filter-item">
+                                <input type="checkbox" checked>
+                                <span class="custom-check" style="background: var(--practitioner-1)"></span>
+                                陳大文
+                            </label>
+                            <label class="filter-item">
+                                <input type="checkbox" checked>
+                                <span class="custom-check" style="background: var(--practitioner-2)"></span>
+                                林美玲
+                            </label>
+                            <label class="filter-item">
+                                <input type="checkbox" checked>
+                                <span class="custom-check" style="background: var(--practitioner-3)"></span>
+                                張志遠
+                            </label>
+                        </div>
                     </div>
                 </div>
-            </nav>
+            </div>
         </aside>
 
         <!-- Main Content -->

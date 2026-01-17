@@ -32,19 +32,173 @@ body {
 
 /* Hide static sidebar by default - now handled by FAB */
 .sidebar {
-    display: none;
+    width: 240px;
+    background: white;
+    border-right: 1px solid var(--border);
+    flex-shrink: 0;
+    z-index: 1001;
+    display: block;
+    /* Visible by default on desktop */
 }
 
 @media (max-width: 768px) {
     .sidebar {
         position: fixed;
-        left: -260px;
-        transition: left 0.3s;
+        left: -240px;
+        top: 0;
+        bottom: 0;
+        transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        display: block;
+        /* Ensure it stays block when toggled */
     }
 
     .sidebar.open {
         left: 0;
     }
+}
+
+.sidebar-content {
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.sidebar-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.today-sidebar-btn {
+    width: 100%;
+    padding: 10px;
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-main);
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s;
+}
+
+.today-sidebar-btn:hover {
+    background: var(--bg-main);
+    border-color: var(--primary-light);
+}
+
+/* Google Calendar Style Create Button */
+.create-btn {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 24px 10px 16px;
+    background: white;
+    border: none;
+    border-radius: 28px;
+    box-shadow: 0 1px 3px rgba(60, 64, 67, 0.3), 0 4px 8px 3px rgba(60, 64, 67, 0.15);
+    cursor: pointer;
+    transition: box-shadow 0.2s, background 0.2s;
+    width: fit-content;
+}
+
+.create-btn:hover {
+    box-shadow: 0 1px 3px rgba(60, 64, 67, 0.3), 0 6px 15px 5px rgba(60, 64, 67, 0.1);
+    background: #f8faff;
+}
+
+.plus-icon {
+    font-size: 24px;
+    color: var(--primary);
+    font-weight: 300;
+}
+
+.btn-text {
+    font-weight: 500;
+    color: var(--text-main);
+}
+
+.nav-group {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.nav-title {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
+.view-pills {
+    display: flex;
+    gap: 8px;
+    background: var(--bg-main);
+    padding: 4px;
+    border-radius: 20px;
+}
+
+.pill {
+    flex: 1;
+    border: none;
+    background: none;
+    padding: 6px;
+    border-radius: 16px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.pill.active {
+    background: white;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    font-weight: 600;
+}
+
+.practitioner-filters {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.filter-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 14px;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+}
+
+.filter-item:hover {
+    background: var(--bg-main);
+}
+
+.filter-item input {
+    display: none;
+}
+
+.custom-check {
+    width: 16px;
+    height: 16px;
+    border-radius: 4px;
+    display: inline-block;
+    position: relative;
+    border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.filter-item input:checked+.custom-check::after {
+    content: '✓';
+    color: white;
+    font-size: 10px;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
 }
 
 .main-content {
@@ -486,6 +640,16 @@ body {
 .fab-primary {
     background: var(--primary);
     color: white;
+}
+
+@media (min-width: 769px) {
+
+    #add-fab,
+    #settings-fab,
+    #today-fab {
+        display: none;
+        /* All FABs moved to sidebar on desktop */
+    }
 }
 
 .fab-secondary {

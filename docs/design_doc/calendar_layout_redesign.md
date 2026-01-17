@@ -104,6 +104,10 @@ Transform the daily calendar view into a high-density, multi-practitioner worksp
     - Use `display: flex` for the header row and body grid.
     - Give both `.resource-header` and `.practitioner-column` the same `flex: 1` and `min-width: 56px`. This ensures headers and columns are always pixel-aligned regardless of scaling.
 - **Vertical Spacing**: A `40px` height for headers/strips with `align-items: center` provides exactly enough visual "breathing room" (3-4px padding) without wasting space.
+- **Desktop Ergonomics (The Split-Pane Shift)**: 
+    - Floating Action Buttons (FABs) are efficient for "single-thumb" mobile use but feel out of place on desktop. 
+    - **Learning**: On screens > 768px, consolidate all FAB actions (Add, Today, Settings) into a **Grouped Sidebar Container**. This reduces "pixel travel" for mouse users and aligns with professional tools like Google Calendar.
+- **Ultra-High-Density Floor**: Through stress-testing (8+ practitioners), we found **56px** to be the absolute technical floor for column width. Below this, names and time slots become unreadable. Always use `overflow: hidden` with `text-overflow: ellipsis` on these headers.
 
 ---
 
@@ -118,3 +122,18 @@ Transform the daily calendar view into a high-density, multi-practitioner worksp
 - [ ] **Native Swipe Override**: Use `touch-action: pan-y` on the calendar body grid to prevent horizontal swiping from triggering date changes, allowing horizontal column scrolling instead.
 - [ ] **Header Store**: Implement a simple store (or use existing state) to "teleport" the Month/Year string to the `ClinicLayout` top bar.
 - [ ] **Quarter-Hour Styling**: Use `:nth-child` CSS rules on slots to render the hierarchical border system (Solid @ 60m, Light @ 30m, Transparent @ 15/45m).
+
+---
+
+## 🖥️ 9. Split-Pane Desktop Architecture
+*Optimizing for large screens while maintaining mobile parity.*
+
+- **Permanent Left Sidebar**: On screens > 768px, a **240px sidebar** is permanently docked to the left.
+- **"Create" Hero Button**:
+    - **Aesthetics**: A prominent, rounded "pill" button with a multi-colored plus icon and soft drop shadow (Google Calendar style).
+    - **Logic**: This replaces the Floating Action Button (+) on desktop to provide a more stable, conventional entry point for scheduling.
+- **Redistributed Controls**:
+    - **View Switcher**: Move the "Day/Week/Month" toggle from the hidden mobile drawer to a persistent "View Pill" group in the sidebar.
+    - **Practitioner Filters**: Show the practitioner selection list directly in the sidebar for quick toggling on desktop.
+    - **FAB Cleanup**: Hide the **Add (+)**, **Today (📅)**, and **Settings (⚙️)** Floating Action Buttons on desktop. All their functionality is consolidated into the sidebar for a cleaner, split-pane layout.
+- **Responsive Transition**: On mobile, the sidebar collapses into a slide-out menu triggered by the hamburger icon (☰), maintaining consistent functionality across devices.

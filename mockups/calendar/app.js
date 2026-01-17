@@ -133,11 +133,11 @@ function createBox(data, className, isApp = false) {
 
 function setupEventListeners() {
     // FAB Handlers
-    document.getElementById('add-fab').onclick = () => {
-        alert('開啟新增預約視窗');
-    };
+    document.getElementById('add-fab').onclick = () => openCreateModal(9, 0);
+    const sidebarAddBtn = document.getElementById('sidebar-add-btn');
+    if (sidebarAddBtn) sidebarAddBtn.onclick = () => openCreateModal(9, 0);
 
-    document.getElementById('today-fab').onclick = () => {
+    const todayHandler = () => {
         selectedDate = new Date();
         renderDateStrip();
         renderGrid();
@@ -155,6 +155,10 @@ function setupEventListeners() {
         if (titleEl) titleEl.innerText = `${year}年${month}月`;
     };
 
+    document.getElementById('today-fab').onclick = todayHandler;
+    const sidebarTodayBtn = document.getElementById('sidebar-today-btn');
+    if (sidebarTodayBtn) sidebarTodayBtn.onclick = todayHandler;
+
     document.getElementById('settings-fab').onclick = () => {
         document.getElementById('settings-drawer').classList.add('open');
     };
@@ -169,7 +173,7 @@ function setupEventListeners() {
     const mobileMenuTrigger = document.getElementById('mobile-menu-trigger');
     if (mobileMenuTrigger) {
         mobileMenuTrigger.onclick = () => {
-            document.getElementById('settings-drawer').classList.add('open');
+            document.getElementById('calendar-sidebar').classList.toggle('open');
         };
     }
 
@@ -186,6 +190,10 @@ function setupEventListeners() {
 
     // Modal Handlers
     document.querySelector('.close-btn').onclick = () => document.getElementById('event-modal').style.display = 'none';
+}
+
+function openCreateModal(hour, minute) {
+    alert(`📅 開啟新增預約視窗 (${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')})`);
 }
 
 window.onload = initCalendar;
