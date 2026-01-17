@@ -276,10 +276,13 @@ body {
     margin: 8px 4px 0 4px;
 }
 
-/* Compact button styling for sidebar actions */
-.create-btn,
-.today-sidebar-btn,
-.exception-btn {
+.sidebar-actions-row {
+    display: flex;
+    gap: 8px;
+}
+
+/* Today button - full width, secondary style */
+.today-sidebar-btn {
     width: calc(100% - 8px);
     display: flex;
     align-items: center;
@@ -297,6 +300,28 @@ body {
     margin: 0 auto;
 }
 
+/* Action buttons - side by side, different styles */
+.create-btn,
+.exception-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 1px solid var(--border);
+    background: white;
+    color: var(--text-main);
+}
+
+/* All action buttons now have consistent secondary styling */
+
+/* All buttons have consistent secondary styling */
 .create-btn:hover,
 .today-sidebar-btn:hover,
 .exception-btn:hover {
