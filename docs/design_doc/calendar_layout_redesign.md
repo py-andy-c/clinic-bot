@@ -61,9 +61,13 @@ During the prototyping phase, several key UX and technical decisions were made t
     - **Sticky Gutter**: The time column stays at the `left: 0` using CSS `position: sticky`.
     - **Result**: Perfect, mathematically-locked alignment between headers and columns during both vertical and horizontal scrolling.
 
-### 2. Mobile-First Navigation
-- **Gesture Conflict Resolution**: Current mobile implementation uses horizontal swiping to change dates. This conflicts with horizontal scrolling of practitioner columns.
-- **Decision**: In Day View (Multi-Practitioner), replace "Swipe-to-Date" with a **Date Strip** navigation component at the top. This allows the main calendar grid to use native horizontal scrolling for viewing different practitioners without gesture ambiguity.
+### 2. Multi-Level Date Navigation
+- **The "Weekly Snap" Strip**: Instead of a continuous free-scrolling list, the date strip is organized into a **7-day fixed week grid**. 
+    - **Logic**: The strip always displays the full week containing the selected date (determined by the start of that week).
+    - **Pros**: Maintains the calendar's temporal rhythm (Sun-Sat) and prevents "chopped" UI at the edges.
+- **Header Jump (DatePicker)**: The Year/Month label in the global header is interactive (`cursor: pointer` with a `▾` indicator).
+    - **Usage**: Tapping this label is the primary "Industry Standard" way for users to jump to dates far in the future or past via a full-month widget.
+    - **Benefit**: Keeps the high-density daily view focused while providing powerful jump capabilities.
 
 ### 3. "Layered Background" Pattern for Overlaps
 - **Constraint**: When appointments are scheduled during an "Availability Exception" (e.g., a break), standard layouts often split the column horizontally, making text vertical and unreadable.

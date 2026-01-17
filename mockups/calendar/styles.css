@@ -111,6 +111,24 @@ body {
     font-size: 18px;
     font-weight: 700;
     color: var(--text-main);
+    cursor: pointer;
+    padding: 6px 12px;
+    border-radius: 20px;
+    transition: background 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.current-month-label:hover {
+    background: var(--bg-main);
+}
+
+.current-month-label::after {
+    content: '▾';
+    font-size: 14px;
+    opacity: 0.5;
+    margin-top: 2px;
 }
 
 .nav-right {
@@ -177,31 +195,51 @@ body {
 }
 
 .date-strip {
-    display: flex;
-    overflow-x: auto;
-    padding: 0 15px;
-    gap: 10px;
-    scrollbar-width: none;
-}
-
-.date-strip::-webkit-scrollbar {
-    display: none;
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    padding: 0 8px;
+    gap: 4px;
 }
 
 .date-item {
-    min-width: 50px;
-    height: 60px;
+    height: 64px;
     border-radius: 12px;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     cursor: pointer;
+    position: relative;
+    transition: background 0.2s;
 }
 
 .date-item.active {
     background: var(--primary);
     color: white;
+}
+
+.date-item .day-label {
+    font-size: 10px;
+    font-weight: 500;
+    opacity: 0.8;
+}
+
+.date-item .date-label {
+    font-size: 16px;
+    font-weight: 700;
+}
+
+.today-dot {
+    width: 4px;
+    height: 4px;
+    background: var(--primary);
+    border-radius: 50%;
+    position: absolute;
+    bottom: 8px;
+}
+
+.date-item.active .today-dot {
+    background: white;
 }
 
 /* REFACTORED SCROLL SYSTEM */

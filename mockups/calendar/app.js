@@ -39,19 +39,21 @@ function renderDateStrip() {
     const days = ['日', '一', '二', '三', '四', '五', '六'];
     let html = '';
 
-    // Generate 14 days around the selected date
-    const startDate = new Date(selectedDate);
-    startDate.setDate(startDate.getDate() - 3);
+    // Apple Style: Fixed 7-day strip based on the start of the current week
+    const startOfWeek = new Date(selectedDate);
+    startOfWeek.setDate(selectedDate.getDate() - selectedDate.getDay());
 
-    for (let i = 0; i < 14; i++) {
-        const date = new Date(startDate);
-        date.setDate(startDate.getDate() + i);
+    for (let i = 0; i < 7; i++) {
+        const date = new Date(startOfWeek);
+        date.setDate(startOfWeek.getDate() + i);
         const isSelected = date.toDateString() === selectedDate.toDateString();
+        const isToday = date.toDateString() === new Date().toDateString();
 
         html += `
-            <div class="date-item ${isSelected ? 'active' : ''}" onclick="changeDate('${date.toISOString()}')">
-                <span style="font-size:10px; opacity: 0.8">${days[date.getDay()]}</span>
-                <span style="font-weight:700; font-size:16px">${date.getDate()}</span>
+            <div class="date-item ${isSelected ? 'active' : ''} ${isToday ? 'is-today' : ''}" onclick="changeDate('${date.toISOString()}')">
+                <span class="day-label">${days[date.getDay()]}</span>
+                <span class="date-label">${date.getDate()}</span>
+                ${isToday ? '<div class="today-dot"></div>' : ''}
             </div>
         `;
     }
@@ -151,6 +153,13 @@ function setupEventListeners() {
     document.getElementById('settings-fab').onclick = () => {
         document.getElementById('settings-drawer').classList.add('open');
     };
+
+    const headerTitle = document.getElementById('current-month-year');
+    if (headerTitle) {
+        headerTitle.onclick = () => {
+            alert('📅 開啟全月份選擇器 (用於跨月/跨年快速跳轉)');
+        };
+    }
 
     const mobileMenuTrigger = document.getElementById('mobile-menu-trigger');
     if (mobileMenuTrigger) {
