@@ -203,7 +203,7 @@ body {
     overflow: hidden;
 }
 
-/* Hide static sidebar by default - now handled by FAB */
+/* Sidebar - overlay on mobile, fixed on desktop */
 .sidebar {
     width: 240px;
     background: white;
@@ -213,12 +213,43 @@ body {
     display: block; /* Visible by default on desktop */
     height: calc(100vh - 64px); /* Full height minus header */
     overflow: hidden; /* Prevent sidebar itself from scrolling */
+    position: fixed; /* Fixed position for overlay behavior */
+    left: -240px; /* Hidden by default on mobile */
+    top: 64px; /* Below header */
+    transition: left 0.3s ease; /* Smooth slide animation */
 }
 
-@media (max-width: 1024px) {
+.sidebar.open {
+    left: 0; /* Show sidebar when open */
+}
+
+@media (min-width: 1025px) {
     .sidebar {
-        display: none; /* Hide sidebar completely on mobile - use FABs instead */
+        position: relative; /* Normal positioning on desktop */
+        left: auto;
+        top: auto;
+        display: block; /* Always visible on desktop */
     }
+}
+
+/* Sidebar backdrop for mobile overlay */
+.sidebar-backdrop {
+    position: fixed;
+    top: 64px;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.sidebar-backdrop.open {
+    opacity: 1;
+    visibility: visible;
+}
 
     .desktop-nav,
     .user-info.desktop-only,
@@ -242,46 +273,34 @@ body {
 
 .sidebar-actions {
     display: flex;
-    flex-direction: column;
     gap: 12px;
 }
 
-.today-sidebar-btn {
-    width: 100%;
-    padding: 10px;
-    background: white;
-    border: 1px solid var(--border);
+/* Unified button styling for sidebar actions */
+.create-btn,
+.today-sidebar-btn,
+.exception-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 16px;
     border-radius: 8px;
     font-size: 14px;
     font-weight: 500;
-    color: var(--text-main);
     cursor: pointer;
-    transition: background 0.2s, border-color 0.2s;
-}
-
-.today-sidebar-btn:hover {
-    background: var(--bg-main);
-    border-color: var(--primary-light);
-}
-
-/* Google Calendar Style Create Button */
-.create-btn {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 10px 24px 10px 16px;
+    transition: all 0.2s;
+    border: 1px solid var(--border);
     background: white;
-    border: none;
-    border-radius: 28px;
-    box-shadow: 0 1px 3px rgba(60, 64, 67, 0.3), 0 4px 8px 3px rgba(60, 64, 67, 0.15);
-    cursor: pointer;
-    transition: box-shadow 0.2s, background 0.2s;
-    width: fit-content;
+    color: var(--text-main);
 }
 
-.create-btn:hover {
-    box-shadow: 0 1px 3px rgba(60, 64, 67, 0.3), 0 6px 15px 5px rgba(60, 64, 67, 0.1);
-    background: #f8faff;
+.create-btn:hover,
+.today-sidebar-btn:hover,
+.exception-btn:hover {
+    background: var(--bg-main);
+    border-color: var(--primary);
 }
 
 .plus-icon {
@@ -1268,62 +1287,12 @@ body {
     align-self: flex-end;
 }
 
-/* Settings Drawer */
-.drawer-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.5);
-    z-index: 2000;
-    display: none;
-    justify-content: flex-end;
-}
-
-.drawer-overlay.open {
-    display: flex;
-}
-
-.drawer-content {
-    width: 100%;
-    max-width: 320px;
-    background: white;
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    animation: slideIn 0.3s ease-out;
-}
-
-@keyframes slideIn {
-    from {
-        transform: translateX(100%);
-    }
-
-    to {
-        transform: translateX(0);
+/* Hide FAB on desktop since sidebar is always visible */
+@media (min-width: 1025px) {
+    .fab-container {
+        display: none;
     }
 }
-
-.drawer-header {
-    padding: 24px;
-    border-bottom: 1px solid var(--border);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.close-drawer {
-    font-size: 28px;
-    background: none;
-    border: none;
-    cursor: pointer;
-    color: var(--text-muted);
-}
-
-.drawer-body {
-    padding: 24px;
-    flex: 1;
-    overflow-y: auto;
-}
-
 
 .view-switcher-vertical {
     display: flex;

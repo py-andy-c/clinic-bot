@@ -42,14 +42,18 @@
         <!-- Main Content Area with Sidebar -->
         <main class="main-content">
             <!-- Sidebar remains fixed -->
-            <aside class="sidebar" id="calendar-sidebar">
+            <aside class="sidebar" id="sidebar">
                 <div class="sidebar-content">
                     <div class="sidebar-actions">
                         <button class="create-btn" id="sidebar-add-btn">
-                            <span class="plus-icon">＋</span>
-                            <span class="btn-text">建立預約</span>
+                            建立預約
                         </button>
-                        <button class="today-sidebar-btn" id="sidebar-today-btn">回到今日</button>
+                        <button class="today-sidebar-btn" id="sidebar-today-btn">
+                            回到今日
+                        </button>
+                        <button class="exception-btn" id="sidebar-exception-btn">
+                            🚫 新增休診時段
+                        </button>
                     </div>
 
                     <!-- Selected Calendars Chips -->
@@ -178,102 +182,17 @@
                     </div>
                 </div>
 
-                <!-- Floating Action Buttons -->
+                <!-- Sidebar Backdrop (Mobile Overlay) -->
+                <div id="sidebar-backdrop" class="sidebar-backdrop"></div>
+
+                <!-- Floating Action Button (Menu) -->
                 <div class="fab-container">
-                    <button class="fab fab-secondary" id="today-fab" title="回今日">📅</button>
-                    <button class="fab fab-secondary" id="settings-fab" title="設定">⚙️</button>
-                    <button class="fab fab-primary" id="add-fab" title="新增預約">＋</button>
+                    <button class="fab fab-primary" id="menu-fab" title="選單">☰</button>
                 </div>
             </div>
         </main>
     </div>
 
-    <!-- Settings Drawer (Hidden by default) -->
-    <div id="settings-drawer" class="drawer-overlay">
-        <div class="drawer-content">
-            <div class="drawer-header">
-                <h2>行事曆設定</h2>
-                <button class="close-drawer">&times;</button>
-            </div>
-            <div class="drawer-body">
-                <!-- View Switcher Section -->
-                <div class="sidebar-section">
-                    <div class="view-switcher-compact">
-                        <span class="view-switcher-label">視圖切換</span>
-                        <div class="view-options-row">
-                            <button class="view-option-compact active" data-view="month">月</button>
-                            <button class="view-option-compact" data-view="week">週</button>
-                            <button class="view-option-compact" data-view="day">日</button>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Practitioner Filter Section -->
-                <div class="sidebar-section">
-                    <h3 class="sidebar-section-title">顯示治療師</h3>
-                    <div class="practitioner-filter-list">
-                        <label class="practitioner-filter-item">
-                            <input type="checkbox" checked data-practitioner="1">
-                            <span class="practitioner-indicator" style="background: var(--practitioner-1)"></span>
-                            陳大文
-                        </label>
-                        <label class="practitioner-filter-item">
-                            <input type="checkbox" checked data-practitioner="2">
-                            <span class="practitioner-indicator" style="background: var(--practitioner-2)"></span>
-                            林美玲
-                        </label>
-                        <label class="practitioner-filter-item">
-                            <input type="checkbox" checked data-practitioner="3">
-                            <span class="practitioner-indicator" style="background: var(--practitioner-3)"></span>
-                            張志遠
-                        </label>
-                        <label class="practitioner-filter-item">
-                            <input type="checkbox" checked data-practitioner="4">
-                            <span class="practitioner-indicator" style="background: var(--practitioner-4)"></span>
-                            李佳穎
-                        </label>
-                        <label class="practitioner-filter-item">
-                            <input type="checkbox" checked data-practitioner="5">
-                            <span class="practitioner-indicator" style="background: var(--practitioner-5)"></span>
-                            周杰瑞
-                        </label>
-                    </div>
-                </div>
-
-                <!-- Resource Filter Section -->
-                <div class="sidebar-section">
-                    <h3 class="sidebar-section-title">顯示資源</h3>
-                    <div class="resource-filter-list">
-                        <label class="resource-filter-item">
-                            <input type="checkbox" checked data-resource="1">
-                            <span class="resource-indicator" style="background: var(--practitioner-6)"></span>
-                            治療室1
-                        </label>
-                        <label class="resource-filter-item">
-                            <input type="checkbox" checked data-resource="2">
-                            <span class="resource-indicator" style="background: var(--practitioner-7)"></span>
-                            治療室2
-                        </label>
-                        <label class="resource-filter-item">
-                            <input type="checkbox" data-resource="3">
-                            <span class="resource-indicator" style="background: var(--practitioner-8)"></span>
-                            治療室3
-                        </label>
-                        <label class="resource-filter-item">
-                            <input type="checkbox" data-resource="4">
-                            <span class="resource-indicator" style="background: var(--practitioner-9)"></span>
-                            設備A
-                        </label>
-                        <label class="resource-filter-item">
-                            <input type="checkbox" data-resource="5">
-                            <span class="resource-indicator" style="background: var(--practitioner-10)"></span>
-                            設備B
-                        </label>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
 
     <div id="event-modal" class="modal-overlay">
         <div class="modal-content">

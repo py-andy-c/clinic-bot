@@ -117,6 +117,40 @@ function initCalendar() {
     }, AUTO_SCROLL_DELAY);
 }
 
+// Sidebar toggle functions
+function toggleSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    const backdrop = document.getElementById('sidebar-backdrop');
+
+    if (sidebar.classList.contains('open')) {
+        closeSidebar();
+    } else {
+        openSidebar();
+    }
+}
+
+function openSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    const backdrop = document.getElementById('sidebar-backdrop');
+
+    sidebar.classList.add('open');
+    backdrop.classList.add('open');
+
+    // Prevent body scroll when sidebar is open on mobile
+    document.body.style.overflow = 'hidden';
+}
+
+function closeSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    const backdrop = document.getElementById('sidebar-backdrop');
+
+    sidebar.classList.remove('open');
+    backdrop.classList.remove('open');
+
+    // Restore body scroll
+    document.body.style.overflow = '';
+}
+
 function renderDateStrip() {
     const strip = document.getElementById('date-strip');
     const monthYearDisplay = document.getElementById('date-strip-month-year');
@@ -461,10 +495,15 @@ function createBox(data, className, isApp = false) {
 }
 
 function setupEventListeners() {
-    // FAB Handlers
-    document.getElementById('add-fab').onclick = () => openCreateModal(9, 0);
-    const sidebarAddBtn = document.getElementById('sidebar-add-btn');
-    if (sidebarAddBtn) sidebarAddBtn.onclick = () => openCreateModal(9, 0);
+    // Menu FAB Handler - Toggle sidebar on mobile
+    document.getElementById('menu-fab').onclick = () => {
+        toggleSidebar();
+    };
+
+    // Sidebar backdrop click handler - close sidebar
+    document.getElementById('sidebar-backdrop').onclick = () => {
+        closeSidebar();
+    };
 
     const todayHandler = () => {
         selectedDate = new Date();
@@ -480,13 +519,25 @@ function setupEventListeners() {
         }
     };
 
-    document.getElementById('today-fab').onclick = todayHandler;
-    const sidebarTodayBtn = document.getElementById('sidebar-today-btn');
-    if (sidebarTodayBtn) sidebarTodayBtn.onclick = todayHandler;
-
-    document.getElementById('settings-fab').onclick = () => {
-        document.getElementById('settings-drawer').classList.add('open');
+    // Sidebar action handlers
+    const sidebarAddBtn = document.getElementById('sidebar-add-btn');
+    if (sidebarAddBtn) sidebarAddBtn.onclick = () => {
+        openCreateModal(9, 0);
+        closeSidebar(); // Close sidebar after action on mobile
     };
+
+    const sidebarTodayBtn = document.getElementById('sidebar-today-btn');
+    if (sidebarTodayBtn) sidebarTodayBtn.onclick = () => {
+        todayHandler();
+        closeSidebar(); // Close sidebar after action on mobile
+    };
+
+    const sidebarExceptionBtn = document.getElementById('sidebar-exception-btn');
+    if (sidebarExceptionBtn) sidebarExceptionBtn.onclick = () => {
+        alert('新增休診時段 modal would open here');
+        closeSidebar(); // Close sidebar after action on mobile
+    };
+
 
     // Update sidebar month/year click handler
     const sidebarMonthYear = document.getElementById('sidebar-month-year');
@@ -538,16 +589,6 @@ function setupEventListeners() {
         };
     }
 
-    // Drawer Handlers
-    document.querySelector('.close-drawer').onclick = () => {
-        document.getElementById('settings-drawer').classList.remove('open');
-    };
-
-    document.getElementById('settings-drawer').onclick = (e) => {
-        if (e.target.id === 'settings-drawer') {
-            document.getElementById('settings-drawer').classList.remove('open');
-        }
-    };
 
     // Navigation dropdown handlers
     document.querySelectorAll('.nav-item.has-dropdown').forEach(button => {
