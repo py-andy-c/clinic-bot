@@ -183,11 +183,27 @@ body {
     border-right: 1px solid var(--border);
     flex-shrink: 0;
     z-index: 1001;
+    display: block; /* Visible by default on desktop */
+}
+
+/* Responsive visibility classes */
+.mobile-only {
+    display: none;
+}
+
+.desktop-only {
     display: block;
-    /* Visible by default on desktop */
 }
 
 @media (max-width: 768px) {
+    .mobile-only {
+        display: block;
+    }
+
+    .desktop-only {
+        display: none;
+    }
+
     .sidebar {
         position: fixed;
         left: -240px;
@@ -376,8 +392,27 @@ body {
 }
 
 .mini-calendar-header {
-    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
     margin-bottom: 8px;
+}
+
+.month-nav-btn {
+    background: transparent;
+    border: none;
+    font-size: 16px;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: all 0.2s;
+    flex-shrink: 0;
+}
+
+.month-nav-btn:hover {
+    background: var(--bg-main);
+    color: var(--text-main);
 }
 
 .mini-calendar-header .current-month-label {
@@ -388,6 +423,8 @@ body {
     padding: 4px 8px;
     border-radius: 6px;
     transition: background 0.2s;
+    flex: 1;
+    text-align: center;
 }
 
 .mini-calendar-header .current-month-label:hover {
@@ -443,6 +480,95 @@ body {
 
 .mini-calendar .day.today.selected {
     background: var(--primary-hover);
+}
+
+/* Mobile Date Picker Modal */
+.mobile-date-picker-content {
+    max-width: 360px;
+    margin: 20px auto;
+}
+
+.mobile-calendar {
+    margin: 0;
+    border: none;
+    padding: 0;
+}
+
+.mobile-calendar .mini-calendar-header {
+    padding: 0 0 12px 0;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 12px;
+}
+
+.mobile-calendar .mini-calendar {
+    gap: 4px;
+}
+
+.mobile-calendar .day {
+    font-size: 12px;
+    padding: 8px 0;
+}
+
+/* Modal Overlay */
+.modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 2000;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-overlay.open {
+    display: flex;
+}
+
+.modal-content {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    max-width: 90%;
+    max-height: 90%;
+    overflow: auto;
+}
+
+.modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+}
+
+.modal-header h2 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-main);
+}
+
+.close-btn {
+    background: none;
+    border: none;
+    font-size: 24px;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+.close-btn:hover {
+    background: var(--bg-main);
+    color: var(--text-main);
+}
+
+.modal-body {
+    padding: 20px;
 }
 
 /* Date Strip Container */

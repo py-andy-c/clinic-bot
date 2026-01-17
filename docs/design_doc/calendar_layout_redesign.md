@@ -29,8 +29,16 @@ Transform the daily calendar view into a high-density, multi-practitioner worksp
     - **Interaction**: Click any date for direct navigation, eliminating need for separate date picker
     - **Visual States**: Today (primary color), Selected (darker primary), Other-month (muted gray)
     - **Header**: Clickable month/year label for potential full date picker integration
-- **Header Cleanup**: Moved date navigator from global header center to sidebar, freeing header space for branding and navigation
-- **Responsive Behavior**: Mini calendar remains in sidebar on desktop, hidden on mobile (uses slide-out sidebar)
+- **Mobile Date Picker Modal**: A popup modal for mobile date navigation.
+    - **Trigger**: Click the header date navigator (e.g., "2026年1月") on mobile devices
+    - **Layout**: Same 7x6 grid as sidebar calendar but optimized for mobile touch interaction
+    - **Features**: Month navigation arrows, direct date selection, auto-close on selection
+    - **Responsive**: Only appears on mobile (≤768px), desktop uses sidebar calendar
+- **Responsive Date Navigation Strategy**:
+    - **Desktop**: Mini calendar permanently visible in sidebar with month navigation
+    - **Mobile**: Header date triggers modal popup, preserving clean mobile interface
+    - **Synchronization**: Both navigation methods stay perfectly synchronized
+- **Header Cleanup**: Moved date navigator from global header center to sidebar on desktop, preserved in header for mobile
 
 ---
 
@@ -115,10 +123,15 @@ Transform the daily calendar view into a high-density, multi-practitioner worksp
 
 ## 🛠️ Implementation Checklist for `CalendarView.tsx`
 - [ ] **Production Layout Compliance**: Ensure calendar component respects the existing `ClinicLayout` structure with full-width global header
+- [ ] **Responsive Date Navigation**: Implement dual navigation system (sidebar calendar for desktop, modal calendar for mobile)
 - [ ] **Sidebar Mini Calendar**: Implement compact monthly calendar widget in sidebar for direct date navigation
+- [ ] **Mobile Date Picker Modal**: Create modal popup for mobile date navigation with touch-optimized interface
 - [ ] **Calendar Grid Logic**: Build 7x6 grid with proper month padding and Monday-first layout
-- [ ] **Date Synchronization**: Ensure mini calendar, weekly strip, and main grid stay synchronized
+- [ ] **Dual Calendar Rendering**: Implement separate render functions for sidebar vs modal calendars
+- [ ] **Date Synchronization**: Ensure mini calendar, modal calendar, weekly strip, and main grid stay synchronized
 - [ ] **Visual State Management**: Implement today/selected/other-month styling with proper color hierarchy
+- [ ] **Modal Interaction Design**: Add backdrop dismiss, auto-close, and touch-optimized interactions
+- [ ] **Responsive Visibility Classes**: Implement mobile-only/desktop-only visibility controls
 - [ ] **Unified Scroll**: Refactor the RBC layout to ensure the entire grid (headers + body) is wrapped in a single scrollable viewport.
 - [ ] **Custom Slot Rendering**: Implement `slotPropGetter` to apply `.rbc-slot-unavailable` based on practitioner schedules.
 - [ ] **Layered Z-Indexing**: 
@@ -170,7 +183,29 @@ Transform the daily calendar view into a high-density, multi-practitioner worksp
 
 ---
 
-## ��️ 11. Split-Pane Desktop Architecture
+## 11. Mobile Modal Integration Patterns
+*Learning: Mobile-first modal design for enhanced touch interaction.*
+
+- **Modal Trigger Strategy**: Mobile header elements should trigger contextual modals rather than inline functionality
+    - **Date Navigator**: Header date opens calendar modal instead of inline navigation
+    - **Touch Optimization**: Larger tap targets and modal-based interactions work better on mobile
+- **Modal Architecture**:
+    - **Overlay Pattern**: Full-screen overlay with centered modal content
+    - **Backdrop Dismiss**: Click outside modal to close (standard mobile pattern)
+    - **Auto-Close Behavior**: Modal closes automatically after action completion (date selection)
+- **Mobile Calendar Modal Specifics**:
+    - **Size Constraints**: Max width 360px to ensure usability on smaller screens
+    - **Touch Targets**: Larger day cells (12px font, 8px padding) for easier tapping
+    - **Visual Hierarchy**: Enhanced spacing and borders for better mobile readability
+- **Responsive State Management**:
+    - **Dual Calendar System**: Separate render functions for sidebar vs modal calendars
+    - **Synchronized State**: Both calendars update from same `selectedDate` but render independently
+    - **Event Handling**: Different click handlers for desktop (`selectDate`) vs mobile (`selectDateFromMobile`)
+- **Performance Considerations**: Modal calendar renders only when opened, reducing initial page load
+
+---
+
+## 12. Split-Pane Desktop Architecture
 *Optimizing for large screens while maintaining mobile parity.*
 
 - **Permanent Left Sidebar**: On screens > 768px, a **240px sidebar** is permanently docked to the left.

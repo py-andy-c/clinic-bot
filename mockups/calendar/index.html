@@ -20,7 +20,7 @@
             <div class="nav-left">
                 <div class="branding">
                     <span class="icon">🏥</span>
-                    <span class="platform-name">診所小幫手</span>
+                    <span class="platform-name desktop-only">診所小幫手</span>
                 </div>
                 <!-- Desktop Navigation -->
                 <nav class="desktop-nav">
@@ -31,7 +31,8 @@
                 </nav>
             </div>
             <div class="nav-center">
-                <!-- Date navigator moved to sidebar -->
+                <!-- Date navigator: mobile in header, desktop in sidebar -->
+                <h1 class="current-month-label mobile-only" id="header-month-year">2026年1月</h1>
             </div>
             <div class="nav-right">
                 <div class="user-info desktop-only">
@@ -60,7 +61,9 @@
                     <!-- Mini Monthly Calendar -->
                     <div class="mini-calendar-container">
                         <div class="mini-calendar-header">
+                            <button class="month-nav-btn prev-month" id="prev-month-btn">‹</button>
                             <h3 class="current-month-label" id="sidebar-month-year">2026年1月</h3>
+                            <button class="month-nav-btn next-month" id="next-month-btn">›</button>
                         </div>
                         <div class="mini-calendar" id="mini-calendar">
                             <!-- Injected JS -->
@@ -182,6 +185,29 @@
             </div>
         </div>
     </div>
+    <!-- Mobile Date Picker Modal (Hidden by default) -->
+    <div id="mobile-date-picker" class="modal-overlay">
+        <div class="modal-content mobile-date-picker-content">
+            <div class="modal-header">
+                <h2>選擇日期</h2>
+                <button class="close-btn" onclick="closeMobileDatePicker()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <!-- Mobile Mini Calendar -->
+                <div class="mini-calendar-container mobile-calendar">
+                    <div class="mini-calendar-header">
+                        <button class="month-nav-btn prev-month" id="mobile-prev-month-btn">‹</button>
+                        <h3 class="current-month-label" id="mobile-month-year">2026年1月</h3>
+                        <button class="month-nav-btn next-month" id="mobile-next-month-btn">›</button>
+                    </div>
+                    <div class="mini-calendar" id="mobile-mini-calendar">
+                        <!-- Injected JS -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="app.js"></script>
 </body>
 

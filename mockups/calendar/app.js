@@ -67,14 +67,20 @@ function renderDateStrip() {
 
 function renderMiniCalendar() {
     const miniCalendar = document.getElementById('mini-calendar');
-    const monthYearLabel = document.getElementById('sidebar-month-year');
-    if (!miniCalendar || !monthYearLabel) return;
+    const sidebarMonthYear = document.getElementById('sidebar-month-year');
+    const headerMonthYear = document.getElementById('header-month-year');
+    
+    if (!miniCalendar || !sidebarMonthYear) return;
 
     const year = selectedDate.getFullYear();
     const month = selectedDate.getMonth();
+    const monthText = `${year}年${month + 1}月`;
     
-    // Update month/year label
-    monthYearLabel.textContent = `${year}年${month + 1}月`;
+    // Update both month/year labels
+    sidebarMonthYear.textContent = monthText;
+    if (headerMonthYear) {
+        headerMonthYear.textContent = monthText;
+    }
 
     // Get first day of month and number of days
     const firstDay = new Date(year, month, 1);
@@ -131,6 +137,136 @@ function renderMiniCalendar() {
     }
 
     miniCalendar.innerHTML = html;
+}
+
+function navigateMonth(direction) {
+    const currentMonth = selectedDate.getMonth();
+    const currentYear = selectedDate.getFullYear();
+    
+    let newMonth, newYear;
+    if (direction === 'prev') {
+        newMonth = currentMonth - 1;
+        newYear = newMonth < 0 ? currentYear - 1 : currentYear;
+        if (newMonth < 0) newMonth = 11; // December
+    } else {
+        newMonth = currentMonth + 1;
+        newYear = newMonth > 11 ? currentYear + 1 : currentYear;
+        if (newMonth > 11) newMonth = 0; // January
+    }
+    
+    // Set to the first day of the new month to ensure we're in that month
+    selectedDate = new Date(newYear, newMonth, 1);
+    
+    renderMiniCalendar();
+    renderDateStrip();
+    renderGrid();
+}
+
+function renderMobileMiniCalendar() {
+    const mobileMiniCalendar = document.getElementById('mobile-mini-calendar');
+    const mobileMonthYear = document.getElementById('mobile-month-year');
+    
+    if (!mobileMiniCalendar || !mobileMonthYear) return;
+
+    const year = selectedDate.getFullYear();
+    const month = selectedDate.getMonth();
+    
+    // Update mobile month/year label
+    mobileMonthYear.textContent = `${year}年${month + 1}月`;
+
+    // Get first day of month and number of days
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const daysInMonth = lastDay.getDate();
+    
+    // Get the weekday of the first day (0 = Sunday, 6 = Saturday)
+    let firstDayOfWeek = firstDay.getDay();
+    
+    // Adjust for Monday-first calendar (0 = Monday, 6 = Sunday)
+    if (firstDayOfWeek === 0) firstDayOfWeek = 6;
+    else firstDayOfWeek--;
+
+    // Get previous month's last days for padding
+    const prevMonth = new Date(year, month, 0);
+    const daysInPrevMonth = prevMonth.getDate();
+
+    // Build calendar HTML
+    let html = '';
+    
+    // Weekday headers (Mon-Sun)
+    const weekdays = ['一', '二', '三', '四', '五', '六', '日'];
+    weekdays.forEach(day => {
+        html += `<div class="weekday">${day}</div>`;
+    });
+
+    // Previous month padding
+    for (let i = firstDayOfWeek - 1; i >= 0; i--) {
+        const day = daysInPrevMonth - i;
+        html += `<div class="day other-month">${day}</div>`;
+    }
+
+    // Current month days
+    const today = new Date();
+    for (let day = 1; day <= daysInMonth; day++) {
+        const currentDate = new Date(year, month, day);
+        const isToday = currentDate.toDateString() === today.toDateString();
+        const isSelected = currentDate.toDateString() === selectedDate.toDateString();
+        
+        let classes = 'day';
+        if (isToday) classes += ' today';
+        if (isSelected) classes += ' selected';
+        
+        html += `<div class="${classes}" onclick="selectDateFromMobile(${year}, ${month}, ${day})">${day}</div>`;
+    }
+
+    // Next month padding to complete the grid (6 weeks = 42 cells)
+    const totalCells = 42;
+    const currentCells = firstDayOfWeek + daysInMonth;
+    const nextMonthDays = totalCells - currentCells;
+    
+    for (let day = 1; day <= nextMonthDays; day++) {
+        html += `<div class="day other-month">${day}</div>`;
+    }
+
+    mobileMiniCalendar.innerHTML = html;
+}
+
+function openMobileDatePicker() {
+    renderMobileMiniCalendar();
+    document.getElementById('mobile-date-picker').classList.add('open');
+}
+
+function closeMobileDatePicker() {
+    document.getElementById('mobile-date-picker').classList.remove('open');
+}
+
+function selectDateFromMobile(year, month, day) {
+    selectedDate = new Date(year, month, day);
+    renderDateStrip();
+    renderMiniCalendar();
+    renderGrid();
+    closeMobileDatePicker();
+}
+
+function navigateMobileMonth(direction) {
+    const currentMonth = selectedDate.getMonth();
+    const currentYear = selectedDate.getFullYear();
+    
+    let newMonth, newYear;
+    if (direction === 'prev') {
+        newMonth = currentMonth - 1;
+        newYear = newMonth < 0 ? currentYear - 1 : currentYear;
+        if (newMonth < 0) newMonth = 11; // December
+    } else {
+        newMonth = currentMonth + 1;
+        newYear = newMonth > 11 ? currentYear + 1 : currentYear;
+        if (newMonth > 11) newMonth = 0; // January
+    }
+    
+    // Set to the first day of the new month to ensure we're in that month
+    selectedDate = new Date(newYear, newMonth, 1);
+    
+    renderMobileMiniCalendar();
 }
 
 function selectDate(year, month, day) {
@@ -231,12 +367,44 @@ function setupEventListeners() {
         document.getElementById('settings-drawer').classList.add('open');
     };
 
-    // Update sidebar month/year click handler
+    // Update sidebar and header month/year click handlers
     const sidebarMonthYear = document.getElementById('sidebar-month-year');
+    const headerMonthYear = document.getElementById('header-month-year');
+    
     if (sidebarMonthYear) {
         sidebarMonthYear.onclick = () => {
             alert('📅 開啟全月份選擇器 (用於跨月/跨年快速跳轉)');
         };
+    }
+    
+    if (headerMonthYear) {
+        headerMonthYear.onclick = () => {
+            openMobileDatePicker();
+        };
+    }
+
+    // Add month navigation handlers
+    const prevMonthBtn = document.getElementById('prev-month-btn');
+    const nextMonthBtn = document.getElementById('next-month-btn');
+    
+    if (prevMonthBtn) {
+        prevMonthBtn.onclick = () => navigateMonth('prev');
+    }
+    
+    if (nextMonthBtn) {
+        nextMonthBtn.onclick = () => navigateMonth('next');
+    }
+
+    // Add mobile calendar navigation handlers
+    const mobilePrevMonthBtn = document.getElementById('mobile-prev-month-btn');
+    const mobileNextMonthBtn = document.getElementById('mobile-next-month-btn');
+    
+    if (mobilePrevMonthBtn) {
+        mobilePrevMonthBtn.onclick = () => navigateMobileMonth('prev');
+    }
+    
+    if (mobileNextMonthBtn) {
+        mobileNextMonthBtn.onclick = () => navigateMobileMonth('next');
     }
 
     const mobileMenuTrigger = document.getElementById('mobile-menu-trigger');
