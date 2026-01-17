@@ -23,6 +23,7 @@ let selectedDate = new Date("2026-01-19");
 
 function initCalendar() {
     renderDateStrip();
+    renderMiniCalendar();
     renderHeaders();
     renderTimeLabels();
     renderGrid();
@@ -64,15 +65,86 @@ function renderDateStrip() {
     strip.innerHTML = html;
 }
 
+function renderMiniCalendar() {
+    const miniCalendar = document.getElementById('mini-calendar');
+    const monthYearLabel = document.getElementById('sidebar-month-year');
+    if (!miniCalendar || !monthYearLabel) return;
+
+    const year = selectedDate.getFullYear();
+    const month = selectedDate.getMonth();
+    
+    // Update month/year label
+    monthYearLabel.textContent = `${year}年${month + 1}月`;
+
+    // Get first day of month and number of days
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const daysInMonth = lastDay.getDate();
+    
+    // Get the weekday of the first day (0 = Sunday, 6 = Saturday)
+    let firstDayOfWeek = firstDay.getDay();
+    
+    // Adjust for Monday-first calendar (0 = Monday, 6 = Sunday)
+    if (firstDayOfWeek === 0) firstDayOfWeek = 6;
+    else firstDayOfWeek--;
+
+    // Get previous month's last days for padding
+    const prevMonth = new Date(year, month, 0);
+    const daysInPrevMonth = prevMonth.getDate();
+
+    // Build calendar HTML
+    let html = '';
+    
+    // Weekday headers (Mon-Sun)
+    const weekdays = ['一', '二', '三', '四', '五', '六', '日'];
+    weekdays.forEach(day => {
+        html += `<div class="weekday">${day}</div>`;
+    });
+
+    // Previous month padding
+    for (let i = firstDayOfWeek - 1; i >= 0; i--) {
+        const day = daysInPrevMonth - i;
+        html += `<div class="day other-month">${day}</div>`;
+    }
+
+    // Current month days
+    const today = new Date();
+    for (let day = 1; day <= daysInMonth; day++) {
+        const currentDate = new Date(year, month, day);
+        const isToday = currentDate.toDateString() === today.toDateString();
+        const isSelected = currentDate.toDateString() === selectedDate.toDateString();
+        
+        let classes = 'day';
+        if (isToday) classes += ' today';
+        if (isSelected) classes += ' selected';
+        
+        html += `<div class="${classes}" onclick="selectDate(${year}, ${month}, ${day})">${day}</div>`;
+    }
+
+    // Next month padding to complete the grid (6 weeks = 42 cells)
+    const totalCells = 42;
+    const currentCells = firstDayOfWeek + daysInMonth;
+    const nextMonthDays = totalCells - currentCells;
+    
+    for (let day = 1; day <= nextMonthDays; day++) {
+        html += `<div class="day other-month">${day}</div>`;
+    }
+
+    miniCalendar.innerHTML = html;
+}
+
+function selectDate(year, month, day) {
+    selectedDate = new Date(year, month, day);
+    renderDateStrip();
+    renderMiniCalendar();
+    renderGrid();
+}
+
 function changeDate(dateIso) {
     selectedDate = new Date(dateIso);
     renderDateStrip();
+    renderMiniCalendar();
     renderGrid();
-
-    const year = selectedDate.getFullYear();
-    const month = selectedDate.getMonth() + 1;
-    const titleEl = document.getElementById('current-month-year');
-    if (titleEl) titleEl.innerText = `${year}年${month}月`;
 }
 
 function renderHeaders() {
@@ -140,6 +212,7 @@ function setupEventListeners() {
     const todayHandler = () => {
         selectedDate = new Date();
         renderDateStrip();
+        renderMiniCalendar();
         renderGrid();
 
         // Auto-scroll to 9 AM
@@ -148,11 +221,6 @@ function setupEventListeners() {
         if (slot9am && viewport) {
             viewport.scrollTop = slot9am.offsetTop - 60;
         }
-
-        const year = selectedDate.getFullYear();
-        const month = selectedDate.getMonth() + 1;
-        const titleEl = document.getElementById('current-month-year');
-        if (titleEl) titleEl.innerText = `${year}年${month}月`;
     };
 
     document.getElementById('today-fab').onclick = todayHandler;
@@ -163,9 +231,10 @@ function setupEventListeners() {
         document.getElementById('settings-drawer').classList.add('open');
     };
 
-    const headerTitle = document.getElementById('current-month-year');
-    if (headerTitle) {
-        headerTitle.onclick = () => {
+    // Update sidebar month/year click handler
+    const sidebarMonthYear = document.getElementById('sidebar-month-year');
+    if (sidebarMonthYear) {
+        sidebarMonthYear.onclick = () => {
             alert('📅 開啟全月份選擇器 (用於跨月/跨年快速跳轉)');
         };
     }

@@ -366,6 +366,85 @@ body {
     padding: 4px;
 }
 
+/* Mini Monthly Calendar */
+.mini-calendar-container {
+    background: white;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    padding: 12px;
+    margin-bottom: 24px;
+}
+
+.mini-calendar-header {
+    text-align: center;
+    margin-bottom: 8px;
+}
+
+.mini-calendar-header .current-month-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-main);
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 6px;
+    transition: background 0.2s;
+}
+
+.mini-calendar-header .current-month-label:hover {
+    background: var(--bg-main);
+}
+
+.mini-calendar {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 2px;
+    font-size: 11px;
+}
+
+.mini-calendar .weekday {
+    text-align: center;
+    font-weight: 600;
+    color: var(--text-muted);
+    padding: 4px 2px;
+    font-size: 10px;
+}
+
+.mini-calendar .day {
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    cursor: pointer;
+    color: var(--text-main);
+    transition: all 0.2s;
+    font-size: 11px;
+}
+
+.mini-calendar .day:hover {
+    background: var(--bg-main);
+}
+
+.mini-calendar .day.other-month {
+    color: var(--text-muted);
+    opacity: 0.5;
+}
+
+.mini-calendar .day.today {
+    background: var(--primary);
+    color: white;
+    font-weight: 600;
+}
+
+.mini-calendar .day.selected {
+    background: var(--primary-hover);
+    color: white;
+}
+
+.mini-calendar .day.today.selected {
+    background: var(--primary-hover);
+}
+
 /* Date Strip Container */
 .date-strip-container {
     background: white;

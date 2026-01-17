@@ -24,11 +24,13 @@ Transform the daily calendar view into a high-density, multi-practitioner worksp
 - **The "Weekly Snap" Strip**: A fixed 7-day grid representing the current week.
     - **Logic**: Calculate the start of the week for the selected date. Render exactly those 7 days.
     - **Aesthetics**: Centered items with internal padding (Spec Height: **40px**).
-- **Header Jump (DatePicker)**: The Month/Year label (e.g., `2026年1月 ▾`) in the global navbar must be an interactive trigger.
-    - Clicking it should open the `DatePicker` modal for far-away jumps.
-- **Global Header Injection**: 
-    - Use a "Middle Slot" or "Teleport" pattern to push the calendar's `YYYY年M月` string into `ClinicLayout.tsx`.
-    - Ensure this state is cleared on `componentWillUnmount`.
+- **Sidebar Mini Calendar**: A compact monthly calendar widget in the sidebar for direct date navigation.
+    - **Layout**: 7x6 grid (42 cells) showing current month with previous/next month padding
+    - **Interaction**: Click any date for direct navigation, eliminating need for separate date picker
+    - **Visual States**: Today (primary color), Selected (darker primary), Other-month (muted gray)
+    - **Header**: Clickable month/year label for potential full date picker integration
+- **Header Cleanup**: Moved date navigator from global header center to sidebar, freeing header space for branding and navigation
+- **Responsive Behavior**: Mini calendar remains in sidebar on desktop, hidden on mobile (uses slide-out sidebar)
 
 ---
 
@@ -113,6 +115,10 @@ Transform the daily calendar view into a high-density, multi-practitioner worksp
 
 ## 🛠️ Implementation Checklist for `CalendarView.tsx`
 - [ ] **Production Layout Compliance**: Ensure calendar component respects the existing `ClinicLayout` structure with full-width global header
+- [ ] **Sidebar Mini Calendar**: Implement compact monthly calendar widget in sidebar for direct date navigation
+- [ ] **Calendar Grid Logic**: Build 7x6 grid with proper month padding and Monday-first layout
+- [ ] **Date Synchronization**: Ensure mini calendar, weekly strip, and main grid stay synchronized
+- [ ] **Visual State Management**: Implement today/selected/other-month styling with proper color hierarchy
 - [ ] **Unified Scroll**: Refactor the RBC layout to ensure the entire grid (headers + body) is wrapped in a single scrollable viewport.
 - [ ] **Custom Slot Rendering**: Implement `slotPropGetter` to apply `.rbc-slot-unavailable` based on practitioner schedules.
 - [ ] **Layered Z-Indexing**: 
@@ -143,7 +149,28 @@ Transform the daily calendar view into a high-density, multi-practitioner worksp
 
 ---
 
-## 🖥️ 10. Split-Pane Desktop Architecture
+## � 10. Sidebar Calendar Integration
+*Learning: Leverage sidebar space for enhanced date navigation UX.*
+
+- **Space Optimization**: The 240px sidebar provides ample space for interactive components that would clutter the header.
+- **Direct Date Navigation**: Mini calendar eliminates the need for modal date pickers, providing immediate visual context and one-click date selection.
+- **Calendar Grid Architecture**: 
+    - **Structure**: 7x6 grid (42 cells) following standard month layout
+    - **Padding Strategy**: Previous/next month days provide visual continuity while maintaining full grid structure
+    - **Monday-First Layout**: Aligns with Taiwanese business calendar conventions
+- **Visual Hierarchy**: 
+    - **Today**: Primary color background with white text for immediate recognition
+    - **Selected**: Darker primary color to distinguish from today
+    - **Other Month**: Muted gray opacity (0.5) to provide context without distraction
+- **Interaction Design**: 
+    - **Hover States**: Subtle background changes provide feedback before click
+    - **Click Handlers**: Direct date selection updates both mini calendar and weekly strip simultaneously
+    - **Synchronized State**: All date navigation components (mini calendar, weekly strip, grid) stay in sync
+- **Responsive Considerations**: Mini calendar remains accessible on desktop, hidden on mobile behind slide-out sidebar to maintain clean mobile experience.
+
+---
+
+## ��️ 11. Split-Pane Desktop Architecture
 *Optimizing for large screens while maintaining mobile parity.*
 
 - **Permanent Left Sidebar**: On screens > 768px, a **240px sidebar** is permanently docked to the left.
