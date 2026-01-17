@@ -13,7 +13,8 @@ Transform the daily calendar view into a high-density, multi-practitioner worksp
     - **Top Sticky**: `.header-row` (contains corner + resource headers) must be `position: sticky; top: 0; z-index: 100`.
     - **Left Sticky**: `.time-column` (gutter) must be `position: sticky; left: 0; z-index: 50`.
     - **Corner Case**: The `.time-corner` must be `position: sticky; top: 0; left: 0; z-index: 110` so it stays at the intersection when both axes scroll.
-- **Mathematics of Alignment**: The width of `.time-corner` and `.time-column` MUST be identical (Current Spec: **32px**).
+- **Ultra-Narrow Gutter**: Reduce the time gutter and top-left corner width to **28px** to minimize horizontal "dead space".
+- **Synchronized Alignment**: Ensure the `.time-corner` (header) and `.time-column` (body) widths are mathematically identical (28px) to prevent misalignment.
 
 ---
 
@@ -67,8 +68,7 @@ Transform the daily calendar view into a high-density, multi-practitioner worksp
     - **Date Strip**: 40px.
     - **Resource Headers**: 40px.
 - **Adaptive Column Widths**:
-    - Standard Practitioner Column: **140px**.
-    - This allows 3+ practitioners to be visible on most modern mobile screens.
+    - **Dynamic Column Scaling**: Practitioner columns use `flex: 1` to expand and fill the available width. If the number of columns exceeds the viewport, they shrink to a **Minimum Width of 56px**, triggering horizontal scroll.
 - **Branding Logic**: Hide the "診所小幫手" text on mobile; show only the `🏥` icon on the far left.
 
 ---
@@ -90,10 +90,31 @@ Transform the daily calendar view into a high-density, multi-practitioner worksp
 
 ---
 
+---
+
+## 🧠 8. Technical Implementation Learnings (Prototyping Insights)
+*Knowledge gained during CSS/JS stress-testing of the mockup.*
+
+- **The "Axis Misalignment" Trap**: Misalignment between the header row and grid body usually happens because the `.time-corner` and `.time-column` have different widths or box-sizing. **Rule**: Lock both to exactly **28px** and set `box-sizing: border-box`.
+- **Absolute Centering of Time**: To get numbers (like "11") to sit exactly on the hour line:
+    - Wrap the number in a `<span>` or `<div>`.
+    - Set `.time-label { position: relative; }`.
+    - Set the inner element to `position: absolute; top: 0; left: 0; width: 100%; transform: translateY(-50%); text-align: center;`.
+- **Dynamic Width Synchronization**: 
+    - Use `display: flex` for the header row and body grid.
+    - Give both `.resource-header` and `.practitioner-column` the same `flex: 1` and `min-width: 56px`. This ensures headers and columns are always pixel-aligned regardless of scaling.
+- **Vertical Spacing**: A `40px` height for headers/strips with `align-items: center` provides exactly enough visual "breathing room" (3-4px padding) without wasting space.
+
+---
+
 ## 🛠️ Implementation Checklist for `CalendarView.tsx`
-- [ ] Implement `slotPropGetter` for grayed-out availability.
-- [ ] Implement `eventPropGetter` for layered z-indexing.
-- [ ] Refactor CSS to use the Unified Sticky Grid (Check `styles.css` mockup for exact classes).
-- [ ] Add `useScrollToTime` hook for the 9 AM initialization.
-- [ ] Disable horizontal touch-swipes specifically in **Day View** to allow column scrolling.
-- [ ] Connect `HeaderStore` to push the Month/Year label to the TopBar.
+- [ ] **Unified Scroll**: Refactor the RBC layout to ensure the entire grid (headers + body) is wrapped in a single scrollable viewport.
+- [ ] **Custom Slot Rendering**: Implement `slotPropGetter` to apply `.rbc-slot-unavailable` based on practitioner schedules.
+- [ ] **Layered Z-Indexing**: 
+    - Ensure background exceptions use a lower z-index than appointment events.
+    - Set `opacity: 1` and `width: 100%` on appointments to prevent them from becoming unreadable "slivers."
+- [ ] **Auto-Scroll Hook**: Create a `useScrollToTime` hook that calculates the pixel offset of 9:00 AM based on the `80px` hour height.
+- [ ] **Date Strip Component**: Build a 7-day pagination strip that calculates its range based on the `selectedDate`.
+- [ ] **Native Swipe Override**: Use `touch-action: pan-y` on the calendar body grid to prevent horizontal swiping from triggering date changes, allowing horizontal column scrolling instead.
+- [ ] **Header Store**: Implement a simple store (or use existing state) to "teleport" the Month/Year string to the `ClinicLayout` top bar.
+- [ ] **Quarter-Hour Styling**: Use `:nth-child` CSS rules on slots to render the hierarchical border system (Solid @ 60m, Light @ 30m, Transparent @ 15/45m).

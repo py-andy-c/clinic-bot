@@ -1,7 +1,12 @@
 const practitioners = [
     { id: 1, name: '陳大文', color: '#3b82f6', schedule: [{ start: '09:00', end: '12:00' }, { start: '13:00', end: '18:00' }] },
     { id: 2, name: '林美玲', color: '#10b981', schedule: [{ start: '10:00', end: '15:00' }, { start: '16:00', end: '20:00' }] },
-    { id: 3, name: '張志遠', color: '#f59e0b', schedule: [{ start: '08:00', end: '13:00' }, { start: '14:00', end: '17:00' }] }
+    { id: 3, name: '張志遠', color: '#f59e0b', schedule: [{ start: '08:00', end: '13:00' }, { start: '14:00', end: '17:00' }] },
+    { id: 4, name: '李佳穎', color: '#ef4444', schedule: [{ start: '09:00', end: '17:00' }] },
+    { id: 5, name: '周杰瑞', color: '#8b5cf6', schedule: [{ start: '13:00', end: '21:00' }] },
+    { id: 6, name: '吳佩珊', color: '#ec4899', schedule: [{ start: '10:00', end: '18:00' }] },
+    { id: 7, name: '蔡睿承', color: '#06b6d4', schedule: [{ start: '14:00', end: '22:00' }] },
+    { id: 8, name: '許曉晴', color: '#f97316', schedule: [{ start: '08:30', end: '16:30' }] }
 ];
 
 const mockAppointments = [
