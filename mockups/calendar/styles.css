@@ -320,7 +320,23 @@ body {
     justify-content: center;
     font-size: 11px;
     color: var(--text-muted);
-    padding-top: 6px;
+    position: relative;
+}
+
+.time-label::after {
+    content: attr(data-time);
+    /* We'll switch to using data-time if needed, but for now just target children */
+}
+
+/* Correct positioning so text is centered ON the line */
+.time-label {
+    line-height: 1;
+    overflow: visible;
+}
+
+.time-label span {
+    transform: translateY(-50%);
+    display: block;
 }
 
 .resource-grid {

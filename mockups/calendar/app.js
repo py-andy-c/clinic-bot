@@ -82,7 +82,8 @@ function renderTimeLabels() {
     const timeLabels = document.getElementById('time-labels');
     let html = '';
     for (let h = 0; h <= 23; h++) {
-        html += `<div class="time-label">${h}:00</div>`;
+        const label = h === 0 ? '' : `<span>${h}:00</span>`;
+        html += `<div class="time-label">${label}</div>`;
     }
     timeLabels.innerHTML = html;
 }
