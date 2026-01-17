@@ -25,23 +25,23 @@ Current codebase uses `react-big-calendar`. Research confirms that RBC supports 
 - **RBC Configuration**: 
     - Pass `resources={practitionerResources}`.
     - Set `resourceIdAccessor="id"` and `resourceTitleAccessor="title"`.
-    - Update `onSelectSlot` to use the `resourceId` from the event.
-- **Slot Styling**: 
-    - Implement `slotPropGetter`.
-    - Logic: Check if the slot's time falls within the `default_schedule` intervals for the practitioner. If not, return a class like `rbc-slot-unavailable`.
-- **Resource Header**:
-    - Implement a custom `ResourceHeader` component.
-    - Display the practitioner's avatar (if available) and name.
+    - Use `slotPropGetter` for availability (gray-out) and `eventPropGetter` for full-width opaque cards.
+- **Date Navigation Overlay**:
+    - Implement a `DateStrip` component inside the sticky header.
+    - Connect the global header "Middle Slot" to the calendar's `currentDate` state using `Zustand` or a shared `HeaderContext`.
+- **Auto-Scroll Utility**:
+    - Create a `useScrollToTime` hook to handle the initial 9 AM jump and "Today" button interactions.
 
-### 3. Styling (`frontend/src/index.css` or new CSS file)
-- Define `.rbc-slot-unavailable` styles:
-    ```css
-    .rbc-slot-unavailable {
-      background-color: #f3f4f6; /* Gray-100 */
-      cursor: not-allowed;
-    }
-    ```
-- Style the resource headers to match the premium look (vibrant colors, clean typography).
+### 3. Styling & Layout Redesign
+- **Sticky Grid Architecture**:
+    - Refactor the RBC container to use a single scrollable viewport.
+    - Apply `position: sticky` via CSS classes to `rbc-time-header` and `rbc-time-gutter`.
+- **Global Header Refinement**:
+    - Define responsive branding rules: `display: none` for text on mobile, `flex: 1` alignment for center title.
+- **Z-Index Layering**:
+    - Specific CSS rules to ensure appointments (Layer 2) stay above breaks/exceptions (Layer 1).
+- **Mobile Buffers**:
+    - Implement `env(safe-area-inset-bottom)` and `padding-bottom` on the main viewport.
 
 ### 4. Integration with Existing Modals
 - Ensure `handleSelectSlot` correctly passes the `practitionerId` to the `CreateAppointmentModal` and `ExceptionModal`.
@@ -135,3 +135,10 @@ The existing `handleTouchStart/End` logic in `CalendarView.tsx` currently trigge
     - `ClinicLayout` should offer a "Middle Slot" in the top bar.
     - `CalendarView` will use the `PageHeader` component or a dedicated `HeaderStore` to "teleport" the current "YYYY年M月" string to the top bar.
 - **Lifecycle**: Ensure the date string is cleared on `componentWillUnmount` when leaving the calendar to restore the default top bar state.
+
+### 7. Bottom Content Accessibility (Mobile)
+- **Problem**: Late-night events (e.g., 23:30) can be obscured by the dynamic browser URL bar or hardware home indicators on mobile.
+- **Solution**: 
+    - **Safe Area Insets**: Use `padding-bottom: env(safe-area-inset-bottom)` on the main viewport.
+    - **Over-Scroll Buffer**: Add an extra `60px - 80px` of padding at the bottom of the grid. This allows the user to scroll the final time slot well above the "danger zone" at the bottom of the physical screen.
+    - **FAB Clearance**: Ensure the FAB container's bottom margin is also calculated using safe-area insets to prevent overlap with gesture bars.

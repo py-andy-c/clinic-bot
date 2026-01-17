@@ -249,6 +249,8 @@ body {
     /* The ONE AND ONLY scrollbar */
     position: relative;
     background: white;
+    /* Safety buffer for mobile browsers and home indicators */
+    padding-bottom: calc(env(safe-area-inset-bottom, 20px) + 60px);
 }
 
 .calendar-grid-container {
@@ -341,6 +343,8 @@ body {
 
 .resource-grid {
     display: flex;
+    padding-bottom: 40px;
+    /* Extra internal space for scrolling comfort */
 }
 
 .practitioner-column {
