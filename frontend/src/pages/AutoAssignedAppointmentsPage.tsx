@@ -674,22 +674,43 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
             </div>
             <div className="ml-3 flex-1">
               <h3 className="text-lg font-semibold text-gray-900 mb-3">說明</h3>
-              <div className="text-sm text-gray-700 space-y-2">
-                <p>此頁面顯示需要診所人員確認的預約，包括：</p>
-                <ul className="list-disc list-inside ml-4 space-y-1">
-                  <li>自動指派的預約（治療師尚未確認）</li>
-                  <li>多時段預約（時間尚未確認）</li>
-                </ul>
-                <p>診所管理員可以查看所有待確認預約。治療師可以查看需要他們確認時間的多時段預約。</p>
-                <p>若在預約時間前
-                  {isLoadingSettings ? (
-                    <span className="inline-block w-8 h-4 bg-gray-200 animate-pulse rounded mx-1"></span>
-                  ) : minimumBookingHoursAhead !== null && minimumBookingHoursAhead > 0 ? (
-                    <span className="font-medium mx-1">{minimumBookingHoursAhead} 小時</span>
-                  ) : (
-                    <span className="text-gray-500 mx-1">載入中...</span>
-                  )}
-                  還未人為確認，系統會自動確認預約。被確認的治療師和病患會收到通知。</p>
+              <div className="text-sm text-gray-700 space-y-4">
+                <div>
+                  <h4 className="font-medium text-gray-900 mb-2">整體機制</h4>
+                  <p className="mb-2">病患可以：</p>
+                  <ul className="list-disc list-inside ml-4 space-y-1">
+                    <li>預約時不指定治療師（系統自動指派）</li>
+                    <li>選擇多個偏好時段（若服務項目允許，最多 10 個）</li>
+                  </ul>
+                  <p>系統會先指派臨時治療師和時間，設為待確認狀態。</p>
+                </div>
+
+                <div>
+                  <h4 className="font-medium text-gray-900 mb-2">確認流程</h4>
+                  <p className="mb-2">診所人員可以：</p>
+                  <ul className="list-disc list-inside ml-4 space-y-1">
+                    <li>確認或修改治療師指派</li>
+                    <li>確認或修改時間</li>
+                  </ul>
+                  <p>確認後會立即發送 LINE 通知給病患。</p>
+                </div>
+
+                <div>
+                  <h4 className="font-medium text-gray-900 mb-2">自動確認機制</h4>
+                  <p className="mb-2">根據診所的「預約限制」設定，若未及時確認，系統會自動確認：</p>
+                  <ul className="list-disc list-inside ml-4 space-y-1">
+                    <li><strong>小時限制模式</strong>（預設）：預約前 X 小時自動確認（預設24小時）</li>
+                    <li><strong>截止時間模式</strong>：在指定時間點自動確認（例如前一天上午 8:00）</li>
+                  </ul>
+                </div>
+
+                <div>
+                  <h4 className="font-medium text-gray-900 mb-2">權限說明</h4>
+                  <ul className="list-disc list-inside ml-4 space-y-1">
+                    <li><strong>診所管理員</strong>：可以查看和確認所有待確認預約</li>
+                    <li><strong>治療師</strong>：可以查看和確認需要他們確認的多時段預約</li>
+                  </ul>
+                </div>
               </div>
               <div className="mt-4 flex justify-end">
                 <button
