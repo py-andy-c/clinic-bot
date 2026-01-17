@@ -37,12 +37,25 @@
 
         <!-- Main Content -->
         <main class="main-content">
-            <header class="top-bar">
-                <div class="mobile-header mobile-only">
-                    <div class="logo-text">ClinicBot</div>
+            <!-- Global Header (Production Environment) -->
+            <header class="global-navbar">
+                <div class="nav-left">
+                    <div class="branding">
+                        <span class="icon">🏥</span>
+                        <span class="platform-name">診所小幫手</span>
+                    </div>
                 </div>
-                <div class="date-navigator desktop-only">
-                    <h1>2026年1月19日</h1>
+                <div class="nav-center">
+                    <h1 class="current-month-label" id="current-month-year">2026年1月</h1>
+                </div>
+                <div class="nav-right">
+                    <div class="user-info desktop-only">
+                        <span class="user-name">王大明</span>
+                        <span class="user-email">admin@clinic.com</span>
+                    </div>
+                    <button class="menu-icon" id="mobile-menu-trigger">☰</button>
+                    <!-- Logout button on desktop only -->
+                    <button class="logout-btn desktop-only">🔒</button>
                 </div>
             </header>
 

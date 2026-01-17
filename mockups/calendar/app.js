@@ -63,9 +63,10 @@ function changeDate(dateIso) {
     renderDateStrip();
     renderGrid();
 
-    const displayStr = `${selectedDate.getFullYear()}年${selectedDate.getMonth() + 1}月${selectedDate.getDate()}日`;
-    const titleEl = document.querySelector('.date-navigator h1');
-    if (titleEl) titleEl.innerText = displayStr;
+    const year = selectedDate.getFullYear();
+    const month = selectedDate.getMonth() + 1;
+    const titleEl = document.getElementById('current-month-year');
+    if (titleEl) titleEl.innerText = `${year}年${month}月`;
 }
 
 function renderHeaders() {
@@ -141,14 +142,22 @@ function setupEventListeners() {
             viewport.scrollTop = slot9am.offsetTop - 60;
         }
 
-        const displayStr = `${selectedDate.getFullYear()}年${selectedDate.getMonth() + 1}月${selectedDate.getDate()}日`;
-        const titleEl = document.querySelector('.date-navigator h1');
-        if (titleEl) titleEl.innerText = displayStr;
+        const year = selectedDate.getFullYear();
+        const month = selectedDate.getMonth() + 1;
+        const titleEl = document.getElementById('current-month-year');
+        if (titleEl) titleEl.innerText = `${year}年${month}月`;
     };
 
     document.getElementById('settings-fab').onclick = () => {
         document.getElementById('settings-drawer').classList.add('open');
     };
+
+    const mobileMenuTrigger = document.getElementById('mobile-menu-trigger');
+    if (mobileMenuTrigger) {
+        mobileMenuTrigger.onclick = () => {
+            document.getElementById('settings-drawer').classList.add('open');
+        };
+    }
 
     // Drawer Handlers
     document.querySelector('.close-drawer').onclick = () => {

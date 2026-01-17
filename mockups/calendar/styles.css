@@ -54,14 +54,120 @@ body {
     overflow: hidden;
 }
 
-.top-bar {
-    height: 60px;
+/* Global Navbar Styles */
+.global-navbar {
+    height: 64px;
     background: white;
     border-bottom: 1px solid var(--border);
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 20px;
+    padding: 0 16px;
+    flex-shrink: 0;
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+}
+
+.nav-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+}
+
+.menu-icon {
+    background: none;
+    border: none;
+    font-size: 24px;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 4px;
+}
+
+.branding {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.branding .icon {
+    font-size: 20px;
+}
+
+.branding .platform-name {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-main);
+    white-space: nowrap;
+}
+
+.nav-center {
+    flex: 2;
+    text-align: center;
+}
+
+.current-month-label {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-main);
+}
+
+.nav-right {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 16px;
+}
+
+.user-info {
+    text-align: right;
+    line-height: 1.2;
+}
+
+.user-name {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-main);
+}
+
+.user-email {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.logout-btn {
+    background: none;
+    border: none;
+    font-size: 18px;
+    cursor: pointer;
+    opacity: 0.6;
+}
+
+@media (max-width: 768px) {
+    .nav-center {
+        position: absolute;
+        left: 50%;
+        transform: translateX(-50%);
+        width: auto;
+        z-index: 10;
+    }
+
+    .branding .platform-name {
+        display: none;
+        /* Hide name on mobile to prevent overlap */
+    }
+
+    .nav-left {
+        flex: 0 0 auto;
+    }
+
+    .nav-right {
+        flex: 1;
+        justify-content: flex-end;
+    }
 }
 
 .date-strip-container {

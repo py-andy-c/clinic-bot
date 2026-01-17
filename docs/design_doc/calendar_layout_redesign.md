@@ -79,6 +79,9 @@ During the prototyping phase, several key UX and technical decisions were made t
 ### 5. Responsive Design & Visuals
 - **Simplified Headers**: Practitioner headers will display **names only** (no avatars). This provides a cleaner high-density look and avoids visual clutter in multi-column views.
 - **Minimum Column Widths**: Practitioner columns will have a fixed or minimum width (e.g., 200px) to prevent them from becoming unreadable "slivers" on mobile.
+- **Top-Bar Optimization**: 
+    - **Right-Aligned Menu**: The hamburger menu (☰) is relocated to the top-right corner to match production patterns.
+    - **Adaptive Branding**: The platform name is hidden on mobile, leaving only the `🏥` icon on the left to prevent overlap with the centered date.
 - **Typography & Depth**: Use **Outfit** and **Noto Sans TC**. Implement subtle drop shadows (`box-shadow`) and 8px corner radii for cards to create a premium, layered feel.
 
 ### 6. Floating Action Controls (FAB)
@@ -119,3 +122,10 @@ The existing `handleTouchStart/End` logic in `CalendarView.tsx` currently trigge
 ### 5. Data Density & Cleanliness
 - **Headers**: Keep practitioner headers strictly text-only in multi-column view to prevent vertical "bloat" on mobile screens.
 - **Borders**: Ensure 30-min and 60-min slot borders are visually distinct (e.g., solid vs dashed) as seen in the mockup for easier time tracking.
+
+### 6. Global Header Integration Architecture
+- **Context Injection**: To avoid polluting other pages, do **not** hardcode the date into `ClinicLayout.tsx`.
+- **Middle Slot Pattern**:
+    - `ClinicLayout` should offer a "Middle Slot" in the top bar.
+    - `CalendarView` will use the `PageHeader` component or a dedicated `HeaderStore` to "teleport" the current "YYYY年M月" string to the top bar.
+- **Lifecycle**: Ensure the date string is cleared on `componentWillUnmount` when leaving the calendar to restore the default top bar state.
