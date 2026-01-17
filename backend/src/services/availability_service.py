@@ -1741,7 +1741,8 @@ class AvailabilityService:
         appointment_type: Any,
         resource_requirements: List[Any],
         clinic_id: int,
-        check_past_appointment: bool = True
+        check_past_appointment: bool = True,
+        exclude_calendar_event_id: Optional[int] = None
     ) -> Dict[str, Any]:
         """
         Check conflicts using pre-fetched schedule data.
@@ -1824,13 +1825,14 @@ class AvailabilityService:
         from services.resource_service import ResourceService
         start_datetime = datetime.combine(date, start_time)
         end_datetime = datetime.combine(date, end_time)
+
         resource_result = ResourceService.check_resource_availability(
             db=db,
             appointment_type_id=appointment_type.id,
             clinic_id=clinic_id,
             start_time=start_datetime,
             end_time=end_datetime,
-            exclude_calendar_event_id=None  # We'll handle exclusion per practitioner if needed
+            exclude_calendar_event_id=exclude_calendar_event_id
         )
 
         if not resource_result['is_available']:
@@ -1984,7 +1986,8 @@ class AvailabilityService:
                 appointment_type=appointment_type,
                 resource_requirements=[],  # Resource conflicts are checked within the method
                 clinic_id=clinic_id,
-                check_past_appointment=True  # Check past appointments for consistency with single API
+                check_past_appointment=True,  # Check past appointments for consistency with single API
+                exclude_calendar_event_id=exclude_calendar_event_id
             )
 
             # Add practitioner_id to result
