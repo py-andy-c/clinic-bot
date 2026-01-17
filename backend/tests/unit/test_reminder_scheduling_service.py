@@ -200,8 +200,8 @@ class TestReminderSchedulingService:
         ).first()
         assert scheduled is None
 
-    def test_schedule_reminder_skips_recent_appointment(self, db_session):
-        """Test that reminders are not scheduled for recently created appointments."""
+    def test_schedule_reminder_includes_recent_appointment(self, db_session):
+        """Test that reminders are correctly scheduled even for brand new appointments."""
         clinic = Clinic(
             name="Test Clinic",
             line_channel_id="test_channel",
@@ -282,22 +282,23 @@ class TestReminderSchedulingService:
         from sqlalchemy import text
         db_session.execute(
             text("UPDATE calendar_events SET created_at = :created_at WHERE id = :event_id"),
-            {"created_at": taiwan_now() - timedelta(hours=1), "event_id": calendar_event.id}
+            {"created_at": taiwan_now() - timedelta(minutes=1), "event_id": calendar_event.id}
         )
         db_session.flush()
         # Refresh appointment to get updated created_at from calendar_event
         db_session.refresh(appointment)
         db_session.refresh(appointment.calendar_event)
 
-        # Schedule reminder (should skip because too recent)
+        # Schedule reminder (should NOT skip anymore)
         ReminderSchedulingService.schedule_reminder(db_session, appointment)
         db_session.commit()
 
-        # Verify no reminder was scheduled
+        # Verify reminder WAS scheduled
         scheduled = db_session.query(ScheduledLineMessage).filter(
             ScheduledLineMessage.message_type == 'appointment_reminder'
         ).first()
-        assert scheduled is None
+        assert scheduled is not None
+        assert scheduled.status == 'pending'
 
     def test_cancel_pending_reminder(self, db_session):
         """Test canceling pending reminders."""

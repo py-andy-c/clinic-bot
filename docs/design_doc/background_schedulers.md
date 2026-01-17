@@ -10,20 +10,23 @@ This document defines the business logic and technical design for background sch
 
 ### 1. Appointment Reminder Scheduler
 
-**Purpose**: Send automated reminders to patients before their appointments via LINE messaging
+**Purpose**: Execute and send the pre-scheduled LINE reminders to patients.
 
-**Schedule**: Runs every hour
+**Strategy**: Pre-Scheduling Model
+- Reminders are NOT calculated in real-time by the scheduler.
+- Instead, they are inserted into the `scheduled_line_messages` table as soon as an appointment is **created** or **confirmed/updated**.
+- The scheduler's role is simply to pick up all `pending` messages whose `scheduled_send_time` has arrived.
 
-**Window Logic**: 
-- **Start**: Current time (checks from now)
-- **End**: Current time + `reminder_hours_before` + `REMINDER_WINDOW_SIZE_MINUTES` (35 minutes)
-- **Overlap**: 10-minute overlap between hourly runs ensures no appointments are missed
+**Schedule**: Runs every minute (or as configured in `ScheduledMessageScheduler`)
 
-**Catch-Up Logic**: Automatically catches up on missed reminders during downtime and handles `reminder_hours_before` setting increases
+**Logic**:
+- Selects all messages where `status = 'pending'` and `scheduled_send_time <= current_time`.
+- Sends the message via LINE API.
+- Updates status to `sent` (or `failed`).
 
-**Clinic-Specific**: Each clinic has its own `reminder_hours_before` setting (default: 24 hours)
+**Catch-Up Logic**: If the system is down, the scheduler will automatically process all "missed" reminders whose scheduled time passed during the downtime as soon as it restarts.
 
-**Rationale**: Hourly checks with overlapping windows ensure reliable reminder delivery even if scheduler runs late or settings change.
+**Rationale**: Pre-scheduling ensures that reminder delivery is decoupled from appointment creation logic and provides a guaranteed audit trail in the `scheduled_line_messages` table.
 
 ### 2. Auto-Assignment Scheduler
 
@@ -218,22 +221,13 @@ await asyncio.gather(
 
 **Error Isolation**: Scheduler failures are isolated - one failing scheduler doesn't affect others
 
-### Reminder Window Overlap
+### Scheduled Message Delivery
 
-**Window Size**: `REMINDER_WINDOW_SIZE_MINUTES = 35` minutes
+**Mechanism**: All scheduled messages (reminders, follow-ups) are stored in the `scheduled_line_messages` table. The `ScheduledMessageScheduler` runs frequently to check for and execute any messages whose `scheduled_send_time` has passed.
 
-**Window Width**: 2 × 35 = 70 minutes
+**Deduplication**: Since messages are pre-created with specific `message_context` (e.g., `appointment_id`), the system prevents duplicate scheduling by checking for existing `pending` messages before adding new ones.
 
-**Run Interval**: 60 minutes (hourly)
-
-**Overlap**: 70 - 60 = 10 minutes
-
-**Example**: 
-- Run at 2:00 PM: checks appointments at 2:00 PM next day ± 35min (window: 1:25 PM - 2:35 PM)
-- Run at 3:00 PM: checks appointments at 3:00 PM next day ± 35min (window: 2:25 PM - 3:35 PM)
-- Overlap: 2:25 PM - 2:35 PM (10 minutes)
-
-**Rationale**: Overlap ensures no appointments are missed at window boundaries.
+**Reliability**: Using a persistent table ensures that no notifications are lost during server restarts or transient network issues.
 
 ### Notification Deduplication
 

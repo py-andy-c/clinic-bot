@@ -1,8 +1,12 @@
 """
 Reminder scheduling service for pre-scheduling appointment reminders.
 
-This service schedules reminders in the scheduled_line_messages table
-when appointments are created or confirmed.
+This service follows a "schedule-on-event" strategy (Pre-Scheduling Model):
+- When an appointment is created or confirmed, a reminder is immediately calculated
+  and inserted into the `scheduled_line_messages` table for future delivery.
+- This ensures reliable delivery regardless of when the appointment was created,
+  provided the reminder time (e.g., 24h before) hasn't already passed.
+- It replaces the deprecated hourly polling-based `ReminderService`.
 """
 
 import logging
@@ -123,27 +127,6 @@ class ReminderSchedulingService:
         if not line_user:
             logger.debug(f"Patient {patient.id} has no LINE user, skipping reminder scheduling")
             return
-        
-        # Skip if appointment was created too recently (within reminder window)
-        # This matches the old logic: if appointment was created less than reminder_hours_before ago,
-        # skip reminder (patient just created it, they don't need a reminder so soon)
-        appointment_created_at = appointment.created_at
-        if appointment_created_at:
-            if appointment_created_at.tzinfo is None:
-                appointment_created_at = appointment_created_at.replace(tzinfo=TAIWAN_TZ)
-            else:
-                appointment_created_at = appointment_created_at.astimezone(TAIWAN_TZ)
-            
-            current_time = taiwan_now()
-            time_since_creation = current_time - appointment_created_at
-            hours_since_creation = time_since_creation.total_seconds() / 3600
-            
-            if hours_since_creation < reminder_hours_before:
-                logger.info(
-                    f"Skipping reminder for appointment {appointment.calendar_event_id}: "
-                    f"created {hours_since_creation:.1f} hours ago (less than {reminder_hours_before} hour reminder window)"
-                )
-                return
         
         # Validate reminder send time is not in past
         current_time = taiwan_now()
