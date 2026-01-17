@@ -58,7 +58,6 @@ function renderDateStrip() {
             <div class="date-item ${isSelected ? 'active' : ''} ${isToday ? 'is-today' : ''}" onclick="changeDate('${date.toISOString()}')">
                 <span class="day-label">${days[date.getDay()]}</span>
                 <span class="date-label">${date.getDate()}</span>
-                ${isToday ? '<div class="today-dot"></div>' : ''}
             </div>
         `;
     }

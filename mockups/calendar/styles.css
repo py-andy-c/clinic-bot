@@ -240,20 +240,6 @@ body {
     font-weight: 700;
 }
 
-.today-dot {
-    width: 4px;
-    height: 4px;
-    background: var(--primary);
-    border-radius: 50%;
-    position: absolute;
-    bottom: 4px;
-    /* Adjusted */
-}
-
-.date-item.active .today-dot {
-    background: white;
-}
-
 /* REFACTORED SCROLL SYSTEM */
 .calendar-viewport {
     flex: 1;
