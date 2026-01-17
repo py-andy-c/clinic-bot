@@ -212,7 +212,7 @@ body {
     z-index: 1001;
     display: block; /* Visible by default on desktop */
     height: calc(100vh - 64px); /* Full height minus header */
-    overflow: hidden; /* Prevent sidebar itself from scrolling */
+    overflow-y: auto; /* Make sidebar scrollable */
     position: fixed; /* Fixed position for overlay behavior */
     left: -240px; /* Hidden by default on mobile */
     top: 64px; /* Below header */
@@ -267,8 +267,6 @@ body {
     display: flex;
     flex-direction: column;
     gap: 24px;
-    height: 100%;
-    overflow-y: auto; /* Make sidebar content scrollable */
 }
 
 .sidebar-actions {
