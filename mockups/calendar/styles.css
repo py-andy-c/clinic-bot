@@ -591,8 +591,8 @@ body {
 .time-corner {
     width: 28px;
     /* Even narrower */
-    height: 40px;
-    /* Synchronized with resource-header */
+    height: 32px;
+    /* Synchronized with reduced resource-header */
     flex-shrink: 0;
     background: white;
     border-right: 1px solid var(--border);
@@ -610,15 +610,19 @@ body {
 .resource-header {
     flex: 1;
     /* Expand/shrink dynamically */
-    min-width: 56px;
-    /* 70% of 80px */
-    height: 40px;
-    /* Increased from 36px to provide vertical padding */
+    min-width: 80px;
+    /* Increased to show beginning of names */
+    height: 32px;
+    /* Reduced from 40px for better space efficiency */
     display: flex;
     align-items: center;
     justify-content: center;
+    /* Center by default for short names */
+    padding: 0 8px;
+    /* Add padding to prevent text cutoff */
     font-weight: 700;
-    font-size: 13px;
+    font-size: 12px;
+    /* Slightly smaller font for compact height */
     color: var(--text-main);
     border-right: 1px solid var(--border);
     background: #f8fafc;
@@ -626,6 +630,14 @@ body {
     /* Prevent text breakout */
     text-overflow: ellipsis;
     white-space: nowrap;
+    text-align: center;
+    /* Center by default */
+}
+
+/* Override for long names that need truncation */
+.resource-header.long-name {
+    justify-content: flex-start;
+    text-align: left;
 }
 
 /* Grid Layer */

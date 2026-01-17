@@ -6,7 +6,9 @@ const practitioners = [
     { id: 5, name: '周杰瑞', color: '#8b5cf6', schedule: [{ start: '13:00', end: '21:00' }] },
     { id: 6, name: '吳佩珊', color: '#ec4899', schedule: [{ start: '10:00', end: '18:00' }] },
     { id: 7, name: '蔡睿承', color: '#06b6d4', schedule: [{ start: '14:00', end: '22:00' }] },
-    { id: 8, name: '許曉晴', color: '#f97316', schedule: [{ start: '08:30', end: '16:30' }] }
+    { id: 8, name: '許曉晴', color: '#f97316', schedule: [{ start: '08:30', end: '16:30' }] },
+    { id: 9, name: '王大明偉', color: '#8b5cf6', schedule: [{ start: '09:00', end: '18:00' }] },
+    { id: 10, name: '陳小文主任醫師', color: '#3b82f6', schedule: [{ start: '08:00', end: '17:00' }] }
 ];
 
 const mockAppointments = [
@@ -236,7 +238,7 @@ function changeDate(dateIso) {
 function renderHeaders() {
     const headerRow = document.getElementById('resource-headers');
     headerRow.innerHTML = practitioners.map(p => `
-        <div class="resource-header">${p.name}</div>
+        <div class="resource-header ${p.name.length > 4 ? 'long-name' : ''}">${p.name}</div>
     `).join('');
 }
 
