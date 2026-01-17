@@ -56,7 +56,8 @@ body {
 
 /* Global Navbar Styles */
 .global-navbar {
-    height: 64px;
+    height: 48px;
+    /* Compressed */
     background: white;
     border-bottom: 1px solid var(--border);
     display: flex;
@@ -108,11 +109,12 @@ body {
 }
 
 .current-month-label {
-    font-size: 18px;
+    font-size: 16px;
+    /* Slightly smaller */
     font-weight: 700;
     color: var(--text-main);
     cursor: pointer;
-    padding: 6px 12px;
+    padding: 4px 10px;
     border-radius: 20px;
     transition: background 0.2s;
     display: inline-flex;
@@ -188,10 +190,13 @@ body {
     }
 }
 
+/* Date Strip */
 .date-strip-container {
     background: white;
     border-bottom: 1px solid var(--border);
-    padding: 10px 0;
+    height: 40px;
+    /* Compressed */
+    flex-shrink: 0;
 }
 
 .date-strip {
@@ -199,11 +204,15 @@ body {
     grid-template-columns: repeat(7, 1fr);
     padding: 0 8px;
     gap: 4px;
+    height: 100%;
+    align-items: center;
+    /* Vertically center items to provide tiny padding */
 }
 
 .date-item {
-    height: 64px;
-    border-radius: 12px;
+    height: 34px;
+    /* Tight */
+    border-radius: 6px;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -219,13 +228,15 @@ body {
 }
 
 .date-item .day-label {
-    font-size: 10px;
+    font-size: 9px;
+    /* Smaller */
     font-weight: 500;
     opacity: 0.8;
 }
 
 .date-item .date-label {
-    font-size: 16px;
+    font-size: 14px;
+    /* Smaller */
     font-weight: 700;
 }
 
@@ -235,7 +246,8 @@ body {
     background: var(--primary);
     border-radius: 50%;
     position: absolute;
-    bottom: 8px;
+    bottom: 4px;
+    /* Adjusted */
 }
 
 .date-item.active .today-dot {
@@ -272,14 +284,15 @@ body {
 }
 
 .time-corner {
-    width: 60px;
+    width: 32px;
+    height: 40px;
+    /* Synchronized with resource-header */
     flex-shrink: 0;
     background: white;
     border-right: 1px solid var(--border);
     position: sticky;
     left: 0;
     z-index: 110;
-    /* Above Resource Headers */
 }
 
 .resource-headers {
@@ -287,15 +300,19 @@ body {
 }
 
 .resource-header {
-    width: 200px;
-    flex-shrink: 0;
-    height: 50px;
+    width: 140px;
+    /* Synchronized with column */
+    height: 40px;
+    /* Increased from 36px to provide vertical padding */
     display: flex;
     align-items: center;
     justify-content: center;
     font-weight: 700;
-    border-right: 1px solid var(--border);
+    font-size: 13px;
     color: var(--text-main);
+    border-right: 1px solid var(--border);
+    background: #f8fafc;
+    flex-shrink: 0;
 }
 
 /* Grid Layer */
@@ -305,14 +322,14 @@ body {
 }
 
 .time-column {
-    width: 60px;
+    width: 32px;
+    /* Ultra-narrow */
     flex-shrink: 0;
     background: white;
     border-right: 1px solid var(--border);
     position: sticky;
     left: 0;
     z-index: 50;
-    /* Above Cell Content */
 }
 
 .time-label {
@@ -337,6 +354,11 @@ body {
 }
 
 .time-label span {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    text-align: center;
     transform: translateY(-50%);
     display: block;
 }
@@ -348,7 +370,8 @@ body {
 }
 
 .practitioner-column {
-    width: 200px;
+    width: 140px;
+    /* Match header */
     flex-shrink: 0;
     position: relative;
     border-right: 1px solid var(--border);

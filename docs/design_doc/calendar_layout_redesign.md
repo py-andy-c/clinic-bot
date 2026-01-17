@@ -131,7 +131,8 @@ The existing `handleTouchStart/End` logic in `CalendarView.tsx` currently trigge
     - **Solid**: Every 60 minutes.
     - **Dashed/Light**: Every 30 minutes.
     - **Ultra-Light**: Every 15 minutes.
-- **Time Label Alignment**: Vertically center time labels (e.g., "9:00") exactly on the horizontal hour line using `transform: translateY(-50%)`.
+- **Time Label Alignment**: Vertically center time labels exactly on the horizontal hour line using `transform: translateY(-50%)`.
+- **Numeric-Only Labels**: Use numeric-only labels (e.g., "9", "13") instead of full "9:00" to save horizontal space in the gutter.
 
 ### 6. Global Header Integration Architecture
 - **Context Injection**: To avoid polluting other pages, do **not** hardcode the date into `ClinicLayout.tsx`.
@@ -146,3 +147,13 @@ The existing `handleTouchStart/End` logic in `CalendarView.tsx` currently trigge
     - **Safe Area Insets**: Use `padding-bottom: env(safe-area-inset-bottom)` on the main viewport.
     - **Over-Scroll Buffer**: Add an extra `60px - 80px` of padding at the bottom of the grid. This allows the user to scroll the final time slot well above the "danger zone" at the bottom of the physical screen.
     - **FAB Clearance**: Ensure the FAB container's bottom margin is also calculated using safe-area insets to prevent overlap with gesture bars.
+
+### 8. High-Density Layout Optimizations
+- **Ultra-Narrow Gutter**: Reduce the time gutter and top-left corner width to **32px** to minimize horizontal "dead space".
+- **Synchronized Alignment**: Ensure the `.time-corner` (header) and `.time-column` (body) widths are mathematically identical (32px) to prevent misalignment between headers and columns.
+- **Vertical Compression (with Padding)**: 
+    - Global Navbar: **48px**.
+    - Date Strip: **40px** (Items centered to create internal padding).
+    - Resource Headers: **40px** (Added 4px buffer for visual breathing room).
+- **Practitioner Columns**: Reduced from 200px to **140px** to allow more columns to be visible on mobile screens simultaneously.
+- **Precision Time Centering**: Use `position: absolute; top: 0` with a `-50%` vertical transform on time labels to ensure numbers (e.g., "11") are mathematically centered on the grid lines.
