@@ -20,7 +20,7 @@
             <div class="nav-left">
                 <div class="branding">
                     <span class="icon">🏥</span>
-                    <span class="platform-name desktop-only">診所小幫手</span>
+                    <span class="platform-name">診所小幫手</span>
                 </div>
                 <!-- Desktop Navigation -->
                 <nav class="desktop-nav">
@@ -30,18 +30,12 @@
                     <button class="nav-item">👤 個人設定</button>
                 </nav>
             </div>
-            <div class="nav-center">
-                <!-- Date navigator: mobile in header, desktop in sidebar -->
-                <h1 class="current-month-label mobile-only" id="header-month-year">2026年1月</h1>
-            </div>
             <div class="nav-right">
                 <div class="user-info desktop-only">
                     <span class="user-name">王大明</span>
                     <span class="user-email">admin@clinic.com</span>
                 </div>
                 <button class="menu-icon" id="mobile-menu-trigger">☰</button>
-                <!-- Logout button on desktop only -->
-                <button class="logout-btn desktop-only">🔒</button>
             </div>
         </header>
 
@@ -107,6 +101,9 @@
             <!-- Calendar Content -->
             <div class="calendar-content">
                 <div class="date-strip-container">
+                    <div class="month-year-display">
+                        <h2 class="current-month-label" id="date-strip-month-year">2026年1月</h2>
+                    </div>
                     <div class="date-strip" id="date-strip"></div>
                 </div>
 

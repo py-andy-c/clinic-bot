@@ -43,8 +43,17 @@ function initCalendar() {
 
 function renderDateStrip() {
     const strip = document.getElementById('date-strip');
+    const monthYearDisplay = document.getElementById('date-strip-month-year');
     if (!strip) return;
     const days = ['日', '一', '二', '三', '四', '五', '六'];
+
+    // Update month/year display
+    if (monthYearDisplay) {
+        const year = selectedDate.getFullYear();
+        const month = selectedDate.getMonth();
+        monthYearDisplay.textContent = `${year}年${month + 1}月`;
+    }
+
     let html = '';
 
     // Apple Style: Fixed 7-day strip based on the start of the current week
@@ -139,14 +148,6 @@ function renderCalendar(containerId, monthYearId, clickHandler) {
 
 function renderMiniCalendar() {
     renderCalendar('mini-calendar', 'sidebar-month-year', 'selectDate');
-    
-    // Also update header label for synchronization
-    const headerMonthYear = document.getElementById('header-month-year');
-    if (headerMonthYear) {
-        const year = selectedDate.getFullYear();
-        const month = selectedDate.getMonth();
-        headerMonthYear.textContent = `${year}年${month + 1}月`;
-    }
 }
 
 function renderMobileMiniCalendar() {
@@ -319,18 +320,20 @@ function setupEventListeners() {
         document.getElementById('settings-drawer').classList.add('open');
     };
 
-    // Update sidebar and header month/year click handlers
+    // Update sidebar month/year click handler
     const sidebarMonthYear = document.getElementById('sidebar-month-year');
-    const headerMonthYear = document.getElementById('header-month-year');
-    
+
     if (sidebarMonthYear) {
         sidebarMonthYear.onclick = () => {
             alert('📅 開啟全月份選擇器 (用於跨月/跨年快速跳轉)');
         };
     }
-    
-    if (headerMonthYear) {
-        headerMonthYear.onclick = () => {
+
+    // Update date strip month/year click handler
+    const dateStripMonthYear = document.getElementById('date-strip-month-year');
+
+    if (dateStripMonthYear) {
+        dateStripMonthYear.onclick = () => {
             openMobileDatePicker();
         };
     }
