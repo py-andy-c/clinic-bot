@@ -1,8 +1,8 @@
-# Multiple Time Slot Selection - Business Logic & Technical Design
+# Multiple Time Slot Selection - Implementation Summary
 
 ## Overview
 
-This document defines the business logic and technical design for multiple time slot selection in appointments. Patients can select multiple preferred time slots during booking, and clinics can review and confirm the final appointment time from these preferences.
+This document summarizes the multiple time slot selection feature implementation. Patients can select multiple preferred time slots during booking, and clinics can review and confirm the final appointment time from these preferences.
 
 Similar to practitioner auto-assignment, the system creates appointments with temporary slots that auto-confirm at the recency limit (`minimum_booking_hours_ahead` hours before appointment) or can be manually confirmed by clinic staff.
 
@@ -230,11 +230,10 @@ ClinicApp (Admin Review)
       ├── AppointmentList
       │   └── AppointmentCard (Enhanced)
       │       ├── CurrentSlotDisplay (shows temporary slot with "待安排" indicator)
-      │       ├── AlternativeSlotsDisplay (expandable list of patient preferences)
       │       ├── AutoConfirmationTimer (countdown to auto-confirmation)
-      │       └── ConfirmTimeModal (manual confirmation dialog)
+      │       └── EditAppointmentModal (with inline alternative slots display)
       └── TimeConfirmationModal (full-screen time selection for manual confirmation)
-          └── DateTimePicker (Enhanced - shows patient's alternative slots with visual markers)
+          └── DateTimePicker (standard - alternative slots shown separately in modal)
 ```
 
 #### Component List
@@ -252,31 +251,16 @@ ClinicApp (Admin Review)
   - **Features**: ARIA group role, proper labeling, keyboard navigation, dynamic counter display
   - **Accessibility**: Screen reader announcements, keyboard navigation, proper focus management
 
-- [x] **AlternativeSlotsDisplay** (`frontend/src/components/AlternativeSlotsDisplay.tsx`)
-  - **UI Description**: Compact expandable section in appointment cards. Shows "患者偏好時段" with count badge (e.g., "患者偏好時段 (3)"). Default collapsed state shows only the count. Expanded shows vertical list with:
-    - Current temporary slot (grayed out, marked as "目前使用")
-    - Patient's alternative preferences as selectable radio buttons
-    - Each slot shows time, day of week, and availability status
-  - **Behavior**:
-    - Click header to expand/collapse (chevron icon rotates)
-    - Radio buttons pre-select current slot
-    - "確認選擇" button appears when different slot selected
-    - Loading spinner during confirmation API call
-    - Success/error messages with auto-hide
-  - **Layout**: Fits within existing appointment card width, uses existing card styling
-  - Props: `alternativeSlots`, `currentSlot`, `onConfirmSlot`, `appointmentId`
-  - State: Selected alternative slot, expanded/collapsed state, loading state
-  - Dependencies: `useConfirmAppointmentTime` mutation
-
-- [x] **DateTimePicker (Enhanced)** (`frontend/src/components/calendar/DateTimePicker.tsx`)
-  - **UI Description**: Enhanced date time picker that marks patient's alternative slots when used in pending appointment context. Alternative slots show:
-    - Teal border styling to distinguish from regular available slots
-    - Small star icon (★) indicating "患者偏好" (Patient Preferred)
-    - Tooltip on hover showing "此時段為患者偏好選項" (This slot is patient's preferred choice)
-  - **Behavior**: When `alternativeSlots` prop provided, visually marks those slots in the time grid with teal borders and star badges. Selection works normally for all slots
-  - **Context Awareness**: Shows alternative markers when `alternativeSlots` prop is provided (used in TimeConfirmationModal)
-  - Props: `alternativeSlots?: string[]` (optional array of ISO datetime strings to mark), existing DateTimePicker props
-  - Dependencies: Enhanced to accept and display alternative slot markers with visual feedback
+- [x] **Inline Alternative Slots Display** (implemented in `EditAppointmentModal`)
+  - **UI Description**: Expandable section within clinic edit modal showing patient's preferred time slots. Shows "可選時段" header with amber background styling. Groups slots by date with current slot marked as "目前".
+  - **Behavior**: Displays patient's alternative time preferences in a structured format within the edit modal
+  - **Layout**: Integrated directly into EditAppointmentModal, appears above the DateTimePicker
+  - **Implementation**: Inline component within EditAppointmentModal.tsx, not a separate reusable component
+- [x] **DateTimePicker** (`frontend/src/components/calendar/DateTimePicker.tsx`)
+  - **UI Description**: Standard date time picker component. Has capability to mark alternative slots with teal borders and star badges, but this feature is not currently used in clinic confirmations.
+  - **Behavior**: Standard time slot selection. Alternative slots are displayed separately in the edit modal, not marked within the picker itself.
+  - **Props**: `alternativeSlots?: string[]` (accepted but not utilized in current implementation), existing DateTimePicker props
+  - **Note**: Component has visual marking capability implemented but not activated in the clinic confirmation workflow
 
 ### User Interaction Flows
 
@@ -292,15 +276,11 @@ ClinicApp (Admin Review)
 #### Flow 2: Clinic Review and Confirmation
 1. **Pending Appointments List**: Appointments show orange "待安排" badge next to time, small "多時段" pill indicator
 2. **Auto-Confirmation Timer**: Each card shows countdown "將於 2 小時 30 分鐘後自動確認" in amber text (matching practitioner auto-assignment styling)
-3. **Alternative Slots Preview**: Below the main appointment info, collapsible section shows "患者偏好時段 (3 個選項)" with expand arrow
-4. **Expanded Alternative View**: Clicking expands to show:
-   - Current slot: "目前使用: 今日 14:00" (grayed background)
-   - Patient preferences as bullet list: "• 今日 15:00 • 今日 16:00 • 明日 09:00"
-   - Radio buttons next to each alternative for selection
-5. **Date Time Picker Integration**: If clinic opens full date time picker, patient's alternative slots are marked with teal borders and "患者偏好" badges
-6. **Manual Confirmation**: Select radio button for desired slot → "確認此時段" button appears → click to confirm
-7. **Quick Actions**: "使用目前時段" button always available to confirm current slot without expanding
-8. **Success Feedback**: Green success toast "已確認預約時間 今日 15:00", appointment card disappears from pending list
+3. **Edit Modal**: Clinic clicks edit button to open EditAppointmentModal
+4. **Alternative Slots Display**: Modal shows patient's preferred time slots in an expandable amber section above the time picker
+5. **Time Selection**: Clinic uses standard DateTimePicker to select final time slot (alternative slots shown separately, not marked in picker)
+6. **Confirmation**: Clinic saves the appointment with selected time slot
+7. **Success Feedback**: Green success toast "已確認預約時間 今日 15:00", appointment status updates
 
 #### Flow 3: Patient Views Pending Appointment (LIFF)
 1. **Appointment List**: Shows "預約時間: 待安排" with orange pending indicator
@@ -400,9 +380,9 @@ ClinicApp (Admin Review)
 - **Consistent Spacing**: Match existing appointment card layouts and spacing patterns
 
 #### Alternative Slots Display Strategy
-- **Compact View**: Collapsed state shows "患者偏好時段 (X)" with expand arrow
-- **Expanded View**: Radio button list with current slot highlighted and alternatives selectable
-- **Date Time Picker Integration**: Alternative slots marked with teal borders and "患者偏好" badges when picker opens from pending appointment context
+- **Modal Integration**: Alternative slots displayed in expandable amber section within EditAppointmentModal
+- **Structured Format**: Slots grouped by date with current slot marked as "目前"
+- **Standard Picker**: DateTimePicker shows all available slots without special alternative slot markers
 
 #### Accessibility ✅ IMPLEMENTED
 - **Screen Reader Support**: Comprehensive ARIA labels, roles, and descriptions for all interactive elements
@@ -505,7 +485,7 @@ ClinicApp (Admin Review)
 - [x] Add pending appointment indicators backend support
 - [x] Update permissions for practitioner access (admin and practitioner roles supported)
 - [x] Implement clinic admin frontend UI for reviewing and confirming time slots
-- [x] Add alternative slots display component in clinic dashboard (`AlternativeSlotsDisplay.tsx`)
+- [x] Add inline alternative slots display in clinic edit modal (EditAppointmentModal.tsx)
 - [x] Implement time confirmation modal in clinic interface (`TimeConfirmationModal.tsx`)
 - [x] Update AutoAssignedAppointmentsPage to handle time confirmation vs practitioner assignment
 - [x] Add clinic-specific Chinese translations for time confirmation UI
@@ -525,10 +505,10 @@ ClinicApp (Admin Review)
 
 - [x] **Technical Implementation**: Database schema, backend APIs, frontend UI, and auto-confirmation service all complete and merged
 - [x] **Patient Experience**: Intuitive multiple slot selection with clear "待安排" status indication and restricted editing
-- [x] **Clinic Workflow**: Complete time confirmation UI with AlternativeSlotsDisplay and DateTimePicker integration
+- [x] **Clinic Workflow**: Complete time confirmation UI with inline alternative slots display in edit modal
 - [x] **Auto-Confirmation**: Background service automatically confirms slots at booking recency limits
 - [x] **Notification Integration**: Proper timing of LINE notifications and ICS calendar events
-- [x] **Enhanced DateTimePicker**: Visual markers for alternative slots in clinic confirmation context
+- [x] **DateTimePicker**: Standard time selection with alternative slots displayed separately in modal
 - [x] **Accessibility**: WCAG compliant with full keyboard navigation and screen reader support
 
 **Implementation Achievements**:
@@ -547,15 +527,14 @@ ClinicApp (Admin Review)
 
 ---
 
-## Open Questions / Future Enhancements
+## Implementation Details
 
-**Resolved Design Decisions:**
-- **Slot Limits**: Maximum 10 slots (no minimum required) - balances flexibility with decision paralysis (based on UX research showing 7±2 cognitive limit)
-- **Priority Ordering**: Explicit earliest-first selection - system always holds and confirms the chronologically earliest slot from patient's preferences
-- **Auto-confirmation**: Automatic at `minimum_booking_hours_ahead` hours before appointment (same as practitioner auto-assignment)
-- **Calendar Integration**: Handle conflicts same as single appointments
-- **Settings Changes**: Use booking-time `minimum_booking_hours_ahead` value for auto-confirmation
-- **Clinic Override**: Clinics can select any available slot (not limited to patient preferences) for maximum scheduling flexibility
+**Key Business Rules:**
+- **Slot Limits**: Maximum 10 slots allowed, no minimum required
+- **Priority Ordering**: System selects earliest chronologically available slot for initial appointment creation
+- **Auto-confirmation**: Automatic confirmation at `minimum_booking_hours_ahead` hours before appointment
+- **Calendar Integration**: Handles conflicts same as single appointments
+- **Clinic Override**: Clinics can select any available slot for maximum scheduling flexibility
 
 ---
 
