@@ -551,9 +551,6 @@ body {
 
 /* Reusable Mini Calendar Component */
 .mini-calendar-component {
-    background: white;
-    border-radius: 12px;
-    border: 1px solid var(--border);
     padding: 12px;
     margin-bottom: 24px;
 }
@@ -713,9 +710,6 @@ body {
 /* Sidebar Section */
 .sidebar-section {
     padding: 16px;
-    background: white;
-    border-radius: 8px;
-    border: 1px solid var(--border);
     margin-bottom: 16px;
 }
 
