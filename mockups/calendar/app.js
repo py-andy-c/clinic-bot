@@ -1,17 +1,31 @@
+// 10 predefined colors for selected practitioners/resources
+const PREDEFINED_COLORS = [
+    '#3b82f6', // Blue
+    '#10b981', // Green
+    '#f59e0b', // Yellow
+    '#ef4444', // Red
+    '#8b5cf6', // Purple
+    '#ec4899', // Pink
+    '#06b6d4', // Cyan
+    '#84cc16', // Lime
+    '#f97316', // Orange
+    '#6366f1'  // Indigo
+];
+
 const practitioners = [
-    { id: 1, name: '陳大文', color: '#3b82f6', schedule: [{ start: '09:00', end: '12:00' }, { start: '13:00', end: '18:00' }] },
-    { id: 2, name: '林美玲', color: '#10b981', schedule: [{ start: '10:00', end: '15:00' }, { start: '16:00', end: '20:00' }] },
-    { id: 3, name: '張志遠', color: '#f59e0b', schedule: [{ start: '08:00', end: '13:00' }, { start: '14:00', end: '17:00' }] },
-    { id: 4, name: '李佳穎', color: '#ef4444', schedule: [{ start: '09:00', end: '17:00' }] },
-    { id: 5, name: '周杰瑞', color: '#8b5cf6', schedule: [{ start: '13:00', end: '21:00' }] }
+    { id: 1, name: '陳大文', schedule: [{ start: '09:00', end: '12:00' }, { start: '13:00', end: '18:00' }] },
+    { id: 2, name: '林美玲', schedule: [{ start: '10:00', end: '15:00' }, { start: '16:00', end: '20:00' }] },
+    { id: 3, name: '張志遠', schedule: [{ start: '08:00', end: '13:00' }, { start: '14:00', end: '17:00' }] },
+    { id: 4, name: '李佳穎', schedule: [{ start: '09:00', end: '17:00' }] },
+    { id: 5, name: '周杰瑞', schedule: [{ start: '13:00', end: '21:00' }] }
 ];
 
 const resources = [
-    { id: 1, name: '治療室1', type: '治療室', color: '#8b5cf6' },
-    { id: 2, name: '治療室2', type: '治療室', color: '#ec4899' },
-    { id: 3, name: '治療室3', type: '治療室', color: '#06b6d4' },
-    { id: 4, name: '設備A', type: '設備', color: '#84cc16' },
-    { id: 5, name: '設備B', type: '設備', color: '#f59e0b' }
+    { id: 1, name: '治療室1', type: '治療室' },
+    { id: 2, name: '治療室2', type: '治療室' },
+    { id: 3, name: '治療室3', type: '治療室' },
+    { id: 4, name: '設備A', type: '設備' },
+    { id: 5, name: '設備B', type: '設備' }
 ];
 
 const mockAppointments = [
@@ -88,8 +102,11 @@ const SCROLL_OFFSET = 60;
 const AUTO_SCROLL_DELAY = 100;
 
 // Selected calendars state
-let selectedPractitioners = [1, 2, 3]; // Default to first 3 practitioners
+let selectedPractitioners = [1, 2, 3, 4, 5]; // Match HTML checkbox states
 let selectedResources = [1, 2]; // Default to some resources
+
+// Color assignment for selected items (practitioners and resources)
+let assignedColors = new Map(); // itemId -> color
 
 // Current view state
 let currentView = 'month'; // 'day', 'week', or 'month'
@@ -99,11 +116,70 @@ let openDropdown = null;
 
 let selectedDate = new Date("2026-01-19");
 
+// Color management functions
+function assignColorsToSelectedItems() {
+    assignedColors.clear();
+
+    // Combine selected practitioners and resources
+    const selectedItems = [
+        ...selectedPractitioners.map(id => ({ type: 'practitioner', id })),
+        ...selectedResources.map(id => ({ type: 'resource', id }))
+    ];
+
+    // Assign colors to selected items (max 10 total)
+    selectedItems.slice(0, 10).forEach((item, index) => {
+        assignedColors.set(`${item.type}-${item.id}`, PREDEFINED_COLORS[index]);
+    });
+}
+
+function getItemColor(itemType, itemId) {
+    return assignedColors.get(`${itemType}-${itemId}`);
+}
+
+// Initialize colors on load
+assignColorsToSelectedItems();
+
+// Update sidebar indicators with assigned colors
+function updateSidebarIndicators() {
+    // Update practitioner indicators
+    document.querySelectorAll('.practitioner-filter-item').forEach(item => {
+        const checkbox = item.querySelector('input[type="checkbox"]');
+        const indicator = item.querySelector('.practitioner-indicator');
+        const practitionerId = parseInt(checkbox.dataset.practitioner);
+
+        if (checkbox.checked) {
+            const color = getItemColor('practitioner', practitionerId);
+            indicator.style.background = color || '#e5e7eb';
+            indicator.style.border = 'none';
+        } else {
+            indicator.style.background = 'transparent';
+            indicator.style.border = '1px solid #d1d5db';
+        }
+    });
+
+    // Update resource indicators
+    document.querySelectorAll('.resource-filter-item').forEach(item => {
+        const checkbox = item.querySelector('input[type="checkbox"]');
+        const indicator = item.querySelector('.resource-indicator');
+        const resourceId = parseInt(checkbox.dataset.resource);
+
+        if (checkbox.checked) {
+            const color = getItemColor('resource', resourceId);
+            indicator.style.background = color || '#e5e7eb';
+            indicator.style.border = 'none';
+        } else {
+            indicator.style.background = 'transparent';
+            indicator.style.border = '1px solid #d1d5db';
+        }
+    });
+}
+
 function initCalendar() {
     renderDateStrip();
     renderMiniCalendar();
     renderHeaders();
     renderTimeLabels();
+    updateSidebarIndicators(); // Update colors for initially selected items
     renderGrid();
     setupEventListeners();
 
@@ -347,29 +423,38 @@ function changeDate(dateIso) {
 function renderHeaders() {
     const headerRow = document.getElementById('resource-headers');
 
-    // Combine selected practitioners and resources
-    const selectedPractitionersData = practitioners.filter(p => selectedPractitioners.includes(p.id));
-    const selectedResourcesData = resources.filter(r => selectedResources.includes(r.id));
+    // Sort selected items by ID to maintain sidebar order (same as checkbox order)
+    const sortedPractitioners = [...selectedPractitioners].sort((a, b) => a - b);
+    const sortedResources = [...selectedResources].sort((a, b) => a - b);
 
-    // Create header elements for both practitioners and resources
     const headers = [
-        ...selectedPractitionersData.map(p => ({
-            name: p.name,
-            type: 'practitioner',
-            color: p.color
-        })),
-        ...selectedResourcesData.map(r => ({
-            name: r.name,
-            type: 'resource',
-            color: `var(--practitioner-${r.id + 5})`
-        }))
+        ...sortedPractitioners.map(pId => {
+            const practitioner = practitioners.find(p => p.id === pId);
+            return {
+                name: practitioner.name,
+                type: 'practitioner',
+                id: pId
+            };
+        }),
+        ...sortedResources.map(rId => {
+            const resource = resources.find(r => r.id === rId);
+            return {
+                name: resource.name,
+                type: 'resource',
+                id: rId
+            };
+        })
     ];
 
-    headerRow.innerHTML = headers.map(h => `
-        <div class="resource-header ${h.name.length > 4 ? 'long-name' : ''}" data-type="${h.type}" style="border-bottom-color: ${h.color}">
-            ${h.name}
-        </div>
-    `).join('');
+    headerRow.innerHTML = headers.map(h => {
+        // Get assigned color for this item
+        const color = getItemColor(h.type, h.id) || '#e5e7eb';
+        return `
+            <div class="resource-header ${h.name.length > 4 ? 'long-name' : ''}" data-type="${h.type}" style="border-bottom-color: ${color}">
+                ${h.name}
+            </div>
+        `;
+    }).join('');
 }
 
 function renderTimeLabels() {
@@ -387,14 +472,18 @@ function renderGrid() {
     const grid = document.getElementById('calendar-grid');
     grid.innerHTML = '';
 
-    // Render columns for selected practitioners and resources
+    // Sort selected items by ID to maintain sidebar order
+    const sortedPractitioners = [...selectedPractitioners].sort((a, b) => a - b);
+    const sortedResources = [...selectedResources].sort((a, b) => a - b);
+
+    // Render columns for selected practitioners and resources in sidebar order
     const selectedCalendars = [
-        ...selectedPractitioners.map(pId => ({
+        ...sortedPractitioners.map(pId => ({
             id: pId,
             type: 'practitioner',
             data: practitioners.find(p => p.id === pId)
         })),
-        ...selectedResources.map(rId => ({
+        ...sortedResources.map(rId => ({
             id: rId,
             type: 'resource',
             data: resources.find(r => r.id === rId)
@@ -462,10 +551,14 @@ function createAppointmentBox(appointment, practitionerId) {
     const title = `${appointment.patient} | ${appointment.appointmentType}${resourceText}`;
     const displayText = appointment.notes ? `${title} | ${appointment.notes}` : title;
 
+    // Get assigned color for this practitioner
+    const color = getItemColor('practitioner', practitionerId);
+
     const div = document.createElement('div');
-    div.className = `calendar-event practitioner-${practitionerId}`;
+    div.className = 'calendar-event';
     div.style.top = `${top}px`;
     div.style.height = `${height}px`;
+    div.style.background = color || '#e5e7eb'; // Fallback to gray if no color assigned
     // Production style: no time shown, just the event title with ellipsis for overflow
     div.innerHTML = `<div class="event-title">${displayText}</div>`;
     div.title = `${displayText} - ${appointment.start}-${appointment.end}`; // Tooltip with time
@@ -641,23 +734,45 @@ function setupEventListeners() {
 
 function togglePractitioner(id, checked) {
     if (checked) {
+        // Check if adding this would exceed the limit (practitioners + resources <= 10)
+        if (selectedPractitioners.length + selectedResources.length >= 10) {
+            alert('最多只能選擇 10 個治療師或資源');
+            // Uncheck the checkbox
+            document.querySelector(`input[data-practitioner="${id}"]`).checked = false;
+            return;
+        }
         if (!selectedPractitioners.includes(id)) {
             selectedPractitioners.push(id);
         }
     } else {
         selectedPractitioners = selectedPractitioners.filter(pId => pId !== id);
     }
+
+    // Update colors and indicators
+    assignColorsToSelectedItems();
+    updateSidebarIndicators();
     renderGrid();
 }
 
 function toggleResource(id, checked) {
     if (checked) {
+        // Check if adding this would exceed the limit (practitioners + resources <= 10)
+        if (selectedPractitioners.length + selectedResources.length >= 10) {
+            alert('最多只能選擇 10 個治療師或資源');
+            // Uncheck the checkbox
+            document.querySelector(`input[data-resource="${id}"]`).checked = false;
+            return;
+        }
         if (!selectedResources.includes(id)) {
             selectedResources.push(id);
         }
     } else {
         selectedResources = selectedResources.filter(rId => rId !== id);
     }
+
+    // Update colors and indicators
+    assignColorsToSelectedItems();
+    updateSidebarIndicators();
     renderGrid();
 }
 
@@ -691,6 +806,9 @@ function createResourceBookingBox(booking, resourceId) {
     const resource = resources.find(r => r.id === resourceId);
     const resourceName = resource ? resource.name : `資源${resourceId}`;
 
+    // Get assigned color for this resource
+    const resourceColor = getItemColor('resource', resourceId);
+
     // Format according to production pattern: [{ResourceName}] {EventTitle} | {Notes}
     const displayTitle = booking.title;
     const displayText = booking.notes ? `[${resourceName}] ${displayTitle} | ${booking.notes}` : `[${resourceName}] ${displayTitle}`;
@@ -699,6 +817,7 @@ function createResourceBookingBox(booking, resourceId) {
     div.className = 'resource-booking';
     div.style.top = `${top}px`;
     div.style.height = `${height}px`;
+    div.style.background = resourceColor || '#e5e7eb'; // Fallback to gray if no color assigned
     div.innerHTML = `<div class="booking-title">${displayText}</div>`;
     div.title = `${displayText} - ${booking.start}-${booking.end}`;
     return div;

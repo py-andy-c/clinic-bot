@@ -462,7 +462,6 @@ body {
     border-radius: 4px;
     display: inline-block;
     position: relative;
-    border: 1px solid rgba(0, 0, 0, 0.05);
     flex-shrink: 0;
 }
 
@@ -509,7 +508,6 @@ body {
     border-radius: 4px;
     display: inline-block;
     position: relative;
-    border: 1px solid rgba(0, 0, 0, 0.05);
     flex-shrink: 0;
 }
 
