@@ -989,10 +989,22 @@ function renderOverlappingEventGroup(group, containerElement, viewType) {
             createAppointmentBox(event, event.sourceId) :
             createWeeklyEventElement(event);
 
-        // Calculate width and position for horizontal overlap that spans full width
-        const overlapPercent = 12; // 12% horizontal overlap between events (doubled)
-        const totalOverlap = (numEvents - 1) * overlapPercent; // Total overlap space
-        const eventWidth = Math.max(100 - totalOverlap, 30); // Width to reach 100% span, minimum 30%
+        // Calculate dynamic overlap percentage to ensure rightmost event reaches the edge
+        // The overlap should scale based on number of events to maintain readability
+        let overlapPercent;
+        if (numEvents <= 2) {
+            overlapPercent = 15; // Less overlap for fewer events
+        } else if (numEvents <= 4) {
+            overlapPercent = 12; // Moderate overlap
+        } else {
+            // For many events, calculate overlap to ensure the last event reaches the edge
+            // Formula: overlap = (100% - minWidth%) / (numEvents - 1)
+            const minWidthPercent = 25; // Minimum width for readability
+            overlapPercent = Math.min(15, (100 - minWidthPercent) / (numEvents - 1));
+        }
+
+        const totalOverlap = (numEvents - 1) * overlapPercent;
+        const eventWidth = Math.max(100 - totalOverlap, 25); // Width to reach 100% span, minimum 25%
 
         eventElement.style.width = `${eventWidth}%`;
         eventElement.style.left = `${index * overlapPercent}%`;
@@ -1171,18 +1183,77 @@ function eventsOverlap(event1, event2) {
 
 // Calculate how many events can fit in a monthly day cell
 function calculateMaxEventsPerCell(hasMoreEvents = false) {
-    const cellHeight = 150; // From CSS .month-day-cell height
-    const dateNumberHeight = 20; // Approximate height for date number
-    const moreEventsHeight = hasMoreEvents ? 15 : 0; // Height for "+X more" if needed
-    const paddingAndGaps = 10; // Padding and gaps between elements
+    // Get actual cell dimensions from DOM
+    const sampleCell = document.querySelector('.month-day-cell');
+    if (!sampleCell) {
+        // Fallback to hardcoded values if cell not found (during initial load)
+        const cellHeight = 150;
+        const dateNumberHeight = 20;
+        const moreEventsHeight = hasMoreEvents ? 15 : 0;
+        const paddingAndGaps = 10;
+        const availableHeight = cellHeight - dateNumberHeight - moreEventsHeight - paddingAndGaps;
+        const estimatedEventHeight = 18;
+        return Math.max(1, Math.floor(availableHeight / estimatedEventHeight));
+    }
 
-    const availableHeight = cellHeight - dateNumberHeight - moreEventsHeight - paddingAndGaps;
+    // Measure actual cell height
+    const cellHeight = sampleCell.offsetHeight;
 
-    // Estimate event height (based on CSS: padding 2px + font-size ~12px + line-height)
-    const estimatedEventHeight = 18; // pixels per event
+    // Measure date number height dynamically
+    const dateNumberElement = sampleCell.querySelector('.month-date-number');
+    const dateNumberHeight = dateNumberElement ? dateNumberElement.offsetHeight : 20;
 
-    const maxEvents = Math.max(1, Math.floor(availableHeight / estimatedEventHeight));
-    return maxEvents;
+    // Measure "+more" element height dynamically if needed
+    let moreEventsHeight = 0;
+    if (hasMoreEvents) {
+        const tempMoreElement = document.createElement('div');
+        tempMoreElement.className = 'month-more-events';
+        tempMoreElement.textContent = '+1 more';
+        tempMoreElement.style.position = 'absolute';
+        tempMoreElement.style.visibility = 'hidden';
+        document.body.appendChild(tempMoreElement);
+        moreEventsHeight = tempMoreElement.offsetHeight;
+        document.body.removeChild(tempMoreElement);
+    }
+
+    // Get padding and gaps from CSS
+    const eventsContainer = sampleCell.querySelector('.month-day-events');
+    const containerStyle = getComputedStyle(eventsContainer);
+    const containerPaddingTop = parseFloat(containerStyle.paddingTop) || 0;
+    const containerPaddingBottom = parseFloat(containerStyle.paddingBottom) || 0;
+    const gap = parseFloat(containerStyle.gap) || 2; // Default gap from CSS
+
+    // Calculate available height for events
+    const availableHeight = cellHeight - dateNumberHeight - moreEventsHeight -
+                           containerPaddingTop - containerPaddingBottom;
+
+    // Measure actual event height dynamically
+    const tempEventElement = document.createElement('div');
+    tempEventElement.className = 'month-event';
+    tempEventElement.style.position = 'absolute';
+    tempEventElement.style.visibility = 'hidden';
+
+    const tempTitleElement = document.createElement('div');
+    tempTitleElement.className = 'month-event-title';
+    tempTitleElement.textContent = 'Sample event text';
+    tempEventElement.appendChild(tempTitleElement);
+
+    document.body.appendChild(tempEventElement);
+    const eventHeight = tempEventElement.offsetHeight;
+    document.body.removeChild(tempEventElement);
+
+    // Account for gaps between events (gap * (numEvents - 1))
+    // We'll use an iterative approach to find the maximum number that fits
+    let maxEvents = 0;
+    let totalHeight = 0;
+
+    while (totalHeight + eventHeight <= availableHeight) {
+        maxEvents++;
+        totalHeight = (maxEvents * eventHeight) + ((maxEvents - 1) * gap);
+        if (totalHeight + eventHeight > availableHeight) break;
+    }
+
+    return Math.max(1, maxEvents);
 }
 
 function addEventsToMonthlyView() {
@@ -1291,10 +1362,23 @@ function createWeeklyEventElement(event) {
     div.style.width = '100%'; // Default full width, will be overridden for overlapping events
 
     // Calculate dynamic line clamping based on event height
-    const lineHeight = 13.2; // 11px font-size * 1.2 line-height
-    const padding = 8; // top + bottom padding
-    const availableHeight = height;
-    const maxLines = Math.max(1, Math.floor((availableHeight - padding) / lineHeight));
+    // Create a temporary element to measure actual line height
+    const tempTitleElement = document.createElement('div');
+    tempTitleElement.className = 'event-title';
+    tempTitleElement.style.position = 'absolute';
+    tempTitleElement.style.visibility = 'hidden';
+    tempTitleElement.textContent = 'Sample text';
+    document.body.appendChild(tempTitleElement);
+
+    const titleStyle = getComputedStyle(tempTitleElement);
+    const lineHeight = parseFloat(titleStyle.lineHeight) || parseFloat(titleStyle.fontSize) * 1.2;
+    document.body.removeChild(tempTitleElement);
+
+    const eventStyle = getComputedStyle(div);
+    const paddingTop = parseFloat(eventStyle.paddingTop) || 4;
+    const paddingBottom = parseFloat(eventStyle.paddingBottom) || 4;
+    const availableHeight = height - paddingTop - paddingBottom;
+    const maxLines = Math.max(1, Math.floor(availableHeight / lineHeight));
 
     // Event content - more representative naming pattern for weekly view
     let title = '';
@@ -1342,12 +1426,12 @@ function createMonthlyEventElement(event) {
         title = event.title;
     }
 
-    // Create title element with dynamic line clamping
+    // Create title element with 1-line truncation for consistency
     const titleElement = document.createElement('div');
     titleElement.className = 'month-event-title';
     titleElement.textContent = title;
 
-    // For monthly events, limit to 1 line to fit more events
+    // Hardcoded to 1 line for monthly events to ensure consistent display
     titleElement.style.display = '-webkit-box';
     titleElement.style.webkitLineClamp = '1';
     titleElement.style.webkitBoxOrient = 'vertical';
@@ -1407,10 +1491,24 @@ function createAppointmentBox(appointment, practitionerId) {
     );
 
     // Calculate dynamic line clamping based on event height
-    const lineHeight = 13.2; // 11px font-size * 1.2 line-height
-    const padding = 8; // top + bottom padding
-    const height = parseInt(div.style.height) || 40; // Extract numeric height from style
-    const maxLines = Math.max(1, Math.floor((height - padding) / lineHeight));
+    // Create a temporary element to measure actual line height
+    const tempTitleElement = document.createElement('div');
+    tempTitleElement.className = 'event-title';
+    tempTitleElement.style.position = 'absolute';
+    tempTitleElement.style.visibility = 'hidden';
+    tempTitleElement.textContent = 'Sample text';
+    document.body.appendChild(tempTitleElement);
+
+    const titleStyle = getComputedStyle(tempTitleElement);
+    const lineHeight = parseFloat(titleStyle.lineHeight) || parseFloat(titleStyle.fontSize) * 1.2;
+    document.body.removeChild(tempTitleElement);
+
+    const eventStyle = getComputedStyle(div);
+    const paddingTop = parseFloat(eventStyle.paddingTop) || 4;
+    const paddingBottom = parseFloat(eventStyle.paddingBottom) || 4;
+    const height = parseInt(div.style.height) || 40;
+    const availableHeight = height - paddingTop - paddingBottom;
+    const maxLines = Math.max(1, Math.floor(availableHeight / lineHeight));
 
     // Create title element with dynamic line clamping
     const titleElement = document.createElement('div');
