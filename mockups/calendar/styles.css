@@ -251,13 +251,25 @@ body {
     visibility: visible;
 }
 
-    .desktop-nav,
-    .user-info.desktop-only,
-    .logout-btn.desktop-only {
+/* Mobile: show hamburger, hide desktop nav */
+.menu-icon {
+    display: block;
+}
+
+.desktop-nav,
+.user-info.desktop-only,
+.logout-btn.desktop-only {
+    display: none;
+}
+
+/* Desktop: show desktop nav, hide hamburger */
+@media (min-width: 1025px) {
+    .menu-icon {
         display: none;
     }
 
-    .menu-icon {
+    .desktop-nav,
+    .user-info.desktop-only {
         display: block;
     }
 }
