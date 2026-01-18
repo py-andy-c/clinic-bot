@@ -1159,7 +1159,18 @@ function createMonthlyEventElement(event) {
         title = event.title;
     }
 
-    div.innerHTML = `<div class="month-event-title">${title}</div>`;
+    // Create title element with dynamic line clamping
+    const titleElement = document.createElement('div');
+    titleElement.className = 'month-event-title';
+    titleElement.textContent = title;
+
+    // For monthly events, limit to 1 line due to compact space
+    titleElement.style.display = '-webkit-box';
+    titleElement.style.webkitLineClamp = '1';
+    titleElement.style.webkitBoxOrient = 'vertical';
+    titleElement.style.textOverflow = 'ellipsis';
+
+    div.appendChild(titleElement);
     return div;
 }
 

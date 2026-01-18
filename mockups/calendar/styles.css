@@ -933,7 +933,7 @@ body {
 
 .month-day-cell {
     flex: 1;
-    min-height: 100px;
+    height: 100px; /* Fixed height to prevent expansion */
     border-right: 1px solid var(--border);
     background: white;
     display: flex;
@@ -971,8 +971,6 @@ body {
     font-size: 10px;
     font-weight: 500;
     overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
     border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
