@@ -517,9 +517,9 @@ function renderTimeLabels() {
 
 function renderCalendarView() {
     if (currentView === 'day') {
-        renderDailyView();
+        renderTimeBasedView('daily');
     } else if (currentView === 'week') {
-        renderWeeklyView();
+        renderTimeBasedView('weekly');
     } else if (currentView === 'month') {
         renderMonthlyView();
     }
@@ -534,72 +534,213 @@ function renderCalendarView() {
     renderMiniCalendar();
 }
 
-function renderDailyView() {
+
+// Shared function for rendering time-based views (daily and weekly)
+function renderTimeBasedView(viewType) {
     const grid = document.getElementById('calendar-grid');
     grid.innerHTML = '';
 
-    // Sort selected items by ID to maintain sidebar order
-    const sortedPractitioners = [...selectedPractitioners].sort((a, b) => a - b);
-    const sortedResources = [...selectedResources].sort((a, b) => a - b);
+    let columns = [];
 
-    // Render columns for selected practitioners and resources in sidebar order
-    const selectedCalendars = [
-        ...sortedPractitioners.map(pId => ({
-            id: pId,
-            type: 'practitioner',
-            data: practitioners.find(p => p.id === pId)
-        })),
-        ...sortedResources.map(rId => ({
-            id: rId,
-            type: 'resource',
-            data: resources.find(r => r.id === rId)
-        }))
-    ];
+    if (viewType === 'daily') {
+        // Sort selected items by ID to maintain sidebar order
+        const sortedPractitioners = [...selectedPractitioners].sort((a, b) => a - b);
+        const sortedResources = [...selectedResources].sort((a, b) => a - b);
 
-    selectedCalendars.forEach(calendar => {
-        if (!calendar.data) return;
-
-        const col = document.createElement('div');
-        col.className = calendar.type === 'practitioner' ? 'practitioner-column' : 'resource-column';
-
-        if (calendar.type === 'practitioner') {
-            // Practitioner columns show working hours and appointments
-            const practitioner = calendar.data;
-            for (let h = 0; h <= 23; h++) {
-                for (let m = 0; m < 60; m += 15) {
-                    const slot = document.createElement('div');
-                    const timeStr = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
-                    const isAvailable = practitioner.schedule.some(interval => timeStr >= interval.start && timeStr < interval.end);
-                    slot.className = `time-slot ${!isAvailable ? 'unavailable' : ''}`;
-                    if (h === 9 && m === 0) slot.id = 'slot-9am';
-                    col.appendChild(slot);
-                }
-            }
-
-            // Add exceptions and appointments for practitioners
-            mockExceptions.filter(ex => ex.pId === calendar.id).forEach(ex => col.appendChild(createBox(ex, 'exception-layer')));
-            mockAppointments.filter(app => app.pId === calendar.id).forEach(app => col.appendChild(createAppointmentBox(app, calendar.id)));
-        } else {
-            // Resource columns - no default availability styling since resources don't have predefined schedules
-            for (let h = 0; h <= 23; h++) {
-                for (let m = 0; m < 60; m += 15) {
-                    const slot = document.createElement('div');
-                    slot.className = 'time-slot'; // All slots are neutral since resources don't have availability constraints
-                    if (h === 9 && m === 0) slot.id = 'slot-9am';
-                    col.appendChild(slot);
-                }
-            }
-
-            // Resources can have their own bookings/appointments
-            // For demo purposes, we'll show some mock resource bookings
-            getResourceBookings(calendar.id).forEach(booking => col.appendChild(createResourceBookingBox(booking, calendar.id)));
+        // Render columns for selected practitioners and resources in sidebar order
+        columns = [
+            ...sortedPractitioners.map(pId => ({
+                id: pId,
+                type: 'practitioner',
+                data: practitioners.find(p => p.id === pId)
+            })),
+            ...sortedResources.map(rId => ({
+                id: rId,
+                type: 'resource',
+                data: resources.find(r => r.id === rId)
+            }))
+        ];
+    } else if (viewType === 'weekly') {
+        // Get the 7 days of the current week (Mon-Sun)
+        const weekStart = getWeekStart(selectedDate);
+        columns = [];
+        for (let i = 0; i < 7; i++) {
+            const day = new Date(weekStart);
+            day.setDate(weekStart.getDate() + i);
+            columns.push({
+                id: i,
+                type: 'day',
+                data: { date: day, dayName: DAYS_OF_WEEK[day.getDay()], dateNum: day.getDate() }
+            });
         }
+    }
+
+    // Render columns
+    columns.forEach(column => {
+        const col = document.createElement('div');
+        col.className = 'practitioner-column'; // Use same class for all column types
+
+        // Add time slots (same for all column types in time-based views)
+        for (let h = 0; h <= 23; h++) {
+            for (let m = 0; m < 60; m += 15) {
+                const slot = document.createElement('div');
+                slot.className = 'time-slot';
+
+                // For daily view, check practitioner availability
+                if (viewType === 'daily' && column.type === 'practitioner') {
+                    const timeStr = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+                    const isAvailable = column.data.schedule.some(interval => timeStr >= interval.start && timeStr < interval.end);
+                    if (!isAvailable) {
+                        slot.classList.add('unavailable');
+                    }
+                }
+
+                if (h === 9 && m === 0) slot.id = 'slot-9am';
+                col.appendChild(slot);
+            }
+        }
+
+        // Add events using shared overlapping logic
+        addEventsToTimeBasedView(col, column, viewType);
 
         grid.appendChild(col);
     });
 
-    // Re-render headers to match selected calendars
-    renderHeaders();
+    // Update headers
+    if (viewType === 'daily') {
+        renderHeaders();
+    } else if (viewType === 'weekly') {
+        renderWeeklyHeaders(columns.map(col => col.data.date));
+    }
+}
+
+// Shared function for adding events to time-based views with overlapping logic
+function addEventsToTimeBasedView(columnElement, column, viewType) {
+    let events = [];
+
+    if (viewType === 'daily') {
+        if (column.type === 'practitioner') {
+            // Add exceptions and appointments for practitioners
+            mockExceptions.filter(ex => ex.pId === column.id).forEach(ex => {
+                events.push({
+                    ...ex,
+                    type: 'exception',
+                    sourceId: column.id
+                });
+            });
+            mockAppointments.filter(app => app.pId === column.id).forEach(app => {
+                events.push({
+                    ...app,
+                    type: 'practitioner',
+                    sourceId: column.id,
+                    color: getItemColor('practitioner', column.id)
+                });
+            });
+        } else if (column.type === 'resource') {
+            // Add resource bookings
+            getResourceBookings(column.id).forEach(booking => {
+                events.push({
+                    ...booking,
+                    type: 'resource',
+                    sourceId: column.id,
+                    color: getItemColor('resource', column.id)
+                });
+            });
+        }
+    } else if (viewType === 'weekly') {
+        // Get events for this specific day
+        const dayIndex = column.id;
+
+        // Practitioner appointments for this day
+        selectedPractitioners.forEach(pId => {
+            mockAppointments.filter(app => app.pId === pId).forEach(app => {
+                if ((pId % 7) === dayIndex) { // Distribute across days for demo
+                    events.push({
+                        ...app,
+                        type: 'practitioner',
+                        sourceId: pId,
+                        color: getItemColor('practitioner', pId)
+                    });
+                }
+            });
+            mockExceptions.filter(ex => ex.pId === pId).forEach(ex => {
+                if ((pId % 7) === dayIndex) {
+                    events.push({
+                        ...ex,
+                        type: 'exception',
+                        sourceId: pId
+                    });
+                }
+            });
+        });
+
+        // Resource bookings for this day
+        selectedResources.forEach(rId => {
+            getResourceBookings(rId).forEach(booking => {
+                if ((rId % 7) === dayIndex) {
+                    events.push({
+                        ...booking,
+                        type: 'resource',
+                        sourceId: rId,
+                        color: getItemColor('resource', rId)
+                    });
+                }
+            });
+        });
+    }
+
+    // Separate exceptions from regular events
+    const regularEvents = events.filter(event => event.type !== 'exception');
+    const exceptionEvents = events.filter(event => event.type === 'exception');
+
+    // Handle exceptions first (always full-width, no overlapping)
+    exceptionEvents.forEach(exception => {
+        const exceptionElement = viewType === 'daily' ?
+            createBox(exception, 'exception-layer') :
+            createWeeklyEventElement(exception);
+        columnElement.appendChild(exceptionElement);
+    });
+
+    // Handle regular events with overlapping logic
+    if (regularEvents.length === 1) {
+        // Single event - full width
+        const eventElement = viewType === 'daily' ?
+            createAppointmentBox(regularEvents[0], regularEvents[0].sourceId) :
+            createWeeklyEventElement(regularEvents[0]);
+        columnElement.appendChild(eventElement);
+    } else if (regularEvents.length > 1) {
+        // Multiple events - handle overlapping
+        const overlappingGroups = groupOverlappingEvents(regularEvents);
+        overlappingGroups.forEach(group => {
+            renderOverlappingEventGroup(group, columnElement, viewType);
+        });
+    }
+}
+
+// Shared overlapping event rendering for both daily and weekly views
+function renderOverlappingEventGroup(group, containerElement, viewType) {
+    const numEvents = group.length;
+
+    group.forEach((event, index) => {
+        const eventElement = viewType === 'daily' ?
+            createAppointmentBox(event, event.sourceId) :
+            createWeeklyEventElement(event);
+
+        // Allow horizontal overlap - events maintain most of their width but can overlap
+        const baseWidth = 85; // 85% of column width
+        const overlapOffset = index * 15; // 15px horizontal offset per overlapping event
+
+        eventElement.style.width = `${baseWidth}%`;
+        eventElement.style.left = `${overlapOffset}px`;
+        eventElement.style.zIndex = 10 + index; // Higher z-index for later events
+
+        // Semi-transparent for overlapping events
+        if (numEvents > 1) {
+            eventElement.style.opacity = '0.8';
+        }
+
+        containerElement.appendChild(eventElement);
+    });
 }
 
 function renderWeeklyView() {
@@ -710,98 +851,6 @@ function getWeekStart(date) {
     return new Date(d.setDate(diff));
 }
 
-function addEventsToWeeklyView() {
-    const grid = document.getElementById('calendar-grid');
-
-    // Get all events from selected practitioners and resources
-    const allEvents = [];
-
-    // Practitioner appointments
-    selectedPractitioners.forEach(pId => {
-        mockAppointments.filter(app => app.pId === pId).forEach(app => {
-            allEvents.push({
-                ...app,
-                type: 'practitioner',
-                sourceId: pId,
-                color: getItemColor('practitioner', pId),
-                dayIndex: pId % 7 // Distribute across days for demo
-            });
-        });
-        mockExceptions.filter(ex => ex.pId === pId).forEach(ex => {
-            allEvents.push({
-                ...ex,
-                type: 'exception',
-                sourceId: pId,
-                color: '#f59e0b', // Orange for exceptions
-                dayIndex: pId % 7
-            });
-        });
-    });
-
-    // Resource bookings
-    selectedResources.forEach(rId => {
-        getResourceBookings(rId).forEach(booking => {
-            allEvents.push({
-                ...booking,
-                type: 'resource',
-                sourceId: rId,
-                color: getItemColor('resource', rId),
-                dayIndex: rId % 7
-            });
-        });
-    });
-
-    // Separate exceptions from regular events
-    const regularEvents = allEvents.filter(event => event.type !== 'exception');
-    const exceptionEvents = allEvents.filter(event => event.type === 'exception');
-
-    // Handle exceptions first (always full-width, no overlapping)
-    const exceptionsByDay = {};
-    exceptionEvents.forEach(event => {
-        const dayIndex = event.sourceId % 7;
-        if (!exceptionsByDay[dayIndex]) {
-            exceptionsByDay[dayIndex] = [];
-        }
-        exceptionsByDay[dayIndex].push(event);
-    });
-
-    Object.keys(exceptionsByDay).forEach(dayIndex => {
-        const dayExceptions = exceptionsByDay[dayIndex];
-        const dayColumn = grid.children[dayIndex];
-        if (dayColumn) {
-            dayExceptions.forEach(exception => {
-                const exceptionElement = createWeeklyEventElement(exception);
-                dayColumn.appendChild(exceptionElement);
-            });
-        }
-    });
-
-    // Handle regular events with overlapping logic
-    const eventsByDay = {};
-    regularEvents.forEach(event => {
-        const dayIndex = event.sourceId % 7;
-        if (!eventsByDay[dayIndex]) {
-            eventsByDay[dayIndex] = [];
-        }
-        eventsByDay[dayIndex].push(event);
-    });
-
-    // Process each day's regular events
-    Object.keys(eventsByDay).forEach(dayIndex => {
-        const dayEvents = eventsByDay[dayIndex];
-        const dayColumn = grid.children[dayIndex];
-
-        if (dayColumn && dayEvents.length > 0) {
-            // Group overlapping events
-            const overlappingGroups = groupOverlappingEvents(dayEvents);
-
-            // Render each group
-            overlappingGroups.forEach(group => {
-                renderOverlappingEventGroup(group, dayColumn);
-            });
-        }
-    });
-}
 
 // Group events that overlap in time
 function groupOverlappingEvents(events) {
@@ -852,29 +901,6 @@ function eventsOverlap(event1, event2) {
     return start1 < end2 && end1 > start2;
 }
 
-// Render a group of overlapping events
-function renderOverlappingEventGroup(group, dayColumn) {
-    const numEvents = group.length;
-
-    group.forEach((event, index) => {
-        const eventElement = createWeeklyEventElement(event);
-
-        // Allow horizontal overlap - events maintain most of their width but can overlap
-        const baseWidth = 85; // 85% of column width
-        const overlapOffset = index * 15; // 15px horizontal offset per overlapping event
-
-        eventElement.style.width = `${baseWidth}%`;
-        eventElement.style.left = `${overlapOffset}px`;
-        eventElement.style.zIndex = 10 + index; // Higher z-index for later events
-
-        // Semi-transparent for overlapping events
-        if (numEvents > 1) {
-            eventElement.style.opacity = '0.8';
-        }
-
-        dayColumn.appendChild(eventElement);
-    });
-}
 
 function addEventsToMonthlyView() {
     const grid = document.getElementById('calendar-grid');
@@ -961,7 +987,7 @@ function createWeeklyEventElement(event) {
     if (event.type === 'exception') {
         div.className = 'exception-layer';
     } else {
-        div.className = 'calendar-event weekly-event'; // Add weekly-event class for specific styling
+        div.className = 'calendar-event'; // Single consistent class for all calendar events
         div.style.background = event.color || '#e5e7eb';
     }
 

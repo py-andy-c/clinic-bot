@@ -1021,23 +1021,9 @@ body {
     background: rgba(37, 99, 235, 0.1);
 }
 
-/* ===== WEEKLY EVENT STYLING ===== */
+/* ===== SHARED EVENT STYLING ===== */
 
-.weekly-event {
-    border-radius: 3px;
-    border: 1px solid rgba(255, 255, 255, 0.3);
-    box-sizing: border-box;
-    overflow: hidden;
-    z-index: 10;
-}
-
-.weekly-event .event-title {
-    font-size: 10px;
-    line-height: 1.2;
-    padding: 2px 4px;
-    word-wrap: break-word;
-    overflow-wrap: break-word;
-}
+/* All calendar events now use the same base calendar-event class */
 
 /* ===== RESPONSIVE ADJUSTMENTS ===== */
 
