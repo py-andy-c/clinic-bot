@@ -1084,8 +1084,8 @@ body {
 
 .calendar-event {
     position: absolute;
-    left: 4px;
-    right: 4px;
+    left: 2px;
+    right: 2px;
     z-index: 20;
     padding: 4px 6px;
     border-radius: 8px;
@@ -1102,9 +1102,9 @@ body {
     font-size: 11px;
     line-height: 1.2;
     font-weight: 500;
-    white-space: nowrap;
     overflow: hidden;
-    text-overflow: ellipsis;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
 }
 
 /* Resource Bookings */
@@ -1130,9 +1130,9 @@ body {
     font-size: 10px;
     line-height: 1.2;
     font-weight: 600;
-    white-space: nowrap;
     overflow: hidden;
-    text-overflow: ellipsis;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
     color: white; /* White text for resource bookings like practitioners */
 }
 
