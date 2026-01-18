@@ -122,11 +122,6 @@ body {
     transform: rotate(180deg);
 }
 
-.nav-center {
-    flex: 1;
-    display: flex;
-    justify-content: center;
-}
 
 .current-month-label {
     font-size: 18px;
@@ -175,18 +170,6 @@ body {
     border-radius: 6px;
 }
 
-.logout-btn {
-    background: transparent;
-    border: none;
-    font-size: 16px;
-    cursor: pointer;
-    padding: 8px;
-    border-radius: 6px;
-}
-
-.logout-btn:hover {
-    background: var(--bg-main);
-}
 
 /* Main Content Area with Sidebar */
 .main-content {
@@ -258,9 +241,6 @@ body {
 
 .desktop-nav,
 .user-info.desktop-only,
-.logout-btn.desktop-only {
-    display: none;
-}
 
 /* Desktop: show desktop nav, hide hamburger */
 @media (min-width: 1025px) {
@@ -340,106 +320,7 @@ body {
     border-color: var(--primary);
 }
 
-.plus-icon {
-    font-size: 24px;
-    color: var(--primary);
-    font-weight: 300;
-}
 
-.btn-text {
-    font-weight: 500;
-    color: var(--text-main);
-}
-
-.nav-group {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-}
-
-.nav-title {
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.8px;
-    color: var(--text-muted);
-    font-weight: 600;
-}
-
-/* Reusable View Switcher Components */
-.view-switcher {
-    display: flex;
-    gap: 8px;
-    background: var(--bg-main);
-    padding: 4px;
-    border-radius: 20px;
-}
-
-.view-option {
-    flex: 1;
-    border: none;
-    background: none;
-    padding: 6px;
-    border-radius: 16px;
-    font-size: 13px;
-    cursor: pointer;
-    transition: background 0.2s;
-}
-
-.view-option.active {
-    background: white;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-    font-weight: 600;
-}
-
-.view-switcher-vertical {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.view-option-vertical {
-    width: 100%;
-    padding: 12px;
-    border-radius: 12px;
-    border: 1px solid var(--border);
-    background: transparent;
-    text-align: left;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s;
-}
-
-.view-option-vertical.active {
-    background: #f1f5f9;
-    border-color: var(--primary);
-    color: var(--primary);
-}
-
-/* Legacy support - remove after full migration */
-.view-pills {
-    display: flex;
-    gap: 8px;
-    background: var(--bg-main);
-    padding: 4px;
-    border-radius: 20px;
-}
-
-.pill {
-    flex: 1;
-    border: none;
-    background: none;
-    padding: 6px;
-    border-radius: 16px;
-    font-size: 13px;
-    cursor: pointer;
-    transition: background 0.2s;
-}
-
-.pill.active {
-    background: white;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-    font-weight: 600;
-}
 
 /* Reusable Practitioner Filter Components */
 
@@ -499,49 +380,6 @@ body {
     /* Inherits from .filter-indicator */
 }
 
-/* Legacy support - remove after full migration */
-.practitioner-filters {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
-
-.filter-item {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-size: 14px;
-    cursor: pointer;
-    padding: 4px;
-    border-radius: 4px;
-}
-
-.filter-item:hover {
-    background: var(--bg-main);
-}
-
-.filter-item input {
-    display: none;
-}
-
-.custom-check {
-    width: 16px;
-    height: 16px;
-    border-radius: 4px;
-    display: inline-block;
-    position: relative;
-    border: 1px solid rgba(0, 0, 0, 0.05);
-}
-
-.filter-item input:checked+.custom-check::after {
-    content: '✓';
-    color: white;
-    font-size: 10px;
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-}
 
 .menu-icon {
     background: none;
@@ -727,71 +565,6 @@ body {
     border-color: var(--primary);
 }
 
-.calendar-chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    margin-bottom: 12px;
-}
-
-.calendar-chip {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    padding: 4px 8px;
-    background: var(--bg-main);
-    border-radius: 12px;
-    font-size: 11px;
-    border: 1px solid var(--border);
-}
-
-.chip-indicator {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    flex-shrink: 0;
-}
-
-.chip-label {
-    font-weight: 500;
-    color: var(--text-main);
-}
-
-.chip-remove {
-    background: none;
-    border: none;
-    color: var(--text-muted);
-    cursor: pointer;
-    font-size: 14px;
-    line-height: 1;
-    padding: 0;
-    margin-left: 2px;
-}
-
-.chip-remove:hover {
-    color: var(--text-main);
-}
-
-.manage-calendars-btn {
-    width: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    padding: 8px 12px;
-    background: var(--primary);
-    color: white;
-    border: none;
-    border-radius: 6px;
-    font-size: 12px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: background 0.2s;
-}
-
-.manage-calendars-btn:hover {
-    background: var(--primary-hover);
-}
 
 
 /* Sidebar toggle button removed - sidebar is hidden on mobile, use FABs instead */
@@ -1124,14 +897,6 @@ body {
 }
 
 
-.fab-secondary {
-    background: white;
-    color: var(--text-main);
-    width: 48px;
-    height: 48px;
-    font-size: 20px;
-    align-self: flex-end;
-}
 
 /* Hide FAB on desktop since sidebar is always visible */
 @media (min-width: 1025px) {
@@ -1141,42 +906,3 @@ body {
     }
 }
 
-.view-switcher-vertical {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-/* Legacy button styles - keeping for backward compatibility */
-.btn-full {
-    width: 100%;
-    padding: 12px;
-    border-radius: 12px;
-    border: 1px solid var(--border);
-    background: transparent;
-    text-align: left;
-    font-weight: 600;
-    cursor: pointer;
-}
-
-.btn-full.active {
-    background: #f1f5f9;
-    border-color: var(--primary);
-    color: var(--primary);
-}
-
-.btn-pill {
-    padding: 6px 15px;
-    border-radius: 20px;
-    border: 1px solid var(--border);
-    background: transparent;
-    cursor: pointer;
-    font-size: 13px;
-    font-weight: 600;
-}
-
-.btn-pill.active {
-    background: var(--primary);
-    color: white;
-    border-color: var(--primary);
-}
