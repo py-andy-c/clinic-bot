@@ -558,14 +558,6 @@ body {
     margin-bottom: 24px;
 }
 
-/* Legacy support - can be removed after migration */
-.mini-calendar-container {
-    background: white;
-    border-radius: 12px;
-    border: 1px solid var(--border);
-    padding: 12px;
-    margin-bottom: 24px;
-}
 
 .mini-calendar-header {
     display: flex;
@@ -704,12 +696,6 @@ body {
     margin-bottom: 12px;
 }
 
-/* Compact View Switcher */
-.view-switcher-compact {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-}
 
 
 .view-options-row {
@@ -1149,9 +1135,6 @@ body {
 
 /* Hide FAB on desktop since sidebar is always visible */
 @media (min-width: 1025px) {
-    #add-fab,
-    #settings-fab,
-    #today-fab,
     .fab-container {
         display: none;
         /* All FABs moved to sidebar on desktop */

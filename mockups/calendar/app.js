@@ -561,7 +561,15 @@ function setupEventListeners() {
         closeSidebar();
     };
 
-    const todayHandler = () => {
+    // Sidebar action handlers
+    const sidebarAddBtn = document.getElementById('sidebar-add-btn');
+    if (sidebarAddBtn) sidebarAddBtn.onclick = () => {
+        openCreateModal(9, 0);
+        closeSidebar(); // Close sidebar after action on mobile
+    };
+
+    const sidebarTodayBtn = document.getElementById('sidebar-today-btn');
+    if (sidebarTodayBtn) sidebarTodayBtn.onclick = () => {
         selectedDate = new Date();
         renderDateStrip();
         renderMiniCalendar();
@@ -573,18 +581,7 @@ function setupEventListeners() {
         if (slot9am && viewport) {
             viewport.scrollTop = slot9am.offsetTop - 60;
         }
-    };
 
-    // Sidebar action handlers
-    const sidebarAddBtn = document.getElementById('sidebar-add-btn');
-    if (sidebarAddBtn) sidebarAddBtn.onclick = () => {
-        openCreateModal(9, 0);
-        closeSidebar(); // Close sidebar after action on mobile
-    };
-
-    const sidebarTodayBtn = document.getElementById('sidebar-today-btn');
-    if (sidebarTodayBtn) sidebarTodayBtn.onclick = () => {
-        todayHandler();
         closeSidebar(); // Close sidebar after action on mobile
     };
 
