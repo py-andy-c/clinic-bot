@@ -426,8 +426,8 @@ function renderCalendar(containerId, monthYearId, clickHandler) {
 
     if (!calendar || !monthYearLabel) return;
 
-    // Use displayMonth for mini calendar, selectedDate for main date strip
-    const displayDate = containerId === 'mini-calendar' ? displayMonth : selectedDate;
+    // Use displayMonth for mini calendars, selectedDate for main date strip
+    const displayDate = (containerId === 'mini-calendar' || containerId === 'modal-mini-calendar') ? displayMonth : selectedDate;
     const year = displayDate.getFullYear();
     const month = displayDate.getMonth();
     const monthText = `${year}年${month + 1}月`;
@@ -760,13 +760,19 @@ function renderTimeBasedView(viewType) {
 
 // Add current time indicator line to calendar grid
 function addCurrentTimeIndicator(grid) {
-    // Get current time in Taiwan timezone (UTC+8)
+    // Only show time indicator on current day
     const now = new Date();
     const taiwanTimeString = now.toLocaleString('en-US', {
         timeZone: 'Asia/Taipei',
         hour12: false
     });
     const taiwanTime = new Date(taiwanTimeString);
+    const todayString = taiwanTime.toDateString();
+    const selectedDateString = selectedDate.toDateString();
+
+    if (todayString !== selectedDateString) {
+        return; // Don't show indicator if not viewing today
+    }
 
     const currentHour = taiwanTime.getHours();
     const currentMinute = taiwanTime.getMinutes();
@@ -792,7 +798,47 @@ function addCurrentTimeIndicator(grid) {
                        `${currentHour}:${currentMinute.toString().padStart(2, '0')}`;
     timeIndicator.title = `Current time: ${timeDisplay} (Taiwan)`;
 
-    // Add to grid (will appear across all columns)
+    // Position indicator based on current view
+    if (currentView === 'week') {
+        // In weekly view, add indicator to the specific day's column
+        // Find which column corresponds to today by checking the weekDays array
+        const weekStart = getWeekStart(selectedDate);
+        const weekDays = [];
+        for (let i = 0; i < 7; i++) {
+            const day = new Date(weekStart);
+            day.setDate(weekStart.getDate() + i);
+            weekDays.push(day);
+        }
+
+        const today = new Date(taiwanTime.getFullYear(), taiwanTime.getMonth(), taiwanTime.getDate());
+        const dayDiff = weekDays.findIndex(day =>
+            day.getFullYear() === today.getFullYear() &&
+            day.getMonth() === today.getMonth() &&
+            day.getDate() === today.getDate()
+        );
+
+        if (dayDiff >= 0 && dayDiff < 7) {
+            // Find the specific day's column and add indicator there
+            const dayColumns = grid.querySelectorAll('.practitioner-column');
+            if (dayColumns[dayDiff]) {
+                // Reset positioning for column-relative placement
+                timeIndicator.style.left = '0';
+                timeIndicator.style.right = '0';
+                timeIndicator.style.width = 'auto';
+                timeIndicator.style.top = `${pixelsFromTop}px`;
+                timeIndicator.style.position = 'absolute';
+                dayColumns[dayDiff].appendChild(timeIndicator);
+                return; // Don't add to grid since we added to column
+            }
+        }
+        return; // Today not in current week view
+    } else {
+        // Daily view: span across the single column
+        timeIndicator.style.left = '28px';
+        timeIndicator.style.right = '0';
+    }
+
+    // Add to grid (daily view)
     grid.appendChild(timeIndicator);
 
     // Auto-scroll to position current time indicator optimally in viewport

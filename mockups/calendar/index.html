@@ -45,17 +45,6 @@
             <aside class="sidebar" id="sidebar">
                 <div class="sidebar-content">
 
-                    <!-- Reusable Mini Calendar Component (also used in mobile modal) -->
-                    <div class="mini-calendar-component">
-                        <div class="mini-calendar-header">
-                            <button class="month-nav-btn prev-month" id="prev-month-btn">‹</button>
-                            <h3 class="current-month-label" id="sidebar-month-year">2026年1月</h3>
-                            <button class="month-nav-btn next-month" id="next-month-btn">›</button>
-                        </div>
-                        <div class="mini-calendar" id="mini-calendar">
-                            <!-- Injected JS -->
-                        </div>
-                    </div>
 
                     <!-- View Switcher Section -->
                     <div class="sidebar-section">
@@ -189,6 +178,22 @@
 
                 <!-- Sidebar Backdrop (Mobile Overlay) -->
                 <div id="sidebar-backdrop" class="sidebar-backdrop"></div>
+
+                <!-- Mini Calendar Modal (for date navigation) -->
+                <div id="mini-calendar-modal" class="mini-calendar-modal">
+                    <div class="mini-calendar-modal-content">
+                        <div class="mini-calendar-component">
+                            <div class="mini-calendar-header">
+                                <button class="month-nav-btn prev-month" id="modal-prev-month-btn">‹</button>
+                                <h3 class="current-month-label" id="modal-month-year">2026年1月</h3>
+                                <button class="month-nav-btn next-month" id="modal-next-month-btn">›</button>
+                            </div>
+                            <div class="mini-calendar" id="modal-mini-calendar">
+                                <!-- Injected JS -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
             </div>
         </main>
