@@ -1035,9 +1035,8 @@ body {
     font-size: 10px;
     line-height: 1.2;
     padding: 2px 4px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
 }
 
 /* ===== RESPONSIVE ADJUSTMENTS ===== */

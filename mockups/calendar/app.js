@@ -751,16 +751,42 @@ function addEventsToWeeklyView() {
         });
     });
 
-    // Group events by day to handle overlaps
-    const eventsByDay = {};
-    allEvents.forEach(event => {
-        if (!eventsByDay[event.dayIndex]) {
-            eventsByDay[event.dayIndex] = [];
+    // Separate exceptions from regular events
+    const regularEvents = allEvents.filter(event => event.type !== 'exception');
+    const exceptionEvents = allEvents.filter(event => event.type === 'exception');
+
+    // Handle exceptions first (always full-width, no overlapping)
+    const exceptionsByDay = {};
+    exceptionEvents.forEach(event => {
+        const dayIndex = event.sourceId % 7;
+        if (!exceptionsByDay[dayIndex]) {
+            exceptionsByDay[dayIndex] = [];
         }
-        eventsByDay[event.dayIndex].push(event);
+        exceptionsByDay[dayIndex].push(event);
     });
 
-    // Process each day's events
+    Object.keys(exceptionsByDay).forEach(dayIndex => {
+        const dayExceptions = exceptionsByDay[dayIndex];
+        const dayColumn = grid.children[dayIndex];
+        if (dayColumn) {
+            dayExceptions.forEach(exception => {
+                const exceptionElement = createWeeklyEventElement(exception);
+                dayColumn.appendChild(exceptionElement);
+            });
+        }
+    });
+
+    // Handle regular events with overlapping logic
+    const eventsByDay = {};
+    regularEvents.forEach(event => {
+        const dayIndex = event.sourceId % 7;
+        if (!eventsByDay[dayIndex]) {
+            eventsByDay[dayIndex] = [];
+        }
+        eventsByDay[dayIndex].push(event);
+    });
+
+    // Process each day's regular events
     Object.keys(eventsByDay).forEach(dayIndex => {
         const dayEvents = eventsByDay[dayIndex];
         const dayColumn = grid.children[dayIndex];
@@ -930,8 +956,14 @@ function createWeeklyEventElement(event) {
     const [endHour, endMinute] = event.end.split(':').map(Number);
 
     const div = document.createElement('div');
-    div.className = 'calendar-event weekly-event'; // Add weekly-event class for specific styling
-    div.style.background = event.color || '#e5e7eb';
+
+    // Use exception-layer for availability exceptions, calendar-event for regular events
+    if (event.type === 'exception') {
+        div.className = 'exception-layer';
+    } else {
+        div.className = 'calendar-event weekly-event'; // Add weekly-event class for specific styling
+        div.style.background = event.color || '#e5e7eb';
+    }
 
     // Calculate position in pixels (same as daily view: 20px per 15-minute slot)
     const startSlot = (startHour * 4) + Math.floor(startMinute / 15);
