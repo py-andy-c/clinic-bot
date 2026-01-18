@@ -1164,45 +1164,51 @@ function eventsOverlap(event1, event2) {
 }
 
 
+// Calculate how many events can fit in a monthly day cell
+function calculateMaxEventsPerCell(hasMoreEvents = false) {
+    const cellHeight = 150; // From CSS .month-day-cell height
+    const dateNumberHeight = 20; // Approximate height for date number
+    const moreEventsHeight = hasMoreEvents ? 15 : 0; // Height for "+X more" if needed
+    const paddingAndGaps = 10; // Padding and gaps between elements
+
+    const availableHeight = cellHeight - dateNumberHeight - moreEventsHeight - paddingAndGaps;
+
+    // Estimate event height (based on CSS: padding 2px + font-size ~12px + line-height)
+    const estimatedEventHeight = 18; // pixels per event
+
+    const maxEvents = Math.max(1, Math.floor(availableHeight / estimatedEventHeight));
+    return maxEvents;
+}
+
 function addEventsToMonthlyView() {
     const grid = document.getElementById('calendar-grid');
 
-    // Get all events from selected practitioners and resources
-    const allEvents = [];
+    // Create test data with ~10 events on the selected date
+    const testEvents = [];
+    const practitioners = [1, 2, 3, 4, 5, 6];
+    const appointmentTypes = ['全身按摩', '針灸治療', '推拿治療', '中醫調理', '整脊治療', '頭痛治療', '腰痛復健', '膝蓋按摩', '肩頸放鬆', '足部按摩'];
+    const patients = ['王小明', '張美華', '李大華', '陳小雅', '林志偉', '趙先生', '劉小姐', '黃小姐', '吳太太', '蔡先生'];
 
-    // Practitioner appointments
-    selectedPractitioners.forEach(pId => {
-        mockAppointments.filter(app => app.pId === pId).forEach(app => {
-            allEvents.push({
-                ...app,
-                type: 'practitioner',
-                sourceId: pId,
-                color: getItemColor('practitioner', pId)
-            });
+    // Generate ~10 events for the selected date
+    for (let i = 0; i < 10; i++) {
+        const practitionerId = practitioners[i % practitioners.length];
+        testEvents.push({
+            pId: practitionerId,
+            patient: patients[i % patients.length],
+            appointmentType: appointmentTypes[i % appointmentTypes.length],
+            resources: ['治療室' + ((i % 3) + 1)],
+            start: `${String(9 + Math.floor(i / 2)).padStart(2, '0')}:${i % 2 === 0 ? '00' : '30'}`,
+            end: `${String(10 + Math.floor(i / 2)).padStart(2, '0')}:${i % 2 === 0 ? '00' : '30'}`,
+            type: 'practitioner',
+            sourceId: practitionerId,
+            color: getItemColor('practitioner', practitionerId)
         });
-    });
+    }
 
-    // Resource bookings
-    selectedResources.forEach(rId => {
-        getResourceBookings(rId).forEach(booking => {
-            allEvents.push({
-                ...booking,
-                type: 'resource',
-                sourceId: rId,
-                color: getItemColor('resource', rId)
-            });
-        });
-    });
-
-    // Group events by date
+    // Group events by date (put all on selected date for testing)
     const eventsByDate = {};
-    allEvents.forEach(event => {
-        const dateKey = selectedDate.toISOString().split('T')[0]; // For demo, assume current month
-        if (!eventsByDate[dateKey]) {
-            eventsByDate[dateKey] = [];
-        }
-        eventsByDate[dateKey].push(event);
-    });
+    const selectedDateKey = selectedDate.toISOString().split('T')[0];
+    eventsByDate[selectedDateKey] = testEvents;
 
     // Add events to corresponding day cells
     Object.keys(eventsByDate).forEach(dateKey => {
@@ -1224,15 +1230,29 @@ function addEventsToMonthlyView() {
         });
 
         if (targetCell) {
-            events.slice(0, 3).forEach(event => { // Show max 3 events per day
+            // Dynamically calculate how many events can fit
+            const maxEventsToShow = calculateMaxEventsPerCell(events.length > 0); // Calculate without "+more" first
+            const eventsToShow = Math.min(events.length, maxEventsToShow);
+            const hasMoreEvents = events.length > eventsToShow;
+
+            // If we have more events, recalculate to leave space for "+X more"
+            const finalMaxEvents = hasMoreEvents ?
+                calculateMaxEventsPerCell(true) : maxEventsToShow;
+
+            const finalEventsToShow = Math.min(events.length, finalMaxEvents);
+            const finalHasMoreEvents = events.length > finalEventsToShow;
+
+            // Show the calculated number of events
+            events.slice(0, finalEventsToShow).forEach(event => {
                 const eventElement = createMonthlyEventElement(event);
                 targetCell.appendChild(eventElement);
             });
 
-            if (events.length > 3) {
+            // Add "+X more" indicator if needed
+            if (finalHasMoreEvents) {
                 const moreElement = document.createElement('div');
                 moreElement.className = 'month-more-events';
-                moreElement.textContent = `+${events.length - 3} more`;
+                moreElement.textContent = `+${events.length - finalEventsToShow} more`;
                 targetCell.appendChild(moreElement);
             }
         }
