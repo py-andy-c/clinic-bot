@@ -1696,7 +1696,7 @@ function toggleItem(type, id, checked) {
     // Update colors and indicators
     assignColorsToSelectedItems();
     updateSidebarIndicators();
-    renderGrid();
+    renderCalendarView();
 }
 
 function togglePractitioner(id, checked) {
