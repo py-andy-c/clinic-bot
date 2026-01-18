@@ -443,8 +443,8 @@ body {
 
 /* Reusable Practitioner Filter Components */
 
-.practitioner-filter-item,
-.resource-filter-item {
+/* Shared filter item styles */
+.filter-item {
     display: flex;
     align-items: center;
     gap: 10px;
@@ -456,20 +456,19 @@ body {
     margin-bottom: 6px;
 }
 
-.practitioner-filter-item:last-child,
-.resource-filter-item:last-child {
+.filter-item:last-child {
     margin-bottom: 0;
 }
 
-.practitioner-filter-item:hover {
+.filter-item:hover {
     background: var(--bg-main);
 }
 
-.practitioner-filter-item input {
+.filter-item input {
     display: none;
 }
 
-.practitioner-indicator {
+.filter-indicator {
     width: 16px;
     height: 16px;
     border-radius: 4px;
@@ -478,7 +477,7 @@ body {
     flex-shrink: 0;
 }
 
-.practitioner-filter-item input:checked+.practitioner-indicator::after {
+.filter-item input:checked+.filter-indicator::after {
     content: '✓';
     color: white;
     font-size: 10px;
@@ -489,45 +488,15 @@ body {
     transform: translate(-50%, -50%);
 }
 
-/* Resource Filter Components */
-
+/* Specific filter item types */
+.practitioner-filter-item,
 .resource-filter-item {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-size: 14px;
-    cursor: pointer;
-    padding: 4px;
-    border-radius: 4px;
-    transition: background 0.2s;
+    /* Inherits from .filter-item */
 }
 
-.resource-filter-item:hover {
-    background: var(--bg-main);
-}
-
-.resource-filter-item input {
-    display: none;
-}
-
+.practitioner-indicator,
 .resource-indicator {
-    width: 16px;
-    height: 16px;
-    border-radius: 4px;
-    display: inline-block;
-    position: relative;
-    flex-shrink: 0;
-}
-
-.resource-filter-item input:checked+.resource-indicator::after {
-    content: '✓';
-    color: white;
-    font-size: 10px;
-    font-weight: bold;
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
+    /* Inherits from .filter-indicator */
 }
 
 /* Legacy support - remove after full migration */
@@ -1168,15 +1137,6 @@ body {
     color: white;
 }
 
-@media (min-width: 1025px) {
-
-    #add-fab,
-    #settings-fab,
-    #today-fab {
-        display: none;
-        /* All FABs moved to sidebar on desktop */
-    }
-}
 
 .fab-secondary {
     background: white;
@@ -1189,8 +1149,12 @@ body {
 
 /* Hide FAB on desktop since sidebar is always visible */
 @media (min-width: 1025px) {
+    #add-fab,
+    #settings-fab,
+    #today-fab,
     .fab-container {
         display: none;
+        /* All FABs moved to sidebar on desktop */
     }
 }
 

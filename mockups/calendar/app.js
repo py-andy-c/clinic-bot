@@ -137,39 +137,28 @@ function getItemColor(itemType, itemId) {
 // Initialize colors on load
 assignColorsToSelectedItems();
 
+// Update indicator styling for a filter item
+function updateIndicator(item, type) {
+    const checkbox = item.querySelector('input[type="checkbox"]');
+    const indicator = item.querySelector('.filter-indicator');
+    const id = parseInt(checkbox.dataset[type]);
+
+    if (checkbox.checked) {
+        const color = getItemColor(type, id);
+        indicator.style.background = color || '#e5e7eb';
+        indicator.style.border = 'none';
+    } else {
+        indicator.style.background = 'transparent';
+        indicator.style.border = '1px solid #d1d5db';
+    }
+}
+
 // Update sidebar indicators with assigned colors
 function updateSidebarIndicators() {
-    // Update practitioner indicators
-    document.querySelectorAll('.practitioner-filter-item').forEach(item => {
-        const checkbox = item.querySelector('input[type="checkbox"]');
-        const indicator = item.querySelector('.practitioner-indicator');
-        const practitionerId = parseInt(checkbox.dataset.practitioner);
-
-        if (checkbox.checked) {
-            const color = getItemColor('practitioner', practitionerId);
-            indicator.style.background = color || '#e5e7eb';
-            indicator.style.border = 'none';
-        } else {
-            indicator.style.background = 'transparent';
-            indicator.style.border = '1px solid #d1d5db';
-        }
-    });
-
-    // Update resource indicators
-    document.querySelectorAll('.resource-filter-item').forEach(item => {
-        const checkbox = item.querySelector('input[type="checkbox"]');
-        const indicator = item.querySelector('.resource-indicator');
-        const resourceId = parseInt(checkbox.dataset.resource);
-
-        if (checkbox.checked) {
-            const color = getItemColor('resource', resourceId);
-            indicator.style.background = color || '#e5e7eb';
-            indicator.style.border = 'none';
-        } else {
-            indicator.style.background = 'transparent';
-            indicator.style.border = '1px solid #d1d5db';
-        }
-    });
+    document.querySelectorAll('.practitioner-filter-item').forEach(item =>
+        updateIndicator(item, 'practitioner'));
+    document.querySelectorAll('.resource-filter-item').forEach(item =>
+        updateIndicator(item, 'resource'));
 }
 
 function initCalendar() {
@@ -662,20 +651,24 @@ function setupEventListeners() {
 }
 
 
-function togglePractitioner(id, checked) {
+function toggleItem(type, id, checked) {
+    const array = type === 'practitioner' ? selectedPractitioners : selectedResources;
+    const selector = `input[data-${type}="${id}"]`;
+
     if (checked) {
         // Check if adding this would exceed the limit (practitioners + resources <= 10)
         if (selectedPractitioners.length + selectedResources.length >= 10) {
             alert('最多只能選擇 10 個治療師或資源');
             // Uncheck the checkbox
-            document.querySelector(`input[data-practitioner="${id}"]`).checked = false;
+            document.querySelector(selector).checked = false;
             return;
         }
-        if (!selectedPractitioners.includes(id)) {
-            selectedPractitioners.push(id);
+        if (!array.includes(id)) {
+            array.push(id);
         }
     } else {
-        selectedPractitioners = selectedPractitioners.filter(pId => pId !== id);
+        const index = type === 'practitioner' ? selectedPractitioners : selectedResources;
+        index.splice(index.indexOf(id), 1);
     }
 
     // Update colors and indicators
@@ -684,26 +677,12 @@ function togglePractitioner(id, checked) {
     renderGrid();
 }
 
-function toggleResource(id, checked) {
-    if (checked) {
-        // Check if adding this would exceed the limit (practitioners + resources <= 10)
-        if (selectedPractitioners.length + selectedResources.length >= 10) {
-            alert('最多只能選擇 10 個治療師或資源');
-            // Uncheck the checkbox
-            document.querySelector(`input[data-resource="${id}"]`).checked = false;
-            return;
-        }
-        if (!selectedResources.includes(id)) {
-            selectedResources.push(id);
-        }
-    } else {
-        selectedResources = selectedResources.filter(rId => rId !== id);
-    }
+function togglePractitioner(id, checked) {
+    toggleItem('practitioner', id, checked);
+}
 
-    // Update colors and indicators
-    assignColorsToSelectedItems();
-    updateSidebarIndicators();
-    renderGrid();
+function toggleResource(id, checked) {
+    toggleItem('resource', id, checked);
 }
 
 // Simplified view switching - only updates button states since only day view is implemented
