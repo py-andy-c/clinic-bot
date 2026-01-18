@@ -275,7 +275,7 @@ body {
 }
 
 .sidebar-content {
-    padding: 6px;
+    padding: 12px;
     display: flex;
     flex-direction: column;
     gap: 16px;
@@ -585,7 +585,7 @@ body {
 
 /* Reusable Mini Calendar Component */
 .mini-calendar-component {
-    padding: 12px;
+    padding: 0;
     margin-bottom: 24px;
 }
 
@@ -724,7 +724,7 @@ body {
 
 /* Sidebar Section */
 .sidebar-section {
-    padding: 16px;
+    padding: 0;
     margin-bottom: 16px;
 }
 
@@ -751,6 +751,7 @@ body {
 .view-options-row {
     display: flex;
     gap: 4px;
+    margin-top: 8px;
 }
 
 .view-option-compact {
