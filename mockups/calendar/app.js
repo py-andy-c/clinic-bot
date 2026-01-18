@@ -17,7 +17,8 @@ const practitioners = [
     { id: 2, name: '林美玲', schedule: [{ start: '10:00', end: '15:00' }, { start: '16:00', end: '20:00' }] },
     { id: 3, name: '張志遠', schedule: [{ start: '08:00', end: '13:00' }, { start: '14:00', end: '17:00' }] },
     { id: 4, name: '李佳穎', schedule: [{ start: '09:00', end: '17:00' }] },
-    { id: 5, name: '周杰瑞', schedule: [{ start: '13:00', end: '21:00' }] }
+    { id: 5, name: '周杰瑞', schedule: [{ start: '13:00', end: '21:00' }] },
+    { id: 6, name: '測試醫師', schedule: [{ start: '09:00', end: '18:00' }] }
 ];
 
 const resources = [
@@ -129,6 +130,16 @@ const mockAppointments = [
         end: '15:00',
         notes: '運動傷害復健'
     },
+    // Super long event name to test ellipsis (pId: 6, dayIndex: 0)
+    {
+        pId: 6,
+        patient: '測試超長名稱患者',
+        appointmentType: '極其冗長的治療項目名稱測試用於驗證文字截斷功能是否正常運作',
+        resources: ['治療室1'],
+        start: '11:00',
+        end: '12:00',
+        notes: '這是一個非常非常非常非常非常非常非常非常非常非常非常非常非常非常非常非常長的備註文字用來測試多行文字的省略號顯示效果'
+    },
     {
         pId: 1,
         patient: '黃小姐',
@@ -187,7 +198,7 @@ const SCROLL_OFFSET = 60;
 const AUTO_SCROLL_DELAY = 100;
 
 // Selected calendars state
-let selectedPractitioners = [1, 2, 3, 4, 5]; // Match HTML checkbox states
+let selectedPractitioners = [1, 2, 3, 4, 5, 6]; // Match HTML checkbox states
 let selectedResources = [1, 2]; // Default to some resources
 
 // Color assignment for selected items (practitioners and resources)
@@ -799,12 +810,13 @@ function renderOverlappingEventGroup(group, containerElement, viewType) {
             createAppointmentBox(event, event.sourceId) :
             createWeeklyEventElement(event);
 
-        // Allow horizontal overlap - events maintain most of their width but can overlap
-        const baseWidth = 85; // 85% of column width
-        const overlapOffset = index * 15; // 15px horizontal offset per overlapping event
+        // Calculate width and position for horizontal overlap that spans full width
+        const overlapPercent = 6; // 6% horizontal overlap between events
+        const totalOverlap = (numEvents - 1) * overlapPercent; // Total overlap space
+        const eventWidth = Math.max(100 - totalOverlap, 30); // Width to reach 100% span, minimum 30%
 
-        eventElement.style.width = `${baseWidth}%`;
-        eventElement.style.left = `${overlapOffset}px`;
+        eventElement.style.width = `${eventWidth}%`;
+        eventElement.style.left = `${index * overlapPercent}%`;
         eventElement.style.zIndex = 10 + index; // Higher z-index for later events
 
         // Semi-transparent for overlapping events
@@ -1076,6 +1088,12 @@ function createWeeklyEventElement(event) {
     div.style.left = '0';
     div.style.width = '100%'; // Default full width, will be overridden for overlapping events
 
+    // Calculate dynamic line clamping based on event height
+    const lineHeight = 13.2; // 11px font-size * 1.2 line-height
+    const padding = 8; // top + bottom padding
+    const availableHeight = height;
+    const maxLines = Math.max(1, Math.floor((availableHeight - padding) / lineHeight));
+
     // Event content - more representative naming pattern for weekly view
     let title = '';
     if (event.type === 'practitioner') {
@@ -1093,7 +1111,20 @@ function createWeeklyEventElement(event) {
         title = event.title;
     }
 
-    div.innerHTML = `<div class="event-title">${title}</div>`;
+    // Create title element with dynamic line clamping
+    const titleElement = document.createElement('div');
+    titleElement.className = 'event-title';
+    titleElement.textContent = title;
+
+    // Apply dynamic line clamping based on available height
+    if (maxLines >= 2) {
+        titleElement.style.display = '-webkit-box';
+        titleElement.style.webkitLineClamp = Math.min(maxLines, 10).toString(); // Cap at reasonable maximum
+        titleElement.style.webkitBoxOrient = 'vertical';
+        titleElement.style.textOverflow = 'ellipsis';
+    }
+
+    div.appendChild(titleElement);
     return div;
 }
 
@@ -1156,9 +1187,30 @@ function createAppointmentBox(appointment, practitionerId) {
         appointment.start,
         appointment.end,
         'calendar-event',
-        `<div class="event-title">${displayText}</div>`,
+        '', // We'll add the title element dynamically
         `${displayText} - ${appointment.start}-${appointment.end}`
     );
+
+    // Calculate dynamic line clamping based on event height
+    const lineHeight = 13.2; // 11px font-size * 1.2 line-height
+    const padding = 8; // top + bottom padding
+    const height = parseInt(div.style.height) || 40; // Extract numeric height from style
+    const maxLines = Math.max(1, Math.floor((height - padding) / lineHeight));
+
+    // Create title element with dynamic line clamping
+    const titleElement = document.createElement('div');
+    titleElement.className = 'event-title';
+    titleElement.textContent = displayText;
+
+    // Apply dynamic line clamping based on available height
+    if (maxLines >= 2) {
+        titleElement.style.display = '-webkit-box';
+        titleElement.style.webkitLineClamp = Math.min(maxLines, 10).toString(); // Cap at reasonable maximum
+        titleElement.style.webkitBoxOrient = 'vertical';
+        titleElement.style.textOverflow = 'ellipsis';
+    }
+
+    div.appendChild(titleElement);
     div.style.background = color || '#e5e7eb'; // Fallback to gray if no color assigned
 
     return div;

@@ -831,6 +831,7 @@ body {
     overflow: hidden;
     word-wrap: break-word;
     overflow-wrap: break-word;
+    text-overflow: ellipsis;
 }
 
 /* Resource Bookings */
