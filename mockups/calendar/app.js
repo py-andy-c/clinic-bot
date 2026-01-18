@@ -210,6 +210,16 @@ let currentView = 'day'; // 'day', 'week', 'month'
 let selectedDate = new Date("2026-01-19");
 let displayMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1); // Month currently displayed in mini calendar
 
+// Helper function to get current time in Taiwan timezone (UTC+8)
+function getTaiwanTime() {
+    const now = new Date();
+    const taiwanTimeString = now.toLocaleString('en-US', {
+        timeZone: 'Asia/Taipei',
+        hour12: false
+    });
+    return new Date(taiwanTimeString);
+}
+
 // Helper function to convert time string (HH:MM) to pixel position
 function timeToPixels(timeString) {
     const [hours, minutes] = timeString.split(':').map(Number);
@@ -557,9 +567,6 @@ function selectDate(year, month, day, shouldCloseModal = false) {
     }
 }
 
-function selectDateFromMobile(year, month, day) {
-    selectDate(year, month, day, true);
-}
 
 function selectDateFromModal(year, month, day) {
     selectDate(year, month, day);
@@ -761,12 +768,7 @@ function renderTimeBasedView(viewType) {
 // Add current time indicator line to calendar grid
 function addCurrentTimeIndicator(grid) {
     // Only show time indicator on current day
-    const now = new Date();
-    const taiwanTimeString = now.toLocaleString('en-US', {
-        timeZone: 'Asia/Taipei',
-        hour12: false
-    });
-    const taiwanTime = new Date(taiwanTimeString);
+    const taiwanTime = getTaiwanTime();
     const todayString = taiwanTime.toDateString();
     const selectedDateString = selectedDate.toDateString();
 
@@ -1469,12 +1471,7 @@ function setupEventListeners() {
     const todayBtn = document.getElementById('today-btn');
     if (todayBtn) todayBtn.onclick = () => {
         // Get current time in Taiwan timezone (UTC+8)
-        const now = new Date();
-        const taiwanTimeString = now.toLocaleString('en-US', {
-            timeZone: 'Asia/Taipei',
-            hour12: false
-        });
-        const taiwanTime = new Date(taiwanTimeString);
+        const taiwanTime = getTaiwanTime();
 
         selectedDate = taiwanTime;
         displayMonth = new Date(taiwanTime.getFullYear(), taiwanTime.getMonth(), 1); // Sync display month
@@ -1627,29 +1624,6 @@ function getResourceBookings(resourceId) {
     return mockResourceBookings.filter(booking => booking.rId === resourceId);
 }
 
-function createResourceBookingBox(booking, resourceId) {
-    // Find the resource name
-    const resource = resources.find(r => r.id === resourceId);
-    const resourceName = resource ? resource.name : `資源${resourceId}`;
-
-    // Get assigned color for this resource
-    const resourceColor = getItemColor('resource', resourceId);
-
-    // Format according to production pattern: [{ResourceName}] {EventTitle} | {Notes}
-    const displayTitle = booking.title;
-    const displayText = booking.notes ? `[${resourceName}] ${displayTitle} | ${booking.notes}` : `[${resourceName}] ${displayTitle}`;
-
-    const div = createCalendarElement(
-        booking.start,
-        booking.end,
-        'resource-booking',
-        `<div class="booking-title">${displayText}</div>`,
-        `${displayText} - ${booking.start}-${booking.end}`
-    );
-    div.style.background = resourceColor || '#e5e7eb'; // Fallback to gray if no color assigned
-
-    return div;
-}
 
 
 
