@@ -1,0 +1,77 @@
+/* CalendarGrid.module.css */
+.calendarGrid {
+  position: relative;
+  overflow: auto;
+  height: calc(100vh - 64px);
+  background: white;
+}
+
+.timeIndicator {
+  position: absolute;
+  height: 3px;
+  background: #ef4444;
+  z-index: 10;
+  pointer-events: none;
+  box-shadow: 0 0 4px rgba(239, 68, 68, 0.5);
+}
+
+.timeColumn {
+  position: sticky;
+  left: 0;
+  width: 28px;
+  background: white;
+  border-right: 1px solid #e5e7eb;
+  z-index: 20;
+}
+
+.timeLabel {
+  height: 80px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  font-size: 10px;
+  color: #64748b;
+  border-bottom: 1px solid #f3f4f6;
+  padding-top: 2px;
+}
+
+.resourceGrid {
+  display: flex;
+  flex: 1;
+}
+
+.practitionerColumn {
+  flex: 1;
+  min-width: 56px;
+  position: relative;
+  border-right: 1px solid #e5e7eb;
+  background: white;
+}
+
+.timeSlot {
+  height: 20px;
+  border-bottom: 1px solid #f9fafb;
+  cursor: pointer;
+}
+
+.timeSlot:hover {
+  background: #f3f4f6;
+}
+
+.calendarEvent {
+  position: absolute;
+  padding: 4px 6px;
+  border-radius: 8px;
+  color: white;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  z-index: 5;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.calendarEvent:hover {
+  opacity: 0.9;
+}

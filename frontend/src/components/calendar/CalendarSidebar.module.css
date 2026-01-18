@@ -1,0 +1,137 @@
+/* CalendarSidebar.module.css */
+.sidebar {
+  position: fixed;
+  top: 64px;
+  left: 0;
+  width: 240px;
+  height: calc(100vh - 64px);
+  background: white;
+  border-right: 1px solid #e5e7eb;
+  z-index: 1000;
+  overflow-y: auto;
+  transform: translateX(var(--sidebar-translate-x, -100%));
+  transition: transform 0.3s ease;
+}
+
+.sidebarOverlay {
+  position: fixed;
+  top: 64px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 999;
+  opacity: var(--sidebar-overlay-opacity, 0);
+  visibility: var(--sidebar-overlay-visibility, hidden);
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.sidebarContent {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.sidebarSection {
+  padding: 0;
+  margin-bottom: 16px;
+}
+
+.sidebarSectionTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 12px;
+}
+
+.viewOptionsRow {
+  display: flex;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.viewOption {
+  padding: 6px 12px;
+  border: 1px solid #d1d5db;
+  background: white;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #1f2937;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.viewOption:hover {
+  background: #f9fafb;
+}
+
+.viewOptionActive {
+  background: #2563eb;
+  color: white;
+  border-color: #2563eb;
+}
+
+.filterItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background 0.2s;
+  padding: 4px;
+  margin-bottom: 6px;
+}
+
+.filterItem:hover {
+  background: #f9fafb;
+}
+
+.filterItem:last-child {
+  margin-bottom: 0;
+}
+
+.filterIndicator {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  display: inline-block;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.filterItem input[type="checkbox"] {
+  display: none;
+}
+
+.filterItem input[type="checkbox"]:checked + .filterIndicator::after {
+  content: '✓';
+  color: white;
+  font-size: 10px;
+  font-weight: bold;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.mobileMenuBtn {
+  display: none;
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 1001;
+  background: white;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  padding: 8px;
+  cursor: pointer;
+}
+
+@media (max-width: 1024px) {
+  .mobileMenuBtn {
+    display: block;
+  }
+}

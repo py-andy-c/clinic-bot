@@ -1,69 +1,52 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { usePractitioners } from '../hooks/queries';
-import { useIsMobile } from '../hooks/useIsMobile';
-import { useCalendarSelection } from '../hooks/useCalendarSelection';
 import { LoadingSpinner } from '../components/shared';
-import { View } from 'react-big-calendar';
-import CalendarView from '../components/CalendarView';
-import PageHeader from '../components/PageHeader';
-import CalendarSelector from '../components/CalendarSelector';
-import PractitionerChips from '../components/PractitionerChips';
-import ResourceChips from '../components/ResourceChips';
-import FloatingActionButton from '../components/FloatingActionButton';
+import { View, Views } from 'react-big-calendar';
+import CalendarLayout from '../components/calendar/CalendarLayout';
+import CalendarSidebar from '../components/calendar/CalendarSidebar';
+import CalendarDateStrip from '../components/calendar/CalendarDateStrip';
+import CalendarGrid from '../components/calendar/CalendarGrid';
 import { apiService } from '../services/api';
 import { calendarStorage } from '../utils/storage';
 import { getDateString } from '../utils/calendarUtils';
 import { logger } from '../utils/logger';
 import { Resource } from '../types';
+import { CalendarEvent, transformToCalendarEvents } from '../utils/calendarDataAdapter';
 
 const AvailabilityPage: React.FC = () => {
-  const { user, isPractitioner, isLoading: authLoading, isAuthenticated } = useAuth();
-  const isMobile = useIsMobile();
-  const [searchParams] = useSearchParams();
+  const { user, isLoading: authLoading, isAuthenticated } = useAuth();
   const [loading, setLoading] = useState(true);
-  const [addExceptionHandler, setAddExceptionHandler] = useState<(() => void) | null>(null);
-  const [additionalPractitionerIds, setAdditionalPractitionerIds] = useState<number[]>([]);
-  const [defaultPractitionerId, setDefaultPractitionerId] = useState<number | null>(null);
-  const [showPractitionerModal, setShowPractitionerModal] = useState(false);
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [view, setView] = useState<View>(Views.DAY);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [allEvents, setAllEvents] = useState<CalendarEvent[]>([]);
+  const [selectedPractitioners, setSelectedPractitioners] = useState<number[]>([]);
+  const [selectedResources, setSelectedResources] = useState<number[]>([]);
   const [resources, setResources] = useState<Resource[]>([]);
 
-  // Scroll to top when component mounts
-  useEffect(() => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, []);
-
-  // Get pre-selected patient ID from query parameter
-  const preSelectedPatientId = searchParams.get('createAppointment') 
-    ? parseInt(searchParams.get('createAppointment') || '0', 10) 
-    : undefined;
-
-  // Use React Query for practitioners with caching and request deduplication
+  // Use React Query for practitioners
   const { data: practitionersData, isLoading: practitionersLoading } = usePractitioners();
-
   const practitioners = practitionersData || [];
-  
-  // Load resources for resource selector
-  const [resourcesLoading, setResourcesLoading] = useState(false);
-  
+
+  // Load resources
   useEffect(() => {
     const loadResources = async () => {
+      if (!isAuthenticated || authLoading || !user?.active_clinic_id) {
+        return;
+      }
+
       try {
-        setResourcesLoading(true);
-        
-        // Fetch all resource types
+        // Get all resource types
         const resourceTypesResponse = await apiService.getResourceTypes();
         const resourceTypes = resourceTypesResponse.resource_types;
 
-        // Fetch all resources for each type
+        // Fetch all resources
         const allResources: Resource[] = [];
         for (const resourceType of resourceTypes) {
           try {
             const resourcesResponse = await apiService.getResources(resourceType.id);
-            // Filter out deleted resources
-            const activeResources = resourcesResponse.resources
-              .filter(r => !r.is_deleted);
+            const activeResources = resourcesResponse.resources.filter(r => !r.is_deleted);
             allResources.push(...activeResources);
           } catch (err) {
             logger.error(`Failed to load resources for type ${resourceType.id}:`, err);
@@ -73,8 +56,6 @@ const AvailabilityPage: React.FC = () => {
         setResources(allResources);
       } catch (err) {
         logger.error('Failed to load resources:', err);
-      } finally {
-        setResourcesLoading(false);
       }
     };
 
@@ -83,181 +64,135 @@ const AvailabilityPage: React.FC = () => {
     }
   }, [isAuthenticated, authLoading, user?.active_clinic_id]);
 
-  // Use unified hook for resource selection persistence
-  const {
-    selectedIds: selectedResourceIds,
-    setSelectedIds: setSelectedResourceIds,
-  } = useCalendarSelection({
-    items: resources,
-    userId: user?.user_id,
-    clinicId: user?.active_clinic_id ?? null,
-    validateItem: (resource) => !resource.is_deleted,
-    storageType: 'resources',
-    waitForAllItems: false, // Resources load all at once, no race condition
-  });
-  
-  // Track if we've loaded persisted state to avoid overwriting with defaults
-  const hasLoadedPersistedStateRef = useRef(false);
-  // Track if persisted state had a default practitioner to prevent default handler from overriding
-  const persistedStateHadDefaultPractitionerRef = useRef(false);
-  // Track previous clinic ID to reset persistence flags when clinic changes
-  const previousClinicIdForPractitionersRef = useRef<number | null>(null);
-
-  // Load persisted calendar state on mount (after user and practitioners are available)
-  // This must run before the default practitioner handler
+  // Initialize selection state
   useEffect(() => {
-    // Reset persistence flags when clinic changes
-    if (user?.active_clinic_id !== previousClinicIdForPractitionersRef.current && previousClinicIdForPractitionersRef.current !== null) {
-      hasLoadedPersistedStateRef.current = false;
-      persistedStateHadDefaultPractitionerRef.current = false;
-    }
-    previousClinicIdForPractitionersRef.current = user?.active_clinic_id ?? null;
-    
-    if (!user?.user_id || !user?.active_clinic_id || practitioners.length === 0 || hasLoadedPersistedStateRef.current) {
-      return;
-    }
-
-    const persistedState = calendarStorage.getCalendarState(user.user_id, user.active_clinic_id);
-    
-    if (persistedState) {
-      // Filter out invalid practitioners (those that no longer exist)
-      const validPractitionerIds = persistedState.additionalPractitionerIds.filter(id =>
-        practitioners.some(p => p.id === id)
-      );
-      
-      // If we filtered out IDs but the persisted state had IDs, practitioners might still be loading.
-      // Don't mark as loaded yet - wait for practitioners array to grow to avoid overwriting persisted state.
-      // Only mark as loaded if all persisted IDs are valid OR persisted state had no IDs to begin with.
-      const allPersistedIdsAreValid = validPractitionerIds.length === persistedState.additionalPractitionerIds.length;
-      const hadNoPersistedIds = persistedState.additionalPractitionerIds.length === 0;
-      
-      if (!allPersistedIdsAreValid && !hadNoPersistedIds) {
-        // Don't set state or mark as loaded - let it re-run when more practitioners load
-        return;
-      }
-      
-      // Validate default practitioner exists
-      const validDefaultPractitionerId = persistedState.defaultPractitionerId && 
-        practitioners.some(p => p.id === persistedState.defaultPractitionerId)
-        ? persistedState.defaultPractitionerId
-        : null;
-
-      setAdditionalPractitionerIds(validPractitionerIds);
-      
-      // Only set default practitioner if user is not a practitioner
-      if (!isPractitioner) {
-        if (validDefaultPractitionerId) {
-          setDefaultPractitionerId(validDefaultPractitionerId);
-          persistedStateHadDefaultPractitionerRef.current = true;
-        } else if (practitioners.length > 0) {
-          // Fallback to first practitioner if persisted one doesn't exist
-          setDefaultPractitionerId(practitioners[0]!.id);
-          persistedStateHadDefaultPractitionerRef.current = false;
+    if (practitioners.length > 0 && user?.user_id && user?.active_clinic_id) {
+      // Load persisted state
+      const persistedState = calendarStorage.getCalendarState(user.user_id, user.active_clinic_id);
+      if (persistedState) {
+        // Set view and date
+        setView(persistedState.view === 'month' ? Views.MONTH :
+                persistedState.view === 'week' ? Views.WEEK : Views.DAY);
+        if (persistedState.currentDate) {
+          setCurrentDate(new Date(persistedState.currentDate));
         }
-      }
-      
-      hasLoadedPersistedStateRef.current = true;
-    } else {
-      // No persisted state - will be handled by default practitioner handler
-      hasLoadedPersistedStateRef.current = true;
-      persistedStateHadDefaultPractitionerRef.current = false;
-    }
-  }, [user?.user_id, user?.active_clinic_id, practitioners, isPractitioner]);
 
-  // Persist state whenever it changes (after initial load)
-  useEffect(() => {
-    if (!user?.user_id || !user?.active_clinic_id || !hasLoadedPersistedStateRef.current) {
-      return;
-    }
+        // Set practitioners (limit to 10)
+        const validPractitioners = persistedState.additionalPractitionerIds
+          .filter(id => practitioners.some(p => p.id === id))
+          .slice(0, 10);
+        setSelectedPractitioners(validPractitioners);
 
-    // Get current view and date from storage (CalendarView manages these)
-    // We preserve them when saving practitioner state
-    const currentState = calendarStorage.getCalendarState(user.user_id, user.active_clinic_id);
-    const updatedState = {
-      view: (currentState?.view || 'day') as 'month' | 'week' | 'day',
-      // Preserve current date from storage, or use today's date if not available
-      currentDate: currentState?.currentDate || getDateString(new Date()),
-      additionalPractitionerIds,
-      defaultPractitionerId,
-    };
-    calendarStorage.setCalendarState(user.user_id, user.active_clinic_id, updatedState);
-    // Resource selection is now handled by useCalendarSelection hook
-  }, [user?.user_id, user?.active_clinic_id, additionalPractitionerIds, defaultPractitionerId]);
-
-  // Determine which practitioner IDs to display
-  const displayedPractitionerIds = React.useMemo(() => {
-    const ids: number[] = [];
-    
-    // Always include current user if they're a practitioner
-    if (isPractitioner && user?.user_id) {
-      ids.push(user.user_id);
-    }
-    
-    // Add default practitioner if user is not a practitioner
-    if (!isPractitioner && defaultPractitionerId) {
-      ids.push(defaultPractitionerId);
-    }
-    
-    // Add additional selected practitioners
-    additionalPractitionerIds.forEach((id) => {
-      if (!ids.includes(id)) {
-        ids.push(id);
-      }
-    });
-    
-    return ids;
-  }, [isPractitioner, user?.user_id, defaultPractitionerId, additionalPractitionerIds]);
-
-  // Handle default practitioner for non-practitioners when practitioners data loads
-  // Only runs if persisted state didn't set a default practitioner
-  useEffect(() => {
-    // Skip if we haven't loaded persisted state yet, or if persisted state already set a default
-    if (!hasLoadedPersistedStateRef.current || persistedStateHadDefaultPractitionerRef.current) {
-      return;
-    }
-
-    if (!isPractitioner && practitioners.length > 0) {
-      // Check if current default practitioner still exists
-      if (defaultPractitionerId && practitioners.some(p => p.id === defaultPractitionerId)) {
-        // Keep current default if it still exists
-        // No change needed
+        // Set resources (limit to 10)
+        const resourceState = calendarStorage.getResourceSelection(user.user_id, user.active_clinic_id);
+        const validResources = resourceState
+          .filter(id => resources.some(r => r.id === id))
+          .slice(0, 10);
+        setSelectedResources(validResources);
       } else {
-        // Default practitioner was removed or doesn't exist, set to first available
-        const firstPractitioner = practitioners[0];
-        if (firstPractitioner) {
-          setDefaultPractitionerId(firstPractitioner.id);
+        // Default: select first available practitioner
+        if (practitioners.length > 0 && practitioners[0]) {
+          setSelectedPractitioners([practitioners[0].id]);
         }
       }
-    } else if (!isPractitioner && practitioners.length === 0) {
-      // No practitioners available
-      setDefaultPractitionerId(null);
-    }
-  }, [isPractitioner, practitioners, defaultPractitionerId]);
-
-  // Clean up additional practitioners that no longer exist
-  useEffect(() => {
-    if (practitioners.length > 0) {
-      setAdditionalPractitionerIds(prev => 
-        prev.filter(id => practitioners.some(p => p.id === id))
-      );
-    }
-  }, [practitioners]);
-
-  useEffect(() => {
-    if (user?.user_id) {
       setLoading(false);
     }
-  }, [user]);
+  }, [practitioners, resources, user]);
 
-  const handleAddExceptionHandlerReady = useCallback((handler: () => void, _view: View) => {
-    setAddExceptionHandler(() => handler);
+  // Load calendar events
+  useEffect(() => {
+    const loadEvents = async () => {
+      if (selectedPractitioners.length === 0) return;
+
+      try {
+        // Use batch API to get events for all selected practitioners and resources
+        const startDate = getDateString(currentDate);
+        const endDate = startDate; // For now, just load current day
+
+        const [practitionerEvents, resourceEvents] = await Promise.all([
+          selectedPractitioners.length > 0
+            ? apiService.getBatchCalendar({
+                practitionerIds: selectedPractitioners,
+                startDate,
+                endDate
+              })
+            : Promise.resolve({ results: [] }),
+          selectedResources.length > 0
+            ? apiService.getBatchResourceCalendar({
+                resourceIds: selectedResources,
+                startDate,
+                endDate
+              })
+            : Promise.resolve({ results: [] })
+        ]);
+
+        // Transform events
+        const allEvents = [
+          ...transformToCalendarEvents(practitionerEvents.results.flatMap(r => r.events)),
+          ...transformToCalendarEvents(resourceEvents.results?.flatMap(r => r.events) || [])
+        ];
+
+        setAllEvents(allEvents);
+      } catch (error) {
+        logger.error('Failed to load calendar events:', error);
+      }
+    };
+
+    loadEvents();
+  }, [selectedPractitioners, selectedResources, currentDate]);
+
+  // Event handlers
+  const handleViewChange = useCallback((newView: View) => {
+    setView(newView);
+    // Persist view change
+    if (user?.user_id && user?.active_clinic_id) {
+      calendarStorage.setCalendarState(user.user_id, user.active_clinic_id, {
+        view: newView === Views.MONTH ? 'month' : newView === Views.WEEK ? 'week' : 'day',
+        currentDate: getDateString(currentDate),
+        additionalPractitionerIds: selectedPractitioners,
+        defaultPractitionerId: null,
+      });
+    }
+  }, [user, currentDate, selectedPractitioners]);
+
+  const handleDateChange = useCallback((date: Date) => {
+    setCurrentDate(date);
+    // Persist date change
+    if (user?.user_id && user?.active_clinic_id) {
+      calendarStorage.setCalendarState(user.user_id, user.active_clinic_id, {
+        view: view === Views.MONTH ? 'month' : view === Views.WEEK ? 'week' : 'day',
+        currentDate: getDateString(date),
+        additionalPractitionerIds: selectedPractitioners,
+        defaultPractitionerId: null,
+      });
+    }
+  }, [user, selectedPractitioners, view]);
+
+  const handleEventClick = useCallback((_event: CalendarEvent) => {
+    // TODO: Open event modal
   }, []);
 
-  // Handler for create appointment button
+  const handleSlotClick = useCallback((_slotInfo: { start: Date; end: Date }) => {
+    // TODO: Open create appointment modal
+  }, []);
+
   const handleCreateAppointment = useCallback(() => {
-    // Trigger create appointment modal in CalendarView
-    (window as any).__calendarCreateAppointment?.();
+    // TODO: Open create appointment modal
   }, []);
+
+  const handleCreateException = useCallback(() => {
+    // TODO: Open create exception modal
+  }, []);
+
+  const handleToday = useCallback(() => {
+    const today = new Date();
+    setCurrentDate(today);
+    handleDateChange(today);
+  }, [handleDateChange]);
+
+  const handleSettings = useCallback(() => {
+    setSidebarOpen(!sidebarOpen);
+  }, [sidebarOpen]);
 
   if (loading || practitionersLoading) {
     return (
@@ -267,179 +202,50 @@ const AvailabilityPage: React.FC = () => {
     );
   }
 
-  // Determine the primary user ID for calendar display
-  // If user is practitioner, use their ID; otherwise use default practitioner
-  const primaryUserId = isPractitioner && user?.user_id
-    ? user.user_id
-    : defaultPractitionerId;
+  if (practitioners.length === 0) {
+    return (
+      <div className="text-center py-12 text-gray-500">
+        <p className="text-lg mb-2">目前沒有可用的治療師</p>
+        <p className="text-sm">請先新增治療師到診所</p>
+      </div>
+    );
+  }
 
   return (
-    <>
-      {/* Practitioner Chips - Mobile only, show below header */}
-      {isMobile && practitioners.length > 0 && additionalPractitionerIds.length > 0 && (
-        <PractitionerChips
-          practitioners={practitioners}
-          selectedPractitionerIds={additionalPractitionerIds}
-          currentUserId={user?.user_id || null}
-          isPractitioner={isPractitioner || false}
-          primaryUserId={primaryUserId || null}
-          onRemove={(id) => setAdditionalPractitionerIds(prev => prev.filter(pid => pid !== id))}
-        />
-      )}
-
-      {/* Resource Chips - Mobile only, show below header */}
-      {isMobile && !resourcesLoading && resources.length > 0 && selectedResourceIds.length > 0 && (
-        <ResourceChips
-          resources={resources}
-          selectedResourceIds={selectedResourceIds}
-          onRemove={(id) => setSelectedResourceIds(prev => prev.filter(rid => rid !== id))}
-          allPractitionerIds={displayedPractitionerIds}
-          primaryUserId={primaryUserId}
-        />
-      )}
-
-      {/* Header - Hide title on mobile */}
-      <PageHeader
-        title={isMobile ? "" : "行事曆"}
-        action={
-          <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3 md:gap-4 w-full md:w-auto">
-            {/* Calendar Selector - Desktop only (combines practitioners and resources) */}
-            {(practitioners.length > 0 || (!resourcesLoading && resources.length > 0)) && (
-              <div className="desktop-only w-full md:w-auto">
-                <CalendarSelector
-                  practitioners={practitioners}
-                  selectedPractitionerIds={additionalPractitionerIds}
-                  currentUserId={user?.user_id || null}
-                  isPractitioner={isPractitioner || false}
-                  onPractitionerChange={setAdditionalPractitionerIds}
-                  resources={resources}
-                  selectedResourceIds={selectedResourceIds}
-                  onResourceChange={setSelectedResourceIds}
-                  maxSelectablePractitioners={5}
-                  maxSelectableResources={10}
-                />
-              </div>
-            )}
-            
-            {/* Create Appointment button - hide on mobile (moved to FAB) */}
-            {!isMobile && (
-              <button
-                onClick={handleCreateAppointment}
-                className="w-full md:w-auto inline-flex items-center justify-center rounded-md bg-green-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-green-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-600 whitespace-nowrap"
-                data-testid="create-appointment-button"
-              >
-                新增預約
-              </button>
-            )}
-            
-            {/* Add Unavailable Time button - only show for practitioners, hide on mobile (moved to FAB) */}
-            {!isMobile && addExceptionHandler && isPractitioner && (
-              <button
-                onClick={addExceptionHandler}
-                className="w-full md:w-auto inline-flex items-center justify-center rounded-md bg-primary-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600 whitespace-nowrap"
-              >
-                新增休診時段
-              </button>
-            )}
-          </div>
-        }
+    <CalendarLayout>
+      <CalendarSidebar
+        view={view}
+        onViewChange={handleViewChange}
+        practitioners={practitioners}
+        selectedPractitioners={selectedPractitioners}
+        onPractitionersChange={setSelectedPractitioners}
+        resources={resources}
+        selectedResources={selectedResources}
+        onResourcesChange={setSelectedResources}
+        isOpen={sidebarOpen}
+        onToggle={() => setSidebarOpen(!sidebarOpen)}
       />
 
-      {/* Calendar View - Full width on mobile, constrained on desktop */}
-      <div className="-mx-4 sm:-mx-6 md:mx-0 -my-2 md:-my-6">
-        {primaryUserId && (
-          <CalendarView
-            userId={primaryUserId}
-            additionalPractitionerIds={displayedPractitionerIds.filter(id => id !== primaryUserId)}
-            practitioners={practitioners}
-            resourceIds={selectedResourceIds}
-            resources={resources}
-            onAddExceptionHandlerReady={handleAddExceptionHandlerReady}
-            {...(preSelectedPatientId !== undefined ? { preSelectedPatientId } : {})}
-          />
-        )}
-        {!primaryUserId && practitioners.length === 0 && (
-          <div className="text-center py-12 text-gray-500">
-            <p className="text-lg mb-2">目前沒有可用的治療師</p>
-            <p className="text-sm">請先新增治療師到診所</p>
-          </div>
-        )}
+      <CalendarDateStrip
+        view={view}
+        currentDate={currentDate}
+        onDateChange={handleDateChange}
+        onCreateAppointment={handleCreateAppointment}
+        onCreateException={handleCreateException}
+        onToday={handleToday}
+        onSettings={handleSettings}
+      />
 
-        {/* Floating Action Button - Mobile only */}
-        {isMobile && (
-        <FloatingActionButton
-          items={[
-            {
-              id: 'create-appointment',
-              label: '新增預約',
-              onClick: handleCreateAppointment,
-              color: 'green' as const,
-              icon: (
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-              ),
-            },
-            ...(addExceptionHandler && isPractitioner ? [{
-              id: 'add-exception',
-              label: '新增休診時段',
-              onClick: addExceptionHandler,
-              color: 'blue' as const,
-              icon: (
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              ),
-            }] : []),
-            ...((practitioners.length > 0 || (!resourcesLoading && resources.length > 0)) ? [{
-              id: 'add-calendar',
-              label: '加入行事曆',
-              onClick: () => setShowPractitionerModal(true),
-              color: 'purple' as const,
-              icon: (
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-              ),
-            }] : []),
-          ]}
-        />
-        )}
-      </div>
-
-      {/* Calendar Selector Modal - Mobile only */}
-      {isMobile && showPractitionerModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" onClick={() => setShowPractitionerModal(false)}>
-          <div className="bg-white rounded-lg w-full md:w-auto md:max-w-md max-h-[80vh] flex flex-col mx-4 overflow-hidden" onClick={(e) => e.stopPropagation()}>
-            <div className="flex-shrink-0 bg-white border-b px-4 py-3 flex justify-between items-center z-10 rounded-t-lg">
-              <h2 className="text-lg font-semibold">加入行事曆</h2>
-              <button
-                onClick={() => setShowPractitionerModal(false)}
-                className="text-gray-500 hover:text-gray-700 text-2xl leading-none"
-                aria-label="關閉"
-              >
-                ×
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-4">
-              <CalendarSelector
-                practitioners={practitioners}
-                selectedPractitionerIds={additionalPractitionerIds}
-                currentUserId={user?.user_id || null}
-                isPractitioner={isPractitioner || false}
-                onPractitionerChange={setAdditionalPractitionerIds}
-                resources={resources}
-                selectedResourceIds={selectedResourceIds}
-                onResourceChange={setSelectedResourceIds}
-                maxSelectablePractitioners={5}
-                maxSelectableResources={10}
-                showAsList={true}
-              />
-            </div>
-          </div>
-        </div>
-      )}
-    </>
+      <CalendarGrid
+        view={view}
+        currentDate={currentDate}
+        events={allEvents}
+        selectedPractitioners={selectedPractitioners}
+        selectedResources={selectedResources}
+        onEventClick={handleEventClick}
+        onSlotClick={handleSlotClick}
+      />
+    </CalendarLayout>
   );
 };
 

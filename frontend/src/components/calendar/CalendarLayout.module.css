@@ -1,0 +1,39 @@
+/* CalendarLayout.module.css */
+.calendarLayout {
+  width: 100vw;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* Override ClinicLayout constraints */
+.calendarLayout :global(.max-w-7xl) {
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.calendarLayout :global(.px-4),
+.calendarLayout :global(.sm\\:px-6),
+.calendarLayout :global(.lg\\:px-8),
+.calendarLayout :global(.py-2),
+.calendarLayout :global(.md\\:py-6) {
+  padding: 0 !important;
+}
+
+.calendarLayout :global(.mx-auto) {
+  margin: 0 !important;
+}
+
+.calendarLayout :global(.max-w-4xl) {
+  max-width: none !important;
+}
+
+.calendarLayout :global(main) {
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+.calendarLayout :global(*) {
+  box-sizing: border-box;
+}

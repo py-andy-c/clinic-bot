@@ -1,0 +1,205 @@
+/* CalendarDateStrip.module.css */
+.dateStripContainer {
+  background: white;
+  border-bottom: 1px solid #e5e7eb;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 8px;
+  flex-shrink: 0;
+}
+
+.dateNavigation {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 100%;
+}
+
+.navButton {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  color: #2563eb;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: background 0.2s;
+  min-width: 24px;
+}
+
+.navButton:hover {
+  background: rgba(37, 99, 235, 0.1);
+}
+
+.dateDisplay {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0 4px;
+  white-space: nowrap;
+  cursor: pointer;
+  padding: 8px 16px;
+  border-radius: 6px;
+  transition: background 0.2s;
+}
+
+.dateDisplay:hover {
+  background: #f9fafb;
+}
+
+.actionButtons {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.actionBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 4px 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #374151;
+  min-width: 32px;
+  height: 28px;
+  transition: all 0.2s;
+}
+
+.actionBtn:hover {
+  background: rgba(37, 99, 235, 0.1);
+  color: #2563eb;
+}
+
+.actionBtn:active {
+  background: rgba(37, 99, 235, 0.2);
+  transform: scale(0.98);
+}
+
+.actionIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 12px;
+  height: 12px;
+  line-height: 1;
+}
+
+.miniCalendarModal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1200;
+}
+
+.miniCalendarContent {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  max-width: 320px;
+  width: 90%;
+  max-height: 90vh;
+  overflow: hidden;
+}
+
+.miniCalendarHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.monthNavBtn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  color: #6b7280;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.monthNavBtn:hover {
+  background: #f9fafb;
+  color: #1f2937;
+}
+
+.currentMonthLabel {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.miniCalendar {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  padding: 12px;
+  font-size: 11px;
+}
+
+.weekday {
+  text-align: center;
+  font-weight: 600;
+  color: #6b7280;
+  padding: 4px 2px;
+  font-size: 10px;
+}
+
+.day {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: #1f2937;
+  font-size: 11px;
+}
+
+.day:hover {
+  background: #f9fafb;
+}
+
+.dayOtherMonth {
+  color: #9ca3af;
+  opacity: 0.5;
+}
+
+.dayToday {
+  text-decoration: underline;
+  text-decoration-color: #2563eb;
+  text-decoration-thickness: 2px;
+  font-weight: 600;
+}
+
+.daySelected {
+  background: #2563eb;
+  color: white;
+  font-weight: 700;
+}
+
+.dayTodaySelected {
+  background: #2563eb;
+  color: white;
+  font-weight: 700;
+  text-decoration: underline;
+  text-decoration-color: white;
+  text-decoration-thickness: 2px;
+}
