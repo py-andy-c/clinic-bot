@@ -1239,7 +1239,7 @@ function renderWeeklyHeaders(weekDays) {
         const header = document.createElement('div');
         header.className = 'resource-header';
         header.innerHTML = `
-            <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 2px;">${dayName}</div>
+            <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 6px;">${dayName}</div>
             <div style="font-size: 12px; font-weight: 700;">${dateNum}</div>
         `;
         headerRow.appendChild(header);
