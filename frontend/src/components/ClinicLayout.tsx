@@ -248,6 +248,9 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
   } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+
+  // Check if current route is calendar page
+  const isCalendarPage = location.pathname.includes('/calendar');
   const { hasUnsavedChanges } = useUnsavedChanges();
   const { confirm } = useModal();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -606,10 +609,18 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
       <GlobalWarnings />
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto py-2 md:py-6 sm:px-6 lg:px-8">
-        <div className="px-4 py-2 md:py-6 sm:px-0 md:max-w-4xl md:mx-auto">
-          {children}
-        </div>
+      <main className={isCalendarPage ? "flex-1 overflow-hidden" : "max-w-7xl mx-auto py-2 md:py-6 sm:px-6 lg:px-8"}>
+        {isCalendarPage ? (
+          // Calendar page: full-width, no padding, touches header directly
+          <div className="h-full">
+            {children}
+          </div>
+        ) : (
+          // Regular pages: standard layout with padding
+          <div className="px-4 py-2 md:py-6 sm:px-0 md:max-w-4xl md:mx-auto">
+            {children}
+          </div>
+        )}
       </main>
     </div>
   );

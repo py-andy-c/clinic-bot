@@ -37,3 +37,11 @@ export { ServiceItemSelectionModal } from './ServiceItemSelectionModal';
 export { PractitionerSelectionModal } from './PractitionerSelectionModal';
 export type { PractitionerSelectionModalProps } from './PractitionerSelectionModal';
 
+export { CheckoutModal } from './CheckoutModal';
+
+export { ReceiptListModal } from './ReceiptListModal';
+
+export { ReceiptViewModal } from './ReceiptViewModal';
+
+export { default as NotificationModal } from './NotificationModal';
+export type { NotificationModalProps, NotificationPreview } from './NotificationModal';

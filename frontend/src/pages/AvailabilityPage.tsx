@@ -13,6 +13,15 @@ import { CreateAppointmentModal } from '../components/calendar/CreateAppointment
 import { ExceptionModal } from '../components/calendar/ExceptionModal';
 import { EditAppointmentModal } from '../components/calendar/EditAppointmentModal';
 import { DeleteConfirmationModal } from '../components/calendar/DeleteConfirmationModal';
+import { ConflictModal } from '../components/calendar/ConflictModal';
+import { CancellationNoteModal } from '../components/calendar/CancellationNoteModal';
+import { CancellationPreviewModal } from '../components/calendar/CancellationPreviewModal';
+import { CheckoutModal } from '../components/calendar/CheckoutModal';
+import { ReceiptListModal } from '../components/calendar/ReceiptListModal';
+import { ReceiptViewModal } from '../components/calendar/ReceiptViewModal';
+import { PractitionerSelectionModal } from '../components/calendar/PractitionerSelectionModal';
+import { ServiceItemSelectionModal } from '../components/calendar/ServiceItemSelectionModal';
+import NotificationModal from '../components/calendar/NotificationModal';
 import { apiService } from '../services/api';
 import { calendarStorage } from '../utils/storage';
 import { getDateString, formatAppointmentTimeRange } from '../utils/calendarUtils';
@@ -40,9 +49,19 @@ const AvailabilityPage: React.FC = () => {
   const [isExceptionModalOpen, setIsExceptionModalOpen] = useState(false);
   const [isEditAppointmentModalOpen, setIsEditAppointmentModalOpen] = useState(false);
   const [isDeleteConfirmationModalOpen, setIsDeleteConfirmationModalOpen] = useState(false);
+  const [isConflictModalOpen, setIsConflictModalOpen] = useState(false);
+  const [isCancellationNoteModalOpen, setIsCancellationNoteModalOpen] = useState(false);
+  const [isCancellationPreviewModalOpen, setIsCancellationPreviewModalOpen] = useState(false);
+  const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
+  const [isReceiptListModalOpen, setIsReceiptListModalOpen] = useState(false);
+  const [isReceiptViewModalOpen, setIsReceiptViewModalOpen] = useState(false);
+  const [isPractitionerSelectionModalOpen, setIsPractitionerSelectionModalOpen] = useState(false);
+  const [isServiceItemSelectionModalOpen, setIsServiceItemSelectionModalOpen] = useState(false);
 
   // Modal data state
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
+  const [selectedAppointmentId, setSelectedAppointmentId] = useState<number | null>(null);
+  const [notificationPreview, setNotificationPreview] = useState<any>(null);
 
   // Use React Query for practitioners
   const { data: practitionersData, isLoading: practitionersLoading } = usePractitioners();
@@ -328,11 +347,26 @@ const AvailabilityPage: React.FC = () => {
           onClose={() => {
             setIsCreateAppointmentModalOpen(false);
           }}
-          onConfirm={async (_formData) => {
-            // TODO: Implement appointment creation
-            setIsCreateAppointmentModalOpen(false);
-            // Clear cache to force refresh
-            setEventCache(new Map());
+          onConfirm={async (formData) => {
+            try {
+              const appointmentData: any = {
+                patient_id: formData.patient_id,
+                appointment_type_id: formData.appointment_type_id,
+                start_time: formData.start_time,
+                practitioner_id: formData.practitioner_id || null,
+                selected_resource_ids: formData.selected_resource_ids,
+              };
+              if (formData.clinic_notes) {
+                appointmentData.clinic_notes = formData.clinic_notes;
+              }
+              await apiService.createClinicAppointment(appointmentData);
+              setIsCreateAppointmentModalOpen(false);
+              // Clear cache to force refresh
+              setEventCache(new Map());
+            } catch (error) {
+              logger.error('Failed to create appointment:', error);
+              // Error handling will be done by the modal
+            }
           }}
         />
       )}
@@ -367,12 +401,28 @@ const AvailabilityPage: React.FC = () => {
             // Clear cache to force refresh
             setEventCache(new Map());
           }}
-          onConfirm={async (_formData) => {
-            // TODO: Implement appointment update API call
-            setIsEditAppointmentModalOpen(false);
-            setSelectedEvent(null);
-            // Clear cache to force refresh
-            setEventCache(new Map());
+          onConfirm={async (formData) => {
+            if (!selectedEvent?.id || typeof selectedEvent.id !== 'number') return;
+
+            try {
+              const updateData: any = {
+                appointment_type_id: formData.appointment_type_id || null,
+                practitioner_id: formData.practitioner_id || null,
+                start_time: formData.start_time,
+                selected_resource_ids: formData.selected_resource_ids,
+              };
+              if (formData.clinic_notes) {
+                updateData.clinic_notes = formData.clinic_notes;
+              }
+              await apiService.editClinicAppointment(selectedEvent.id, updateData);
+              setIsEditAppointmentModalOpen(false);
+              setSelectedEvent(null);
+              // Clear cache to force refresh
+              setEventCache(new Map());
+            } catch (error) {
+              logger.error('Failed to update appointment:', error);
+              // Error handling will be done by the modal
+            }
           }}
           formatAppointmentTime={formatAppointmentTimeRange}
         />
@@ -386,12 +436,140 @@ const AvailabilityPage: React.FC = () => {
             setSelectedEvent(null);
           }}
           onConfirm={() => {
-            // TODO: Implement appointment deletion API call
-            setIsDeleteConfirmationModalOpen(false);
-            setSelectedEvent(null);
-            // Clear cache to force refresh
-            setEventCache(new Map());
+            if (!selectedEvent?.id || typeof selectedEvent.id !== 'number') return;
+
+            // For appointments, this actually cancels them (not deletes)
+            apiService.cancelClinicAppointment(selectedEvent.id)
+              .then(() => {
+                setIsDeleteConfirmationModalOpen(false);
+                setSelectedEvent(null);
+                // Clear cache to force refresh
+                setEventCache(new Map());
+              })
+              .catch((error) => {
+                logger.error('Failed to cancel appointment:', error);
+                // Error handling will be done by the modal
+              });
           }}
+        />
+      )}
+
+      {/* Additional Modals */}
+      {isConflictModalOpen && (
+        <ConflictModal
+          conflictingAppointments={[]} // TODO: Implement conflict detection
+          onClose={() => {
+            setIsConflictModalOpen(false);
+          }}
+          formatTimeString={(timeStr) => timeStr} // TODO: Implement proper formatting
+        />
+      )}
+
+      {isCancellationNoteModalOpen && (
+        <CancellationNoteModal
+          cancellationNote=""
+          isLoading={false}
+          onNoteChange={() => {}} // TODO: Implement note handling
+          onBack={() => {
+            setIsCancellationNoteModalOpen(false);
+          }}
+          onSubmit={() => {
+            // TODO: Implement cancellation with note
+            setIsCancellationNoteModalOpen(false);
+            setEventCache(new Map()); // Refresh
+          }}
+        />
+      )}
+
+      {isCancellationPreviewModalOpen && (
+        <CancellationPreviewModal
+          previewMessage="預約取消確認訊息" // TODO: Implement proper preview
+          onBack={() => {
+            setIsCancellationPreviewModalOpen(false);
+          }}
+          onConfirm={() => {
+            // TODO: Implement cancellation
+            setIsCancellationPreviewModalOpen(false);
+            setEventCache(new Map()); // Refresh
+          }}
+        />
+      )}
+
+      {isCheckoutModalOpen && selectedEvent && (
+        <CheckoutModal
+          event={selectedEvent}
+          appointmentTypes={[]} // TODO: Fetch appointment types
+          practitioners={practitioners}
+          onClose={() => {
+            setIsCheckoutModalOpen(false);
+            setSelectedEvent(null);
+          }}
+          onSuccess={() => {
+            setIsCheckoutModalOpen(false);
+            setSelectedEvent(null);
+            setEventCache(new Map()); // Refresh
+          }}
+        />
+      )}
+
+      {isReceiptListModalOpen && selectedAppointmentId && (
+        <ReceiptListModal
+          appointmentId={selectedAppointmentId}
+          receiptIds={[]} // TODO: Implement receipt fetching
+          onClose={() => {
+            setIsReceiptListModalOpen(false);
+            setSelectedAppointmentId(null);
+          }}
+          onSelectReceipt={(receiptId) => {
+            setSelectedAppointmentId(receiptId);
+            setIsReceiptListModalOpen(false);
+            setIsReceiptViewModalOpen(true);
+          }}
+        />
+      )}
+
+      {isReceiptViewModalOpen && selectedAppointmentId && (
+        <ReceiptViewModal
+          receiptId={selectedAppointmentId}
+          onClose={() => {
+            setIsReceiptViewModalOpen(false);
+            setSelectedAppointmentId(null);
+          }}
+          isClinicUser={true} // TODO: Get from auth context
+        />
+      )}
+
+      {isPractitionerSelectionModalOpen && (
+        <PractitionerSelectionModal
+          isOpen={isPractitionerSelectionModalOpen}
+          selectedPractitionerId={null} // TODO: Pass actual selected practitioner
+          practitioners={practitioners}
+          onClose={() => setIsPractitionerSelectionModalOpen(false)}
+          onSelect={() => {
+            // TODO: Handle practitioner selection
+            setIsPractitionerSelectionModalOpen(false);
+          }}
+        />
+      )}
+
+      {isServiceItemSelectionModalOpen && (
+        <ServiceItemSelectionModal
+          isOpen={isServiceItemSelectionModalOpen}
+          onClose={() => setIsServiceItemSelectionModalOpen(false)}
+          onSelect={(_serviceItemId) => {
+            // TODO: Handle service item selection
+            setIsServiceItemSelectionModalOpen(false);
+          }}
+          serviceItems={[]} // TODO: Fetch service items
+          groups={[]} // TODO: Fetch service groups
+        />
+      )}
+
+      {notificationPreview && (
+        <NotificationModal
+          visible={!!notificationPreview}
+          onClose={() => setNotificationPreview(null)}
+          preview={notificationPreview}
         />
       )}
 
