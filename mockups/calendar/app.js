@@ -244,10 +244,7 @@ function renderDateStrip() {
         if (currentView === 'day') {
             monthYearDisplay.textContent = `${year}年${month + 1}月`;
         } else if (currentView === 'week') {
-            const weekStart = getWeekStart(selectedDate);
-            const weekEnd = new Date(weekStart);
-            weekEnd.setDate(weekStart.getDate() + 6);
-            monthYearDisplay.textContent = `${month + 1}月${weekStart.getDate()}-${weekEnd.getDate()}日`;
+            monthYearDisplay.textContent = `${year}年${month + 1}月`;
         } else if (currentView === 'month') {
             monthYearDisplay.textContent = `${year}年${month + 1}月`;
         }
@@ -274,12 +271,8 @@ function renderDateStrip() {
             `;
         }
     } else if (currentView === 'week') {
-        // For week view, just show month/year and leave dates blank (they're in the header below)
-        html = `
-            <div class="month-nav-item current-month" style="flex: 1;">
-                ${selectedDate.getFullYear()}年${selectedDate.getMonth() + 1}月
-            </div>
-        `;
+        // For week view, show empty date strip (dates are in header below)
+        html = '';
     } else if (currentView === 'month') {
         // For month view, show month navigation controls or simplified view
         const prevMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth() - 1, 1);
@@ -477,16 +470,18 @@ function renderHeaders() {
 
 function renderTimeLabels() {
     const timeLabels = document.getElementById('time-labels');
+    if (!timeLabels) return;
+
     let html = '';
 
-    if (currentView === 'day') {
-        // Only show time labels for daily view
+    if (currentView === 'day' || currentView === 'week') {
+        // Show time labels for daily and weekly views
         for (let h = 0; h <= 23; h++) {
             const label = h === 0 ? '' : `<span>${h}</span>`;
             html += `<div class="time-label">${label}</div>`;
         }
     }
-    // For week and month views, no separate time labels needed
+    // For month view, no time labels needed
 
     timeLabels.innerHTML = html;
 }
@@ -592,7 +587,7 @@ function renderWeeklyView() {
         weekDays.push(day);
     }
 
-    // Create 7 day columns with the same slot structure as daily view
+    // Create 7 day columns directly in the grid (same structure as daily view)
     weekDays.forEach(day => {
         const dayCol = document.createElement('div');
         dayCol.className = 'practitioner-column'; // Use same class as daily view
@@ -601,27 +596,12 @@ function renderWeeklyView() {
         for (let h = 0; h <= 23; h++) {
             for (let m = 0; m < 60; m += 15) {
                 const slot = document.createElement('div');
-                const timeStr = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
                 slot.className = 'time-slot';
 
                 // Mark as unavailable outside typical business hours (9AM-6PM)
                 const isBusinessHour = h >= 9 && h <= 18;
                 if (!isBusinessHour) {
                     slot.classList.add('unavailable');
-                }
-
-                // Add hour label at the start of each hour (only for first slot of hour)
-                if (m === 0 && h >= 8 && h <= 22) {
-                    const hourLabel = document.createElement('div');
-                    hourLabel.className = 'week-hour-label';
-                    hourLabel.textContent = h === 0 ? '12' : (h > 12 ? h - 12 : h).toString();
-                    hourLabel.style.position = 'absolute';
-                    hourLabel.style.top = '-8px';
-                    hourLabel.style.left = '4px';
-                    hourLabel.style.fontSize = '10px';
-                    hourLabel.style.fontWeight = '500';
-                    hourLabel.style.color = 'var(--text-muted)';
-                    slot.appendChild(hourLabel);
                 }
 
                 dayCol.appendChild(slot);
