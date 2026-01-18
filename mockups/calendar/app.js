@@ -586,11 +586,18 @@ function renderTimeBasedView(viewType) {
                 const slot = document.createElement('div');
                 slot.className = 'time-slot';
 
-                // For daily view, check practitioner availability
+                // Mark unavailable time slots
                 if (viewType === 'daily' && column.type === 'practitioner') {
+                    // Daily view: check specific practitioner availability
                     const timeStr = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
                     const isAvailable = column.data.schedule.some(interval => timeStr >= interval.start && timeStr < interval.end);
                     if (!isAvailable) {
+                        slot.classList.add('unavailable');
+                    }
+                } else if (viewType === 'weekly') {
+                    // Weekly view: show default business hours (9AM-6PM)
+                    const isBusinessHour = h >= 9 && h <= 18;
+                    if (!isBusinessHour) {
                         slot.classList.add('unavailable');
                     }
                 }
