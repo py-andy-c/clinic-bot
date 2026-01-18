@@ -584,6 +584,25 @@ function renderTimeLabels() {
 
 
 function renderCalendarView() {
+    // Adjust layout based on view
+    const timeColumn = document.getElementById('time-labels');
+    const timeCorner = document.querySelector('.time-corner');
+    const calendarGrid = document.getElementById('calendar-grid');
+
+    if (currentView === 'month') {
+        // Monthly view: hide time elements
+        if (timeColumn) timeColumn.style.display = 'none';
+        if (timeCorner) timeCorner.style.display = 'none';
+        // Calendar grid displays week rows as blocks
+        if (calendarGrid) calendarGrid.style.display = 'block';
+    } else {
+        // Daily/Weekly views: show time elements
+        if (timeColumn) timeColumn.style.display = 'block';
+        if (timeCorner) timeCorner.style.display = 'block';
+        // Calendar grid displays day columns as flex items
+        if (calendarGrid) calendarGrid.style.display = 'flex';
+    }
+
     if (currentView === 'day') {
         renderTimeBasedView('daily');
     } else if (currentView === 'week') {

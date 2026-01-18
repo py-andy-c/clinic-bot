@@ -633,6 +633,13 @@ body {
     flex-direction: column;
 }
 
+#calendar-grid {
+    /* For daily/weekly views: flex container for columns */
+    /* For monthly view: block container for week rows */
+    width: 100%;
+    display: block; /* Ensure block display for monthly week rows */
+}
+
 /* Header Row - Sticky Top */
 .header-row {
     position: sticky;
@@ -919,7 +926,9 @@ body {
 
 .month-week-row {
     display: flex;
+    width: 100%;
     border-bottom: 1px solid var(--border);
+    /* Ensure each week row displays as a block and stacks vertically */
 }
 
 .month-day-cell {
