@@ -23,10 +23,14 @@
   cursor: pointer;
   font-size: 16px;
   color: #2563eb;
-  padding: 2px 4px;
+  padding: 8px 12px;
   border-radius: 4px;
   transition: background 0.2s;
-  min-width: 24px;
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .navButton:hover {
@@ -64,12 +68,12 @@
   border: none;
   cursor: pointer;
   border-radius: 4px;
-  padding: 4px 6px;
+  padding: 8px 12px;
   font-size: 12px;
   font-weight: 500;
   color: #374151;
-  min-width: 32px;
-  height: 28px;
+  min-width: 44px;
+  min-height: 44px;
   transition: all 0.2s;
 }
 

@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { View, Views } from 'react-big-calendar';
+import { CalendarView, CalendarViews } from '../../types/calendar';
 import moment from 'moment-timezone';
 import styles from './CalendarDateStrip.module.css';
 
 interface CalendarDateStripProps {
-  view: View;
+  view: CalendarView;
   currentDate: Date;
   onDateChange: (date: Date) => void;
   onCreateAppointment: () => void;
@@ -27,9 +27,9 @@ const CalendarDateStrip: React.FC<CalendarDateStripProps> = ({
   const handlePrev = () => {
     const newDate = moment(currentDate).tz('Asia/Taipei');
 
-    if (view === Views.MONTH) {
+    if (view === CalendarViews.MONTH) {
       newDate.subtract(1, 'month');
-    } else if (view === Views.WEEK) {
+    } else if (view === CalendarViews.WEEK) {
       newDate.subtract(1, 'week');
     } else {
       newDate.subtract(1, 'day');
@@ -41,9 +41,9 @@ const CalendarDateStrip: React.FC<CalendarDateStripProps> = ({
   const handleNext = () => {
     const newDate = moment(currentDate).tz('Asia/Taipei');
 
-    if (view === Views.MONTH) {
+    if (view === CalendarViews.MONTH) {
       newDate.add(1, 'month');
-    } else if (view === Views.WEEK) {
+    } else if (view === CalendarViews.WEEK) {
       newDate.add(1, 'week');
     } else {
       newDate.add(1, 'day');
@@ -55,9 +55,9 @@ const CalendarDateStrip: React.FC<CalendarDateStripProps> = ({
   const getDateDisplay = () => {
     const date = moment(currentDate).tz('Asia/Taipei');
 
-    if (view === Views.DAY) {
+    if (view === CalendarViews.DAY) {
       return `${date.year()}年${date.month() + 1}月${date.date()}日`;
-    } else if (view === Views.WEEK) {
+    } else if (view === CalendarViews.WEEK) {
       return `${date.year()}年${date.month() + 1}月`;
     } else {
       return `${date.year()}年${date.month() + 1}月`;

@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Views } from 'react-big-calendar';
+import { CalendarView, CalendarViews } from '../../types/calendar';
 import { getPractitionerColor } from '../../utils/practitionerColors';
 import { getResourceColorById } from '../../utils/resourceColorUtils';
 import styles from './CalendarSidebar.module.css';
@@ -15,8 +15,8 @@ interface Resource {
 }
 
 interface CalendarSidebarProps {
-  view: View;
-  onViewChange: (view: View) => void;
+  view: CalendarView;
+  onViewChange: (view: CalendarView) => void;
   practitioners: Practitioner[];
   selectedPractitioners: number[];
   onPractitionersChange: (ids: number[]) => void;
@@ -39,7 +39,7 @@ const CalendarSidebar: React.FC<CalendarSidebarProps> = ({
   isOpen,
   onToggle,
 }) => {
-  const handleViewChange = (newView: View) => {
+  const handleViewChange = (newView: CalendarView) => {
     onViewChange(newView);
   };
 
@@ -100,20 +100,20 @@ const CalendarSidebar: React.FC<CalendarSidebarProps> = ({
             <span className={styles.sidebarSectionTitle}>模式</span>
             <div className={styles.viewOptionsRow}>
               <button
-                className={`${styles.viewOption} ${view === Views.MONTH ? styles.viewOptionActive : ''}`}
-                onClick={() => handleViewChange(Views.MONTH)}
+                className={`${styles.viewOption} ${view === CalendarViews.MONTH ? styles.viewOptionActive : ''}`}
+                onClick={() => handleViewChange(CalendarViews.MONTH)}
               >
                 月
               </button>
               <button
-                className={`${styles.viewOption} ${view === Views.WEEK ? styles.viewOptionActive : ''}`}
-                onClick={() => handleViewChange(Views.WEEK)}
+                className={`${styles.viewOption} ${view === CalendarViews.WEEK ? styles.viewOptionActive : ''}`}
+                onClick={() => handleViewChange(CalendarViews.WEEK)}
               >
                 週
               </button>
               <button
-                className={`${styles.viewOption} ${view === Views.DAY ? styles.viewOptionActive : ''}`}
-                onClick={() => handleViewChange(Views.DAY)}
+                className={`${styles.viewOption} ${view === CalendarViews.DAY ? styles.viewOptionActive : ''}`}
+                onClick={() => handleViewChange(CalendarViews.DAY)}
               >
                 日
               </button>

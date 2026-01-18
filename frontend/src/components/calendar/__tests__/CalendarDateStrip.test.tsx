@@ -1,12 +1,12 @@
 import React from 'react';
-import { render } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { vi } from 'vitest';
-import { Views } from 'react-big-calendar';
+import { CalendarViews } from '../../../types/calendar';
 import CalendarDateStrip from '../CalendarDateStrip';
 
 describe('CalendarDateStrip', () => {
   const mockProps = {
-    view: Views.DAY,
+    view: CalendarViews.DAY,
     currentDate: new Date('2024-01-15'),
     onDateChange: vi.fn(),
     onCreateAppointment: vi.fn(),
@@ -24,10 +24,76 @@ describe('CalendarDateStrip', () => {
   });
 
   it('renders without crashing for week view', () => {
-    expect(() => render(<CalendarDateStrip {...mockProps} view={Views.WEEK} />)).not.toThrow();
+    expect(() => render(<CalendarDateStrip {...mockProps} view={CalendarViews.WEEK} />)).not.toThrow();
   });
 
   it('renders without crashing for month view', () => {
-    expect(() => render(<CalendarDateStrip {...mockProps} view={Views.MONTH} />)).not.toThrow();
+    expect(() => render(<CalendarDateStrip {...mockProps} view={CalendarViews.MONTH} />)).not.toThrow();
+  });
+
+  it('displays correct date format for day view', () => {
+    render(<CalendarDateStrip {...mockProps} />);
+    expect(screen.getByText('2024年1月15日')).toBeInTheDocument();
+  });
+
+  it('displays correct date format for week view', () => {
+    render(<CalendarDateStrip {...mockProps} view={CalendarViews.WEEK} />);
+    expect(screen.getByText('2024年1月')).toBeInTheDocument();
+  });
+
+  it('displays correct date format for month view', () => {
+    render(<CalendarDateStrip {...mockProps} view={CalendarViews.MONTH} />);
+    expect(screen.getByText('2024年1月')).toBeInTheDocument();
+  });
+
+  it('calls onDateChange when previous button is clicked', () => {
+    render(<CalendarDateStrip {...mockProps} />);
+    const prevButton = screen.getByText('‹');
+    fireEvent.click(prevButton);
+    expect(mockProps.onDateChange).toHaveBeenCalled();
+  });
+
+  it('calls onDateChange when next button is clicked', () => {
+    render(<CalendarDateStrip {...mockProps} />);
+    const nextButton = screen.getByText('›');
+    fireEvent.click(nextButton);
+    expect(mockProps.onDateChange).toHaveBeenCalled();
+  });
+
+  it('calls onCreateAppointment when appointment button is clicked', () => {
+    render(<CalendarDateStrip {...mockProps} />);
+    const button = screen.getByTitle('Create Appointment');
+    fireEvent.click(button);
+    expect(mockProps.onCreateAppointment).toHaveBeenCalled();
+  });
+
+  it('calls onCreateException when exception button is clicked', () => {
+    render(<CalendarDateStrip {...mockProps} />);
+    const button = screen.getByTitle('Create Availability Exception');
+    fireEvent.click(button);
+    expect(mockProps.onCreateException).toHaveBeenCalled();
+  });
+
+  it('calls onToday when today button is clicked', () => {
+    render(<CalendarDateStrip {...mockProps} />);
+    const button = screen.getByTitle('Jump to Today');
+    fireEvent.click(button);
+    expect(mockProps.onToday).toHaveBeenCalled();
+  });
+
+  it('calls onSettings when settings button is clicked', () => {
+    render(<CalendarDateStrip {...mockProps} />);
+    const button = screen.getByTitle('Open Settings');
+    fireEvent.click(button);
+    expect(mockProps.onSettings).toHaveBeenCalled();
+  });
+
+  it('opens mini calendar when date display is clicked', () => {
+    render(<CalendarDateStrip {...mockProps} />);
+    const dateDisplay = screen.getByText('2024年1月15日');
+    fireEvent.click(dateDisplay);
+
+    // Mini calendar should now be visible
+    expect(screen.getByText('2024年1月')).toBeInTheDocument();
   });
 });

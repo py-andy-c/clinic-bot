@@ -1,7 +1,7 @@
 import React from 'react';
 import { render } from '@testing-library/react';
 import { vi } from 'vitest';
-import { Views } from 'react-big-calendar';
+import { CalendarViews } from '../../../types/calendar';
 import CalendarSidebar from '../CalendarSidebar';
 
 // Mock the color utilities
@@ -10,7 +10,7 @@ vi.mock('../../../utils/resourceColorUtils');
 
 describe('CalendarSidebar', () => {
   const mockProps = {
-    view: Views.DAY,
+    view: CalendarViews.DAY,
     onViewChange: vi.fn(),
     practitioners: [
       { id: 1, full_name: 'Dr. Smith' },

@@ -126,8 +126,13 @@
   background: white;
   border: 1px solid #d1d5db;
   border-radius: 6px;
-  padding: 8px;
+  padding: 12px;
   cursor: pointer;
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 @media (max-width: 1024px) {

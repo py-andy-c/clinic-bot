@@ -1,7 +1,7 @@
 import React, { useMemo, useRef } from 'react';
-import { View, Views } from 'react-big-calendar';
 import moment from 'moment-timezone';
 import { CalendarEvent } from '../../utils/calendarDataAdapter';
+import { CalendarView, CalendarViews } from '../../types/calendar';
 import { getPractitionerColor } from '../../utils/practitionerColors';
 import { getResourceColorById } from '../../utils/resourceColorUtils';
 import {
@@ -10,11 +10,14 @@ import {
   createTimeSlotDate,
   calculateEventPosition,
   calculateEventHeight,
+  calculateOverlappingEvents,
+  calculateEventInGroupPosition,
+  OverlappingEventGroup,
 } from '../../utils/calendarGridUtils';
 import styles from './CalendarGrid.module.css';
 
 interface CalendarGridProps {
-  view: View;
+  view: CalendarView;
   currentDate: Date;
   events: CalendarEvent[];
   selectedPractitioners: number[];
@@ -53,7 +56,7 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
     }
   };
 
-  if (view === Views.MONTH) {
+  if (view === CalendarViews.MONTH) {
     return <MonthlyCalendarGrid currentDate={currentDate} events={events} onEventClick={onEventClick || (() => {})} />;
   }
 
@@ -76,49 +79,57 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
 
         {/* Resource columns */}
         <div className={styles.resourceGrid}>
-          {selectedPractitioners.map((practitionerId) => (
-            <div key={`practitioner-${practitionerId}`} className={styles.practitionerColumn}>
-              {timeSlots.map((slot, index) => (
-                <div
-                  key={index}
-                  className={styles.timeSlot}
-                  onClick={() => handleSlotClick(slot.hour, slot.minute)}
-                />
-              ))}
-              {/* Render events for this practitioner */}
-              {events
-                .filter(event => event.resource.practitioner_id === practitionerId)
-                .map((event) => (
-                  <CalendarEventComponent
-                    key={event.id}
-                    event={event}
-                    onClick={() => onEventClick?.(event)}
-                  />
-                ))}
-            </div>
-          ))}
+          {selectedPractitioners.map((practitionerId) => {
+            const practitionerEvents = events.filter(event => event.resource.practitioner_id === practitionerId);
+            const overlappingGroups = calculateOverlappingEvents(practitionerEvents);
 
-          {selectedResources.map((resourceId) => (
-            <div key={`resource-${resourceId}`} className={styles.practitionerColumn}>
-              {timeSlots.map((slot, index) => (
-                <div
-                  key={index}
-                  className={styles.timeSlot}
-                  onClick={() => handleSlotClick(slot.hour, slot.minute)}
-                />
-              ))}
-              {/* Render events for this resource */}
-              {events
-                .filter(event => event.resource.resource_id === resourceId)
-                .map((event) => (
-                  <CalendarEventComponent
-                    key={event.id}
-                    event={event}
-                    onClick={() => onEventClick?.(event)}
+            return (
+              <div key={`practitioner-${practitionerId}`} className={styles.practitionerColumn}>
+                {timeSlots.map((slot, index) => (
+                  <div
+                    key={index}
+                    className={styles.timeSlot}
+                    onClick={() => handleSlotClick(slot.hour, slot.minute)}
                   />
                 ))}
-            </div>
-          ))}
+                {/* Render overlapping event groups */}
+                {overlappingGroups.map((group, groupIndex) => (
+                  <OverlappingEventGroupComponent
+                    key={`group-${practitionerId}-${groupIndex}`}
+                    group={group}
+                    groupIndex={groupIndex}
+                    onEventClick={onEventClick || (() => {})}
+                  />
+                ))}
+              </div>
+            );
+          })}
+
+          {selectedResources.map((resourceId) => {
+            const resourceEvents = events.filter(event => event.resource.resource_id === resourceId);
+            const overlappingGroups = calculateOverlappingEvents(resourceEvents);
+
+            return (
+              <div key={`resource-${resourceId}`} className={styles.practitionerColumn}>
+                {timeSlots.map((slot, index) => (
+                  <div
+                    key={index}
+                    className={styles.timeSlot}
+                    onClick={() => handleSlotClick(slot.hour, slot.minute)}
+                  />
+                ))}
+                {/* Render overlapping event groups */}
+                {overlappingGroups.map((group, groupIndex) => (
+                  <OverlappingEventGroupComponent
+                    key={`group-${resourceId}-${groupIndex}`}
+                    group={group}
+                    groupIndex={groupIndex}
+                    onEventClick={onEventClick || (() => {})}
+                  />
+                ))}
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>
@@ -129,27 +140,58 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
 interface CalendarEventComponentProps {
   event: CalendarEvent;
   onClick: () => void;
+  group?: OverlappingEventGroup;
+  groupIndex?: number;
+  eventIndex?: number;
 }
 
-const CalendarEventComponent: React.FC<CalendarEventComponentProps> = ({ event, onClick }) => {
+const CalendarEventComponent: React.FC<CalendarEventComponentProps> = ({
+  event,
+  onClick,
+  group,
+  groupIndex = 0,
+  eventIndex = 0
+}) => {
   const eventStyle = useMemo(() => {
-    const position = calculateEventPosition(event.start);
-    const size = calculateEventHeight(event.start, event.end);
+    let baseStyle;
 
+    if (group) {
+      // Use overlapping positioning
+      baseStyle = calculateEventInGroupPosition(event, group, eventIndex);
+    } else {
+      // Use regular positioning (for monthly view or non-overlapping)
+      const position = calculateEventPosition(event.start);
+      const size = calculateEventHeight(event.start, event.end);
+      baseStyle = { ...position, ...size };
+    }
+
+    // Determine background color and border styling
     let backgroundColor = '#6b7280'; // default gray
+    let border = 'none';
+    let borderRadius = '8px';
 
     if (event.resource.practitioner_id) {
       backgroundColor = getPractitionerColor(event.resource.practitioner_id, 0, []) || '#6b7280';
     } else if (event.resource.resource_id) {
       backgroundColor = getResourceColorById(event.resource.resource_id, [], [], null) || '#6b7280';
+      // Resource events get dashed border as per design
+      border = '1px dashed rgba(255, 255, 255, 0.5)';
+    }
+
+    // Exception events get gray background and dashed border
+    if (event.resource.type === 'availability_exception') {
+      backgroundColor = '#6b7280';
+      border = '1px dashed #9ca3af';
+      borderRadius = '4px';
     }
 
     return {
-      ...position,
-      ...size,
+      ...baseStyle,
       backgroundColor,
+      border,
+      borderRadius,
     };
-  }, [event]);
+  }, [event, group, groupIndex, eventIndex]);
 
   return (
     <div
@@ -327,6 +369,34 @@ const MonthlyCalendarGrid: React.FC<MonthlyCalendarGridProps> = ({
         ))}
       </div>
     </div>
+  );
+};
+
+// Overlapping Event Group Component
+interface OverlappingEventGroupProps {
+  group: OverlappingEventGroup;
+  groupIndex: number;
+  onEventClick: (event: CalendarEvent) => void;
+}
+
+const OverlappingEventGroupComponent: React.FC<OverlappingEventGroupProps> = ({
+  group,
+  groupIndex,
+  onEventClick,
+}) => {
+  return (
+    <>
+      {group.events.map((event, eventIndex) => (
+        <CalendarEventComponent
+          key={event.id}
+          event={event}
+          group={group}
+          groupIndex={groupIndex}
+          eventIndex={eventIndex}
+          onClick={() => onEventClick?.(event)}
+        />
+      ))}
+    </>
   );
 };
 

@@ -52,10 +52,24 @@
   height: 20px;
   border-bottom: 1px solid #f9fafb;
   cursor: pointer;
+  min-height: 20px;
 }
 
 .timeSlot:hover {
   background: #f3f4f6;
+}
+
+/* Mobile touch improvements */
+@media (max-width: 768px) {
+  .timeSlot {
+    min-height: 24px;
+  }
+
+  .calendarEvent {
+    font-size: 12px;
+    padding: 6px 8px;
+    min-height: 24px;
+  }
 }
 
 .calendarEvent {
@@ -70,6 +84,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  box-sizing: border-box;
 }
 
 .calendarEvent:hover {

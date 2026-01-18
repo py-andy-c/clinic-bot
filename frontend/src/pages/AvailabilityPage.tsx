@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { usePractitioners } from '../hooks/queries';
 import { LoadingSpinner } from '../components/shared';
-import { View, Views } from 'react-big-calendar';
+import { CalendarView, CalendarViews } from '../types/calendar';
 import CalendarLayout from '../components/calendar/CalendarLayout';
 import CalendarSidebar from '../components/calendar/CalendarSidebar';
 import CalendarDateStrip from '../components/calendar/CalendarDateStrip';
@@ -18,7 +18,7 @@ const AvailabilityPage: React.FC = () => {
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
   const [loading, setLoading] = useState(true);
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [view, setView] = useState<View>(Views.DAY);
+  const [view, setView] = useState<CalendarView>(CalendarViews.DAY);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [allEvents, setAllEvents] = useState<CalendarEvent[]>([]);
   const [selectedPractitioners, setSelectedPractitioners] = useState<number[]>([]);
@@ -71,8 +71,8 @@ const AvailabilityPage: React.FC = () => {
       const persistedState = calendarStorage.getCalendarState(user.user_id, user.active_clinic_id);
       if (persistedState) {
         // Set view and date
-        setView(persistedState.view === 'month' ? Views.MONTH :
-                persistedState.view === 'week' ? Views.WEEK : Views.DAY);
+        setView(persistedState.view === 'month' ? CalendarViews.MONTH :
+                persistedState.view === 'week' ? CalendarViews.WEEK : CalendarViews.DAY);
         if (persistedState.currentDate) {
           setCurrentDate(new Date(persistedState.currentDate));
         }
@@ -142,12 +142,12 @@ const AvailabilityPage: React.FC = () => {
   }, [selectedPractitioners, selectedResources, currentDate]);
 
   // Event handlers
-  const handleViewChange = useCallback((newView: View) => {
+  const handleViewChange = useCallback((newView: CalendarView) => {
     setView(newView);
     // Persist view change
     if (user?.user_id && user?.active_clinic_id) {
       calendarStorage.setCalendarState(user.user_id, user.active_clinic_id, {
-        view: newView === Views.MONTH ? 'month' : newView === Views.WEEK ? 'week' : 'day',
+        view: newView === CalendarViews.MONTH ? 'month' : newView === CalendarViews.WEEK ? 'week' : 'day',
         currentDate: getDateString(currentDate),
         additionalPractitionerIds: selectedPractitioners,
         defaultPractitionerId: null,
@@ -160,7 +160,7 @@ const AvailabilityPage: React.FC = () => {
     // Persist date change
     if (user?.user_id && user?.active_clinic_id) {
       calendarStorage.setCalendarState(user.user_id, user.active_clinic_id, {
-        view: view === Views.MONTH ? 'month' : view === Views.WEEK ? 'week' : 'day',
+        view: view === CalendarViews.MONTH ? 'month' : view === CalendarViews.WEEK ? 'week' : 'day',
         currentDate: getDateString(date),
         additionalPractitionerIds: selectedPractitioners,
         defaultPractitionerId: null,
