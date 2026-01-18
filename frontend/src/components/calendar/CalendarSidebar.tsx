@@ -93,27 +93,38 @@ const CalendarSidebar: React.FC<CalendarSidebarProps> = ({
         style={{
           '--sidebar-translate-x': isOpen ? '0' : '-100%',
         } as React.CSSProperties}
+        role="complementary"
+        aria-label="Calendar sidebar with view controls and filters"
       >
         <div className={styles.sidebarContent}>
           {/* View Switcher */}
           <div className={styles.sidebarSection}>
             <span className={styles.sidebarSectionTitle}>模式</span>
-            <div className={styles.viewOptionsRow}>
+            <div className={styles.viewOptionsRow} role="radiogroup" aria-label="Calendar view selection">
               <button
                 className={`${styles.viewOption} ${view === CalendarViews.MONTH ? styles.viewOptionActive : ''}`}
                 onClick={() => handleViewChange(CalendarViews.MONTH)}
+                role="radio"
+                aria-checked={view === CalendarViews.MONTH}
+                aria-label="Switch to monthly view"
               >
                 月
               </button>
               <button
                 className={`${styles.viewOption} ${view === CalendarViews.WEEK ? styles.viewOptionActive : ''}`}
                 onClick={() => handleViewChange(CalendarViews.WEEK)}
+                role="radio"
+                aria-checked={view === CalendarViews.WEEK}
+                aria-label="Switch to weekly view"
               >
                 週
               </button>
               <button
                 className={`${styles.viewOption} ${view === CalendarViews.DAY ? styles.viewOptionActive : ''}`}
                 onClick={() => handleViewChange(CalendarViews.DAY)}
+                role="radio"
+                aria-checked={view === CalendarViews.DAY}
+                aria-label="Switch to daily view"
               >
                 日
               </button>
@@ -133,10 +144,12 @@ const CalendarSidebar: React.FC<CalendarSidebarProps> = ({
                     type="checkbox"
                     checked={isSelected}
                     onChange={() => handlePractitionerToggle(practitioner.id)}
+                    aria-label={`Show/hide appointments for ${practitioner.full_name}`}
                   />
                   <span
                     className={styles.filterIndicator}
                     style={getPractitionerColorStyle(practitioner.id)}
+                    aria-hidden="true"
                   />
                   {practitioner.full_name}
                 </label>
@@ -162,10 +175,12 @@ const CalendarSidebar: React.FC<CalendarSidebarProps> = ({
                     type="checkbox"
                     checked={isSelected}
                     onChange={() => handleResourceToggle(resource.id)}
+                    aria-label={`Show/hide appointments for ${resource.name}`}
                   />
                   <span
                     className={styles.filterIndicator}
                     style={getResourceColorStyle(resource.id)}
+                    aria-hidden="true"
                   />
                   {resource.name}
                 </label>

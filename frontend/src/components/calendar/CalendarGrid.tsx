@@ -75,16 +75,42 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
     }
   };
 
+  // Keyboard navigation support
+  const handleKeyDown = (event: React.KeyboardEvent) => {
+    // Allow keyboard navigation within the calendar grid
+    const { key } = event;
+
+    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '].includes(key)) {
+      event.preventDefault();
+
+      // Focus management for keyboard navigation would be implemented here
+      // For now, we just prevent default behavior to avoid page scrolling
+    }
+  };
+
   if (view === CalendarViews.MONTH) {
     return <MonthlyCalendarGrid currentDate={currentDate} events={events} onEventClick={onEventClick || (() => {})} />;
   }
 
   return (
-    <div className={styles.calendarGrid} ref={gridRef}>
+    <div
+      className={styles.calendarGrid}
+      ref={gridRef}
+      role="grid"
+      aria-label="Calendar grid showing appointments and time slots"
+      aria-rowcount={timeSlots.length + 1} // +1 for header
+      aria-colcount={selectedPractitioners.length + selectedResources.length + 1} // +1 for time column
+      tabIndex={0}
+      onKeyDown={handleKeyDown}
+    >
       {/* Current time indicator */}
-      <div className={styles.timeIndicator} style={currentTimeIndicatorStyle} />
+      <div
+        className={styles.timeIndicator}
+        style={currentTimeIndicatorStyle}
+        aria-label="Current time indicator"
+      />
 
-      <div className="grid-container">
+      <div className="grid-container" role="presentation">
         {/* Time column */}
         <div className={styles.timeColumn}>
           {timeSlots.map((slot, index) => (
@@ -99,12 +125,20 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
         {/* Resource columns */}
         <div className={styles.resourceGrid}>
           {practitionerGroups.map(({ practitionerId, groups }) => (
-            <div key={`practitioner-${practitionerId}`} className={styles.practitionerColumn}>
+            <div
+              key={`practitioner-${practitionerId}`}
+              className={styles.practitionerColumn}
+              role="gridcell"
+              aria-label={`Column for practitioner ${practitionerId}`}
+            >
               {timeSlots.map((slot, index) => (
                 <div
                   key={index}
                   className={styles.timeSlot}
                   onClick={() => handleSlotClick(slot.hour, slot.minute)}
+                  role="button"
+                  aria-label={`Time slot ${slot.time} for practitioner ${practitionerId} - Click to create appointment`}
+                  tabIndex={-1}
                 />
               ))}
               {/* Render overlapping event groups */}
@@ -120,12 +154,20 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
           ))}
 
           {resourceGroups.map(({ resourceId, groups }) => (
-            <div key={`resource-${resourceId}`} className={styles.practitionerColumn}>
+            <div
+              key={`resource-${resourceId}`}
+              className={styles.practitionerColumn}
+              role="gridcell"
+              aria-label={`Column for resource ${resourceId}`}
+            >
               {timeSlots.map((slot, index) => (
                 <div
                   key={index}
                   className={styles.timeSlot}
                   onClick={() => handleSlotClick(slot.hour, slot.minute)}
+                  role="button"
+                  aria-label={`Time slot ${slot.time} for resource ${resourceId} - Click to create appointment`}
+                  tabIndex={-1}
                 />
               ))}
               {/* Render overlapping event groups */}
@@ -208,6 +250,9 @@ const CalendarEventComponent: React.FC<CalendarEventComponentProps> = ({
       style={eventStyle}
       onClick={onClick}
       title={`${event.title} - ${event.resource.patient_name || 'No patient'}`}
+      role="button"
+      aria-label={`Appointment: ${event.title} with ${event.resource.patient_name || 'no patient'} - Click to view details`}
+      tabIndex={-1}
     >
       {event.title}
     </div>

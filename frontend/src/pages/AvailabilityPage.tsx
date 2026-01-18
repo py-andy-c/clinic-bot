@@ -11,6 +11,8 @@ import CalendarGrid from '../components/calendar/CalendarGrid';
 import { EventModal } from '../components/calendar/EventModal';
 import { CreateAppointmentModal } from '../components/calendar/CreateAppointmentModal';
 import { ExceptionModal } from '../components/calendar/ExceptionModal';
+import { EditAppointmentModal } from '../components/calendar/EditAppointmentModal';
+import { DeleteConfirmationModal } from '../components/calendar/DeleteConfirmationModal';
 import { apiService } from '../services/api';
 import { calendarStorage } from '../utils/storage';
 import { getDateString, formatAppointmentTimeRange } from '../utils/calendarUtils';
@@ -36,6 +38,8 @@ const AvailabilityPage: React.FC = () => {
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
   const [isCreateAppointmentModalOpen, setIsCreateAppointmentModalOpen] = useState(false);
   const [isExceptionModalOpen, setIsExceptionModalOpen] = useState(false);
+  const [isEditAppointmentModalOpen, setIsEditAppointmentModalOpen] = useState(false);
+  const [isDeleteConfirmationModalOpen, setIsDeleteConfirmationModalOpen] = useState(false);
 
   // Modal data state
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
@@ -301,14 +305,12 @@ const AvailabilityPage: React.FC = () => {
             setSelectedEvent(null);
           }}
           onEditAppointment={() => {
-            // TODO: Implement edit appointment modal
             setIsEventModalOpen(false);
-            setSelectedEvent(null);
+            setIsEditAppointmentModalOpen(true);
           }}
           onDeleteAppointment={() => {
-            // Handle delete - for now just close modal
             setIsEventModalOpen(false);
-            setSelectedEvent(null);
+            setIsDeleteConfirmationModalOpen(true);
           }}
           onDuplicateAppointment={() => {
             // Handle duplicate - for now just close modal
@@ -350,6 +352,48 @@ const AvailabilityPage: React.FC = () => {
         />
       )}
 
+      {isEditAppointmentModalOpen && selectedEvent && (
+        <EditAppointmentModal
+          event={selectedEvent}
+          practitioners={practitioners}
+          appointmentTypes={[]} // TODO: Fetch appointment types
+          onClose={() => {
+            setIsEditAppointmentModalOpen(false);
+            setSelectedEvent(null);
+          }}
+          onComplete={() => {
+            setIsEditAppointmentModalOpen(false);
+            setSelectedEvent(null);
+            // Clear cache to force refresh
+            setEventCache(new Map());
+          }}
+          onConfirm={async (_formData) => {
+            // TODO: Implement appointment update API call
+            setIsEditAppointmentModalOpen(false);
+            setSelectedEvent(null);
+            // Clear cache to force refresh
+            setEventCache(new Map());
+          }}
+          formatAppointmentTime={formatAppointmentTimeRange}
+        />
+      )}
+
+      {isDeleteConfirmationModalOpen && selectedEvent && (
+        <DeleteConfirmationModal
+          event={selectedEvent}
+          onCancel={() => {
+            setIsDeleteConfirmationModalOpen(false);
+            setSelectedEvent(null);
+          }}
+          onConfirm={() => {
+            // TODO: Implement appointment deletion API call
+            setIsDeleteConfirmationModalOpen(false);
+            setSelectedEvent(null);
+            // Clear cache to force refresh
+            setEventCache(new Map());
+          }}
+        />
+      )}
 
     </CalendarLayout>
   );

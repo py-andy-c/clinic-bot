@@ -77,31 +77,43 @@ const CalendarDateStrip: React.FC<CalendarDateStripProps> = ({
   return (
     <>
       <div className={styles.dateStripContainer}>
-        <div className={styles.dateNavigation}>
-          <button className={styles.navButton} onClick={handlePrev}>
+        <nav className={styles.dateNavigation} aria-label="Calendar date navigation">
+          <button
+            className={styles.navButton}
+            onClick={handlePrev}
+            aria-label={`Go to previous ${view === CalendarViews.DAY ? 'day' : view === CalendarViews.WEEK ? 'week' : 'month'}`}
+          >
             ‹
           </button>
-          <span className={styles.dateDisplay} onClick={handleDateClick}>
+          <button
+            className={styles.dateDisplay}
+            onClick={handleDateClick}
+            aria-label={`Current date: ${getDateDisplay()}. Click to open mini calendar`}
+          >
             {getDateDisplay()}
-          </span>
-          <button className={styles.navButton} onClick={handleNext}>
+          </button>
+          <button
+            className={styles.navButton}
+            onClick={handleNext}
+            aria-label={`Go to next ${view === CalendarViews.DAY ? 'day' : view === CalendarViews.WEEK ? 'week' : 'month'}`}
+          >
             ›
           </button>
-        </div>
+        </nav>
 
-        <div className={styles.actionButtons}>
-          <button className={styles.actionBtn} onClick={onCreateAppointment} title="Create Appointment">
-            <span className={styles.actionIcon}>+</span>
+        <div className={styles.actionButtons} role="toolbar" aria-label="Calendar actions">
+          <button className={styles.actionBtn} onClick={onCreateAppointment} aria-label="Create new appointment" title="Create Appointment">
+            <span className={styles.actionIcon} aria-hidden="true">+</span>
             <span>預約</span>
           </button>
-          <button className={styles.actionBtn} onClick={onCreateException} title="Create Availability Exception">
-            <span className={styles.actionIcon}>+</span>
+          <button className={styles.actionBtn} onClick={onCreateException} aria-label="Create availability exception" title="Create Availability Exception">
+            <span className={styles.actionIcon} aria-hidden="true">+</span>
             <span>休診</span>
           </button>
-          <button className={styles.actionBtn} onClick={onToday} title="Jump to Today">
+          <button className={styles.actionBtn} onClick={onToday} aria-label="Jump to today's date" title="Jump to Today">
             <span>今</span>
           </button>
-          <button className={styles.actionBtn} onClick={onSettings} title="Open Settings">
+          <button className={styles.actionBtn} onClick={onSettings} aria-label="Open calendar settings" title="Open Settings">
             <span className={styles.actionIcon}>
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="3"></circle>
