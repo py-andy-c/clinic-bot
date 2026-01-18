@@ -114,6 +114,27 @@ let assignedColors = new Map(); // itemId -> color
 
 let selectedDate = new Date("2026-01-19");
 
+// Helper function to convert time string (HH:MM) to pixel position
+function timeToPixels(timeString) {
+    const [hours, minutes] = timeString.split(':').map(Number);
+    return hours * 60 + minutes;
+}
+
+// Helper function to create positioned calendar element
+function createCalendarElement(startTime, endTime, className, content, tooltip = '') {
+    const top = timeToPixels(startTime);
+    const height = timeToPixels(endTime) - top;
+
+    const div = document.createElement('div');
+    div.className = className;
+    div.style.top = `${top}px`;
+    div.style.height = `${height}px`;
+    div.innerHTML = content;
+    if (tooltip) div.title = tooltip;
+
+    return div;
+}
+
 // Color management functions
 function assignColorsToSelectedItems() {
     assignedColors.clear();
@@ -500,11 +521,6 @@ function renderGrid() {
 }
 
 function createAppointmentBox(appointment, practitionerId) {
-    const start = appointment.start.split(':');
-    const end = appointment.end.split(':');
-    const top = parseInt(start[0]) * 60 + parseInt(start[1]);
-    const height = (parseInt(end[0]) * 60 + parseInt(end[1])) - top;
-
     // Follow production naming pattern: {PatientName} | {AppointmentType} {ResourceNames} | {Notes}
     const resourceText = appointment.resources && appointment.resources.length > 0 ? ` ${appointment.resources.join(' ')}` : '';
     const title = `${appointment.patient} | ${appointment.appointmentType}${resourceText}`;
@@ -513,32 +529,25 @@ function createAppointmentBox(appointment, practitionerId) {
     // Get assigned color for this practitioner
     const color = getItemColor('practitioner', practitionerId);
 
-    const div = document.createElement('div');
-    div.className = 'calendar-event';
-    div.style.top = `${top}px`;
-    div.style.height = `${height}px`;
+    const div = createCalendarElement(
+        appointment.start,
+        appointment.end,
+        'calendar-event',
+        `<div class="event-title">${displayText}</div>`,
+        `${displayText} - ${appointment.start}-${appointment.end}`
+    );
     div.style.background = color || '#e5e7eb'; // Fallback to gray if no color assigned
-    // Production style: no time shown, just the event title with ellipsis for overflow
-    div.innerHTML = `<div class="event-title">${displayText}</div>`;
-    div.title = `${displayText} - ${appointment.start}-${appointment.end}`; // Tooltip with time
+
     return div;
 }
 
 function createBox(data, className) {
-    const start = data.start.split(':');
-    const end = data.end.split(':');
-    const top = parseInt(start[0]) * 60 + parseInt(start[1]);
-    const height = (parseInt(end[0]) * 60 + parseInt(end[1])) - top;
-
-    const div = document.createElement('div');
-    div.className = className;
-    div.style.top = `${top}px`;
-    div.style.height = `${height}px`;
-
-    // Exception/break events
-    div.innerHTML = data.title;
-
-    return div;
+    return createCalendarElement(
+        data.start,
+        data.end,
+        className,
+        data.title
+    );
 }
 
 function setupEventListeners() {
@@ -701,11 +710,6 @@ function getResourceBookings(resourceId) {
 }
 
 function createResourceBookingBox(booking, resourceId) {
-    const start = booking.start.split(':');
-    const end = booking.end.split(':');
-    const top = parseInt(start[0]) * 60 + parseInt(start[1]);
-    const height = (parseInt(end[0]) * 60 + parseInt(end[1])) - top;
-
     // Find the resource name
     const resource = resources.find(r => r.id === resourceId);
     const resourceName = resource ? resource.name : `資源${resourceId}`;
@@ -717,13 +721,15 @@ function createResourceBookingBox(booking, resourceId) {
     const displayTitle = booking.title;
     const displayText = booking.notes ? `[${resourceName}] ${displayTitle} | ${booking.notes}` : `[${resourceName}] ${displayTitle}`;
 
-    const div = document.createElement('div');
-    div.className = 'resource-booking';
-    div.style.top = `${top}px`;
-    div.style.height = `${height}px`;
+    const div = createCalendarElement(
+        booking.start,
+        booking.end,
+        'resource-booking',
+        `<div class="booking-title">${displayText}</div>`,
+        `${displayText} - ${booking.start}-${booking.end}`
+    );
     div.style.background = resourceColor || '#e5e7eb'; // Fallback to gray if no color assigned
-    div.innerHTML = `<div class="booking-title">${displayText}</div>`;
-    div.title = `${displayText} - ${booking.start}-${booking.end}`;
+
     return div;
 }
 
