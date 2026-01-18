@@ -514,15 +514,11 @@ function renderGrid() {
             mockExceptions.filter(ex => ex.pId === calendar.id).forEach(ex => col.appendChild(createBox(ex, 'exception-layer')));
             mockAppointments.filter(app => app.pId === calendar.id).forEach(app => col.appendChild(createAppointmentBox(app, calendar.id)));
         } else {
-            // Resource columns show availability for booking
-            const resource = calendar.data;
+            // Resource columns - no default availability styling since resources don't have predefined schedules
             for (let h = 0; h <= 23; h++) {
                 for (let m = 0; m < 60; m += 15) {
                     const slot = document.createElement('div');
-                    // Resources are generally available during business hours (9-17)
-                    const timeStr = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
-                    const isBusinessHour = timeStr >= '09:00' && timeStr < '17:00';
-                    slot.className = `time-slot ${!isBusinessHour ? 'unavailable' : ''}`;
+                    slot.className = 'time-slot'; // All slots are neutral since resources don't have availability constraints
                     if (h === 9 && m === 0) slot.id = 'slot-9am';
                     col.appendChild(slot);
                 }

@@ -1058,7 +1058,7 @@ body {
     min-width: 56px;
     position: relative;
     border-right: 1px solid var(--border);
-    background: #fafafa; /* Slightly different background for resources */
+    background: white; /* Same white background as practitioners */
 }
 
 .time-slot {
