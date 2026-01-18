@@ -1006,6 +1006,30 @@ body {
 
 /* All calendar events now use the same base calendar-event class */
 
+/* ===== CURRENT TIME INDICATOR ===== */
+
+.current-time-indicator {
+    position: absolute;
+    left: 28px; /* Account for time column width */
+    right: 0;
+    height: 2px;
+    background: #ef4444; /* Red color */
+    z-index: 30; /* Above events but below header */
+    pointer-events: none;
+}
+
+.current-time-indicator::before {
+    content: '';
+    position: absolute;
+    left: -6px;
+    top: -4px;
+    width: 0;
+    height: 0;
+    border-left: 6px solid #ef4444;
+    border-top: 4px solid transparent;
+    border-bottom: 4px solid transparent;
+}
+
 /* ===== RESPONSIVE ADJUSTMENTS ===== */
 
 @media (max-width: 768px) {

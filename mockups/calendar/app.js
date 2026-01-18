@@ -687,12 +687,55 @@ function renderTimeBasedView(viewType) {
         grid.appendChild(col);
     });
 
+    // Add current time indicator for daily and weekly views
+    if (viewType === 'daily' || viewType === 'weekly') {
+        addCurrentTimeIndicator(grid);
+    }
+
     // Update headers
     if (viewType === 'daily') {
         renderHeaders();
     } else if (viewType === 'weekly') {
         renderWeeklyHeaders(columns.map(col => col.data.date));
     }
+}
+
+// Add current time indicator line to calendar grid
+function addCurrentTimeIndicator(grid) {
+    // Get current time in Taiwan timezone (UTC+8)
+    const now = new Date();
+    const taiwanTimeString = now.toLocaleString('en-US', {
+        timeZone: 'Asia/Taipei',
+        hour12: false
+    });
+    const taiwanTime = new Date(taiwanTimeString);
+
+    const currentHour = taiwanTime.getHours();
+    const currentMinute = taiwanTime.getMinutes();
+
+    // Position within calendar range (8AM-10PM display)
+    const displayHour = Math.max(8, Math.min(22, currentHour));
+    const displayMinute = (currentHour < 8 || currentHour > 22) ? 0 : currentMinute;
+
+    // Calculate position: minutes from 8AM
+    const minutesFrom8AM = (displayHour - 8) * 60 + displayMinute;
+
+    // Convert to pixels: 20px per 15-minute slot
+    const pixelsFromTop = (minutesFrom8AM / 15) * 20;
+
+    // Create time indicator element
+    const timeIndicator = document.createElement('div');
+    timeIndicator.className = 'current-time-indicator';
+    timeIndicator.style.top = `${pixelsFromTop}px`;
+
+    // Show actual current time in tooltip
+    const timeDisplay = currentHour > 22 ? 'After 10 PM' :
+                       currentHour < 8 ? 'Before 8 AM' :
+                       `${currentHour}:${currentMinute.toString().padStart(2, '0')}`;
+    timeIndicator.title = `Current time: ${timeDisplay} (Taiwan)`;
+
+    // Add to grid (will appear across all columns)
+    grid.appendChild(timeIndicator);
 }
 
 // Shared function for adding events to time-based views with overlapping logic
@@ -870,6 +913,9 @@ function renderWeeklyView() {
 
         grid.appendChild(dayCol);
     });
+
+    // Add current time indicator for weekly view
+    addCurrentTimeIndicator(grid);
 
     // Add all events from selected practitioners and resources
     addEventsToWeeklyView();
