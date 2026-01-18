@@ -688,32 +688,6 @@ body {
     text-decoration-thickness: 2px;
 }
 
-/* Mobile Date Picker Modal */
-.mobile-date-picker-content {
-    max-width: 360px;
-    margin: 20px auto;
-}
-
-.mini-calendar-component.mobile-calendar {
-    margin: 0;
-    border: none;
-    padding: 0;
-}
-
-.mini-calendar-component.mobile-calendar .mini-calendar-header {
-    padding: 0 0 12px 0;
-    border-bottom: 1px solid var(--border);
-    margin-bottom: 12px;
-}
-
-.mini-calendar-component.mobile-calendar .mini-calendar {
-    gap: 4px;
-}
-
-.mini-calendar-component.mobile-calendar .day {
-    font-size: 12px;
-    padding: 8px 0;
-}
 
 /* Date Strip Container */
 .date-strip-container {
@@ -1232,32 +1206,6 @@ body {
     padding: 20px;
 }
 
-/* Mobile Date Picker Modal */
-.mobile-date-picker-content {
-    max-width: 360px;
-    margin: 20px auto;
-}
-
-.mini-calendar-component.mobile-calendar {
-    margin: 0;
-    border: none;
-    padding: 0;
-}
-
-.mini-calendar-component.mobile-calendar .mini-calendar-header {
-    padding: 0 0 12px 0;
-    border-bottom: 1px solid var(--border);
-    margin-bottom: 12px;
-}
-
-.mini-calendar-component.mobile-calendar .mini-calendar {
-    gap: 4px;
-}
-
-.mini-calendar-component.mobile-calendar .day {
-    font-size: 12px;
-    padding: 8px 0;
-}
 
 /* Floating Action Buttons (FAB) */
 .fab-container {

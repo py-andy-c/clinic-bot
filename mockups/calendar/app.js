@@ -109,7 +109,7 @@ let selectedResources = [1, 2]; // Default to some resources
 let assignedColors = new Map(); // itemId -> color
 
 // Current view state
-let currentView = 'month'; // 'day', 'week', or 'month'
+// Note: Only day view is currently implemented
 
 // Navigation dropdown state
 let openDropdown = null;
@@ -334,26 +334,6 @@ function renderMiniCalendar() {
     renderCalendar('mini-calendar', 'sidebar-month-year', 'selectDate');
 }
 
-function renderMobileMiniCalendar() {
-    renderCalendar('mobile-mini-calendar', 'mobile-month-year', 'selectDateFromMobile');
-}
-
-function openMobileDatePicker() {
-    renderMobileMiniCalendar();
-    document.getElementById('mobile-date-picker').classList.add('open');
-}
-
-function closeMobileDatePicker() {
-    document.getElementById('mobile-date-picker').classList.remove('open');
-}
-
-function selectDateFromMobile(year, month, day) {
-    selectedDate = new Date(year, month, day);
-    renderDateStrip();
-    renderMiniCalendar();
-    renderGrid();
-    closeMobileDatePicker();
-}
 
 function navigateMonth(direction, updateCallback) {
     const currentMonth = selectedDate.getMonth();
@@ -393,10 +373,6 @@ function navigateSidebarMonth(direction) {
     });
 }
 
-// Mobile modal navigation
-function navigateMobileMonth(direction) {
-    navigateMonth(direction, renderMobileMiniCalendar);
-}
 
 function selectDate(year, month, day, shouldCloseModal = false) {
     selectedDate = new Date(year, month, day);
@@ -640,11 +616,6 @@ function setupEventListeners() {
     // Update date strip month/year click handler
     const dateStripMonthYear = document.getElementById('date-strip-month-year');
 
-    if (dateStripMonthYear) {
-        dateStripMonthYear.onclick = () => {
-            openMobileDatePicker();
-        };
-    }
 
 
     // Add month navigation handlers
@@ -659,17 +630,6 @@ function setupEventListeners() {
         nextMonthBtn.onclick = () => navigateSidebarMonth('next');
     }
 
-    // Add mobile calendar navigation handlers
-    const mobilePrevMonthBtn = document.getElementById('mobile-prev-month-btn');
-    const mobileNextMonthBtn = document.getElementById('mobile-next-month-btn');
-    
-    if (mobilePrevMonthBtn) {
-        mobilePrevMonthBtn.onclick = () => navigateMobileMonth('prev');
-    }
-    
-    if (mobileNextMonthBtn) {
-        mobileNextMonthBtn.onclick = () => navigateMobileMonth('next');
-    }
 
     const mobileMenuTrigger = document.getElementById('mobile-menu-trigger');
     if (mobileMenuTrigger) {
@@ -772,9 +732,8 @@ function toggleResource(id, checked) {
     renderGrid();
 }
 
+// Simplified view switching - only updates button states since only day view is implemented
 function switchView(view) {
-    currentView = view;
-
     // Update active state of view buttons
     document.querySelectorAll('.view-option-compact').forEach(button => {
         button.classList.remove('active');
@@ -782,10 +741,6 @@ function switchView(view) {
             button.classList.add('active');
         }
     });
-
-    // For demo purposes, just log the view change
-    // In production, this would update the calendar component's view
-    console.log(`Switched to ${view} view`);
 }
 
 function getResourceBookings(resourceId) {
