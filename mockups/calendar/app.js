@@ -1164,7 +1164,7 @@ function createMonthlyEventElement(event) {
     titleElement.className = 'month-event-title';
     titleElement.textContent = title;
 
-    // For monthly events, limit to 1 line due to compact space
+    // For monthly events, limit to 1 line to fit more events
     titleElement.style.display = '-webkit-box';
     titleElement.style.webkitLineClamp = '1';
     titleElement.style.webkitBoxOrient = 'vertical';

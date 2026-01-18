@@ -933,7 +933,7 @@ body {
 
 .month-day-cell {
     flex: 1;
-    height: 100px; /* Fixed height to prevent expansion */
+    height: 150px; /* Increased height to show more events */
     border-right: 1px solid var(--border);
     background: white;
     display: flex;
@@ -950,8 +950,8 @@ body {
     font-size: 12px;
     font-weight: 500;
     color: var(--text-main);
-    text-align: right;
-    align-self: flex-end;
+    text-align: center;
+    align-self: center;
 }
 
 .month-day-events {
@@ -977,6 +977,7 @@ body {
 .month-event-title {
     font-size: 9px;
     line-height: 1.2;
+    overflow: hidden;
 }
 
 .month-more-events {
