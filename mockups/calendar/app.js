@@ -736,6 +736,27 @@ function addCurrentTimeIndicator(grid) {
 
     // Add to grid (will appear across all columns)
     grid.appendChild(timeIndicator);
+
+    // Auto-scroll to position current time indicator optimally in viewport
+    setTimeout(() => autoScrollToCurrentTime(pixelsFromTop), 100);
+}
+
+// Auto-scroll calendar to position current time indicator optimally
+function autoScrollToCurrentTime(timeIndicatorPosition) {
+    const calendarViewport = document.getElementById('main-viewport');
+    if (!calendarViewport) return;
+
+    // Position indicator 1/6 down from viewport top (even higher up for maximum context)
+    const viewportHeight = calendarViewport.clientHeight;
+    const targetScrollTop = timeIndicatorPosition - (viewportHeight / 6);
+
+    // Ensure we don't scroll above the top
+    const finalScrollTop = Math.max(0, targetScrollTop);
+
+    calendarViewport.scrollTo({
+        top: finalScrollTop,
+        behavior: 'smooth'
+    });
 }
 
 // Shared function for adding events to time-based views with overlapping logic

@@ -1012,10 +1012,11 @@ body {
     position: absolute;
     left: 28px; /* Account for time column width */
     right: 0;
-    height: 2px;
+    height: 3px; /* Make it slightly thicker for visibility */
     background: #ef4444; /* Red color */
     z-index: 30; /* Above events but below header */
     pointer-events: none;
+    box-shadow: 0 0 4px rgba(239, 68, 68, 0.5); /* Add glow for visibility */
 }
 
 .current-time-indicator::before {
