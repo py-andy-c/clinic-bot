@@ -109,7 +109,7 @@ let selectedResources = [1, 2]; // Default to some resources
 let assignedColors = new Map(); // itemId -> color
 
 // Current view state
-// Note: Only day view is currently implemented
+let currentView = 'day'; // 'day', 'week', 'month'
 
 let selectedDate = new Date("2026-01-19");
 let displayMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1); // Month currently displayed in mini calendar
@@ -183,12 +183,8 @@ function updateSidebarIndicators() {
 }
 
 function initCalendar() {
-    renderDateStrip();
-    renderMiniCalendar();
-    renderHeaders();
-    renderTimeLabels();
+    renderCalendarView();
     updateSidebarIndicators(); // Update colors for initially selected items
-    renderGrid();
     setupEventListeners();
 
     // Auto-scroll to 9 AM
@@ -240,32 +236,68 @@ function renderDateStrip() {
     const monthYearDisplay = document.getElementById('date-strip-month-year');
     if (!strip) return;
 
-    // Update month/year display
+    // Update month/year display based on current view
     if (monthYearDisplay) {
         const year = selectedDate.getFullYear();
         const month = selectedDate.getMonth();
-        monthYearDisplay.textContent = `${year}年${month + 1}月`;
+
+        if (currentView === 'day') {
+            monthYearDisplay.textContent = `${year}年${month + 1}月`;
+        } else if (currentView === 'week') {
+            const weekStart = getWeekStart(selectedDate);
+            const weekEnd = new Date(weekStart);
+            weekEnd.setDate(weekStart.getDate() + 6);
+            monthYearDisplay.textContent = `${month + 1}月${weekStart.getDate()}-${weekEnd.getDate()}日`;
+        } else if (currentView === 'month') {
+            monthYearDisplay.textContent = `${year}年${month + 1}月`;
+        }
     }
 
     let html = '';
 
-    // Apple Style: Fixed 7-day strip based on the start of the current week
-    const startOfWeek = new Date(selectedDate);
-    startOfWeek.setDate(selectedDate.getDate() - selectedDate.getDay());
+    if (currentView === 'day') {
+        // Apple Style: Fixed 7-day strip based on the start of the current week
+        const startOfWeek = new Date(selectedDate);
+        startOfWeek.setDate(selectedDate.getDate() - selectedDate.getDay());
 
-    for (let i = 0; i < 7; i++) {
-        const date = new Date(startOfWeek);
-        date.setDate(startOfWeek.getDate() + i);
-        const isSelected = date.toDateString() === selectedDate.toDateString();
-        const isToday = date.toDateString() === new Date().toDateString();
+        for (let i = 0; i < 7; i++) {
+            const date = new Date(startOfWeek);
+            date.setDate(startOfWeek.getDate() + i);
+            const isSelected = date.toDateString() === selectedDate.toDateString();
+            const isToday = date.toDateString() === new Date().toDateString();
 
-        html += `
-            <div class="date-item ${isSelected ? 'active' : ''} ${isToday ? 'is-today' : ''}" onclick="changeDate('${date.toISOString()}')">
-                <span class="day-label">${DAYS_OF_WEEK[date.getDay()]}</span>
-                <span class="date-label">${date.getDate()}</span>
+            html += `
+                <div class="date-item ${isSelected ? 'active' : ''} ${isToday ? 'is-today' : ''}" onclick="changeDate('${date.toISOString()}')">
+                    <span class="day-label">${DAYS_OF_WEEK[date.getDay()]}</span>
+                    <span class="date-label">${date.getDate()}</span>
+                </div>
+            `;
+        }
+    } else if (currentView === 'week') {
+        // For week view, just show month/year and leave dates blank (they're in the header below)
+        html = `
+            <div class="month-nav-item current-month" style="flex: 1;">
+                ${selectedDate.getFullYear()}年${selectedDate.getMonth() + 1}月
+            </div>
+        `;
+    } else if (currentView === 'month') {
+        // For month view, show month navigation controls or simplified view
+        const prevMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth() - 1, 1);
+        const nextMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 1);
+
+        html = `
+            <div class="month-nav-item" onclick="changeDate('${prevMonth.toISOString()}')">
+                ‹ ${prevMonth.getMonth() + 1}月
+            </div>
+            <div class="month-nav-item current-month">
+                ${selectedDate.getFullYear()}年${selectedDate.getMonth() + 1}月
+            </div>
+            <div class="month-nav-item" onclick="changeDate('${nextMonth.toISOString()}')">
+                ${nextMonth.getMonth() + 1}月 ›
             </div>
         `;
     }
+
     strip.innerHTML = html;
 }
 
@@ -370,7 +402,7 @@ function navigateMonth(direction, updateCallback) {
         // Default: update both calendars and other components
         renderMiniCalendar();
         renderDateStrip();
-        renderGrid();
+        renderCalendarView();
     }
 }
 
@@ -379,7 +411,7 @@ function navigateSidebarMonth(direction) {
     navigateMonth(direction, () => {
         renderMiniCalendar();
         renderDateStrip();
-        renderGrid();
+        renderCalendarView();
     });
 }
 
@@ -403,9 +435,7 @@ function selectDateFromMobile(year, month, day) {
 function changeDate(dateIso) {
     selectedDate = new Date(dateIso);
     displayMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1); // Sync display month
-    renderDateStrip();
-    renderMiniCalendar();
-    renderGrid();
+    renderCalendarView();
 }
 
 function renderHeaders() {
@@ -448,15 +478,40 @@ function renderHeaders() {
 function renderTimeLabels() {
     const timeLabels = document.getElementById('time-labels');
     let html = '';
-    for (let h = 0; h <= 23; h++) {
-        const label = h === 0 ? '' : `<span>${h}</span>`;
-        html += `<div class="time-label">${label}</div>`;
+
+    if (currentView === 'day') {
+        // Only show time labels for daily view
+        for (let h = 0; h <= 23; h++) {
+            const label = h === 0 ? '' : `<span>${h}</span>`;
+            html += `<div class="time-label">${label}</div>`;
+        }
     }
+    // For week and month views, no separate time labels needed
+
     timeLabels.innerHTML = html;
 }
 
 
-function renderGrid() {
+function renderCalendarView() {
+    if (currentView === 'day') {
+        renderDailyView();
+    } else if (currentView === 'week') {
+        renderWeeklyView();
+    } else if (currentView === 'month') {
+        renderMonthlyView();
+    }
+
+    // Update time labels for current view
+    renderTimeLabels();
+
+    // Update date strip for current view
+    renderDateStrip();
+
+    // Update mini calendar
+    renderMiniCalendar();
+}
+
+function renderDailyView() {
     const grid = document.getElementById('calendar-grid');
     grid.innerHTML = '';
 
@@ -524,6 +579,336 @@ function renderGrid() {
     renderHeaders();
 }
 
+function renderWeeklyView() {
+    const grid = document.getElementById('calendar-grid');
+    grid.innerHTML = '';
+
+    // Get the 7 days of the current week (Mon-Sun)
+    const weekStart = getWeekStart(selectedDate);
+    const weekDays = [];
+    for (let i = 0; i < 7; i++) {
+        const day = new Date(weekStart);
+        day.setDate(weekStart.getDate() + i);
+        weekDays.push(day);
+    }
+
+    // Create 7 day columns with the same slot structure as daily view
+    weekDays.forEach(day => {
+        const dayCol = document.createElement('div');
+        dayCol.className = 'practitioner-column'; // Use same class as daily view
+
+        // Add time slots with same 15-minute granularity as daily view
+        for (let h = 0; h <= 23; h++) {
+            for (let m = 0; m < 60; m += 15) {
+                const slot = document.createElement('div');
+                const timeStr = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+                slot.className = 'time-slot';
+
+                // Mark as unavailable outside typical business hours (9AM-6PM)
+                const isBusinessHour = h >= 9 && h <= 18;
+                if (!isBusinessHour) {
+                    slot.classList.add('unavailable');
+                }
+
+                // Add hour label at the start of each hour (only for first slot of hour)
+                if (m === 0 && h >= 8 && h <= 22) {
+                    const hourLabel = document.createElement('div');
+                    hourLabel.className = 'week-hour-label';
+                    hourLabel.textContent = h === 0 ? '12' : (h > 12 ? h - 12 : h).toString();
+                    hourLabel.style.position = 'absolute';
+                    hourLabel.style.top = '-8px';
+                    hourLabel.style.left = '4px';
+                    hourLabel.style.fontSize = '10px';
+                    hourLabel.style.fontWeight = '500';
+                    hourLabel.style.color = 'var(--text-muted)';
+                    slot.appendChild(hourLabel);
+                }
+
+                dayCol.appendChild(slot);
+            }
+        }
+
+        grid.appendChild(dayCol);
+    });
+
+    // Add all events from selected practitioners and resources
+    addEventsToWeeklyView();
+
+    // Update headers for week view
+    renderWeeklyHeaders(weekDays);
+}
+
+function renderMonthlyView() {
+    const grid = document.getElementById('calendar-grid');
+    grid.innerHTML = '';
+
+    // Get month info
+    const year = selectedDate.getFullYear();
+    const month = selectedDate.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const daysInMonth = lastDay.getDate();
+
+    // Calculate calendar grid (6 weeks × 7 days)
+    const startDate = new Date(firstDay);
+    startDate.setDate(firstDay.getDate() - firstDay.getDay()); // Start from Sunday
+
+    // Create 6 weeks × 7 days grid
+    for (let week = 0; week < 6; week++) {
+        const weekRow = document.createElement('div');
+        weekRow.className = 'month-week-row';
+
+        for (let day = 0; day < 7; day++) {
+            const currentDate = new Date(startDate);
+            currentDate.setDate(startDate.getDate() + (week * 7) + day);
+
+            const dayCell = document.createElement('div');
+            dayCell.className = 'month-day-cell';
+
+            // Check if this day is in the current month
+            const isCurrentMonth = currentDate.getMonth() === month;
+            if (!isCurrentMonth) {
+                dayCell.classList.add('other-month');
+            }
+
+            // Add date number
+            const dateNumber = document.createElement('div');
+            dateNumber.className = 'month-date-number';
+            dateNumber.textContent = currentDate.getDate();
+            dayCell.appendChild(dateNumber);
+
+            // Add events container
+            const eventsContainer = document.createElement('div');
+            eventsContainer.className = 'month-day-events';
+            dayCell.appendChild(eventsContainer);
+
+            weekRow.appendChild(dayCell);
+        }
+
+        grid.appendChild(weekRow);
+    }
+
+    // Add events to monthly view
+    addEventsToMonthlyView();
+
+    // Update headers for month view
+    renderMonthlyHeaders();
+}
+
+function getWeekStart(date) {
+    const d = new Date(date);
+    const day = d.getDay();
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Adjust for Monday start
+    return new Date(d.setDate(diff));
+}
+
+function addEventsToWeeklyView() {
+    const grid = document.getElementById('calendar-grid');
+
+    // Get all events from selected practitioners and resources
+    const allEvents = [];
+
+    // Practitioner appointments
+    selectedPractitioners.forEach(pId => {
+        mockAppointments.filter(app => app.pId === pId).forEach(app => {
+            allEvents.push({
+                ...app,
+                type: 'practitioner',
+                sourceId: pId,
+                color: getItemColor('practitioner', pId)
+            });
+        });
+        mockExceptions.filter(ex => ex.pId === pId).forEach(ex => {
+            allEvents.push({
+                ...ex,
+                type: 'exception',
+                sourceId: pId,
+                color: '#f59e0b' // Orange for exceptions
+            });
+        });
+    });
+
+    // Resource bookings
+    selectedResources.forEach(rId => {
+        getResourceBookings(rId).forEach(booking => {
+            allEvents.push({
+                ...booking,
+                type: 'resource',
+                sourceId: rId,
+                color: getItemColor('resource', rId)
+            });
+        });
+    });
+
+    // Position events in the weekly grid
+    allEvents.forEach(event => {
+        // For demo purposes, distribute events across the week
+        // In a real app, you'd use the actual event dates
+        const dayIndex = event.sourceId % 7; // Simple distribution: 0-6 for the 7 days
+
+        if (dayIndex >= 0 && dayIndex < 7) {
+            const dayColumn = grid.children[dayIndex];
+            if (dayColumn) {
+                const eventElement = createWeeklyEventElement(event);
+                dayColumn.appendChild(eventElement);
+            }
+        }
+    });
+}
+
+function addEventsToMonthlyView() {
+    const grid = document.getElementById('calendar-grid');
+
+    // Get all events from selected practitioners and resources
+    const allEvents = [];
+
+    // Practitioner appointments
+    selectedPractitioners.forEach(pId => {
+        mockAppointments.filter(app => app.pId === pId).forEach(app => {
+            allEvents.push({
+                ...app,
+                type: 'practitioner',
+                sourceId: pId,
+                color: getItemColor('practitioner', pId)
+            });
+        });
+    });
+
+    // Resource bookings
+    selectedResources.forEach(rId => {
+        getResourceBookings(rId).forEach(booking => {
+            allEvents.push({
+                ...booking,
+                type: 'resource',
+                sourceId: rId,
+                color: getItemColor('resource', rId)
+            });
+        });
+    });
+
+    // Group events by date
+    const eventsByDate = {};
+    allEvents.forEach(event => {
+        const dateKey = selectedDate.toISOString().split('T')[0]; // For demo, assume current month
+        if (!eventsByDate[dateKey]) {
+            eventsByDate[dateKey] = [];
+        }
+        eventsByDate[dateKey].push(event);
+    });
+
+    // Add events to corresponding day cells
+    Object.keys(eventsByDate).forEach(dateKey => {
+        const events = eventsByDate[dateKey];
+        const date = new Date(dateKey);
+        const dayOfMonth = date.getDate();
+
+        // Find the corresponding cell in the month grid
+        let targetCell = null;
+        const weekRows = grid.querySelectorAll('.month-week-row');
+        weekRows.forEach(row => {
+            const cells = row.querySelectorAll('.month-day-cell');
+            cells.forEach(cell => {
+                const dateNumber = cell.querySelector('.month-date-number');
+                if (dateNumber && parseInt(dateNumber.textContent) === dayOfMonth) {
+                    targetCell = cell.querySelector('.month-day-events');
+                }
+            });
+        });
+
+        if (targetCell) {
+            events.slice(0, 3).forEach(event => { // Show max 3 events per day
+                const eventElement = createMonthlyEventElement(event);
+                targetCell.appendChild(eventElement);
+            });
+
+            if (events.length > 3) {
+                const moreElement = document.createElement('div');
+                moreElement.className = 'month-more-events';
+                moreElement.textContent = `+${events.length - 3} more`;
+                targetCell.appendChild(moreElement);
+            }
+        }
+    });
+}
+
+function createWeeklyEventElement(event) {
+    const [startHour, startMinute] = event.start.split(':').map(Number);
+    const [endHour, endMinute] = event.end.split(':').map(Number);
+
+    const div = document.createElement('div');
+    div.className = 'calendar-event'; // Use same class as daily view
+    div.style.background = event.color || '#e5e7eb';
+
+    // Calculate position in pixels (same as daily view: 20px per 15-minute slot)
+    const startSlot = (startHour * 4) + Math.floor(startMinute / 15);
+    const endSlot = (endHour * 4) + Math.floor(endMinute / 15);
+    const topOffset = startSlot * 20; // 20px per slot
+    const height = Math.max((endSlot - startSlot) * 20, 20); // Minimum 20px height
+
+    div.style.top = `${topOffset}px`;
+    div.style.height = `${height}px`;
+
+    // Event content (same format as daily view)
+    let title = '';
+    if (event.type === 'practitioner') {
+        title = `${event.patient} | ${event.appointmentType}`;
+    } else if (event.type === 'resource') {
+        const resource = resources.find(r => r.id === event.sourceId);
+        title = `[${resource?.name || '資源'}] ${event.title}`;
+    } else if (event.type === 'exception') {
+        title = event.title;
+    }
+
+    div.innerHTML = `<div class="event-title">${title}</div>`;
+    return div;
+}
+
+function createMonthlyEventElement(event) {
+    const div = document.createElement('div');
+    div.className = 'month-event';
+    div.style.background = event.color || '#e5e7eb';
+
+    let title = '';
+    if (event.type === 'practitioner') {
+        title = `${event.patient} | ${event.appointmentType}`;
+    } else if (event.type === 'resource') {
+        title = event.title;
+    }
+
+    div.innerHTML = `<div class="month-event-title">${title}</div>`;
+    return div;
+}
+
+function renderWeeklyHeaders(weekDays) {
+    const headerRow = document.getElementById('resource-headers');
+    headerRow.innerHTML = '';
+
+    weekDays.forEach(day => {
+        const dayName = DAYS_OF_WEEK[day.getDay()];
+        const dateNum = day.getDate();
+
+        const header = document.createElement('div');
+        header.className = 'resource-header';
+        header.innerHTML = `
+            <div style="font-size: 10px; color: var(--text-muted); margin-bottom: 2px;">${dayName}</div>
+            <div style="font-size: 14px; font-weight: 700;">${dateNum}</div>
+        `;
+        headerRow.appendChild(header);
+    });
+}
+
+function renderMonthlyHeaders() {
+    const headerRow = document.getElementById('resource-headers');
+    headerRow.innerHTML = '';
+
+    DAYS_OF_WEEK.forEach(day => {
+        const header = document.createElement('div');
+        header.className = 'month-weekday-header';
+        header.textContent = day;
+        headerRow.appendChild(header);
+    });
+}
+
 function createAppointmentBox(appointment, practitionerId) {
     // Follow production naming pattern: {PatientName} | {AppointmentType} {ResourceNames} | {Notes}
     const resourceText = appointment.resources && appointment.resources.length > 0 ? ` ${appointment.resources.join(' ')}` : '';
@@ -578,7 +963,7 @@ function setupEventListeners() {
         displayMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1); // Sync display month
         renderDateStrip();
         renderMiniCalendar();
-        renderGrid();
+        renderCalendarView();
 
         // Auto-scroll to 9 AM
         const viewport = document.getElementById('main-viewport');
@@ -698,6 +1083,9 @@ function toggleResource(id, checked) {
 
 // Simplified view switching - only updates button states since only day view is implemented
 function switchView(view) {
+    // Update current view state
+    currentView = view;
+
     // Update active state of view buttons
     document.querySelectorAll('.view-option-compact').forEach(button => {
         button.classList.remove('active');
@@ -705,6 +1093,9 @@ function switchView(view) {
             button.classList.add('active');
         }
     });
+
+    // Re-render calendar with new view
+    renderCalendarView();
 }
 
 function getResourceBookings(resourceId) {
