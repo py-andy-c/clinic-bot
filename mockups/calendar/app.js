@@ -811,7 +811,7 @@ function renderOverlappingEventGroup(group, containerElement, viewType) {
             createWeeklyEventElement(event);
 
         // Calculate width and position for horizontal overlap that spans full width
-        const overlapPercent = 6; // 6% horizontal overlap between events
+        const overlapPercent = 12; // 12% horizontal overlap between events (doubled)
         const totalOverlap = (numEvents - 1) * overlapPercent; // Total overlap space
         const eventWidth = Math.max(100 - totalOverlap, 30); // Width to reach 100% span, minimum 30%
 
