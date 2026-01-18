@@ -111,8 +111,6 @@ let assignedColors = new Map(); // itemId -> color
 // Current view state
 // Note: Only day view is currently implemented
 
-// Navigation dropdown state
-let openDropdown = null;
 
 let selectedDate = new Date("2026-01-19");
 
@@ -639,14 +637,6 @@ function setupEventListeners() {
     }
 
 
-    // Navigation dropdown handlers
-    document.querySelectorAll('.nav-item.has-dropdown').forEach(button => {
-        button.onclick = (e) => {
-            e.preventDefault();
-            const menuName = button.dataset.menu;
-            toggleDropdown(menuName);
-        };
-    });
 
     // View switcher buttons
     document.querySelectorAll('.view-option-compact').forEach(button => {
@@ -673,15 +663,6 @@ function setupEventListeners() {
     });
 
 
-    // Close dropdown when clicking outside
-    document.addEventListener('click', (e) => {
-        if (!e.target.closest('.nav-item')) {
-            if (openDropdown) {
-                document.querySelector(`.nav-item[data-menu="${openDropdown}"]`).classList.remove('open');
-                openDropdown = null;
-            }
-        }
-    });
 
     // Modal Handlers
     document.querySelector('.close-btn').onclick = () => document.getElementById('event-modal').style.display = 'none';
@@ -779,19 +760,5 @@ function openCreateModal(hour, minute) {
     console.log(`Create appointment at ${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`);
 }
 
-function toggleDropdown(menuName) {
-    // Close any open dropdown
-    if (openDropdown) {
-        document.querySelector(`.nav-item[data-menu="${openDropdown}"]`).classList.remove('open');
-    }
-
-    // Toggle the clicked dropdown
-    if (openDropdown !== menuName) {
-        document.querySelector(`.nav-item[data-menu="${menuName}"]`).classList.add('open');
-        openDropdown = menuName;
-    } else {
-        openDropdown = null;
-    }
-}
 
 window.onload = initCalendar;
