@@ -84,27 +84,30 @@ const mockAppointments = [
     // Overlapping events for testing (same dayIndex: 1 % 7 = 1, 8 % 7 = 1)
     {
         pId: 8,
-        patient: '測試患者A',
-        appointmentType: '測試治療A',
+        patient: '劉小姐',
+        appointmentType: '頭痛治療',
         resources: ['治療室1'],
         start: '09:00',
-        end: '10:00'
+        end: '10:00',
+        notes: '偏頭痛'
     },
     {
         pId: 15, // 15 % 7 = 1, same day as pId 8
-        patient: '測試患者B',
-        appointmentType: '測試治療B',
+        patient: '張先生',
+        appointmentType: '腰痛復健',
         resources: ['治療室2'],
         start: '09:15',
-        end: '10:15'
+        end: '10:15',
+        notes: '椎間盤突出'
     },
     {
         pId: 22, // 22 % 7 = 1, same day
-        patient: '測試患者C',
-        appointmentType: '測試治療C',
+        patient: '李太太',
+        appointmentType: '膝蓋按摩',
         resources: ['治療室3'],
         start: '09:30',
-        end: '10:30'
+        end: '10:30',
+        notes: '退化性關節炎'
     }
 ];
 
@@ -942,13 +945,19 @@ function createWeeklyEventElement(event) {
     div.style.left = '0';
     div.style.width = '100%'; // Default full width, will be overridden for overlapping events
 
-    // Event content (same format as daily view)
+    // Event content - more representative naming pattern for weekly view
     let title = '';
     if (event.type === 'practitioner') {
-        title = `${event.patient} | ${event.appointmentType}`;
+        // Include primary resource: Patient | AppointmentType Resource | Notes (if available)
+        const primaryResource = event.resources && event.resources.length > 0 ? event.resources[0] : '';
+        const resourceText = primaryResource ? ` ${primaryResource}` : '';
+        const baseTitle = `${event.patient} | ${event.appointmentType}${resourceText}`;
+        title = event.notes ? `${baseTitle} | ${event.notes}` : baseTitle;
     } else if (event.type === 'resource') {
         const resource = resources.find(r => r.id === event.sourceId);
-        title = `[${resource?.name || '資源'}] ${event.title}`;
+        const resourceName = resource?.name || '資源';
+        const baseTitle = `[${resourceName}] ${event.title}`;
+        title = event.notes ? `${baseTitle} | ${event.notes}` : baseTitle;
     } else if (event.type === 'exception') {
         title = event.title;
     }
