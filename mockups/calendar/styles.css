@@ -1150,7 +1150,7 @@ body {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    color: #92400e; /* Dark brown text for resource bookings */
+    color: white; /* White text for resource bookings like practitioners */
 }
 
 .practitioner-1 {
