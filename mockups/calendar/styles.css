@@ -667,18 +667,25 @@ body {
 }
 
 .mini-calendar .day.today {
-    background: var(--primary);
-    color: white;
+    text-decoration: underline;
+    text-decoration-color: var(--primary);
+    text-decoration-thickness: 2px;
     font-weight: 600;
 }
 
 .mini-calendar .day.selected {
-    background: var(--primary-hover);
+    background: var(--primary);
     color: white;
+    font-weight: 700;
 }
 
 .mini-calendar .day.today.selected {
-    background: var(--primary-hover);
+    background: var(--primary);
+    color: white;
+    font-weight: 700;
+    text-decoration: underline;
+    text-decoration-color: white;
+    text-decoration-thickness: 2px;
 }
 
 /* Mobile Date Picker Modal */
