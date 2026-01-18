@@ -951,21 +951,24 @@ function addEventsToTimeBasedView(columnElement, column, viewType) {
     });
 
     // Handle regular events with overlapping logic
+    // Make all events semi-transparent for consistency in time-based views
     if (regularEvents.length === 1) {
-        // Single event - full width
+        // Single event - full width, semi-transparent
         const eventElement = viewType === 'daily' ?
             createAppointmentBox(regularEvents[0], regularEvents[0].sourceId) :
             createWeeklyEventElement(regularEvents[0]);
+        eventElement.style.opacity = '0.8'; // Consistent semi-transparent styling
         columnElement.appendChild(eventElement);
     } else if (regularEvents.length > 1) {
         // Multiple events - group by time overlap and handle each group
         const overlappingGroups = groupOverlappingEvents(regularEvents);
         overlappingGroups.forEach(group => {
             if (group.length === 1) {
-                // Single event in this time slot - full width
+                // Single event in this time slot - full width, semi-transparent
                 const eventElement = viewType === 'daily' ?
                     createAppointmentBox(group[0], group[0].sourceId) :
                     createWeeklyEventElement(group[0]);
+                eventElement.style.opacity = '0.8'; // Consistent semi-transparent styling
                 columnElement.appendChild(eventElement);
             } else {
                 // Multiple overlapping events - use overlapping treatment
