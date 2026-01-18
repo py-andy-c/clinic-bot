@@ -327,6 +327,46 @@ function closeSidebar() {
     document.body.style.overflow = '';
 }
 
+function showMiniCalendarModal() {
+    const modal = document.getElementById('mini-calendar-modal');
+    if (modal) {
+        modal.classList.add('show');
+        renderModalMiniCalendar();
+        // Prevent body scroll when modal is open
+        document.body.style.overflow = 'hidden';
+    }
+}
+
+function hideMiniCalendarModal() {
+    const modal = document.getElementById('mini-calendar-modal');
+    if (modal) {
+        modal.classList.remove('show');
+        // Restore body scroll
+        document.body.style.overflow = '';
+    }
+}
+
+function setupDateStripEventListeners() {
+    // Use document-level event delegation for more reliable event handling
+    document.addEventListener('click', (e) => {
+        const target = e.target;
+
+        // Handle nav button clicks
+        if (target.classList.contains('nav-button') && target.hasAttribute('data-date')) {
+            const dateIso = target.getAttribute('data-date');
+            if (dateIso) {
+                changeDate(dateIso);
+            }
+        }
+
+        // Handle date display clicks
+        if (target.classList.contains('date-display')) {
+            showMiniCalendarModal();
+        }
+    });
+
+}
+
 function renderDateStrip() {
     const strip = document.getElementById('date-strip');
     const monthYearDisplay = document.getElementById('date-strip-month-year');
@@ -348,9 +388,9 @@ function renderDateStrip() {
         nextDay.setDate(selectedDate.getDate() + 1);
 
         html = `
-            <button class="nav-button" onclick="changeDate('${prevDay.toISOString()}')">‹</button>
+            <button class="nav-button" data-date="${prevDay.toISOString()}">‹</button>
             <span class="date-display">${selectedDate.getFullYear()}年${selectedDate.getMonth() + 1}月${selectedDate.getDate()}日</span>
-            <button class="nav-button" onclick="changeDate('${nextDay.toISOString()}')">›</button>
+            <button class="nav-button" data-date="${nextDay.toISOString()}">›</button>
         `;
     } else if (currentView === 'week') {
         // For week view: < 2026年1月 >
@@ -358,9 +398,9 @@ function renderDateStrip() {
         const nextMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 1);
 
         html = `
-            <button class="nav-button" onclick="changeDate('${prevMonth.toISOString()}')">‹</button>
+            <button class="nav-button" data-date="${prevMonth.toISOString()}">‹</button>
             <span class="date-display">${selectedDate.getFullYear()}年${selectedDate.getMonth() + 1}月</span>
-            <button class="nav-button" onclick="changeDate('${nextMonth.toISOString()}')">›</button>
+            <button class="nav-button" data-date="${nextMonth.toISOString()}">›</button>
         `;
     } else if (currentView === 'month') {
         // For month view: < 2026年1月 >
@@ -368,13 +408,16 @@ function renderDateStrip() {
         const nextMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 1);
 
         html = `
-            <button class="nav-button" onclick="changeDate('${prevMonth.toISOString()}')">‹</button>
+            <button class="nav-button" data-date="${prevMonth.toISOString()}">‹</button>
             <span class="date-display">${selectedDate.getFullYear()}年${selectedDate.getMonth() + 1}月</span>
-            <button class="nav-button" onclick="changeDate('${nextMonth.toISOString()}')">›</button>
+            <button class="nav-button" data-date="${nextMonth.toISOString()}">›</button>
         `;
     }
 
     strip.innerHTML = html;
+
+    // Setup event listeners for the newly rendered elements
+    setupDateStripEventListeners();
 }
 
 function renderCalendar(containerId, monthYearId, clickHandler) {
@@ -452,6 +495,10 @@ function renderMiniCalendar() {
     renderCalendar('mini-calendar', 'sidebar-month-year', 'selectDate');
 }
 
+function renderModalMiniCalendar() {
+    renderCalendar('modal-mini-calendar', 'modal-month-year', 'selectDateFromModal');
+}
+
 
 function navigateMonth(direction, updateCallback) {
     const currentMonth = displayMonth.getMonth();
@@ -491,14 +538,20 @@ function navigateSidebarMonth(direction) {
     });
 }
 
+function navigateModalMonth(direction) {
+    navigateMonth(direction, () => {
+        renderModalMiniCalendar();
+    });
+}
+
 
 function selectDate(year, month, day, shouldCloseModal = false) {
     selectedDate = new Date(year, month, day);
     displayMonth = new Date(year, month, 1); // Sync display month with selected date
     renderDateStrip();
     renderMiniCalendar();
-    renderGrid();
-    
+    renderCalendarView();
+
     if (shouldCloseModal) {
         closeMobileDatePicker();
     }
@@ -506,6 +559,11 @@ function selectDate(year, month, day, shouldCloseModal = false) {
 
 function selectDateFromMobile(year, month, day) {
     selectDate(year, month, day, true);
+}
+
+function selectDateFromModal(year, month, day) {
+    selectDate(year, month, day);
+    hideMiniCalendarModal();
 }
 
 function changeDate(dateIso) {
@@ -1317,6 +1375,17 @@ function setupEventListeners() {
         closeSidebar();
     };
 
+    // Mini calendar modal handlers
+    const modal = document.getElementById('mini-calendar-modal');
+    if (modal) {
+        modal.onclick = (e) => {
+            // Close modal if clicking on backdrop (not on content)
+            if (e.target === modal) {
+                hideMiniCalendarModal();
+            }
+        };
+    }
+
     // Action buttons in date strip
     const createAppointmentBtn = document.getElementById('create-appointment-btn');
     if (createAppointmentBtn) createAppointmentBtn.onclick = () => {
@@ -1380,6 +1449,19 @@ function setupEventListeners() {
     
     if (nextMonthBtn) {
         nextMonthBtn.onclick = () => navigateSidebarMonth('next');
+    }
+
+
+    // Modal mini calendar navigation handlers
+    const modalPrevMonthBtn = document.getElementById('modal-prev-month-btn');
+    const modalNextMonthBtn = document.getElementById('modal-next-month-btn');
+
+    if (modalPrevMonthBtn) {
+        modalPrevMonthBtn.onclick = () => navigateModalMonth('prev');
+    }
+
+    if (modalNextMonthBtn) {
+        modalNextMonthBtn.onclick = () => navigateModalMonth('next');
     }
 
 
