@@ -1002,34 +1002,6 @@ body {
     border-bottom: 1px solid var(--border);
 }
 
-/* ===== MONTH NAVIGATION STYLES ===== */
-
-.month-nav-item {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 8px 12px;
-    font-size: 12px;
-    font-weight: 500;
-    color: var(--text-muted);
-    cursor: pointer;
-    transition: all 0.2s;
-    border-radius: 6px;
-    margin: 0 2px;
-}
-
-.month-nav-item:hover {
-    background: var(--bg-main);
-    color: var(--text-main);
-}
-
-.month-nav-item.current-month {
-    color: var(--primary);
-    font-weight: 600;
-    background: rgba(37, 99, 235, 0.1);
-}
-
 /* ===== SHARED EVENT STYLING ===== */
 
 /* All calendar events now use the same base calendar-event class */

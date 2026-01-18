@@ -370,21 +370,8 @@ function renderDateStrip() {
         // For week view, show empty date strip (dates are in header below)
         html = '';
     } else if (currentView === 'month') {
-        // For month view, show month navigation controls or simplified view
-        const prevMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth() - 1, 1);
-        const nextMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 1);
-
-        html = `
-            <div class="month-nav-item" onclick="changeDate('${prevMonth.toISOString()}')">
-                ‹ ${prevMonth.getMonth() + 1}月
-            </div>
-            <div class="month-nav-item current-month">
-                ${selectedDate.getFullYear()}年${selectedDate.getMonth() + 1}月
-            </div>
-            <div class="month-nav-item" onclick="changeDate('${nextMonth.toISOString()}')">
-                ${nextMonth.getMonth() + 1}月 ›
-            </div>
-        `;
+        // For month view, show empty date strip (month is shown in header above)
+        html = '';
     }
 
     strip.innerHTML = html;
