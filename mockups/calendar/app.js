@@ -197,6 +197,14 @@ const CALENDAR_WEEKDAYS = ['一', '二', '三', '四', '五', '六', '日'];
 const SCROLL_OFFSET = 60;
 const AUTO_SCROLL_DELAY = 100;
 
+// Time and calendar constants
+const HOURS_IN_DAY = 24;
+const MINUTES_IN_HOUR = 60;
+const SLOT_INTERVAL_MINUTES = 15;
+const BUSINESS_START_HOUR = 9;
+const BUSINESS_END_HOUR = 18;
+const SLOT_HEIGHT_PX = 20;
+
 // Selected calendars state
 let selectedPractitioners = [1, 2, 3, 4, 5, 6]; // Match HTML checkbox states
 let selectedResources = [1, 2]; // Default to some resources
@@ -209,6 +217,9 @@ let currentView = 'day'; // 'day', 'week', 'month'
 
 let selectedDate = new Date("2026-01-19");
 let displayMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1); // Month currently displayed in mini calendar
+
+// Cached DOM elements for performance
+let calendarGrid, timeLabels, timeCorner, mainViewport, sidebar, sidebarBackdrop, miniCalendarModal;
 
 // Helper function to get current time in Taiwan timezone (UTC+8)
 function getTaiwanTime() {
@@ -223,7 +234,38 @@ function getTaiwanTime() {
 // Helper function to convert time string (HH:MM) to pixel position
 function timeToPixels(timeString) {
     const [hours, minutes] = timeString.split(':').map(Number);
-    return hours * 60 + minutes;
+    const totalMinutes = hours * MINUTES_IN_HOUR + minutes;
+    return Math.floor(totalMinutes / SLOT_INTERVAL_MINUTES) * SLOT_HEIGHT_PX;
+}
+
+// Helper function to create time slots for a column
+function createTimeSlotsForColumn(columnElement, viewType, columnData = null) {
+    // Add time slots with 15-minute granularity
+    for (let h = 0; h < HOURS_IN_DAY; h++) {
+        for (let m = 0; m < MINUTES_IN_HOUR; m += SLOT_INTERVAL_MINUTES) {
+            const slot = document.createElement('div');
+            slot.className = 'time-slot';
+
+            // Mark unavailable time slots based on view type and column data
+            if (viewType === 'daily' && columnData?.type === 'practitioner') {
+                // Daily view: check specific practitioner availability
+                const timeStr = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+                const isAvailable = columnData.data.schedule.some(interval => timeStr >= interval.start && timeStr < interval.end);
+                if (!isAvailable) {
+                    slot.classList.add('unavailable');
+                }
+            } else if (viewType === 'weekly') {
+                // Weekly view: show default business hours
+                const isBusinessHour = h >= BUSINESS_START_HOUR && h < BUSINESS_END_HOUR;
+                if (!isBusinessHour) {
+                    slot.classList.add('unavailable');
+                }
+            }
+
+            if (h === 9 && m === 0) slot.id = 'slot-9am';
+            columnElement.appendChild(slot);
+        }
+    }
 }
 
 // Helper function to create positioned calendar element
@@ -289,24 +331,34 @@ function updateSidebarIndicators() {
 }
 
 function initCalendar() {
+    // Cache frequently used DOM elements
+    cacheDomElements();
+
     renderCalendarView();
     updateSidebarIndicators(); // Update colors for initially selected items
     setupEventListeners();
 
     // Auto-scroll to 9 AM
     setTimeout(() => {
-        const viewport = document.getElementById('main-viewport');
         const slot9am = document.getElementById('slot-9am');
-        if (slot9am && viewport) {
-            viewport.scrollTop = slot9am.offsetTop - SCROLL_OFFSET;
+        if (slot9am && mainViewport) {
+            mainViewport.scrollTop = slot9am.offsetTop - SCROLL_OFFSET;
         }
     }, AUTO_SCROLL_DELAY);
 }
 
+function cacheDomElements() {
+    calendarGrid = document.getElementById('calendar-grid');
+    timeLabels = document.getElementById('time-labels');
+    timeCorner = document.querySelector('.time-corner');
+    mainViewport = document.getElementById('main-viewport');
+    sidebar = document.getElementById('sidebar');
+    sidebarBackdrop = document.getElementById('sidebar-backdrop');
+    miniCalendarModal = document.getElementById('mini-calendar-modal');
+}
+
 // Sidebar toggle functions
 function toggleSidebar() {
-    const sidebar = document.getElementById('sidebar');
-    const backdrop = document.getElementById('sidebar-backdrop');
 
     if (sidebar.classList.contains('open')) {
         closeSidebar();
@@ -316,22 +368,18 @@ function toggleSidebar() {
 }
 
 function openSidebar() {
-    const sidebar = document.getElementById('sidebar');
-    const backdrop = document.getElementById('sidebar-backdrop');
 
     sidebar.classList.add('open');
-    backdrop.classList.add('open');
+    sidebarBackdrop.classList.add('open');
 
     // Prevent body scroll when sidebar is open on mobile
     document.body.style.overflow = 'hidden';
 }
 
 function closeSidebar() {
-    const sidebar = document.getElementById('sidebar');
-    const backdrop = document.getElementById('sidebar-backdrop');
 
     sidebar.classList.remove('open');
-    backdrop.classList.remove('open');
+    sidebarBackdrop.classList.remove('open');
 
     // Restore body scroll
     document.body.style.overflow = '';
@@ -637,19 +685,15 @@ function renderTimeLabels() {
 
 function renderCalendarView() {
     // Adjust layout based on view
-    const timeColumn = document.getElementById('time-labels');
-    const timeCorner = document.querySelector('.time-corner');
-    const calendarGrid = document.getElementById('calendar-grid');
-
     if (currentView === 'month') {
         // Monthly view: hide time elements
-        if (timeColumn) timeColumn.style.display = 'none';
+        if (timeLabels) timeLabels.style.display = 'none';
         if (timeCorner) timeCorner.style.display = 'none';
         // Calendar grid displays week rows as blocks
         if (calendarGrid) calendarGrid.style.display = 'block';
     } else {
         // Daily/Weekly views: show time elements
-        if (timeColumn) timeColumn.style.display = 'block';
+        if (timeLabels) timeLabels.style.display = 'block';
         if (timeCorner) timeCorner.style.display = 'block';
         // Calendar grid displays day columns as flex items
         if (calendarGrid) calendarGrid.style.display = 'flex';
@@ -676,8 +720,8 @@ function renderCalendarView() {
 
 // Shared function for rendering time-based views (daily and weekly)
 function renderTimeBasedView(viewType) {
-    const grid = document.getElementById('calendar-grid');
-    grid.innerHTML = '';
+    if (!calendarGrid) return;
+    calendarGrid.innerHTML = '';
 
     let columns = [];
 
@@ -719,42 +763,18 @@ function renderTimeBasedView(viewType) {
         const col = document.createElement('div');
         col.className = 'practitioner-column'; // Use same class for all column types
 
-        // Add time slots (same for all column types in time-based views)
-        for (let h = 0; h <= 23; h++) {
-            for (let m = 0; m < 60; m += 15) {
-                const slot = document.createElement('div');
-                slot.className = 'time-slot';
-
-                // Mark unavailable time slots
-                if (viewType === 'daily' && column.type === 'practitioner') {
-                    // Daily view: check specific practitioner availability
-                    const timeStr = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
-                    const isAvailable = column.data.schedule.some(interval => timeStr >= interval.start && timeStr < interval.end);
-                    if (!isAvailable) {
-                        slot.classList.add('unavailable');
-                    }
-                } else if (viewType === 'weekly') {
-                    // Weekly view: show default business hours (9AM-6PM)
-                    const isBusinessHour = h >= 9 && h <= 18;
-                    if (!isBusinessHour) {
-                        slot.classList.add('unavailable');
-                    }
-                }
-
-                if (h === 9 && m === 0) slot.id = 'slot-9am';
-                col.appendChild(slot);
-            }
-        }
+        // Add time slots using shared function
+        createTimeSlotsForColumn(col, viewType, column);
 
         // Add events using shared overlapping logic
         addEventsToTimeBasedView(col, column, viewType);
 
-        grid.appendChild(col);
+        calendarGrid.appendChild(col);
     });
 
     // Add current time indicator for daily and weekly views
     if (viewType === 'daily' || viewType === 'weekly') {
-        addCurrentTimeIndicator(grid);
+        addCurrentTimeIndicator(calendarGrid);
     }
 
     // Update headers
@@ -1020,8 +1040,8 @@ function renderOverlappingEventGroup(group, containerElement, viewType) {
 }
 
 function renderWeeklyView() {
-    const grid = document.getElementById('calendar-grid');
-    grid.innerHTML = '';
+    if (!calendarGrid) return;
+    calendarGrid.innerHTML = '';
 
     // Get the 7 days of the current week (Mon-Sun)
     const weekStart = getWeekStart(selectedDate);
@@ -1037,21 +1057,8 @@ function renderWeeklyView() {
         const dayCol = document.createElement('div');
         dayCol.className = 'practitioner-column'; // Use same class as daily view
 
-        // Add time slots with same 15-minute granularity as daily view
-        for (let h = 0; h <= 23; h++) {
-            for (let m = 0; m < 60; m += 15) {
-                const slot = document.createElement('div');
-                slot.className = 'time-slot';
-
-                // Mark as unavailable outside typical business hours (9AM-6PM)
-                const isBusinessHour = h >= 9 && h <= 18;
-                if (!isBusinessHour) {
-                    slot.classList.add('unavailable');
-                }
-
-                dayCol.appendChild(slot);
-            }
-        }
+        // Add time slots using shared function
+        createTimeSlotsForColumn(dayCol, 'weekly');
 
         grid.appendChild(dayCol);
     });
@@ -1067,8 +1074,8 @@ function renderWeeklyView() {
 }
 
 function renderMonthlyView() {
-    const grid = document.getElementById('calendar-grid');
-    grid.innerHTML = '';
+    if (!calendarGrid) return;
+    calendarGrid.innerHTML = '';
 
     // Get month info
     const year = selectedDate.getFullYear();
@@ -1257,7 +1264,7 @@ function calculateMaxEventsPerCell(hasMoreEvents = false) {
 }
 
 function addEventsToMonthlyView() {
-    const grid = document.getElementById('calendar-grid');
+    // grid is already available as calendarGrid
 
     // Create test data with ~10 events on the selected date
     const testEvents = [];
@@ -1294,7 +1301,7 @@ function addEventsToMonthlyView() {
 
         // Find the corresponding cell in the month grid
         let targetCell = null;
-        const weekRows = grid.querySelectorAll('.month-week-row');
+        const weekRows = calendarGrid.querySelectorAll('.month-week-row');
         weekRows.forEach(row => {
             const cells = row.querySelectorAll('.month-day-cell');
             cells.forEach(cell => {
@@ -1349,11 +1356,11 @@ function createWeeklyEventElement(event) {
         div.style.background = event.color || '#e5e7eb';
     }
 
-    // Calculate position in pixels (same as daily view: 20px per 15-minute slot)
+    // Calculate position in pixels (same as daily view)
     const startSlot = (startHour * 4) + Math.floor(startMinute / 15);
     const endSlot = (endHour * 4) + Math.floor(endMinute / 15);
-    const topOffset = startSlot * 20; // 20px per slot
-    const height = Math.max((endSlot - startSlot) * 20, 20); // Minimum 20px height
+    const topOffset = startSlot * SLOT_HEIGHT_PX;
+    const height = Math.max((endSlot - startSlot) * SLOT_HEIGHT_PX, SLOT_HEIGHT_PX); // Minimum slot height
 
     div.style.top = `${topOffset}px`;
     div.style.height = `${height}px`;
@@ -1540,16 +1547,15 @@ function createBox(data, className) {
 
 function setupEventListeners() {
     // Sidebar backdrop click handler - close sidebar
-    document.getElementById('sidebar-backdrop').onclick = () => {
+    sidebarBackdrop.onclick = () => {
         closeSidebar();
     };
 
     // Mini calendar modal handlers
-    const modal = document.getElementById('mini-calendar-modal');
-    if (modal) {
-        modal.onclick = (e) => {
+    if (miniCalendarModal) {
+        miniCalendarModal.onclick = (e) => {
             // Close modal if clicking on backdrop (not on content)
-            if (e.target === modal) {
+            if (e.target === miniCalendarModal) {
                 hideMiniCalendarModal();
             }
         };
@@ -1725,4 +1731,5 @@ function getResourceBookings(resourceId) {
 
 
 
-window.onload = initCalendar;
+// Initialize calendar when script loads (DOM should be ready since script is at bottom of HTML)
+initCalendar();
