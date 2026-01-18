@@ -431,13 +431,9 @@ body {
 }
 
 /* Reusable Practitioner Filter Components */
-.practitioner-filter-list {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
 
-.practitioner-filter-item {
+.practitioner-filter-item,
+.resource-filter-item {
     display: flex;
     align-items: center;
     gap: 10px;
@@ -446,6 +442,12 @@ body {
     padding: 4px;
     border-radius: 4px;
     transition: background 0.2s;
+    margin-bottom: 6px;
+}
+
+.practitioner-filter-item:last-child,
+.resource-filter-item:last-child {
+    margin-bottom: 0;
 }
 
 .practitioner-filter-item:hover {
@@ -477,11 +479,6 @@ body {
 }
 
 /* Resource Filter Components */
-.resource-filter-list {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
 
 .resource-filter-item {
     display: flex;
