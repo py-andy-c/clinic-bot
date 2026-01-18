@@ -332,19 +332,7 @@ function renderDateStrip() {
     const monthYearDisplay = document.getElementById('date-strip-month-year');
     if (!strip) return;
 
-    // Update month/year display based on current view
-    if (monthYearDisplay) {
-        const year = selectedDate.getFullYear();
-        const month = selectedDate.getMonth();
-
-        if (currentView === 'day') {
-            monthYearDisplay.textContent = `${year}年${month + 1}月`;
-        } else if (currentView === 'week') {
-            monthYearDisplay.textContent = `${year}年${month + 1}月`;
-        } else if (currentView === 'month') {
-            monthYearDisplay.textContent = `${year}年${month + 1}月`;
-        }
-    }
+    // Month/year display removed - navigation is now in date strip
 
     let html = '';
 
@@ -353,25 +341,37 @@ function renderDateStrip() {
         const startOfWeek = new Date(selectedDate);
         startOfWeek.setDate(selectedDate.getDate() - selectedDate.getDay());
 
-        for (let i = 0; i < 7; i++) {
-            const date = new Date(startOfWeek);
-            date.setDate(startOfWeek.getDate() + i);
-            const isSelected = date.toDateString() === selectedDate.toDateString();
-            const isToday = date.toDateString() === new Date().toDateString();
+        // For daily view: < 2026年1月18日 >
+        const prevDay = new Date(selectedDate);
+        prevDay.setDate(selectedDate.getDate() - 1);
+        const nextDay = new Date(selectedDate);
+        nextDay.setDate(selectedDate.getDate() + 1);
 
-            html += `
-                <div class="date-item ${isSelected ? 'active' : ''} ${isToday ? 'is-today' : ''}" onclick="changeDate('${date.toISOString()}')">
-                    <span class="day-label">${DAYS_OF_WEEK[date.getDay()]}</span>
-                    <span class="date-label">${date.getDate()}</span>
-                </div>
-            `;
-        }
+        html = `
+            <button class="nav-button" onclick="changeDate('${prevDay.toISOString()}')">‹</button>
+            <span class="date-display">${selectedDate.getFullYear()}年${selectedDate.getMonth() + 1}月${selectedDate.getDate()}日</span>
+            <button class="nav-button" onclick="changeDate('${nextDay.toISOString()}')">›</button>
+        `;
     } else if (currentView === 'week') {
-        // For week view, show empty date strip (dates are in header below)
-        html = '';
+        // For week view: < 2026年1月 >
+        const prevMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth() - 1, 1);
+        const nextMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 1);
+
+        html = `
+            <button class="nav-button" onclick="changeDate('${prevMonth.toISOString()}')">‹</button>
+            <span class="date-display">${selectedDate.getFullYear()}年${selectedDate.getMonth() + 1}月</span>
+            <button class="nav-button" onclick="changeDate('${nextMonth.toISOString()}')">›</button>
+        `;
     } else if (currentView === 'month') {
-        // For month view, show empty date strip (month is shown in header above)
-        html = '';
+        // For month view: < 2026年1月 >
+        const prevMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth() - 1, 1);
+        const nextMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 1);
+
+        html = `
+            <button class="nav-button" onclick="changeDate('${prevMonth.toISOString()}')">‹</button>
+            <span class="date-display">${selectedDate.getFullYear()}年${selectedDate.getMonth() + 1}月</span>
+            <button class="nav-button" onclick="changeDate('${nextMonth.toISOString()}')">›</button>
+        `;
     }
 
     strip.innerHTML = html;

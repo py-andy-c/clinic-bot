@@ -508,20 +508,8 @@ body {
     flex-shrink: 0;
     display: flex;
     align-items: center;
+    justify-content: flex-start; /* Align navigation to the left */
     padding: 0 8px;
-}
-
-.month-year-display {
-    flex-shrink: 0;
-    margin-right: 8px;
-}
-
-.month-year-display .current-month-label {
-    font-size: 16px;
-    font-weight: 600;
-    color: var(--text-main);
-    margin: 0;
-    cursor: pointer;
 }
 
 /* Sidebar Section */
@@ -573,13 +561,10 @@ body {
 /* Sidebar toggle button removed - sidebar is hidden on mobile, use FABs instead */
 
 .date-strip {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    gap: 4px;
-    height: 100%;
+    display: flex;
     align-items: center;
-    /* Vertically center items to provide tiny padding */
-    flex: 1;
+    gap: 4px; /* Compact spacing between navigation elements */
+    height: 100%;
 }
 
 .date-item {
@@ -1029,6 +1014,33 @@ body {
     border-left: 6px solid #ef4444;
     border-top: 4px solid transparent;
     border-bottom: 4px solid transparent;
+}
+
+/* ===== DATE STRIP NAVIGATION ===== */
+
+.nav-button {
+    background: none;
+    border: none;
+    font-size: 16px; /* Slightly smaller for compactness */
+    color: var(--primary);
+    cursor: pointer;
+    padding: 2px 4px; /* Further reduced horizontal padding for compactness */
+    border-radius: 4px;
+    transition: background 0.2s;
+    font-weight: 600;
+    min-width: 24px; /* Ensure clickable area */
+}
+
+.nav-button:hover {
+    background: rgba(37, 99, 235, 0.1);
+}
+
+.date-display {
+    font-size: 14px; /* Slightly smaller for compactness */
+    font-weight: 600;
+    color: var(--text-main);
+    margin: 0 4px; /* Further reduced margin to keep buttons close */
+    white-space: nowrap;
 }
 
 /* ===== RESPONSIVE ADJUSTMENTS ===== */
