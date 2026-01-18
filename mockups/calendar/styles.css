@@ -239,10 +239,13 @@ body {
     display: block;
 }
 
+/* Mobile defaults: hide desktop nav and user info */
 .desktop-nav,
-.user-info.desktop-only,
+.user-info.desktop-only {
+    display: none;
+}
 
-/* Desktop: show desktop nav, hide hamburger */
+/* Desktop: show desktop nav and user info, hide hamburger */
 @media (min-width: 1025px) {
     .menu-icon {
         display: none;
