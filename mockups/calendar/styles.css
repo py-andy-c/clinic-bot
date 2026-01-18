@@ -1021,6 +1021,25 @@ body {
     background: rgba(37, 99, 235, 0.1);
 }
 
+/* ===== WEEKLY EVENT STYLING ===== */
+
+.weekly-event {
+    border-radius: 3px;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    box-sizing: border-box;
+    overflow: hidden;
+    z-index: 10;
+}
+
+.weekly-event .event-title {
+    font-size: 10px;
+    line-height: 1.2;
+    padding: 2px 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 /* ===== RESPONSIVE ADJUSTMENTS ===== */
 
 @media (max-width: 768px) {

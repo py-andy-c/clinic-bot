@@ -80,6 +80,31 @@ const mockAppointments = [
         start: '13:30',
         end: '14:30',
         notes: '舒緩壓力'
+    },
+    // Overlapping events for testing (same dayIndex: 1 % 7 = 1, 8 % 7 = 1)
+    {
+        pId: 8,
+        patient: '測試患者A',
+        appointmentType: '測試治療A',
+        resources: ['治療室1'],
+        start: '09:00',
+        end: '10:00'
+    },
+    {
+        pId: 15, // 15 % 7 = 1, same day as pId 8
+        patient: '測試患者B',
+        appointmentType: '測試治療B',
+        resources: ['治療室2'],
+        start: '09:15',
+        end: '10:15'
+    },
+    {
+        pId: 22, // 22 % 7 = 1, same day
+        patient: '測試患者C',
+        appointmentType: '測試治療C',
+        resources: ['治療室3'],
+        start: '09:30',
+        end: '10:30'
     }
 ];
 
@@ -695,7 +720,8 @@ function addEventsToWeeklyView() {
                 ...app,
                 type: 'practitioner',
                 sourceId: pId,
-                color: getItemColor('practitioner', pId)
+                color: getItemColor('practitioner', pId),
+                dayIndex: pId % 7 // Distribute across days for demo
             });
         });
         mockExceptions.filter(ex => ex.pId === pId).forEach(ex => {
@@ -703,7 +729,8 @@ function addEventsToWeeklyView() {
                 ...ex,
                 type: 'exception',
                 sourceId: pId,
-                color: '#f59e0b' // Orange for exceptions
+                color: '#f59e0b', // Orange for exceptions
+                dayIndex: pId % 7
             });
         });
     });
@@ -715,24 +742,105 @@ function addEventsToWeeklyView() {
                 ...booking,
                 type: 'resource',
                 sourceId: rId,
-                color: getItemColor('resource', rId)
+                color: getItemColor('resource', rId),
+                dayIndex: rId % 7
             });
         });
     });
 
-    // Position events in the weekly grid
+    // Group events by day to handle overlaps
+    const eventsByDay = {};
     allEvents.forEach(event => {
-        // For demo purposes, distribute events across the week
-        // In a real app, you'd use the actual event dates
-        const dayIndex = event.sourceId % 7; // Simple distribution: 0-6 for the 7 days
+        if (!eventsByDay[event.dayIndex]) {
+            eventsByDay[event.dayIndex] = [];
+        }
+        eventsByDay[event.dayIndex].push(event);
+    });
 
-        if (dayIndex >= 0 && dayIndex < 7) {
-            const dayColumn = grid.children[dayIndex];
-            if (dayColumn) {
-                const eventElement = createWeeklyEventElement(event);
-                dayColumn.appendChild(eventElement);
+    // Process each day's events
+    Object.keys(eventsByDay).forEach(dayIndex => {
+        const dayEvents = eventsByDay[dayIndex];
+        const dayColumn = grid.children[dayIndex];
+
+        if (dayColumn && dayEvents.length > 0) {
+            // Group overlapping events
+            const overlappingGroups = groupOverlappingEvents(dayEvents);
+
+            // Render each group
+            overlappingGroups.forEach(group => {
+                renderOverlappingEventGroup(group, dayColumn);
+            });
+        }
+    });
+}
+
+// Group events that overlap in time
+function groupOverlappingEvents(events) {
+    const groups = [];
+
+    // Sort events by start time
+    events.sort((a, b) => {
+        const [aHour, aMin] = a.start.split(':').map(Number);
+        const [bHour, bMin] = b.start.split(':').map(Number);
+        const aTime = aHour * 60 + aMin;
+        const bTime = bHour * 60 + bMin;
+        return aTime - bTime;
+    });
+
+    events.forEach(event => {
+        let addedToGroup = false;
+
+        // Check if this event overlaps with any existing group
+        for (const group of groups) {
+            if (eventsOverlap(event, group[0])) {
+                group.push(event);
+                addedToGroup = true;
+                break;
             }
         }
+
+        // If no overlap, create new group
+        if (!addedToGroup) {
+            groups.push([event]);
+        }
+    });
+
+    return groups;
+}
+
+// Check if two events overlap
+function eventsOverlap(event1, event2) {
+    const [start1Hour, start1Min] = event1.start.split(':').map(Number);
+    const [end1Hour, end1Min] = event1.end.split(':').map(Number);
+    const [start2Hour, start2Min] = event2.start.split(':').map(Number);
+    const [end2Hour, end2Min] = event2.end.split(':').map(Number);
+
+    const start1 = start1Hour * 60 + start1Min;
+    const end1 = end1Hour * 60 + end1Min;
+    const start2 = start2Hour * 60 + start2Min;
+    const end2 = end2Hour * 60 + end2Min;
+
+    return start1 < end2 && end1 > start2;
+}
+
+// Render a group of overlapping events
+function renderOverlappingEventGroup(group, dayColumn) {
+    const numEvents = group.length;
+    const widthPercent = 100 / numEvents;
+
+    group.forEach((event, index) => {
+        const eventElement = createWeeklyEventElement(event);
+
+        // Position side by side
+        eventElement.style.left = `${index * widthPercent}%`;
+        eventElement.style.width = `${widthPercent}%`;
+
+        // Semi-transparent for overlapping events
+        if (numEvents > 1) {
+            eventElement.style.opacity = '0.7';
+        }
+
+        dayColumn.appendChild(eventElement);
     });
 }
 
@@ -816,7 +924,7 @@ function createWeeklyEventElement(event) {
     const [endHour, endMinute] = event.end.split(':').map(Number);
 
     const div = document.createElement('div');
-    div.className = 'calendar-event'; // Use same class as daily view
+    div.className = 'calendar-event weekly-event'; // Add weekly-event class for specific styling
     div.style.background = event.color || '#e5e7eb';
 
     // Calculate position in pixels (same as daily view: 20px per 15-minute slot)
@@ -827,6 +935,9 @@ function createWeeklyEventElement(event) {
 
     div.style.top = `${topOffset}px`;
     div.style.height = `${height}px`;
+    div.style.position = 'absolute';
+    div.style.left = '0';
+    div.style.width = '100%'; // Default full width, will be overridden for overlapping events
 
     // Event content (same format as daily view)
     let title = '';
