@@ -716,10 +716,19 @@ function addEventsToTimeBasedView(columnElement, column, viewType) {
             createWeeklyEventElement(regularEvents[0]);
         columnElement.appendChild(eventElement);
     } else if (regularEvents.length > 1) {
-        // Multiple events - handle overlapping
+        // Multiple events - group by time overlap and handle each group
         const overlappingGroups = groupOverlappingEvents(regularEvents);
         overlappingGroups.forEach(group => {
-            renderOverlappingEventGroup(group, columnElement, viewType);
+            if (group.length === 1) {
+                // Single event in this time slot - full width
+                const eventElement = viewType === 'daily' ?
+                    createAppointmentBox(group[0], group[0].sourceId) :
+                    createWeeklyEventElement(group[0]);
+                columnElement.appendChild(eventElement);
+            } else {
+                // Multiple overlapping events - use overlapping treatment
+                renderOverlappingEventGroup(group, columnElement, viewType);
+            }
         });
     }
 }
