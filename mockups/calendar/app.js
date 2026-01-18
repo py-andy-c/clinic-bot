@@ -535,7 +535,7 @@ function createAppointmentBox(appointment, practitionerId) {
     return div;
 }
 
-function createBox(data, className, isApp = false) {
+function createBox(data, className) {
     const start = data.start.split(':');
     const end = data.end.split(':');
     const top = parseInt(start[0]) * 60 + parseInt(start[1]);
@@ -546,13 +546,8 @@ function createBox(data, className, isApp = false) {
     div.style.top = `${top}px`;
     div.style.height = `${height}px`;
 
-    if (isApp) {
-        // This shouldn't be used for appointments anymore, but keeping for compatibility
-        div.innerHTML = data.patient || data.title;
-    } else {
-        // Exception/break events
-        div.innerHTML = data.title;
-    }
+    // Exception/break events
+    div.innerHTML = data.title;
 
     return div;
 }
@@ -664,8 +659,6 @@ function setupEventListeners() {
 
 
 
-    // Modal Handlers
-    document.querySelector('.close-btn').onclick = () => document.getElementById('event-modal').style.display = 'none';
 }
 
 
@@ -755,10 +748,6 @@ function createResourceBookingBox(booking, resourceId) {
     return div;
 }
 
-function openCreateModal(hour, minute) {
-    // Would open appointment creation modal in production
-    console.log(`Create appointment at ${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`);
-}
 
 
 window.onload = initCalendar;

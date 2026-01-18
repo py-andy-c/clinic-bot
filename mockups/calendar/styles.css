@@ -742,11 +742,6 @@ body {
     justify-content: space-between;
 }
 
-.view-switcher-label {
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--text-main);
-}
 
 .view-options-row {
     display: flex;
@@ -1136,84 +1131,7 @@ body {
     color: white; /* White text for resource bookings like practitioners */
 }
 
-.practitioner-1 {
-    background: var(--practitioner-1);
-}
 
-.practitioner-2 {
-    background: var(--practitioner-2);
-}
-
-.practitioner-3 {
-    background: var(--practitioner-3);
-}
-
-.practitioner-4 {
-    background: var(--practitioner-4);
-}
-
-.practitioner-5 {
-    background: var(--practitioner-5);
-}
-
-/* Modals & Utils */
-.modal-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.4);
-    display: none;
-    align-items: center;
-    justify-content: center;
-    z-index: 2000;
-}
-
-.modal-overlay.open {
-    display: flex;
-}
-
-.modal-content {
-    background: white;
-    border-radius: 12px;
-    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-    max-width: 90%;
-    max-height: 90%;
-    overflow: auto;
-}
-
-.modal-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 16px 20px;
-    border-bottom: 1px solid var(--border);
-}
-
-.modal-header h2 {
-    margin: 0;
-    font-size: 18px;
-    font-weight: 600;
-    color: var(--text-main);
-}
-
-.close-btn {
-    background: none;
-    border: none;
-    font-size: 24px;
-    color: var(--text-muted);
-    cursor: pointer;
-    padding: 4px;
-    border-radius: 4px;
-    transition: all 0.2s;
-}
-
-.close-btn:hover {
-    background: var(--bg-main);
-    color: var(--text-main);
-}
-
-.modal-body {
-    padding: 20px;
-}
 
 
 /* Floating Action Buttons (FAB) */
