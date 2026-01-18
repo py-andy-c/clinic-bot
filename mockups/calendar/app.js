@@ -72,6 +72,63 @@ const mockAppointments = [
         start: '16:00',
         end: '17:00'
     },
+    // Two overlapping appointments (pId: 4, dayIndex: 4)
+    {
+        pId: 4,
+        patient: '趙先生',
+        appointmentType: '針灸治療',
+        resources: ['治療室1'],
+        start: '14:00',
+        end: '15:00',
+        notes: '慢性疼痛'
+    },
+    {
+        pId: 4,
+        patient: '錢小姐',
+        appointmentType: '推拿按摩',
+        resources: ['治療室1'],
+        start: '14:30',
+        end: '15:30',
+        notes: '肩頸僵硬'
+    },
+    // Three overlapping appointments (pId: 5, dayIndex: 5)
+    {
+        pId: 5,
+        patient: '孫太太',
+        appointmentType: '芳香療法',
+        resources: ['治療室2'],
+        start: '10:00',
+        end: '11:00',
+        notes: '放鬆治療'
+    },
+    {
+        pId: 5,
+        patient: '周先生',
+        appointmentType: '中醫調理',
+        resources: ['治療室2'],
+        start: '10:15',
+        end: '11:15',
+        notes: '體質調養'
+    },
+    {
+        pId: 5,
+        patient: '吳小姐',
+        appointmentType: '熱敷治療',
+        resources: ['治療室2'],
+        start: '10:30',
+        end: '11:30',
+        notes: '肌肉放鬆'
+    },
+    // Appointment overlapping with availability exception (pId: 2, overlaps with '進修研習' 13:00-15:00)
+    {
+        pId: 2,
+        patient: '鄭先生',
+        appointmentType: '復健治療',
+        resources: ['治療室2'],
+        start: '14:00',
+        end: '15:00',
+        notes: '運動傷害復健'
+    },
     {
         pId: 1,
         patient: '黃小姐',
