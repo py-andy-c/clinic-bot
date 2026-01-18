@@ -111,8 +111,8 @@ let assignedColors = new Map(); // itemId -> color
 // Current view state
 // Note: Only day view is currently implemented
 
-
 let selectedDate = new Date("2026-01-19");
+let displayMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1); // Month currently displayed in mini calendar
 
 // Helper function to convert time string (HH:MM) to pixel position
 function timeToPixels(timeString) {
@@ -272,13 +272,15 @@ function renderDateStrip() {
 function renderCalendar(containerId, monthYearId, clickHandler) {
     const calendar = document.getElementById(containerId);
     const monthYearLabel = document.getElementById(monthYearId);
-    
+
     if (!calendar || !monthYearLabel) return;
 
-    const year = selectedDate.getFullYear();
-    const month = selectedDate.getMonth();
+    // Use displayMonth for mini calendar, selectedDate for main date strip
+    const displayDate = containerId === 'mini-calendar' ? displayMonth : selectedDate;
+    const year = displayDate.getFullYear();
+    const month = displayDate.getMonth();
     const monthText = `${year}年${month + 1}月`;
-    
+
     // Update month/year label
     monthYearLabel.textContent = monthText;
 
@@ -344,9 +346,9 @@ function renderMiniCalendar() {
 
 
 function navigateMonth(direction, updateCallback) {
-    const currentMonth = selectedDate.getMonth();
-    const currentYear = selectedDate.getFullYear();
-    
+    const currentMonth = displayMonth.getMonth();
+    const currentYear = displayMonth.getFullYear();
+
     let newMonth, newYear;
     if (direction === 'prev') {
         newMonth = currentMonth - 1;
@@ -357,10 +359,10 @@ function navigateMonth(direction, updateCallback) {
         newYear = newMonth > 11 ? currentYear + 1 : currentYear;
         if (newMonth > 11) newMonth = 0; // January
     }
-    
-    // Set to the first day of the new month to ensure we're in that month
-    selectedDate = new Date(newYear, newMonth, 1);
-    
+
+    // Update display month without changing selected date
+    displayMonth = new Date(newYear, newMonth, 1);
+
     // Update the appropriate calendar(s)
     if (updateCallback) {
         updateCallback();
@@ -384,6 +386,7 @@ function navigateSidebarMonth(direction) {
 
 function selectDate(year, month, day, shouldCloseModal = false) {
     selectedDate = new Date(year, month, day);
+    displayMonth = new Date(year, month, 1); // Sync display month with selected date
     renderDateStrip();
     renderMiniCalendar();
     renderGrid();
@@ -399,6 +402,7 @@ function selectDateFromMobile(year, month, day) {
 
 function changeDate(dateIso) {
     selectedDate = new Date(dateIso);
+    displayMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1); // Sync display month
     renderDateStrip();
     renderMiniCalendar();
     renderGrid();
@@ -571,6 +575,7 @@ function setupEventListeners() {
     const sidebarTodayBtn = document.getElementById('sidebar-today-btn');
     if (sidebarTodayBtn) sidebarTodayBtn.onclick = () => {
         selectedDate = new Date();
+        displayMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1); // Sync display month
         renderDateStrip();
         renderMiniCalendar();
         renderGrid();
