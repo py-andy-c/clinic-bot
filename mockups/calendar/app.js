@@ -826,18 +826,21 @@ function eventsOverlap(event1, event2) {
 // Render a group of overlapping events
 function renderOverlappingEventGroup(group, dayColumn) {
     const numEvents = group.length;
-    const widthPercent = 100 / numEvents;
 
     group.forEach((event, index) => {
         const eventElement = createWeeklyEventElement(event);
 
-        // Position side by side
-        eventElement.style.left = `${index * widthPercent}%`;
-        eventElement.style.width = `${widthPercent}%`;
+        // Allow horizontal overlap - events maintain most of their width but can overlap
+        const baseWidth = 85; // 85% of column width
+        const overlapOffset = index * 15; // 15px horizontal offset per overlapping event
+
+        eventElement.style.width = `${baseWidth}%`;
+        eventElement.style.left = `${overlapOffset}px`;
+        eventElement.style.zIndex = 10 + index; // Higher z-index for later events
 
         // Semi-transparent for overlapping events
         if (numEvents > 1) {
-            eventElement.style.opacity = '0.7';
+            eventElement.style.opacity = '0.8';
         }
 
         dayColumn.appendChild(eventElement);
