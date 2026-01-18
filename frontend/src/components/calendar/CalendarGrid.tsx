@@ -46,6 +46,25 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
     [currentDate, view]
   );
 
+  // Memoize overlapping groups calculation for performance
+  const practitionerGroups = useMemo(() =>
+    selectedPractitioners.map(practitionerId => ({
+      practitionerId,
+      events: events.filter(event => event.resource.practitioner_id === practitionerId),
+      groups: calculateOverlappingEvents(
+        events.filter(event => event.resource.practitioner_id === practitionerId)
+      )
+    })), [selectedPractitioners, events]);
+
+  const resourceGroups = useMemo(() =>
+    selectedResources.map(resourceId => ({
+      resourceId,
+      events: events.filter(event => event.resource.resource_id === resourceId),
+      groups: calculateOverlappingEvents(
+        events.filter(event => event.resource.resource_id === resourceId)
+      )
+    })), [selectedResources, events]);
+
   const handleSlotClick = (hour: number, minute: number) => {
     if (onSlotClick) {
       const slotDate = createTimeSlotDate(currentDate, hour, minute);
@@ -79,57 +98,47 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
 
         {/* Resource columns */}
         <div className={styles.resourceGrid}>
-          {selectedPractitioners.map((practitionerId) => {
-            const practitionerEvents = events.filter(event => event.resource.practitioner_id === practitionerId);
-            const overlappingGroups = calculateOverlappingEvents(practitionerEvents);
+          {practitionerGroups.map(({ practitionerId, groups }) => (
+            <div key={`practitioner-${practitionerId}`} className={styles.practitionerColumn}>
+              {timeSlots.map((slot, index) => (
+                <div
+                  key={index}
+                  className={styles.timeSlot}
+                  onClick={() => handleSlotClick(slot.hour, slot.minute)}
+                />
+              ))}
+              {/* Render overlapping event groups */}
+              {groups.map((group, groupIndex) => (
+                <OverlappingEventGroupComponent
+                  key={`group-${practitionerId}-${groupIndex}`}
+                  group={group}
+                  groupIndex={groupIndex}
+                  onEventClick={onEventClick || (() => {})}
+                />
+              ))}
+            </div>
+          ))}
 
-            return (
-              <div key={`practitioner-${practitionerId}`} className={styles.practitionerColumn}>
-                {timeSlots.map((slot, index) => (
-                  <div
-                    key={index}
-                    className={styles.timeSlot}
-                    onClick={() => handleSlotClick(slot.hour, slot.minute)}
-                  />
-                ))}
-                {/* Render overlapping event groups */}
-                {overlappingGroups.map((group, groupIndex) => (
-                  <OverlappingEventGroupComponent
-                    key={`group-${practitionerId}-${groupIndex}`}
-                    group={group}
-                    groupIndex={groupIndex}
-                    onEventClick={onEventClick || (() => {})}
-                  />
-                ))}
-              </div>
-            );
-          })}
-
-          {selectedResources.map((resourceId) => {
-            const resourceEvents = events.filter(event => event.resource.resource_id === resourceId);
-            const overlappingGroups = calculateOverlappingEvents(resourceEvents);
-
-            return (
-              <div key={`resource-${resourceId}`} className={styles.practitionerColumn}>
-                {timeSlots.map((slot, index) => (
-                  <div
-                    key={index}
-                    className={styles.timeSlot}
-                    onClick={() => handleSlotClick(slot.hour, slot.minute)}
-                  />
-                ))}
-                {/* Render overlapping event groups */}
-                {overlappingGroups.map((group, groupIndex) => (
-                  <OverlappingEventGroupComponent
-                    key={`group-${resourceId}-${groupIndex}`}
-                    group={group}
-                    groupIndex={groupIndex}
-                    onEventClick={onEventClick || (() => {})}
-                  />
-                ))}
-              </div>
-            );
-          })}
+          {resourceGroups.map(({ resourceId, groups }) => (
+            <div key={`resource-${resourceId}`} className={styles.practitionerColumn}>
+              {timeSlots.map((slot, index) => (
+                <div
+                  key={index}
+                  className={styles.timeSlot}
+                  onClick={() => handleSlotClick(slot.hour, slot.minute)}
+                />
+              ))}
+              {/* Render overlapping event groups */}
+              {groups.map((group, groupIndex) => (
+                <OverlappingEventGroupComponent
+                  key={`group-${resourceId}-${groupIndex}`}
+                  group={group}
+                  groupIndex={groupIndex}
+                  onEventClick={onEventClick || (() => {})}
+                />
+              ))}
+            </div>
+          ))}
         </div>
       </div>
     </div>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import moment from 'moment-timezone';
 import { useAuth } from '../hooks/useAuth';
 import { usePractitioners } from '../hooks/queries';
 import { LoadingSpinner } from '../components/shared';
@@ -7,9 +8,12 @@ import CalendarLayout from '../components/calendar/CalendarLayout';
 import CalendarSidebar from '../components/calendar/CalendarSidebar';
 import CalendarDateStrip from '../components/calendar/CalendarDateStrip';
 import CalendarGrid from '../components/calendar/CalendarGrid';
+import { EventModal } from '../components/calendar/EventModal';
+import { CreateAppointmentModal } from '../components/calendar/CreateAppointmentModal';
+import { ExceptionModal } from '../components/calendar/ExceptionModal';
 import { apiService } from '../services/api';
 import { calendarStorage } from '../utils/storage';
-import { getDateString } from '../utils/calendarUtils';
+import { getDateString, formatAppointmentTimeRange } from '../utils/calendarUtils';
 import { logger } from '../utils/logger';
 import { Resource } from '../types';
 import { CalendarEvent, transformToCalendarEvents } from '../utils/calendarDataAdapter';
@@ -24,6 +28,17 @@ const AvailabilityPage: React.FC = () => {
   const [selectedPractitioners, setSelectedPractitioners] = useState<number[]>([]);
   const [selectedResources, setSelectedResources] = useState<number[]>([]);
   const [resources, setResources] = useState<Resource[]>([]);
+
+  // Event caching to reduce API calls
+  const [eventCache, setEventCache] = useState<Map<string, { events: CalendarEvent[], timestamp: number }>>(new Map());
+
+  // Modal state management
+  const [isEventModalOpen, setIsEventModalOpen] = useState(false);
+  const [isCreateAppointmentModalOpen, setIsCreateAppointmentModalOpen] = useState(false);
+  const [isExceptionModalOpen, setIsExceptionModalOpen] = useState(false);
+
+  // Modal data state
+  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
 
   // Use React Query for practitioners
   const { data: practitionersData, isLoading: practitionersLoading } = usePractitioners();
@@ -99,16 +114,43 @@ const AvailabilityPage: React.FC = () => {
     }
   }, [practitioners, resources, user]);
 
-  // Load calendar events
+  // Load calendar events with caching
   useEffect(() => {
     const loadEvents = async () => {
       if (selectedPractitioners.length === 0) return;
 
-      try {
-        // Use batch API to get events for all selected practitioners and resources
-        const startDate = getDateString(currentDate);
-        const endDate = startDate; // For now, just load current day
+      // Calculate date range based on view
+      let startDate: string;
+      let endDate: string;
 
+      if (view === CalendarViews.DAY) {
+        startDate = getDateString(currentDate);
+        endDate = startDate;
+      } else if (view === CalendarViews.WEEK) {
+        // Load the full week containing currentDate
+        const weekStart = moment(currentDate).tz('Asia/Taipei').startOf('week');
+        const weekEnd = moment(currentDate).tz('Asia/Taipei').endOf('week');
+        startDate = getDateString(weekStart.toDate());
+        endDate = getDateString(weekEnd.toDate());
+      } else { // MONTH
+        // Load the full month containing currentDate
+        const monthStart = moment(currentDate).tz('Asia/Taipei').startOf('month');
+        const monthEnd = moment(currentDate).tz('Asia/Taipei').endOf('month');
+        startDate = getDateString(monthStart.toDate());
+        endDate = getDateString(monthEnd.toDate());
+      }
+
+      // Create cache key
+      const cacheKey = `${startDate}-${endDate}-${selectedPractitioners.sort().join(',')}-${selectedResources.sort().join(',')}`;
+
+      // Check cache first (5-minute TTL)
+      const cached = eventCache.get(cacheKey);
+      if (cached && (Date.now() - cached.timestamp) < 5 * 60 * 1000) {
+        setAllEvents(cached.events);
+        return;
+      }
+
+      try {
         const [practitionerEvents, resourceEvents] = await Promise.all([
           selectedPractitioners.length > 0
             ? apiService.getBatchCalendar({
@@ -132,6 +174,9 @@ const AvailabilityPage: React.FC = () => {
           ...transformToCalendarEvents(resourceEvents.results?.flatMap(r => r.events) || [])
         ];
 
+        // Cache the results
+        setEventCache(prev => new Map(prev).set(cacheKey, { events: allEvents, timestamp: Date.now() }));
+
         setAllEvents(allEvents);
       } catch (error) {
         logger.error('Failed to load calendar events:', error);
@@ -139,7 +184,7 @@ const AvailabilityPage: React.FC = () => {
     };
 
     loadEvents();
-  }, [selectedPractitioners, selectedResources, currentDate]);
+  }, [selectedPractitioners, selectedResources, currentDate, view]);
 
   // Event handlers
   const handleViewChange = useCallback((newView: CalendarView) => {
@@ -168,20 +213,21 @@ const AvailabilityPage: React.FC = () => {
     }
   }, [user, selectedPractitioners, view]);
 
-  const handleEventClick = useCallback((_event: CalendarEvent) => {
-    // TODO: Open event modal
+  const handleEventClick = useCallback((event: CalendarEvent) => {
+    setSelectedEvent(event);
+    setIsEventModalOpen(true);
   }, []);
 
   const handleSlotClick = useCallback((_slotInfo: { start: Date; end: Date }) => {
-    // TODO: Open create appointment modal
+    setIsCreateAppointmentModalOpen(true);
   }, []);
 
   const handleCreateAppointment = useCallback(() => {
-    // TODO: Open create appointment modal
+    setIsCreateAppointmentModalOpen(true);
   }, []);
 
   const handleCreateException = useCallback(() => {
-    // TODO: Open create exception modal
+    setIsExceptionModalOpen(true);
   }, []);
 
   const handleToday = useCallback(() => {
@@ -245,6 +291,66 @@ const AvailabilityPage: React.FC = () => {
         onEventClick={handleEventClick}
         onSlotClick={handleSlotClick}
       />
+
+      {/* Modal Components */}
+      {isEventModalOpen && selectedEvent && (
+        <EventModal
+          event={selectedEvent}
+          onClose={() => {
+            setIsEventModalOpen(false);
+            setSelectedEvent(null);
+          }}
+          onEditAppointment={() => {
+            // TODO: Implement edit appointment modal
+            setIsEventModalOpen(false);
+            setSelectedEvent(null);
+          }}
+          onDeleteAppointment={() => {
+            // Handle delete - for now just close modal
+            setIsEventModalOpen(false);
+            setSelectedEvent(null);
+          }}
+          onDuplicateAppointment={() => {
+            // Handle duplicate - for now just close modal
+            setIsEventModalOpen(false);
+            setSelectedEvent(null);
+          }}
+          formatAppointmentTime={formatAppointmentTimeRange}
+        />
+      )}
+
+      {isCreateAppointmentModalOpen && (
+        <CreateAppointmentModal
+          practitioners={practitioners}
+          appointmentTypes={[]} // TODO: Need to fetch appointment types
+          onClose={() => {
+            setIsCreateAppointmentModalOpen(false);
+          }}
+          onConfirm={async (_formData) => {
+            // TODO: Implement appointment creation
+            setIsCreateAppointmentModalOpen(false);
+            // Clear cache to force refresh
+            setEventCache(new Map());
+          }}
+        />
+      )}
+
+      {isExceptionModalOpen && (
+        <ExceptionModal
+          exceptionData={{ date: getDateString(currentDate), startTime: '09:00', endTime: '17:00' }}
+          isFullDay={false}
+          onClose={() => setIsExceptionModalOpen(false)}
+          onCreate={() => {
+            setIsExceptionModalOpen(false);
+            // Clear cache to force refresh
+            setEventCache(new Map());
+          }}
+          onExceptionDataChange={() => {}}
+          onFullDayChange={() => {}}
+        />
+      )}
+
+
     </CalendarLayout>
   );
 };
