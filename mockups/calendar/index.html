@@ -44,19 +44,6 @@
             <!-- Sidebar remains fixed -->
             <aside class="sidebar" id="sidebar">
                 <div class="sidebar-content">
-                    <div class="sidebar-actions">
-                        <button class="today-sidebar-btn" id="sidebar-today-btn">
-                            回到今日
-                        </button>
-                        <div class="sidebar-actions-row">
-                            <button class="create-btn" id="sidebar-add-btn">
-                                + 預約
-                            </button>
-                            <button class="exception-btn" id="sidebar-exception-btn">
-                                + 休診
-                            </button>
-                        </div>
-                    </div>
 
                     <!-- Reusable Mini Calendar Component (also used in mobile modal) -->
                     <div class="mini-calendar-component">
@@ -152,6 +139,27 @@
             <div class="calendar-content">
                 <div class="date-strip-container">
                     <div class="date-strip" id="date-strip"></div>
+                    <div class="action-buttons">
+                        <button class="action-btn" id="create-appointment-btn" title="Create Appointment">
+                            <span class="action-icon">+</span>
+                            <span class="action-text">預約</span>
+                        </button>
+                        <button class="action-btn" id="create-exception-btn" title="Create Availability Exception">
+                            <span class="action-icon">+</span>
+                            <span class="action-text">休診</span>
+                        </button>
+                        <button class="action-btn" id="today-btn" title="Jump to Today">
+                            <span class="action-text">今</span>
+                        </button>
+                        <button class="action-btn" id="settings-btn" title="Open Settings">
+                            <span class="action-icon">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="12" cy="12" r="3"></circle>
+                                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1 1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                                </svg>
+                            </span>
+                        </button>
+                    </div>
                 </div>
 
                 <!-- Unified Scroll Viewport -->
@@ -182,10 +190,6 @@
                 <!-- Sidebar Backdrop (Mobile Overlay) -->
                 <div id="sidebar-backdrop" class="sidebar-backdrop"></div>
 
-                <!-- Floating Action Button (Menu) -->
-                <div class="fab-container">
-                    <button class="fab fab-primary" id="menu-fab" title="選單">☰</button>
-                </div>
             </div>
         </main>
     </div>

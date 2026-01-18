@@ -1312,45 +1312,47 @@ function createBox(data, className) {
 }
 
 function setupEventListeners() {
-    // Menu FAB Handler - Toggle sidebar on mobile
-    document.getElementById('menu-fab').onclick = () => {
-        toggleSidebar();
-    };
-
     // Sidebar backdrop click handler - close sidebar
     document.getElementById('sidebar-backdrop').onclick = () => {
         closeSidebar();
     };
 
-    // Sidebar action handlers
-    const sidebarAddBtn = document.getElementById('sidebar-add-btn');
-    if (sidebarAddBtn) sidebarAddBtn.onclick = () => {
-        openCreateModal(9, 0);
-        closeSidebar(); // Close sidebar after action on mobile
+    // Action buttons in date strip
+    const createAppointmentBtn = document.getElementById('create-appointment-btn');
+    if (createAppointmentBtn) createAppointmentBtn.onclick = () => {
+        alert('新增預約 modal would open here');
     };
 
-    const sidebarTodayBtn = document.getElementById('sidebar-today-btn');
-    if (sidebarTodayBtn) sidebarTodayBtn.onclick = () => {
-        selectedDate = new Date();
-        displayMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1); // Sync display month
+    const createExceptionBtn = document.getElementById('create-exception-btn');
+    if (createExceptionBtn) createExceptionBtn.onclick = () => {
+        alert('新增休診 modal would open here');
+    };
+
+    const todayBtn = document.getElementById('today-btn');
+    if (todayBtn) todayBtn.onclick = () => {
+        // Get current time in Taiwan timezone (UTC+8)
+        const now = new Date();
+        const taiwanTimeString = now.toLocaleString('en-US', {
+            timeZone: 'Asia/Taipei',
+            hour12: false
+        });
+        const taiwanTime = new Date(taiwanTimeString);
+
+        selectedDate = taiwanTime;
+        displayMonth = new Date(taiwanTime.getFullYear(), taiwanTime.getMonth(), 1); // Sync display month
         renderDateStrip();
         renderMiniCalendar();
         renderCalendarView();
 
-        // Auto-scroll to 9 AM
-        const viewport = document.getElementById('main-viewport');
-        const slot9am = document.getElementById('slot-9am');
-        if (slot9am && viewport) {
-            viewport.scrollTop = slot9am.offsetTop - 60;
+        // Auto-scroll to current time in daily/weekly views
+        if (currentView === 'day' || currentView === 'week') {
+            autoScrollToCurrentTime();
         }
-
-        closeSidebar(); // Close sidebar after action on mobile
     };
 
-    const sidebarExceptionBtn = document.getElementById('sidebar-exception-btn');
-    if (sidebarExceptionBtn) sidebarExceptionBtn.onclick = () => {
-        alert('新增休診時段 modal would open here');
-        closeSidebar(); // Close sidebar after action on mobile
+    const settingsBtn = document.getElementById('settings-btn');
+    if (settingsBtn) settingsBtn.onclick = () => {
+        toggleSidebar();
     };
 
 

@@ -264,64 +264,6 @@ body {
     gap: 16px;
 }
 
-.sidebar-actions {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    margin: 8px 4px 0 4px;
-}
-
-.sidebar-actions-row {
-    display: flex;
-    gap: 8px;
-}
-
-/* Today button - full width, secondary style */
-.today-sidebar-btn {
-    width: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    padding: 8px 12px;
-    border-radius: 6px;
-    font-size: 13px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s;
-    border: 1px solid var(--border);
-    background: white;
-    color: var(--text-main);
-}
-
-/* Action buttons - side by side, different styles */
-.create-btn,
-.exception-btn {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    padding: 8px 12px;
-    border-radius: 6px;
-    font-size: 13px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s;
-    border: 1px solid var(--border);
-    background: white;
-    color: var(--text-main);
-}
-
-/* All action buttons now have consistent secondary styling */
-
-/* All buttons have consistent secondary styling */
-.create-btn:hover,
-.today-sidebar-btn:hover,
-.exception-btn:hover {
-    background: var(--bg-main);
-    border-color: var(--primary);
-}
 
 
 
@@ -508,7 +450,7 @@ body {
     flex-shrink: 0;
     display: flex;
     align-items: center;
-    justify-content: flex-start; /* Align navigation to the left */
+    justify-content: space-between; /* Navigation left, actions right */
     padding: 0 8px;
 }
 
@@ -858,49 +800,6 @@ body {
 
 
 
-/* Floating Action Buttons (FAB) */
-.fab-container {
-    position: fixed;
-    bottom: 24px;
-    right: 24px;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    z-index: 1000;
-}
-
-.fab {
-    width: 56px;
-    height: 56px;
-    border-radius: 28px;
-    border: none;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 24px;
-    cursor: pointer;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-    transition: transform 0.2s, background-color 0.2s;
-}
-
-.fab:active {
-    transform: scale(0.9);
-}
-
-.fab-primary {
-    background: var(--primary);
-    color: white;
-}
-
-
-
-/* Hide FAB on desktop since sidebar is always visible */
-@media (min-width: 1025px) {
-    .fab-container {
-        display: none;
-        /* All FABs moved to sidebar on desktop */
-    }
-}
 
 /* ===== WEEKLY VIEW STYLES ===== */
 
@@ -1041,6 +940,60 @@ body {
     color: var(--text-main);
     margin: 0 4px; /* Further reduced margin to keep buttons close */
     white-space: nowrap;
+}
+
+.action-buttons {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.action-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    background: none;
+    border: none;
+    padding: 4px 6px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    transition: all 0.2s;
+    min-width: 32px;
+    height: 28px;
+}
+
+.action-btn:hover {
+    background: rgba(37, 99, 235, 0.1);
+    color: var(--primary);
+}
+
+.action-btn:active {
+    background: rgba(37, 99, 235, 0.2);
+    transform: scale(0.98);
+}
+
+.action-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 12px;
+    height: 12px;
+    line-height: 1;
+}
+
+.action-icon svg {
+    width: 100%;
+    height: 100%;
+    color: inherit;
+}
+
+.action-text {
+    font-size: 11px;
+    line-height: 1;
 }
 
 /* ===== RESPONSIVE ADJUSTMENTS ===== */
