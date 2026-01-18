@@ -1240,8 +1240,8 @@ function renderWeeklyHeaders(weekDays) {
         header.className = 'resource-header';
         header.innerHTML = `
             <div style="font-size: 12px; text-align: center;">
-                <div style="color: var(--text-muted); margin-bottom: 6px;">${dayName}</div>
-                <div style="font-weight: 700;">${dateNum}</div>
+                <span style="color: var(--text-muted);">${dayName}</span>
+                <span style="font-weight: 700; margin-left: 4px;">${dateNum}</span>
             </div>
         `;
         headerRow.appendChild(header);
