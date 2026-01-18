@@ -25,6 +25,27 @@
     padding: 0;
 }
 
+/* ===== BASE UTILITY CLASSES ===== */
+
+/* Common properties for interactive elements */
+.interactive {
+    cursor: pointer;
+    transition: all 0.2s;
+    border-radius: 4px;
+}
+
+/* Base styles for button elements */
+.btn-base {
+    background: none;
+    border: none;
+}
+
+/* Consistent hover effect for primary-colored buttons */
+.btn-hover-primary:hover {
+    background: rgba(37, 99, 235, 0.1);
+    color: var(--primary);
+}
+
 body {
     font-family: 'Outfit', 'Noto Sans TC', sans-serif;
     background: var(--bg-main);
@@ -275,10 +296,11 @@ body {
     align-items: center;
     gap: 10px;
     font-size: 14px;
-    cursor: pointer;
+    /* Uses: .interactive */
+    cursor: pointer; /* .interactive */
+    border-radius: 4px; /* .interactive */
+    transition: background 0.2s; /* partial .interactive */
     padding: 4px;
-    border-radius: 4px;
-    transition: background 0.2s;
     margin-bottom: 6px;
 }
 
@@ -327,11 +349,12 @@ body {
 
 
 .menu-icon {
-    background: none;
-    border: none;
+    /* Uses: .btn-base + .interactive */
+    background: none; /* .btn-base */
+    border: none; /* .btn-base */
+    cursor: pointer; /* .interactive */
     font-size: 24px;
     color: var(--text-muted);
-    cursor: pointer;
     padding: 4px;
 }
 
@@ -350,14 +373,15 @@ body {
 }
 
 .month-nav-btn {
-    background: transparent;
-    border: none;
+    /* Uses: .btn-base + .interactive */
+    background: transparent; /* close to .btn-base */
+    border: none; /* .btn-base */
+    cursor: pointer; /* .interactive */
+    transition: all 0.2s; /* .interactive */
+    border-radius: 4px; /* .interactive */
     font-size: 16px;
     color: var(--text-muted);
-    cursor: pointer;
     padding: 4px 8px;
-    border-radius: 4px;
-    transition: all 0.2s;
     flex-shrink: 0;
 }
 
@@ -370,10 +394,11 @@ body {
     font-size: 14px;
     font-weight: 600;
     color: var(--text-main);
-    cursor: pointer;
-    padding: 4px 8px;
+    /* Uses: .interactive (but with different border-radius) */
+    cursor: pointer; /* .interactive */
     border-radius: 6px;
-    transition: background 0.2s;
+    transition: background 0.2s; /* partial .interactive */
+    padding: 4px 8px;
     flex: 1;
     text-align: center;
 }
@@ -402,10 +427,11 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 4px;
-    cursor: pointer;
+    /* Uses: .interactive */
+    border-radius: 4px; /* .interactive */
+    cursor: pointer; /* .interactive */
+    transition: all 0.2s; /* .interactive */
     color: var(--text-main);
-    transition: all 0.2s;
     font-size: 11px;
 }
 
@@ -483,8 +509,9 @@ body {
     font-size: 12px;
     font-weight: 500;
     color: var(--text-main);
-    cursor: pointer;
-    transition: all 0.2s;
+    /* Uses: .interactive */
+    cursor: pointer; /* .interactive */
+    transition: all 0.2s; /* .interactive */
     min-width: 32px;
 }
 
@@ -517,7 +544,8 @@ body {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    cursor: pointer;
+    /* Uses: .interactive (but with different border-radius and transition) */
+    cursor: pointer; /* .interactive */
     position: relative;
     transition: background 0.2s;
 }
@@ -907,20 +935,23 @@ body {
 /* ===== DATE STRIP NAVIGATION ===== */
 
 .nav-button {
-    background: none;
-    border: none;
+    /* Uses: .btn-base + .interactive */
+    background: none; /* .btn-base */
+    border: none; /* .btn-base */
+    cursor: pointer; /* .interactive */
+    transition: all 0.2s; /* .interactive */
+    border-radius: 4px; /* .interactive */
     font-size: 16px; /* Slightly smaller for compactness */
     color: var(--primary);
-    cursor: pointer;
     padding: 2px 4px; /* Further reduced horizontal padding for compactness */
-    border-radius: 4px;
-    transition: background 0.2s;
     font-weight: 600;
     min-width: 24px; /* Ensure clickable area */
 }
 
 .nav-button:hover {
+    /* Uses: .btn-hover-primary */
     background: rgba(37, 99, 235, 0.1);
+    color: var(--primary);
 }
 
 .date-display {
@@ -929,11 +960,13 @@ body {
     color: var(--text-main);
     margin: 0 4px; /* Further reduced margin to keep buttons close */
     white-space: nowrap;
-    cursor: pointer;
+    /* Uses: .interactive */
+    cursor: pointer; /* .interactive */
     user-select: none;
 }
 
 .date-display:hover {
+    /* Uses: .btn-hover-primary */
     color: var(--primary);
 }
 
@@ -948,20 +981,22 @@ body {
     align-items: center;
     justify-content: center;
     gap: 2px;
-    background: none;
-    border: none;
+    /* Uses: .btn-base + .interactive */
+    background: none; /* .btn-base */
+    border: none; /* .btn-base */
+    cursor: pointer; /* .interactive */
+    transition: all 0.2s; /* .interactive */
+    border-radius: 4px; /* .interactive */
     padding: 4px 6px;
-    border-radius: 4px;
-    cursor: pointer;
     font-size: 12px;
     font-weight: 500;
     color: var(--text-secondary);
-    transition: all 0.2s;
     min-width: 32px;
     height: 28px;
 }
 
 .action-btn:hover {
+    /* Uses: .btn-hover-primary */
     background: rgba(37, 99, 235, 0.1);
     color: var(--primary);
 }
