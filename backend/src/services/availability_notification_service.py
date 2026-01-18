@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session, joinedload
 from core.constants import (
     NOTIFICATION_CHECK_HOURS,
     NOTIFICATION_CLEANUP_HOUR,
+    MISFIRE_GRACE_TIME_SECONDS,
 )
 from utils.liff_token import generate_liff_url
 from core.database import get_db_context
@@ -90,9 +91,10 @@ class AvailabilityNotificationService:
             id="send_availability_notifications",
             name="Send availability notifications",
             max_instances=1,
-            replace_existing=True
+            replace_existing=True,
+            misfire_grace_time=MISFIRE_GRACE_TIME_SECONDS  # Allow jobs to run up to 15 minutes late
         )
-        
+
         # Schedule cleanup job at 3 AM Taiwan time
         self.scheduler.add_job(  # type: ignore[attr-defined]
             self._cleanup_expired_notifications,
@@ -100,7 +102,8 @@ class AvailabilityNotificationService:
             id="cleanup_expired_notifications",
             name="Cleanup expired availability notifications",
             max_instances=1,
-            replace_existing=True
+            replace_existing=True,
+            misfire_grace_time=MISFIRE_GRACE_TIME_SECONDS  # Allow jobs to run up to 15 minutes late
         )
         
         self.scheduler.start()

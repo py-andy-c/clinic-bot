@@ -10,6 +10,7 @@ import logging
 from apscheduler.schedulers.asyncio import AsyncIOScheduler  # type: ignore
 from apscheduler.triggers.cron import CronTrigger  # type: ignore
 
+from core.constants import MISFIRE_GRACE_TIME_SECONDS
 from services.clinic_agent import ClinicAgentService
 from utils.datetime_utils import TAIWAN_TZ
 
@@ -48,7 +49,8 @@ class TestSessionCleanupService:
             id="cleanup_test_sessions",
             name="Cleanup old test chat sessions",
             max_instances=1,  # Prevent overlapping runs
-            replace_existing=True
+            replace_existing=True,
+            misfire_grace_time=MISFIRE_GRACE_TIME_SECONDS  # Allow jobs to run up to 15 minutes late
         )
         
         self.scheduler.start()

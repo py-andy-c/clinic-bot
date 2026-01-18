@@ -50,6 +50,7 @@ REMINDER_WINDOW_SIZE_MINUTES = 35  # ±35 minutes window around reminder time
 
 # Reminder scheduler settings
 REMINDER_SCHEDULER_MAX_INSTANCES = 1  # Prevent overlapping scheduler runs
+MISFIRE_GRACE_TIME_SECONDS = 900  # Allow cron jobs to run up to 15 minutes late before being skipped
 
 # Chat conversation history settings
 CHAT_MAX_HISTORY_HOURS = 24  # Preferred time window: keep messages from last 24 hours

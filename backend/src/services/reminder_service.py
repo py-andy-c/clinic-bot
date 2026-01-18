@@ -16,7 +16,8 @@ from sqlalchemy.orm import Session, contains_eager
 
 from core.constants import (
     REMINDER_WINDOW_SIZE_MINUTES,
-    REMINDER_SCHEDULER_MAX_INSTANCES
+    REMINDER_SCHEDULER_MAX_INSTANCES,
+    MISFIRE_GRACE_TIME_SECONDS
 )
 from core.database import get_db_context
 from models.appointment import Appointment
@@ -78,11 +79,12 @@ class ReminderService:
         # Schedule reminder checks to run every hour
         self.scheduler.add_job(  # type: ignore
             self._send_pending_reminders,
-            CronTrigger(hour="*"),  # Run every hour
+            CronTrigger(hour="*", minute=7),  # Run every hour at :07 (deprecated service)
             id="send_reminders",
             name="Send appointment reminders",
             max_instances=REMINDER_SCHEDULER_MAX_INSTANCES,  # Prevent overlapping runs
-            replace_existing=True
+            replace_existing=True,
+            misfire_grace_time=MISFIRE_GRACE_TIME_SECONDS  # Allow jobs to run up to 15 minutes late
         )
 
         self.scheduler.start()

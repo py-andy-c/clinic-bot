@@ -14,7 +14,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler  # type: ignore
 from apscheduler.triggers.cron import CronTrigger  # type: ignore
 
 from core.database import SessionLocal
-from core.constants import LINE_MESSAGE_RETENTION_HOURS
+from core.constants import LINE_MESSAGE_RETENTION_HOURS, MISFIRE_GRACE_TIME_SECONDS
 from utils.datetime_utils import taiwan_now, TAIWAN_TZ
 
 logger = logging.getLogger(__name__)
@@ -53,7 +53,8 @@ class LineMessageCleanupService:
             id="cleanup_line_messages",
             name="Cleanup old LINE messages",
             max_instances=1,  # Prevent overlapping runs
-            replace_existing=True
+            replace_existing=True,
+            misfire_grace_time=MISFIRE_GRACE_TIME_SECONDS  # Allow jobs to run up to 15 minutes late
         )
         
         self.scheduler.start()

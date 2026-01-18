@@ -23,6 +23,7 @@ from models.user_clinic_association import UserClinicAssociation
 from services.line_service import LINEService
 from utils.datetime_utils import taiwan_now, TAIWAN_TZ
 from utils.daily_notification_message_builder import DailyNotificationMessageBuilder
+from core.constants import MISFIRE_GRACE_TIME_SECONDS
 
 logger = logging.getLogger(__name__)
 
@@ -67,11 +68,12 @@ class PractitionerDailyNotificationService:
         # different notification times throughout the day
         self.scheduler.add_job(  # type: ignore
             self._send_daily_notifications,
-            CronTrigger(hour="*"),  # Run every hour
+            CronTrigger(hour="*", minute=1),  # Run every hour at :01
             id="send_practitioner_daily_notifications",
             name="Send practitioner daily appointment notifications",
             max_instances=1,  # Prevent overlapping runs
-            replace_existing=True
+            replace_existing=True,
+            misfire_grace_time=MISFIRE_GRACE_TIME_SECONDS  # Allow jobs to run up to 15 minutes late
         )
 
         self.scheduler.start()

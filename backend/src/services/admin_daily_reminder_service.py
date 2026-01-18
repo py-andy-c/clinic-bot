@@ -17,6 +17,7 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload
 
 from core.database import get_db_context
+from core.constants import MISFIRE_GRACE_TIME_SECONDS
 from models.appointment import Appointment
 from models.appointment_type import AppointmentType
 from models.calendar_event import CalendarEvent
@@ -71,11 +72,12 @@ class AdminDailyNotificationService:
         # different notification times throughout the day
         self.scheduler.add_job(  # type: ignore
             self._send_admin_reminders,
-            CronTrigger(hour="*"),  # Run every hour
+            CronTrigger(hour="*", minute=2),  # Run every hour at :02
             id="send_admin_daily_notifications",
             name="Send admin daily appointment notifications",
             max_instances=1,  # Prevent overlapping runs
-            replace_existing=True
+            replace_existing=True,
+            misfire_grace_time=MISFIRE_GRACE_TIME_SECONDS  # Allow jobs to run up to 15 minutes late
         )
 
         self.scheduler.start()

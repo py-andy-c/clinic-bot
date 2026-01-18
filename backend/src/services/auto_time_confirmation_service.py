@@ -15,6 +15,7 @@ from sqlalchemy import func, cast, String
 from sqlalchemy.sql import sqltypes
 
 from core.database import get_db_context
+from core.constants import MISFIRE_GRACE_TIME_SECONDS
 from models.appointment import Appointment
 from models.calendar_event import CalendarEvent
 from models.clinic import Clinic
@@ -54,11 +55,12 @@ class AutoTimeConfirmationService:
         # Schedule to run every hour
         self.scheduler.add_job(  # type: ignore
             self._process_pending_time_confirmations,
-            CronTrigger(hour="*"),  # Every hour
+            CronTrigger(hour="*", minute=4),  # Every hour at :04
             id="auto_confirm_time_slots",
             name="Auto-confirm time slots at recency limit",
             max_instances=1,  # Prevent overlapping runs
-            replace_existing=True
+            replace_existing=True,
+            misfire_grace_time=MISFIRE_GRACE_TIME_SECONDS  # Allow jobs to run up to 15 minutes late
         )
 
         self.scheduler.start()

@@ -10,7 +10,7 @@ from typing import Optional
 from apscheduler.schedulers.asyncio import AsyncIOScheduler  # type: ignore
 from apscheduler.triggers.cron import CronTrigger  # type: ignore
 
-from core.constants import REMINDER_SCHEDULER_MAX_INSTANCES
+from core.constants import REMINDER_SCHEDULER_MAX_INSTANCES, MISFIRE_GRACE_TIME_SECONDS
 from core.database import get_db_context
 from services.scheduled_message_service import ScheduledMessageService
 from utils.datetime_utils import TAIWAN_TZ
@@ -50,11 +50,12 @@ class ScheduledMessageScheduler:
         # Schedule to run every hour
         self.scheduler.add_job(  # type: ignore
             self._send_pending_messages,
-            CronTrigger(hour="*"),  # Run every hour
+            CronTrigger(hour="*", minute=6),  # Run every hour at :06
             id="send_scheduled_messages",
             name="Send scheduled LINE messages",
             max_instances=REMINDER_SCHEDULER_MAX_INSTANCES,  # Prevent overlapping runs
-            replace_existing=True
+            replace_existing=True,
+            misfire_grace_time=MISFIRE_GRACE_TIME_SECONDS  # Allow jobs to run up to 15 minutes late
         )
 
         self.scheduler.start()

@@ -15,6 +15,7 @@ from sqlalchemy import func, cast, String
 from sqlalchemy.sql import sqltypes
 
 from core.database import get_db_context
+from core.constants import MISFIRE_GRACE_TIME_SECONDS
 from models.appointment import Appointment
 from models.calendar_event import CalendarEvent
 from models.clinic import Clinic
@@ -56,11 +57,12 @@ class AutoAssignmentService:
         # Schedule to run every hour
         self.scheduler.add_job(  # type: ignore
             self._process_auto_assigned_appointments,
-            CronTrigger(hour="*"),  # Every hour
+            CronTrigger(hour="*", minute=3),  # Every hour at :03
             id="auto_assign_appointments",
             name="Auto-assign appointments at recency limit",
             max_instances=1,  # Prevent overlapping runs
-            replace_existing=True
+            replace_existing=True,
+            misfire_grace_time=MISFIRE_GRACE_TIME_SECONDS  # Allow jobs to run up to 15 minutes late
         )
 
         self.scheduler.start()
