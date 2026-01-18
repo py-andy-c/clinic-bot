@@ -295,7 +295,7 @@ body {
 
 /* Today button - full width, secondary style */
 .today-sidebar-btn {
-    width: calc(100% - 8px);
+    width: 100%;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -309,7 +309,6 @@ body {
     border: 1px solid var(--border);
     background: white;
     color: var(--text-main);
-    margin: 0 auto;
 }
 
 /* Action buttons - side by side, different styles */
