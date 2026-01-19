@@ -66,12 +66,12 @@ const CalendarSidebar: React.FC<CalendarSidebarProps> = ({
   };
 
   const getPractitionerColorStyle = (practitionerId: number) => {
-    const color = getPractitionerColor(practitionerId, 0, selectedPractitioners) || '#6b7280';
+    const color = getPractitionerColor(practitionerId, -1, selectedPractitioners) || '#6b7280';
     return { backgroundColor: color };
   };
 
   const getResourceColorStyle = (resourceId: number) => {
-    const color = getResourceColorById(resourceId, [], selectedResources, null) || '#6b7280';
+    const color = getResourceColorById(resourceId, selectedResources) || '#6b7280';
     return { backgroundColor: color };
   };
 

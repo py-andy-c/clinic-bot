@@ -243,7 +243,15 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
   };
 
   if (view === CalendarViews.MONTH) {
-    return <MonthlyCalendarGrid currentDate={currentDate} events={events} onEventClick={onEventClick || (() => {})} />;
+    return (
+      <MonthlyCalendarGrid
+        currentDate={currentDate}
+        events={events}
+        selectedPractitioners={selectedPractitioners}
+        selectedResources={selectedResources}
+        onEventClick={onEventClick || (() => {})}
+      />
+    );
   }
 
   return (
@@ -314,6 +322,8 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
                         key={`group-${practitionerId}-${groupIndex}`}
                         group={group}
                         groupIndex={groupIndex}
+                        selectedPractitioners={selectedPractitioners}
+                        selectedResources={selectedResources}
                         onEventClick={onEventClick || (() => {})}
                       />
                     ))}
@@ -344,6 +354,8 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
                         key={`group-${resourceId}-${groupIndex}`}
                         group={group}
                         groupIndex={groupIndex}
+                        selectedPractitioners={selectedPractitioners}
+                        selectedResources={selectedResources}
                         onEventClick={onEventClick || (() => {})}
                       />
                     ))}
@@ -361,6 +373,8 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
 // Event component
 interface CalendarEventComponentProps {
   event: CalendarEvent;
+  selectedPractitioners: number[];
+  selectedResources: number[];
   onClick: () => void;
   group?: OverlappingEventGroup;
   groupIndex?: number;
@@ -369,6 +383,8 @@ interface CalendarEventComponentProps {
 
 const CalendarEventComponent: React.FC<CalendarEventComponentProps> = ({
   event,
+  selectedPractitioners,
+  selectedResources,
   onClick,
   group,
   groupIndex = 0,
@@ -393,9 +409,9 @@ const CalendarEventComponent: React.FC<CalendarEventComponentProps> = ({
     let borderRadius = '8px';
 
     if (event.resource.practitioner_id) {
-      backgroundColor = getPractitionerColor(event.resource.practitioner_id, 0, []) || '#6b7280';
+      backgroundColor = getPractitionerColor(event.resource.practitioner_id, -1, selectedPractitioners) || '#6b7280';
     } else if (event.resource.resource_id) {
-      backgroundColor = getResourceColorById(event.resource.resource_id, [], [], null) || '#6b7280';
+      backgroundColor = getResourceColorById(event.resource.resource_id, selectedResources) || '#6b7280';
       // Resource events get dashed border as per design
       border = '1px dashed rgba(255, 255, 255, 0.5)';
     }
@@ -435,12 +451,16 @@ const CalendarEventComponent: React.FC<CalendarEventComponentProps> = ({
 interface MonthlyCalendarGridProps {
   currentDate: Date;
   events: CalendarEvent[];
+  selectedPractitioners: number[];
+  selectedResources: number[];
   onEventClick?: (event: CalendarEvent) => void;
 }
 
 const MonthlyCalendarGrid: React.FC<MonthlyCalendarGridProps> = ({
   currentDate,
   events,
+  selectedPractitioners,
+  selectedResources,
   onEventClick,
 }) => {
   const month = moment(currentDate).tz('Asia/Taipei');
@@ -505,9 +525,9 @@ const MonthlyCalendarGrid: React.FC<MonthlyCalendarGridProps> = ({
               {day.events.slice(0, 3).map((event) => {
                 let backgroundColor = '#6b7280';
                 if (event.resource.practitioner_id) {
-                  backgroundColor = getPractitionerColor(event.resource.practitioner_id, 0, []) || '#6b7280';
+                  backgroundColor = getPractitionerColor(event.resource.practitioner_id, -1, selectedPractitioners) || '#6b7280';
                 } else if (event.resource.resource_id) {
-                  backgroundColor = getResourceColorById(event.resource.resource_id, [], [], null) || '#6b7280';
+                  backgroundColor = getResourceColorById(event.resource.resource_id, selectedResources) || '#6b7280';
                 }
 
                 return (
@@ -540,12 +560,16 @@ const MonthlyCalendarGrid: React.FC<MonthlyCalendarGridProps> = ({
 interface OverlappingEventGroupProps {
   group: OverlappingEventGroup;
   groupIndex: number;
+  selectedPractitioners: number[];
+  selectedResources: number[];
   onEventClick: (event: CalendarEvent) => void;
 }
 
 const OverlappingEventGroupComponent: React.FC<OverlappingEventGroupProps> = ({
   group,
   groupIndex,
+  selectedPractitioners,
+  selectedResources,
   onEventClick,
 }) => {
   return (
@@ -554,6 +578,8 @@ const OverlappingEventGroupComponent: React.FC<OverlappingEventGroupProps> = ({
         <CalendarEventComponent
           key={event.id}
           event={event}
+          selectedPractitioners={selectedPractitioners}
+          selectedResources={selectedResources}
           group={group}
           groupIndex={groupIndex}
           eventIndex={eventIndex}
