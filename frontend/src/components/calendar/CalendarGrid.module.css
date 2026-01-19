@@ -12,6 +12,7 @@
   display: flex;
   flex-direction: column;
   min-height: 100%;
+  position: relative;
 }
 
 .headerRow {
@@ -20,7 +21,7 @@
   top: 0;
   background: white;
   border-bottom: 1px solid #e5e7eb;
-  z-index: 100;
+  z-index: 200;
 }
 
 .timeCorner {
@@ -31,13 +32,35 @@
   flex-shrink: 0;
   position: sticky;
   left: 0;
-  z-index: 110;
+  z-index: 210;
 }
 
 .resourceHeaders {
   display: flex;
   flex: 1;
   background: white;
+}
+
+.resourceHeader {
+  flex: 1;
+  min-width: 56px;
+  padding: 8px 4px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 500;
+  color: #374151;
+  border-right: 1px solid #e5e7eb;
+  background: white;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.dayNumber {
+  font-size: 10px;
+  color: #6b7280;
+  margin-top: 2px;
 }
 
 .gridLayer {
@@ -72,14 +95,14 @@
 }
 
 .timeLabel {
-  height: 80px;
+  height: 20px;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: center;
   font-size: 10px;
   color: #64748b;
   border-bottom: 1px solid #f3f4f6;
-  padding-top: 2px;
+  position: relative;
 }
 
 .resourceGrid {
@@ -100,10 +123,6 @@
   border-bottom: 1px solid #f9fafb;
   cursor: pointer;
   min-height: 20px;
-}
-
-.timeSlot:hover {
-  background: #f3f4f6;
 }
 
 /* Mobile touch improvements */

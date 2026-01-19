@@ -13,6 +13,13 @@
   transition: transform 0.3s ease;
 }
 
+/* Always show sidebar on desktop */
+@media (min-width: 1024px) {
+  .sidebar {
+    transform: translateX(0);
+  }
+}
+
 .sidebarOverlay {
   position: fixed;
   top: 64px;

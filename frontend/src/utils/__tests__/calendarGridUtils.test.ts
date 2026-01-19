@@ -12,19 +12,19 @@ import { CalendarViews } from '../../types/calendar';
 
 describe('calendarGridUtils', () => {
   describe('generateTimeSlots', () => {
-    it('should generate time slots from 8 AM to 10 PM', () => {
+    it('should generate time slots from 1 AM to 11 PM', () => {
       const slots = generateTimeSlots();
 
-      expect(slots.length).toBe(60); // 15 hours * 4 slots per hour = 60 slots
+      expect(slots.length).toBe(92); // 23 hours * 4 slots per hour = 92 slots
       expect(slots[0]).toEqual({
-        hour: 8,
+        hour: 1,
         minute: 0,
-        time: '08:00',
+        time: '01:00',
       });
       expect(slots[slots.length - 1]).toEqual({
-        hour: 22,
+        hour: 23,
         minute: 45,
-        time: '22:45',
+        time: '23:45',
       });
     });
 
@@ -32,9 +32,9 @@ describe('calendarGridUtils', () => {
       const slots = generateTimeSlots();
 
       expect(slots[1]).toEqual({
-        hour: 8,
+        hour: 1,
         minute: 15,
-        time: '08:15',
+        time: '01:15',
       });
     });
   });

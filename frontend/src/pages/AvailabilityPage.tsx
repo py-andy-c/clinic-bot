@@ -427,6 +427,8 @@ const AvailabilityPage: React.FC = () => {
         events={allEvents}
         selectedPractitioners={selectedPractitioners}
         selectedResources={selectedResources}
+        practitioners={practitioners}
+        resources={resources}
         onEventClick={handleEventClick}
         onSlotClick={handleSlotClick}
         scrollToCurrentTime={scrollTrigger > 0}

@@ -12,11 +12,11 @@ export interface TimeSlot {
 }
 
 /**
- * Generate time slots for calendar grid (8 AM to 10 PM, 15-minute intervals)
+ * Generate time slots for calendar grid (1 AM to 11 PM, 15-minute intervals)
  */
 export const generateTimeSlots = (): TimeSlot[] => {
   const slots: TimeSlot[] = [];
-  for (let hour = 8; hour <= 22; hour++) {
+  for (let hour = 1; hour <= 23; hour++) {
     for (let minute = 0; minute < 60; minute += 15) {
       slots.push({
         hour,

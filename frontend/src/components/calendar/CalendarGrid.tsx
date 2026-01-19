@@ -34,6 +34,8 @@ interface CalendarGridProps {
   events: CalendarEvent[];
   selectedPractitioners: number[];
   selectedResources: number[];
+  practitioners?: Array<{ id: number; full_name: string }>; // Practitioner data
+  resources?: Array<{ id: number; name: string }>; // Resource data
   onEventClick?: (event: CalendarEvent) => void;
   onSlotClick?: (slotInfo: { start: Date; end: Date }) => void;
   scrollToCurrentTime?: boolean; // Trigger to scroll to current time
@@ -45,6 +47,8 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
   events,
   selectedPractitioners,
   selectedResources,
+  practitioners = [],
+  resources = [],
   onEventClick,
   onSlotClick,
   scrollToCurrentTime = false,
@@ -243,6 +247,7 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
           } else {
             logger.warn('CalendarGrid: No aria-label found on time slot element');
           }
+          break;
           return;
       }
 
@@ -285,7 +290,7 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
     }
   };
 
-  if (view === CalendarViews.MONTH) {
+  if (view === 'month') {
     return (
       <MonthlyCalendarGrid
         currentDate={currentDate}
@@ -304,7 +309,60 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
         <div className={styles.headerRow}>
           <div className={styles.timeCorner}></div>
           <div className={styles.resourceHeaders} id="resource-headers">
-            {/* Headers will be populated by renderHeaders() */}
+            {/* Render practitioner and resource headers */}
+            {(() => {
+              if (view === CalendarViews.DAY) {
+                return (
+                  <>
+                    {selectedPractitioners.map(practitionerId => {
+                      const practitioner = practitioners.find(p => p.id === practitionerId);
+                      return (
+                        <div key={`practitioner-${practitionerId}`} className={styles.resourceHeader}>
+                          {practitioner?.full_name || `Practitioner ${practitionerId}`}
+                        </div>
+                      );
+                    })}
+                    {selectedResources.map(resourceId => {
+                      const resource = resources.find(r => r.id === resourceId);
+                      return (
+                        <div key={`resource-${resourceId}`} className={styles.resourceHeader}>
+                          {resource?.name || `Resource ${resourceId}`}
+                        </div>
+                      );
+                    })}
+                  </>
+                );
+              }
+              
+              if (view === CalendarViews.WEEK) {
+                return (
+                  Array.from({ length: 7 }, (_, i) => {
+                    const date = moment(currentDate).startOf('week').add(i, 'days');
+                    return (
+                      <div key={`day-${i}`} className={styles.resourceHeader}>
+                        {date.format('ddd')}
+                        <div className={styles.dayNumber}>{date.format('D')}</div>
+                      </div>
+                    );
+                  })
+                );
+              }
+              
+              if (view === 'month') {
+                return (
+                  Array.from({ length: 7 }, (_, i) => {
+                    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                    return (
+                      <div key={`day-${i}`} className={styles.resourceHeader}>
+                        {dayNames[i]}
+                      </div>
+                    );
+                  })
+                );
+              }
+              
+              return null;
+            })()}
           </div>
         </div>
 
@@ -314,7 +372,7 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
             {(view === CalendarViews.DAY || view === CalendarViews.WEEK) &&
               timeSlots.map((slot, index) => (
                 <div key={index} className={styles.timeLabel}>
-                  {slot.minute === 0 && slot.hour >= 8 && slot.hour <= 22 && (
+                  {slot.minute === 0 && (
                     <span>{slot.hour > 12 ? slot.hour - 12 : slot.hour}</span>
                   )}
                 </div>
