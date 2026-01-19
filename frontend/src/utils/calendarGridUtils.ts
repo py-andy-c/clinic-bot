@@ -3,6 +3,20 @@ import { CalendarView, CalendarViews } from '../types/calendar';
 import { CalendarEvent } from './calendarDataAdapter';
 
 /**
+ * Calendar grid configuration constants
+ * Coordinate system: midnight-based (0:00-24:00) with 15-minute slots
+ */
+const CALENDAR_GRID_CONFIG = {
+  SLOT_DURATION_MINUTES: 15,
+  SLOT_HEIGHT_PX: 20,
+  HOUR_HEIGHT_PX: 80, // 4 slots × 20px = 80px per hour
+  OVERLAP_PERCENT_TWO_EVENTS: 15,
+  OVERLAP_PERCENT_THREE_TO_FOUR_EVENTS: 12,
+  OVERLAP_PERCENT_MAX: 15,
+  OVERLAP_WIDTH_DENOMINATOR: 75,
+} as const;
+
+/**
  * Time slot configuration for calendar grid
  */
 export interface TimeSlot {
@@ -32,9 +46,30 @@ export const generateTimeSlots = (): TimeSlot[] => {
 
 /**
  * Get current time in Taiwan timezone
+ * Used consistently across all calendar time calculations for timezone accuracy
  */
 export const getCurrentTaiwanTime = () => {
   return moment().tz('Asia/Taipei');
+};
+
+/**
+ * Calculate overlap percentage for event stacking based on event count
+ * Implements mock UI design: 15% for 2 events, 12% for 3-4 events, calculated for 5+
+ * @param eventCount - Number of overlapping events
+ * @returns Percentage overlap (0-15)
+ */
+const getOverlapPercentage = (eventCount: number): number => {
+  if (eventCount <= 2) {
+    return CALENDAR_GRID_CONFIG.OVERLAP_PERCENT_TWO_EVENTS; // 15%
+  }
+  if (eventCount <= 4) {
+    return CALENDAR_GRID_CONFIG.OVERLAP_PERCENT_THREE_TO_FOUR_EVENTS; // 12%
+  }
+  // For 5+ events, ensure minimum readable width with max 15% overlap
+  return Math.min(
+    CALENDAR_GRID_CONFIG.OVERLAP_PERCENT_MAX,
+    CALENDAR_GRID_CONFIG.OVERLAP_WIDTH_DENOMINATOR / (eventCount - 1)
+  );
 };
 
 /**
@@ -57,13 +92,13 @@ export const calculateCurrentTimeIndicatorPosition = (
   // Show indicator for full 24-hour day when viewing today's calendar
   // (no business hour restrictions since we now display full day)
 
-  // Calculate position: (hours from 0 AM * 60 + minutes) / 15 * 20px per slot
-  const minutesFromMidnight = (hours - 0) * 60 + minutes;
-  const pixelsFromTop = (minutesFromMidnight / 15) * 20;
+  // Calculate position: (hours * 60 + minutes) / slot_duration * slot_height
+  const minutesFromMidnight = hours * 60 + minutes;
+  const pixelsFromTop = (minutesFromMidnight / CALENDAR_GRID_CONFIG.SLOT_DURATION_MINUTES) * CALENDAR_GRID_CONFIG.SLOT_HEIGHT_PX;
 
   return {
     top: `${pixelsFromTop}px`,
-    left: view === CalendarViews.DAY ? '28px' : '0',
+    left: view === CalendarViews.DAY ? '0' : '0',
     right: view === CalendarViews.DAY ? '0' : 'auto',
     width: view === CalendarViews.DAY ? 'auto' : '100%',
   };
@@ -82,19 +117,35 @@ export const createTimeSlotDate = (currentDate: Date, hour: number, minute: numb
 };
 
 /**
- * Calculate event position in calendar grid
+ * Calculate event position in calendar grid using Taiwan timezone
+ * Coordinate system: midnight-based (0:00) with 15-minute slots (20px each) and 80px per hour
+ * @param start - Event start time (any timezone, converted to Taiwan time)
+ * @returns CSS position properties for vertical placement
  */
 export const calculateEventPosition = (start: Date): React.CSSProperties => {
-  const top = (start.getHours() - 0) * 80 + (start.getMinutes() / 15) * 20; // Calendar starts at 0 AM now
+  // Convert to Taiwan timezone for consistent positioning with current time indicator
+  const taiwanTime = moment(start).tz('Asia/Taipei');
+  const hours = taiwanTime.hour();
+  const minutes = taiwanTime.minute();
+
+  // Calculate pixel position from midnight (0:00)
+  const top = hours * CALENDAR_GRID_CONFIG.HOUR_HEIGHT_PX +
+             (minutes / CALENDAR_GRID_CONFIG.SLOT_DURATION_MINUTES) * CALENDAR_GRID_CONFIG.SLOT_HEIGHT_PX;
   return { top: `${top}px` };
 };
 
 /**
- * Calculate event height in calendar grid
+ * Calculate event height in calendar grid based on duration
+ * @param start - Event start time
+ * @param end - Event end time
+ * @returns CSS height property (minimum 1 slot = 20px)
  */
 export const calculateEventHeight = (start: Date, end: Date): React.CSSProperties => {
   const duration = (end.getTime() - start.getTime()) / (1000 * 60); // minutes
-  const height = Math.max((duration / 15) * 20, 20);
+  const height = Math.max(
+    (duration / CALENDAR_GRID_CONFIG.SLOT_DURATION_MINUTES) * CALENDAR_GRID_CONFIG.SLOT_HEIGHT_PX,
+    CALENDAR_GRID_CONFIG.SLOT_HEIGHT_PX // minimum 1 slot height
+  );
   return { height: `${height}px` };
 };
 
@@ -150,17 +201,8 @@ export const calculateOverlappingEvents = (events: CalendarEvent[]): Overlapping
       group.left = 0;
       group.width = 100;
     } else {
-      // Fixed overlap percentages matching mock UI
-      let overlapPercent;
-      if (count <= 2) {
-        overlapPercent = 15; // 15% overlap for 2 events
-      } else if (count <= 4) {
-        overlapPercent = 12; // 12% overlap for 3-4 events
-      } else {
-        // For 5+ events, ensure minimum readable width
-        overlapPercent = Math.min(15, 75 / (count - 1)); // Max 15% overlap
-      }
-
+      // Use shared overlap calculation logic matching mock UI design
+      const overlapPercent = getOverlapPercentage(count);
       group.width = 100 - ((count - 1) * overlapPercent);
       group.left = 0;
     }
@@ -181,18 +223,9 @@ export const calculateEventInGroupPosition = (
   const position = calculateEventPosition(event.start);
   const size = calculateEventHeight(event.start, event.end);
 
-  // Use the same overlap logic as group calculation
+  // Use shared overlap calculation logic matching mock UI design
   const count = group.events.length;
-  let overlapPercent;
-  if (count <= 2) {
-    overlapPercent = 15; // 15% overlap for 2 events
-  } else if (count <= 4) {
-    overlapPercent = 12; // 12% overlap for 3-4 events
-  } else {
-    // For 5+ events, ensure minimum readable width
-    overlapPercent = Math.min(15, 75 / (count - 1)); // Max 15% overlap
-  }
-
+  const overlapPercent = getOverlapPercentage(count);
   const eventWidth = 100 - ((count - 1) * overlapPercent);
 
   return {
