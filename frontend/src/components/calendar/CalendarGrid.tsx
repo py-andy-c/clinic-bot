@@ -143,6 +143,7 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
   const practitionerGroups = useMemo(() =>
     selectedPractitioners.map(practitionerId => {
       const practitionerEvents = events.filter(event => event.resource.practitioner_id === practitionerId);
+
       return {
         practitionerId,
         events: practitionerEvents,
@@ -153,6 +154,7 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
   const resourceGroups = useMemo(() =>
     selectedResources.map(resourceId => {
       const resourceEvents = events.filter(event => event.resource.resource_id === resourceId);
+
       return {
         resourceId,
         events: resourceEvents,
@@ -423,17 +425,32 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
                         tabIndex={-1}
                       />
                     ))}
-                    {/* Render overlapping event groups */}
-                    {groups.map((group, groupIndex) => (
-                      <OverlappingEventGroupComponent
-                        key={`group-${practitionerId}-${groupIndex}`}
-                        group={group}
-                        groupIndex={groupIndex}
-                        selectedPractitioners={selectedPractitioners}
-                        selectedResources={selectedResources}
-                        onEventClick={onEventClick || (() => {})}
-                      />
-                    ))}
+                    {/* Render single events (full width) */}
+                    {groups
+                      .filter(group => group.events.length === 1)
+                      .map((group, groupIndex) => (
+                        <CalendarEventComponent
+                          key={`single-${practitionerId}-${groupIndex}`}
+                          event={group.events[0]!}
+                          selectedPractitioners={selectedPractitioners}
+                          selectedResources={selectedResources}
+                          onClick={() => onEventClick?.(group.events[0]!)}
+                        />
+                      ))}
+
+                    {/* Render overlapping event groups (multiple events) */}
+                    {groups
+                      .filter(group => group.events.length > 1)
+                      .map((group, groupIndex) => (
+                        <OverlappingEventGroupComponent
+                          key={`group-${practitionerId}-${groupIndex}`}
+                          group={group}
+                          groupIndex={groupIndex}
+                          selectedPractitioners={selectedPractitioners}
+                          selectedResources={selectedResources}
+                          onEventClick={onEventClick || (() => {})}
+                        />
+                      ))}
                   </div>
                 ))}
 
@@ -455,17 +472,32 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
                         tabIndex={-1}
                       />
                     ))}
-                    {/* Render overlapping event groups */}
-                    {groups.map((group, groupIndex) => (
-                      <OverlappingEventGroupComponent
-                        key={`group-${resourceId}-${groupIndex}`}
-                        group={group}
-                        groupIndex={groupIndex}
-                        selectedPractitioners={selectedPractitioners}
-                        selectedResources={selectedResources}
-                        onEventClick={onEventClick || (() => {})}
-                      />
-                    ))}
+                    {/* Render single events (full width) */}
+                    {groups
+                      .filter(group => group.events.length === 1)
+                      .map((group, groupIndex) => (
+                        <CalendarEventComponent
+                          key={`single-${resourceId}-${groupIndex}`}
+                          event={group.events[0]!}
+                          selectedPractitioners={selectedPractitioners}
+                          selectedResources={selectedResources}
+                          onClick={() => onEventClick?.(group.events[0]!)}
+                        />
+                      ))}
+
+                    {/* Render overlapping event groups (multiple events) */}
+                    {groups
+                      .filter(group => group.events.length > 1)
+                      .map((group, groupIndex) => (
+                        <OverlappingEventGroupComponent
+                          key={`group-${resourceId}-${groupIndex}`}
+                          group={group}
+                          groupIndex={groupIndex}
+                          selectedPractitioners={selectedPractitioners}
+                          selectedResources={selectedResources}
+                          onEventClick={onEventClick || (() => {})}
+                        />
+                      ))}
                   </div>
                 ))}
               </div>
@@ -507,8 +539,14 @@ const CalendarEventComponent: React.FC<CalendarEventComponentProps> = ({
       // Use regular positioning (for monthly view or non-overlapping)
       const position = calculateEventPosition(event.start);
       const size = calculateEventHeight(event.start, event.end);
-      baseStyle = { ...position, ...size };
+      baseStyle = {
+        ...position,
+        ...size,
+        left: 0,
+        width: '100%'
+      };
     }
+
 
     // Determine background color and border styling
     let backgroundColor = '#6b7280'; // default gray

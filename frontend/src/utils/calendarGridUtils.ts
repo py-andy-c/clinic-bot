@@ -128,7 +128,7 @@ export const calculateOverlappingEvents = (events: CalendarEvent[]): Overlapping
         event.start < existingEvent.end && event.end > existingEvent.start
       );
 
-      if (!hasOverlap) {
+      if (hasOverlap) {
         group.events.push(event);
         placed = true;
         break;
@@ -141,7 +141,7 @@ export const calculateOverlappingEvents = (events: CalendarEvent[]): Overlapping
     }
   }
 
-  // Calculate positioning for each group
+  // Calculate positioning for each group - matching mock UI exactly
   groups.forEach(group => {
     const count = group.events.length;
 
@@ -149,19 +149,20 @@ export const calculateOverlappingEvents = (events: CalendarEvent[]): Overlapping
       // Single event takes full width
       group.left = 0;
       group.width = 100;
-    } else if (count === 2) {
-      // Two events: 15% overlap as per mock UI
-      group.left = 0;
-      group.width = 85; // 100% - 15% overlap
-    } else if (count === 3) {
-      // Three events: 12% overlap as per mock UI
-      group.left = 0;
-      group.width = 88; // 100% - 12% overlap
     } else {
-      // Four or more events: calculated percentage
-      const overlapPercent = Math.max(5, 100 / count); // Minimum 5% per event
+      // Fixed overlap percentages matching mock UI
+      let overlapPercent;
+      if (count <= 2) {
+        overlapPercent = 15; // 15% overlap for 2 events
+      } else if (count <= 4) {
+        overlapPercent = 12; // 12% overlap for 3-4 events
+      } else {
+        // For 5+ events, ensure minimum readable width
+        overlapPercent = Math.min(15, 75 / (count - 1)); // Max 15% overlap
+      }
+
+      group.width = 100 - ((count - 1) * overlapPercent);
       group.left = 0;
-      group.width = Math.max(20, 100 - (overlapPercent * (count - 1)));
     }
   });
 
@@ -170,24 +171,35 @@ export const calculateOverlappingEvents = (events: CalendarEvent[]): Overlapping
 
 /**
  * Calculate individual event position within an overlapping group
+ * Matches mock UI overlapping logic exactly
  */
 export const calculateEventInGroupPosition = (
   event: CalendarEvent,
   group: OverlappingEventGroup,
-  groupIndex: number
+  eventIndex: number
 ): React.CSSProperties => {
   const position = calculateEventPosition(event.start);
   const size = calculateEventHeight(event.start, event.end);
 
-  // Calculate offset based on position in group
-  // For overlapping events, distribute them evenly within the available space
-  const offset = groupIndex * (100 - group.width) / Math.max(1, group.events.length - 1);
+  // Use the same overlap logic as group calculation
+  const count = group.events.length;
+  let overlapPercent;
+  if (count <= 2) {
+    overlapPercent = 15; // 15% overlap for 2 events
+  } else if (count <= 4) {
+    overlapPercent = 12; // 12% overlap for 3-4 events
+  } else {
+    // For 5+ events, ensure minimum readable width
+    overlapPercent = Math.min(15, 75 / (count - 1)); // Max 15% overlap
+  }
+
+  const eventWidth = 100 - ((count - 1) * overlapPercent);
 
   return {
     ...position,
     ...size,
-    left: `${group.left + offset}%`,
-    width: `${group.width}%`,
-    zIndex: groupIndex + 1,
+    left: `${eventIndex * overlapPercent}%`,
+    width: `${eventWidth}%`,
+    zIndex: 10 + eventIndex, // Higher z-index for later events
   };
 };

@@ -174,17 +174,34 @@ describe('calendarGridUtils', () => {
     it('should position first event in group', () => {
       const result = calculateEventInGroupPosition(mockGroup.events[0], mockGroup, 0);
 
-      expect(result.left).toBe('0%');
-      expect(result.width).toBe('85%');
-      expect(result.zIndex).toBe(1);
+      expect(result.left).toBe('0%'); // eventIndex * overlapPercent = 0 * 15 = 0
+      expect(result.width).toBe('85%'); // 100 - (2-1)*15 = 85
+      expect(result.zIndex).toBe(10); // 10 + eventIndex = 10 + 0 = 10
     });
 
     it('should position second event in group with offset', () => {
       const result = calculateEventInGroupPosition(mockGroup.events[1], mockGroup, 1);
 
-      expect(result.left).toBe('15%'); // (100 - 85) / (2-1) events = 15% offset
-      expect(result.width).toBe('85%');
-      expect(result.zIndex).toBe(2);
+      expect(result.left).toBe('15%'); // eventIndex * overlapPercent = 1 * 15 = 15
+      expect(result.width).toBe('85%'); // 100 - (2-1)*15 = 85
+      expect(result.zIndex).toBe(11); // 10 + eventIndex = 10 + 1 = 11
+    });
+  });
+
+  describe('single event styling', () => {
+    it('should give single events full width and proper positioning', () => {
+      // Create a single event group (non-overlapping)
+      const singleEventGroup = {
+        events: [{ id: '1', title: 'Single Event', start: new Date('2024-01-01T10:00:00'), end: new Date('2024-01-01T11:00:00'), resource: { practitioner_id: 1 } }],
+        left: 0,
+        width: 100
+      };
+
+      const result = calculateEventInGroupPosition(singleEventGroup.events[0], singleEventGroup, 0);
+
+      expect(result.left).toBe('0%'); // No offset for single event
+      expect(result.width).toBe('100%'); // Full width for single event
+      expect(result.zIndex).toBe(10); // Base z-index
     });
   });
 });
