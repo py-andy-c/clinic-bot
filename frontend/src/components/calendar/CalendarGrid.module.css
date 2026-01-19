@@ -4,6 +4,8 @@
   overflow: auto;
   flex: 1;
   background: white;
+  /* Mobile safe area padding for devices with notches/home indicators */
+  padding-bottom: calc(env(safe-area-inset-bottom, 20px) + 60px);
 }
 
 .calendarGridContainer {
@@ -18,15 +20,18 @@
   top: 0;
   background: white;
   border-bottom: 1px solid #e5e7eb;
-  z-index: 30;
+  z-index: 100;
 }
 
 .timeCorner {
   width: 28px;
-  height: 40px;
+  height: 32px;
   background: white;
   border-right: 1px solid #e5e7eb;
   flex-shrink: 0;
+  position: sticky;
+  left: 0;
+  z-index: 110;
 }
 
 .resourceHeaders {
@@ -63,7 +68,7 @@
   width: 28px;
   background: white;
   border-right: 1px solid #e5e7eb;
-  z-index: 20;
+  z-index: 50;
 }
 
 .timeLabel {
@@ -127,6 +132,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   box-sizing: border-box;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
 }
 
 .calendarEvent:hover {

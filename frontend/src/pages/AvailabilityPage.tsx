@@ -29,6 +29,7 @@ import { getDateString, formatAppointmentTimeRange } from '../utils/calendarUtil
 import { logger } from '../utils/logger';
 import { Resource } from '../types';
 import { CalendarEvent, transformToCalendarEvents } from '../utils/calendarDataAdapter';
+import { trackCalendarAPICall, completeCalendarAPICall } from '../utils/performanceMonitor';
 
 // Conflict detection utility
 const detectAppointmentConflicts = (
@@ -265,8 +266,15 @@ const AvailabilityPage: React.FC = () => {
       const cached = eventCache.get(cacheKey);
       if (cached && (Date.now() - cached.timestamp) < 5 * 60 * 1000) {
         setAllEvents(cached.events);
+        // Track actual cache hit that prevents API call
+        const callId = trackCalendarAPICall('calendar-cache-hit', 'CACHE');
+        completeCalendarAPICall(callId, true, true);
         return;
       }
+
+      // Track cache miss (API call will be made)
+      const missCallId = trackCalendarAPICall('calendar-cache-miss', 'CACHE');
+      completeCalendarAPICall(missCallId, true, false);
 
       try {
         const [practitionerEvents, resourceEvents] = await Promise.all([

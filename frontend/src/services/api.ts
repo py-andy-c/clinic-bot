@@ -5,6 +5,7 @@ import { logger } from '../utils/logger';
 import { tokenRefreshService } from './tokenRefresh';
 import { authStorage } from '../utils/storage';
 import { decodeJwtPayload } from '../utils/jwtUtils';
+import { trackCalendarAPICall, completeCalendarAPICall } from '../utils/performanceMonitor';
 import {
   Clinic,
   Member,
@@ -670,12 +671,19 @@ export class ApiService {
       events: any[];
     }>;
   }> {
-    const response = await this.client.post('/clinic/practitioners/calendar/batch', {
-      practitioner_ids: data.practitionerIds,
-      start_date: data.startDate,
-      end_date: data.endDate,
-    });
-    return response.data;
+    const callId = trackCalendarAPICall('/clinic/practitioners/calendar/batch', 'POST');
+    try {
+      const response = await this.client.post('/clinic/practitioners/calendar/batch', {
+        practitioner_ids: data.practitionerIds,
+        start_date: data.startDate,
+        end_date: data.endDate,
+      });
+      completeCalendarAPICall(callId, true, false);
+      return response.data;
+    } catch (error) {
+      completeCalendarAPICall(callId, false, false, error instanceof Error ? error.message : 'Unknown error');
+      throw error;
+    }
   }
 
   async getAvailableSlots(userId: number, date: string, appointmentTypeId: number, excludeCalendarEventId?: number): Promise<AvailableSlotsResponse> {
@@ -709,12 +717,19 @@ export class ApiService {
       events: any[];
     }>;
   }> {
-    const response = await this.client.post('/clinic/resources/calendar/batch', {
-      resource_ids: data.resourceIds,
-      start_date: data.startDate,
-      end_date: data.endDate,
-    });
-    return response.data;
+    const callId = trackCalendarAPICall('/clinic/resources/calendar/batch', 'POST');
+    try {
+      const response = await this.client.post('/clinic/resources/calendar/batch', {
+        resource_ids: data.resourceIds,
+        start_date: data.startDate,
+        end_date: data.endDate,
+      });
+      completeCalendarAPICall(callId, true, false);
+      return response.data;
+    } catch (error) {
+      completeCalendarAPICall(callId, false, false, error instanceof Error ? error.message : 'Unknown error');
+      throw error;
+    }
   }
 
   async getBatchAvailableSlots(
