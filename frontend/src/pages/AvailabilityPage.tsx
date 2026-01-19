@@ -120,6 +120,7 @@ const AvailabilityPage: React.FC = () => {
   const [notificationPreview, setNotificationPreview] = useState<NotificationPreview | null>(null);
   const [conflictingAppointments, setConflictingAppointments] = useState<ConflictAppointment[]>([]);
   const [cancellationNote, setCancellationNote] = useState('');
+  const [scrollTrigger, setScrollTrigger] = useState(0); // Counter to trigger scroll
 
   // Use React Query for practitioners
   const { data: practitionersData, isLoading: practitionersLoading } = usePractitioners();
@@ -362,6 +363,8 @@ const AvailabilityPage: React.FC = () => {
     const today = new Date();
     setCurrentDate(today);
     handleDateChange(today);
+    // Trigger scroll to current time
+    setScrollTrigger(prev => prev + 1);
   }, [handleDateChange]);
 
   const handleSettings = useCallback(() => {
@@ -418,6 +421,7 @@ const AvailabilityPage: React.FC = () => {
         selectedResources={selectedResources}
         onEventClick={handleEventClick}
         onSlotClick={handleSlotClick}
+        scrollToCurrentTime={scrollTrigger > 0}
       />
 
       {/* Modal Components */}

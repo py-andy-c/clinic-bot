@@ -1,4 +1,4 @@
-import React, { useMemo, useRef } from 'react';
+import React, { useMemo, useRef, useEffect, useCallback } from 'react';
 import moment from 'moment-timezone';
 import { CalendarEvent } from '../../utils/calendarDataAdapter';
 import { CalendarView, CalendarViews } from '../../types/calendar';
@@ -14,8 +14,18 @@ import {
   calculateOverlappingEvents,
   calculateEventInGroupPosition,
   OverlappingEventGroup,
+  getCurrentTaiwanTime,
 } from '../../utils/calendarGridUtils';
 import styles from './CalendarGrid.module.css';
+
+// Calendar configuration constants
+const CALENDAR_CONFIG = {
+  SLOT_DURATION_MINUTES: 15,
+  SLOT_HEIGHT_PX: 20,
+  SCROLL_BUFFER_PX: 100,
+  BUSINESS_HOURS_START: 8, // 8 AM
+  BUSINESS_HOURS_END: 22, // 10 PM
+} as const;
 
 interface CalendarGridProps {
   view: CalendarView;
@@ -25,6 +35,7 @@ interface CalendarGridProps {
   selectedResources: number[];
   onEventClick?: (event: CalendarEvent) => void;
   onSlotClick?: (slotInfo: { start: Date; end: Date }) => void;
+  scrollToCurrentTime?: boolean; // Trigger to scroll to current time
 }
 
 const CalendarGrid: React.FC<CalendarGridProps> = ({
@@ -35,11 +46,58 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
   selectedResources,
   onEventClick,
   onSlotClick,
+  scrollToCurrentTime = false,
 }) => {
   const gridRef = useRef<HTMLDivElement>(null);
 
   // Generate time slots for the grid
   const timeSlots = useMemo(() => generateTimeSlots(), []);
+
+  // Scroll to current time functionality
+  const scrollToCurrentTimePosition = useCallback(() => {
+    if (!gridRef.current) return;
+
+    const now = getCurrentTaiwanTime();
+    const today = moment(currentDate).tz('Asia/Taipei').startOf('day');
+
+    // Only scroll if we're viewing today
+    if (!now.isSame(today, 'day')) return;
+
+    const hours = now.hour();
+    const minutes = now.minute();
+
+    // Only scroll between business hours
+    if (hours < CALENDAR_CONFIG.BUSINESS_HOURS_START || hours > CALENDAR_CONFIG.BUSINESS_HOURS_END) return;
+
+    // Calculate position: (hours from start * 60 + minutes) / slot_duration * slot_height
+    const minutesFromStart = (hours - CALENDAR_CONFIG.BUSINESS_HOURS_START) * 60 + minutes;
+    const pixelsFromTop = (minutesFromStart / CALENDAR_CONFIG.SLOT_DURATION_MINUTES) * CALENDAR_CONFIG.SLOT_HEIGHT_PX;
+
+    // Add buffer to show context above current time
+    const scrollPosition = Math.max(0, pixelsFromTop - CALENDAR_CONFIG.SCROLL_BUFFER_PX);
+
+    gridRef.current.scrollTo({
+      top: scrollPosition,
+      behavior: 'smooth'
+    });
+  }, [currentDate]);
+
+  // Auto-scroll on mount and when currentDate changes to today
+  useEffect(() => {
+    // Small delay to ensure DOM is rendered
+    const timeoutId = setTimeout(() => {
+      scrollToCurrentTimePosition();
+    }, 100);
+
+    return () => clearTimeout(timeoutId);
+  }, [currentDate, scrollToCurrentTimePosition]);
+
+  // Scroll when triggered from outside (e.g., today button)
+  useEffect(() => {
+    if (scrollToCurrentTime) {
+      scrollToCurrentTimePosition();
+    }
+  }, [scrollToCurrentTime, scrollToCurrentTimePosition]);
 
   // Calculate current time indicator position
   const currentTimeIndicatorStyle = useMemo(
@@ -189,7 +247,7 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
   }
 
   return (
-    <div className={styles.calendarViewport} id="main-viewport">
+    <div className={styles.calendarViewport} id="main-viewport" data-testid="calendar-grid">
       <div className={styles.calendarGridContainer}>
         {/* Header Row: Sticky Top */}
         <div className={styles.headerRow}>
@@ -226,6 +284,7 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
               className={styles.timeIndicator}
               style={currentTimeIndicatorStyle}
               aria-label="Current time indicator"
+              data-testid="current-time-indicator"
             />
 
             <div className="grid-container" role="presentation">
@@ -245,6 +304,7 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
                         onClick={() => handleSlotClick(slot.hour, slot.minute)}
                         role="button"
                         aria-label={`Time slot ${slot.time} for practitioner ${practitionerId} - Click to create appointment`}
+                        data-testid="time-slot"
                         tabIndex={-1}
                       />
                     ))}
@@ -274,6 +334,7 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
                         onClick={() => handleSlotClick(slot.hour, slot.minute)}
                         role="button"
                         aria-label={`Time slot ${slot.time} for resource ${resourceId} - Click to create appointment`}
+                        data-testid="time-slot"
                         tabIndex={-1}
                       />
                     ))}
@@ -363,6 +424,7 @@ const CalendarEventComponent: React.FC<CalendarEventComponentProps> = ({
       role="button"
       aria-label={`Appointment: ${event.title} with ${event.resource.patient_name || 'no patient'} - Click to view details`}
       tabIndex={-1}
+      data-testid="calendar-event"
     >
       {event.title}
     </div>
@@ -455,6 +517,7 @@ const MonthlyCalendarGrid: React.FC<MonthlyCalendarGridProps> = ({
                     style={{ backgroundColor }}
                     onClick={() => onEventClick && onEventClick(event)}
                     title={event.title}
+                    data-testid="calendar-event"
                   >
                     {event.title}
                   </div>

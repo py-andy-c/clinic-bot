@@ -95,6 +95,7 @@ const CalendarSidebar: React.FC<CalendarSidebarProps> = ({
         } as React.CSSProperties}
         role="complementary"
         aria-label="Calendar sidebar with view controls and filters"
+        data-testid="calendar-sidebar"
       >
         <div className={styles.sidebarContent}>
           {/* View Switcher */}

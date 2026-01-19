@@ -76,7 +76,7 @@ const CalendarDateStrip: React.FC<CalendarDateStripProps> = ({
 
   return (
     <>
-      <div className={styles.dateStripContainer}>
+      <div className={styles.dateStripContainer} data-testid="calendar-date-strip">
         <nav className={styles.dateNavigation} aria-label="Calendar date navigation">
           <button
             className={styles.navButton}
