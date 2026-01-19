@@ -54,6 +54,7 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
   scrollToCurrentTime = false,
 }) => {
 
+
   // Generate time slots for the grid
   const timeSlots = useMemo(() => generateTimeSlots(), []);
 
@@ -100,12 +101,11 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
     const hours = now.hour();
     const minutes = now.minute();
 
-    // Only scroll between business hours
-    if (hours < CALENDAR_CONFIG.BUSINESS_HOURS_START || hours > CALENDAR_CONFIG.BUSINESS_HOURS_END) return;
+    // Scroll for full 24-hour day (no business hour restrictions)
 
-    // Calculate position: (hours from start * 60 + minutes) / slot_duration * slot_height
-    const minutesFromStart = (hours - CALENDAR_CONFIG.BUSINESS_HOURS_START) * 60 + minutes;
-    const pixelsFromTop = (minutesFromStart / CALENDAR_CONFIG.SLOT_DURATION_MINUTES) * CALENDAR_CONFIG.SLOT_HEIGHT_PX;
+    // Calculate position: (hours from 0 AM * 60 + minutes) / slot_duration * slot_height
+    const minutesFromMidnight = (hours - 0) * 60 + minutes;
+    const pixelsFromTop = (minutesFromMidnight / CALENDAR_CONFIG.SLOT_DURATION_MINUTES) * CALENDAR_CONFIG.SLOT_HEIGHT_PX;
 
     // Add buffer to show context above current time
     const scrollPosition = Math.max(0, pixelsFromTop - CALENDAR_CONFIG.SCROLL_BUFFER_PX);
@@ -141,22 +141,24 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
 
   // Memoize overlapping groups calculation for performance
   const practitionerGroups = useMemo(() =>
-    selectedPractitioners.map(practitionerId => ({
-      practitionerId,
-      events: events.filter(event => event.resource.practitioner_id === practitionerId),
-      groups: calculateOverlappingEvents(
-        events.filter(event => event.resource.practitioner_id === practitionerId)
-      )
-    })), [selectedPractitioners, events]);
+    selectedPractitioners.map(practitionerId => {
+      const practitionerEvents = events.filter(event => event.resource.practitioner_id === practitionerId);
+      return {
+        practitionerId,
+        events: practitionerEvents,
+        groups: calculateOverlappingEvents(practitionerEvents)
+      };
+    }), [selectedPractitioners, events]);
 
   const resourceGroups = useMemo(() =>
-    selectedResources.map(resourceId => ({
-      resourceId,
-      events: events.filter(event => event.resource.resource_id === resourceId),
-      groups: calculateOverlappingEvents(
-        events.filter(event => event.resource.resource_id === resourceId)
-      )
-    })), [selectedResources, events]);
+    selectedResources.map(resourceId => {
+      const resourceEvents = events.filter(event => event.resource.resource_id === resourceId);
+      return {
+        resourceId,
+        events: resourceEvents,
+        groups: calculateOverlappingEvents(resourceEvents)
+      };
+    }), [selectedResources, events]);
 
   const handleSlotClick = (hour: number, minute: number) => {
     if (onSlotClick) {
@@ -232,7 +234,7 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
           }
           break;
         case 'Enter':
-        case ' ':
+        case ' ': {
           // Trigger slot click by calling handleSlotClick with extracted time
           const ariaLabel = currentSlot.getAttribute('aria-label');
           if (ariaLabel) {
@@ -248,6 +250,7 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
             logger.warn('CalendarGrid: No aria-label found on time slot element');
           }
           break;
+        }
           return;
       }
 
@@ -370,13 +373,17 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
         <div className={styles.gridLayer}>
           <div className={styles.timeColumn} id="time-labels">
             {(view === CalendarViews.DAY || view === CalendarViews.WEEK) &&
-              timeSlots.map((slot, index) => (
-                <div key={index} className={styles.timeLabel}>
-                  {slot.minute === 0 && (
-                    <span>{slot.hour > 12 ? slot.hour - 12 : slot.hour}</span>
-                  )}
-                </div>
-              ))}
+              timeSlots
+                .filter((_, index) => index % 4 === 0) // Show label every 4 slots (every hour)
+                .map((slot, index) => (
+                  <div key={index} className={styles.timeLabel}>
+                    {slot.hour === 0 ? (
+                      <span></span> // Empty span for hour 0, matching mock UI
+                    ) : (
+                      <span>{slot.hour}</span> // Just the hour number, no ":00"
+                    )}
+                  </div>
+                ))}
           </div>
           <div
             className={styles.calendarGrid}

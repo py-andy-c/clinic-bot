@@ -12,12 +12,14 @@ export interface TimeSlot {
 }
 
 /**
- * Generate time slots for calendar grid (1 AM to 11 PM, 15-minute intervals)
+ * Generate time slots for calendar grid (0:00 to 24:00, 15-minute intervals)
  */
 export const generateTimeSlots = (): TimeSlot[] => {
   const slots: TimeSlot[] = [];
-  for (let hour = 1; hour <= 23; hour++) {
-    for (let minute = 0; minute < 60; minute += 15) {
+  for (let hour = 0; hour <= 24; hour++) {
+    // For hour 24, only add 00:00 (midnight of next day)
+    const maxMinute = hour === 24 ? 1 : 60;
+    for (let minute = 0; minute < maxMinute; minute += 15) {
       slots.push({
         hour,
         minute,
@@ -52,14 +54,12 @@ export const calculateCurrentTimeIndicatorPosition = (
   const hours = now.hour();
   const minutes = now.minute();
 
-  // Only show indicator between 8 AM and 10 PM
-  if (hours < 8 || hours > 22) {
-    return { display: 'none' };
-  }
+  // Show indicator for full 24-hour day when viewing today's calendar
+  // (no business hour restrictions since we now display full day)
 
-  // Calculate position: (hours from 8 AM * 60 + minutes) / 15 * 20px per slot
-  const minutesFrom8AM = (hours - 8) * 60 + minutes;
-  const pixelsFromTop = (minutesFrom8AM / 15) * 20;
+  // Calculate position: (hours from 0 AM * 60 + minutes) / 15 * 20px per slot
+  const minutesFromMidnight = (hours - 0) * 60 + minutes;
+  const pixelsFromTop = (minutesFromMidnight / 15) * 20;
 
   return {
     top: `${pixelsFromTop}px`,
@@ -85,7 +85,7 @@ export const createTimeSlotDate = (currentDate: Date, hour: number, minute: numb
  * Calculate event position in calendar grid
  */
 export const calculateEventPosition = (start: Date): React.CSSProperties => {
-  const top = (start.getHours() - 8) * 80 + (start.getMinutes() / 15) * 20;
+  const top = (start.getHours() - 0) * 80 + (start.getMinutes() / 15) * 20; // Calendar starts at 0 AM now
   return { top: `${top}px` };
 };
 

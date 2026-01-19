@@ -31,6 +31,154 @@ import { Resource } from '../types';
 import { CalendarEvent, transformToCalendarEvents } from '../utils/calendarDataAdapter';
 import { trackCalendarAPICall, completeCalendarAPICall } from '../utils/performanceMonitor';
 
+// Mock calendar data for development fallback
+const getMockCalendarEvents = (currentDate: Date, selectedPractitioners: number[], selectedResources: number[]) => {
+
+  const baseDate = moment(currentDate).tz('Asia/Taipei');
+  const dateString = baseDate.format('YYYY-MM-DD');
+
+  // Simulate API response structure
+  const mockApiResponse = {
+    results: [] as Array<{
+      user_id: number;
+      date: string;
+      default_schedule: unknown;
+      events: Array<{
+        calendar_event_id: number;
+        type: string;
+        start_time: string;
+        end_time: string;
+        title: string;
+        patient_id?: number;
+        appointment_type_id?: number;
+        status?: string;
+        appointment_id?: number;
+        notes?: string;
+        clinic_notes?: string;
+        patient_name?: string;
+        practitioner_name?: string;
+        appointment_type_name?: string;
+        is_primary?: boolean;
+        has_active_receipt?: boolean;
+        has_any_receipt?: boolean;
+        receipt_ids?: number[];
+        resource_names?: string[];
+        resource_ids?: number[];
+        resource_id?: number;
+        resource_name?: string;
+        is_resource_event?: boolean;
+        exception_id?: number;
+      }>;
+    }>
+  };
+
+  // Generate mock practitioner results (matching API structure)
+  selectedPractitioners.forEach((practitionerId, index) => {
+    const practitionerEvents = [];
+
+    // Create 2-3 appointments per practitioner
+    for (let i = 0; i < Math.min(3, index + 2); i++) {
+      const hour = 9 + (i * 2) + (practitionerId % 3); // Spread appointments throughout the day
+
+      practitionerEvents.push({
+        calendar_event_id: 1000 + practitionerId * 10 + i,
+        type: 'appointment',
+        start_time: `${hour.toString().padStart(2, '0')}:00`,
+        end_time: `${(hour + 1).toString().padStart(2, '0')}:00`,
+        title: `王小明 | 全身按摩`,
+        patient_id: 1,
+        appointment_type_id: 1,
+        status: 'confirmed',
+        appointment_id: 1000 + practitionerId * 10 + i,
+        notes: '初診',
+        clinic_notes: '',
+        patient_name: '王小明',
+        practitioner_name: `治療師${practitionerId}`,
+        appointment_type_name: '全身按摩',
+        is_primary: true,
+        has_active_receipt: false,
+        has_any_receipt: false,
+        receipt_ids: [],
+        resource_names: ['治療室1'],
+        resource_ids: [1],
+      });
+    }
+
+    // Add one exception per practitioner
+    if (index === 0) {
+      practitionerEvents.push({
+        calendar_event_id: 2000 + practitionerId,
+        type: 'availability_exception',
+        start_time: '12:00',
+        end_time: '13:00',
+        title: '午休',
+        exception_id: 2000 + practitionerId,
+        notes: '午休時間',
+      });
+    }
+
+    mockApiResponse.results.push({
+      user_id: practitionerId,
+      date: dateString,
+      default_schedule: null,
+      events: practitionerEvents
+    });
+  });
+
+  // Generate mock resource results
+  if (selectedResources.length > 0) {
+    const resourceEvents: Array<{
+      calendar_event_id: number;
+      type: string;
+      start_time: string;
+      end_time: string;
+      title: string;
+      resource_id?: number;
+      resource_name?: string;
+      is_resource_event?: boolean;
+      notes?: string;
+    }> = [];
+    selectedResources.forEach((resourceId, index) => {
+      const hour = 10 + (index * 3);
+
+      resourceEvents.push({
+        calendar_event_id: 3000 + resourceId,
+        type: 'appointment',
+        start_time: `${hour.toString().padStart(2, '0')}:00`,
+        end_time: `${(hour + 1).toString().padStart(2, '0')}:00`,
+        title: `[治療室${resourceId}] 清潔中`,
+        resource_id: resourceId,
+        resource_name: `治療室${resourceId}`,
+        is_resource_event: true,
+        notes: '定期清潔',
+      });
+    });
+
+    mockApiResponse.results.push({
+      user_id: selectedResources[0]!, // Use first resource ID as user_id for simplicity (guaranteed by length check)
+      date: dateString,
+      default_schedule: null,
+      events: resourceEvents
+    });
+  }
+
+  // Now apply the same transformation logic as the real API response
+  const practitionerEventsRaw = mockApiResponse.results
+    .filter(r => selectedPractitioners.includes(r.user_id))
+    .flatMap(r => r.events.map((event) => ({ ...event, date: r.date, practitioner_id: r.user_id })));
+
+  const resourceEventsRaw = mockApiResponse.results
+    .filter(r => selectedResources.includes(r.user_id))
+    .flatMap(r => r.events.map((event) => ({ ...event, date: r.date })));
+
+  const allEvents = [
+    ...transformToCalendarEvents(practitionerEventsRaw),
+    ...transformToCalendarEvents(resourceEventsRaw)
+  ];
+
+  return allEvents;
+};
+
 // Conflict detection utility
 const detectAppointmentConflicts = (
   events: CalendarEvent[],
@@ -294,10 +442,17 @@ const AvailabilityPage: React.FC = () => {
             : Promise.resolve({ results: [] })
         ]);
 
-        // Transform events
+        // Transform events - need to include date and practitioner_id from result level
+        const practitionerEventsRaw = practitionerEvents.results.flatMap(r =>
+          r.events.map(event => ({ ...event, date: r.date, practitioner_id: r.user_id }))
+        );
+        const resourceEventsRaw = resourceEvents.results?.flatMap(r =>
+          r.events.map(event => ({ ...event, date: r.date }))
+        ) || [];
+
         const allEvents = [
-          ...transformToCalendarEvents(practitionerEvents.results.flatMap(r => r.events)),
-          ...transformToCalendarEvents(resourceEvents.results?.flatMap(r => r.events) || [])
+          ...transformToCalendarEvents(practitionerEventsRaw),
+          ...transformToCalendarEvents(resourceEventsRaw)
         ];
 
         // Cache the results
@@ -306,6 +461,12 @@ const AvailabilityPage: React.FC = () => {
         setAllEvents(allEvents);
       } catch (error) {
         logger.error('Failed to load calendar events:', error);
+
+        // Fallback to mock data for development when API calls fail
+        if (process.env.NODE_ENV === 'development') {
+          const mockEvents = getMockCalendarEvents(currentDate, selectedPractitioners, selectedResources);
+          setAllEvents(mockEvents);
+        }
       }
     };
 
@@ -355,7 +516,7 @@ const AvailabilityPage: React.FC = () => {
     setIsEventModalOpen(true);
   }, []);
 
-  const handleSlotClick = useCallback((_slotInfo: { start: Date; end: Date }) => {
+  const handleSlotClick = useCallback(() => {
     setIsCreateAppointmentModalOpen(true);
   }, []);
 
@@ -704,7 +865,7 @@ const AvailabilityPage: React.FC = () => {
           selectedPractitionerId={null}
           practitioners={practitioners}
           onClose={() => setIsPractitionerSelectionModalOpen(false)}
-          onSelect={(_practitionerId) => {
+          onSelect={() => {
             // Handle practitioner selection - could store for later use
             setIsPractitionerSelectionModalOpen(false);
           }}
@@ -715,7 +876,7 @@ const AvailabilityPage: React.FC = () => {
         <ServiceItemSelectionModal
           isOpen={isServiceItemSelectionModalOpen}
           onClose={() => setIsServiceItemSelectionModalOpen(false)}
-          onSelect={(_serviceItemId) => {
+          onSelect={() => {
             // Handle service item selection - could store for checkout
             setIsServiceItemSelectionModalOpen(false);
           }}
