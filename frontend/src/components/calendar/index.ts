@@ -40,7 +40,6 @@ export type { PractitionerSelectionModalProps } from './PractitionerSelectionMod
 export { CheckoutModal } from './CheckoutModal';
 
 export { ReceiptListModal } from './ReceiptListModal';
-
 export { ReceiptViewModal } from './ReceiptViewModal';
 
 export { default as NotificationModal } from './NotificationModal';

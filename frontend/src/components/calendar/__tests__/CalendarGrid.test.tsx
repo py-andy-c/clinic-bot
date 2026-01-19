@@ -44,10 +44,20 @@ describe('CalendarGrid', () => {
   });
 
   it('renders time slots for day view', () => {
-    render(<CalendarGrid {...mockProps} />);
-    // Should render time labels from 8 AM onwards (use getAllByText since multiple occurrences)
-    expect(screen.getAllByText('8')).toHaveLength(2); // Hour 8 appears in time column
-    expect(screen.getAllByText('9')).toHaveLength(2); // Hour 9 appears in time column
+    const { container } = render(<CalendarGrid {...mockProps} />);
+
+    // Should render time column with time labels
+    const timeLabelsElement = container.querySelector('#time-labels');
+    expect(timeLabelsElement).toBeInTheDocument();
+
+    // Check that we have hour labels within the time column
+    const timeLabels = timeLabelsElement?.querySelectorAll('span');
+    expect(timeLabels?.length).toBeGreaterThan(0);
+
+    // Should contain hour 8
+    const hourLabels = Array.from(timeLabels || []).map(span => span.textContent);
+    expect(hourLabels).toContain('8');
+    expect(hourLabels).toContain('9');
   });
 
   it('renders calendar grid container', () => {

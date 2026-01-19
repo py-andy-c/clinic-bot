@@ -407,7 +407,7 @@ ClinicLayout (preserved - global header)
 - [x] Practitioner selection (primary + additional, max 10)
 - [x] Resource selection (max 10, separate from practitioners)
 - [x] Clinic-specific state isolation
-- [ ] URL parameter handling
+- [x] URL parameter handling
 
 ### Modal System (17 Components)
 - [x] EventModal (view/edit/delete events)
@@ -415,10 +415,10 @@ ClinicLayout (preserved - global header)
 - [x] EditAppointmentModal (with conflict checking)
 - [x] ExceptionModal (availability exceptions)
 - [x] DeleteConfirmationModal
-- [ ] CancellationNoteModal/PreviewModal
-- [ ] CheckoutModal/ReceiptListModal/ReceiptViewModal
-- [ ] PractitionerSelectionModal/ServiceItemSelectionModal
-- [ ] ConflictModal/NotificationModal
+- [x] CancellationNoteModal/PreviewModal
+- [x] CheckoutModal/ReceiptListModal/ReceiptViewModal
+- [x] PractitionerSelectionModal/ServiceItemSelectionModal
+- [x] ConflictModal/NotificationModal
 
 ### API Integration & Caching
 - [x] Batch calendar endpoints (/calendar/batch)

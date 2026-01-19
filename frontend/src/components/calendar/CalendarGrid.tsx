@@ -4,6 +4,7 @@ import { CalendarEvent } from '../../utils/calendarDataAdapter';
 import { CalendarView, CalendarViews } from '../../types/calendar';
 import { getPractitionerColor } from '../../utils/practitionerColors';
 import { getResourceColorById } from '../../utils/resourceColorUtils';
+import { logger } from '../../utils/logger';
 import {
   generateTimeSlots,
   calculateCurrentTimeIndicatorPosition,
@@ -77,14 +78,109 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
 
   // Keyboard navigation support
   const handleKeyDown = (event: React.KeyboardEvent) => {
-    // Allow keyboard navigation within the calendar grid
     const { key } = event;
+    const target = event.target as HTMLElement;
+
+    // Only handle keyboard navigation if we're in the calendar grid
+    if (!gridRef.current || !gridRef.current.contains(target)) return;
 
     if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '].includes(key)) {
       event.preventDefault();
 
-      // Focus management for keyboard navigation would be implemented here
-      // For now, we just prevent default behavior to avoid page scrolling
+      const currentSlot = target.closest('[role="button"][aria-label*="Time slot"]') as HTMLElement;
+      if (!currentSlot) return;
+
+      const allSlots = Array.from(gridRef.current.querySelectorAll('[role="button"][aria-label*="Time slot"]')) as HTMLElement[];
+      const currentIndex = allSlots.indexOf(currentSlot);
+
+      if (currentIndex === -1) return;
+
+      let newIndex = currentIndex;
+
+      switch (key) {
+        case 'ArrowUp':
+          newIndex = Math.max(0, currentIndex - 1);
+          break;
+        case 'ArrowDown':
+          newIndex = Math.min(allSlots.length - 1, currentIndex + 1);
+          break;
+        case 'ArrowLeft':
+          // Navigate to previous column (practitioner/resource)
+          if (view === CalendarViews.DAY) {
+            const slotsPerColumn = timeSlots.length;
+            const columnIndex = Math.floor(currentIndex / slotsPerColumn);
+            const slotInColumn = currentIndex % slotsPerColumn;
+            if (columnIndex > 0) {
+              newIndex = (columnIndex - 1) * slotsPerColumn + slotInColumn;
+            }
+          }
+          break;
+        case 'ArrowRight':
+          // Navigate to next column (practitioner/resource)
+          if (view === CalendarViews.DAY) {
+            const slotsPerColumn = timeSlots.length;
+            const columnIndex = Math.floor(currentIndex / slotsPerColumn);
+            const slotInColumn = currentIndex % slotsPerColumn;
+            const totalColumns = selectedPractitioners.length + selectedResources.length;
+            if (columnIndex < totalColumns - 1) {
+              newIndex = (columnIndex + 1) * slotsPerColumn + slotInColumn;
+            }
+          }
+          break;
+        case 'Enter':
+        case ' ':
+          // Trigger slot click by calling handleSlotClick with extracted time
+          const ariaLabel = currentSlot.getAttribute('aria-label');
+          if (ariaLabel) {
+            const timeMatch = ariaLabel.match(/Time slot (\d{1,2}):(\d{2})/);
+            if (timeMatch && timeMatch[1] && timeMatch[2]) {
+              const hour = parseInt(timeMatch[1], 10);
+              const minute = parseInt(timeMatch[2], 10);
+              handleSlotClick(hour, minute);
+            } else {
+              logger.warn('CalendarGrid: Failed to parse time from aria-label:', ariaLabel);
+            }
+          } else {
+            logger.warn('CalendarGrid: No aria-label found on time slot element');
+          }
+          return;
+      }
+
+      if (newIndex !== currentIndex && newIndex >= 0 && newIndex < allSlots.length) {
+        const targetSlot = allSlots[newIndex];
+        if (targetSlot) {
+          targetSlot.focus();
+        }
+      }
+    }
+
+    // Tab navigation for events
+    if (key === 'Tab') {
+      const events = Array.from(gridRef.current.querySelectorAll('.calendar-event, .exception-layer')) as HTMLElement[];
+      if (events.length > 0) {
+        const currentEvent = target.closest('.calendar-event, .exception-layer') as HTMLElement;
+        if (currentEvent && event.shiftKey) {
+          // Shift+Tab: move to previous event
+          const currentIndex = events.indexOf(currentEvent);
+          if (currentIndex > 0) {
+            const prevEvent = events[currentIndex - 1];
+            if (prevEvent) {
+              event.preventDefault();
+              prevEvent.focus();
+            }
+          }
+        } else if (currentEvent && !event.shiftKey) {
+          // Tab: move to next event
+          const currentIndex = events.indexOf(currentEvent);
+          if (currentIndex >= 0 && currentIndex < events.length - 1) {
+            const nextEvent = events[currentIndex + 1];
+            if (nextEvent) {
+              event.preventDefault();
+              nextEvent.focus();
+            }
+          }
+        }
+      }
     }
   };
 
@@ -93,94 +189,108 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
   }
 
   return (
-    <div
-      className={styles.calendarGrid}
-      ref={gridRef}
-      role="grid"
-      aria-label="Calendar grid showing appointments and time slots"
-      aria-rowcount={timeSlots.length + 1} // +1 for header
-      aria-colcount={selectedPractitioners.length + selectedResources.length + 1} // +1 for time column
-      tabIndex={0}
-      onKeyDown={handleKeyDown}
-    >
-      {/* Current time indicator */}
-      <div
-        className={styles.timeIndicator}
-        style={currentTimeIndicatorStyle}
-        aria-label="Current time indicator"
-      />
-
-      <div className="grid-container" role="presentation">
-        {/* Time column */}
-        <div className={styles.timeColumn}>
-          {timeSlots.map((slot, index) => (
-            <div key={index} className={styles.timeLabel}>
-              {slot.minute === 0 && slot.hour >= 8 && slot.hour <= 22 && (
-                <span>{slot.hour > 12 ? slot.hour - 12 : slot.hour}</span>
-              )}
-            </div>
-          ))}
+    <div className={styles.calendarViewport} id="main-viewport">
+      <div className={styles.calendarGridContainer}>
+        {/* Header Row: Sticky Top */}
+        <div className={styles.headerRow}>
+          <div className={styles.timeCorner}></div>
+          <div className={styles.resourceHeaders} id="resource-headers">
+            {/* Headers will be populated by renderHeaders() */}
+          </div>
         </div>
 
-        {/* Resource columns */}
-        <div className={styles.resourceGrid}>
-          {practitionerGroups.map(({ practitionerId, groups }) => (
+        {/* Body Area: Time Column (Sticky Left) + Grid */}
+        <div className={styles.gridLayer}>
+          <div className={styles.timeColumn} id="time-labels">
+            {(view === CalendarViews.DAY || view === CalendarViews.WEEK) &&
+              timeSlots.map((slot, index) => (
+                <div key={index} className={styles.timeLabel}>
+                  {slot.minute === 0 && slot.hour >= 8 && slot.hour <= 22 && (
+                    <span>{slot.hour > 12 ? slot.hour - 12 : slot.hour}</span>
+                  )}
+                </div>
+              ))}
+          </div>
+          <div
+            className={styles.calendarGrid}
+            ref={gridRef}
+            role="grid"
+            aria-label="Calendar grid showing appointments and time slots"
+            aria-rowcount={timeSlots.length + 1} // +1 for header
+            aria-colcount={selectedPractitioners.length + selectedResources.length + 1} // +1 for time column
+            tabIndex={0}
+            onKeyDown={handleKeyDown}
+          >
+            {/* Current time indicator */}
             <div
-              key={`practitioner-${practitionerId}`}
-              className={styles.practitionerColumn}
-              role="gridcell"
-              aria-label={`Column for practitioner ${practitionerId}`}
-            >
-              {timeSlots.map((slot, index) => (
-                <div
-                  key={index}
-                  className={styles.timeSlot}
-                  onClick={() => handleSlotClick(slot.hour, slot.minute)}
-                  role="button"
-                  aria-label={`Time slot ${slot.time} for practitioner ${practitionerId} - Click to create appointment`}
-                  tabIndex={-1}
-                />
-              ))}
-              {/* Render overlapping event groups */}
-              {groups.map((group, groupIndex) => (
-                <OverlappingEventGroupComponent
-                  key={`group-${practitionerId}-${groupIndex}`}
-                  group={group}
-                  groupIndex={groupIndex}
-                  onEventClick={onEventClick || (() => {})}
-                />
-              ))}
-            </div>
-          ))}
+              className={styles.timeIndicator}
+              style={currentTimeIndicatorStyle}
+              aria-label="Current time indicator"
+            />
 
-          {resourceGroups.map(({ resourceId, groups }) => (
-            <div
-              key={`resource-${resourceId}`}
-              className={styles.practitionerColumn}
-              role="gridcell"
-              aria-label={`Column for resource ${resourceId}`}
-            >
-              {timeSlots.map((slot, index) => (
-                <div
-                  key={index}
-                  className={styles.timeSlot}
-                  onClick={() => handleSlotClick(slot.hour, slot.minute)}
-                  role="button"
-                  aria-label={`Time slot ${slot.time} for resource ${resourceId} - Click to create appointment`}
-                  tabIndex={-1}
-                />
-              ))}
-              {/* Render overlapping event groups */}
-              {groups.map((group, groupIndex) => (
-                <OverlappingEventGroupComponent
-                  key={`group-${resourceId}-${groupIndex}`}
-                  group={group}
-                  groupIndex={groupIndex}
-                  onEventClick={onEventClick || (() => {})}
-                />
-              ))}
+            <div className="grid-container" role="presentation">
+              {/* Resource columns */}
+              <div className={styles.resourceGrid}>
+                {practitionerGroups.map(({ practitionerId, groups }) => (
+                  <div
+                    key={`practitioner-${practitionerId}`}
+                    className={styles.practitionerColumn}
+                    role="gridcell"
+                    aria-label={`Column for practitioner ${practitionerId}`}
+                  >
+                    {timeSlots.map((slot, index) => (
+                      <div
+                        key={index}
+                        className={styles.timeSlot}
+                        onClick={() => handleSlotClick(slot.hour, slot.minute)}
+                        role="button"
+                        aria-label={`Time slot ${slot.time} for practitioner ${practitionerId} - Click to create appointment`}
+                        tabIndex={-1}
+                      />
+                    ))}
+                    {/* Render overlapping event groups */}
+                    {groups.map((group, groupIndex) => (
+                      <OverlappingEventGroupComponent
+                        key={`group-${practitionerId}-${groupIndex}`}
+                        group={group}
+                        groupIndex={groupIndex}
+                        onEventClick={onEventClick || (() => {})}
+                      />
+                    ))}
+                  </div>
+                ))}
+
+                {resourceGroups.map(({ resourceId, groups }) => (
+                  <div
+                    key={`resource-${resourceId}`}
+                    className={styles.practitionerColumn}
+                    role="gridcell"
+                    aria-label={`Column for resource ${resourceId}`}
+                  >
+                    {timeSlots.map((slot, index) => (
+                      <div
+                        key={index}
+                        className={styles.timeSlot}
+                        onClick={() => handleSlotClick(slot.hour, slot.minute)}
+                        role="button"
+                        aria-label={`Time slot ${slot.time} for resource ${resourceId} - Click to create appointment`}
+                        tabIndex={-1}
+                      />
+                    ))}
+                    {/* Render overlapping event groups */}
+                    {groups.map((group, groupIndex) => (
+                      <OverlappingEventGroupComponent
+                        key={`group-${resourceId}-${groupIndex}`}
+                        group={group}
+                        groupIndex={groupIndex}
+                        onEventClick={onEventClick || (() => {})}
+                      />
+                    ))}
+                  </div>
+                ))}
+              </div>
             </div>
-          ))}
+          </div>
         </div>
       </div>
     </div>
@@ -302,97 +412,34 @@ const MonthlyCalendarGrid: React.FC<MonthlyCalendarGridProps> = ({
 
   const weekDays = ['一', '二', '三', '四', '五', '六', '日'];
 
+  // Group days into weeks
+  const weeks = [];
+  for (let i = 0; i < calendarDays.length; i += 7) {
+    weeks.push(calendarDays.slice(i, i + 7));
+  }
+
   return (
     <div className={styles.monthlyGrid}>
-      <style dangerouslySetInnerHTML={{
-        __html: `
-          .monthly-grid {
-            padding: 16px;
-            background: white;
-          }
-
-          .monthly-header {
-            display: grid;
-            grid-template-columns: repeat(7, 1fr);
-            margin-bottom: 8px;
-          }
-
-          .weekday-header {
-            text-align: center;
-            font-weight: 600;
-            color: #6b7280;
-            padding: 8px;
-            font-size: 12px;
-          }
-
-          .monthly-calendar {
-            display: grid;
-            grid-template-columns: repeat(7, 1fr);
-            gap: 1px;
-            background: #e5e7eb;
-            border-radius: 8px;
-            overflow: hidden;
-          }
-
-          .day-cell {
-            background: white;
-            min-height: 120px;
-            padding: 4px;
-            position: relative;
-          }
-
-          .day-cell.other-month {
-            background: #f9fafb;
-            color: #9ca3af;
-          }
-
-          .day-cell.today {
-            background: #eff6ff;
-          }
-
-          .day-number {
-            font-size: 12px;
-            font-weight: 500;
-            margin-bottom: 4px;
-            color: inherit;
-          }
-
-          .month-event {
-            font-size: 10px;
-            padding: 1px 2px;
-            margin-bottom: 1px;
-            border-radius: 2px;
-            color: white;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            cursor: pointer;
-          }
-
-          .month-event:hover {
-            opacity: 0.8;
-          }
-        `
-      }} />
-
-      <div className="monthly-header">
+      {/* Weekday headers */}
+      <div className={styles.monthlyHeader}>
         {weekDays.map(day => (
-          <div key={day} className="weekday-header">
+          <div key={day} className={styles.weekdayHeader}>
             {day}
           </div>
         ))}
       </div>
 
-      <div className="monthly-calendar">
+      {/* Calendar grid */}
+      <div className={styles.monthlyCalendar}>
         {calendarDays.map((day, index) => (
           <div
             key={index}
-            className={`day-cell ${!day.isCurrentMonth ? 'other-month' : ''} ${day.isToday ? 'today' : ''}`}
+            className={`${styles.dayCell} ${!day.isCurrentMonth ? styles.otherMonth : ''} ${day.isToday ? styles.today : ''}`}
           >
-            <div className="day-number">
+            <div className={styles.dayNumber}>
               {day.date.date()}
             </div>
-            <div>
+            <div className={styles.dayEvents}>
               {day.events.slice(0, 3).map((event) => {
                 let backgroundColor = '#6b7280';
                 if (event.resource.practitioner_id) {
@@ -404,7 +451,7 @@ const MonthlyCalendarGrid: React.FC<MonthlyCalendarGridProps> = ({
                 return (
                   <div
                     key={event.id}
-                    className="month-event"
+                    className={styles.monthEvent}
                     style={{ backgroundColor }}
                     onClick={() => onEventClick && onEventClick(event)}
                     title={event.title}
@@ -414,7 +461,7 @@ const MonthlyCalendarGrid: React.FC<MonthlyCalendarGridProps> = ({
                 );
               })}
               {day.events.length > 3 && (
-                <div className="month-event" style={{ backgroundColor: '#9ca3af' }}>
+                <div className={styles.monthEvent} style={{ backgroundColor: '#9ca3af' }}>
                   +{day.events.length - 3} 更多
                 </div>
               )}

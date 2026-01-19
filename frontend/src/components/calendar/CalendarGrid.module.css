@@ -1,4 +1,46 @@
 /* CalendarGrid.module.css */
+.calendarViewport {
+  position: relative;
+  overflow: auto;
+  flex: 1;
+  background: white;
+}
+
+.calendarGridContainer {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+.headerRow {
+  display: flex;
+  position: sticky;
+  top: 0;
+  background: white;
+  border-bottom: 1px solid #e5e7eb;
+  z-index: 30;
+}
+
+.timeCorner {
+  width: 28px;
+  height: 40px;
+  background: white;
+  border-right: 1px solid #e5e7eb;
+  flex-shrink: 0;
+}
+
+.resourceHeaders {
+  display: flex;
+  flex: 1;
+  background: white;
+}
+
+.gridLayer {
+  display: flex;
+  flex: 1;
+  position: relative;
+}
+
 .calendarGrid {
   position: relative;
   overflow: auto;
@@ -89,4 +131,100 @@
 
 .calendarEvent:hover {
   opacity: 0.9;
+}
+
+/* Monthly Calendar Styles */
+.monthlyGrid {
+  padding: 16px;
+  background: white;
+}
+
+.monthlyHeader {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  margin-bottom: 8px;
+}
+
+.weekdayHeader {
+  text-align: center;
+  font-weight: 600;
+  color: #6b7280;
+  padding: 8px;
+  font-size: 12px;
+}
+
+.monthlyCalendar {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 1px;
+  background: #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.dayCell {
+  background: white;
+  min-height: 120px;
+  padding: 4px;
+  position: relative;
+}
+
+.dayCell.otherMonth {
+  background: #f9fafb;
+  color: #9ca3af;
+}
+
+.dayCell.today {
+  background: #eff6ff;
+}
+
+.dayNumber {
+  font-size: 14px;
+  font-weight: 500;
+  margin-bottom: 4px;
+  color: #374151;
+}
+
+.dayCell.otherMonth .dayNumber {
+  color: #9ca3af;
+}
+
+.dayCell.today .dayNumber {
+  color: #2563eb;
+  font-weight: 700;
+}
+
+.dayEvents {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.monthEvent {
+  background: #3b82f6;
+  color: white;
+  padding: 2px 4px;
+  border-radius: 4px;
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.monthEvent:hover {
+  opacity: 0.9;
+}
+
+/* Focus ring styling for keyboard navigation accessibility */
+.timeSlot:focus {
+  outline: 2px solid #2563eb;
+  outline-offset: -2px;
+  border-radius: 4px;
+}
+
+.timeSlot:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: -2px;
+  border-radius: 4px;
 }

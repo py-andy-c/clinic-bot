@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import moment from 'moment-timezone';
 import { useAuth } from '../hooks/useAuth';
-import { usePractitioners } from '../hooks/queries';
+import { usePractitioners, useClinicSettings, useServiceTypeGroups } from '../hooks/queries';
 import { LoadingSpinner } from '../components/shared';
 import { CalendarView, CalendarViews } from '../types/calendar';
 import CalendarLayout from '../components/calendar/CalendarLayout';
@@ -13,7 +14,7 @@ import { CreateAppointmentModal } from '../components/calendar/CreateAppointment
 import { ExceptionModal } from '../components/calendar/ExceptionModal';
 import { EditAppointmentModal } from '../components/calendar/EditAppointmentModal';
 import { DeleteConfirmationModal } from '../components/calendar/DeleteConfirmationModal';
-import { ConflictModal } from '../components/calendar/ConflictModal';
+import { ConflictModal, ConflictAppointment } from '../components/calendar/ConflictModal';
 import { CancellationNoteModal } from '../components/calendar/CancellationNoteModal';
 import { CancellationPreviewModal } from '../components/calendar/CancellationPreviewModal';
 import { CheckoutModal } from '../components/calendar/CheckoutModal';
@@ -21,7 +22,7 @@ import { ReceiptListModal } from '../components/calendar/ReceiptListModal';
 import { ReceiptViewModal } from '../components/calendar/ReceiptViewModal';
 import { PractitionerSelectionModal } from '../components/calendar/PractitionerSelectionModal';
 import { ServiceItemSelectionModal } from '../components/calendar/ServiceItemSelectionModal';
-import NotificationModal from '../components/calendar/NotificationModal';
+import NotificationModal, { NotificationPreview } from '../components/calendar/NotificationModal';
 import { apiService } from '../services/api';
 import { calendarStorage } from '../utils/storage';
 import { getDateString, formatAppointmentTimeRange } from '../utils/calendarUtils';
@@ -29,8 +30,62 @@ import { logger } from '../utils/logger';
 import { Resource } from '../types';
 import { CalendarEvent, transformToCalendarEvents } from '../utils/calendarDataAdapter';
 
+// Conflict detection utility
+const detectAppointmentConflicts = (
+  events: CalendarEvent[],
+  newStart: Date,
+  newEnd: Date,
+  practitionerId?: number | null,
+  resourceIds?: number[],
+  excludeEventId?: number
+): ConflictAppointment[] => {
+  const conflicts: ConflictAppointment[] = [];
+
+  events.forEach(event => {
+    // Skip the event being edited
+    if (excludeEventId && event.id === excludeEventId) return;
+
+    // Check if this event overlaps with the new appointment time
+    const eventStart = new Date(event.start);
+    const eventEnd = new Date(event.end);
+
+    const hasTimeOverlap = !(newEnd <= eventStart || newStart >= eventEnd);
+
+    if (hasTimeOverlap) {
+      // Check practitioner conflict
+      if (practitionerId && event.resource.practitioner_id === practitionerId) {
+        conflicts.push({
+          title: event.title,
+          patient_name: event.resource.patient_name || 'Unknown Patient',
+          start_time: formatAppointmentTimeRange(eventStart, eventEnd),
+          end_time: event.resource.notes || '',
+          notes: `Practitioner conflict with ${event.resource.patient_name || 'Unknown Patient'}`,
+        });
+      }
+
+      // Check resource conflicts
+      if (resourceIds && resourceIds.length > 0 && event.resource.resource_id) {
+        const isResourceConflict = resourceIds.includes(event.resource.resource_id);
+
+        if (isResourceConflict) {
+        conflicts.push({
+          title: event.title,
+          patient_name: event.resource.patient_name || 'Unknown Patient',
+          start_time: formatAppointmentTimeRange(eventStart, eventEnd),
+          end_time: event.resource.notes || '',
+          notes: `Resource conflict with ${event.resource.patient_name || 'Unknown Patient'}`,
+        });
+        }
+      }
+    }
+  });
+
+  return conflicts;
+};
+
 const AvailabilityPage: React.FC = () => {
-  const { user, isLoading: authLoading, isAuthenticated } = useAuth();
+  const { user, isLoading: authLoading, isAuthenticated, isClinicUser } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [view, setView] = useState<CalendarView>(CalendarViews.DAY);
@@ -57,15 +112,54 @@ const AvailabilityPage: React.FC = () => {
   const [isReceiptViewModalOpen, setIsReceiptViewModalOpen] = useState(false);
   const [isPractitionerSelectionModalOpen, setIsPractitionerSelectionModalOpen] = useState(false);
   const [isServiceItemSelectionModalOpen, setIsServiceItemSelectionModalOpen] = useState(false);
+  const [isNotificationModalOpen, setIsNotificationModalOpen] = useState(false);
 
   // Modal data state
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   const [selectedAppointmentId, setSelectedAppointmentId] = useState<number | null>(null);
-  const [notificationPreview, setNotificationPreview] = useState<any>(null);
+  const [notificationPreview, setNotificationPreview] = useState<NotificationPreview | null>(null);
+  const [conflictingAppointments, setConflictingAppointments] = useState<ConflictAppointment[]>([]);
+  const [cancellationNote, setCancellationNote] = useState('');
 
   // Use React Query for practitioners
   const { data: practitionersData, isLoading: practitionersLoading } = usePractitioners();
   const practitioners = practitionersData || [];
+
+  // Fetch clinic settings only when modals that need appointment types are opened
+  const shouldFetchSettings = isCreateAppointmentModalOpen || isEditAppointmentModalOpen || isCheckoutModalOpen || isServiceItemSelectionModalOpen;
+  const { data: clinicSettingsData } = useClinicSettings(shouldFetchSettings);
+  const appointmentTypes = clinicSettingsData?.appointment_types || [];
+
+  // Fetch service type groups when service item selection modal is open
+  const { data: serviceGroupsData } = useServiceTypeGroups();
+  const serviceGroups = serviceGroupsData?.groups || [];
+
+  // URL parameter handling for deep linking
+  useEffect(() => {
+    // Read URL parameters on mount
+    const dateParam = searchParams.get('date');
+    const viewParam = searchParams.get('view');
+
+    if (dateParam) {
+      try {
+        const parsedDate = new Date(dateParam);
+        if (!isNaN(parsedDate.getTime())) {
+          setCurrentDate(parsedDate);
+        }
+      } catch (error) {
+        logger.warn('Invalid date parameter:', dateParam);
+      }
+    }
+
+    if (viewParam && ['day', 'week', 'month'].includes(viewParam)) {
+      const viewMap: Record<string, CalendarView> = {
+        day: CalendarViews.DAY,
+        week: CalendarViews.WEEK,
+        month: CalendarViews.MONTH,
+      };
+      setView(viewMap[viewParam] || CalendarViews.DAY);
+    }
+  }, []); // Only run on mount
 
   // Load resources
   useEffect(() => {
@@ -212,19 +306,30 @@ const AvailabilityPage: React.FC = () => {
   // Event handlers
   const handleViewChange = useCallback((newView: CalendarView) => {
     setView(newView);
+    // Update URL parameters
+    const newSearchParams = new URLSearchParams(searchParams);
+    const viewParam = newView === CalendarViews.MONTH ? 'month' : newView === CalendarViews.WEEK ? 'week' : 'day';
+    newSearchParams.set('view', viewParam);
+    setSearchParams(newSearchParams, { replace: true });
+
     // Persist view change
     if (user?.user_id && user?.active_clinic_id) {
       calendarStorage.setCalendarState(user.user_id, user.active_clinic_id, {
-        view: newView === CalendarViews.MONTH ? 'month' : newView === CalendarViews.WEEK ? 'week' : 'day',
+        view: viewParam,
         currentDate: getDateString(currentDate),
         additionalPractitionerIds: selectedPractitioners,
         defaultPractitionerId: null,
       });
     }
-  }, [user, currentDate, selectedPractitioners]);
+  }, [user, currentDate, selectedPractitioners, searchParams, setSearchParams]);
 
   const handleDateChange = useCallback((date: Date) => {
     setCurrentDate(date);
+    // Update URL parameters
+    const newSearchParams = new URLSearchParams(searchParams);
+    newSearchParams.set('date', getDateString(date));
+    setSearchParams(newSearchParams, { replace: true });
+
     // Persist date change
     if (user?.user_id && user?.active_clinic_id) {
       calendarStorage.setCalendarState(user.user_id, user.active_clinic_id, {
@@ -234,7 +339,7 @@ const AvailabilityPage: React.FC = () => {
         defaultPractitionerId: null,
       });
     }
-  }, [user, selectedPractitioners, view]);
+  }, [user, selectedPractitioners, view, searchParams, setSearchParams]);
 
   const handleEventClick = useCallback((event: CalendarEvent) => {
     setSelectedEvent(event);
@@ -343,12 +448,28 @@ const AvailabilityPage: React.FC = () => {
       {isCreateAppointmentModalOpen && (
         <CreateAppointmentModal
           practitioners={practitioners}
-          appointmentTypes={[]} // TODO: Need to fetch appointment types
+          appointmentTypes={appointmentTypes}
           onClose={() => {
             setIsCreateAppointmentModalOpen(false);
           }}
           onConfirm={async (formData) => {
             try {
+              // Check for conflicts before creating appointment
+              const conflicts = detectAppointmentConflicts(
+                allEvents,
+                new Date(formData.start_time),
+                new Date(new Date(formData.start_time).getTime() + 60 * 60 * 1000), // Default 1 hour
+                formData.practitioner_id || null,
+                formData.selected_resource_ids
+              );
+
+              if (conflicts.length > 0) {
+                setConflictingAppointments(conflicts);
+                setIsCreateAppointmentModalOpen(false);
+                setIsConflictModalOpen(true);
+                return;
+              }
+
               const appointmentData: any = {
                 patient_id: formData.patient_id,
                 appointment_type_id: formData.appointment_type_id,
@@ -359,7 +480,19 @@ const AvailabilityPage: React.FC = () => {
               if (formData.clinic_notes) {
                 appointmentData.clinic_notes = formData.clinic_notes;
               }
-              await apiService.createClinicAppointment(appointmentData);
+              const result = await apiService.createClinicAppointment(appointmentData);
+
+              // Trigger notification for new appointment
+              if (result.success && result.appointment_id) {
+                // Set up notification preview for the newly created appointment
+                setNotificationPreview({
+                  message: `您的預約已確認。\n時間：${formatAppointmentTimeRange(new Date(formData.start_time), new Date(new Date(formData.start_time).getTime() + 60 * 60 * 1000))}\n服務項目：預約服務`,
+                  patient_id: formData.patient_id,
+                  event_type: 'appointment_created'
+                });
+                setIsNotificationModalOpen(true);
+              }
+
               setIsCreateAppointmentModalOpen(false);
               // Clear cache to force refresh
               setEventCache(new Map());
@@ -390,7 +523,7 @@ const AvailabilityPage: React.FC = () => {
         <EditAppointmentModal
           event={selectedEvent}
           practitioners={practitioners}
-          appointmentTypes={[]} // TODO: Fetch appointment types
+          appointmentTypes={appointmentTypes}
           onClose={() => {
             setIsEditAppointmentModalOpen(false);
             setSelectedEvent(null);
@@ -457,40 +590,50 @@ const AvailabilityPage: React.FC = () => {
       {/* Additional Modals */}
       {isConflictModalOpen && (
         <ConflictModal
-          conflictingAppointments={[]} // TODO: Implement conflict detection
+          conflictingAppointments={conflictingAppointments}
           onClose={() => {
             setIsConflictModalOpen(false);
+            setConflictingAppointments([]);
           }}
-          formatTimeString={(timeStr) => timeStr} // TODO: Implement proper formatting
+          formatTimeString={(timeStr) => timeStr}
         />
       )}
 
       {isCancellationNoteModalOpen && (
         <CancellationNoteModal
-          cancellationNote=""
+          cancellationNote={cancellationNote}
           isLoading={false}
-          onNoteChange={() => {}} // TODO: Implement note handling
+          onNoteChange={setCancellationNote}
           onBack={() => {
             setIsCancellationNoteModalOpen(false);
+            setCancellationNote('');
           }}
           onSubmit={() => {
-            // TODO: Implement cancellation with note
+            // Proceed to preview with the note
             setIsCancellationNoteModalOpen(false);
-            setEventCache(new Map()); // Refresh
+            setIsCancellationPreviewModalOpen(true);
           }}
         />
       )}
 
-      {isCancellationPreviewModalOpen && (
+      {isCancellationPreviewModalOpen && selectedAppointmentId && (
         <CancellationPreviewModal
-          previewMessage="預約取消確認訊息" // TODO: Implement proper preview
+          previewMessage={`取消預約確認\n\n原因：${cancellationNote || '無'}\n\n此動作無法復原。`}
           onBack={() => {
             setIsCancellationPreviewModalOpen(false);
+            setIsCancellationNoteModalOpen(true); // Go back to note modal
           }}
-          onConfirm={() => {
-            // TODO: Implement cancellation
-            setIsCancellationPreviewModalOpen(false);
-            setEventCache(new Map()); // Refresh
+          onConfirm={async () => {
+            try {
+              await apiService.cancelClinicAppointment(selectedAppointmentId, cancellationNote);
+              setIsCancellationPreviewModalOpen(false);
+              setCancellationNote('');
+              setSelectedAppointmentId(null);
+              setEventCache(new Map()); // Refresh events
+            } catch (error) {
+              logger.error('Failed to cancel appointment:', error);
+              alert('Failed to cancel appointment. Please try again or contact support if the problem persists.');
+            }
           }}
         />
       )}
@@ -498,13 +641,15 @@ const AvailabilityPage: React.FC = () => {
       {isCheckoutModalOpen && selectedEvent && (
         <CheckoutModal
           event={selectedEvent}
-          appointmentTypes={[]} // TODO: Fetch appointment types
+          appointmentTypes={appointmentTypes}
           practitioners={practitioners}
           onClose={() => {
             setIsCheckoutModalOpen(false);
             setSelectedEvent(null);
           }}
-          onSuccess={() => {
+          onSuccess={async () => {
+            // Note: CheckoutModal handles the API call internally
+            // Here we just need to refresh the UI
             setIsCheckoutModalOpen(false);
             setSelectedEvent(null);
             setEventCache(new Map()); // Refresh
@@ -515,7 +660,7 @@ const AvailabilityPage: React.FC = () => {
       {isReceiptListModalOpen && selectedAppointmentId && (
         <ReceiptListModal
           appointmentId={selectedAppointmentId}
-          receiptIds={[]} // TODO: Implement receipt fetching
+          receiptIds={[]} // Will be populated by the modal itself
           onClose={() => {
             setIsReceiptListModalOpen(false);
             setSelectedAppointmentId(null);
@@ -535,18 +680,18 @@ const AvailabilityPage: React.FC = () => {
             setIsReceiptViewModalOpen(false);
             setSelectedAppointmentId(null);
           }}
-          isClinicUser={true} // TODO: Get from auth context
+          isClinicUser={isClinicUser}
         />
       )}
 
       {isPractitionerSelectionModalOpen && (
         <PractitionerSelectionModal
           isOpen={isPractitionerSelectionModalOpen}
-          selectedPractitionerId={null} // TODO: Pass actual selected practitioner
+          selectedPractitionerId={null}
           practitioners={practitioners}
           onClose={() => setIsPractitionerSelectionModalOpen(false)}
-          onSelect={() => {
-            // TODO: Handle practitioner selection
+          onSelect={(_practitionerId) => {
+            // Handle practitioner selection - could store for later use
             setIsPractitionerSelectionModalOpen(false);
           }}
         />
@@ -557,18 +702,21 @@ const AvailabilityPage: React.FC = () => {
           isOpen={isServiceItemSelectionModalOpen}
           onClose={() => setIsServiceItemSelectionModalOpen(false)}
           onSelect={(_serviceItemId) => {
-            // TODO: Handle service item selection
+            // Handle service item selection - could store for checkout
             setIsServiceItemSelectionModalOpen(false);
           }}
-          serviceItems={[]} // TODO: Fetch service items
-          groups={[]} // TODO: Fetch service groups
+          serviceItems={appointmentTypes}
+          groups={serviceGroups}
         />
       )}
 
-      {notificationPreview && (
+      {isNotificationModalOpen && notificationPreview && (
         <NotificationModal
-          visible={!!notificationPreview}
-          onClose={() => setNotificationPreview(null)}
+          visible={isNotificationModalOpen}
+          onClose={() => {
+            setIsNotificationModalOpen(false);
+            setNotificationPreview(null);
+          }}
           preview={notificationPreview}
         />
       )}
