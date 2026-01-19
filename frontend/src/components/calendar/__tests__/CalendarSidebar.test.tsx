@@ -25,7 +25,7 @@ describe('CalendarSidebar', () => {
     selectedResources: [3],
     onResourcesChange: vi.fn(),
     isOpen: true,
-    onToggle: vi.fn(),
+    onClose: vi.fn(),
   };
 
   beforeEach(() => {

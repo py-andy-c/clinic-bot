@@ -408,7 +408,7 @@ const AvailabilityPage: React.FC = () => {
         selectedResources={selectedResources}
         onResourcesChange={setSelectedResources}
         isOpen={sidebarOpen}
-        onToggle={() => setSidebarOpen(!sidebarOpen)}
+        onClose={handleSettings}
       />
 
       <CalendarDateStrip

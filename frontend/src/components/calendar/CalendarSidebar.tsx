@@ -24,7 +24,7 @@ interface CalendarSidebarProps {
   selectedResources: number[];
   onResourcesChange: (ids: number[]) => void;
   isOpen: boolean;
-  onToggle: () => void;
+  onClose: () => void;
 }
 
 const CalendarSidebar: React.FC<CalendarSidebarProps> = ({
@@ -37,7 +37,7 @@ const CalendarSidebar: React.FC<CalendarSidebarProps> = ({
   selectedResources,
   onResourcesChange,
   isOpen,
-  onToggle,
+  onClose,
 }) => {
   const handleViewChange = (newView: CalendarView) => {
     onViewChange(newView);
@@ -80,7 +80,7 @@ const CalendarSidebar: React.FC<CalendarSidebarProps> = ({
       {/* Mobile overlay */}
       <div
         className={styles.sidebarOverlay}
-        onClick={onToggle}
+        onClick={onClose}
         style={{
           '--sidebar-overlay-opacity': isOpen ? '1' : '0',
           '--sidebar-overlay-visibility': isOpen ? 'visible' : 'hidden',
@@ -196,10 +196,6 @@ const CalendarSidebar: React.FC<CalendarSidebarProps> = ({
         </div>
       </div>
 
-      {/* Mobile menu button */}
-      <button className={styles.mobileMenuBtn} onClick={onToggle}>
-        ☰
-      </button>
     </>
   );
 };

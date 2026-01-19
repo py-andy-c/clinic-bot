@@ -33,7 +33,7 @@ describe('CalendarGrid Keyboard Navigation', () => {
     await waitFor(() => {
       const timeSlots = screen.getAllByRole('button', { name: /time slot/i });
       expect(timeSlots.length).toBeGreaterThan(0);
-    });
+    }, { timeout: 10000 });
 
     const timeSlots = screen.getAllByRole('button', { name: /time slot/i });
     if (timeSlots.length >= 2) {

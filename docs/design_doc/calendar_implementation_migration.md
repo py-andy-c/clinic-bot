@@ -229,7 +229,7 @@ ClinicLayout (preserved - global header)
         ├── CalendarDateStrip (new - replaces toolbar)
         │   ├── Navigation arrows
         │   ├── Date display with mini calendar trigger
-        │   └── Action buttons (+預約, +休診, 今, settings)
+        │   └── Action buttons (+預約, +休診, 今, settings - toggles sidebar)
         ├── CalendarGrid (new - replaces React Big Calendar)
         │   ├── StickyHeader (time + resource headers)
         │   ├── TimeColumn (28px sticky left)
@@ -305,7 +305,7 @@ ClinicLayout (preserved - global header)
 
 **Requirements:**
 - ✅ Left-aligned navigation with date/time display
-- ✅ Right-aligned action buttons (+預約, +休診, 今, settings)
+- ✅ Right-aligned action buttons (+預約, +休診, 今, settings - toggles sidebar)
 - ✅ Mini calendar modal integration
 - ✅ Mobile-responsive design
 
@@ -400,7 +400,7 @@ ClinicLayout (preserved - global header)
 - [x] Dynamic event overlapping and stacking
 - [x] Practitioner/resource filtering with color coding (10 practitioners + 10 resources)
 - [x] Mini calendar modal for date navigation
-- [x] Action buttons integration (+預約, +休診, 今, settings)
+- [x] Action buttons integration (+預約, +休診, 今, settings - toggles sidebar)
 
 ### State Management & Persistence
 - [x] View and date state persistence (localStorage)
@@ -435,8 +435,8 @@ ClinicLayout (preserved - global header)
 - [x] Auto-assigned appointment handling
 
 ### Mobile Optimization
-- [x] Inline action buttons (+預約, +休診, 今, settings)
-- [x] Responsive layouts (sidebar overlay on mobile)
+- [x] Inline action buttons (+預約, +休診, 今, settings - toggles sidebar)
+- [x] Responsive layouts (sidebar overlay accessible via settings button)
 - [x] Touch-optimized interactions
 - [x] Adaptive UI components
 
