@@ -1,6 +1,5 @@
 import React, { useState, useCallback, useEffect } from "react";
 import { usePatientAppointments } from "../../hooks/queries";
-import { useQueryClient } from '@tanstack/react-query';
 import { apiService } from '../../services/api';
 import { LoadingSpinner, ErrorMessage } from "../shared";
 import moment from "moment-timezone";
@@ -24,8 +23,8 @@ import { useModal } from "../../contexts/ModalContext";
 import { useAuth } from "../../hooks/useAuth";
 import { getErrorMessage } from "../../types/api";
 import { logger } from "../../utils/logger";
-import { invalidateCacheForDate } from "../../utils/availabilityCache";
-import { invalidateResourceCacheForDate } from "../../utils/resourceAvailabilityCache";
+import { invalidateAvailabilityAfterAppointmentChange } from "../../utils/reactQueryInvalidation";
+import { useQueryClient } from '@tanstack/react-query';
 import { useCreateAppointmentOptimistic } from "../../hooks/queries/useAvailabilitySlots";
 import { AppointmentType } from "../../types";
 
@@ -324,18 +323,19 @@ export const PatientAppointmentsList: React.FC<
       // Refresh appointments list
       await refreshAppointmentsList();
 
-      // Invalidate availability cache for both old and new dates
+      // Invalidate React Query cache for both old and new dates
       const oldDate = moment(editingAppointment.start).format('YYYY-MM-DD');
       const newDate = moment(formData.start_time).format('YYYY-MM-DD');
       const practitionerId = formData.practitioner_id ?? editingAppointment.resource.practitioner_id;
       const appointmentTypeId = editingAppointment.resource.appointment_type_id;
-      if (practitionerId && appointmentTypeId) {
-        invalidateCacheForDate(practitionerId, appointmentTypeId, oldDate);
-        invalidateResourceCacheForDate(practitionerId, appointmentTypeId, oldDate);
+      const clinicId = user?.active_clinic_id;
+
+      if (practitionerId && appointmentTypeId && clinicId && patientId) {
+        const datesToInvalidate = [oldDate];
         if (newDate !== oldDate) {
-          invalidateCacheForDate(practitionerId, appointmentTypeId, newDate);
-          invalidateResourceCacheForDate(practitionerId, appointmentTypeId, newDate);
+          datesToInvalidate.push(newDate);
         }
+        invalidateAvailabilityAfterAppointmentChange(queryClient, practitionerId, appointmentTypeId, datesToInvalidate, clinicId, patientId);
       }
 
       // Show success message (modal will close via onComplete)
@@ -430,13 +430,14 @@ export const PatientAppointmentsList: React.FC<
       // Refresh appointments list
       await refreshAppointmentsList();
 
-      // Invalidate availability cache for the appointment's date
+      // Invalidate React Query cache for the appointment's date
       const appointmentDate = moment(deletingAppointment.start).format('YYYY-MM-DD');
       const practitionerId = deletingAppointment.resource.practitioner_id;
       const appointmentTypeId = deletingAppointment.resource.appointment_type_id;
-      if (practitionerId && appointmentTypeId) {
-        invalidateCacheForDate(practitionerId, appointmentTypeId, appointmentDate);
-        invalidateResourceCacheForDate(practitionerId, appointmentTypeId, appointmentDate);
+      const clinicId = user?.active_clinic_id;
+
+      if (practitionerId && appointmentTypeId && clinicId && patientId) {
+        invalidateAvailabilityAfterAppointmentChange(queryClient, practitionerId, appointmentTypeId, [appointmentDate], clinicId, patientId);
       }
 
       setDeletingAppointment(null);

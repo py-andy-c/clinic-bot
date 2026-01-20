@@ -12,8 +12,8 @@ import moment from 'moment-timezone';
 import { CalendarEvent } from '../utils/calendarDataAdapter';
 import { formatAppointmentDateTime, formatAppointmentTimeRange } from '../utils/calendarUtils';
 import { appointmentToCalendarEvent } from '../components/patient/appointmentUtils';
-import { invalidateCacheForDate } from '../utils/availabilityCache';
-import { invalidateResourceCacheForDate } from '../utils/resourceAvailabilityCache';
+import { invalidateAvailabilityAfterAppointmentChange } from '../utils/reactQueryInvalidation';
+import { useQueryClient } from '@tanstack/react-query';
 import { shouldPromptForAssignment } from '../hooks/usePractitionerAssignmentPrompt';
 import { PractitionerAssignmentPromptModal } from '../components/PractitionerAssignmentPromptModal';
 import { PractitionerAssignmentConfirmationModal } from '../components/PractitionerAssignmentConfirmationModal';
@@ -22,9 +22,10 @@ import { AppointmentType } from '../types';
 
 
 const AutoAssignedAppointmentsPage: React.FC = () => {
-  const { isClinicAdmin, isAuthenticated, hasRole } = useAuth();
+  const { user, isClinicAdmin, isAuthenticated, hasRole } = useAuth();
   const { alert } = useModal();
   const { enqueueModal, showNext } = useModalQueue();
+  const queryClient = useQueryClient();
   const [selectedAppointment, setSelectedAppointment] = useState<AutoAssignedAppointment | null>(null);
   const [practitioners, setPractitioners] = useState<{ id: number; full_name: string }[]>([]);
   const [appointmentTypes, setAppointmentTypes] = useState<AppointmentType[]>([]);
@@ -277,18 +278,20 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
       // This allows assignment check to happen before modal closes
       await apiService.editClinicAppointment(selectedAppointment.appointment_id, updateData);
 
-      // Invalidate availability cache for both old and new dates
+      // Invalidate React Query cache for both old and new dates
       const oldDate = moment(selectedAppointment.start_time).format('YYYY-MM-DD');
       const newDate = moment(formData.start_time).format('YYYY-MM-DD');
       const practitionerId = formData.practitioner_id ?? selectedAppointment.practitioner_id;
       const appointmentTypeId = formData.appointment_type_id ?? selectedAppointment.appointment_type_id;
-      if (practitionerId && appointmentTypeId) {
-        invalidateCacheForDate(practitionerId, appointmentTypeId, oldDate);
-        invalidateResourceCacheForDate(practitionerId, appointmentTypeId, oldDate);
+      const clinicId = user?.active_clinic_id;
+      const patientId = selectedAppointment.patient_id;
+
+      if (practitionerId && appointmentTypeId && clinicId && patientId) {
+        const datesToInvalidate = [oldDate];
         if (newDate !== oldDate) {
-          invalidateCacheForDate(practitionerId, appointmentTypeId, newDate);
-          invalidateResourceCacheForDate(practitionerId, appointmentTypeId, newDate);
+          datesToInvalidate.push(newDate);
         }
+        invalidateAvailabilityAfterAppointmentChange(queryClient, practitionerId, appointmentTypeId, datesToInvalidate, clinicId, patientId);
       }
 
       // Store appointment data for assignment check after confirmation modal
