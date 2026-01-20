@@ -11,7 +11,7 @@ import { CalendarEvent } from '../../utils/calendarDataAdapter';
 export interface DeleteConfirmationModalProps {
   event: CalendarEvent;
   onCancel: () => void;
-  onConfirm: () => void;
+  onConfirm: () => void | Promise<void>;
 }
 
 export const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = React.memo(({

@@ -10,7 +10,7 @@ import { BaseModal } from './BaseModal';
 export interface CancellationPreviewModalProps {
   previewMessage: string;
   onBack: () => void;
-  onConfirm: () => void;
+  onConfirm: () => void | Promise<void>;
 }
 
 export const CancellationPreviewModal: React.FC<CancellationPreviewModalProps> = React.memo(({

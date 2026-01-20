@@ -18,7 +18,7 @@ export interface ExceptionModalProps {
   exceptionData: ExceptionData;
   isFullDay: boolean;
   onClose: () => void;
-  onCreate: () => void;
+  onCreate: () => void | Promise<void>;
   onExceptionDataChange: (data: ExceptionData) => void;
   onFullDayChange: (isFullDay: boolean) => void;
 }

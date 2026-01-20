@@ -42,7 +42,7 @@ export interface EditAppointmentModalProps {
   practitioners: { id: number; full_name: string }[];
   appointmentTypes: AppointmentType[];
   onClose: () => void; // User cancellation → return to previous modal (if applicable)
-  onComplete?: () => void; // Successful completion → close everything completely
+  onComplete?: () => void | Promise<void>; // Successful completion → close everything completely
   onConfirm: (formData: { appointment_type_id?: number | null; practitioner_id: number | null; start_time: string; clinic_notes?: string; notification_note?: string; selected_resource_ids?: number[] }) => Promise<void>;
   formatAppointmentTime: (start: Date, end: Date) => string;
   errorMessage?: string | null; // Error message to display (e.g., from failed save)

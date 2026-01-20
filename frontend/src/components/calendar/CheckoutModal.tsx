@@ -30,7 +30,7 @@ interface CheckoutModalProps {
   appointmentTypes: AppointmentType[];
   practitioners: Array<{ id: number; full_name: string }>;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: () => void | Promise<void>;
 }
 
 // Helper function to normalize scenario values (handles string/number types from API)

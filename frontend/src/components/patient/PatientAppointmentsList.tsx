@@ -11,6 +11,7 @@ import { CreateAppointmentModal } from "../calendar/CreateAppointmentModal";
 import { CancellationNoteModal } from "../calendar/CancellationNoteModal";
 import { CancellationPreviewModal } from "../calendar/CancellationPreviewModal";
 import { EventModal } from "../calendar/EventModal";
+import { DeleteConfirmationModal } from "../calendar/DeleteConfirmationModal";
 import { ReceiptViewModal } from "../calendar/ReceiptViewModal";
 import { ReceiptListModal } from "../calendar/ReceiptListModal";
 import {
@@ -18,9 +19,9 @@ import {
   formatEventTimeRange,
 } from "../../utils/calendarDataAdapter";
 import { appointmentToCalendarEvent } from "./appointmentUtils";
-import { canEditAppointment, canDuplicateAppointment, getPractitionerIdForDuplicate } from "../../utils/appointmentPermissions";
 import { useModal } from "../../contexts/ModalContext";
 import { useAuth } from "../../hooks/useAuth";
+import { useAppointmentModalOrchestration } from "../../hooks/useAppointmentModalOrchestration";
 import { getErrorMessage } from "../../types/api";
 import { logger } from "../../utils/logger";
 import { invalidateCacheForDate } from "../../utils/availabilityCache";
@@ -70,17 +71,17 @@ export const PatientAppointmentsList: React.FC<
   const { hasRole, user, isClinicUser } = useAuth();
   const queryClient = useQueryClient();
 
-  // Event modal state
+  // Event modal state - now handled by shared orchestration hook
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(
     null,
   );
 
-  // Edit appointment state
+  // Edit appointment state (kept for patient-specific error handling)
   const [editingAppointment, setEditingAppointment] =
     useState<CalendarEvent | null>(null);
   const [editErrorMessage, setEditErrorMessage] = useState<string | null>(null);
 
-  // Delete appointment state
+  // Delete appointment state (kept for patient-specific complex cancellation flow)
   const [deletingAppointment, setDeletingAppointment] =
     useState<CalendarEvent | null>(null);
   const [cancellationNote, setCancellationNote] = useState<string>("");
@@ -89,18 +90,6 @@ export const PatientAppointmentsList: React.FC<
   const [cancellationPreviewLoading, setCancellationPreviewLoading] =
     useState(false);
   const [deleteStep, setDeleteStep] = useState<"note" | "preview" | null>(null);
-
-  // Duplicate appointment state
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [createModalKey, setCreateModalKey] = useState(0);
-  const [duplicateData, setDuplicateData] = useState<{
-    preSelectedAppointmentTypeId?: number;
-    preSelectedPractitionerId?: number;
-    preSelectedTime?: string;
-    preSelectedClinicNotes?: string;
-    initialDate?: string;
-    event?: CalendarEvent;
-  } | null>(null);
 
   // Receipt viewing state
   const [showReceiptModal, setShowReceiptModal] = useState(false);
@@ -111,23 +100,6 @@ export const PatientAppointmentsList: React.FC<
   const canEdit = hasRole && (hasRole("admin") || hasRole("practitioner"));
   const isAdmin = user?.roles?.includes("admin") ?? false;
   const userId = user?.user_id;
-  
-  // Helper function to check if user can edit an event
-  // Uses shared utility for appointments, handles other event types
-  const canEditEvent = useCallback(
-    (event: CalendarEvent | null): boolean => {
-      if (!event || !canEdit) return false;
-      // Use shared utility for appointments
-      if (event.resource.type === "appointment") {
-        return canEditAppointment(event, userId, isAdmin);
-      }
-      // For other events, check if it's their own event
-      // Use practitioner_id if available, otherwise fallback to userId
-      const eventPractitionerId = event.resource.practitioner_id || userId;
-      return eventPractitionerId === userId;
-    },
-    [canEdit, isAdmin, userId],
-  );
 
   // Fetch ALL appointments once (no filters) so we can calculate accurate counts for all tabs
   const { data, isLoading: loading, error, refetch } = usePatientAppointments(patientId);
@@ -213,6 +185,18 @@ export const PatientAppointmentsList: React.FC<
     await refetch();
   }, [queryClient, patientId, refetch]);
 
+  // Use shared appointment modal orchestration
+  const {
+    canEditEvent,
+    eventModalProps,
+    createModalProps,
+    modalStates,
+  } = useAppointmentModalOrchestration({
+    selectedEvent,
+    permissions: { canEdit, isAdmin, userId },
+    onRefresh: refreshAppointmentsList,
+  });
+
   // Expose refetch function to parent component
   useEffect(() => {
     if (onRefetchReady) {
@@ -234,21 +218,7 @@ export const PatientAppointmentsList: React.FC<
     [],
   );
 
-  // Handle edit appointment from EventModal
-  const handleEditAppointment = useCallback(async () => {
-    if (!selectedEvent) return;
-
-    if (!canEditEvent(selectedEvent)) {
-      await alert("您只能編輯自己的預約");
-      return;
-    }
-
-    setEditingAppointment(selectedEvent);
-    setEditErrorMessage(null);
-    setSelectedEvent(null); // Close EventModal
-  }, [selectedEvent, canEditEvent]);
-
-  // Handle delete appointment from EventModal
+  // Handle delete appointment from EventModal (patient-specific complex flow)
   const handleDeleteAppointment = useCallback(async () => {
     if (!selectedEvent || !selectedEvent.resource.appointment_id) return;
 
@@ -264,39 +234,6 @@ export const PatientAppointmentsList: React.FC<
     setDeleteStep("note");
     setSelectedEvent(null); // Close EventModal
   }, [selectedEvent, canEditEvent]);
-
-  // Handle duplicate appointment from EventModal
-  const handleDuplicateAppointment = useCallback(async () => {
-    if (!selectedEvent) return;
-
-    const event = selectedEvent;
-    
-    // Extract data from the original appointment
-    const appointmentTypeId = event.resource.appointment_type_id;
-    // Use shared utility to get practitioner_id (hides for auto-assigned when not admin)
-    const practitionerId = getPractitionerIdForDuplicate(event, isAdmin);
-    const clinicNotes = event.resource.clinic_notes;
-    
-    // Extract date and time from event.start
-    const startMoment = moment(event.start).tz(TAIWAN_TIMEZONE);
-    const initialDate = startMoment.format('YYYY-MM-DD');
-    const initialTime = startMoment.format('HH:mm');
-    
-    // Set up duplicate appointment data - only include fields that have values
-    // Resources will be fetched by useAppointmentForm in duplicate mode
-    setDuplicateData({
-      initialDate,
-      // Only include these if they have values (avoid passing undefined)
-      ...(appointmentTypeId !== undefined && { preSelectedAppointmentTypeId: appointmentTypeId }),
-      ...(practitionerId !== undefined && { preSelectedPractitionerId: practitionerId }),
-      ...(initialTime && { preSelectedTime: initialTime }),
-      ...(clinicNotes !== undefined && clinicNotes !== null && { preSelectedClinicNotes: clinicNotes }),
-      event,
-    });
-    setCreateModalKey(prev => prev + 1); // Force remount to reset state
-    setIsCreateModalOpen(true);
-    setSelectedEvent(null); // Close EventModal
-  }, [selectedEvent, isAdmin]);
 
   // Edit appointment handler
   const handleEditConfirm = async (formData: {
@@ -395,8 +332,6 @@ export const PatientAppointmentsList: React.FC<
       invalidateResourceCacheForDate(formData.practitioner_id, formData.appointment_type_id, appointmentDate);
       
       await refreshAppointmentsList();
-      setIsCreateModalOpen(false);
-      setDuplicateData(null);
       await alert("預約已建立");
     } catch (error) {
       logger.error("Error creating appointment:", error);
@@ -597,30 +532,21 @@ export const PatientAppointmentsList: React.FC<
         <EventModal
           event={selectedEvent}
           onClose={() => setSelectedEvent(null)}
+          onEditAppointment={eventModalProps.onEditAppointment}
           onDeleteAppointment={
             canEditEvent(selectedEvent) &&
             selectedEvent.resource.type === "appointment"
               ? handleDeleteAppointment
               : undefined
           }
-          onEditAppointment={
-            canEditEvent(selectedEvent) &&
-            selectedEvent.resource.type === "appointment"
-              ? handleEditAppointment
-              : undefined
-          }
-          onDuplicateAppointment={
-            canDuplicateAppointment(selectedEvent)
-              ? handleDuplicateAppointment
-              : undefined
-          }
+          onDuplicateAppointment={eventModalProps.onDuplicateAppointment}
           formatAppointmentTime={formatEventTimeRange}
           hidePatientInfo={true}
           appointmentTypes={appointmentTypes}
           practitioners={practitioners}
           onReceiptCreated={async () => {
             // Refresh appointments after receipt creation
-            await refetch();
+            await refreshAppointmentsList();
           }}
           onEventNameUpdated={handleEventNameUpdated}
         />
@@ -716,6 +642,23 @@ export const PatientAppointmentsList: React.FC<
         />
       )}
 
+      {/* Cancellation Note Modal */}
+      {deletingAppointment && deleteStep === "note" && (
+        <CancellationNoteModal
+          cancellationNote={cancellationNote}
+          isLoading={cancellationPreviewLoading}
+          onNoteChange={setCancellationNote}
+          onBack={() => {
+            setDeletingAppointment(null);
+            setCancellationNote("");
+            setDeleteStep(null);
+          }}
+          onSubmit={() => {
+            setDeleteStep("preview");
+          }}
+        />
+      )}
+
       {/* Cancellation Preview Modal */}
       {deletingAppointment && deleteStep === "preview" && (
         <CancellationPreviewModal
@@ -725,24 +668,32 @@ export const PatientAppointmentsList: React.FC<
         />
       )}
 
+      {/* Delete Confirmation Modal */}
+      {deletingAppointment && deleteStep === null && (
+        <DeleteConfirmationModal
+          event={deletingAppointment}
+          onCancel={() => {
+            setDeletingAppointment(null);
+          }}
+          onConfirm={handleConfirmDelete}
+        />
+      )}
+
       {/* Create Appointment Modal (for duplicate) */}
-      {isCreateModalOpen && duplicateData && (
+      {modalStates.isCreateModalOpen && createModalProps && (
         <CreateAppointmentModal
-          key={`create-${createModalKey}`}
+          key={createModalProps.key}
+          initialDate={createModalProps.initialDate}
+          event={createModalProps.event}
+          onClose={createModalProps.onClose}
+          onConfirm={handleCreateAppointmentConfirm}
           preSelectedPatientId={patientId}
-          initialDate={duplicateData.initialDate || null}
-          {...(duplicateData.preSelectedAppointmentTypeId !== undefined && { preSelectedAppointmentTypeId: duplicateData.preSelectedAppointmentTypeId })}
-          {...(duplicateData.preSelectedPractitionerId !== undefined && { preSelectedPractitionerId: duplicateData.preSelectedPractitionerId })}
-          {...(duplicateData.preSelectedTime !== undefined && { preSelectedTime: duplicateData.preSelectedTime })}
-          {...(duplicateData.preSelectedClinicNotes !== undefined && { preSelectedClinicNotes: duplicateData.preSelectedClinicNotes })}
-          event={duplicateData.event}
           practitioners={practitioners}
           appointmentTypes={appointmentTypes}
-          onClose={() => {
-            setIsCreateModalOpen(false);
-            setDuplicateData(null);
-          }}
-          onConfirm={handleCreateAppointmentConfirm}
+          {...(createModalProps.preSelectedAppointmentTypeId !== undefined && { preSelectedAppointmentTypeId: createModalProps.preSelectedAppointmentTypeId })}
+          {...(createModalProps.preSelectedPractitionerId !== undefined && { preSelectedPractitionerId: createModalProps.preSelectedPractitionerId })}
+          {...(createModalProps.preSelectedTime !== undefined && { preSelectedTime: createModalProps.preSelectedTime })}
+          {...(createModalProps.preSelectedClinicNotes !== undefined && { preSelectedClinicNotes: createModalProps.preSelectedClinicNotes })}
           onRecurringAppointmentsCreated={async () => {
             await refreshAppointmentsList();
           }}

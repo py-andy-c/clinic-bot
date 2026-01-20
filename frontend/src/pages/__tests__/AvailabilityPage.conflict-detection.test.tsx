@@ -1,21 +1,8 @@
-import React from 'react';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { BrowserRouter } from 'react-router-dom';
-import AvailabilityPage from '../AvailabilityPage';
-import { AuthProvider } from '../../hooks/useAuth';
-import { ModalProvider } from '../../contexts/ModalContext';
-import { vi, describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
+import { getPractitionerIdForDuplicate } from '../../utils/appointmentPermissions';
 import { CalendarEvent } from '../../utils/calendarDataAdapter';
 
-// Mock dependencies
-vi.mock('../../hooks/useAuth');
-vi.mock('../../hooks/queries');
-vi.mock('../../services/api');
-vi.mock('../../utils/calendarDataAdapter');
-vi.mock('../../utils/storage');
-
-describe('AvailabilityPage Conflict Detection', () => {
+describe('AvailabilityPage Duplicate Appointment Logic', () => {
   const mockEvent: CalendarEvent = {
     id: 1,
     title: 'Test Appointment',
@@ -26,6 +13,9 @@ describe('AvailabilityPage Conflict Detection', () => {
       practitioner_id: 1,
       resource_id: null,
       type: 'appointment',
+      appointment_type_id: 1,
+      clinic_notes: 'Test clinic notes',
+      patient_id: 1,
     },
     notes: 'Test notes',
     patient_id: 1,
@@ -33,115 +23,151 @@ describe('AvailabilityPage Conflict Detection', () => {
     clinic_notes: 'Test clinic notes',
   };
 
-  beforeEach(() => {
-    vi.clearAllMocks();
+  describe('getPractitionerIdForDuplicate', () => {
+    it('should return practitioner_id for admin users', () => {
+      const result = getPractitionerIdForDuplicate(mockEvent, true);
+      expect(result).toBe(1);
+    });
+
+    it('should return practitioner_id for non-admin users when not auto-assigned', () => {
+      const nonAutoAssignedEvent = {
+        ...mockEvent,
+        resource: {
+          ...mockEvent.resource,
+          is_auto_assigned: false,
+          originally_auto_assigned: false,
+        },
+      };
+      const result = getPractitionerIdForDuplicate(nonAutoAssignedEvent, false);
+      expect(result).toBe(1);
+    });
+
+    it('should return undefined for non-admin users when auto-assigned', () => {
+      const autoAssignedEvent = {
+        ...mockEvent,
+        resource: {
+          ...mockEvent.resource,
+          is_auto_assigned: true,
+          originally_auto_assigned: true,
+        },
+      };
+      const result = getPractitionerIdForDuplicate(autoAssignedEvent, false);
+      expect(result).toBeUndefined();
+    });
+
+    it('should handle events without practitioner_id', () => {
+      const eventWithoutPractitioner = {
+        ...mockEvent,
+        resource: {
+          ...mockEvent.resource,
+          practitioner_id: null,
+        },
+      };
+      const result = getPractitionerIdForDuplicate(eventWithoutPractitioner, true);
+      expect(result).toBeUndefined();
+    });
   });
 
-  it('should detect practitioner conflicts', () => {
-    // Test the conflict detection utility function
-    const events: CalendarEvent[] = [
-      {
-        ...mockEvent,
-        id: 1,
-        resource: { ...mockEvent.resource, practitioner_id: 1 },
-      },
-      {
-        ...mockEvent,
-        id: 2,
-        start: new Date('2024-01-15T10:30:00'),
-        end: new Date('2024-01-15T11:30:00'),
-        resource: { ...mockEvent.resource, practitioner_id: 1 },
-      },
-    ];
+  describe('Duplicate Data Preparation', () => {
+    it('should extract appointment data correctly', () => {
+      // Test data extraction logic (similar to what handleDuplicateAppointment does)
+      const appointmentTypeId = mockEvent.resource.appointment_type_id;
+      const practitionerId = getPractitionerIdForDuplicate(mockEvent, true);
+      const clinicNotes = mockEvent.resource.clinic_notes;
 
-    // This would test the detectAppointmentConflicts function
-    // For now, we'll verify the function exists and can be called
-    expect(typeof events).toBe('object');
-    expect(events.length).toBe(2);
+      expect(appointmentTypeId).toBe(1);
+      expect(practitionerId).toBe(1);
+      expect(clinicNotes).toBe('Test clinic notes');
+    });
+
+    it('should extract date and time correctly', () => {
+      const startMoment = mockEvent.start;
+      const expectedDate = '2024-01-15';
+      const expectedTime = '10:00';
+
+      const actualDate = startMoment.toISOString().split('T')[0];
+      const actualTime = startMoment.toTimeString().slice(0, 5);
+
+      expect(actualDate).toBe(expectedDate);
+      expect(actualTime).toBe(expectedTime);
+    });
+
+    it('should create duplicate data object correctly', () => {
+      const appointmentTypeId = mockEvent.resource.appointment_type_id;
+      const practitionerId = getPractitionerIdForDuplicate(mockEvent, true);
+      const clinicNotes = mockEvent.resource.clinic_notes;
+      const startMoment = mockEvent.start;
+      const initialDate = startMoment.toISOString().split('T')[0];
+      const initialTime = startMoment.toTimeString().slice(0, 5);
+
+      const duplicateData = {
+        initialDate,
+        ...(appointmentTypeId !== undefined && { preSelectedAppointmentTypeId: appointmentTypeId }),
+        ...(practitionerId !== undefined && { preSelectedPractitionerId: practitionerId }),
+        ...(initialTime && { preSelectedTime: initialTime }),
+        ...(clinicNotes !== undefined && clinicNotes !== null && { preSelectedClinicNotes: clinicNotes }),
+        event: mockEvent,
+      };
+
+      expect(duplicateData.initialDate).toBe('2024-01-15');
+      expect(duplicateData.preSelectedAppointmentTypeId).toBe(1);
+      expect(duplicateData.preSelectedPractitionerId).toBe(1);
+      expect(duplicateData.preSelectedTime).toBe('10:00');
+      expect(duplicateData.preSelectedClinicNotes).toBe('Test clinic notes');
+      expect(duplicateData.event).toBe(mockEvent);
+    });
   });
 
-  it('should detect resource conflicts', () => {
-    const events: CalendarEvent[] = [
-      {
+  describe('Edge Cases', () => {
+    it('should handle events without appointment_type_id', () => {
+      const eventWithoutType = {
         ...mockEvent,
-        id: 1,
-        resource: { ...mockEvent.resource, resource_id: 1, practitioner_id: null },
-      },
-      {
+        resource: {
+          ...mockEvent.resource,
+          appointment_type_id: undefined,
+        },
+      };
+
+      const appointmentTypeId = eventWithoutType.resource.appointment_type_id;
+      const duplicateData = {
+        ...(appointmentTypeId !== undefined && { preSelectedAppointmentTypeId: appointmentTypeId }),
+      };
+
+      expect(duplicateData.preSelectedAppointmentTypeId).toBeUndefined();
+    });
+
+    it('should handle events without clinic_notes', () => {
+      const eventWithoutNotes = {
         ...mockEvent,
-        id: 2,
-        start: new Date('2024-01-15T10:30:00'),
-        end: new Date('2024-01-15T11:30:00'),
-        resource: { ...mockEvent.resource, resource_id: 1, practitioner_id: null },
-      },
-    ];
+        resource: {
+          ...mockEvent.resource,
+          clinic_notes: null,
+        },
+      };
 
-    // Test resource conflict detection
-    expect(events[0].resource.resource_id).toBe(1);
-    expect(events[1].resource.resource_id).toBe(1);
-  });
+      const clinicNotes = eventWithoutNotes.resource.clinic_notes;
+      const duplicateData = {
+        ...(clinicNotes !== undefined && clinicNotes !== null && { preSelectedClinicNotes: clinicNotes }),
+      };
 
-  it('should not detect conflicts for non-overlapping appointments', () => {
-    const events: CalendarEvent[] = [
-      {
+      expect(duplicateData.preSelectedClinicNotes).toBeUndefined();
+    });
+
+    it('should handle empty clinic_notes', () => {
+      const eventWithEmptyNotes = {
         ...mockEvent,
-        id: 1,
-        start: new Date('2024-01-15T09:00:00'),
-        end: new Date('2024-01-15T10:00:00'),
-      },
-      {
-        ...mockEvent,
-        id: 2,
-        start: new Date('2024-01-15T11:00:00'),
-        end: new Date('2024-01-15T12:00:00'),
-      },
-    ];
+        resource: {
+          ...mockEvent.resource,
+          clinic_notes: '',
+        },
+      };
 
-    // Non-overlapping appointments should not conflict
-    expect(events[0].end.getTime()).toBeLessThanOrEqual(events[1].start.getTime());
-  });
+      const clinicNotes = eventWithEmptyNotes.resource.clinic_notes;
+      const duplicateData = {
+        ...(clinicNotes !== undefined && clinicNotes !== null && { preSelectedClinicNotes: clinicNotes }),
+      };
 
-  it('should exclude the event being edited from conflict detection', () => {
-    const events: CalendarEvent[] = [
-      {
-        ...mockEvent,
-        id: 1,
-        resource: { ...mockEvent.resource, practitioner_id: 1 },
-      },
-    ];
-
-    // When editing event with ID 1, it should not conflict with itself
-    const excludeEventId = 1;
-    expect(events[0].id).toBe(excludeEventId);
-  });
-
-  it('should handle edge case: appointments ending at the same time as new appointment starts', () => {
-    const existingEvent: CalendarEvent = {
-      ...mockEvent,
-      id: 1,
-      start: new Date('2024-01-15T09:00:00'),
-      end: new Date('2024-01-15T10:00:00'),
-    };
-
-    const newAppointmentStart = new Date('2024-01-15T10:00:00');
-    const newAppointmentEnd = new Date('2024-01-15T11:00:00');
-
-    // Appointments ending at the same time as new appointment starts should not conflict
-    expect(existingEvent.end.getTime()).toBe(newAppointmentStart.getTime());
-  });
-
-  it('should handle edge case: appointments starting at the same time as existing appointment ends', () => {
-    const existingEvent: CalendarEvent = {
-      ...mockEvent,
-      id: 1,
-      start: new Date('2024-01-15T10:00:00'),
-      end: new Date('2024-01-15T11:00:00'),
-    };
-
-    const newAppointmentStart = new Date('2024-01-15T09:00:00');
-    const newAppointmentEnd = new Date('2024-01-15T10:00:00');
-
-    // Appointments starting at the same time as existing appointment ends should not conflict
-    expect(newAppointmentEnd.getTime()).toBe(existingEvent.start.getTime());
+      expect(duplicateData.preSelectedClinicNotes).toBe('');
+    });
   });
 });
