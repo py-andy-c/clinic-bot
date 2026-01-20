@@ -21,7 +21,8 @@ import {
 import { appointmentToCalendarEvent } from "./appointmentUtils";
 import { useModal } from "../../contexts/ModalContext";
 import { useAuth } from "../../hooks/useAuth";
-import { useAppointmentModalOrchestration } from "../../hooks/useAppointmentModalOrchestration";
+import { canEditAppointment, canDuplicateAppointment, getPractitionerIdForDuplicate } from "../../utils/appointmentPermissions";
+// Removed complex modal hooks - using simple state management like AvailabilityPage
 import { getErrorMessage } from "../../types/api";
 import { logger } from "../../utils/logger";
 import { invalidateCacheForDate } from "../../utils/availabilityCache";
@@ -81,7 +82,16 @@ export const PatientAppointmentsList: React.FC<
     useState<CalendarEvent | null>(null);
   const [editErrorMessage, setEditErrorMessage] = useState<string | null>(null);
 
-  // Delete appointment state (kept for patient-specific complex cancellation flow)
+  // Appointment modal state - simple state management
+  const [appointmentModalState, setAppointmentModalState] = useState<{
+    type: 'edit_appointment' | 'create_appointment' | 'delete_confirmation' | null;
+    data?: any;
+  }>({ type: null });
+
+  // Stable key for create modal
+  const [createModalKey, setCreateModalKey] = useState(0);
+
+  // Delete appointment state (kept for complex cancellation flow)
   const [deletingAppointment, setDeletingAppointment] =
     useState<CalendarEvent | null>(null);
   const [cancellationNote, setCancellationNote] = useState<string>("");
@@ -185,17 +195,60 @@ export const PatientAppointmentsList: React.FC<
     await refetch();
   }, [queryClient, patientId, refetch]);
 
-  // Use shared appointment modal orchestration
-  const {
-    canEditEvent,
-    eventModalProps,
-    createModalProps,
-    modalStates,
-  } = useAppointmentModalOrchestration({
-    selectedEvent,
-    permissions: { canEdit, isAdmin, userId },
-    onRefresh: refreshAppointmentsList,
-  });
+  // Helper functions for permissions and actions
+  const canEditEvent = useCallback((event: CalendarEvent | null): boolean => {
+    if (!event || !canEdit) return false;
+    if (event.resource.type === "appointment") {
+      return canEditAppointment(event, userId, isAdmin);
+    }
+    const eventPractitionerId = event.resource.practitioner_id || userId;
+    return eventPractitionerId === userId;
+  }, [canEdit, userId, isAdmin]);
+
+  const canDuplicateEvent = useCallback((event: CalendarEvent | null): boolean => {
+    return canDuplicateAppointment(event);
+  }, []);
+
+  // Appointment modal handlers
+  const handleEditAppointment = useCallback(async () => {
+    if (!selectedEvent || !canEditEvent(selectedEvent)) {
+      await alert("您只能編輯自己的預約");
+      return;
+    }
+    setAppointmentModalState({ type: 'edit_appointment', data: selectedEvent });
+    setSelectedEvent(null); // Close event modal
+  }, [selectedEvent, canEditEvent]);
+
+  const handleDuplicateAppointment = useCallback(async () => {
+    if (!selectedEvent || !canDuplicateEvent(selectedEvent)) {
+      return;
+    }
+
+    const event = selectedEvent;
+    const appointmentTypeId = event.resource.appointment_type_id;
+    const practitionerId = getPractitionerIdForDuplicate(event, isAdmin);
+    const clinicNotes = event.resource.clinic_notes;
+
+    // Extract date and time in Taipei timezone (consistent with calendar display)
+    const startMoment = moment(event.start).tz('Asia/Taipei');
+    const initialDate = startMoment.format('YYYY-MM-DD');
+    const initialTime = startMoment.format('HH:mm');
+
+    setCreateModalKey(prev => prev + 1);
+    setAppointmentModalState({
+      type: 'create_appointment',
+      data: {
+        patientId: event.resource.patient_id, // PatientAppointmentsList specific
+        initialDate,
+        ...(appointmentTypeId !== undefined && { preSelectedAppointmentTypeId: appointmentTypeId }),
+        ...(practitionerId !== undefined && { preSelectedPractitionerId: practitionerId }),
+        ...(initialTime && { preSelectedTime: initialTime }),
+        ...(clinicNotes !== undefined && clinicNotes !== null && { preSelectedClinicNotes: clinicNotes }),
+        event,
+      }
+    });
+    setSelectedEvent(null); // Close event modal
+  }, [selectedEvent, canDuplicateEvent, isAdmin]);
 
   // Expose refetch function to parent component
   useEffect(() => {
@@ -310,33 +363,6 @@ export const PatientAppointmentsList: React.FC<
       // Stay on note step so user can retry
     } finally {
       setCancellationPreviewLoading(false);
-    }
-  };
-
-  // Handle create appointment confirmation (for duplicate)
-  const handleCreateAppointmentConfirm = async (formData: {
-    patient_id: number;
-    appointment_type_id: number;
-    practitioner_id: number;
-    start_time: string;
-    clinic_notes?: string;
-  }) => {
-    try {
-      await apiService.createClinicAppointment(formData);
-      
-      // Invalidate availability cache for the appointment's date, practitioner, and appointment type
-      const appointmentDate = moment(formData.start_time).format('YYYY-MM-DD');
-      invalidateCacheForDate(formData.practitioner_id, formData.appointment_type_id, appointmentDate);
-      
-      // Invalidate resource availability cache for the appointment's date, practitioner, and appointment type
-      invalidateResourceCacheForDate(formData.practitioner_id, formData.appointment_type_id, appointmentDate);
-      
-      await refreshAppointmentsList();
-      await alert("預約已建立");
-    } catch (error) {
-      logger.error("Error creating appointment:", error);
-      const errorMessage = getErrorMessage(error);
-      throw new Error(errorMessage);
     }
   };
 
@@ -532,14 +558,22 @@ export const PatientAppointmentsList: React.FC<
         <EventModal
           event={selectedEvent}
           onClose={() => setSelectedEvent(null)}
-          onEditAppointment={eventModalProps.onEditAppointment}
+          onEditAppointment={
+            canEditEvent(selectedEvent) && selectedEvent.resource.type === "appointment"
+              ? handleEditAppointment
+              : undefined
+          }
           onDeleteAppointment={
             canEditEvent(selectedEvent) &&
             selectedEvent.resource.type === "appointment"
               ? handleDeleteAppointment
               : undefined
           }
-          onDuplicateAppointment={eventModalProps.onDuplicateAppointment}
+          onDuplicateAppointment={
+            canDuplicateEvent(selectedEvent)
+              ? handleDuplicateAppointment
+              : undefined
+          }
           formatAppointmentTime={formatEventTimeRange}
           hidePatientInfo={true}
           appointmentTypes={appointmentTypes}
@@ -680,23 +714,33 @@ export const PatientAppointmentsList: React.FC<
       )}
 
       {/* Create Appointment Modal (for duplicate) */}
-      {modalStates.isCreateModalOpen && createModalProps && (
+      {appointmentModalState.type === 'create_appointment' && appointmentModalState.data && (
         <CreateAppointmentModal
-          key={createModalProps.key}
-          initialDate={createModalProps.initialDate}
-          event={createModalProps.event}
-          onClose={createModalProps.onClose}
-          onConfirm={handleCreateAppointmentConfirm}
-          preSelectedPatientId={patientId}
-          practitioners={practitioners}
-          appointmentTypes={appointmentTypes}
-          {...(createModalProps.preSelectedAppointmentTypeId !== undefined && { preSelectedAppointmentTypeId: createModalProps.preSelectedAppointmentTypeId })}
-          {...(createModalProps.preSelectedPractitionerId !== undefined && { preSelectedPractitionerId: createModalProps.preSelectedPractitionerId })}
-          {...(createModalProps.preSelectedTime !== undefined && { preSelectedTime: createModalProps.preSelectedTime })}
-          {...(createModalProps.preSelectedClinicNotes !== undefined && { preSelectedClinicNotes: createModalProps.preSelectedClinicNotes })}
+          key={`create-${createModalKey}`}
+          initialDate={appointmentModalState.data.initialDate}
+          preSelectedPatientId={appointmentModalState.data.patientId || patientId}
+          preSelectedAppointmentTypeId={appointmentModalState.data.preSelectedAppointmentTypeId}
+          preSelectedPractitionerId={appointmentModalState.data.preSelectedPractitionerId}
+          preSelectedTime={appointmentModalState.data.preSelectedTime}
+          preSelectedClinicNotes={appointmentModalState.data.preSelectedClinicNotes}
+          event={appointmentModalState.data.event}
+          onClose={() => setAppointmentModalState({ type: null })}
+          onConfirm={async (formData) => {
+            try {
+              await apiService.createClinicAppointment(formData);
+              await alert("預約已建立");
+              await refreshAppointmentsList();
+              setAppointmentModalState({ type: null });
+            } catch (error) {
+              logger.error('Failed to create appointment:', error);
+              throw error;
+            }
+          }}
           onRecurringAppointmentsCreated={async () => {
             await refreshAppointmentsList();
           }}
+          practitioners={practitioners}
+          appointmentTypes={appointmentTypes}
         />
       )}
     </div>
