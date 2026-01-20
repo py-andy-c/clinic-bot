@@ -40,6 +40,16 @@ const AvailabilityPage: React.FC = () => {
   const { user, isLoading: authLoading, isAuthenticated, isClinicUser, hasRole } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
+
+  // Reset initial load state when clinic changes
+  React.useEffect(() => {
+    if (user?.active_clinic_id) {
+      setLoading(true);
+      setInitialLoadComplete(false);
+    }
+  }, [user?.active_clinic_id]);
+
   const [currentDate, setCurrentDate] = useState(new Date());
   const [view, setView] = useState<CalendarView>(CalendarViews.DAY);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -362,6 +372,7 @@ const AvailabilityPage: React.FC = () => {
         }
       }
       setLoading(false);
+      setInitialLoadComplete(true);
     }
   }, [practitioners, resources, user]);
 
@@ -434,7 +445,8 @@ const AvailabilityPage: React.FC = () => {
     setSidebarOpen(!sidebarOpen);
   }, [sidebarOpen]);
 
-  if (loading || practitionersLoading || eventsLoading) {
+  // Show loading spinner during initial load, but not for subsequent event fetches after initial load is complete
+  if (loading || practitionersLoading || (eventsLoading && !initialLoadComplete)) {
     return (
       <div className="flex items-center justify-center h-64">
         <LoadingSpinner />
