@@ -463,8 +463,10 @@ const AvailabilityPage: React.FC = () => {
         ...transformToCalendarEvents(resourceEventsRaw)
       ];
 
-      // Cache the results
-      setEventCache(prev => new Map(prev).set(cacheKey, { events: allEvents, timestamp: Date.now() }));
+      // Only cache results if this wasn't a force refresh
+      if (!forceRefresh) {
+        setEventCache(prev => new Map(prev).set(cacheKey, { events: allEvents, timestamp: Date.now() }));
+      }
 
       setAllEvents(allEvents);
     } catch (error) {

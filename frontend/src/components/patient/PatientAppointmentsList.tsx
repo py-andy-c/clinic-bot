@@ -182,12 +182,15 @@ export const PatientAppointmentsList: React.FC<
         : cancelledAppointments;
 
   // Helper function to refresh appointments list after mutations
-  const refreshAppointmentsList = useCallback(async () => {
-    // Invalidate cache for appointments list
-    queryClient.invalidateQueries({ queryKey: ['patient-appointments', patientId] });
-
-    // Refetch the data
-    await refetch();
+  const refreshAppointmentsList = useCallback(async (forceRefresh?: boolean) => {
+    if (forceRefresh) {
+      // Force refresh: Invalidate cache and refetch
+      queryClient.invalidateQueries({ queryKey: ['patient-appointments', patientId] });
+      await refetch();
+    } else {
+      // Normal refresh: Just refetch if data is stale
+      await refetch();
+    }
   }, [queryClient, patientId, refetch]);
 
   // Helper functions for permissions and actions

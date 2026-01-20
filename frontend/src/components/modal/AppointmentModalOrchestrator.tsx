@@ -20,7 +20,7 @@ interface AppointmentModalOrchestratorProps {
   onModalChange: (state: ModalState<AppointmentModalData>) => void;
   practitioners: { id: number; full_name: string }[];
   appointmentTypes: AppointmentType[];
-  onRefresh?: () => void | Promise<void>;
+  onRefresh?: (forceRefresh?: boolean) => void | Promise<void>;
   canEditEvent?: (event: any) => boolean;
 }
 
@@ -42,7 +42,7 @@ export const AppointmentModalOrchestrator: React.FC<AppointmentModalOrchestrator
     try {
       await apiService.createClinicAppointment(formData);
       await alert("預約已建立");
-      if (onRefresh) await onRefresh();
+      if (onRefresh) await onRefresh(true); // Force refresh to show new appointment
       onModalChange({ type: null });
     } catch (error) {
       logger.error('Failed to create appointment:', error);
@@ -71,7 +71,7 @@ export const AppointmentModalOrchestrator: React.FC<AppointmentModalOrchestrator
       }
 
       await apiService.editClinicAppointment(event.id, updateData);
-      if (onRefresh) await onRefresh();
+      if (onRefresh) await onRefresh(true); // Force refresh after editing
       onModalChange({ type: null });
     } catch (error) {
       logger.error('Failed to update appointment:', error);
@@ -90,7 +90,7 @@ export const AppointmentModalOrchestrator: React.FC<AppointmentModalOrchestrator
 
     try {
       await apiService.cancelClinicAppointment(event.id);
-      if (onRefresh) await onRefresh();
+      if (onRefresh) await onRefresh(true); // Force refresh after deleting
       onModalChange({ type: null });
     } catch (error) {
       logger.error('Failed to cancel appointment:', error);
@@ -114,7 +114,7 @@ export const AppointmentModalOrchestrator: React.FC<AppointmentModalOrchestrator
           onClose={handleClose}
           onConfirm={handleCreateAppointment}
           onRecurringAppointmentsCreated={async () => {
-            if (onRefresh) await onRefresh();
+            if (onRefresh) await onRefresh(true); // Force refresh for recurring appointments
           }}
           practitioners={practitioners}
           appointmentTypes={appointmentTypes}
@@ -129,7 +129,6 @@ export const AppointmentModalOrchestrator: React.FC<AppointmentModalOrchestrator
           appointmentTypes={appointmentTypes}
           onClose={handleClose}
           onComplete={async () => {
-            if (onRefresh) await onRefresh();
             onModalChange({ type: null });
           }}
           onConfirm={handleUpdateAppointment}
