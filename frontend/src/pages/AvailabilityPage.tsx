@@ -25,9 +25,8 @@ import { calendarStorage } from '../utils/storage';
 import { getDateString, formatAppointmentTimeRange } from '../utils/calendarUtils';
 import { logger } from '../utils/logger';
 import { Resource } from '../types';
-import { invalidateCacheForDate } from '../utils/availabilityCache';
-import { invalidateResourceCacheForDate } from '../utils/resourceAvailabilityCache';
 import { useCalendarEvents, invalidateCalendarEventsForAppointment } from '../hooks/queries/useCalendarEvents';
+import { useCreateAppointmentOptimistic } from '../hooks/queries/useAvailabilitySlots';
 import { queryClient } from '../config/queryClient';
 import { CalendarEvent } from '../utils/calendarDataAdapter';
 import { useModal } from '../contexts/ModalContext';
@@ -60,6 +59,9 @@ const AvailabilityPage: React.FC = () => {
     view
   });
   const allEvents = allEventsData || [];
+
+  // Optimistic update hook for appointment creation
+  const createAppointmentMutation = useCreateAppointmentOptimistic();
 
   // Handle calendar query errors gracefully
   React.useEffect(() => {
@@ -240,16 +242,11 @@ const AvailabilityPage: React.FC = () => {
         cancellationNote.trim() || undefined,
       );
 
-      // Invalidate availability cache for the appointment's date
-      const appointmentDate = moment(deletingAppointment.start).format('YYYY-MM-DD');
-      const practitionerId = deletingAppointment.resource.practitioner_id;
-      const appointmentTypeId = deletingAppointment.resource.appointment_type_id;
-      if (practitionerId && appointmentTypeId) {
-        invalidateCacheForDate(practitionerId, appointmentTypeId, appointmentDate);
-        invalidateResourceCacheForDate(practitionerId, appointmentTypeId, appointmentDate);
-      }
+      // Note: Availability cache is now handled by React Query automatically
 
       // Invalidate calendar events cache for specific practitioner and date range
+      const appointmentDate = moment(deletingAppointment.start).format('YYYY-MM-DD');
+      const practitionerId = deletingAppointment.resource.practitioner_id;
       invalidateCalendarEventsForAppointment(
         queryClient,
         user?.active_clinic_id,
@@ -535,33 +532,22 @@ const AvailabilityPage: React.FC = () => {
           }}
           onConfirm={async (formData) => {
             try {
-              const appointmentData: any = {
-                patient_id: formData.patient_id,
-                appointment_type_id: formData.appointment_type_id,
-                start_time: formData.start_time,
-                practitioner_id: formData.practitioner_id || null,
-                selected_resource_ids: formData.selected_resource_ids,
+              // Calculate appointment date from start_time
+              const appointmentDate = formData.start_time.split('T')[0];
+
+              // Use optimistic update mutation
+              const [, timePart] = formData.start_time.split('T');
+              const mutationParams: any = {
+                practitionerId: formData.practitioner_id,
+                appointmentTypeId: formData.appointment_type_id,
+                date: appointmentDate,
+                startTime: timePart || '00:00:00', // Extract time part with fallback
+                patientId: formData.patient_id,
               };
               if (formData.clinic_notes) {
-                appointmentData.clinic_notes = formData.clinic_notes;
+                mutationParams.clinicNotes = formData.clinic_notes;
               }
-              await apiService.createClinicAppointment(appointmentData);
-
-              // Invalidate availability cache for the appointment's date, practitioner, and appointment type
-              const appointmentDate = moment(formData.start_time).format('YYYY-MM-DD');
-              invalidateCacheForDate(formData.practitioner_id, formData.appointment_type_id, appointmentDate);
-
-              // Invalidate resource availability cache for the appointment's date, practitioner, and appointment type
-              invalidateResourceCacheForDate(formData.practitioner_id, formData.appointment_type_id, appointmentDate);
-
-              // Invalidate calendar events cache for specific practitioner and date range
-              invalidateCalendarEventsForAppointment(
-                queryClient,
-                user?.active_clinic_id,
-                formData.practitioner_id,
-                appointmentDate,
-                view
-              );
+              await createAppointmentMutation.mutateAsync(mutationParams);
 
               setIsCreateAppointmentModalOpen(false);
               await alert('預約已建立');
@@ -601,23 +587,22 @@ const AvailabilityPage: React.FC = () => {
                 return;
               }
 
-              await apiService.createClinicAppointment(formData);
+              // Calculate appointment date from start_time
+              const appointmentDate = formData.start_time.split('T')[0];
 
-              // Invalidate availability cache for the appointment's date, practitioner, and appointment type
-              const appointmentDate = moment(formData.start_time).format('YYYY-MM-DD');
-              invalidateCacheForDate(formData.practitioner_id, formData.appointment_type_id, appointmentDate);
-
-              // Invalidate resource availability cache for the appointment's date, practitioner, and appointment type
-              invalidateResourceCacheForDate(formData.practitioner_id, formData.appointment_type_id, appointmentDate);
-
-              // Invalidate calendar events cache for specific practitioner and date range
-              invalidateCalendarEventsForAppointment(
-                queryClient,
-                user?.active_clinic_id,
-                formData.practitioner_id,
-                appointmentDate,
-                view
-              );
+              // Use optimistic update mutation
+              const [, timePart] = formData.start_time.split('T');
+              const mutationParams: any = {
+                practitionerId: formData.practitioner_id,
+                appointmentTypeId: formData.appointment_type_id,
+                date: appointmentDate,
+                startTime: timePart || '00:00:00', // Extract time part with fallback
+                patientId: formData.patient_id,
+              };
+              if (formData.clinic_notes) {
+                mutationParams.clinicNotes = formData.clinic_notes;
+              }
+              await createAppointmentMutation.mutateAsync(mutationParams);
 
               setIsCreateModalOpen(false);
               setDuplicateData(null);
@@ -714,21 +699,13 @@ const AvailabilityPage: React.FC = () => {
               }
               await apiService.editClinicAppointment(selectedEvent.id, updateData);
 
-              // Invalidate availability cache for both old and new dates
+              // Note: Availability cache is now handled by React Query automatically
+
+              // Invalidate calendar events cache for specific practitioner and date ranges
               const oldDate = moment(selectedEvent.start).format('YYYY-MM-DD');
               const newDate = moment(formData.start_time).format('YYYY-MM-DD');
               const practitionerId = formData.practitioner_id ?? selectedEvent.resource.practitioner_id;
-              const appointmentTypeId = selectedEvent.resource.appointment_type_id;
-              if (practitionerId && appointmentTypeId) {
-                invalidateCacheForDate(practitionerId, appointmentTypeId, oldDate);
-                invalidateResourceCacheForDate(practitionerId, appointmentTypeId, oldDate);
-                if (newDate !== oldDate) {
-                  invalidateCacheForDate(practitionerId, appointmentTypeId, newDate);
-                  invalidateResourceCacheForDate(practitionerId, appointmentTypeId, newDate);
-                }
-              }
 
-              // Invalidate calendar events cache for specific practitioner and date ranges
               invalidateCalendarEventsForAppointment(
                 queryClient,
                 user?.active_clinic_id,
@@ -774,25 +751,8 @@ const AvailabilityPage: React.FC = () => {
             // Note: CheckoutModal handles the API call internally
             // Here we just need to refresh the UI
 
-            // Invalidate availability cache for the appointment's date
-            if (selectedEvent) {
-              const appointmentDate = moment(selectedEvent.start).format('YYYY-MM-DD');
-              const practitionerId = selectedEvent.resource.practitioner_id;
-              const appointmentTypeId = selectedEvent.resource.appointment_type_id;
-              if (practitionerId && appointmentTypeId) {
-                invalidateCacheForDate(practitionerId, appointmentTypeId, appointmentDate);
-                invalidateResourceCacheForDate(practitionerId, appointmentTypeId, appointmentDate);
-              }
-
-              // Invalidate calendar events cache for specific practitioner and date range
-              invalidateCalendarEventsForAppointment(
-                queryClient,
-                user?.active_clinic_id,
-                practitionerId,
-                appointmentDate,
-                view
-              );
-            }
+            // Note: Availability cache is now handled by React Query automatically
+            // React Query will automatically handle cache invalidation for checkout operations
 
             setIsCheckoutModalOpen(false);
             setSelectedEvent(null);
