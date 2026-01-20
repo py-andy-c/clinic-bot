@@ -1,10 +1,10 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { LoadingSpinner, ErrorMessage, SearchInput, PaginationControls } from '../components/shared';
-import { apiService } from '../services/api';
 import { Patient } from '../types';
 import { useAuth } from '../hooks/useAuth';
 import { usePatients, useClinicSettings, usePractitioners } from '../hooks/queries';
+import { useCreateAppointmentOptimistic } from '../hooks/queries/useAvailabilitySlots';
 import { useHighlightRow } from '../hooks/useHighlightRow';
 import PageHeader from '../components/PageHeader';
 import { useDebouncedSearch } from '../utils/searchUtils';
@@ -14,6 +14,7 @@ import { CreateAppointmentModal } from '../components/calendar/CreateAppointment
 import { useModal } from '../contexts/ModalContext';
 import { logger } from '../utils/logger';
 import { getErrorMessage } from '../types/api';
+import moment from 'moment-timezone';
 
 // Component to handle profile picture with fallback on error
 const ProfilePictureWithFallback: React.FC<{
@@ -149,6 +150,9 @@ const PatientsPage: React.FC = () => {
 
   // Fetch practitioners for appointment modal and filter dropdown
   const { data: practitionersData } = usePractitioners();
+
+  // Optimistic update hook for appointment creation
+  const createAppointmentMutation = useCreateAppointmentOptimistic();
 
   const practitioners = practitionersData || [];
   const appointmentTypes = clinicSettings?.appointment_types || [];
@@ -502,7 +506,14 @@ const PatientsPage: React.FC = () => {
           }}
           onConfirm={async (formData) => {
             try {
-              await apiService.createClinicAppointment(formData);
+              await createAppointmentMutation.mutateAsync({
+                practitionerId: formData.practitioner_id,
+                appointmentTypeId: formData.appointment_type_id,
+                date: moment(formData.start_time).format('YYYY-MM-DD'),
+                startTime: moment(formData.start_time).format('HH:mm:ss'),
+                patientId: formData.patient_id,
+                ...(formData.clinic_notes && { clinicNotes: formData.clinic_notes }),
+              });
               setIsAppointmentModalOpen(false);
               setSelectedPatientIdForAppointment(undefined);
               setSelectedPatientNameForAppointment(undefined);

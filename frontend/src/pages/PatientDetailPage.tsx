@@ -5,10 +5,9 @@ import { apiService } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
 import { usePatientDetail, useClinicSettings, usePractitioners } from '../hooks/queries';
 import { useQueryClient } from '@tanstack/react-query';
+import { useCreateAppointmentOptimistic } from '../hooks/queries/useAvailabilitySlots';
 import { logger } from '../utils/logger';
 import { getErrorMessage } from '../types/api';
-import { invalidateCacheForDate } from '../utils/availabilityCache';
-import { invalidateResourceCacheForDate } from '../utils/resourceAvailabilityCache';
 import moment from 'moment-timezone';
 import { useModal } from '../contexts/ModalContext';
 import PageHeader from '../components/PageHeader';
@@ -47,6 +46,9 @@ const PatientDetailPage: React.FC = () => {
 
   // Fetch practitioners (needed for edit/delete appointment buttons and create modal)
   const { data: practitionersData } = usePractitioners();
+
+  // Optimistic update hook for appointment creation
+  const createAppointmentMutation = useCreateAppointmentOptimistic();
 
   const practitioners = practitionersData || [];
   const appointmentTypes = clinicSettings?.appointment_types || [];
@@ -188,24 +190,21 @@ const PatientDetailPage: React.FC = () => {
           }}
           onConfirm={async (formData) => {
             try {
-              await apiService.createClinicAppointment(formData);
+              await createAppointmentMutation.mutateAsync({
+                practitionerId: formData.practitioner_id,
+                appointmentTypeId: formData.appointment_type_id,
+                date: moment(formData.start_time).format('YYYY-MM-DD'),
+                startTime: moment(formData.start_time).format('HH:mm:ss'),
+                patientId: formData.patient_id,
+                ...(formData.clinic_notes && { clinicNotes: formData.clinic_notes }),
+              });
               setIsAppointmentModalOpen(false);
-              
-              // Invalidate appointments cache to refresh the list
-              queryClient.invalidateQueries({ queryKey: ['patient-appointments', patientId] });
-              
-              // Invalidate availability cache for the appointment's date, practitioner, and appointment type
-              const appointmentDate = moment(formData.start_time).format('YYYY-MM-DD');
-              invalidateCacheForDate(formData.practitioner_id, formData.appointment_type_id, appointmentDate);
-              
-              // Invalidate resource availability cache for the appointment's date, practitioner, and appointment type
-              invalidateResourceCacheForDate(formData.practitioner_id, formData.appointment_type_id, appointmentDate);
-              
+
               // Trigger refetch of appointments list if available
               if (appointmentsListRefetchRef.current) {
                 await appointmentsListRefetchRef.current();
               }
-              
+
               await alert('預約已建立');
             } catch (error) {
               logger.error('Error creating appointment:', error);

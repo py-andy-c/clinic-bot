@@ -152,9 +152,18 @@ export const useCreateAppointmentOptimistic = () => {
                  queryKey[3] === params.date;
         }
       });
-      // Also invalidate calendar events
+      // Invalidate related queries to ensure UI consistency
       queryClient.invalidateQueries({
         queryKey: ['calendar-events', params.practitionerId]
+      });
+      // Invalidate all patient appointment queries to prevent stale data
+      // (we don't know the specific patient ID, so invalidate broadly)
+      queryClient.invalidateQueries({
+        predicate: (query) => {
+          const queryKey = query.queryKey as (string | number)[];
+          return queryKey.length >= 2 &&
+                 queryKey[0] === 'patient-appointments';
+        }
       });
     }
   });

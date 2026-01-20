@@ -26,6 +26,7 @@ import { getErrorMessage } from "../../types/api";
 import { logger } from "../../utils/logger";
 import { invalidateCacheForDate } from "../../utils/availabilityCache";
 import { invalidateResourceCacheForDate } from "../../utils/resourceAvailabilityCache";
+import { useCreateAppointmentOptimistic } from "../../hooks/queries/useAvailabilitySlots";
 import { AppointmentType } from "../../types";
 
 const TAIWAN_TIMEZONE = "Asia/Taipei";
@@ -70,6 +71,9 @@ export const PatientAppointmentsList: React.FC<
   const { alert } = useModal();
   const { hasRole, user, isClinicUser } = useAuth();
   const queryClient = useQueryClient();
+
+  // Optimistic update hook for appointment creation
+  const createAppointmentMutation = useCreateAppointmentOptimistic();
 
   // Event modal state
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(
@@ -392,15 +396,15 @@ export const PatientAppointmentsList: React.FC<
     clinic_notes?: string;
   }) => {
     try {
-      await apiService.createClinicAppointment(formData);
-      
-      // Invalidate availability cache for the appointment's date, practitioner, and appointment type
-      const appointmentDate = moment(formData.start_time).format('YYYY-MM-DD');
-      invalidateCacheForDate(formData.practitioner_id, formData.appointment_type_id, appointmentDate);
-      
-      // Invalidate resource availability cache for the appointment's date, practitioner, and appointment type
-      invalidateResourceCacheForDate(formData.practitioner_id, formData.appointment_type_id, appointmentDate);
-      
+      await createAppointmentMutation.mutateAsync({
+        practitionerId: formData.practitioner_id,
+        appointmentTypeId: formData.appointment_type_id,
+        date: moment(formData.start_time).format('YYYY-MM-DD'),
+        startTime: moment(formData.start_time).format('HH:mm:ss'),
+        patientId: formData.patient_id,
+        ...(formData.clinic_notes && { clinicNotes: formData.clinic_notes }),
+      });
+
       await refreshAppointmentsList();
       setIsCreateModalOpen(false);
       setDuplicateData(null);
