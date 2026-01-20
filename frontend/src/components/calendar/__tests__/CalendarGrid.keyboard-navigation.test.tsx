@@ -18,6 +18,13 @@ describe('CalendarGrid Keyboard Navigation', () => {
     events: mockEvents,
     selectedPractitioners: [1, 2],
     selectedResources: [1],
+    practitioners: [
+      { id: 1, full_name: 'Dr. Smith' },
+      { id: 2, full_name: 'Dr. Johnson' }
+    ],
+    resources: [
+      { id: 1, name: 'Room A' }
+    ],
     onEventClick: vi.fn(),
     onSlotClick: vi.fn(),
   };

@@ -18,31 +18,26 @@ export function invalidateAvailabilitySlotsForDate(
   date: string
 ): void {
   if (!queryClient) {
-    console.warn('QueryClient not provided to invalidateAvailabilitySlotsForDate');
     return;
   }
 
-  try {
-    queryClient.invalidateQueries({
-      predicate: (query) => {
-        const queryKey = query.queryKey as (string | number | undefined)[];
+  queryClient.invalidateQueries({
+    predicate: (query) => {
+      const queryKey = query.queryKey as (string | number | undefined)[];
 
-        // Match availability-slots queries: ['availability-slots', practitionerId, appointmentTypeId, date, excludeCalendarEventId]
-        // Handle both queries with and without excludeCalendarEventId (5 elements vs 4 elements)
-        if (queryKey.length >= 4 &&
-            queryKey[0] === 'availability-slots' &&
-            queryKey[1] === practitionerId &&
-            queryKey[2] === appointmentTypeId &&
-            queryKey[3] === date) {
-          return true;
-        }
-
-        return false;
+      // Match availability-slots queries: ['availability-slots', practitionerId, appointmentTypeId, date, excludeCalendarEventId]
+      // Handle both queries with and without excludeCalendarEventId (5 elements vs 4 elements)
+      if (queryKey.length >= 4 &&
+          queryKey[0] === 'availability-slots' &&
+          queryKey[1] === practitionerId &&
+          queryKey[2] === appointmentTypeId &&
+          queryKey[3] === date) {
+        return true;
       }
-    });
-  } catch (error) {
-    console.error('Failed to invalidate availability slots:', error);
-  }
+
+      return false;
+    }
+  });
 
   // Note: Calendar events invalidation removed due to complex query key structures
   // Calendar views will refresh naturally via stale time or user navigation
@@ -59,17 +54,22 @@ export function invalidateResourceAvailabilityForDate(
   date: string
 ): void {
   if (!queryClient) {
-    console.warn('QueryClient not provided to invalidateResourceAvailabilityForDate');
     return;
   }
 
-  try {
-    // Resource availability is typically handled through availability-slots queries now
-    // For now, delegate to the main availability invalidation
-    invalidateAvailabilitySlotsForDate(queryClient, practitionerId, appointmentTypeId, date);
-  } catch (error) {
-    console.error('Failed to invalidate resource availability:', error);
-  }
+  queryClient.invalidateQueries({
+    predicate: (query) => {
+      const queryKey = query.queryKey as (string | number | undefined)[];
+
+      // Match resource-availability queries: ['resource-availability', appointmentTypeId, practitionerId, date, ...]
+      // The key structure is: ['resource-availability', appointmentTypeId, practitionerId, date, startTime, durationMinutes, excludeCalendarEventId]
+      return queryKey.length >= 4 &&
+             queryKey[0] === 'resource-availability' &&
+             queryKey[1] === appointmentTypeId &&
+             queryKey[2] === practitionerId &&
+             queryKey[3] === date;
+    }
+  });
 }
 
 /**
@@ -82,17 +82,12 @@ export function invalidatePatientAppointments(
   patientId: number
 ): void {
   if (!queryClient) {
-    console.warn('QueryClient not provided to invalidatePatientAppointments');
     return;
   }
 
-  try {
-    queryClient.invalidateQueries({
-      queryKey: ['patient-appointments', clinicId, patientId]
-    });
-  } catch (error) {
-    console.error('Failed to invalidate patient appointments:', error);
-  }
+  queryClient.invalidateQueries({
+    queryKey: ['patient-appointments', clinicId, patientId]
+  });
 }
 
 /**
@@ -108,27 +103,22 @@ export function invalidateAvailabilityAfterAppointmentChange(
   patientId?: number
 ): void {
   if (!queryClient) {
-    console.warn('QueryClient not provided to invalidateAvailabilityAfterAppointmentChange');
     return;
   }
 
-  try {
-    // Handle null IDs gracefully - don't invalidate if essential IDs are missing
-    if (!practitionerId || !appointmentTypeId) {
-      console.warn('Missing practitioner or appointment type ID for invalidation');
-      return;
-    }
+  // Handle null IDs gracefully - don't invalidate if essential IDs are missing
+  if (!practitionerId || !appointmentTypeId) {
+    return;
+  }
 
-    // Invalidate availability slots for all specified dates
-    dates.forEach(date => {
-      invalidateAvailabilitySlotsForDate(queryClient, practitionerId, appointmentTypeId, date);
-    });
+  // Invalidate availability slots and resource availability for all specified dates
+  dates.forEach(date => {
+    invalidateAvailabilitySlotsForDate(queryClient, practitionerId, appointmentTypeId, date);
+    invalidateResourceAvailabilityForDate(queryClient, practitionerId, appointmentTypeId, date);
+  });
 
-    // Invalidate patient appointments if clinic and patient IDs are provided
-    if (clinicId && patientId) {
-      invalidatePatientAppointments(queryClient, clinicId, patientId);
-    }
-  } catch (error) {
-    console.error('Failed to invalidate availability after appointment change:', error);
+  // Invalidate patient appointments if clinic and patient IDs are provided
+  if (clinicId && patientId) {
+    invalidatePatientAppointments(queryClient, clinicId, patientId);
   }
 }

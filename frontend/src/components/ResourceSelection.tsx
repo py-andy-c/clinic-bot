@@ -2,13 +2,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { ResourceAvailabilityResponse, Resource, ResourceType } from '../types';
 import { apiService } from '../services/api';
 import { logger } from '../utils/logger';
-import { getErrorMessage } from '../types/api';
-import {
-  getResourceCacheKey,
-  getCachedResourceAvailability,
-  setCachedResourceAvailability,
-} from '../utils/resourceAvailabilityCache';
-import moment from 'moment-timezone';
+import { useResourceAvailability } from '../hooks/queries/useResourceAvailability';
 
 interface ResourceSelectionProps {
   appointmentTypeId: number | null;
@@ -35,18 +29,30 @@ export const ResourceSelection: React.FC<ResourceSelectionProps> = ({
   selectedResourceIds,
   onSelectionChange,
   onResourcesFound,
-  skipInitialDebounce = false,
   initialResources = [],
   initialAvailability: initialAvailabilityProp = null,
 }) => {
-  const [loading, setLoading] = useState(false);
-  // Initialize availability from initialAvailabilityProp if provided (for immediate use in useMemo)
-  const [availability, setAvailability] = useState<ResourceAvailabilityResponse | null>(initialAvailabilityProp || null);
-  const [error, setError] = useState<string | null>(null);
+  // React Query hook for resource availability
+  const {
+    data: resourceAvailabilityData,
+    isLoading: isLoadingAvailability,
+    error: availabilityError,
+  } = useResourceAvailability({
+    appointmentTypeId: appointmentTypeId || 0,
+    practitionerId: practitionerId || 0,
+    date: date || '',
+    startTime,
+    durationMinutes,
+    excludeCalendarEventId,
+  });
+
+  // Use React Query data, with fallback to initialAvailabilityProp for immediate display
+  const availability = resourceAvailabilityData || initialAvailabilityProp;
+  const loading = isLoadingAvailability && !initialAvailabilityProp; // Don't show loading if we have initial data
+  const error = availabilityError ? 'Failed to load resource availability' : null;
   const lastAutoSelectedSlotRef = useRef<string>('');
   const lastSelectedRef = useRef<number[]>([]);
   const isUpdatingSelectionRef = useRef(false);
-  const isInitialMountRef = useRef(true);
   
   // Collapsible state
   const [isExpanded, setIsExpanded] = useState(false);
@@ -102,7 +108,7 @@ export const ResourceSelection: React.FC<ResourceSelectionProps> = ({
   }, [initialResources]);
 
   // Single source of truth for availability (prioritize pre-fetched prop)
-  const currentAvailability = useMemo(() => initialAvailabilityProp || availability, [initialAvailabilityProp, availability]);
+  const currentAvailability = availability;
 
   // Compute additional resource types from initialResources synchronously (during render)
   const additionalResourceTypesFromInitial = useMemo(() => {
@@ -186,123 +192,21 @@ export const ResourceSelection: React.FC<ResourceSelectionProps> = ({
     return req.available_resources.filter(r => r.is_available).map(r => r.id);
   };
 
-  // Use initialAvailability if provided (pre-fetched in edit mode)
+  // Handle auto-selection when availability data changes
   useEffect(() => {
-    if (initialAvailabilityProp) {
-      setAvailability(initialAvailabilityProp);
-      setLoading(false);
-      
-      // Cache it for future use
-      if (appointmentTypeId && practitionerId && date && startTime) {
-        const timeSlotKey = getResourceCacheKey(
-          appointmentTypeId,
-          practitionerId,
-          date,
-          startTime,
-          durationMinutes,
-          excludeCalendarEventId
-        );
-        setCachedResourceAvailability(timeSlotKey, initialAvailabilityProp);
-        
-        // Mark this slot as processed (auto-selection will be handled by the existing useEffect)
+    if (availability && appointmentTypeId && practitionerId && date && startTime) {
+      const timeSlotKey = `${appointmentTypeId}_${practitionerId}_${date}_${startTime}_${durationMinutes}_${excludeCalendarEventId || 0}`;
+      const needsAutoSelection = lastAutoSelectedSlotRef.current !== timeSlotKey;
+
+      if (needsAutoSelection && !isUpdatingSelectionRef.current) {
+        handleAutoSelection(availability);
         lastAutoSelectedSlotRef.current = timeSlotKey;
+      } else if (!needsAutoSelection) {
+        // Update ref when selection changes due to user action
+        lastSelectedRef.current = selectedResourceIds;
       }
     }
-  }, [initialAvailabilityProp, appointmentTypeId, practitionerId, date, startTime, durationMinutes, excludeCalendarEventId]);
-
-  // Debounced fetch for resource availability (only if no initialAvailability provided)
-  useEffect(() => {
-    // Skip fetch if we have initialAvailability (already set above)
-    if (initialAvailabilityProp) {
-      return;
-    }
-
-    if (!appointmentTypeId || !practitionerId || !date || !startTime) {
-      setAvailability(null);
-      lastAutoSelectedSlotRef.current = '';
-      return;
-    }
-
-    const timeSlotKey = getResourceCacheKey(
-      appointmentTypeId,
-      practitionerId,
-      date,
-      startTime,
-      durationMinutes,
-      excludeCalendarEventId
-    );
-    const needsAutoSelection = lastAutoSelectedSlotRef.current !== timeSlotKey;
-
-    // Check cache first for immediate feedback
-    const cachedData = getCachedResourceAvailability(timeSlotKey);
-    if (cachedData !== null) {
-      setAvailability(cachedData);
-      setLoading(false);
-      
-      // Still trigger selection logic if slot hasn't been auto-selected yet
-      if (needsAutoSelection) {
-        handleAutoSelection(cachedData);
-        lastAutoSelectedSlotRef.current = timeSlotKey;
-      }
-      return;
-    }
-
-    const fetchAvailability = async (signal?: AbortSignal) => {
-      try {
-        setLoading(true);
-        setError(null);
-        
-        const startMoment = moment.tz(`${date}T${startTime}`, 'Asia/Taipei');
-        const endMoment = startMoment.clone().add(durationMinutes, 'minutes');
-        
-        const response = await apiService.getResourceAvailability({
-          appointment_type_id: appointmentTypeId,
-          practitioner_id: practitionerId,
-          date,
-          start_time: startMoment.format('HH:mm'),
-          end_time: endMoment.format('HH:mm'),
-          ...(excludeCalendarEventId ? { exclude_calendar_event_id: excludeCalendarEventId } : {}),
-        }, signal);
-        
-        setCachedResourceAvailability(timeSlotKey, response);
-        setAvailability(response);
-        
-        // Smart resource selection logic: prefer keeping same resources if still available
-        // Only run this logic when time slot changed and hasn't been auto-selected yet
-        if (needsAutoSelection && !isUpdatingSelectionRef.current) {
-          handleAutoSelection(response);
-          lastAutoSelectedSlotRef.current = timeSlotKey;
-        } else {
-          // Update ref when selection changes due to user action (not time slot change)
-          if (!needsAutoSelection) {
-            lastSelectedRef.current = selectedResourceIds;
-          }
-        }
-      } catch (err: any) {
-        if (err?.name === 'CanceledError' || err?.name === 'AbortError') return;
-        logger.error('Failed to fetch resource availability:', err);
-        setError(getErrorMessage(err) || '無法取得資源可用性');
-        // Keep previous availability if we have it, rather than clearing
-      } finally {
-        setLoading(false);
-        isInitialMountRef.current = false;
-      }
-    };
-
-    const abortController = new AbortController();
-
-    if (skipInitialDebounce && isInitialMountRef.current) {
-      fetchAvailability(abortController.signal);
-      return;
-    }
-
-    const timer = setTimeout(() => fetchAvailability(abortController.signal), 300); // 300ms debounce
-
-    return () => {
-      clearTimeout(timer);
-      abortController.abort();
-    };
-  }, [appointmentTypeId, practitionerId, date, startTime, durationMinutes, excludeCalendarEventId, skipInitialDebounce, initialAvailabilityProp]);
+  }, [availability, appointmentTypeId, practitionerId, date, startTime, durationMinutes, excludeCalendarEventId]);
 
   // Extract auto-selection logic to a helper function
   const handleAutoSelection = (response: ResourceAvailabilityResponse) => {

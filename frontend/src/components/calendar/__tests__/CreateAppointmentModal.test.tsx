@@ -14,6 +14,29 @@ import { useAppointmentForm } from '../../../hooks/useAppointmentForm';
 vi.mock('@tanstack/react-query', () => ({
   useQuery: vi.fn(),
 }));
+
+// Mock useResourceAvailability hook
+vi.mock('../../../hooks/queries/useResourceAvailability', () => ({
+  useResourceAvailability: vi.fn(() => ({
+    data: {
+      requirements: [
+        {
+          resource_type_id: 1,
+          resource_type_name: 'Room',
+          required_quantity: 1,
+          available_resources: [
+            { id: 1, name: 'Room A', description: null, is_available: true }
+          ],
+          available_quantity: 1,
+        }
+      ],
+      suggested_allocation: [],
+      conflicts: [],
+    },
+    isLoading: false,
+    error: null,
+  })),
+}));
 import { ModalProvider } from '../../../contexts/ModalContext';
 import { ModalQueueProvider } from '../../../contexts/ModalQueueContext';
 
@@ -40,6 +63,14 @@ vi.mock('../../../services/api', () => ({
     getPatient: vi.fn(),
     getServiceTypeGroups: vi.fn().mockResolvedValue({ groups: [] }),
     checkBatchPractitionerConflicts: vi.fn().mockResolvedValue({ results: [] }),
+    getResourceTypes: vi.fn(() => Promise.resolve([
+      { id: 1, name: 'Room', display_order: 1 },
+      { id: 2, name: 'Equipment', display_order: 2 }
+    ])),
+    getResources: vi.fn(() => Promise.resolve([
+      { id: 1, name: 'Room A', resource_type_id: 1, description: 'Main consultation room' },
+      { id: 2, name: 'Room B', resource_type_id: 1, description: 'Secondary room' }
+    ])),
   },
 }));
 
@@ -64,6 +95,11 @@ vi.mock('../DateTimePicker', () => ({
     }, [selectedPractitionerId, onHasAvailableSlotsChange, onDateSelect, onTimeSelect]);
     return <div data-testid="datetime-picker">DateTimePicker</div>;
   },
+}));
+
+// Mock ResourceSelection to avoid complex async operations
+vi.mock('../../ResourceSelection', () => ({
+  ResourceSelection: () => <div data-testid="resource-selection">ResourceSelection</div>,
 }));
 
 // Mock hooks

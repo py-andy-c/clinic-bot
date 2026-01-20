@@ -72,43 +72,38 @@ describe('React Query Invalidation Utilities', () => {
     });
 
     it('should handle invalid queryClient gracefully', () => {
-      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
       invalidateAvailabilitySlotsForDate(null as any, 123, 456, '2024-01-15');
 
-      expect(consoleSpy).toHaveBeenCalledWith('QueryClient not provided to invalidateAvailabilitySlotsForDate');
       expect(mockInvalidateQueries).not.toHaveBeenCalled();
-
-      consoleSpy.mockRestore();
-    });
-
-    it('should handle errors gracefully', () => {
-      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-      mockInvalidateQueries.mockImplementation(() => {
-        throw new Error('Test error');
-      });
-
-      invalidateAvailabilitySlotsForDate(mockQueryClient, 123, 456, '2024-01-15');
-
-      expect(consoleSpy).toHaveBeenCalledWith('Failed to invalidate availability slots:', expect.any(Error));
-
-      consoleSpy.mockRestore();
     });
   });
 
   describe('invalidateResourceAvailabilityForDate', () => {
-    it('should delegate to invalidateAvailabilitySlotsForDate', () => {
+    it('should invalidate resource-availability queries for specific practitioner, type, and date', () => {
       invalidateResourceAvailabilityForDate(mockQueryClient, 123, 456, '2024-01-15');
 
-      expect(mockInvalidateQueries).toHaveBeenCalledTimes(1); // Only availability slots invalidation
+      expect(mockInvalidateQueries).toHaveBeenCalledWith({
+        predicate: expect.any(Function)
+      });
+
+      // Test the predicate function
+      const predicateCall = mockInvalidateQueries.mock.calls[0][0].predicate;
+      const mockQuery = {
+        queryKey: ['resource-availability', 456, 123, '2024-01-15', '10:00', 60, 789]
+      };
+      expect(predicateCall(mockQuery)).toBe(true);
+
+      // Test non-matching query
+      const nonMatchingQuery = {
+        queryKey: ['resource-availability', 999, 123, '2024-01-15', '10:00', 60, 789]
+      };
+      expect(predicateCall(nonMatchingQuery)).toBe(false);
     });
 
     it('should handle invalid queryClient gracefully', () => {
-      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
       invalidateResourceAvailabilityForDate(null as any, 123, 456, '2024-01-15');
 
-      expect(consoleSpy).toHaveBeenCalledWith('QueryClient not provided to invalidateResourceAvailabilityForDate');
-
-      consoleSpy.mockRestore();
+      expect(mockInvalidateQueries).not.toHaveBeenCalled();
     });
   });
 
@@ -122,12 +117,9 @@ describe('React Query Invalidation Utilities', () => {
     });
 
     it('should handle invalid queryClient gracefully', () => {
-      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
       invalidatePatientAppointments(null as any, 111, 222);
 
-      expect(consoleSpy).toHaveBeenCalledWith('QueryClient not provided to invalidatePatientAppointments');
-
-      consoleSpy.mockRestore();
+      expect(mockInvalidateQueries).not.toHaveBeenCalled();
     });
   });
 
@@ -137,8 +129,9 @@ describe('React Query Invalidation Utilities', () => {
 
       // Should call invalidateQueries multiple times:
       // 2 calls for availability slots (one per date)
+      // 2 calls for resource availability (one per date)
       // 1 call for patient appointments
-      expect(mockInvalidateQueries).toHaveBeenCalledTimes(3);
+      expect(mockInvalidateQueries).toHaveBeenCalledTimes(5);
 
       // Check that patient appointments invalidation was called
       expect(mockInvalidateQueries).toHaveBeenCalledWith({
@@ -149,32 +142,25 @@ describe('React Query Invalidation Utilities', () => {
     it('should handle single date array', () => {
       invalidateAvailabilityAfterAppointmentChange(mockQueryClient, 123, 456, ['2024-01-15'], 111, 222);
 
-      expect(mockInvalidateQueries).toHaveBeenCalledTimes(2); // 1 availability + 1 patient
+      expect(mockInvalidateQueries).toHaveBeenCalledTimes(3); // 1 availability + 1 resource + 1 patient
     });
 
     it('should skip invalidation when required IDs are null', () => {
-      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
       invalidateAvailabilityAfterAppointmentChange(mockQueryClient, null, 456, ['2024-01-15'], 111, 222);
 
-      expect(consoleSpy).toHaveBeenCalledWith('Missing practitioner or appointment type ID for invalidation');
       expect(mockInvalidateQueries).not.toHaveBeenCalled();
-
-      consoleSpy.mockRestore();
     });
 
     it('should skip patient appointments when clinic/patient IDs not provided', () => {
       invalidateAvailabilityAfterAppointmentChange(mockQueryClient, 123, 456, ['2024-01-15']);
 
-      expect(mockInvalidateQueries).toHaveBeenCalledTimes(1); // Only availability slots
+      expect(mockInvalidateQueries).toHaveBeenCalledTimes(2); // availability slots + resource availability
     });
 
     it('should handle invalid queryClient gracefully', () => {
-      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
       invalidateAvailabilityAfterAppointmentChange(null as any, 123, 456, ['2024-01-15'], 111, 222);
 
-      expect(consoleSpy).toHaveBeenCalledWith('QueryClient not provided to invalidateAvailabilityAfterAppointmentChange');
-
-      consoleSpy.mockRestore();
+      expect(mockInvalidateQueries).not.toHaveBeenCalled();
     });
 
     it('should handle empty dates array', () => {
