@@ -5,9 +5,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent, act } from '@testing-library/react';
 import React from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { DateTimePicker } from '../DateTimePicker';
 import { apiService } from '../../../services/api';
-import { useDateSlotSelection } from '../../../hooks/useDateSlotSelection';
+import { useBatchAvailabilitySlots } from '../../../hooks/queries/useAvailabilitySlots';
 
 // Mock react-dom
 vi.mock('react-dom', async () => {
@@ -26,10 +27,23 @@ vi.mock('../../../services/api', () => ({
   },
 }));
 
-// Mock useDateSlotSelection hook
-vi.mock('../../../hooks/useDateSlotSelection', () => ({
-  useDateSlotSelection: vi.fn(),
-}));
+// Mock useBatchAvailabilitySlots hook
+vi.mock('../../../hooks/queries/useAvailabilitySlots');
+
+// Create QueryClient for tests
+const createTestQueryClient = () => new QueryClient({
+  defaultOptions: {
+    queries: { retry: false },
+    mutations: { retry: false },
+  },
+});
+
+// Test wrapper with QueryClientProvider
+const TestWrapper = ({ children }: { children: React.ReactNode }) => (
+  <QueryClientProvider client={createTestQueryClient()}>
+    {children}
+  </QueryClientProvider>
+);
 
 // Mock calendarUtils
 vi.mock('../../../utils/calendarUtils', () => ({
@@ -80,10 +94,18 @@ describe('DateTimePicker', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     
-    // Default mock for useDateSlotSelection
-    vi.mocked(useDateSlotSelection).mockReturnValue({
-      availableSlots: ['09:00', '10:00', '15:00', '16:00'],
-      isLoadingSlots: false,
+    // Default mock for useBatchAvailabilitySlots
+    vi.mocked(useBatchAvailabilitySlots).mockReturnValue({
+      data: {
+        '2024-01-15': [
+          { start_time: '09:00' },
+          { start_time: '10:00' },
+          { start_time: '15:00' },
+          { start_time: '16:00' }
+        ]
+      },
+      isLoading: false,
+      error: null,
     });
 
     // Default mock for checkBatchPractitionerConflicts
@@ -136,7 +158,7 @@ describe('DateTimePicker', () => {
   };
 
   it('should stay collapsed when empty (no auto-expansion)', async () => {
-    render(<DateTimePicker {...defaultProps} />);
+    render(<TestWrapper><DateTimePicker {...defaultProps} /></TestWrapper>);
 
     // Should stay collapsed when empty (no date or time selected)
     // Check that calendar navigation buttons are not visible
@@ -149,11 +171,13 @@ describe('DateTimePicker', () => {
   it('should expand when clicking collapsed button', async () => {
     // Render with date and time selected so it starts collapsed
     render(
-      <DateTimePicker
-        {...defaultProps}
-        selectedDate="2024-01-15"
-        selectedTime="09:00"
-      />
+      <TestWrapper>
+        <DateTimePicker
+          {...defaultProps}
+          selectedDate="2024-01-15"
+          selectedTime="09:00"
+        />
+      </TestWrapper>
     );
     
     // Should be collapsed initially when both date and time are selected
@@ -170,11 +194,13 @@ describe('DateTimePicker', () => {
 
   it('should initialize temp state from confirmed state on expand', async () => {
     render(
-      <DateTimePicker
-        {...defaultProps}
-        selectedDate="2024-01-15"
-        selectedTime="09:00"
-      />
+      <TestWrapper>
+        <DateTimePicker
+          {...defaultProps}
+          selectedDate="2024-01-15"
+          selectedTime="09:00"
+        />
+      </TestWrapper>
     );
     
     const button = screen.getByText(/2024/).closest('button');
@@ -196,11 +222,13 @@ describe('DateTimePicker', () => {
 
   it('should update tempTime and lastManuallySelectedTime when time is selected', async () => {
     render(
-      <DateTimePicker
-        {...defaultProps}
-        selectedDate="2024-01-15"
-        selectedTime=""
-      />
+      <TestWrapper>
+        <DateTimePicker
+          {...defaultProps}
+          selectedDate="2024-01-15"
+          selectedTime=""
+        />
+      </TestWrapper>
     );
 
     // Should stay collapsed, manually expand
@@ -230,11 +258,13 @@ describe('DateTimePicker', () => {
 
   it('should preserve lastManuallySelectedTime when switching dates', async () => {
     render(
-      <DateTimePicker
-        {...defaultProps}
-        selectedDate="2024-01-15"
-        selectedTime=""
-      />
+      <TestWrapper>
+        <DateTimePicker
+          {...defaultProps}
+          selectedDate="2024-01-15"
+          selectedTime=""
+        />
+      </TestWrapper>
     );
 
     // Should stay collapsed, manually expand
@@ -273,11 +303,13 @@ describe('DateTimePicker', () => {
 
   it('should save both date and time on collapse if both are valid', async () => {
     render(
-      <DateTimePicker
-        {...defaultProps}
-        selectedDate="2024-01-15"
+      <TestWrapper>
+        <DateTimePicker
+          {...defaultProps}
+          selectedDate="2024-01-15"
         selectedTime="09:00"
       />
+      </TestWrapper>
     );
     
     const button = screen.getByText(/2024/).closest('button');
@@ -321,11 +353,13 @@ describe('DateTimePicker', () => {
 
   it('should clear both date and time on collapse if time is not selected', async () => {
     render(
-      <DateTimePicker
-        {...defaultProps}
-        selectedDate="2024-01-15"
-        selectedTime="09:00"
-      />
+      <TestWrapper>
+        <DateTimePicker
+          {...defaultProps}
+          selectedDate="2024-01-15"
+          selectedTime="09:00"
+        />
+      </TestWrapper>
     );
     
     const button = screen.getByText(/2024/).closest('button');
@@ -349,11 +383,13 @@ describe('DateTimePicker', () => {
 
   it('should clear lastManuallySelectedTime when practitioner changes', async () => {
     const { rerender } = render(
-      <DateTimePicker
-        {...defaultProps}
-        selectedDate="2024-01-15"
-        selectedPractitionerId={1}
-      />
+      <TestWrapper>
+        <DateTimePicker
+          {...defaultProps}
+          selectedDate="2024-01-15"
+          selectedPractitionerId={1}
+        />
+      </TestWrapper>
     );
 
     // Should stay collapsed, manually expand
@@ -379,11 +415,13 @@ describe('DateTimePicker', () => {
     
     // Change practitioner - this should clear lastManuallySelectedTime
     rerender(
-      <DateTimePicker
-        {...defaultProps}
-        selectedDate="2024-01-15"
-        selectedPractitionerId={2}
-      />
+      <TestWrapper>
+        <DateTimePicker
+          {...defaultProps}
+          selectedDate="2024-01-15"
+          selectedPractitionerId={2}
+        />
+      </TestWrapper>
     );
     
     // lastManuallySelectedTime should be cleared (tested indirectly - component re-renders)
@@ -392,11 +430,13 @@ describe('DateTimePicker', () => {
 
   it('should clear lastManuallySelectedTime when appointment type changes', async () => {
     const { rerender } = render(
-      <DateTimePicker
-        {...defaultProps}
-        selectedDate="2024-01-15"
-        appointmentTypeId={1}
-      />
+      <TestWrapper>
+        <DateTimePicker
+          {...defaultProps}
+          selectedDate="2024-01-15"
+          appointmentTypeId={1}
+        />
+      </TestWrapper>
     );
 
     // Should remain collapsed (no auto-expansion)
@@ -425,11 +465,13 @@ describe('DateTimePicker', () => {
 
     // Change appointment type - this should clear lastManuallySelectedTime
     rerender(
-      <DateTimePicker
-        {...defaultProps}
-        selectedDate="2024-01-15"
-        appointmentTypeId={2}
-      />
+      <TestWrapper>
+        <DateTimePicker
+          {...defaultProps}
+          selectedDate="2024-01-15"
+          appointmentTypeId={2}
+        />
+      </TestWrapper>
     );
 
     // lastManuallySelectedTime should be cleared (tested indirectly - component re-renders)
@@ -437,11 +479,13 @@ describe('DateTimePicker', () => {
 
   it('should display time slots when date is selected', async () => {
     render(
-      <DateTimePicker
-        {...defaultProps}
-        selectedDate="2024-01-15"
-        selectedTime="09:00"
-      />
+      <TestWrapper>
+        <DateTimePicker
+          {...defaultProps}
+          selectedDate="2024-01-15"
+          selectedTime="09:00"
+        />
+      </TestWrapper>
     );
     
     const button = screen.getByText(/2024/).closest('button');
@@ -461,18 +505,27 @@ describe('DateTimePicker', () => {
   });
 
   it('should keep conflicted time when collapsed (no auto-expansion)', async () => {
-    // Render with a time that's not in available slots
-    vi.mocked(useDateSlotSelection).mockReturnValue({
-      availableSlots: ['10:00', '11:00', '15:00'], // 09:00 is not available
-      isLoadingSlots: false,
+    // Mock React Query to return slots that don't include 09:00
+    vi.mocked(useBatchAvailabilitySlots).mockReturnValue({
+      data: {
+        '2024-01-15': [
+          { start_time: '10:00' },
+          { start_time: '11:00' },
+          { start_time: '15:00' }
+        ]
+      },
+      isLoading: false,
+      error: null,
     });
 
     render(
-      <DateTimePicker
-        {...defaultProps}
-        selectedDate="2024-01-15"
-        selectedTime="09:00" // This time is not in available slots
-      />
+      <TestWrapper>
+        <DateTimePicker
+          {...defaultProps}
+          selectedDate="2024-01-15"
+          selectedTime="09:00" // This time is not in available slots
+        />
+      </TestWrapper>
     );
 
     // Should NOT clear the time or auto-expand - keep conflicted time with warnings
@@ -488,18 +541,27 @@ describe('DateTimePicker', () => {
   });
 
   it('should clear conflicted time when expanded (user intent to reselect)', async () => {
-    // Render with a time that's not in available slots
-    vi.mocked(useDateSlotSelection).mockReturnValue({
-      availableSlots: ['10:00', '11:00', '15:00'], // 09:00 is not available
-      isLoadingSlots: false,
+    // Mock React Query to return slots that don't include 09:00
+    vi.mocked(useBatchAvailabilitySlots).mockReturnValue({
+      data: {
+        '2024-01-15': [
+          { start_time: '10:00' },
+          { start_time: '11:00' },
+          { start_time: '15:00' }
+        ]
+      },
+      isLoading: false,
+      error: null,
     });
 
     render(
-      <DateTimePicker
-        {...defaultProps}
-        selectedDate="2024-01-15"
-        selectedTime="09:00" // This time is not in available slots
-      />
+      <TestWrapper>
+        <DateTimePicker
+          {...defaultProps}
+          selectedDate="2024-01-15"
+          selectedTime="09:00" // This time is not in available slots
+        />
+      </TestWrapper>
     );
 
     // Click to expand the picker
@@ -517,11 +579,13 @@ describe('DateTimePicker', () => {
 
   it('should call onTimeSelect immediately when time is selected', async () => {
     render(
-      <DateTimePicker
-        {...defaultProps}
-        selectedDate="2024-01-15"
-        selectedTime="09:00"
-      />
+      <TestWrapper>
+        <DateTimePicker
+          {...defaultProps}
+          selectedDate="2024-01-15"
+          selectedTime="09:00"
+        />
+      </TestWrapper>
     );
     
     // Expand the picker

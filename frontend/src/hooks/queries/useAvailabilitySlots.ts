@@ -53,6 +53,53 @@ export const useAvailabilitySlots = ({
   });
 };
 
+/**
+ * Hook for fetching batch availability slots for multiple dates
+ * Used by calendar components to show availability across a month
+ */
+export const useBatchAvailabilitySlots = ({
+  practitionerId,
+  appointmentTypeId,
+  dates,
+  excludeCalendarEventId,
+  enabled = true,
+}: {
+  practitionerId: number;
+  appointmentTypeId: number;
+  dates: string[];
+  excludeCalendarEventId?: number | undefined;
+  enabled?: boolean;
+}) => {
+  return useQuery({
+    queryKey: ['batch-availability-slots', practitionerId, appointmentTypeId, dates.sort().join(','), excludeCalendarEventId],
+    queryFn: async (): Promise<Record<string, TimeInterval[]>> => {
+      if (dates.length === 0) return {};
+
+      const response = await apiService.getBatchAvailableSlots(
+        practitionerId,
+        dates,
+        appointmentTypeId,
+        excludeCalendarEventId
+      );
+
+      // Convert array response to date-keyed object
+      const result: Record<string, TimeInterval[]> = {};
+      response.results.forEach((item) => {
+        if (item.date && item.available_slots) {
+          result[item.date] = item.available_slots;
+        }
+      });
+
+      return result;
+    },
+    enabled: enabled && !!(practitionerId && appointmentTypeId && dates.length > 0),
+    staleTime: 30 * 1000,
+    gcTime: 5 * 60 * 1000,
+    refetchInterval: 60 * 1000,
+    refetchIntervalInBackground: true,
+    refetchOnWindowFocus: true,
+  });
+};
 
 /**
  * Mutation hook for creating appointments with optimistic updates

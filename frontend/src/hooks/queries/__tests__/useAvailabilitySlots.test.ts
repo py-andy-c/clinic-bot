@@ -6,7 +6,7 @@ import React from 'react';
 import { renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { useAvailabilitySlots, useCreateAppointmentOptimistic } from '../useAvailabilitySlots';
+import { useAvailabilitySlots, useBatchAvailabilitySlots, useCreateAppointmentOptimistic } from '../useAvailabilitySlots';
 import { apiService } from '../../../services/api';
 
 // Mock the API service
@@ -107,6 +107,69 @@ describe('useAvailabilitySlots', () => {
   });
 });
 
+describe('useBatchAvailabilitySlots', () => {
+  let queryClient: QueryClient;
+
+  beforeEach(() => {
+    queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    });
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    queryClient.clear();
+  });
+
+  it('should fetch batch availability slots successfully', async () => {
+    const mockResponse = {
+      results: [
+        { date: '2024-01-01', available_slots: [{ start_time: '09:00:00', end_time: '10:00:00' }] },
+        { date: '2024-01-02', available_slots: [{ start_time: '10:00:00', end_time: '11:00:00' }] },
+      ],
+    };
+
+    vi.mocked(apiService.getBatchAvailableSlots).mockResolvedValue(mockResponse);
+
+    const { result } = renderHook(
+      () => useBatchAvailabilitySlots({
+        practitionerId: 1,
+        appointmentTypeId: 2,
+        dates: ['2024-01-01', '2024-01-02'],
+        excludeCalendarEventId: 3,
+      }),
+      { wrapper: createWrapper(queryClient) }
+    );
+
+    await waitFor(() => {
+      expect(result.current.isSuccess).toBe(true);
+    });
+
+    expect(result.current.data).toEqual({
+      '2024-01-01': [{ start_time: '09:00:00', end_time: '10:00:00' }],
+      '2024-01-02': [{ start_time: '10:00:00', end_time: '11:00:00' }],
+    });
+  });
+
+  it('should handle empty dates array', () => {
+    const { result } = renderHook(
+      () => useBatchAvailabilitySlots({
+        practitionerId: 1,
+        appointmentTypeId: 2,
+        dates: [],
+      }),
+      { wrapper: createWrapper(queryClient) }
+    );
+
+    expect(result.current.fetchStatus).toBe('idle');
+    expect(result.current.isSuccess).toBe(false);
+    expect(result.current.data).toBeUndefined();
+    expect(apiService.getBatchAvailableSlots).not.toHaveBeenCalled();
+  });
+});
 
 describe('useCreateAppointmentOptimistic', () => {
   let queryClient: QueryClient;

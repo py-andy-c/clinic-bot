@@ -9,7 +9,6 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { LoadingSpinner, TimeInput, InfoButton, InfoModal } from '../shared';
 import { apiService } from '../../services/api';
 import { logger } from '../../utils/logger';
-import { useDateSlotSelection } from '../../hooks/useDateSlotSelection';
 import { useDebounce } from '../../hooks/useDebounce';
 import {
   generateCalendarDays,
@@ -19,11 +18,7 @@ import {
   buildDatesToCheckForMonth,
   formatAppointmentDateTime,
 } from '../../utils/calendarUtils';
-import {
-  getCacheKey,
-  getCachedSlots,
-  setCachedSlots,
-} from '../../utils/availabilityCache';
+import { useBatchAvailabilitySlots } from '../../hooks/queries/useAvailabilitySlots';
 import moment from 'moment-timezone';
 
 export interface DateTimePickerProps {
@@ -96,12 +91,8 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
     }
     return new Date();
   });
+  // Track available dates for month view highlighting
   const [datesWithSlots, setDatesWithSlots] = useState<Set<string>>(new Set());
-  const [loadingAvailability, setLoadingAvailability] = useState(false);
-  // Cache batch availability data to avoid redundant API calls when dates are selected
-  const [cachedAvailabilityData, setCachedAvailabilityData] = useState<Map<string, { slots: any[] }>>(new Map());
-  // Track if batch has been initiated to prevent race condition with date selection
-  const batchInitiatedRef = useRef(false);
   // Track if we've initialized temp state for this expand session
   const hasInitializedRef = useRef(false);
   // Track if user manually collapsed to prevent immediate re-expansion
@@ -127,42 +118,6 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
   const displayDate = (isExpanded && tempDate) ? tempDate : (tempDate || selectedDate);
   const displayTime = isExpanded ? tempTime : selectedTime;
 
-  // Use custom hook for date/slot selection logic
-  const { availableSlots, isLoadingSlots } = useDateSlotSelection({
-    selectedDate: displayDate,
-    appointmentTypeId,
-    selectedPractitionerId,
-    excludeCalendarEventId: excludeCalendarEventId ?? null,
-    currentMonth,
-    cachedAvailabilityData,
-    loadingAvailability,
-    batchInitiatedRef,
-  });
-
-  // Build time slots list - backend already includes original time when excludeCalendarEventId is provided
-  // Use tempDate when expanded, selectedDate when collapsed
-  const allTimeSlots = useMemo(() => {
-    // If there's a practitioner error, don't show any slots
-    if (practitionerError) {
-      return [];
-    }
-    
-    const slots = [...availableSlots];
-
-    // In edit mode, if we are on the original date and practitioner, 
-    // ensure the original time is included in the list even if it's not in the standard grid.
-    if (excludeCalendarEventId && 
-        displayDate === initialValuesRef.current.date && 
-        selectedPractitionerId === initialValuesRef.current.practitionerId &&
-        initialValuesRef.current.time &&
-        !slots.includes(initialValuesRef.current.time)) {
-      slots.push(initialValuesRef.current.time);
-      slots.sort();
-    }
-    
-    return slots;
-  }, [availableSlots, practitionerError, excludeCalendarEventId, displayDate, selectedPractitionerId]);
-
   // Debounced conflict checking - debounce time/date changes, but check immediately when practitioner/appointment type changes
   const debouncedTime = useDebounce(displayTime, 300);
   const debouncedDate = useDebounce(displayDate, 300);
@@ -184,94 +139,6 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
     time: null
   });
 
-  // Conflict detection effect - always check conflicts when date/time/practitioner/appointment type changes
-  useEffect(() => {
-    // Check if practitioner or appointment type changed (Immediate triggers)
-    const practitionerOrTypeChanged = 
-      prevPractitionerRef.current !== selectedPractitionerId || 
-      prevAppointmentTypeRef.current !== appointmentTypeId;
-    
-    // Determine which values to use for checking
-    // Use immediate values for practitioner/type changes, debounced for date/time changes
-    const checkDate = practitionerOrTypeChanged ? displayDate : debouncedDate;
-    const checkTime = practitionerOrTypeChanged ? displayTime : debouncedTime;
-
-    // Update refs for next run
-    prevPractitionerRef.current = selectedPractitionerId;
-    prevAppointmentTypeRef.current = appointmentTypeId;
-
-    // Skip if missing required values
-    if (!checkDate || !checkTime || !selectedPractitionerId || !appointmentTypeId) {
-      return;
-    }
-
-    // Avoid redundant checks if values haven't changed from last checked
-    if (
-      lastCheckedRef.current.practitionerId === selectedPractitionerId &&
-      lastCheckedRef.current.typeId === appointmentTypeId &&
-      lastCheckedRef.current.date === checkDate &&
-      lastCheckedRef.current.time === checkTime
-    ) {
-      return;
-    }
-
-    // Update last checked ref
-    lastCheckedRef.current = {
-      practitionerId: selectedPractitionerId,
-      typeId: appointmentTypeId,
-      date: checkDate,
-      time: checkTime
-    };
-
-    // Skip initial conflict check for existing appointments (Stable Mount)
-    const isOriginalValue = 
-      checkDate === initialValuesRef.current.date && 
-      checkTime === initialValuesRef.current.time && 
-      selectedPractitionerId === initialValuesRef.current.practitionerId;
-    
-    if (isOriginalValue && excludeCalendarEventId) {
-      return;
-    }
-
-    const abortController = new AbortController();
-
-    const checkConflicts = async () => {
-      // If the selected time is in our cached available slots, assume no conflict
-      // This provides a snappy UX for standard slot selection.
-      // Final validation still happens on the backend during save.
-      if (allTimeSlots.includes(checkTime)) {
-        setIsCheckingConflict(false);
-        return;
-      }
-
-      setIsCheckingConflict(true);
-      try {
-        // Use batch API for consistency - just check if conflicts exist
-        const practitioner: { user_id: number; exclude_calendar_event_id?: number } = { user_id: selectedPractitionerId };
-        if (excludeCalendarEventId != null) {
-          practitioner.exclude_calendar_event_id = excludeCalendarEventId;
-        }
-        const practitioners = [practitioner];
-
-        await apiService.checkBatchPractitionerConflicts({
-          practitioners,
-          date: checkDate,
-          start_time: checkTime,
-          appointment_type_id: appointmentTypeId,
-        });
-        // Conflict checking complete - loading state will be cleared
-      } catch (error: any) {
-        if (error?.name === 'CanceledError' || error?.name === 'AbortError') return;
-        logger.error('Failed to check scheduling conflicts:', error);
-        // Continue without blocking - conflicts will be checked by parent component
-      } finally {
-        setIsCheckingConflict(false);
-      }
-    };
-
-    checkConflicts();
-    return () => abortController.abort();
-  }, [debouncedDate, debouncedTime, selectedPractitionerId, appointmentTypeId, excludeCalendarEventId, displayDate, displayTime, allTimeSlots]);
 
   // Update currentMonth when selectedDate changes (but only if it's a different month)
   // Don't reset if user manually navigated to a different month
@@ -297,11 +164,9 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
     }
   }, [selectedDate]); // Only run when selectedDate changes, not when currentMonth changes
 
-  // Clear slots and cache when practitioner changes or when practitioner error is detected
+  // Clear slots when practitioner changes or when practitioner error is detected
   useEffect(() => {
     setDatesWithSlots(new Set());
-    setCachedAvailabilityData(new Map());
-    batchInitiatedRef.current = false;
     setLastManuallySelectedTime(null); // Clear last manually selected time
     if (onHasAvailableSlotsChange) {
       onHasAvailableSlotsChange(false);
@@ -356,110 +221,169 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
     }
   }, [parentOverrideMode]);
 
-  // Load month availability for calendar
+  // Load month availability for calendar using React Query
+  const datesToCheck = useMemo(() => buildDatesToCheckForMonth(currentMonth), [currentMonth]);
+
+  const { data: batchAvailabilityData, isLoading: isBatchLoading, error: batchError } = useBatchAvailabilitySlots({
+    practitionerId: selectedPractitionerId!,
+    appointmentTypeId: appointmentTypeId!,
+    dates: datesToCheck,
+    excludeCalendarEventId: excludeCalendarEventId || undefined,
+    enabled: !!(selectedPractitionerId && appointmentTypeId && datesToCheck.length > 0),
+  });
+
+  // Update available dates when batch data changes
   useEffect(() => {
-    // Only load when picker is expanded - no background loading on practitioner/appointment type changes
-    const shouldLoad = isExpanded;
-    
-    if (!shouldLoad || !appointmentTypeId || !selectedPractitionerId) {
-      if (!shouldLoad) {
+    if (batchError) {
+      const statusCode = (batchError as any)?.response?.status;
+      if (statusCode === 404) {
+        const practitionerErrorMessage = '此治療師不提供此預約類型';
+        if (onPractitionerError) onPractitionerError(practitionerErrorMessage);
         setDatesWithSlots(new Set());
-        batchInitiatedRef.current = false;
+        if (onHasAvailableSlotsChange) onHasAvailableSlotsChange(false);
+      } else {
+        setDatesWithSlots(new Set());
       }
+      return;
+    }
+
+    if (batchAvailabilityData) {
+      const datesWithAvailableSlots = new Set<string>();
+      Object.entries(batchAvailabilityData).forEach(([date, slots]) => {
+        if (slots.length > 0) {
+          datesWithAvailableSlots.add(date);
+        }
+      });
+      setDatesWithSlots(datesWithAvailableSlots);
+    }
+  }, [batchAvailabilityData, batchError, onPractitionerError, onHasAvailableSlotsChange]);
+
+  // Get available slots for selected date from React Query data
+  const availableSlots = useMemo(() => {
+    if (!displayDate || !batchAvailabilityData) return [];
+
+    const dateSlots = batchAvailabilityData[displayDate];
+    if (!dateSlots) return [];
+
+    return dateSlots.map(slot => slot.start_time);
+  }, [displayDate, batchAvailabilityData]);
+
+  const isLoadingSlots = isBatchLoading;
+
+  // Build time slots list - backend already includes original time when excludeCalendarEventId is provided
+  // Use tempDate when expanded, selectedDate when collapsed
+  const allTimeSlots = useMemo(() => {
+    // If there's a practitioner error, don't show any slots
+    if (practitionerError) {
+      return [];
+    }
+
+    const slots = [...availableSlots];
+
+    // In edit mode, if we are on the original date and practitioner,
+    // ensure the original time is included in the list even if it's not in the standard grid.
+    if (excludeCalendarEventId &&
+        displayDate === initialValuesRef.current.date &&
+        selectedPractitionerId === initialValuesRef.current.practitionerId &&
+        initialValuesRef.current.time &&
+        !slots.includes(initialValuesRef.current.time)) {
+      slots.push(initialValuesRef.current.time);
+      slots.sort();
+    }
+
+    return slots;
+  }, [availableSlots, practitionerError, excludeCalendarEventId, displayDate, selectedPractitionerId]);
+
+  // Conflict detection effect - always check conflicts when date/time/practitioner/appointment type changes
+  useEffect(() => {
+    // Check if practitioner or appointment type changed (Immediate triggers)
+    const practitionerOrTypeChanged =
+      prevPractitionerRef.current !== selectedPractitionerId ||
+      prevAppointmentTypeRef.current !== appointmentTypeId;
+
+    // Determine which values to use for checking
+    // Use immediate values for practitioner/type changes, debounced for date/time changes
+    const checkDate = practitionerOrTypeChanged ? displayDate : debouncedDate;
+    const checkTime = practitionerOrTypeChanged ? displayTime : debouncedTime;
+
+    // Update refs for next run
+    prevPractitionerRef.current = selectedPractitionerId;
+    prevAppointmentTypeRef.current = appointmentTypeId;
+
+    // Skip if missing required values
+    if (!checkDate || !checkTime || !selectedPractitionerId || !appointmentTypeId) {
+      return;
+    }
+
+    // Avoid redundant checks if values haven't changed from last checked
+    if (
+      lastCheckedRef.current.practitionerId === selectedPractitionerId &&
+      lastCheckedRef.current.typeId === appointmentTypeId &&
+      lastCheckedRef.current.date === checkDate &&
+      lastCheckedRef.current.time === checkTime
+    ) {
+      return;
+    }
+
+    // Update last checked ref
+    lastCheckedRef.current = {
+      practitionerId: selectedPractitionerId,
+      typeId: appointmentTypeId,
+      date: checkDate,
+      time: checkTime
+    };
+
+    // Skip initial conflict check for existing appointments (Stable Mount)
+    const isOriginalValue =
+      checkDate === initialValuesRef.current.date &&
+      checkTime === initialValuesRef.current.time &&
+      selectedPractitionerId === initialValuesRef.current.practitionerId;
+
+    if (isOriginalValue && excludeCalendarEventId) {
       return;
     }
 
     const abortController = new AbortController();
 
-    const loadMonthAvailability = async () => {
-      setLoadingAvailability(true);
-      batchInitiatedRef.current = true;
+    const checkConflicts = async () => {
+      // If the selected time is in our cached available slots, assume no conflict
+      // This provides a snappy UX for standard slot selection.
+      // Final validation still happens on the backend during save.
+      if (allTimeSlots.includes(checkTime)) {
+        setIsCheckingConflict(false);
+        return;
+      }
+
+      setIsCheckingConflict(true);
       try {
-        const datesToCheck = buildDatesToCheckForMonth(currentMonth);
-        if (datesToCheck.length === 0) {
-          setDatesWithSlots(new Set());
-          setLoadingAvailability(false);
-          return;
+        // Use batch API for consistency - just check if conflicts exist
+        const practitioner: { user_id: number; exclude_calendar_event_id?: number } = { user_id: selectedPractitionerId };
+        if (excludeCalendarEventId != null) {
+          practitioner.exclude_calendar_event_id = excludeCalendarEventId;
         }
+        const practitioners = [practitioner];
 
-        const monthKey = `${currentMonth.getFullYear()}-${currentMonth.getMonth() + 1}`;
-        
-        // Check global cache first
-        const datesWithAvailableSlots = new Set<string>();
-        const newLocalCache = new Map<string, { slots: any[] }>();
-        let allInCache = true;
-
-        datesToCheck.forEach(date => {
-          const cacheKey = getCacheKey(selectedPractitionerId, appointmentTypeId, monthKey, date);
-          const cachedSlots = getCachedSlots(cacheKey);
-          if (cachedSlots !== null) {
-            newLocalCache.set(`${selectedPractitionerId}-${date}`, { slots: cachedSlots });
-            if (cachedSlots.length > 0) datesWithAvailableSlots.add(date);
-          } else {
-            allInCache = false;
-          }
+        await apiService.checkBatchPractitionerConflicts({
+          practitioners,
+          date: checkDate,
+          start_time: checkTime,
+          appointment_type_id: appointmentTypeId,
         });
-
-        if (allInCache && datesToCheck.length > 0) {
-          setCachedAvailabilityData(newLocalCache);
-          setDatesWithSlots(datesWithAvailableSlots);
-          setLoadingAvailability(false);
-          return;
-        }
-
-        try {
-          const batchResponse = await apiService.getBatchAvailableSlots(
-            selectedPractitionerId,
-            datesToCheck,
-            appointmentTypeId,
-            excludeCalendarEventId ?? undefined,
-            abortController.signal
-          );
-
-          const finalDatesWithAvailableSlots = new Set<string>();
-          const finalLocalCache = new Map<string, { slots: any[] }>();
-
-          batchResponse.results.forEach((result) => {
-            if (result.date) {
-              const cacheKey = getCacheKey(selectedPractitionerId, appointmentTypeId, monthKey, result.date);
-              const slots = result.available_slots || [];
-              
-              setCachedSlots(cacheKey, slots);
-              finalLocalCache.set(`${selectedPractitionerId}-${result.date}`, { slots });
-              
-              if (slots.length > 0) {
-                finalDatesWithAvailableSlots.add(result.date);
-              }
-            }
-          });
-
-          setCachedAvailabilityData(finalLocalCache);
-          setDatesWithSlots(finalDatesWithAvailableSlots);
-        } catch (err: any) {
-          if (err?.name === 'CanceledError' || err?.name === 'AbortError') return;
-          const statusCode = err?.response?.status;
-          if (statusCode === 404) {
-            const practitionerErrorMessage = '此治療師不提供此預約類型';
-            if (onPractitionerError) onPractitionerError(practitionerErrorMessage);
-            setDatesWithSlots(new Set());
-            if (onHasAvailableSlotsChange) onHasAvailableSlotsChange(false);
-          } else {
-            setDatesWithSlots(new Set());
-          }
-        }
-      } catch (err) {
-        if ((err as any)?.name === 'CanceledError' || (err as any)?.name === 'AbortError') return;
-        logger.error('Failed to load month availability:', err);
+        // Conflict checking complete - loading state will be cleared
+      } catch (error: any) {
+        if (error?.name === 'CanceledError' || error?.name === 'AbortError') return;
+        logger.error('Failed to check scheduling conflicts:', error);
+        // Continue without blocking - conflicts will be checked by parent component
       } finally {
-        setLoadingAvailability(false);
+        setIsCheckingConflict(false);
       }
     };
 
-    loadMonthAvailability();
+    checkConflicts();
     return () => abortController.abort();
-  }, [currentMonth, appointmentTypeId, selectedPractitionerId, excludeCalendarEventId, isExpanded, onHasAvailableSlotsChange, onPractitionerError]);
+  }, [debouncedDate, debouncedTime, selectedPractitionerId, appointmentTypeId, excludeCalendarEventId, displayDate, displayTime, allTimeSlots]);
 
-  // Date/slot selection logic is now handled by useDateSlotSelection hook
+  // Date/slot selection logic is now handled directly
 
   // Calendar helpers
   const calendarDays = useMemo(() => generateCalendarDays(currentMonth), [currentMonth]);
@@ -554,24 +478,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
     }
 
     // Skip check while slots are loading to avoid clearing time prematurely
-    // Also check loadingAvailability since isLoadingSlots might be false while batch is loading
-    if (isLoadingSlots || loadingAvailability || !selectedTime || !selectedDate || !selectedPractitionerId) {
-      return;
-    }
-
-    // Only check availability if batch has been initiated (meaning we've attempted to load slots)
-    // This prevents clearing time before slots have been loaded
-    if (!batchInitiatedRef.current) {
-      return;
-    }
-
-    // Check if cache has data for this date - if not, slots haven't loaded yet
-    // We need to wait for the cache to be populated before we can determine if time is unavailable
-    const cacheKey = `${selectedPractitionerId}-${selectedDate}`;
-    const hasCacheData = cachedAvailabilityData.has(cacheKey);
-
-    // If cache doesn't have data for this date yet, don't clear - slots are still loading
-    if (!hasCacheData) {
+    if (isLoadingSlots || !selectedTime || !selectedDate || !selectedPractitionerId) {
       return;
     }
 
@@ -582,21 +489,21 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
       return;
     }
 
-    // Check if selectedTime is unavailable:
-    // - No slots available for the date (only if not in edit mode), OR
-    // - Slots are available but selectedTime is not in them
-    const isUnavailable = (!excludeCalendarEventId && allTimeSlots.length === 0) || 
-                          (allTimeSlots.length > 0 && !allTimeSlots.includes(selectedTime));
-    
-    if (isUnavailable) {
-      onTimeSelect('');
-      // If already expanded, clear temp time; if collapsed, don't auto-expand
-      if (isExpanded) {
+    // Only validate time availability when expanded - when collapsed, keep conflicted times
+    // User expanding indicates intent to reselect, so clear invalid times then
+    if (isExpanded) {
+      // Check if selectedTime is unavailable:
+      // - No slots available for the date (only if not in edit mode), OR
+      // - Slots are available but selectedTime is not in them
+      const isUnavailable = (!excludeCalendarEventId && allTimeSlots.length === 0) ||
+                            (allTimeSlots.length > 0 && !allTimeSlots.includes(selectedTime));
+
+      if (isUnavailable) {
+        onTimeSelect('');
         setTempTime('');
       }
-      // Don't auto-expand - let user decide when to expand
     }
-  }, [selectedTime, allTimeSlots, isLoadingSlots, loadingAvailability, selectedDate, selectedPractitionerId, appointmentTypeId, cachedAvailabilityData, excludeCalendarEventId, onTimeSelect, overrideMode]);
+  }, [selectedTime, allTimeSlots, isLoadingSlots, selectedDate, selectedPractitionerId, appointmentTypeId, excludeCalendarEventId, onTimeSelect, overrideMode, isExpanded]);
 
   // Auto-select last manually selected time when date changes in expanded view
   useEffect(() => {
@@ -765,7 +672,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
         </div>
 
         {/* Calendar Grid */}
-        {loadingAvailability ? (
+        {isBatchLoading ? (
           <div className="flex items-center justify-center py-4">
             <LoadingSpinner size="sm" />
           </div>
@@ -833,7 +740,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
       )}
 
       {/* Time Selection - hide completely during batch availability loading */}
-      {displayDate && !loadingAvailability ? (
+      {displayDate && !isBatchLoading ? (
         <div>
           {isLoadingSlots ? (
             <div className="flex items-center justify-center py-4">
@@ -905,7 +812,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
             </div>
           )}
         </div>
-      ) : displayDate && loadingAvailability ? (
+      ) : displayDate && isBatchLoading ? (
         <div className="flex items-center justify-center py-4">
           <LoadingSpinner size="sm" />
         </div>
