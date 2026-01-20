@@ -17,6 +17,15 @@ export default {
     ok: '確定',
     unknownError: '發生未知錯誤，請稍後再試',
   },
+  errors: {
+    networkError: '網路連線錯誤，請檢查網路連線後重試',
+    serverError: '伺服器錯誤，請稍後再試',
+    authError: '認證錯誤，請重新登入',
+    calendarLoadFailed: '行事曆載入失敗，請稍後再試。如問題持續，請聯絡系統管理員。',
+    appointmentCreateFailed: '預約建立失敗',
+    appointmentEditFailed: '預約更新失敗',
+    appointmentDeleteFailed: '預約取消失敗',
+  },
   status: {
     error: '發生錯誤',
     invalidAccess: '存取無效',

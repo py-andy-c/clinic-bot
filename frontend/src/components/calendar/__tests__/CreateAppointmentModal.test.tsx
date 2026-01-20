@@ -39,6 +39,7 @@ vi.mock('../../../services/api', () => ({
     createPatient: vi.fn(),
     getPatient: vi.fn(),
     getServiceTypeGroups: vi.fn().mockResolvedValue({ groups: [] }),
+    checkBatchPractitionerConflicts: vi.fn().mockResolvedValue({ results: [] }),
   },
 }));
 

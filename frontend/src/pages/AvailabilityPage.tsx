@@ -13,8 +13,6 @@ import { EventModal } from '../components/calendar/EventModal';
 import { CreateAppointmentModal } from '../components/calendar/CreateAppointmentModal';
 import { ExceptionModal } from '../components/calendar/ExceptionModal';
 import { EditAppointmentModal } from '../components/calendar/EditAppointmentModal';
-import { DeleteConfirmationModal } from '../components/calendar/DeleteConfirmationModal';
-import { ConflictModal, ConflictAppointment } from '../components/calendar/ConflictModal';
 import { CancellationNoteModal } from '../components/calendar/CancellationNoteModal';
 import { CancellationPreviewModal } from '../components/calendar/CancellationPreviewModal';
 import { CheckoutModal } from '../components/calendar/CheckoutModal';
@@ -22,254 +20,89 @@ import { ReceiptListModal } from '../components/calendar/ReceiptListModal';
 import { ReceiptViewModal } from '../components/calendar/ReceiptViewModal';
 import { PractitionerSelectionModal } from '../components/calendar/PractitionerSelectionModal';
 import { ServiceItemSelectionModal } from '../components/calendar/ServiceItemSelectionModal';
-import NotificationModal, { NotificationPreview } from '../components/calendar/NotificationModal';
 import { apiService } from '../services/api';
 import { calendarStorage } from '../utils/storage';
 import { getDateString, formatAppointmentTimeRange } from '../utils/calendarUtils';
 import { logger } from '../utils/logger';
 import { Resource } from '../types';
-import { CalendarEvent, transformToCalendarEvents } from '../utils/calendarDataAdapter';
-import { trackCalendarAPICall, completeCalendarAPICall } from '../utils/performanceMonitor';
+import { invalidateCacheForDate } from '../utils/availabilityCache';
+import { invalidateResourceCacheForDate } from '../utils/resourceAvailabilityCache';
+import { useCalendarEvents, invalidateCalendarEventsForAppointment } from '../hooks/queries/useCalendarEvents';
+import { queryClient } from '../config/queryClient';
+import { CalendarEvent } from '../utils/calendarDataAdapter';
+import { useModal } from '../contexts/ModalContext';
+import { canDuplicateAppointment, getPractitionerIdForDuplicate } from '../utils/appointmentPermissions';
+import { canEditEvent as canEditEventUtil } from '../utils/eventPermissions';
+import { getErrorMessage } from '../types/api';
 
-// Mock calendar data for development fallback
-const getMockCalendarEvents = (currentDate: Date, selectedPractitioners: number[], selectedResources: number[]) => {
 
-  const baseDate = moment(currentDate).tz('Asia/Taipei');
-  const dateString = baseDate.format('YYYY-MM-DD');
-
-  // Simulate API response structure
-  const mockApiResponse = {
-    results: [] as Array<{
-      user_id: number;
-      date: string;
-      default_schedule: unknown;
-      events: Array<{
-        calendar_event_id: number;
-        type: string;
-        start_time: string;
-        end_time: string;
-        title: string;
-        patient_id?: number;
-        appointment_type_id?: number;
-        status?: string;
-        appointment_id?: number;
-        notes?: string;
-        clinic_notes?: string;
-        patient_name?: string;
-        practitioner_name?: string;
-        appointment_type_name?: string;
-        is_primary?: boolean;
-        has_active_receipt?: boolean;
-        has_any_receipt?: boolean;
-        receipt_ids?: number[];
-        resource_names?: string[];
-        resource_ids?: number[];
-        resource_id?: number;
-        resource_name?: string;
-        is_resource_event?: boolean;
-        exception_id?: number;
-      }>;
-    }>
-  };
-
-  // Generate mock practitioner results (matching API structure)
-  selectedPractitioners.forEach((practitionerId, index) => {
-    const practitionerEvents = [];
-
-    // Create 2-3 appointments per practitioner
-    for (let i = 0; i < Math.min(3, index + 2); i++) {
-      const hour = 9 + (i * 2) + (practitionerId % 3); // Spread appointments throughout the day
-
-      practitionerEvents.push({
-        calendar_event_id: 1000 + practitionerId * 10 + i,
-        type: 'appointment',
-        start_time: `${hour.toString().padStart(2, '0')}:00`,
-        end_time: `${(hour + 1).toString().padStart(2, '0')}:00`,
-        title: `王小明 | 全身按摩`,
-        patient_id: 1,
-        appointment_type_id: 1,
-        status: 'confirmed',
-        appointment_id: 1000 + practitionerId * 10 + i,
-        notes: '初診',
-        clinic_notes: '',
-        patient_name: '王小明',
-        practitioner_name: `治療師${practitionerId}`,
-        appointment_type_name: '全身按摩',
-        is_primary: true,
-        has_active_receipt: false,
-        has_any_receipt: false,
-        receipt_ids: [],
-        resource_names: ['治療室1'],
-        resource_ids: [1],
-      });
-    }
-
-    // Add one exception per practitioner
-    if (index === 0) {
-      practitionerEvents.push({
-        calendar_event_id: 2000 + practitionerId,
-        type: 'availability_exception',
-        start_time: '12:00',
-        end_time: '13:00',
-        title: '午休',
-        exception_id: 2000 + practitionerId,
-        notes: '午休時間',
-      });
-    }
-
-    mockApiResponse.results.push({
-      user_id: practitionerId,
-      date: dateString,
-      default_schedule: null,
-      events: practitionerEvents
-    });
-  });
-
-  // Generate mock resource results
-  if (selectedResources.length > 0) {
-    const resourceEvents: Array<{
-      calendar_event_id: number;
-      type: string;
-      start_time: string;
-      end_time: string;
-      title: string;
-      resource_id?: number;
-      resource_name?: string;
-      is_resource_event?: boolean;
-      notes?: string;
-    }> = [];
-    selectedResources.forEach((resourceId, index) => {
-      const hour = 10 + (index * 3);
-
-      resourceEvents.push({
-        calendar_event_id: 3000 + resourceId,
-        type: 'appointment',
-        start_time: `${hour.toString().padStart(2, '0')}:00`,
-        end_time: `${(hour + 1).toString().padStart(2, '0')}:00`,
-        title: `[治療室${resourceId}] 清潔中`,
-        resource_id: resourceId,
-        resource_name: `治療室${resourceId}`,
-        is_resource_event: true,
-        notes: '定期清潔',
-      });
-    });
-
-    mockApiResponse.results.push({
-      user_id: selectedResources[0]!, // Use first resource ID as user_id for simplicity (guaranteed by length check)
-      date: dateString,
-      default_schedule: null,
-      events: resourceEvents
-    });
-  }
-
-  // Now apply the same transformation logic as the real API response
-  const practitionerEventsRaw = mockApiResponse.results
-    .filter(r => selectedPractitioners.includes(r.user_id))
-    .flatMap(r => r.events.map((event) => ({ ...event, date: r.date, practitioner_id: r.user_id })));
-
-  const resourceEventsRaw = mockApiResponse.results
-    .filter(r => selectedResources.includes(r.user_id))
-    .flatMap(r => r.events.map((event) => ({ ...event, date: r.date })));
-
-  const allEvents = [
-    ...transformToCalendarEvents(practitionerEventsRaw),
-    ...transformToCalendarEvents(resourceEventsRaw)
-  ];
-
-  return allEvents;
-};
-
-// Conflict detection utility
-const detectAppointmentConflicts = (
-  events: CalendarEvent[],
-  newStart: Date,
-  newEnd: Date,
-  practitionerId?: number | null,
-  resourceIds?: number[],
-  excludeEventId?: number
-): ConflictAppointment[] => {
-  const conflicts: ConflictAppointment[] = [];
-
-  events.forEach(event => {
-    // Skip the event being edited
-    if (excludeEventId && event.id === excludeEventId) return;
-
-    // Check if this event overlaps with the new appointment time
-    const eventStart = new Date(event.start);
-    const eventEnd = new Date(event.end);
-
-    const hasTimeOverlap = !(newEnd <= eventStart || newStart >= eventEnd);
-
-    if (hasTimeOverlap) {
-      // Check practitioner conflict
-      if (practitionerId && event.resource.practitioner_id === practitionerId) {
-        conflicts.push({
-          title: event.title,
-          patient_name: event.resource.patient_name || 'Unknown Patient',
-          start_time: formatAppointmentTimeRange(eventStart, eventEnd),
-          end_time: event.resource.notes || '',
-          notes: `Practitioner conflict with ${event.resource.patient_name || 'Unknown Patient'}`,
-        });
-      }
-
-      // Check resource conflicts
-      if (resourceIds && resourceIds.length > 0 && event.resource.resource_id) {
-        const isResourceConflict = resourceIds.includes(event.resource.resource_id);
-
-        if (isResourceConflict) {
-        conflicts.push({
-          title: event.title,
-          patient_name: event.resource.patient_name || 'Unknown Patient',
-          start_time: formatAppointmentTimeRange(eventStart, eventEnd),
-          end_time: event.resource.notes || '',
-          notes: `Resource conflict with ${event.resource.patient_name || 'Unknown Patient'}`,
-        });
-        }
-      }
-    }
-  });
-
-  return conflicts;
-};
 
 const AvailabilityPage: React.FC = () => {
-  const { user, isLoading: authLoading, isAuthenticated, isClinicUser } = useAuth();
+  const { user, isLoading: authLoading, isAuthenticated, isClinicUser, hasRole } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [view, setView] = useState<CalendarView>(CalendarViews.DAY);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [allEvents, setAllEvents] = useState<CalendarEvent[]>([]);
   const [selectedPractitioners, setSelectedPractitioners] = useState<number[]>([]);
   const [selectedResources, setSelectedResources] = useState<number[]>([]);
   const [resources, setResources] = useState<Resource[]>([]);
 
-  // Event caching to reduce API calls
-  const [eventCache, setEventCache] = useState<Map<string, { events: CalendarEvent[], timestamp: number }>>(new Map());
+  // Use React Query for calendar events
+  const {
+    data: allEventsData,
+    isLoading: eventsLoading,
+    error: eventsError
+  } = useCalendarEvents({
+    selectedPractitioners,
+    selectedResources,
+    currentDate,
+    view
+  });
+  const allEvents = allEventsData || [];
+
+  // Handle calendar query errors gracefully
+  React.useEffect(() => {
+    if (eventsError) {
+      logger.error('Calendar events query failed:', eventsError);
+      alert('行事曆載入失敗，請稍後再試。如問題持續，請聯絡系統管理員。', '錯誤');
+    }
+  }, [eventsError]);
 
   // Modal state management
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
   const [isCreateAppointmentModalOpen, setIsCreateAppointmentModalOpen] = useState(false);
   const [isExceptionModalOpen, setIsExceptionModalOpen] = useState(false);
   const [isEditAppointmentModalOpen, setIsEditAppointmentModalOpen] = useState(false);
-  const [isDeleteConfirmationModalOpen, setIsDeleteConfirmationModalOpen] = useState(false);
-  const [isConflictModalOpen, setIsConflictModalOpen] = useState(false);
-  const [isCancellationNoteModalOpen, setIsCancellationNoteModalOpen] = useState(false);
-  const [isCancellationPreviewModalOpen, setIsCancellationPreviewModalOpen] = useState(false);
   const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
   const [isReceiptListModalOpen, setIsReceiptListModalOpen] = useState(false);
   const [isReceiptViewModalOpen, setIsReceiptViewModalOpen] = useState(false);
   const [isPractitionerSelectionModalOpen, setIsPractitionerSelectionModalOpen] = useState(false);
   const [isServiceItemSelectionModalOpen, setIsServiceItemSelectionModalOpen] = useState(false);
-  const [isNotificationModalOpen, setIsNotificationModalOpen] = useState(false);
 
   // Modal data state
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   const [selectedAppointmentId, setSelectedAppointmentId] = useState<number | null>(null);
-  const [notificationPreview, setNotificationPreview] = useState<NotificationPreview | null>(null);
-  const [conflictingAppointments, setConflictingAppointments] = useState<ConflictAppointment[]>([]);
   const [cancellationNote, setCancellationNote] = useState('');
   const [scrollTrigger, setScrollTrigger] = useState(0); // Counter to trigger scroll
+
+  // Delete appointment state (following patient detail page pattern)
+  const [deletingAppointment, setDeletingAppointment] = useState<CalendarEvent | null>(null);
+  const [cancellationPreviewMessage, setCancellationPreviewMessage] = useState<string>('');
+  const [cancellationPreviewLoading, setCancellationPreviewLoading] = useState(false);
+  const [deleteStep, setDeleteStep] = useState<'note' | 'preview' | null>(null);
+
+  // Duplicate appointment state
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [createModalKey, setCreateModalKey] = useState(0);
+  const [duplicateData, setDuplicateData] = useState<{
+    preSelectedAppointmentTypeId?: number;
+    preSelectedPractitionerId?: number;
+    preSelectedTime?: string;
+    preSelectedClinicNotes?: string;
+    initialDate?: string;
+    event?: CalendarEvent;
+  } | null>(null);
 
   // Use React Query for practitioners
   const { data: practitionersData, isLoading: practitionersLoading } = usePractitioners();
@@ -283,6 +116,160 @@ const AvailabilityPage: React.FC = () => {
   // Fetch service type groups when service item selection modal is open
   const { data: serviceGroupsData } = useServiceTypeGroups();
   const serviceGroups = serviceGroupsData?.groups || [];
+
+  // Modal context for alerts
+  const { alert } = useModal();
+
+  // Permission checks (matching patient detail page pattern)
+  const canEdit = hasRole && (hasRole("admin") || hasRole("practitioner"));
+
+  // Helper function to check if user can edit an event (uses shared utility)
+  const canEditEvent = useCallback(
+    (event: CalendarEvent | null): boolean => {
+      return canEditEventUtil(event, canEdit, {
+        userId: user?.user_id,
+        isAdmin: user?.roles?.includes('admin') ?? false
+      });
+    },
+    [canEdit, user]
+  );
+
+
+  // Handle delete appointment from EventModal (following patient detail page pattern)
+  const handleDeleteAppointment = useCallback(async () => {
+    if (!selectedEvent || !selectedEvent.resource.appointment_id) return;
+
+    // Security check: Ensure user has permission to delete this appointment
+    if (!canEditEvent(selectedEvent)) {
+      await alert("您只能取消自己的預約");
+      return;
+    }
+
+    // Reset cancellation note and show note input modal
+    setCancellationNote('');
+    setCancellationPreviewMessage('');
+    setDeletingAppointment(selectedEvent);
+    setDeleteStep('note');
+    setIsEventModalOpen(false);
+    setSelectedEvent(null); // Close EventModal
+  }, [selectedEvent, canEditEvent]);
+
+  // Handle duplicate appointment from EventModal (following patient detail page pattern)
+  const handleDuplicateAppointment = useCallback(async () => {
+    if (!selectedEvent) return;
+
+    // Security check: Ensure user has permission to duplicate this appointment
+    if (!canEditEvent(selectedEvent)) {
+      await alert("您只能複製自己的預約");
+      return;
+    }
+
+    const event = selectedEvent;
+
+    // Extract data from the original appointment
+    const appointmentTypeId = event.resource.appointment_type_id;
+    // Use shared utility to get practitioner_id (hides for auto-assigned when not admin)
+    const practitionerId = getPractitionerIdForDuplicate(event, user?.roles?.includes('admin') || false);
+    const clinicNotes = event.resource.clinic_notes;
+
+    // Extract date and time from event.start
+    const startMoment = moment(event.start).tz('Asia/Taipei');
+    const initialDate = startMoment.format('YYYY-MM-DD');
+    const initialTime = startMoment.format('HH:mm');
+
+    // Set up duplicate appointment data - only include fields that have values
+    // Resources will be fetched by useAppointmentForm in duplicate mode
+    setDuplicateData({
+      initialDate,
+      // Only include these if they have values (avoid passing undefined)
+      ...(appointmentTypeId !== undefined && { preSelectedAppointmentTypeId: appointmentTypeId }),
+      ...(practitionerId !== undefined && { preSelectedPractitionerId: practitionerId }),
+      ...(initialTime && { preSelectedTime: initialTime }),
+      ...(clinicNotes !== undefined && clinicNotes !== null && { preSelectedClinicNotes: clinicNotes }),
+      event,
+    });
+    setCreateModalKey(prev => prev + 1); // Force remount to reset state
+    setIsCreateModalOpen(true);
+    setIsEventModalOpen(false);
+    setSelectedEvent(null); // Close EventModal
+  }, [selectedEvent, user]);
+
+  // Handle cancellation note submission
+  const handleCancellationNoteSubmit = useCallback(async () => {
+    if (!deletingAppointment) return;
+
+    // Security check: Ensure user still has permission to cancel this appointment
+    if (!canEditEvent(deletingAppointment)) {
+      await alert("您只能取消自己的預約");
+      return;
+    }
+
+    setCancellationPreviewLoading(true);
+    try {
+      const response = await apiService.generateCancellationPreview({
+        appointment_type: deletingAppointment.resource.appointment_type_name || '',
+        appointment_time: formatAppointmentTimeRange(
+          deletingAppointment.start,
+          deletingAppointment.end,
+        ),
+        therapist_name: deletingAppointment.resource.practitioner_name || '',
+        patient_name: deletingAppointment.resource.patient_name || '',
+        ...(cancellationNote.trim() && { note: cancellationNote.trim() }),
+      });
+
+      setCancellationPreviewMessage(response.preview_message);
+      setDeleteStep('preview');
+    } catch (error) {
+      logger.error('Error generating cancellation preview:', error);
+      const errorMessage = getErrorMessage(error);
+      await alert(`無法產生預覽訊息：${errorMessage}`, '錯誤');
+      // Stay on note step so user can retry
+    } finally {
+      setCancellationPreviewLoading(false);
+    }
+  }, [deletingAppointment, cancellationNote, alert]);
+
+  // Handle final confirmation to delete/cancel appointment
+  const handleConfirmDelete = useCallback(async () => {
+    if (!deletingAppointment || !deletingAppointment.resource.calendar_event_id) return;
+
+    try {
+      // Note: cancelClinicAppointment API uses calendar_event_id despite parameter name
+      await apiService.cancelClinicAppointment(
+        deletingAppointment.resource.calendar_event_id,
+        cancellationNote.trim() || undefined,
+      );
+
+      // Invalidate availability cache for the appointment's date
+      const appointmentDate = moment(deletingAppointment.start).format('YYYY-MM-DD');
+      const practitionerId = deletingAppointment.resource.practitioner_id;
+      const appointmentTypeId = deletingAppointment.resource.appointment_type_id;
+      if (practitionerId && appointmentTypeId) {
+        invalidateCacheForDate(practitionerId, appointmentTypeId, appointmentDate);
+        invalidateResourceCacheForDate(practitionerId, appointmentTypeId, appointmentDate);
+      }
+
+      // Invalidate calendar events cache for specific practitioner and date range
+      invalidateCalendarEventsForAppointment(
+        queryClient,
+        user?.active_clinic_id,
+        practitionerId,
+        appointmentDate,
+        view
+      );
+
+      setDeletingAppointment(null);
+      setCancellationNote('');
+      setCancellationPreviewMessage('');
+      setDeleteStep(null);
+      await alert('預約已取消');
+    } catch (error) {
+      logger.error('Error deleting appointment:', error);
+      const errorMessage = getErrorMessage(error);
+      await alert(`取消預約失敗：${errorMessage}`, '錯誤');
+      // Stay on preview step so user can retry or go back
+    }
+  }, [deletingAppointment, cancellationNote, alert]);
 
   // URL parameter handling for deep linking
   useEffect(() => {
@@ -382,96 +369,6 @@ const AvailabilityPage: React.FC = () => {
   }, [practitioners, resources, user]);
 
   // Load calendar events with caching
-  useEffect(() => {
-    const loadEvents = async () => {
-      if (selectedPractitioners.length === 0) return;
-
-      // Calculate date range based on view
-      let startDate: string;
-      let endDate: string;
-
-      if (view === CalendarViews.DAY) {
-        startDate = getDateString(currentDate);
-        endDate = startDate;
-      } else if (view === CalendarViews.WEEK) {
-        // Load the full week containing currentDate
-        const weekStart = moment(currentDate).tz('Asia/Taipei').startOf('week');
-        const weekEnd = moment(currentDate).tz('Asia/Taipei').endOf('week');
-        startDate = getDateString(weekStart.toDate());
-        endDate = getDateString(weekEnd.toDate());
-      } else { // MONTH
-        // Load the full month containing currentDate
-        const monthStart = moment(currentDate).tz('Asia/Taipei').startOf('month');
-        const monthEnd = moment(currentDate).tz('Asia/Taipei').endOf('month');
-        startDate = getDateString(monthStart.toDate());
-        endDate = getDateString(monthEnd.toDate());
-      }
-
-      // Create cache key
-      const cacheKey = `${startDate}-${endDate}-${selectedPractitioners.sort().join(',')}-${selectedResources.sort().join(',')}`;
-
-      // Check cache first (5-minute TTL)
-      const cached = eventCache.get(cacheKey);
-      if (cached && (Date.now() - cached.timestamp) < 5 * 60 * 1000) {
-        setAllEvents(cached.events);
-        // Track actual cache hit that prevents API call
-        const callId = trackCalendarAPICall('calendar-cache-hit', 'CACHE');
-        completeCalendarAPICall(callId, true, true);
-        return;
-      }
-
-      // Track cache miss (API call will be made)
-      const missCallId = trackCalendarAPICall('calendar-cache-miss', 'CACHE');
-      completeCalendarAPICall(missCallId, true, false);
-
-      try {
-        const [practitionerEvents, resourceEvents] = await Promise.all([
-          selectedPractitioners.length > 0
-            ? apiService.getBatchCalendar({
-                practitionerIds: selectedPractitioners,
-                startDate,
-                endDate
-              })
-            : Promise.resolve({ results: [] }),
-          selectedResources.length > 0
-            ? apiService.getBatchResourceCalendar({
-                resourceIds: selectedResources,
-                startDate,
-                endDate
-              })
-            : Promise.resolve({ results: [] })
-        ]);
-
-        // Transform events - need to include date and practitioner_id from result level
-        const practitionerEventsRaw = practitionerEvents.results.flatMap(r =>
-          r.events.map(event => ({ ...event, date: r.date, practitioner_id: r.user_id }))
-        );
-        const resourceEventsRaw = resourceEvents.results?.flatMap(r =>
-          r.events.map(event => ({ ...event, date: r.date }))
-        ) || [];
-
-        const allEvents = [
-          ...transformToCalendarEvents(practitionerEventsRaw),
-          ...transformToCalendarEvents(resourceEventsRaw)
-        ];
-
-        // Cache the results
-        setEventCache(prev => new Map(prev).set(cacheKey, { events: allEvents, timestamp: Date.now() }));
-
-        setAllEvents(allEvents);
-      } catch (error) {
-        logger.error('Failed to load calendar events:', error);
-
-        // Fallback to mock data for development when API calls fail
-        if (process.env.NODE_ENV === 'development') {
-          const mockEvents = getMockCalendarEvents(currentDate, selectedPractitioners, selectedResources);
-          setAllEvents(mockEvents);
-        }
-      }
-    };
-
-    loadEvents();
-  }, [selectedPractitioners, selectedResources, currentDate, view]);
 
   // Event handlers
   const handleViewChange = useCallback((newView: CalendarView) => {
@@ -540,7 +437,7 @@ const AvailabilityPage: React.FC = () => {
     setSidebarOpen(!sidebarOpen);
   }, [sidebarOpen]);
 
-  if (loading || practitionersLoading) {
+  if (loading || practitionersLoading || eventsLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <LoadingSpinner />
@@ -603,20 +500,29 @@ const AvailabilityPage: React.FC = () => {
             setIsEventModalOpen(false);
             setSelectedEvent(null);
           }}
-          onEditAppointment={() => {
-            setIsEventModalOpen(false);
-            setIsEditAppointmentModalOpen(true);
-          }}
-          onDeleteAppointment={() => {
-            setIsEventModalOpen(false);
-            setIsDeleteConfirmationModalOpen(true);
-          }}
-          onDuplicateAppointment={() => {
-            // Handle duplicate - for now just close modal
-            setIsEventModalOpen(false);
-            setSelectedEvent(null);
-          }}
+          onEditAppointment={
+            canEditEvent(selectedEvent) &&
+            selectedEvent?.resource.type === "appointment"
+              ? () => {
+                  setIsEventModalOpen(false);
+                  setIsEditAppointmentModalOpen(true);
+                }
+              : undefined
+          }
+          onDeleteAppointment={
+            canEditEvent(selectedEvent) &&
+            selectedEvent?.resource.type === "appointment"
+              ? handleDeleteAppointment
+              : undefined
+          }
+          onDuplicateAppointment={
+            canDuplicateAppointment(selectedEvent!)
+              ? handleDuplicateAppointment
+              : undefined
+          }
           formatAppointmentTime={formatAppointmentTimeRange}
+          appointmentTypes={appointmentTypes}
+          practitioners={practitioners}
         />
       )}
 
@@ -629,22 +535,6 @@ const AvailabilityPage: React.FC = () => {
           }}
           onConfirm={async (formData) => {
             try {
-              // Check for conflicts before creating appointment
-              const conflicts = detectAppointmentConflicts(
-                allEvents,
-                new Date(formData.start_time),
-                new Date(new Date(formData.start_time).getTime() + 60 * 60 * 1000), // Default 1 hour
-                formData.practitioner_id || null,
-                formData.selected_resource_ids
-              );
-
-              if (conflicts.length > 0) {
-                setConflictingAppointments(conflicts);
-                setIsCreateAppointmentModalOpen(false);
-                setIsConflictModalOpen(true);
-                return;
-              }
-
               const appointmentData: any = {
                 patient_id: formData.patient_id,
                 appointment_type_id: formData.appointment_type_id,
@@ -655,27 +545,117 @@ const AvailabilityPage: React.FC = () => {
               if (formData.clinic_notes) {
                 appointmentData.clinic_notes = formData.clinic_notes;
               }
-              const result = await apiService.createClinicAppointment(appointmentData);
+              await apiService.createClinicAppointment(appointmentData);
 
-              // Trigger notification for new appointment
-              if (result.success && result.appointment_id) {
-                // Set up notification preview for the newly created appointment
-                setNotificationPreview({
-                  message: `您的預約已確認。\n時間：${formatAppointmentTimeRange(new Date(formData.start_time), new Date(new Date(formData.start_time).getTime() + 60 * 60 * 1000))}\n服務項目：預約服務`,
-                  patient_id: formData.patient_id,
-                  event_type: 'appointment_created'
-                });
-                setIsNotificationModalOpen(true);
-              }
+              // Invalidate availability cache for the appointment's date, practitioner, and appointment type
+              const appointmentDate = moment(formData.start_time).format('YYYY-MM-DD');
+              invalidateCacheForDate(formData.practitioner_id, formData.appointment_type_id, appointmentDate);
+
+              // Invalidate resource availability cache for the appointment's date, practitioner, and appointment type
+              invalidateResourceCacheForDate(formData.practitioner_id, formData.appointment_type_id, appointmentDate);
+
+              // Invalidate calendar events cache for specific practitioner and date range
+              invalidateCalendarEventsForAppointment(
+                queryClient,
+                user?.active_clinic_id,
+                formData.practitioner_id,
+                appointmentDate,
+                view
+              );
 
               setIsCreateAppointmentModalOpen(false);
-              // Clear cache to force refresh
-              setEventCache(new Map());
+              await alert('預約已建立');
             } catch (error) {
               logger.error('Failed to create appointment:', error);
-              // Error handling will be done by the modal
+              const errorMessage = getErrorMessage(error);
+              await alert(`預約建立失敗：${errorMessage}`, '錯誤');
             }
           }}
+        />
+      )}
+
+      {/* Duplicate Appointment Modal */}
+      {isCreateModalOpen && duplicateData && (
+        <CreateAppointmentModal
+          key={`create-${createModalKey}`}
+          {...(duplicateData.event?.resource.patient_id !== undefined && { preSelectedPatientId: duplicateData.event.resource.patient_id })}
+          {...(duplicateData.initialDate !== undefined && { initialDate: duplicateData.initialDate })}
+          {...(duplicateData.preSelectedAppointmentTypeId !== undefined && { preSelectedAppointmentTypeId: duplicateData.preSelectedAppointmentTypeId })}
+          {...(duplicateData.preSelectedPractitionerId !== undefined && { preSelectedPractitionerId: duplicateData.preSelectedPractitionerId })}
+          {...(duplicateData.preSelectedTime !== undefined && { preSelectedTime: duplicateData.preSelectedTime })}
+          {...(duplicateData.preSelectedClinicNotes !== undefined && { preSelectedClinicNotes: duplicateData.preSelectedClinicNotes })}
+          {...(duplicateData.event !== undefined && { event: duplicateData.event })}
+          practitioners={practitioners}
+          appointmentTypes={appointmentTypes}
+          onClose={() => {
+            setIsCreateModalOpen(false);
+            setDuplicateData(null);
+          }}
+          onConfirm={async (formData) => {
+            try {
+              // Security check: Validate user has permission to create this appointment
+              // Note: We can't use canEditEvent() here since we don't have an event object
+              // Instead, check if user has general appointment creation permissions
+              if (!canEdit) {
+                await alert("您沒有權限建立預約", "錯誤");
+                return;
+              }
+
+              await apiService.createClinicAppointment(formData);
+
+              // Invalidate availability cache for the appointment's date, practitioner, and appointment type
+              const appointmentDate = moment(formData.start_time).format('YYYY-MM-DD');
+              invalidateCacheForDate(formData.practitioner_id, formData.appointment_type_id, appointmentDate);
+
+              // Invalidate resource availability cache for the appointment's date, practitioner, and appointment type
+              invalidateResourceCacheForDate(formData.practitioner_id, formData.appointment_type_id, appointmentDate);
+
+              // Invalidate calendar events cache for specific practitioner and date range
+              invalidateCalendarEventsForAppointment(
+                queryClient,
+                user?.active_clinic_id,
+                formData.practitioner_id,
+                appointmentDate,
+                view
+              );
+
+              setIsCreateModalOpen(false);
+              setDuplicateData(null);
+              await alert('預約已建立');
+            } catch (error) {
+              logger.error('Error creating duplicate appointment:', error);
+              const errorMessage = getErrorMessage(error);
+              await alert(`複製預約失敗：${errorMessage}`, '錯誤');
+            }
+          }}
+          onRecurringAppointmentsCreated={async () => {
+            // Invalidate calendar events cache
+            queryClient.invalidateQueries({ queryKey: ['calendar-events', user?.active_clinic_id] });
+          }}
+        />
+      )}
+
+      {/* Cancellation Note Modal (for appointment deletion) */}
+      {deletingAppointment && deleteStep === 'note' && (
+        <CancellationNoteModal
+          cancellationNote={cancellationNote}
+          isLoading={cancellationPreviewLoading}
+          onNoteChange={setCancellationNote}
+          onBack={() => {
+            setDeletingAppointment(null);
+            setDeleteStep(null);
+            setCancellationNote('');
+          }}
+          onSubmit={handleCancellationNoteSubmit}
+        />
+      )}
+
+      {/* Cancellation Preview Modal (for appointment deletion) */}
+      {deletingAppointment && deleteStep === 'preview' && (
+        <CancellationPreviewModal
+          previewMessage={cancellationPreviewMessage}
+          onBack={() => setDeleteStep('note')}
+          onConfirm={handleConfirmDelete}
         />
       )}
 
@@ -686,8 +666,8 @@ const AvailabilityPage: React.FC = () => {
           onClose={() => setIsExceptionModalOpen(false)}
           onCreate={() => {
             setIsExceptionModalOpen(false);
-            // Clear cache to force refresh
-            setEventCache(new Map());
+            // Invalidate calendar events cache
+            queryClient.invalidateQueries({ queryKey: ['calendar-events', user?.active_clinic_id] });
           }}
           onExceptionDataChange={() => {}}
           onFullDayChange={() => {}}
@@ -706,8 +686,18 @@ const AvailabilityPage: React.FC = () => {
           onComplete={() => {
             setIsEditAppointmentModalOpen(false);
             setSelectedEvent(null);
-            // Clear cache to force refresh
-            setEventCache(new Map());
+            // Invalidate calendar events cache for specific practitioner and date range
+            if (selectedEvent) {
+              const appointmentDate = moment(selectedEvent.start).format('YYYY-MM-DD');
+              const practitionerId = selectedEvent.resource.practitioner_id;
+              invalidateCalendarEventsForAppointment(
+                queryClient,
+                user?.active_clinic_id,
+                practitionerId,
+                appointmentDate,
+                view
+              );
+            }
           }}
           onConfirm={async (formData) => {
             if (!selectedEvent?.id || typeof selectedEvent.id !== 'number') return;
@@ -723,95 +713,53 @@ const AvailabilityPage: React.FC = () => {
                 updateData.clinic_notes = formData.clinic_notes;
               }
               await apiService.editClinicAppointment(selectedEvent.id, updateData);
+
+              // Invalidate availability cache for both old and new dates
+              const oldDate = moment(selectedEvent.start).format('YYYY-MM-DD');
+              const newDate = moment(formData.start_time).format('YYYY-MM-DD');
+              const practitionerId = formData.practitioner_id ?? selectedEvent.resource.practitioner_id;
+              const appointmentTypeId = selectedEvent.resource.appointment_type_id;
+              if (practitionerId && appointmentTypeId) {
+                invalidateCacheForDate(practitionerId, appointmentTypeId, oldDate);
+                invalidateResourceCacheForDate(practitionerId, appointmentTypeId, oldDate);
+                if (newDate !== oldDate) {
+                  invalidateCacheForDate(practitionerId, appointmentTypeId, newDate);
+                  invalidateResourceCacheForDate(practitionerId, appointmentTypeId, newDate);
+                }
+              }
+
+              // Invalidate calendar events cache for specific practitioner and date ranges
+              invalidateCalendarEventsForAppointment(
+                queryClient,
+                user?.active_clinic_id,
+                practitionerId,
+                oldDate,
+                view
+              );
+              if (newDate !== oldDate) {
+                invalidateCalendarEventsForAppointment(
+                  queryClient,
+                  user?.active_clinic_id,
+                  practitionerId,
+                  newDate,
+                  view
+                );
+              }
+
               setIsEditAppointmentModalOpen(false);
               setSelectedEvent(null);
-              // Clear cache to force refresh
-              setEventCache(new Map());
+              await alert('預約已更新');
             } catch (error) {
               logger.error('Failed to update appointment:', error);
-              // Error handling will be done by the modal
+              const errorMessage = getErrorMessage(error);
+              await alert(`預約更新失敗：${errorMessage}`, '錯誤');
             }
           }}
           formatAppointmentTime={formatAppointmentTimeRange}
         />
       )}
 
-      {isDeleteConfirmationModalOpen && selectedEvent && (
-        <DeleteConfirmationModal
-          event={selectedEvent}
-          onCancel={() => {
-            setIsDeleteConfirmationModalOpen(false);
-            setSelectedEvent(null);
-          }}
-          onConfirm={() => {
-            if (!selectedEvent?.id || typeof selectedEvent.id !== 'number') return;
-
-            // For appointments, this actually cancels them (not deletes)
-            apiService.cancelClinicAppointment(selectedEvent.id)
-              .then(() => {
-                setIsDeleteConfirmationModalOpen(false);
-                setSelectedEvent(null);
-                // Clear cache to force refresh
-                setEventCache(new Map());
-              })
-              .catch((error) => {
-                logger.error('Failed to cancel appointment:', error);
-                // Error handling will be done by the modal
-              });
-          }}
-        />
-      )}
-
-      {/* Additional Modals */}
-      {isConflictModalOpen && (
-        <ConflictModal
-          conflictingAppointments={conflictingAppointments}
-          onClose={() => {
-            setIsConflictModalOpen(false);
-            setConflictingAppointments([]);
-          }}
-          formatTimeString={(timeStr) => timeStr}
-        />
-      )}
-
-      {isCancellationNoteModalOpen && (
-        <CancellationNoteModal
-          cancellationNote={cancellationNote}
-          isLoading={false}
-          onNoteChange={setCancellationNote}
-          onBack={() => {
-            setIsCancellationNoteModalOpen(false);
-            setCancellationNote('');
-          }}
-          onSubmit={() => {
-            // Proceed to preview with the note
-            setIsCancellationNoteModalOpen(false);
-            setIsCancellationPreviewModalOpen(true);
-          }}
-        />
-      )}
-
-      {isCancellationPreviewModalOpen && selectedAppointmentId && (
-        <CancellationPreviewModal
-          previewMessage={`取消預約確認\n\n原因：${cancellationNote || '無'}\n\n此動作無法復原。`}
-          onBack={() => {
-            setIsCancellationPreviewModalOpen(false);
-            setIsCancellationNoteModalOpen(true); // Go back to note modal
-          }}
-          onConfirm={async () => {
-            try {
-              await apiService.cancelClinicAppointment(selectedAppointmentId, cancellationNote);
-              setIsCancellationPreviewModalOpen(false);
-              setCancellationNote('');
-              setSelectedAppointmentId(null);
-              setEventCache(new Map()); // Refresh events
-            } catch (error) {
-              logger.error('Failed to cancel appointment:', error);
-              alert('Failed to cancel appointment. Please try again or contact support if the problem persists.');
-            }
-          }}
-        />
-      )}
+      {/* Cancellation Modals */}
 
       {isCheckoutModalOpen && selectedEvent && (
         <CheckoutModal
@@ -825,9 +773,29 @@ const AvailabilityPage: React.FC = () => {
           onSuccess={async () => {
             // Note: CheckoutModal handles the API call internally
             // Here we just need to refresh the UI
+
+            // Invalidate availability cache for the appointment's date
+            if (selectedEvent) {
+              const appointmentDate = moment(selectedEvent.start).format('YYYY-MM-DD');
+              const practitionerId = selectedEvent.resource.practitioner_id;
+              const appointmentTypeId = selectedEvent.resource.appointment_type_id;
+              if (practitionerId && appointmentTypeId) {
+                invalidateCacheForDate(practitionerId, appointmentTypeId, appointmentDate);
+                invalidateResourceCacheForDate(practitionerId, appointmentTypeId, appointmentDate);
+              }
+
+              // Invalidate calendar events cache for specific practitioner and date range
+              invalidateCalendarEventsForAppointment(
+                queryClient,
+                user?.active_clinic_id,
+                practitionerId,
+                appointmentDate,
+                view
+              );
+            }
+
             setIsCheckoutModalOpen(false);
             setSelectedEvent(null);
-            setEventCache(new Map()); // Refresh
           }}
         />
       )}
@@ -885,16 +853,6 @@ const AvailabilityPage: React.FC = () => {
         />
       )}
 
-      {isNotificationModalOpen && notificationPreview && (
-        <NotificationModal
-          visible={isNotificationModalOpen}
-          onClose={() => {
-            setIsNotificationModalOpen(false);
-            setNotificationPreview(null);
-          }}
-          preview={notificationPreview}
-        />
-      )}
 
     </CalendarLayout>
   );
