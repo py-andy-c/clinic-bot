@@ -13,11 +13,10 @@ import { ConflictDisplay } from '../shared/ConflictDisplay';
 import { logger } from '../../utils/logger';
 import { formatDateOnly } from '../../utils/calendarUtils';
 import { useAuth } from '../../hooks/useAuth';
-import { CheckoutModal } from './CheckoutModal';
-import { ReceiptViewModal } from './ReceiptViewModal';
-import { ReceiptListModal } from './ReceiptListModal';
 import { canEditAppointment } from '../../utils/appointmentPermissions';
 import { SchedulingConflictResponse, AppointmentType } from '../../types';
+import { ModalState, EventModalData } from '../../types/modal';
+import { EventModalOrchestrator } from '../modal/EventModalOrchestrator';
 import moment from 'moment-timezone';
 
 // Maximum length for custom event names
@@ -57,10 +56,8 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
   const canEdit = event.resource.type === 'appointment' 
     ? canEditAppointment(event, user?.user_id, isClinicAdmin)
     : false;
-  const [showCheckoutModal, setShowCheckoutModal] = useState(false);
-  const [showReceiptModal, setShowReceiptModal] = useState(false);
-  const [showReceiptListModal, setShowReceiptListModal] = useState(false);
-  const [selectedReceiptId, setSelectedReceiptId] = useState<number | undefined>(undefined);
+  // Unified modal state system
+  const [modalState, setModalState] = useState<ModalState<EventModalData>>({ type: null });
   const [isEditingName, setIsEditingName] = useState(false);
   const [editingName, setEditingName] = useState(event.title);
   const [isSaving, setIsSaving] = useState(false);
@@ -350,11 +347,10 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
                     // Show list modal if multiple receipts, otherwise show single receipt modal
                     const receiptIds = event.resource.receipt_ids || [];
                     if (receiptIds.length > 1) {
-                      setShowReceiptListModal(true);
+                      setModalState({ type: 'receipt_list' });
                     } else {
                       // Single receipt: show directly
-                      setSelectedReceiptId(receiptIds[0]);
-                      setShowReceiptModal(true);
+                      setModalState({ type: 'receipt_view', data: { receiptId: receiptIds[0]! } });
                     }
                   }}
                   className="btn-primary bg-purple-600 hover:bg-purple-700"
@@ -366,7 +362,7 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
               {/* Re-issue Receipt Button - Show when receipt is voided (previously checked out, clinic users only) */}
               {event.resource.has_any_receipt && !event.resource.has_active_receipt && isClinicUser && (
                 <button
-                  onClick={() => setShowCheckoutModal(true)}
+                  onClick={() => setModalState({ type: 'checkout' })}
                   className="btn-primary bg-orange-600 hover:bg-orange-700"
                 >
                   重新開立收據
@@ -376,7 +372,7 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
               {/* Checkout Button - Show when no receipts at all (never checked out, clinic users only) */}
               {!event.resource.has_any_receipt && isClinicUser && (
                 <button
-                  onClick={() => setShowCheckoutModal(true)}
+                  onClick={() => setModalState({ type: 'checkout' })}
                   className="btn-primary bg-green-600 hover:bg-green-700"
                 >
                   結帳
@@ -426,56 +422,17 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
           )}
         </div>
         
-        {/* Checkout Modal */}
-        {showCheckoutModal && event.resource.appointment_id && (
-          <CheckoutModal
-            event={event}
-            appointmentTypes={appointmentTypes}
-            practitioners={practitioners}
-            onClose={() => setShowCheckoutModal(false)}
-            onSuccess={async () => {
-              if (onReceiptCreated) {
-                await onReceiptCreated();
-              }
-              if (onEventNameUpdated) {
-                await onEventNameUpdated(null);
-              }
-            }}
-          />
-        )}
-        
-        {/* Receipt List Modal (when multiple receipts) */}
-        {showReceiptListModal && event.resource.appointment_id && event.resource.receipt_ids && event.resource.receipt_ids.length > 1 && (
-          <ReceiptListModal
-            appointmentId={event.resource.appointment_id}
-            receiptIds={event.resource.receipt_ids}
-            onClose={() => setShowReceiptListModal(false)}
-            onSelectReceipt={(receiptId) => {
-              setSelectedReceiptId(receiptId);
-              setShowReceiptModal(true);
-            }}
-          />
-        )}
-
-        {/* Receipt View Modal */}
-        {showReceiptModal && event.resource.appointment_id && (
-          <ReceiptViewModal
-            {...(selectedReceiptId 
-              ? { receiptId: selectedReceiptId }
-              : { appointmentId: event.resource.appointment_id }
-            )}
-            onClose={() => {
-              setShowReceiptModal(false);
-              setSelectedReceiptId(undefined);
-            }}
-            onReceiptVoided={async () => {
-              if (onEventNameUpdated) {
-                await onEventNameUpdated(null);
-              }
-            }}
-            isClinicUser={isClinicUser}
-          />
-        )}
+        {/* Event Modal Orchestrator - handles all event-related modals */}
+        <EventModalOrchestrator
+          modalState={modalState}
+          onModalChange={setModalState}
+          event={event}
+          appointmentTypes={appointmentTypes}
+          practitioners={practitioners}
+          isClinicUser={isClinicUser}
+          onReceiptCreated={onReceiptCreated}
+          onEventNameUpdated={onEventNameUpdated}
+        />
     </BaseModal>
   );
 });

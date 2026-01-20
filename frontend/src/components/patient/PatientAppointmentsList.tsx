@@ -7,7 +7,6 @@ import moment from "moment-timezone";
 import { formatAppointmentTimeRange } from "../../utils/calendarUtils";
 import { renderStatusBadge } from "../../utils/appointmentStatus";
 import { EditAppointmentModal } from "../calendar/EditAppointmentModal";
-import { CreateAppointmentModal } from "../calendar/CreateAppointmentModal";
 import { CancellationNoteModal } from "../calendar/CancellationNoteModal";
 import { CancellationPreviewModal } from "../calendar/CancellationPreviewModal";
 import { EventModal } from "../calendar/EventModal";
@@ -22,6 +21,8 @@ import { appointmentToCalendarEvent } from "./appointmentUtils";
 import { useModal } from "../../contexts/ModalContext";
 import { useAuth } from "../../hooks/useAuth";
 import { canEditAppointment, canDuplicateAppointment, getPractitionerIdForDuplicate } from "../../utils/appointmentPermissions";
+import { ModalState, AppointmentModalData } from "../../types/modal";
+import { AppointmentModalOrchestrator } from "../modal/AppointmentModalOrchestrator";
 // Removed complex modal hooks - using simple state management like AvailabilityPage
 import { getErrorMessage } from "../../types/api";
 import { logger } from "../../utils/logger";
@@ -82,14 +83,8 @@ export const PatientAppointmentsList: React.FC<
     useState<CalendarEvent | null>(null);
   const [editErrorMessage, setEditErrorMessage] = useState<string | null>(null);
 
-  // Appointment modal state - simple state management
-  const [appointmentModalState, setAppointmentModalState] = useState<{
-    type: 'edit_appointment' | 'create_appointment' | 'delete_confirmation' | null;
-    data?: any;
-  }>({ type: null });
-
-  // Stable key for create modal
-  const [createModalKey, setCreateModalKey] = useState(0);
+  // Appointment modal state - unified modal system
+  const [appointmentModalState, setAppointmentModalState] = useState<ModalState<AppointmentModalData>>({ type: null });
 
   // Delete appointment state (kept for complex cancellation flow)
   const [deletingAppointment, setDeletingAppointment] =
@@ -215,7 +210,7 @@ export const PatientAppointmentsList: React.FC<
       await alert("您只能編輯自己的預約");
       return;
     }
-    setAppointmentModalState({ type: 'edit_appointment', data: selectedEvent });
+    setAppointmentModalState({ type: 'edit_appointment', data: { event: selectedEvent } });
     setSelectedEvent(null); // Close event modal
   }, [selectedEvent, canEditEvent]);
 
@@ -234,11 +229,10 @@ export const PatientAppointmentsList: React.FC<
     const initialDate = startMoment.format('YYYY-MM-DD');
     const initialTime = startMoment.format('HH:mm');
 
-    setCreateModalKey(prev => prev + 1);
     setAppointmentModalState({
       type: 'create_appointment',
       data: {
-        patientId: event.resource.patient_id, // PatientAppointmentsList specific
+        patientId: patientId, // Use the patientId from props, not event
         initialDate,
         ...(appointmentTypeId !== undefined && { preSelectedAppointmentTypeId: appointmentTypeId }),
         ...(practitionerId !== undefined && { preSelectedPractitionerId: practitionerId }),
@@ -713,36 +707,15 @@ export const PatientAppointmentsList: React.FC<
         />
       )}
 
-      {/* Create Appointment Modal (for duplicate) */}
-      {appointmentModalState.type === 'create_appointment' && appointmentModalState.data && (
-        <CreateAppointmentModal
-          key={`create-${createModalKey}`}
-          initialDate={appointmentModalState.data.initialDate}
-          preSelectedPatientId={appointmentModalState.data.patientId || patientId}
-          preSelectedAppointmentTypeId={appointmentModalState.data.preSelectedAppointmentTypeId}
-          preSelectedPractitionerId={appointmentModalState.data.preSelectedPractitionerId}
-          preSelectedTime={appointmentModalState.data.preSelectedTime}
-          preSelectedClinicNotes={appointmentModalState.data.preSelectedClinicNotes}
-          event={appointmentModalState.data.event}
-          onClose={() => setAppointmentModalState({ type: null })}
-          onConfirm={async (formData) => {
-            try {
-              await apiService.createClinicAppointment(formData);
-              await alert("預約已建立");
-              await refreshAppointmentsList();
-              setAppointmentModalState({ type: null });
-            } catch (error) {
-              logger.error('Failed to create appointment:', error);
-              throw error;
-            }
-          }}
-          onRecurringAppointmentsCreated={async () => {
-            await refreshAppointmentsList();
-          }}
-          practitioners={practitioners}
-          appointmentTypes={appointmentTypes}
-        />
-      )}
+      {/* Appointment Modal Orchestrator - handles all appointment modals */}
+      <AppointmentModalOrchestrator
+        modalState={appointmentModalState}
+        onModalChange={setAppointmentModalState}
+        practitioners={practitioners}
+        appointmentTypes={appointmentTypes}
+        onRefresh={refreshAppointmentsList}
+        canEditEvent={canEditEvent}
+      />
     </div>
   );
 };
