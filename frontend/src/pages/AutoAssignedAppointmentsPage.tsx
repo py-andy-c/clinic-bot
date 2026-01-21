@@ -18,6 +18,7 @@ import { invalidateCalendarEventsForAppointment } from '../hooks/queries/useCale
 import { shouldPromptForAssignment } from '../hooks/usePractitionerAssignmentPrompt';
 import { PractitionerAssignmentPromptModal } from '../components/PractitionerAssignmentPromptModal';
 import { PractitionerAssignmentConfirmationModal } from '../components/PractitionerAssignmentConfirmationModal';
+import { extractAppointmentDateTime } from '../utils/timezoneUtils';
 import { getErrorMessage } from '../types/api';
 import { AppointmentType } from '../types';
 
@@ -280,23 +281,28 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
       await apiService.editClinicAppointment(selectedAppointment.appointment_id, updateData);
 
       // Invalidate React Query cache for both old and new dates
-      const oldDate = moment(selectedAppointment.start_time).format('YYYY-MM-DD');
-      const newDate = moment(formData.start_time).format('YYYY-MM-DD');
-      const practitionerId = formData.practitioner_id ?? selectedAppointment.practitioner_id;
-      const appointmentTypeId = formData.appointment_type_id ?? selectedAppointment.appointment_type_id;
-      const clinicId = user?.active_clinic_id;
-      const patientId = selectedAppointment.patient_id;
+      try {
+        const oldDate = moment(selectedAppointment.start_time).format('YYYY-MM-DD');
+        const { date: newDate } = extractAppointmentDateTime(formData.start_time);
+        const practitionerId = formData.practitioner_id ?? selectedAppointment.practitioner_id;
+        const appointmentTypeId = formData.appointment_type_id ?? selectedAppointment.appointment_type_id;
+        const clinicId = user?.active_clinic_id;
+        const patientId = selectedAppointment.patient_id;
 
-      if (practitionerId && appointmentTypeId && clinicId && patientId) {
-        const datesToInvalidate = [oldDate];
-        if (newDate !== oldDate) {
-          datesToInvalidate.push(newDate);
+        if (practitionerId && appointmentTypeId && clinicId && patientId) {
+          const datesToInvalidate = [oldDate];
+          if (newDate !== oldDate) {
+            datesToInvalidate.push(newDate);
+          }
+          invalidateAvailabilityAfterAppointmentChange(queryClient, practitionerId, appointmentTypeId, datesToInvalidate, clinicId, patientId);
         }
-        invalidateAvailabilityAfterAppointmentChange(queryClient, practitionerId, appointmentTypeId, datesToInvalidate, clinicId, patientId);
-      }
 
-      // Also invalidate calendar events to update the calendar page
-      invalidateCalendarEventsForAppointment(queryClient, clinicId);
+        // Also invalidate calendar events to update the calendar page
+        invalidateCalendarEventsForAppointment(queryClient, clinicId);
+      } catch (cacheError) {
+        logger.warn('Failed to invalidate cache after appointment edit:', cacheError);
+        // Continue with success flow - cache inconsistency is not critical for user experience
+      }
 
       // Store appointment data for assignment check after confirmation modal
       // Use ref to ensure data is immediately available when onComplete runs

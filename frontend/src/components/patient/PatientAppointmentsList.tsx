@@ -26,6 +26,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useCreateAppointmentOptimistic } from "../../hooks/queries/useAvailabilitySlots";
 import { invalidateCalendarEventsForAppointment } from "../../hooks/queries/useCalendarEvents";
 import { AppointmentType } from "../../types";
+import { extractAppointmentDateTime } from "../../utils/timezoneUtils";
 
 const TAIWAN_TIMEZONE = "Asia/Taipei";
 
@@ -343,18 +344,23 @@ export const PatientAppointmentsList: React.FC<
       await refreshAppointmentsList();
 
       // Invalidate React Query cache for both old and new dates
-      const oldDate = moment(editingAppointment.start).format('YYYY-MM-DD');
-      const newDate = moment(formData.start_time).format('YYYY-MM-DD');
-      const practitionerId = formData.practitioner_id ?? editingAppointment.resource.practitioner_id;
-      const appointmentTypeId = editingAppointment.resource.appointment_type_id;
-      const clinicId = user?.active_clinic_id;
+      try {
+        const oldDate = moment(editingAppointment.start).format('YYYY-MM-DD');
+        const { date: newDate } = extractAppointmentDateTime(formData.start_time);
+        const practitionerId = formData.practitioner_id ?? editingAppointment.resource.practitioner_id;
+        const appointmentTypeId = editingAppointment.resource.appointment_type_id;
+        const clinicId = user?.active_clinic_id;
 
-      if (practitionerId && appointmentTypeId && clinicId && patientId) {
-        const datesToInvalidate = [oldDate];
-        if (newDate !== oldDate) {
-          datesToInvalidate.push(newDate);
+        if (practitionerId && appointmentTypeId && clinicId && patientId) {
+          const datesToInvalidate = [oldDate];
+          if (newDate !== oldDate) {
+            datesToInvalidate.push(newDate);
+          }
+          invalidateAvailabilityAfterAppointmentChange(queryClient, practitionerId, appointmentTypeId, datesToInvalidate, clinicId, patientId);
         }
-        invalidateAvailabilityAfterAppointmentChange(queryClient, practitionerId, appointmentTypeId, datesToInvalidate, clinicId, patientId);
+      } catch (cacheError) {
+        logger.warn('Failed to invalidate cache after appointment edit:', cacheError);
+        // Continue with success flow - cache inconsistency is not critical for user experience
       }
 
       // Show success message (modal will close via onComplete)
@@ -415,11 +421,12 @@ export const PatientAppointmentsList: React.FC<
     clinic_notes?: string;
   }) => {
     try {
+      const { date, startTime } = extractAppointmentDateTime(formData.start_time);
       await createAppointmentMutation.mutateAsync({
         practitionerId: formData.practitioner_id,
         appointmentTypeId: formData.appointment_type_id,
-        date: moment(formData.start_time).format('YYYY-MM-DD'),
-        startTime: moment(formData.start_time).format('HH:mm:ss'),
+        date,
+        startTime,
         patientId: formData.patient_id,
         ...(formData.clinic_notes && { clinicNotes: formData.clinic_notes }),
       });

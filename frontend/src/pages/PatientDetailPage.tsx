@@ -8,8 +8,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useCreateAppointmentOptimistic } from '../hooks/queries/useAvailabilitySlots';
 import { logger } from '../utils/logger';
 import { getErrorMessage } from '../types/api';
-import moment from 'moment-timezone';
 import { useModal } from '../contexts/ModalContext';
+import { extractAppointmentDateTime } from '../utils/timezoneUtils';
 import PageHeader from '../components/PageHeader';
 import { PatientInfoSection } from '../components/patient/PatientInfoSection';
 import { PatientNotesSection } from '../components/patient/PatientNotesSection';
@@ -190,11 +190,12 @@ const PatientDetailPage: React.FC = () => {
           }}
           onConfirm={async (formData) => {
             try {
+              const { date, startTime } = extractAppointmentDateTime(formData.start_time);
               await createAppointmentMutation.mutateAsync({
                 practitionerId: formData.practitioner_id,
                 appointmentTypeId: formData.appointment_type_id,
-                date: moment(formData.start_time).format('YYYY-MM-DD'),
-                startTime: moment(formData.start_time).format('HH:mm:ss'),
+                date,
+                startTime,
                 patientId: formData.patient_id,
                 ...(formData.clinic_notes && { clinicNotes: formData.clinic_notes }),
               });
