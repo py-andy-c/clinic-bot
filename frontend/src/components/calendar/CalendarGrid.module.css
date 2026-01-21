@@ -6,6 +6,9 @@
   background: white;
   /* Mobile safe area padding for devices with notches/home indicators */
   padding-bottom: calc(env(safe-area-inset-bottom, 20px) + 60px);
+  /* Contain scrolling to calendar area instead of global overflow:hidden */
+  max-height: 100vh;
+  contain: layout;
 }
 
 .calendarGridContainer {
