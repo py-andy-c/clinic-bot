@@ -33,7 +33,7 @@ describe('CalendarDateStrip', () => {
 
   it('displays correct date format for day view', () => {
     render(<CalendarDateStrip {...mockProps} />);
-    expect(screen.getByText('2024年1月15日')).toBeInTheDocument();
+    expect(screen.getByText('1月15日(一)')).toBeInTheDocument();
   });
 
   it('displays correct date format for week view', () => {
@@ -90,7 +90,7 @@ describe('CalendarDateStrip', () => {
 
   it('opens mini calendar when date display is clicked', () => {
     render(<CalendarDateStrip {...mockProps} />);
-    const dateDisplay = screen.getByText('2024年1月15日');
+    const dateDisplay = screen.getByText('1月15日(一)');
     fireEvent.click(dateDisplay);
 
     // Mini calendar should now be visible

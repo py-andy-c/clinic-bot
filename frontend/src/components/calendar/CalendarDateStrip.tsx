@@ -54,9 +54,11 @@ const CalendarDateStrip: React.FC<CalendarDateStripProps> = ({
 
   const getDateDisplay = () => {
     const date = moment(currentDate).tz('Asia/Taipei');
+    const weekdayNames = ['日', '一', '二', '三', '四', '五', '六'];
+    const weekday = weekdayNames[date.day()];
 
     if (view === CalendarViews.DAY) {
-      return `${date.year()}年${date.month() + 1}月${date.date()}日`;
+      return `${date.month() + 1}月${date.date()}日(${weekday})`;
     } else if (view === CalendarViews.WEEK) {
       return `${date.year()}年${date.month() + 1}月`;
     } else {
