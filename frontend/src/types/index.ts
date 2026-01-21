@@ -529,8 +529,8 @@ export interface BatchAvailableSlotsResponse {
 
 export interface AvailabilityExceptionRequest {
   date: string;
-  start_time: string;
-  end_time: string;
+  start_time?: string | null;
+  end_time?: string | null;
 }
 
 export interface AvailabilityExceptionResponse {
