@@ -588,10 +588,13 @@ const CalendarEventComponent: React.FC<CalendarEventComponentProps> = ({
       border = '1px dashed rgba(255, 255, 255, 0.5)';
     }
 
-    // Exception events get gray background and dashed border
+    // Exception events get medium gray background with practitioner-colored solid border
     if (event.resource.type === 'availability_exception') {
-      backgroundColor = '#6b7280';
-      border = '1px dashed #9ca3af';
+      backgroundColor = '#9ca3af';
+      const practitionerColor = event.resource.practitioner_id
+        ? getPractitionerColor(event.resource.practitioner_id, -1, selectedPractitioners) || '#6b7280'
+        : '#6b7280';
+      border = `2px solid ${practitionerColor}`;
       borderRadius = '4px';
     }
 
