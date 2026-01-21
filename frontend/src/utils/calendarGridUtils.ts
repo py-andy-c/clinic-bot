@@ -26,14 +26,12 @@ export interface TimeSlot {
 }
 
 /**
- * Generate time slots for calendar grid (0:00 to 24:00, 15-minute intervals)
+ * Generate time slots for calendar grid (0:00 to 23:45, 15-minute intervals)
  */
 export const generateTimeSlots = (): TimeSlot[] => {
   const slots: TimeSlot[] = [];
-  for (let hour = 0; hour <= 24; hour++) {
-    // For hour 24, only add 00:00 (midnight of next day)
-    const maxMinute = hour === 24 ? 1 : 60;
-    for (let minute = 0; minute < maxMinute; minute += 15) {
+  for (let hour = 0; hour < 24; hour++) {
+    for (let minute = 0; minute < 60; minute += 15) {
       slots.push({
         hour,
         minute,

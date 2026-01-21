@@ -129,21 +129,26 @@
 
 .timeSlot {
   height: 20px;
-  border-bottom: 1px solid #f8fafc; /* Light border for 15min intervals */
+  border-bottom: 1px solid #f1f5f9; /* Subtle border for 15min intervals */
   cursor: pointer;
   min-height: 20px;
 }
 
 .timeSlot:nth-child(4n-2) {
-  border-bottom: 1px solid #f1f5f9; /* Medium border for 30min intervals */
+  border-bottom: 1px solid #f1f5f9; /* Subtle border for 30min intervals */
 }
 
 .timeSlot:nth-child(4n) {
-  border-bottom: 1px solid #e5e7eb; /* Dark border for hour boundaries */
+  border-bottom: 1px solid #d1d5db; /* Most visible border for hour boundaries */
 }
 
 .timeSlot.unavailable {
-  background-color: #f1f5f9;
+  background-color: #d1d5db;
+  border-bottom: none;
+}
+
+.timeSlot.unavailable:nth-child(4n) {
+  border-bottom: 1px solid #e5e7eb; /* Keep hour boundaries visible */
 }
 
 /* Mobile touch improvements */
