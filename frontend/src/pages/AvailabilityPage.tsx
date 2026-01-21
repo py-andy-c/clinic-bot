@@ -30,7 +30,7 @@ import CalendarDateStrip from '../components/calendar/CalendarDateStrip';
 import CalendarGrid from '../components/calendar/CalendarGrid';
 import { EventModal } from '../components/calendar/EventModal';
 import { CreateAppointmentModal } from '../components/calendar/CreateAppointmentModal';
-import { ExceptionModal } from '../components/calendar/ExceptionModal';
+import { ExceptionModal, ExceptionData } from '../components/calendar/ExceptionModal';
 import { EditAppointmentModal } from '../components/calendar/EditAppointmentModal';
 import { CancellationNoteModal } from '../components/calendar/CancellationNoteModal';
 import { CancellationPreviewModal } from '../components/calendar/CancellationPreviewModal';
@@ -51,7 +51,7 @@ import { CalendarEvent } from '../utils/calendarDataAdapter';
 import { useModal } from '../contexts/ModalContext';
 import { canDuplicateAppointment, getPractitionerIdForDuplicate } from '../utils/appointmentPermissions';
 import { canEditEvent as canEditEventUtil } from '../utils/eventPermissions';
-import { getErrorMessage } from '../types/api';
+import { getErrorMessage, AvailabilityExceptionRequest } from '../types/api';
 import { CalendarPractitionerAvailability } from '../utils/practitionerAvailability';
 
 
@@ -139,6 +139,14 @@ const AvailabilityPage: React.FC = () => {
     initialDate?: string;
     event?: CalendarEvent;
   } | null>(null);
+
+  // Exception modal state
+  const [exceptionData, setExceptionData] = useState<ExceptionData>({
+    date: getDateString(currentDate),
+    startTime: '00:00',
+    endTime: '23:00'
+  });
+  const [isFullDay, setIsFullDay] = useState(false);
 
   // Use React Query for practitioners
   const { data: practitionersData, isLoading: practitionersLoading } = usePractitioners();
@@ -449,8 +457,15 @@ const AvailabilityPage: React.FC = () => {
   }, []);
 
   const handleCreateException = useCallback(() => {
+    // Reset exception data to current date defaults
+    setExceptionData({
+      date: getDateString(currentDate),
+      startTime: '00:00',
+      endTime: '23:00'
+    });
+    setIsFullDay(false);
     setIsExceptionModalOpen(true);
-  }, []);
+  }, [currentDate]);
 
   const handleToday = useCallback(() => {
     const today = new Date();
@@ -706,16 +721,48 @@ const AvailabilityPage: React.FC = () => {
 
       {isExceptionModalOpen && (
         <ExceptionModal
-          exceptionData={{ date: getDateString(currentDate), startTime: '00:00', endTime: '23:59' }}
-          isFullDay={false}
+          exceptionData={exceptionData}
+          isFullDay={isFullDay}
           onClose={() => setIsExceptionModalOpen(false)}
-          onCreate={() => {
-            setIsExceptionModalOpen(false);
-            // Invalidate calendar events cache
-            invalidateCalendarEventsForAppointment(queryClient, user?.active_clinic_id);
+          onCreate={async () => {
+            logger.info('Creating availability exception:', { exceptionData, isFullDay, userId: user?.user_id });
+
+            if (!user?.user_id) {
+              logger.error('Cannot create exception: user not authenticated');
+              await alert('無法建立休診時段：用戶未認證', '錯誤');
+              return;
+            }
+
+            try {
+              // Prepare the exception request data
+              const requestData: AvailabilityExceptionRequest = {
+                date: exceptionData.date,
+                start_time: isFullDay ? null : exceptionData.startTime,
+                end_time: isFullDay ? null : exceptionData.endTime,
+              };
+
+              logger.info('Sending exception request to API:', requestData);
+
+              // Call the API to create the exception
+              const response = await apiService.createAvailabilityException(user.user_id, requestData);
+
+              logger.info('Availability exception created successfully:', response);
+
+              // Close the modal
+              setIsExceptionModalOpen(false);
+
+              // Invalidate calendar events cache to refresh the view
+              invalidateCalendarEventsForAppointment(queryClient, user?.active_clinic_id);
+
+              await alert('休診時段已建立');
+            } catch (error) {
+              logger.error('Failed to create availability exception:', error);
+              const errorMessage = getErrorMessage(error);
+              await alert(`建立休診時段失敗：${errorMessage}`, '錯誤');
+            }
           }}
-          onExceptionDataChange={() => {}}
-          onFullDayChange={() => {}}
+          onExceptionDataChange={setExceptionData}
+          onFullDayChange={setIsFullDay}
         />
       )}
 

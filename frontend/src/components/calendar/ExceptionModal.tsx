@@ -31,6 +31,9 @@ export const ExceptionModal: React.FC<ExceptionModalProps> = React.memo(({
   onExceptionDataChange,
   onFullDayChange,
 }) => {
+  // eslint-disable-next-line no-console
+  console.log('[ExceptionModal] Render with data:', { exceptionData, isFullDay });
+
   return (
     <BaseModal
       onClose={onClose}
@@ -60,7 +63,7 @@ export const ExceptionModal: React.FC<ExceptionModalProps> = React.memo(({
                 const checked = e.target.checked;
                 onFullDayChange(checked);
                 if (checked) {
-                  onExceptionDataChange({ ...exceptionData, startTime: '00:00', endTime: '23:59' });
+                  onExceptionDataChange({ ...exceptionData, startTime: '00:00', endTime: '23:00' });
                 }
               }}
               className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
@@ -103,8 +106,12 @@ export const ExceptionModal: React.FC<ExceptionModalProps> = React.memo(({
           </div>
         </div>
         <div className="flex justify-end mt-6">
-          <button 
-            onClick={onCreate}
+          <button
+            onClick={() => {
+              // eslint-disable-next-line no-console
+              console.log('[ExceptionModal] Create button clicked with data:', { exceptionData, isFullDay });
+              onCreate();
+            }}
             className="btn-primary w-full sm:w-auto"
           >
             儲存休診時段
