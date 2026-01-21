@@ -80,7 +80,7 @@ const fetchCalendarEvents = async (params: UseCalendarEventsParams): Promise<{
     r.events.map(event => ({ ...event, date: r.date, practitioner_id: r.user_id }))
   );
   const resourceEventsRaw = resourceEvents.results?.flatMap(r =>
-    r.events.map(event => ({ ...event, date: r.date }))
+    r.events.map(event => ({ ...event, date: r.date, resource_id: r.resource_id, is_resource_event: true }))
   ) || [];
 
   return {
