@@ -82,7 +82,7 @@
   position: absolute;
   height: 3px;
   background: #ef4444;
-  z-index: 10;
+  z-index: 15; /* Above all events: appointments (up to 5+) and exceptions (up to 3+) */
   pointer-events: none;
   box-shadow: 0 0 4px rgba(239, 68, 68, 0.5);
 }

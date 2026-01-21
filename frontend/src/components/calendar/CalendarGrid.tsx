@@ -608,11 +608,19 @@ const CalendarEventComponent: React.FC<CalendarEventComponentProps> = ({
       borderRadius = '4px';
     }
 
+    // Determine z-index based on event type hierarchy:
+    // Current time indicator (15) > Appointments (5) > Availability exceptions (3)
+    let zIndex = 5; // Default for appointments
+    if (event.resource.type === 'availability_exception') {
+      zIndex = 3; // Exceptions get lowest priority
+    }
+
     return {
       ...baseStyle,
       backgroundColor,
       border,
       borderRadius,
+      zIndex,
     };
   }, [event, group, groupIndex, eventIndex, selectedPractitioners, selectedResources]);
 

@@ -226,11 +226,18 @@ export const calculateEventInGroupPosition = (
   const overlapPercent = getOverlapPercentage(count);
   const eventWidth = 100 - ((count - 1) * overlapPercent);
 
+  // Determine base z-index based on event type hierarchy:
+  // Current time indicator > Appointments > Availability exceptions
+  let baseZIndex = 5; // Default for appointments
+  if (event.resource.type === 'availability_exception') {
+    baseZIndex = 3; // Exceptions get lowest priority
+  }
+
   return {
     ...position,
     ...size,
     left: `${eventIndex * overlapPercent}%`,
     width: `${eventWidth}%`,
-    zIndex: 10 + eventIndex, // Higher z-index for later events
+    zIndex: baseZIndex + eventIndex, // Base z-index by type + eventIndex for stacking
   };
 };
