@@ -51,7 +51,8 @@ import { CalendarEvent } from '../utils/calendarDataAdapter';
 import { useModal } from '../contexts/ModalContext';
 import { canDuplicateAppointment, getPractitionerIdForDuplicate } from '../utils/appointmentPermissions';
 import { canEditEvent as canEditEventUtil } from '../utils/eventPermissions';
-import { getErrorMessage, AvailabilityExceptionRequest } from '../types/api';
+import { getErrorMessage } from '../types/api';
+import { AvailabilityExceptionRequest } from '../types';
 import { CalendarPractitionerAvailability } from '../utils/practitionerAvailability';
 
 
