@@ -199,6 +199,32 @@ const AvailabilityPage: React.FC = () => {
     setSelectedEvent(null); // Close EventModal
   }, [selectedEvent, canEditEvent]);
 
+  // Handle delete availability exception
+  const handleDeleteException = useCallback(async () => {
+    if (!selectedEvent || !selectedEvent.resource.exception_id) return;
+
+    // Security check: Ensure user has permission to delete this exception
+    if (!canEditEvent(selectedEvent)) {
+      await alert("您只能刪除自己的休診時段");
+      return;
+    }
+
+    try {
+      await apiService.deleteAvailabilityException(user!.user_id, selectedEvent.resource.exception_id);
+
+      // Invalidate calendar events cache to refresh the view
+      invalidateCalendarEventsForAppointment(queryClient, user?.active_clinic_id);
+
+      setIsEventModalOpen(false);
+      setSelectedEvent(null);
+      await alert('休診時段已刪除');
+    } catch (error) {
+      logger.error('Failed to delete availability exception:', error);
+      const errorMessage = getErrorMessage(error);
+      await alert(`刪除休診時段失敗：${errorMessage}`, '錯誤');
+    }
+  }, [selectedEvent, canEditEvent, user, queryClient, alert]);
+
   // Handle duplicate appointment from EventModal (following patient detail page pattern)
   const handleDuplicateAppointment = useCallback(async () => {
     if (!selectedEvent) return;
@@ -558,6 +584,12 @@ const AvailabilityPage: React.FC = () => {
             canEditEvent(selectedEvent) &&
             selectedEvent?.resource.type === "appointment"
               ? handleDeleteAppointment
+              : undefined
+          }
+          onDeleteException={
+            canEditEvent(selectedEvent) &&
+            selectedEvent?.resource.type === "availability_exception"
+              ? handleDeleteException
               : undefined
           }
           onDuplicateAppointment={
