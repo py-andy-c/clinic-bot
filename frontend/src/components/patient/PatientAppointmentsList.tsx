@@ -10,8 +10,6 @@ import { CreateAppointmentModal } from "../calendar/CreateAppointmentModal";
 import { CancellationNoteModal } from "../calendar/CancellationNoteModal";
 import { CancellationPreviewModal } from "../calendar/CancellationPreviewModal";
 import { EventModal } from "../calendar/EventModal";
-import { ReceiptViewModal } from "../calendar/ReceiptViewModal";
-import { ReceiptListModal } from "../calendar/ReceiptListModal";
 import {
   CalendarEvent,
   formatEventTimeRange,
@@ -69,7 +67,7 @@ export const PatientAppointmentsList: React.FC<
 > = ({ patientId, practitioners, appointmentTypes, onRefetchReady }) => {
   const [activeTab, setActiveTab] = useState<TabType>("future");
   const { alert } = useModal();
-  const { hasRole, user, isClinicUser } = useAuth();
+  const { hasRole, user } = useAuth();
   const queryClient = useQueryClient();
 
   // Optimistic update hook for appointment creation
@@ -107,10 +105,6 @@ export const PatientAppointmentsList: React.FC<
     event?: CalendarEvent;
   } | null>(null);
 
-  // Receipt viewing state
-  const [showReceiptModal, setShowReceiptModal] = useState(false);
-  const [selectedReceiptAppointmentId, setSelectedReceiptAppointmentId] = useState<number | undefined>(undefined);
-  const [selectedReceiptId, setSelectedReceiptId] = useState<number | undefined>(undefined);
 
   // Check if user can edit appointments
   const canEdit = hasRole && (hasRole("admin") || hasRole("practitioner"));
@@ -602,30 +596,6 @@ export const PatientAppointmentsList: React.FC<
                   </div>
                 )}
 
-                {/* Receipt View Button */}
-                {appointment.has_any_receipt && appointment.receipt_ids && appointment.receipt_ids.length > 0 && (
-                  <div className="mt-3 pt-3 border-t border-gray-200">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation(); // Prevent opening EventModal
-                        const receiptIds = appointment.receipt_ids || [];
-                        if (receiptIds.length > 1) {
-                          // Multiple receipts: show list modal
-                          setSelectedReceiptAppointmentId(appointment.calendar_event_id);
-                          setShowReceiptModal(true);
-                        } else {
-                          // Single receipt: show directly
-                          setSelectedReceiptId(receiptIds[0]);
-                          setSelectedReceiptAppointmentId(appointment.calendar_event_id);
-                          setShowReceiptModal(true);
-                        }
-                      }}
-                      className="w-full px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors text-sm font-medium"
-                    >
-                      檢視收據
-                    </button>
-                  </div>
-                )}
               </div>
             </div>
           ))}
@@ -666,62 +636,6 @@ export const PatientAppointmentsList: React.FC<
         />
       )}
 
-      {/* Receipt Modals - Consolidated logic */}
-      {showReceiptModal && selectedReceiptAppointmentId && (() => {
-        const appointment = allAppointments.find(a => a.calendar_event_id === selectedReceiptAppointmentId);
-        const receiptIds = appointment?.receipt_ids || [];
-
-        if (receiptIds.length > 1) {
-          return (
-            <ReceiptListModal
-              appointmentId={selectedReceiptAppointmentId}
-              receiptIds={receiptIds}
-              onClose={() => {
-                setShowReceiptModal(false);
-                setSelectedReceiptAppointmentId(undefined);
-                setSelectedReceiptId(undefined);
-              }}
-              onSelectReceipt={(receiptId: number) => {
-                setSelectedReceiptId(receiptId);
-                setShowReceiptModal(false); // Close list modal
-              }}
-            />
-          );
-        } else if (receiptIds.length === 1 && !selectedReceiptId) {
-          return (
-            <ReceiptViewModal
-              appointmentId={selectedReceiptAppointmentId}
-              onClose={() => {
-                setSelectedReceiptAppointmentId(undefined);
-                setShowReceiptModal(false);
-              }}
-              onReceiptVoided={async () => {
-                await refreshAppointmentsList();
-                await invalidateCalendarCache();
-              }}
-              isClinicUser={isClinicUser || false}
-            />
-          );
-        }
-        return null;
-      })()}
-
-      {/* Receipt View Modal (when specific receipt selected) */}
-      {selectedReceiptId && (
-        <ReceiptViewModal
-          receiptId={selectedReceiptId}
-          onClose={() => {
-            setSelectedReceiptId(undefined);
-            setSelectedReceiptAppointmentId(undefined);
-            setShowReceiptModal(false);
-          }}
-          onReceiptVoided={async () => {
-            await refreshAppointmentsList();
-            await invalidateCalendarCache();
-          }}
-          isClinicUser={isClinicUser || false}
-        />
-      )}
 
       {/* Edit Appointment Modal */}
       {editingAppointment && (
