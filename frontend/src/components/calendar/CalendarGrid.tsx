@@ -126,7 +126,7 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
     if (typeof gridElement.scrollTo === 'function') {
       gridElement.scrollTo({
         top: scrollPosition,
-        behavior: 'smooth'
+        behavior: 'instant'
       });
     }
   }, [currentDate, cachedElements]);
