@@ -133,16 +133,28 @@ export const PatientAppointmentsList: React.FC<
 
   const allAppointments = data?.appointments || [];
 
+  // Helper function for efficient array comparison
+  const arraysEqual = useCallback((a: number[] | undefined, b: number[] | undefined): boolean => {
+    if (!a && !b) return true;
+    if (!a || !b) return false;
+    if (a.length !== b.length) return false;
+    return a.every((val, idx) => val === b[idx]);
+  }, []);
+
   // Helper function to check if event data has changed
   const hasEventDataChanged = useCallback(
     (current: CalendarEvent, updated: CalendarEvent): boolean => {
       return (
         current.title !== updated.title ||
         current.resource.clinic_notes !== updated.resource.clinic_notes ||
-        current.resource.notes !== updated.resource.notes
+        current.resource.notes !== updated.resource.notes ||
+        current.resource.has_active_receipt !== updated.resource.has_active_receipt ||
+        current.resource.has_any_receipt !== updated.resource.has_any_receipt ||
+        current.resource.receipt_id !== updated.resource.receipt_id ||
+        !arraysEqual(current.resource.receipt_ids, updated.resource.receipt_ids)
       );
     },
-    [],
+    [arraysEqual],
   );
 
   // Update selectedEvent when appointments data changes (e.g., after refresh)
@@ -211,6 +223,18 @@ export const PatientAppointmentsList: React.FC<
     // Refetch the data
     await refetch();
   }, [queryClient, patientId, refetch]);
+
+  // Consolidated cache invalidation helper to prevent redundant calls
+  const invalidateCalendarCache = useCallback(async () => {
+    if (queryClient && user?.active_clinic_id) {
+      try {
+        await invalidateCalendarEventsForAppointment(queryClient, user.active_clinic_id);
+      } catch (error) {
+        logger.error('Failed to invalidate calendar cache:', error);
+        // Continue execution - cache invalidation failure shouldn't break the flow
+      }
+    }
+  }, [queryClient, user?.active_clinic_id]);
 
   // Expose refetch function to parent component
   useEffect(() => {
@@ -442,7 +466,7 @@ export const PatientAppointmentsList: React.FC<
       }
 
       // Also invalidate calendar events to update the calendar page
-      invalidateCalendarEventsForAppointment(queryClient, clinicId);
+      await invalidateCalendarCache();
 
       setDeletingAppointment(null);
       setCancellationNote("");
@@ -642,14 +666,16 @@ export const PatientAppointmentsList: React.FC<
         />
       )}
 
-      {/* Receipt List Modal (when multiple receipts) */}
-      {showReceiptModal && selectedReceiptAppointmentId && (
-        <>
-          {allAppointments.find(a => a.calendar_event_id === selectedReceiptAppointmentId)?.receipt_ids && 
-           allAppointments.find(a => a.calendar_event_id === selectedReceiptAppointmentId)!.receipt_ids!.length > 1 && (
+      {/* Receipt Modals - Consolidated logic */}
+      {showReceiptModal && selectedReceiptAppointmentId && (() => {
+        const appointment = allAppointments.find(a => a.calendar_event_id === selectedReceiptAppointmentId);
+        const receiptIds = appointment?.receipt_ids || [];
+
+        if (receiptIds.length > 1) {
+          return (
             <ReceiptListModal
               appointmentId={selectedReceiptAppointmentId}
-              receiptIds={allAppointments.find(a => a.calendar_event_id === selectedReceiptAppointmentId)!.receipt_ids!}
+              receiptIds={receiptIds}
               onClose={() => {
                 setShowReceiptModal(false);
                 setSelectedReceiptAppointmentId(undefined);
@@ -660,11 +686,27 @@ export const PatientAppointmentsList: React.FC<
                 setShowReceiptModal(false); // Close list modal
               }}
             />
-          )}
-        </>
-      )}
+          );
+        } else if (receiptIds.length === 1 && !selectedReceiptId) {
+          return (
+            <ReceiptViewModal
+              appointmentId={selectedReceiptAppointmentId}
+              onClose={() => {
+                setSelectedReceiptAppointmentId(undefined);
+                setShowReceiptModal(false);
+              }}
+              onReceiptVoided={async () => {
+                await refreshAppointmentsList();
+                await invalidateCalendarCache();
+              }}
+              isClinicUser={isClinicUser || false}
+            />
+          );
+        }
+        return null;
+      })()}
 
-      {/* Receipt View Modal */}
+      {/* Receipt View Modal (when specific receipt selected) */}
       {selectedReceiptId && (
         <ReceiptViewModal
           receiptId={selectedReceiptId}
@@ -675,25 +717,7 @@ export const PatientAppointmentsList: React.FC<
           }}
           onReceiptVoided={async () => {
             await refreshAppointmentsList();
-            // Also invalidate calendar events to update the calendar page
-            invalidateCalendarEventsForAppointment(queryClient, user?.active_clinic_id);
-          }}
-          isClinicUser={isClinicUser || false}
-        />
-      )}
-      {showReceiptModal && selectedReceiptAppointmentId && !selectedReceiptId && 
-       allAppointments.find(a => a.calendar_event_id === selectedReceiptAppointmentId)?.receipt_ids &&
-       allAppointments.find(a => a.calendar_event_id === selectedReceiptAppointmentId)!.receipt_ids!.length === 1 && (
-        <ReceiptViewModal
-          appointmentId={selectedReceiptAppointmentId}
-          onClose={() => {
-            setSelectedReceiptAppointmentId(undefined);
-            setShowReceiptModal(false);
-          }}
-          onReceiptVoided={async () => {
-            await refreshAppointmentsList();
-            // Also invalidate calendar events to update the calendar page
-            invalidateCalendarEventsForAppointment(queryClient, user?.active_clinic_id);
+            await invalidateCalendarCache();
           }}
           isClinicUser={isClinicUser || false}
         />

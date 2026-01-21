@@ -1,5 +1,6 @@
 import moment from "moment-timezone";
 import { CalendarEvent } from "../../utils/calendarDataAdapter";
+import { logger } from "../../utils/logger";
 
 interface Appointment {
   id: number; // calendar_event_id (old format)
@@ -19,6 +20,10 @@ interface Appointment {
   line_display_name?: string | null;
   originally_auto_assigned?: boolean;
   is_auto_assigned?: boolean;
+  has_active_receipt?: boolean; // Whether appointment has an active (non-voided) receipt
+  has_any_receipt?: boolean; // Whether appointment has any receipt (active or voided)
+  receipt_id?: number | null; // ID of active receipt (null if no active receipt)
+  receipt_ids?: number[]; // List of all receipt IDs (always included, empty if none)
   resource_names?: string[]; // Names of allocated resources
   resource_ids?: number[]; // IDs of allocated resources
 }
@@ -91,6 +96,24 @@ export function appointmentToCalendarEvent(
   }
   if (appointment.resource_ids && appointment.resource_ids.length > 0) {
     resource.resource_ids = appointment.resource_ids;
+  }
+  if (appointment.has_active_receipt !== undefined) {
+    resource.has_active_receipt = appointment.has_active_receipt;
+  }
+  if (appointment.has_any_receipt !== undefined) {
+    resource.has_any_receipt = appointment.has_any_receipt;
+  }
+  if (appointment.receipt_id !== undefined) {
+    resource.receipt_id = appointment.receipt_id;
+  }
+  if (appointment.receipt_ids !== undefined) {
+    // Validate that receipt_ids is actually an array of numbers
+    if (Array.isArray(appointment.receipt_ids) &&
+        appointment.receipt_ids.every(id => typeof id === 'number' && !isNaN(id))) {
+      resource.receipt_ids = appointment.receipt_ids;
+    } else {
+      logger.warn('Invalid receipt_ids format, skipping:', appointment.receipt_ids);
+    }
   }
 
   // Use event_name if available (custom event name), otherwise use default format
