@@ -81,7 +81,17 @@ describe('CalendarDateStrip', () => {
     expect(mockProps.onToday).toHaveBeenCalled();
   });
 
-  it('calls onSettings when settings button is clicked', () => {
+  it('calls onSettings when settings button is clicked (mobile)', () => {
+    // Mock window.innerWidth to be less than 1024px (mobile/tablet)
+    Object.defineProperty(window, 'innerWidth', {
+      writable: true,
+      configurable: true,
+      value: 768,
+    });
+
+    // Trigger window resize event
+    window.dispatchEvent(new Event('resize'));
+
     render(<CalendarDateStrip {...mockProps} />);
     const button = screen.getByTitle('Open Settings');
     fireEvent.click(button);
@@ -95,5 +105,23 @@ describe('CalendarDateStrip', () => {
 
     // Mini calendar should now be visible
     expect(screen.getByText('2024年1月')).toBeInTheDocument();
+  });
+
+  it('does not show settings button on desktop', () => {
+    // Mock window.innerWidth to be >= 1024px (desktop)
+    Object.defineProperty(window, 'innerWidth', {
+      writable: true,
+      configurable: true,
+      value: 1200,
+    });
+
+    // Trigger window resize event
+    window.dispatchEvent(new Event('resize'));
+
+    render(<CalendarDateStrip {...mockProps} />);
+
+    // Settings button should not be present
+    const settingsButton = screen.queryByTitle('Open Settings');
+    expect(settingsButton).not.toBeInTheDocument();
   });
 });
