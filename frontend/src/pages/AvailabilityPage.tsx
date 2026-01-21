@@ -121,7 +121,6 @@ const AvailabilityPage: React.FC = () => {
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   const [selectedAppointmentId, setSelectedAppointmentId] = useState<number | null>(null);
   const [cancellationNote, setCancellationNote] = useState('');
-  const [scrollTrigger, setScrollTrigger] = useState(0); // Counter to trigger scroll
 
   // Delete appointment state (following patient detail page pattern)
   const [deletingAppointment, setDeletingAppointment] = useState<CalendarEvent | null>(null);
@@ -547,8 +546,7 @@ const AvailabilityPage: React.FC = () => {
     const today = new Date();
     setCurrentDate(today);
     handleDateChange(today);
-    // Trigger scroll to current time
-    setScrollTrigger(prev => prev + 1);
+    // No auto-scroll for today button - user controls their own scrolling
   }, [handleDateChange]);
 
   const handleSettings = useCallback(() => {
@@ -609,7 +607,6 @@ const AvailabilityPage: React.FC = () => {
         practitionerAvailability={practitionerAvailability}
         onEventClick={handleEventClick}
         onSlotClick={handleSlotClick}
-        scrollToCurrentTime={scrollTrigger > 0}
       />
 
       {/* Modal Components */}

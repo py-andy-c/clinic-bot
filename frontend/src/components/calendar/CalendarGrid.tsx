@@ -1,4 +1,4 @@
-import React, { useMemo, useEffect, useCallback, useState } from 'react';
+import React, { useMemo, useEffect, useCallback, useState, useRef } from 'react';
 import moment from 'moment-timezone';
 import { CalendarEvent } from '../../utils/calendarDataAdapter';
 import { CalendarView, CalendarViews } from '../../types/calendar';
@@ -38,7 +38,6 @@ interface CalendarGridProps {
   practitionerAvailability?: CalendarPractitionerAvailability; // Practitioner availability data
   onEventClick?: (event: CalendarEvent) => void;
   onSlotClick?: (slotInfo: { start: Date; end: Date }) => void;
-  scrollToCurrentTime?: boolean; // Trigger to scroll to current time
 }
 
 const CalendarGrid: React.FC<CalendarGridProps> = ({
@@ -52,7 +51,6 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
   practitionerAvailability = {},
   onEventClick,
   onSlotClick,
-  scrollToCurrentTime = false,
 }) => {
 
 
@@ -61,6 +59,9 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
 
   // DOM element caching for performance optimization
   const [cachedElements, setCachedElements] = useState<Record<string, Element | null>>({});
+
+  // Track if we've done initial auto-scroll for this component instance
+  const hasScrolledRef = useRef(false);
 
   useEffect(() => {
     // Cache frequently accessed DOM elements on mount
@@ -96,44 +97,51 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
 
     const now = getCurrentTaiwanTime();
     const today = moment(currentDate).tz('Asia/Taipei').startOf('day');
+    const isViewingToday = now.isSame(today, 'day');
 
-    // Only scroll if we're viewing today
-    if (!now.isSame(today, 'day')) return;
+    let targetHours: number;
+    let targetMinutes: number;
 
-    const hours = now.hour();
-    const minutes = now.minute();
-
-    // Scroll for full 24-hour day (no business hour restrictions)
+    if (isViewingToday) {
+      // Scroll to current time when viewing today
+      targetHours = now.hour();
+      targetMinutes = now.minute();
+    } else {
+      // Scroll to 8 AM when viewing other days
+      targetHours = 8;
+      targetMinutes = 0;
+    }
 
     // Calculate position: (hours from 0 AM * 60 + minutes) / slot_duration * slot_height
-    const minutesFromMidnight = (hours - 0) * 60 + minutes;
+    const minutesFromMidnight = (targetHours * 60) + targetMinutes;
     const pixelsFromTop = (minutesFromMidnight / CALENDAR_CONFIG.SLOT_DURATION_MINUTES) * CALENDAR_CONFIG.SLOT_HEIGHT_PX;
 
-    // Add buffer to show context above current time
-    const scrollPosition = Math.max(0, pixelsFromTop - CALENDAR_CONFIG.SCROLL_BUFFER_PX);
+    // For today, add buffer to show context above current time
+    // For other days, scroll directly to 8 AM (no buffer needed)
+    const scrollPosition = isViewingToday
+      ? Math.max(0, pixelsFromTop - CALENDAR_CONFIG.SCROLL_BUFFER_PX)
+      : pixelsFromTop;
 
-    gridElement.scrollTo({
-      top: scrollPosition,
-      behavior: 'smooth'
-    });
+    // Check if scrollTo is available (may not be in test environments)
+    if (typeof gridElement.scrollTo === 'function') {
+      gridElement.scrollTo({
+        top: scrollPosition,
+        behavior: 'smooth'
+      });
+    }
   }, [currentDate, cachedElements]);
 
-  // Auto-scroll on mount and when currentDate changes to today
+  // Auto-scroll only once on initial component mount for day/week views
   useEffect(() => {
-    // Small delay to ensure DOM is rendered
-    const timeoutId = setTimeout(() => {
-      scrollToCurrentTimePosition();
-    }, 100);
-
-    return () => clearTimeout(timeoutId);
-  }, [currentDate, scrollToCurrentTimePosition]);
-
-  // Scroll when triggered from outside (e.g., today button)
-  useEffect(() => {
-    if (scrollToCurrentTime) {
-      scrollToCurrentTimePosition();
+    if (!hasScrolledRef.current && (view === 'day' || view === 'week')) {
+      const timeoutId = setTimeout(() => {
+        hasScrolledRef.current = true;
+        scrollToCurrentTimePosition();
+      }, 100);
+      return () => clearTimeout(timeoutId);
     }
-  }, [scrollToCurrentTime, scrollToCurrentTimePosition]);
+    return undefined;
+  }, [scrollToCurrentTimePosition, view]); // Include view for re-evaluation on view change
 
   // Calculate current time indicator position
   const currentTimeIndicatorStyle = useMemo(
