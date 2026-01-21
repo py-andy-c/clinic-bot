@@ -142,6 +142,10 @@
   border-bottom: 1px solid #e5e7eb; /* Dark border for hour boundaries */
 }
 
+.timeSlot.unavailable {
+  background-color: #f1f5f9;
+}
+
 /* Mobile touch improvements */
 @media (max-width: 768px) {
   .timeSlot {

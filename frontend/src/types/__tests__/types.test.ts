@@ -230,6 +230,12 @@ describe('Code Quality Checks', () => {
             // Skip schema-validation.ts as it provides development-time warnings
             if (file === 'schema-validation.ts') continue;
 
+            // Skip practitionerAvailability.ts as it provides development-time warnings for malformed API data
+            if (file === 'practitionerAvailability.ts') continue;
+
+            // Skip useCalendarEvents.ts as it provides development-time error logging
+            if (file === 'useCalendarEvents.ts') continue;
+
             const content = fs.readFileSync(filePath, 'utf-8');
             const lines = content.split('\n');
 

@@ -4,6 +4,9 @@ import { useAuth } from '../useAuth';
 import { CalendarEvent, transformToCalendarEvents } from '../../utils/calendarDataAdapter';
 import { CalendarView } from '../../types/calendar';
 import moment from 'moment-timezone';
+import { extractPractitionerAvailability, CalendarPractitionerAvailability } from '../../utils/practitionerAvailability';
+
+const isDevelopment = import.meta.env.DEV;
 
 interface UseCalendarEventsParams {
   selectedPractitioners: number[];
@@ -38,7 +41,10 @@ const getDateRange = (currentDate: Date, view: CalendarView) => {
   }
 };
 
-const fetchCalendarEvents = async (params: UseCalendarEventsParams): Promise<CalendarEvent[]> => {
+const fetchCalendarEvents = async (params: UseCalendarEventsParams): Promise<{
+  events: CalendarEvent[];
+  practitionerAvailability: CalendarPractitionerAvailability;
+}> => {
   const { selectedPractitioners, selectedResources, currentDate, view } = params;
   const { startDate, endDate } = getDateRange(currentDate, view);
 
@@ -59,6 +65,16 @@ const fetchCalendarEvents = async (params: UseCalendarEventsParams): Promise<Cal
       : Promise.resolve({ results: [] })
   ]);
 
+  // Extract practitioner availability from calendar results
+  let practitionerAvailability: CalendarPractitionerAvailability = {};
+  try {
+    practitionerAvailability = extractPractitionerAvailability(practitionerEvents.results || []);
+  } catch (error) {
+    if (isDevelopment) console.error('Error extracting practitioner availability:', error);
+    // Continue with empty availability - safer than crashing
+    practitionerAvailability = {};
+  }
+
   // Transform events - need to include date and practitioner_id from result level
   const practitionerEventsRaw = practitionerEvents.results.flatMap(r =>
     r.events.map(event => ({ ...event, date: r.date, practitioner_id: r.user_id }))
@@ -67,10 +83,13 @@ const fetchCalendarEvents = async (params: UseCalendarEventsParams): Promise<Cal
     r.events.map(event => ({ ...event, date: r.date }))
   ) || [];
 
-  return [
-    ...transformToCalendarEvents(practitionerEventsRaw),
-    ...transformToCalendarEvents(resourceEventsRaw)
-  ];
+  return {
+    events: [
+      ...transformToCalendarEvents(practitionerEventsRaw),
+      ...transformToCalendarEvents(resourceEventsRaw)
+    ],
+    practitionerAvailability
+  };
 };
 
 // Create stable, sorted keys for consistent query caching
@@ -88,7 +107,7 @@ export const useCalendarEvents = (params: UseCalendarEventsParams) => {
   const practitionersKey = createStableArrayKey(selectedPractitioners);
   const resourcesKey = createStableArrayKey(selectedResources);
 
-  return useQuery({
+  const query = useQuery({
     queryKey: ['calendar-events', activeClinicId, {
       practitioners: practitionersKey,
       resources: resourcesKey,
@@ -111,6 +130,14 @@ export const useCalendarEvents = (params: UseCalendarEventsParams) => {
       return failureCount < 2;
     }
   });
+
+  return {
+    ...query,
+    data: query.data ? {
+      events: query.data.events,
+      practitionerAvailability: query.data.practitionerAvailability
+    } : undefined
+  };
 };
 
 /**

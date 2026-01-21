@@ -118,7 +118,7 @@ export interface PractitionerWithDetails {
   full_name: string;
   roles: string[];
   appointment_types: PractitionerAppointmentType[];
-  default_schedule: Record<string, PractitionerScheduleInterval[]>;
+  default_schedule: Record<string, PractitionerScheduleInterval[]>; // Day-based schedule
 }
 
 // Patient types

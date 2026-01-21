@@ -52,6 +52,7 @@ import { useModal } from '../contexts/ModalContext';
 import { canDuplicateAppointment, getPractitionerIdForDuplicate } from '../utils/appointmentPermissions';
 import { canEditEvent as canEditEventUtil } from '../utils/eventPermissions';
 import { getErrorMessage } from '../types/api';
+import { CalendarPractitionerAvailability } from '../utils/practitionerAvailability';
 
 
 
@@ -78,7 +79,7 @@ const AvailabilityPage: React.FC = () => {
 
   // Use React Query for calendar events
   const {
-    data: allEventsData,
+    data: calendarData,
     isLoading: eventsLoading,
     error: eventsError
   } = useCalendarEvents({
@@ -87,7 +88,11 @@ const AvailabilityPage: React.FC = () => {
     currentDate,
     view
   });
-  const allEvents = allEventsData || [];
+
+  // Extract events and practitioner availability from calendar data
+  const allEvents = calendarData?.events || [];
+  const practitionerAvailability: CalendarPractitionerAvailability = calendarData?.practitionerAvailability || {};
+
 
   // Optimistic update hook for appointment creation
   const createAppointmentMutation = useCreateAppointmentOptimistic();
@@ -510,6 +515,7 @@ const AvailabilityPage: React.FC = () => {
         selectedResources={selectedResources}
         practitioners={practitioners}
         resources={resources}
+        practitionerAvailability={practitionerAvailability}
         onEventClick={handleEventClick}
         onSlotClick={handleSlotClick}
         scrollToCurrentTime={scrollTrigger > 0}
@@ -700,7 +706,7 @@ const AvailabilityPage: React.FC = () => {
 
       {isExceptionModalOpen && (
         <ExceptionModal
-          exceptionData={{ date: getDateString(currentDate), startTime: '09:00', endTime: '17:00' }}
+          exceptionData={{ date: getDateString(currentDate), startTime: '00:00', endTime: '23:59' }}
           isFullDay={false}
           onClose={() => setIsExceptionModalOpen(false)}
           onCreate={() => {

@@ -17,15 +17,14 @@ import {
   OverlappingEventGroup,
   getCurrentTaiwanTime,
 } from '../../utils/calendarGridUtils';
+import { CalendarPractitionerAvailability, isTimeSlotAvailable } from '../../utils/practitionerAvailability';
 import styles from './CalendarGrid.module.css';
 
 // Calendar configuration constants
 const CALENDAR_CONFIG = {
   SLOT_DURATION_MINUTES: 15,
   SLOT_HEIGHT_PX: 20,
-  SCROLL_BUFFER_PX: 100,
-  BUSINESS_HOURS_START: 8, // 8 AM
-  BUSINESS_HOURS_END: 22, // 10 PM
+  SCROLL_BUFFER_PX: 100
 } as const;
 
 interface CalendarGridProps {
@@ -36,6 +35,7 @@ interface CalendarGridProps {
   selectedResources: number[];
   practitioners?: Array<{ id: number; full_name: string }>; // Practitioner data
   resources?: Array<{ id: number; name: string }>; // Resource data
+  practitionerAvailability?: CalendarPractitionerAvailability; // Practitioner availability data
   onEventClick?: (event: CalendarEvent) => void;
   onSlotClick?: (slotInfo: { start: Date; end: Date }) => void;
   scrollToCurrentTime?: boolean; // Trigger to scroll to current time
@@ -49,6 +49,7 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
   selectedResources,
   practitioners = [],
   resources = [],
+  practitionerAvailability = {},
   onEventClick,
   onSlotClick,
   scrollToCurrentTime = false,
@@ -414,17 +415,28 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
                     role="gridcell"
                     aria-label={`Column for practitioner ${practitionerId}`}
                   >
-                    {timeSlots.map((slot, index) => (
-                      <div
-                        key={index}
-                        className={styles.timeSlot}
-                        onClick={() => handleSlotClick(slot.hour, slot.minute)}
-                        role="button"
-                        aria-label={`Time slot ${slot.time} for practitioner ${practitionerId} - Click to create appointment`}
-                        data-testid="time-slot"
-                        tabIndex={-1}
-                      />
-                    ))}
+                    {timeSlots.map((slot, index) => {
+                      const isAvailable = isTimeSlotAvailable(
+                        practitionerId,
+                        currentDate,
+                        slot.hour,
+                        slot.minute,
+                        practitionerAvailability,
+                        false // Always check practitioner schedules, not business hours
+                      );
+
+                      return (
+                        <div
+                          key={index}
+                          className={`${styles.timeSlot} ${!isAvailable ? styles.unavailable : ''}`}
+                          onClick={() => handleSlotClick(slot.hour, slot.minute)}
+                          role="button"
+                          aria-label={`Time slot ${slot.time} for practitioner ${practitionerId} - Click to create appointment`}
+                          data-testid="time-slot"
+                          tabIndex={-1}
+                        />
+                      );
+                    })}
                     {/* Render single events (full width) */}
                     {groups
                       .filter(group => group.events.length === 1)
@@ -461,17 +473,32 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
                     role="gridcell"
                     aria-label={`Column for resource ${resourceId}`}
                   >
-                    {timeSlots.map((slot, index) => (
-                      <div
-                        key={index}
-                        className={styles.timeSlot}
-                        onClick={() => handleSlotClick(slot.hour, slot.minute)}
-                        role="button"
-                        aria-label={`Time slot ${slot.time} for resource ${resourceId} - Click to create appointment`}
-                        data-testid="time-slot"
-                        tabIndex={-1}
-                      />
-                    ))}
+                    {timeSlots.map((slot, index) => {
+                      // Resources should follow practitioner availability to prevent double bookings
+                      // Check if any selected practitioner is available at this time slot
+                      const isAnyPractitionerAvailable = selectedPractitioners.some(practitionerId => {
+                        return isTimeSlotAvailable(
+                          practitionerId,
+                          currentDate,
+                          slot.hour,
+                          slot.minute,
+                          practitionerAvailability,
+                          false // Always check practitioner availability, never use business hours
+                        );
+                      });
+
+                      return (
+                        <div
+                          key={index}
+                          className={`${styles.timeSlot} ${!isAnyPractitionerAvailable ? styles.unavailable : ''}`}
+                          onClick={() => handleSlotClick(slot.hour, slot.minute)}
+                          role="button"
+                          aria-label={`Time slot ${slot.time} for resource ${resourceId} - Click to create appointment`}
+                          data-testid="time-slot"
+                          tabIndex={-1}
+                        />
+                      );
+                    })}
                     {/* Render single events (full width) */}
                     {groups
                       .filter(group => group.events.length === 1)

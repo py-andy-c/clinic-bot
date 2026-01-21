@@ -153,8 +153,8 @@ describe('useCalendarEvents', () => {
         endDate: '2024-01-15',
       });
 
-      expect(result.current.data).toHaveLength(1);
-      expect(result.current.data![0].title).toBe('Test Appointment');
+      expect(result.current.data?.events).toHaveLength(1);
+      expect(result.current.data?.events[0].title).toBe('Test Appointment');
     });
 
     it('should fetch resource appointments', async () => {
@@ -195,8 +195,8 @@ describe('useCalendarEvents', () => {
         endDate: '2024-01-15',
       });
 
-      expect(result.current.data).toHaveLength(1);
-      expect(result.current.data![0].title).toBe('Test Resource Event');
+      expect(result.current.data?.events).toHaveLength(1);
+      expect(result.current.data?.events[0].title).toBe('Test Resource Event');
     });
 
   });
