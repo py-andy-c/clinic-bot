@@ -19,6 +19,25 @@ import DashboardBackButton from '../../components/DashboardBackButton';
 import { useQueryClient } from '@tanstack/react-query';
 import { invalidateCalendarEventsForAppointment } from '../../hooks/queries/useCalendarEvents';
 
+// Utility function to update a CalendarEvent with fresh appointment data
+const updateCalendarEventWithAppointmentData = (
+  existingEvent: CalendarEvent,
+  appointmentData: any
+): CalendarEvent => {
+  const updatedResource = {
+    ...existingEvent.resource,
+    has_active_receipt: appointmentData.has_active_receipt,
+    has_any_receipt: appointmentData.has_any_receipt,
+    receipt_id: appointmentData.receipt_id || null,
+    receipt_ids: appointmentData.receipt_ids || [],
+  };
+
+  return {
+    ...existingEvent,
+    resource: updatedResource,
+  };
+};
+
 import { AppointmentType } from '../../types';
 import {
   filterAppointmentTypesByGroup,
@@ -702,11 +721,28 @@ const RevenueDistributionPage: React.FC = () => {
             // Refetch data after receipt creation
             // React Query will automatically refetch when data changes
           }}
-          onEventNameUpdated={async () => {
+          onEventNameUpdated={async (updateTrigger) => {
             // Invalidate calendar events to refresh appointment data after modifications
             try {
               if (queryClient && activeClinicId) {
                 invalidateCalendarEventsForAppointment(queryClient, activeClinicId);
+              }
+
+              // If called with null, it means the event data changed (e.g., after checkout)
+              // Fetch fresh appointment data and update the selectedAppointmentEvent
+              if (updateTrigger === null && selectedAppointmentEvent?.resource.appointment_id) {
+                try {
+                  const appointmentData = await apiService.getAppointmentDetails(selectedAppointmentEvent.resource.appointment_id);
+
+                  // Update the event with fresh appointment data
+                  const updatedEvent = updateCalendarEventWithAppointmentData(selectedAppointmentEvent, appointmentData);
+                  setSelectedAppointmentEvent(updatedEvent);
+                } catch (fetchError) {
+                  // Failed to fetch updated appointment data - close modal as fallback
+                  // to ensure user sees fresh data when reopened
+                  setShowAppointmentModal(false);
+                  setSelectedAppointmentEvent(null);
+                }
               }
             } catch (error) {
               // Cache invalidation failed - this is non-critical for user experience

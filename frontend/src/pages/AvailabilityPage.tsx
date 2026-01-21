@@ -5,6 +5,25 @@ import { useAuth } from '../hooks/useAuth';
 import { usePractitioners, useClinicSettings, useServiceTypeGroups } from '../hooks/queries';
 import { LoadingSpinner } from '../components/shared';
 import { CalendarView, CalendarViews } from '../types/calendar';
+
+// Utility function to update a CalendarEvent with fresh appointment data
+const updateCalendarEventWithAppointmentData = (
+  existingEvent: CalendarEvent,
+  appointmentData: any
+): CalendarEvent => {
+  const updatedResource = {
+    ...existingEvent.resource,
+    has_active_receipt: appointmentData.has_active_receipt,
+    has_any_receipt: appointmentData.has_any_receipt,
+    receipt_id: appointmentData.receipt_id || null,
+    receipt_ids: appointmentData.receipt_ids || [],
+  };
+
+  return {
+    ...existingEvent,
+    resource: updatedResource,
+  };
+};
 import CalendarLayout from '../components/calendar/CalendarLayout';
 import CalendarSidebar from '../components/calendar/CalendarSidebar';
 import CalendarDateStrip from '../components/calendar/CalendarDateStrip';
@@ -527,11 +546,28 @@ const AvailabilityPage: React.FC = () => {
           formatAppointmentTime={formatAppointmentTimeRange}
           appointmentTypes={appointmentTypes}
           practitioners={practitioners}
-          onEventNameUpdated={async () => {
+          onEventNameUpdated={async (updateTrigger) => {
             // Invalidate calendar events to refresh appointment data after modifications
             try {
               if (queryClient && user?.active_clinic_id) {
                 invalidateCalendarEventsForAppointment(queryClient, user.active_clinic_id);
+              }
+
+              // If called with null, it means the event data changed (e.g., after checkout)
+              // Fetch fresh appointment data and update the selectedEvent
+              if (updateTrigger === null && selectedEvent?.resource.appointment_id) {
+                try {
+                  const appointmentData = await apiService.getAppointmentDetails(selectedEvent.resource.appointment_id);
+
+                  // Update the event with fresh appointment data
+                  const updatedEvent = updateCalendarEventWithAppointmentData(selectedEvent, appointmentData);
+                  setSelectedEvent(updatedEvent);
+                } catch (fetchError) {
+                  // Failed to fetch updated appointment data - close modal as fallback
+                  // to ensure user sees fresh data when reopened
+                  setIsEventModalOpen(false);
+                  setSelectedEvent(null);
+                }
               }
             } catch (error) {
               // Cache invalidation failed - this is non-critical for user experience
