@@ -1,11 +1,17 @@
 /* CalendarLayout.module.css */
 .calendarLayout {
-  /* Calendar layout is now handled by ClinicLayout for calendar pages */
-  /* This component now just provides a wrapper for the calendar content */
+  /* Main content area with sidebar and calendar content side by side */
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.calendarContent {
+  /* Calendar content area takes remaining space after sidebar */
+  flex: 1;
   display: flex;
   flex-direction: column;
-  height: 100%;
-  min-height: 100%;
+  overflow: hidden;
 }
 
 .calendarLayout :global(*) {

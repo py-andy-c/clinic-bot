@@ -572,45 +572,51 @@ const AvailabilityPage: React.FC = () => {
   }
 
   return (
-    <CalendarLayout>
-      <CalendarSidebar
-        view={view}
-        onViewChange={handleViewChange}
-        practitioners={practitioners}
-        selectedPractitioners={selectedPractitioners}
-        onPractitionersChange={setSelectedPractitioners}
-        resources={resources}
-        selectedResources={selectedResources}
-        onResourcesChange={setSelectedResources}
-        isOpen={sidebarOpen}
-        onClose={handleSettings}
-      />
-
-      <CalendarDateStrip
-        view={view}
-        currentDate={currentDate}
-        onDateChange={handleDateChange}
-        onCreateAppointment={handleCreateAppointment}
-        onCreateException={handleCreateException}
-        onToday={handleToday}
-        onSettings={handleSettings}
-      />
-
-      <CalendarGrid
-        view={view}
-        currentDate={currentDate}
-        events={allEvents}
-        selectedPractitioners={selectedPractitioners}
-        selectedResources={selectedResources}
-        practitioners={practitioners}
-        resources={resources}
-        practitionerAvailability={practitionerAvailability}
-        onEventClick={handleEventClick}
-        onSlotClick={handleSlotClick}
+    <>
+      <CalendarLayout
+        sidebar={
+          <CalendarSidebar
+            view={view}
+            onViewChange={handleViewChange}
+            practitioners={practitioners}
+            selectedPractitioners={selectedPractitioners}
+            onPractitionersChange={setSelectedPractitioners}
+            resources={resources}
+            selectedResources={selectedResources}
+            onResourcesChange={setSelectedResources}
+            isOpen={sidebarOpen}
+            onClose={handleSettings}
+          />
+        }
+        dateStrip={
+          <CalendarDateStrip
+            view={view}
+            currentDate={currentDate}
+            onDateChange={handleDateChange}
+            onCreateAppointment={handleCreateAppointment}
+            onCreateException={handleCreateException}
+            onToday={handleToday}
+            onSettings={handleSettings}
+          />
+        }
+        calendarGrid={
+          <CalendarGrid
+            view={view}
+            currentDate={currentDate}
+            events={allEvents}
+            selectedPractitioners={selectedPractitioners}
+            selectedResources={selectedResources}
+            practitioners={practitioners}
+            resources={resources}
+            practitionerAvailability={practitionerAvailability}
+            onEventClick={handleEventClick}
+            onSlotClick={handleSlotClick}
+          />
+        }
       />
 
       {/* Modal Components */}
-      {isEventModalOpen && selectedEvent && (
+    {isEventModalOpen && selectedEvent && (
         <EventModal
           event={selectedEvent}
           onClose={() => {
@@ -975,9 +981,7 @@ const AvailabilityPage: React.FC = () => {
           groups={serviceGroups}
         />
       )}
-
-
-    </CalendarLayout>
+    </>
   );
 };
 

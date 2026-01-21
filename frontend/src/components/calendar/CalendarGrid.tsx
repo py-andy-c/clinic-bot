@@ -614,7 +614,7 @@ const CalendarEventComponent: React.FC<CalendarEventComponentProps> = ({
       border,
       borderRadius,
     };
-  }, [event, group, groupIndex, eventIndex]);
+  }, [event, group, groupIndex, eventIndex, selectedPractitioners, selectedResources]);
 
   return (
     <div

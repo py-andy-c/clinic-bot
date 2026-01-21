@@ -10,13 +10,23 @@ import styles from './CalendarLayout.module.css';
  * the ClinicLayout header functionality.
  */
 interface CalendarLayoutProps {
-  children: React.ReactNode;
+  sidebar: React.ReactNode;
+  dateStrip: React.ReactNode;
+  calendarGrid: React.ReactNode;
 }
 
-const CalendarLayout: React.FC<CalendarLayoutProps> = ({ children }) => {
+const CalendarLayout: React.FC<CalendarLayoutProps> = ({
+  sidebar,
+  dateStrip,
+  calendarGrid
+}) => {
   return (
     <div className={styles.calendarLayout}>
-      {children}
+      {sidebar}
+      <div className={styles.calendarContent}>
+        {dateStrip}
+        {calendarGrid}
+      </div>
     </div>
   );
 };

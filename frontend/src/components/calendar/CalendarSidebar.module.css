@@ -1,22 +1,28 @@
 /* CalendarSidebar.module.css */
 .sidebar {
-  position: fixed;
-  top: 64px;
-  left: 0;
   width: 240px;
-  height: calc(100vh - 64px);
   background: white;
   border-right: 1px solid #e5e7eb;
   z-index: 1000;
   overflow-y: auto;
+  /* Mobile: overlay behavior */
+  position: fixed;
+  top: 64px;
+  left: 0;
+  height: calc(100vh - 64px);
   transform: translateX(var(--sidebar-translate-x, -100%));
   transition: transform 0.3s ease;
 }
 
-/* Always show sidebar on desktop */
+/* Desktop: inline behavior - sidebar takes space in layout */
 @media (min-width: 1024px) {
   .sidebar {
+    position: relative;
+    top: auto;
+    left: auto;
+    height: auto;
     transform: translateX(0);
+    flex-shrink: 0;
   }
 }
 
