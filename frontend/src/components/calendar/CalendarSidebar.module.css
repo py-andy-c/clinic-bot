@@ -23,6 +23,8 @@
     height: auto;
     transform: translateX(0);
     flex-shrink: 0;
+    /* Add top border to match global header styling */
+    border-top: 1px solid #e5e7eb;
   }
 }
 
