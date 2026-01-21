@@ -691,14 +691,14 @@ const MonthlyCalendarGrid: React.FC<MonthlyCalendarGridProps> = ({
       <div className={styles.monthlyCalendar}>
         {calendarDays.map((day, index) => (
           <div
-            key={index}
+            key={`${day.date.format('YYYY-MM-DD')}-${index}`}
             className={`${styles.dayCell} ${!day.isCurrentMonth ? styles.otherMonth : ''} ${day.isToday ? styles.today : ''}`}
           >
             <div className={styles.dayNumber}>
               {day.date.date()}
             </div>
             <div className={styles.dayEvents}>
-              {day.events.slice(0, 3).map((event) => {
+              {day.events.slice(0, 3).map((event, eventIndex) => {
                 let backgroundColor = '#6b7280';
                 if (event.resource.practitioner_id) {
                   backgroundColor = getPractitionerColor(event.resource.practitioner_id, -1, selectedPractitioners) || '#6b7280';
@@ -708,7 +708,7 @@ const MonthlyCalendarGrid: React.FC<MonthlyCalendarGridProps> = ({
 
                 return (
                   <div
-                    key={event.id}
+                    key={`${day.date.format('YYYY-MM-DD')}-${event.id}-${eventIndex}`}
                     className={styles.monthEvent}
                     style={{ backgroundColor }}
                     onClick={() => onEventClick && onEventClick(event)}

@@ -97,6 +97,9 @@ const createStableArrayKey = (arr: number[]): string => {
   return [...arr].sort((a, b) => a - b).join(',');
 };
 
+// Store the last successful calendar data to prevent flickering
+let lastSuccessfulCalendarData: { events: CalendarEvent[]; practitionerAvailability: CalendarPractitionerAvailability } | null = null;
+
 export const useCalendarEvents = (params: UseCalendarEventsParams) => {
   const { user } = useAuth();
   const activeClinicId = user?.active_clinic_id;
@@ -131,12 +134,17 @@ export const useCalendarEvents = (params: UseCalendarEventsParams) => {
     }
   });
 
+  // Store successful data to prevent flickering
+  if (query.data && !query.isLoading && !query.isError) {
+    lastSuccessfulCalendarData = query.data;
+  }
+
+  // Return last successful data if current query is loading and we have previous data
+  const shouldShowLastData = query.isLoading && lastSuccessfulCalendarData && !query.data;
+
   return {
     ...query,
-    data: query.data ? {
-      events: query.data.events,
-      practitionerAvailability: query.data.practitionerAvailability
-    } : undefined
+    data: shouldShowLastData ? lastSuccessfulCalendarData : query.data
   };
 };
 

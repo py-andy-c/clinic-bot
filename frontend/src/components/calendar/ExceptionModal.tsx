@@ -31,9 +31,6 @@ export const ExceptionModal: React.FC<ExceptionModalProps> = React.memo(({
   onExceptionDataChange,
   onFullDayChange,
 }) => {
-  // eslint-disable-next-line no-console
-  console.log('[ExceptionModal] Render with data:', { exceptionData, isFullDay });
-
   return (
     <BaseModal
       onClose={onClose}
@@ -108,8 +105,6 @@ export const ExceptionModal: React.FC<ExceptionModalProps> = React.memo(({
         <div className="flex justify-end mt-6">
           <button
             onClick={() => {
-              // eslint-disable-next-line no-console
-              console.log('[ExceptionModal] Create button clicked with data:', { exceptionData, isFullDay });
               onCreate();
             }}
             className="btn-primary w-full sm:w-auto"
