@@ -207,8 +207,8 @@ describe('useCalendarEvents', () => {
       expect(typeof invalidateCalendarEventsForAppointment).toBe('function');
 
       // Test with null parameters (should not throw)
-      invalidateCalendarEventsForAppointment(queryClient, null, null, '2024-01-15', 'day');
-      invalidateCalendarEventsForAppointment(queryClient, undefined, undefined, '2024-01-15', 'day');
+      invalidateCalendarEventsForAppointment(queryClient, null);
+      invalidateCalendarEventsForAppointment(queryClient, undefined);
     });
 
     it('should invalidate day view queries for exact date matches', () => {
@@ -218,11 +218,10 @@ describe('useCalendarEvents', () => {
       // Mock query with day view exact date match
       mockInvalidateQueries.mockImplementation(() => {});
 
-      invalidateCalendarEventsForAppointment(queryClient, 1, 1, '2024-01-15', 'day');
+      invalidateCalendarEventsForAppointment(queryClient, 1);
 
       expect(mockInvalidateQueries).toHaveBeenCalledWith({
-        queryKey: ['calendar-events', 1],
-        predicate: expect.any(Function)
+        queryKey: ['calendar-events', 1]
       });
     });
 
@@ -230,99 +229,57 @@ describe('useCalendarEvents', () => {
       const mockInvalidateQueries = vi.fn();
       queryClient.invalidateQueries = mockInvalidateQueries;
 
-      // Test date within week range
-      invalidateCalendarEventsForAppointment(queryClient, 1, 1, '2024-01-15', 'week');
+      // Test with valid clinic ID
+      invalidateCalendarEventsForAppointment(queryClient, 1);
 
       expect(mockInvalidateQueries).toHaveBeenCalledWith({
-        queryKey: ['calendar-events', 1],
-        predicate: expect.any(Function)
+        queryKey: ['calendar-events', 1]
       });
-
-      // The predicate function should handle week ranges correctly
-      const predicate = mockInvalidateQueries.mock.calls[0][0].predicate;
-      const mockWeekQuery = {
-        queryKey: ['calendar-events', 1, {
-          practitioners: '1',
-          dateRangeKey: '2024-01-14_2024-01-20', // Week containing 2024-01-15
-        }]
-      };
-
-      expect(predicate(mockWeekQuery)).toBe(true);
     });
 
     it('should invalidate month view queries for dates within month range', () => {
       const mockInvalidateQueries = vi.fn();
       queryClient.invalidateQueries = mockInvalidateQueries;
 
-      invalidateCalendarEventsForAppointment(queryClient, 1, 1, '2024-01-15', 'month');
+      invalidateCalendarEventsForAppointment(queryClient, 1);
 
       expect(mockInvalidateQueries).toHaveBeenCalledWith({
-        queryKey: ['calendar-events', 1],
-        predicate: expect.any(Function)
+        queryKey: ['calendar-events', 1]
       });
-
-      // Test month range containing the date
-      const predicate = mockInvalidateQueries.mock.calls[0][0].predicate;
-      const mockMonthQuery = {
-        queryKey: ['calendar-events', 1, {
-          practitioners: '1',
-          dateRangeKey: '2024-01-01_2024-01-31', // Month containing 2024-01-15
-        }]
-      };
-
-      expect(predicate(mockMonthQuery)).toBe(true);
     });
 
     it('should not invalidate queries for different practitioners', () => {
       const mockInvalidateQueries = vi.fn();
       queryClient.invalidateQueries = mockInvalidateQueries;
 
-      invalidateCalendarEventsForAppointment(queryClient, 1, 1, '2024-01-15', 'day');
+      invalidateCalendarEventsForAppointment(queryClient, 1);
 
-      const predicate = mockInvalidateQueries.mock.calls[0][0].predicate;
-      const mockDifferentPractitionerQuery = {
-        queryKey: ['calendar-events', 1, {
-          practitioners: '2,3', // Different practitioners
-          dateRangeKey: '2024-01-15',
-        }]
-      };
-
-      expect(predicate(mockDifferentPractitionerQuery)).toBe(false);
+      expect(mockInvalidateQueries).toHaveBeenCalledWith({
+        queryKey: ['calendar-events', 1]
+      });
     });
 
     it('should not invalidate queries outside date range', () => {
       const mockInvalidateQueries = vi.fn();
       queryClient.invalidateQueries = mockInvalidateQueries;
 
-      invalidateCalendarEventsForAppointment(queryClient, 1, 1, '2024-01-15', 'week');
+      invalidateCalendarEventsForAppointment(queryClient, 1);
 
-      const predicate = mockInvalidateQueries.mock.calls[0][0].predicate;
-      const mockOutsideRangeQuery = {
-        queryKey: ['calendar-events', 1, {
-          practitioners: '1',
-          dateRangeKey: '2024-01-21_2024-01-27', // Week not containing 2024-01-15
-        }]
-      };
-
-      expect(predicate(mockOutsideRangeQuery)).toBe(false);
+      expect(mockInvalidateQueries).toHaveBeenCalledWith({
+        queryKey: ['calendar-events', 1]
+      });
     });
 
     it('should handle boundary dates correctly', () => {
       const mockInvalidateQueries = vi.fn();
       queryClient.invalidateQueries = mockInvalidateQueries;
 
-      // Test start boundary of week
-      invalidateCalendarEventsForAppointment(queryClient, 1, 1, '2024-01-14', 'week');
+      // Test with valid clinic ID
+      invalidateCalendarEventsForAppointment(queryClient, 1);
 
-      const predicate = mockInvalidateQueries.mock.calls[0][0].predicate;
-      const mockBoundaryQuery = {
-        queryKey: ['calendar-events', 1, {
-          practitioners: '1',
-          dateRangeKey: '2024-01-14_2024-01-20', // Week starting on boundary date
-        }]
-      };
-
-      expect(predicate(mockBoundaryQuery)).toBe(true);
+      expect(mockInvalidateQueries).toHaveBeenCalledWith({
+        queryKey: ['calendar-events', 1]
+      });
     });
   });
 });

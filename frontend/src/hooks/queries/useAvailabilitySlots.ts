@@ -5,6 +5,8 @@
 
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { apiService } from '../../services/api';
+import { useAuth } from '../useAuth';
+import { invalidateCalendarEventsForAppointment } from './useCalendarEvents';
 import { TimeInterval } from '../../types';
 import type { AxiosError } from 'axios';
 
@@ -107,6 +109,8 @@ export const useBatchAvailabilitySlots = ({
  */
 export const useCreateAppointmentOptimistic = () => {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const activeClinicId = user?.active_clinic_id;
 
   return useMutation({
     mutationFn: async (params: {
@@ -199,10 +203,8 @@ export const useCreateAppointmentOptimistic = () => {
                  queryKey[3] === params.date;
         }
       });
-      // Invalidate related queries to ensure UI consistency
-      queryClient.invalidateQueries({
-        queryKey: ['calendar-events', params.practitionerId]
-      });
+      // Invalidate calendar events for the clinic to update the calendar display
+      invalidateCalendarEventsForAppointment(queryClient, activeClinicId);
       // Invalidate all patient appointment queries to prevent stale data
       // (we don't know the specific patient ID, so invalidate broadly)
       queryClient.invalidateQueries({

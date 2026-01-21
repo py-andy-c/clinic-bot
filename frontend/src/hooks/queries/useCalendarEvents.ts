@@ -119,45 +119,19 @@ export const useCalendarEvents = (params: UseCalendarEventsParams) => {
  */
 export const invalidateCalendarEventsForAppointment = (
   queryClient: QueryClient,
-  activeClinicId: number | null | undefined,
-  practitionerId: number | null | undefined,
-  appointmentDate: string,
-  view: CalendarView = 'day'
+  activeClinicId: number | null | undefined
 ) => {
-  if (!activeClinicId || !practitionerId) return;
+  // Defensive programming - ensure valid inputs
+  if (!queryClient || !activeClinicId) {
+    return;
+  }
 
-  // Create stable practitioner key for single practitioner
-  const practitionersKey = createStableArrayKey([practitionerId]);
-
-  // Get the date range that this appointment falls into for the given view
-  const { dateRangeKey } = getDateRange(new Date(appointmentDate), view);
-
-  // Invalidate only queries that include this practitioner and overlap with the appointment date
-  queryClient.invalidateQueries({
-    queryKey: ['calendar-events', activeClinicId],
-    predicate: (query) => {
-      const [, , params] = query.queryKey as [string, number, any];
-      if (!params) return false;
-
-      // Check if this query includes the practitioner
-      const queryPractitioners = params.practitioners || '';
-      if (!queryPractitioners.includes(practitionersKey)) return false;
-
-      // Check if this query's date range overlaps with the appointment date
-      const queryDateRange = params.dateRangeKey || '';
-      if (!queryDateRange) return false;
-
-      // Exact match - most common case
-      if (queryDateRange === dateRangeKey) return true;
-
-      // Check for overlap with range queries (week/month views)
-      if (queryDateRange.includes('_')) {
-        const [queryStart, queryEnd] = queryDateRange.split('_');
-        return appointmentDate >= queryStart && appointmentDate <= queryEnd;
-      }
-
-      // Single date queries (day view) - should match exactly
-      return queryDateRange === appointmentDate;
-    }
-  });
+  try {
+    // Invalidate ALL calendar events for this clinic - much simpler and more reliable
+    queryClient.invalidateQueries({
+      queryKey: ['calendar-events', activeClinicId]
+    });
+  } catch (error) {
+    // Silent failure - cache invalidation errors shouldn't break the app
+  }
 };

@@ -26,6 +26,7 @@ import { logger } from "../../utils/logger";
 import { invalidateAvailabilityAfterAppointmentChange } from "../../utils/reactQueryInvalidation";
 import { useQueryClient } from '@tanstack/react-query';
 import { useCreateAppointmentOptimistic } from "../../hooks/queries/useAvailabilitySlots";
+import { invalidateCalendarEventsForAppointment } from "../../hooks/queries/useCalendarEvents";
 import { AppointmentType } from "../../types";
 
 const TAIWAN_TIMEZONE = "Asia/Taipei";
@@ -440,6 +441,9 @@ export const PatientAppointmentsList: React.FC<
         invalidateAvailabilityAfterAppointmentChange(queryClient, practitionerId, appointmentTypeId, [appointmentDate], clinicId, patientId);
       }
 
+      // Also invalidate calendar events to update the calendar page
+      invalidateCalendarEventsForAppointment(queryClient, clinicId);
+
       setDeletingAppointment(null);
       setCancellationNote("");
       setCancellationPreviewMessage("");
@@ -671,6 +675,8 @@ export const PatientAppointmentsList: React.FC<
           }}
           onReceiptVoided={async () => {
             await refreshAppointmentsList();
+            // Also invalidate calendar events to update the calendar page
+            invalidateCalendarEventsForAppointment(queryClient, user?.active_clinic_id);
           }}
           isClinicUser={isClinicUser || false}
         />
@@ -686,6 +692,8 @@ export const PatientAppointmentsList: React.FC<
           }}
           onReceiptVoided={async () => {
             await refreshAppointmentsList();
+            // Also invalidate calendar events to update the calendar page
+            invalidateCalendarEventsForAppointment(queryClient, user?.active_clinic_id);
           }}
           isClinicUser={isClinicUser || false}
         />

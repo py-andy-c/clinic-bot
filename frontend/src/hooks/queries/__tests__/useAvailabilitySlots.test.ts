@@ -9,6 +9,13 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { useAvailabilitySlots, useBatchAvailabilitySlots, useCreateAppointmentOptimistic } from '../useAvailabilitySlots';
 import { apiService } from '../../../services/api';
 
+// Mock useAuth
+vi.mock('../../../hooks/useAuth', () => ({
+  useAuth: vi.fn(() => ({
+    user: { active_clinic_id: 1 }
+  }))
+}));
+
 // Mock the API service
 vi.mock('../../../services/api', () => ({
   apiService: {

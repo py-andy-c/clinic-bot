@@ -254,15 +254,10 @@ const AvailabilityPage: React.FC = () => {
 
       // Note: Availability cache is now handled by React Query automatically
 
-      // Invalidate calendar events cache for specific practitioner and date range
-      const appointmentDate = moment(deletingAppointment.start).format('YYYY-MM-DD');
-      const practitionerId = deletingAppointment.resource.practitioner_id;
+      // Invalidate calendar events cache for the clinic
       invalidateCalendarEventsForAppointment(
         queryClient,
-        user?.active_clinic_id,
-        practitionerId,
-        appointmentDate,
-        view
+        user?.active_clinic_id
       );
 
       setDeletingAppointment(null);
@@ -627,7 +622,7 @@ const AvailabilityPage: React.FC = () => {
           }}
           onRecurringAppointmentsCreated={async () => {
             // Invalidate calendar events cache
-            queryClient.invalidateQueries({ queryKey: ['calendar-events', user?.active_clinic_id] });
+            invalidateCalendarEventsForAppointment(queryClient, user?.active_clinic_id);
           }}
         />
       )}
@@ -664,7 +659,7 @@ const AvailabilityPage: React.FC = () => {
           onCreate={() => {
             setIsExceptionModalOpen(false);
             // Invalidate calendar events cache
-            queryClient.invalidateQueries({ queryKey: ['calendar-events', user?.active_clinic_id] });
+            invalidateCalendarEventsForAppointment(queryClient, user?.active_clinic_id);
           }}
           onExceptionDataChange={() => {}}
           onFullDayChange={() => {}}
@@ -683,18 +678,11 @@ const AvailabilityPage: React.FC = () => {
           onComplete={() => {
             setIsEditAppointmentModalOpen(false);
             setSelectedEvent(null);
-            // Invalidate calendar events cache for specific practitioner and date range
-            if (selectedEvent) {
-              const appointmentDate = moment(selectedEvent.start).format('YYYY-MM-DD');
-              const practitionerId = selectedEvent.resource.practitioner_id;
-              invalidateCalendarEventsForAppointment(
-                queryClient,
-                user?.active_clinic_id,
-                practitionerId,
-                appointmentDate,
-                view
-              );
-            }
+            // Invalidate calendar events cache for the clinic
+            invalidateCalendarEventsForAppointment(
+              queryClient,
+              user?.active_clinic_id
+            );
           }}
           onConfirm={async (formData) => {
             if (!selectedEvent?.id || typeof selectedEvent.id !== 'number') return;
@@ -713,27 +701,11 @@ const AvailabilityPage: React.FC = () => {
 
               // Note: Availability cache is now handled by React Query automatically
 
-              // Invalidate calendar events cache for specific practitioner and date ranges
-              const oldDate = moment(selectedEvent.start).format('YYYY-MM-DD');
-              const newDate = moment(formData.start_time).format('YYYY-MM-DD');
-              const practitionerId = formData.practitioner_id ?? selectedEvent.resource.practitioner_id;
-
+              // Invalidate calendar events cache for the clinic
               invalidateCalendarEventsForAppointment(
                 queryClient,
-                user?.active_clinic_id,
-                practitionerId,
-                oldDate,
-                view
+                user?.active_clinic_id
               );
-              if (newDate !== oldDate) {
-                invalidateCalendarEventsForAppointment(
-                  queryClient,
-                  user?.active_clinic_id,
-                  practitionerId,
-                  newDate,
-                  view
-                );
-              }
 
               setIsEditAppointmentModalOpen(false);
               setSelectedEvent(null);

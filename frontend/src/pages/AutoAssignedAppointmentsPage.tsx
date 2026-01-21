@@ -14,6 +14,7 @@ import { formatAppointmentDateTime, formatAppointmentTimeRange } from '../utils/
 import { appointmentToCalendarEvent } from '../components/patient/appointmentUtils';
 import { invalidateAvailabilityAfterAppointmentChange } from '../utils/reactQueryInvalidation';
 import { useQueryClient } from '@tanstack/react-query';
+import { invalidateCalendarEventsForAppointment } from '../hooks/queries/useCalendarEvents';
 import { shouldPromptForAssignment } from '../hooks/usePractitionerAssignmentPrompt';
 import { PractitionerAssignmentPromptModal } from '../components/PractitionerAssignmentPromptModal';
 import { PractitionerAssignmentConfirmationModal } from '../components/PractitionerAssignmentConfirmationModal';
@@ -293,6 +294,9 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
         }
         invalidateAvailabilityAfterAppointmentChange(queryClient, practitionerId, appointmentTypeId, datesToInvalidate, clinicId, patientId);
       }
+
+      // Also invalidate calendar events to update the calendar page
+      invalidateCalendarEventsForAppointment(queryClient, clinicId);
 
       // Store appointment data for assignment check after confirmation modal
       // Use ref to ensure data is immediately available when onComplete runs
