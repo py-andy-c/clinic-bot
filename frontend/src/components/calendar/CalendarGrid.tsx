@@ -92,9 +92,13 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
 
   // Scroll to current time functionality
   const scrollToCurrentTimePosition = useCallback(() => {
-    // Use the viewport as it's the scrollable container with overflow: auto
-    const gridElement = (cachedElements.CALENDAR_VIEWPORT as HTMLElement) ||
-                       (document.querySelector('[data-testid="calendar-viewport"]') as HTMLElement);
+    // Find the scrollable container (calendarGridContainer) within the viewport
+    const viewportElement = (cachedElements.CALENDAR_VIEWPORT as HTMLElement) ||
+                           (document.querySelector('[data-testid="calendar-viewport"]') as HTMLElement);
+    if (!viewportElement) return;
+
+    // The scrollable element is the calendarGridContainer inside the viewport
+    const gridElement = viewportElement.querySelector('[data-testid="calendar-grid-container"]') as HTMLElement;
     if (!gridElement) return;
 
     const now = getCurrentTaiwanTime();
@@ -388,7 +392,7 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
       {headerRow}
 
       {/* Scrollable Body Area */}
-      <div className={styles.calendarGridContainer}>
+      <div className={styles.calendarGridContainer} data-testid="calendar-grid-container">
 
         {/* Body Area: Time Column (Sticky Left) + Grid */}
         <div className={styles.gridLayer}>
