@@ -38,6 +38,7 @@ interface CalendarGridProps {
   practitionerAvailability?: CalendarPractitionerAvailability; // Practitioner availability data
   onEventClick?: (event: CalendarEvent) => void;
   onSlotClick?: (slotInfo: { start: Date; end: Date }) => void;
+  showHeaderRow?: boolean; // Whether to show the practitioner/resource header row
 }
 
 const CalendarGrid: React.FC<CalendarGridProps> = ({
@@ -51,6 +52,7 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
   practitionerAvailability = {},
   onEventClick,
   onSlotClick,
+  showHeaderRow = true,
 }) => {
 
 
@@ -318,69 +320,75 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
   }
 
 
+  // Render header row separately if requested
+  const headerRow = showHeaderRow ? (
+    <div className={styles.headerRow} data-testid="calendar-header-row">
+      <div className={styles.timeCorner} data-testid="calendar-time-corner"></div>
+      <div className={styles.resourceHeaders} id="resource-headers">
+        {/* Render practitioner and resource headers */}
+        {(() => {
+          if (view === CalendarViews.DAY) {
+            return (
+              <>
+                {selectedPractitioners.map(practitionerId => {
+                  const practitioner = practitioners.find(p => p.id === practitionerId);
+                  return (
+                    <div key={`practitioner-${practitionerId}`} className={styles.resourceHeader}>
+                      {practitioner?.full_name || `Practitioner ${practitionerId}`}
+                    </div>
+                  );
+                })}
+                {selectedResources.map(resourceId => {
+                  const resource = resources.find(r => r.id === resourceId);
+                  return (
+                    <div key={`resource-${resourceId}`} className={styles.resourceHeader}>
+                      {resource?.name || `Resource ${resourceId}`}
+                    </div>
+                  );
+                })}
+              </>
+            );
+          }
+
+          if (view === CalendarViews.WEEK) {
+            return (
+              Array.from({ length: 7 }, (_, i) => {
+                const date = moment(currentDate).startOf('week').add(i, 'days');
+                return (
+                  <div key={`day-${i}`} className={styles.resourceHeader}>
+                    {date.format('ddd')}
+                    <div className={styles.dayNumber}>{date.format('D')}</div>
+                  </div>
+                );
+              })
+            );
+          }
+
+          if (view === 'month') {
+            return (
+              Array.from({ length: 7 }, (_, i) => {
+                const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                return (
+                  <div key={`day-${i}`} className={styles.resourceHeader}>
+                    {dayNames[i]}
+                  </div>
+                );
+              })
+            );
+          }
+
+          return null;
+        })()}
+      </div>
+    </div>
+  ) : null;
+
   return (
     <div className={styles.calendarViewport} id="main-viewport" data-testid="calendar-viewport">
+      {headerRow}
+
+      {/* Scrollable Body Area */}
       <div className={styles.calendarGridContainer}>
-        {/* Header Row: Sticky Top */}
-        <div className={styles.headerRow} data-testid="calendar-header-row">
-          <div className={styles.timeCorner} data-testid="calendar-time-corner"></div>
-          <div className={styles.resourceHeaders} id="resource-headers">
-            {/* Render practitioner and resource headers */}
-            {(() => {
-              if (view === CalendarViews.DAY) {
-                return (
-                  <>
-                    {selectedPractitioners.map(practitionerId => {
-                      const practitioner = practitioners.find(p => p.id === practitionerId);
-                      return (
-                        <div key={`practitioner-${practitionerId}`} className={styles.resourceHeader}>
-                          {practitioner?.full_name || `Practitioner ${practitionerId}`}
-                        </div>
-                      );
-                    })}
-                    {selectedResources.map(resourceId => {
-                      const resource = resources.find(r => r.id === resourceId);
-                      return (
-                        <div key={`resource-${resourceId}`} className={styles.resourceHeader}>
-                          {resource?.name || `Resource ${resourceId}`}
-                        </div>
-                      );
-                    })}
-                  </>
-                );
-              }
-              
-              if (view === CalendarViews.WEEK) {
-                return (
-                  Array.from({ length: 7 }, (_, i) => {
-                    const date = moment(currentDate).startOf('week').add(i, 'days');
-                    return (
-                      <div key={`day-${i}`} className={styles.resourceHeader}>
-                        {date.format('ddd')}
-                        <div className={styles.dayNumber}>{date.format('D')}</div>
-                      </div>
-                    );
-                  })
-                );
-              }
-              
-              if (view === 'month') {
-                return (
-                  Array.from({ length: 7 }, (_, i) => {
-                    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-                    return (
-                      <div key={`day-${i}`} className={styles.resourceHeader}>
-                        {dayNames[i]}
-                      </div>
-                    );
-                  })
-                );
-              }
-              
-              return null;
-            })()}
-          </div>
-        </div>
 
         {/* Body Area: Time Column (Sticky Left) + Grid */}
         <div className={styles.gridLayer}>
@@ -780,6 +788,80 @@ const OverlappingEventGroupComponent: React.FC<OverlappingEventGroupProps> = ({
         />
       ))}
     </>
+  );
+};
+
+// Separate component for just the practitioner/resource header row
+export const PractitionerRow: React.FC<Omit<CalendarGridProps, 'showHeaderRow'>> = (props) => {
+  const {
+    view,
+    currentDate,
+    selectedPractitioners,
+    selectedResources,
+    practitioners = [],
+    resources = [],
+  } = props;
+
+  return (
+    <div className={styles.headerRow} data-testid="calendar-header-row">
+      <div className={styles.timeCorner} data-testid="calendar-time-corner"></div>
+      <div className={styles.resourceHeaders} id="resource-headers">
+        {/* Render practitioner and resource headers */}
+        {(() => {
+          if (view === CalendarViews.DAY) {
+            return (
+              <>
+                {selectedPractitioners.map(practitionerId => {
+                  const practitioner = practitioners.find(p => p.id === practitionerId);
+                  return (
+                    <div key={`practitioner-${practitionerId}`} className={styles.resourceHeader}>
+                      {practitioner?.full_name || `Practitioner ${practitionerId}`}
+                    </div>
+                  );
+                })}
+                {selectedResources.map(resourceId => {
+                  const resource = resources.find(r => r.id === resourceId);
+                  return (
+                    <div key={`resource-${resourceId}`} className={styles.resourceHeader}>
+                      {resource?.name || `Resource ${resourceId}`}
+                    </div>
+                  );
+                })}
+              </>
+            );
+          }
+
+          if (view === CalendarViews.WEEK) {
+            return (
+              Array.from({ length: 7 }, (_, i) => {
+                const date = moment(currentDate).startOf('week').add(i, 'days');
+                return (
+                  <div key={`day-${i}`} className={styles.resourceHeader}>
+                    {date.format('ddd')}
+                    <div className={styles.dayNumber}>{date.format('D')}</div>
+                  </div>
+                );
+              })
+            );
+          }
+
+          if (view === 'month') {
+            return (
+              Array.from({ length: 7 }, (_, i) => {
+                const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                return (
+                  <div key={`day-${i}`} className={styles.resourceHeader}>
+                    {dayNames[i]}
+                  </div>
+                );
+              })
+            );
+          }
+
+          return null;
+        })()}
+      </div>
+    </div>
   );
 };
 

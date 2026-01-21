@@ -249,13 +249,6 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // Check if current route is calendar page (only day/week views, not month view)
-  // Default to day view layout when no view parameter is present (component defaults to DAY view)
-  const isCalendarPage = location.pathname.includes('/calendar');
-  const searchParams = new URLSearchParams(location.search);
-  const calendarView = searchParams.get('view');
-  const isCalendarDayWeekView = isCalendarPage &&
-    (calendarView === 'day' || calendarView === 'week' || calendarView === null);
   const { hasUnsavedChanges } = useUnsavedChanges();
   const { confirm } = useModal();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -353,12 +346,9 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
 
 
   return (
-    <div className={`${isCalendarDayWeekView ? 'h-screen' : 'min-h-screen'} bg-white`}>
+    <div className="min-h-screen bg-white">
       {/* Top Navigation */}
-      <nav
-        className={`bg-white shadow-sm border-b border-gray-200 ${isCalendarDayWeekView ? 'fixed top-0 left-0 right-0 z-50' : ''}`}
-        style={isCalendarDayWeekView ? { zIndex: 140 } : undefined}
-      >
+      <nav className="bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
             <div className="flex items-center">
@@ -507,7 +497,6 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
         {isMobileMenuOpen && (
           <div
             className="lg:hidden"
-            style={isCalendarDayWeekView ? { zIndex: 130 } : undefined}
             ref={mobileMenuRef}
           >
             <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3 bg-white border-t border-gray-200">
@@ -622,16 +611,10 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
       <GlobalWarnings />
 
       {/* Main Content */}
-      <main className={isCalendarDayWeekView ? "h-full pt-16" : "max-w-7xl mx-auto py-2 md:py-6 sm:px-6 lg:px-8 pt-16"}>
-        {isCalendarPage ? (
-          // Calendar page: full-width, no padding except top padding for global header, touches header directly
-          children
-        ) : (
-          // Regular pages: standard layout with padding
-          <div className="px-4 py-2 md:py-6 sm:px-0 md:max-w-4xl md:mx-auto">
-            {children}
-          </div>
-        )}
+      <main className="max-w-7xl mx-auto py-2 md:py-6 sm:px-6 lg:px-8 pt-16">
+        <div className="px-4 py-2 md:py-6 sm:px-0 md:max-w-4xl md:mx-auto">
+          {children}
+        </div>
       </main>
     </div>
   );

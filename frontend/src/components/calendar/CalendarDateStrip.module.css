@@ -1,6 +1,7 @@
 /* CalendarDateStrip.module.css */
 .dateStripContainer {
   background: white;
+  border-top: 1px solid #e5e7eb;
   border-bottom: 1px solid #e5e7eb;
   height: 40px;
   display: flex;
@@ -8,9 +9,7 @@
   justify-content: space-between;
   padding: 0 8px;
   flex-shrink: 0;
-  position: sticky;
-  top: 0;
-  z-index: 40;
+  /* Removed sticky positioning since calendar layout is fixed positioned */
 }
 
 .dateNavigation {

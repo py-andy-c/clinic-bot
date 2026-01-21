@@ -1,9 +1,14 @@
 /* CalendarLayout.module.css */
 .calendarLayout {
-  /* Main content area with sidebar and calendar content side by side */
+  /* Fixed positioned calendar layout below global header */
+  position: fixed;
+  top: 64px; /* Align with global header bottom */
+  left: 0;
+  right: 0;
+  bottom: 0;
   display: flex;
-  flex: 1;
   overflow: hidden;
+  z-index: 100; /* Below global header (z-50 = 50) but above other content */
 }
 
 .calendarContent {
@@ -12,6 +17,7 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  background: white;
 }
 
 .calendarLayout :global(*) {

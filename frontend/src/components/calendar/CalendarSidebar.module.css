@@ -3,6 +3,7 @@
   width: 240px;
   background: white;
   border-right: 1px solid #e5e7eb;
+  border-top: 1px solid #e5e7eb;
   z-index: 1000;
   overflow-y: auto;
   /* Mobile: overlay behavior */
@@ -23,8 +24,7 @@
     height: auto;
     transform: translateX(0);
     flex-shrink: 0;
-    /* Add top border to match global header styling */
-    border-top: 1px solid #e5e7eb;
+    /* Border-top already applied in base .sidebar class */
   }
 }
 

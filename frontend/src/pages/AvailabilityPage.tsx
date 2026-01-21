@@ -27,7 +27,7 @@ const updateCalendarEventWithAppointmentData = (
 import CalendarLayout from '../components/calendar/CalendarLayout';
 import CalendarSidebar from '../components/calendar/CalendarSidebar';
 import CalendarDateStrip from '../components/calendar/CalendarDateStrip';
-import CalendarGrid from '../components/calendar/CalendarGrid';
+import CalendarGrid, { PractitionerRow } from '../components/calendar/CalendarGrid';
 import { EventModal } from '../components/calendar/EventModal';
 import { CreateAppointmentModal } from '../components/calendar/CreateAppointmentModal';
 import { ExceptionModal, ExceptionData } from '../components/calendar/ExceptionModal';
@@ -599,6 +599,20 @@ const AvailabilityPage: React.FC = () => {
             onSettings={handleSettings}
           />
         }
+        practitionerRow={
+          <PractitionerRow
+            view={view}
+            currentDate={currentDate}
+            events={allEvents}
+            selectedPractitioners={selectedPractitioners}
+            selectedResources={selectedResources}
+            practitioners={practitioners}
+            resources={resources}
+            practitionerAvailability={practitionerAvailability}
+            onEventClick={handleEventClick}
+            onSlotClick={handleSlotClick}
+          />
+        }
         calendarGrid={
           <CalendarGrid
             view={view}
@@ -611,6 +625,7 @@ const AvailabilityPage: React.FC = () => {
             practitionerAvailability={practitionerAvailability}
             onEventClick={handleEventClick}
             onSlotClick={handleSlotClick}
+            showHeaderRow={false}
           />
         }
       />

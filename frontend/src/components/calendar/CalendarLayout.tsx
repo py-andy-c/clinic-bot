@@ -12,12 +12,14 @@ import styles from './CalendarLayout.module.css';
 interface CalendarLayoutProps {
   sidebar: React.ReactNode;
   dateStrip: React.ReactNode;
+  practitionerRow: React.ReactNode;
   calendarGrid: React.ReactNode;
 }
 
 const CalendarLayout: React.FC<CalendarLayoutProps> = ({
   sidebar,
   dateStrip,
+  practitionerRow,
   calendarGrid
 }) => {
   return (
@@ -25,6 +27,7 @@ const CalendarLayout: React.FC<CalendarLayoutProps> = ({
       {sidebar}
       <div className={styles.calendarContent}>
         {dateStrip}
+        {practitionerRow}
         {calendarGrid}
       </div>
     </div>
