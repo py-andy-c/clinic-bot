@@ -351,17 +351,9 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
     return undefined;
   }, [openDropdowns]);
 
-  // Update body data attribute for calendar day/week view styling
-  React.useEffect(() => {
-    if (isCalendarDayWeekView) {
-      document.body.setAttribute('data-calendar-view', 'day-week');
-    } else {
-      document.body.removeAttribute('data-calendar-view');
-    }
-  }, [isCalendarDayWeekView]);
 
   return (
-    <div className={`${isCalendarDayWeekView ? 'h-screen overflow-hidden' : 'min-h-screen'} bg-white ${isCalendarDayWeekView ? 'overflow-hidden' : ''}`}>
+    <div className={`${isCalendarDayWeekView ? 'h-screen' : 'min-h-screen'} bg-white`}>
       {/* Top Navigation */}
       <nav
         className={`bg-white shadow-sm border-b border-gray-200 ${isCalendarDayWeekView ? 'fixed top-0 left-0 right-0 z-50' : ''}`}
@@ -630,7 +622,7 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
       <GlobalWarnings />
 
       {/* Main Content */}
-      <main className={isCalendarDayWeekView ? "h-full overflow-hidden pt-16" : "max-w-7xl mx-auto py-2 md:py-6 sm:px-6 lg:px-8 pt-16"}>
+      <main className={isCalendarDayWeekView ? "h-full pt-16" : "max-w-7xl mx-auto py-2 md:py-6 sm:px-6 lg:px-8 pt-16"}>
         {isCalendarPage ? (
           // Calendar page: full-width, no padding except top padding for global header, touches header directly
           children
