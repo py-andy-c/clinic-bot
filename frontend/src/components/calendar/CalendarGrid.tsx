@@ -67,6 +67,7 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
     const elements = getCachedElements([
       'MAIN_VIEWPORT',
       'CALENDAR_GRID',
+      'CALENDAR_VIEWPORT',
       'RESOURCE_HEADERS',
       'TIME_LABELS',
       'SIDEBAR',
@@ -88,9 +89,9 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
 
   // Scroll to current time functionality
   const scrollToCurrentTimePosition = useCallback(() => {
-    // Use cached element if available, otherwise fall back to querySelector for compatibility
-    const gridElement = (cachedElements.CALENDAR_GRID as HTMLElement) ||
-                       (document.querySelector('.calendarGrid') as HTMLElement);
+    // Use the viewport as it's the scrollable container with overflow: auto
+    const gridElement = (cachedElements.CALENDAR_VIEWPORT as HTMLElement) ||
+                       (document.querySelector('[data-testid="calendar-viewport"]') as HTMLElement);
     if (!gridElement) return;
 
     const now = getCurrentTaiwanTime();
@@ -178,9 +179,9 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
     const { key } = event;
     const target = event.target as HTMLElement;
 
-    // Use cached element if available, otherwise fall back to querySelector for compatibility
-    const gridElement = (cachedElements.CALENDAR_GRID as HTMLElement) ||
-                       (document.querySelector('.calendarGrid') as HTMLElement);
+    // Use the viewport as it's the scrollable container
+    const gridElement = (cachedElements.CALENDAR_VIEWPORT as HTMLElement) ||
+                       (document.querySelector('[data-testid="calendar-viewport"]') as HTMLElement);
 
     // Only handle keyboard navigation if we're in the calendar grid
     // For tests and edge cases, be more permissive
@@ -310,7 +311,7 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
 
 
   return (
-    <div className={styles.calendarViewport} id="main-viewport" data-testid="calendar-grid">
+    <div className={styles.calendarViewport} id="main-viewport" data-testid="calendar-viewport">
       <div className={styles.calendarGridContainer}>
         {/* Header Row: Sticky Top */}
         <div className={styles.headerRow} data-testid="calendar-header-row">

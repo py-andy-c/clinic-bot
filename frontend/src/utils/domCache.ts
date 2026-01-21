@@ -117,6 +117,7 @@ export const domCache = new DOMCache();
 export const FREQUENTLY_ACCESSED_ELEMENTS = {
   MAIN_VIEWPORT: '#main-viewport',
   CALENDAR_GRID: '.calendarGrid',
+  CALENDAR_VIEWPORT: '[data-testid="calendar-viewport"]',
   RESOURCE_HEADERS: '#resource-headers',
   TIME_LABELS: '#time-labels',
   SIDEBAR: '[data-testid="calendar-sidebar"]',
