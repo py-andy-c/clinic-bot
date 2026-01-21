@@ -6,6 +6,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import React from 'react';
 import { BrowserRouter } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import RevenueDistributionPage from '../RevenueDistributionPage';
 import { useMembers, useClinicSettings, useRevenueDistribution, useBusinessInsights } from '../../../hooks/queries';
 
@@ -174,8 +175,20 @@ const mockUseRevenueDistribution = vi.mocked(useRevenueDistribution);
 const mockUseBusinessInsights = vi.mocked(useBusinessInsights);
 
 describe('RevenueDistributionPage', () => {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: false,
+      },
+    },
+  });
+
   const renderWithRouter = (component: React.ReactElement) => {
-    return render(<BrowserRouter>{component}</BrowserRouter>);
+    return render(
+      <QueryClientProvider client={queryClient}>
+        <BrowserRouter>{component}</BrowserRouter>
+      </QueryClientProvider>
+    );
   };
   const mockMembers = [
     { id: 1, full_name: '王醫師', roles: ['practitioner'] },

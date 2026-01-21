@@ -16,6 +16,8 @@ import { formatEventTimeRange } from '../../utils/calendarDataAdapter';
 import { useAuth } from '../../hooks/useAuth';
 import { logger } from '../../utils/logger';
 import DashboardBackButton from '../../components/DashboardBackButton';
+import { useQueryClient } from '@tanstack/react-query';
+import { invalidateCalendarEventsForAppointment } from '../../hooks/queries/useCalendarEvents';
 
 import { AppointmentType } from '../../types';
 import {
@@ -27,6 +29,7 @@ import {
 const RevenueDistributionPage: React.FC = () => {
   const { user, isClinicUser, isClinicAdmin } = useAuth();
   const activeClinicId = user?.active_clinic_id ?? null;
+  const queryClient = useQueryClient();
   
   // Active filter state (used for API calls)
   const [startDate, setStartDate] = useState<string>(moment().startOf('month').format('YYYY-MM-DD'));
@@ -698,6 +701,17 @@ const RevenueDistributionPage: React.FC = () => {
           onReceiptCreated={() => {
             // Refetch data after receipt creation
             // React Query will automatically refetch when data changes
+          }}
+          onEventNameUpdated={async () => {
+            // Invalidate calendar events to refresh appointment data after modifications
+            try {
+              if (queryClient && activeClinicId) {
+                invalidateCalendarEventsForAppointment(queryClient, activeClinicId);
+              }
+            } catch (error) {
+              // Cache invalidation failed - this is non-critical for user experience
+              // The calendar will still function, just with potentially stale data
+            }
           }}
         />
       )}

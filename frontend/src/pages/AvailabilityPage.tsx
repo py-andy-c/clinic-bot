@@ -527,6 +527,17 @@ const AvailabilityPage: React.FC = () => {
           formatAppointmentTime={formatAppointmentTimeRange}
           appointmentTypes={appointmentTypes}
           practitioners={practitioners}
+          onEventNameUpdated={async () => {
+            // Invalidate calendar events to refresh appointment data after modifications
+            try {
+              if (queryClient && user?.active_clinic_id) {
+                invalidateCalendarEventsForAppointment(queryClient, user.active_clinic_id);
+              }
+            } catch (error) {
+              // Cache invalidation failed - this is non-critical for user experience
+              // The calendar will still function, just with potentially stale data
+            }
+          }}
         />
       )}
 
