@@ -308,12 +308,13 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
     );
   }
 
+
   return (
     <div className={styles.calendarViewport} id="main-viewport" data-testid="calendar-grid">
       <div className={styles.calendarGridContainer}>
         {/* Header Row: Sticky Top */}
-        <div className={styles.headerRow}>
-          <div className={styles.timeCorner}></div>
+        <div className={styles.headerRow} data-testid="calendar-header-row">
+          <div className={styles.timeCorner} data-testid="calendar-time-corner"></div>
           <div className={styles.resourceHeaders} id="resource-headers">
             {/* Render practitioner and resource headers */}
             {(() => {

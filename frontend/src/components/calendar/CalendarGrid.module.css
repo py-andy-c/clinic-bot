@@ -1,8 +1,8 @@
 /* CalendarGrid.module.css */
 .calendarViewport {
-  position: relative;
-  overflow: auto;
   flex: 1;
+  overflow: auto;
+  position: relative;
   background: white;
   /* Mobile safe area padding for devices with notches/home indicators */
   padding-bottom: calc(env(safe-area-inset-bottom, 20px) + 60px);
@@ -21,7 +21,7 @@
   top: 0;
   background: white;
   border-bottom: 1px solid #e5e7eb;
-  z-index: 200;
+  z-index: 100;
 }
 
 .timeCorner {
@@ -32,7 +32,7 @@
   flex-shrink: 0;
   position: sticky;
   left: 0;
-  z-index: 210;
+  z-index: 110;
 }
 
 .resourceHeaders {
@@ -71,7 +71,6 @@
 
 .calendarGrid {
   position: relative;
-  overflow: auto;
   flex: 1;
   background: white;
 }

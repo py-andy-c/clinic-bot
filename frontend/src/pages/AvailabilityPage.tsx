@@ -356,6 +356,12 @@ const AvailabilityPage: React.FC = () => {
         month: CalendarViews.MONTH,
       };
       setView(viewMap[viewParam] || CalendarViews.DAY);
+    } else {
+      // No view parameter - default to day view and update URL for consistency
+      setView(CalendarViews.DAY);
+      const newSearchParams = new URLSearchParams(searchParams);
+      newSearchParams.set('view', 'day');
+      setSearchParams(newSearchParams, { replace: true }); // Use replace to avoid history entry
     }
   }, []); // Only run on mount
 
@@ -399,12 +405,44 @@ const AvailabilityPage: React.FC = () => {
     if (practitioners.length > 0 && user?.user_id && user?.active_clinic_id) {
       // Load persisted state
       const persistedState = calendarStorage.getCalendarState(user.user_id, user.active_clinic_id);
+
+      // Check if URL parameters are present (should take precedence)
+      const urlViewParam = searchParams.get('view');
+      const urlDateParam = searchParams.get('date');
+
       if (persistedState) {
-        // Set view and date
-        setView(persistedState.view === 'month' ? CalendarViews.MONTH :
-                persistedState.view === 'week' ? CalendarViews.WEEK : CalendarViews.DAY);
-        if (persistedState.currentDate) {
+        // Set view - URL takes precedence, then localStorage
+        if (!urlViewParam) {
+          // No URL view param, use localStorage preference
+          setView(persistedState.view === 'month' ? CalendarViews.MONTH :
+                  persistedState.view === 'week' ? CalendarViews.WEEK : CalendarViews.DAY);
+        }
+        // If URL has view param, component state was already set by URL effect, just sync localStorage
+        if (urlViewParam && ['day', 'week', 'month'].includes(urlViewParam)) {
+          calendarStorage.setCalendarState(user.user_id, user.active_clinic_id, {
+            ...persistedState,
+            view: urlViewParam as 'day' | 'week' | 'month'
+          });
+        }
+
+        // Set date - URL takes precedence, then localStorage
+        if (!urlDateParam && persistedState.currentDate) {
+          // No URL date param, use localStorage
           setCurrentDate(new Date(persistedState.currentDate));
+        }
+        // If URL has date param, component state was already set by URL effect, just sync localStorage
+        if (urlDateParam) {
+          try {
+            const parsedDate = new Date(urlDateParam);
+            if (!isNaN(parsedDate.getTime())) {
+              calendarStorage.setCalendarState(user.user_id, user.active_clinic_id, {
+                ...persistedState,
+                currentDate: urlDateParam
+              });
+            }
+          } catch (error) {
+            logger.warn('Invalid date parameter for localStorage sync:', urlDateParam);
+          }
         }
 
         // Set practitioners (limit to 10)
@@ -420,6 +458,17 @@ const AvailabilityPage: React.FC = () => {
           .slice(0, 10);
         setSelectedResources(validResources);
       } else {
+        // No persisted state - sync current URL params to localStorage if present
+        if (urlViewParam && ['day', 'week', 'month'].includes(urlViewParam)) {
+          const newState = {
+            view: urlViewParam as 'day' | 'week' | 'month',
+            currentDate: urlDateParam || getDateString(currentDate),
+            additionalPractitionerIds: selectedPractitioners,
+            defaultPractitionerId: null
+          };
+          calendarStorage.setCalendarState(user.user_id, user.active_clinic_id, newState);
+        }
+
         // Default: select first available practitioner
         if (practitioners.length > 0 && practitioners[0]) {
           setSelectedPractitioners([practitioners[0].id]);
@@ -428,7 +477,7 @@ const AvailabilityPage: React.FC = () => {
       setLoading(false);
       setInitialLoadComplete(true);
     }
-  }, [practitioners, resources, user]);
+  }, [practitioners, resources, user, searchParams]);
 
   // Load calendar events with caching
 
