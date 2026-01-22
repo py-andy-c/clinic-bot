@@ -7,9 +7,11 @@
 
 import React from 'react';
 import { BaseModal } from './BaseModal';
+import { formatAppointmentDateOnly } from '../../utils/calendarUtils';
 
 export interface ConflictAppointment {
   calendar_event_id: number;
+  date: string;
   start_time: string;
   end_time: string;
   patient: string;
@@ -21,6 +23,7 @@ export interface ConflictWarningModalProps {
   onConfirm: () => void;
   onCancel: () => void;
   formatTimeString: (timeStr: string) => string;
+  formatAppointmentDateOnly: (date: string | Date) => string;
 }
 
 export const ConflictWarningModal: React.FC<ConflictWarningModalProps> = React.memo(({
@@ -28,6 +31,7 @@ export const ConflictWarningModal: React.FC<ConflictWarningModalProps> = React.m
   onConfirm,
   onCancel,
   formatTimeString,
+  formatAppointmentDateOnly,
 }) => {
   return (
     <BaseModal
@@ -43,9 +47,6 @@ export const ConflictWarningModal: React.FC<ConflictWarningModalProps> = React.m
           </div>
           <h3 className="text-lg font-semibold text-yellow-800">建立休診時段將與現有預約衝突</h3>
         </div>
-        <p className="text-gray-700 mb-4">
-          此休診時段與以下現有預約衝突。預約將保持有效但標記為「非工作時間」。確定要繼續嗎？
-        </p>
         <div className="space-y-2 mb-6 max-h-64 overflow-y-auto">
           {conflictingAppointments.map((appointment, index) => (
             <div key={appointment.calendar_event_id || index} className="bg-yellow-50 border border-yellow-200 rounded-md p-3">
@@ -55,7 +56,7 @@ export const ConflictWarningModal: React.FC<ConflictWarningModalProps> = React.m
                     {appointment.patient}
                   </p>
                   <p className="text-sm text-gray-600 mt-1">
-                    {formatTimeString(appointment.start_time)} - {formatTimeString(appointment.end_time)}
+                    {formatAppointmentDateOnly(appointment.date)} {formatTimeString(appointment.start_time)} - {formatTimeString(appointment.end_time)}
                   </p>
                   {appointment.appointment_type && (
                     <p className="text-sm text-gray-500 mt-1">預約類型：{appointment.appointment_type}</p>

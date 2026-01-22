@@ -545,6 +545,7 @@ export interface AvailabilityExceptionResponse {
 
 export interface ConflictDetail {
   calendar_event_id: number;
+  date: string;
   start_time: string;
   end_time: string;
   patient: string;

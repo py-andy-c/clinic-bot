@@ -5,7 +5,7 @@ import { useAuth } from '../hooks/useAuth';
 import { usePractitioners, useClinicSettings, useServiceTypeGroups } from '../hooks/queries';
 import { LoadingSpinner } from '../components/shared';
 import { CalendarView, CalendarViews } from '../types/calendar';
-import { formatTimeString } from '../utils/calendarUtils';
+import { formatTimeString, formatAppointmentDateOnly } from '../utils/calendarUtils';
 
 // Utility function to update a CalendarEvent with fresh appointment data
 const updateCalendarEventWithAppointmentData = (
@@ -654,7 +654,18 @@ const AvailabilityPage: React.FC = () => {
 
       logger.info('Force creating exception with conflicts:', requestData);
 
-      const response = await apiService.createAvailabilityException(user.user_id, requestData);
+      let response;
+      try {
+        response = await apiService.createAvailabilityException(user.user_id, requestData);
+      } catch (error: any) {
+        // Handle 409 Conflict response as successful conflict detection (force creation should succeed)
+        if (error.response?.status === 409 && error.response?.data) {
+          response = error.response.data;
+        } else {
+          // Re-throw other errors
+          throw error;
+        }
+      }
 
       logger.info('Force creation response:', response);
 
@@ -667,11 +678,7 @@ const AvailabilityPage: React.FC = () => {
         // Invalidate calendar events cache to refresh the view
         invalidateCalendarEventsForAppointment(queryClient, user?.active_clinic_id);
 
-        if (response.warning) {
-          await alert('休診時段已建立，但與現有預約衝突');
-        } else {
-          await alert('休診時段已建立');
-        }
+        await alert('休診時段已建立');
       } else {
         throw new Error('Force creation failed');
       }
@@ -983,7 +990,18 @@ const AvailabilityPage: React.FC = () => {
               logger.info('Sending exception request to API:', requestData);
 
               // Call the API to create the exception
-              const response = await apiService.createAvailabilityException(user.user_id, requestData);
+              let response;
+              try {
+                response = await apiService.createAvailabilityException(user.user_id, requestData);
+              } catch (error: any) {
+                // Handle 409 Conflict response as successful conflict detection
+                if (error.response?.status === 409 && error.response?.data) {
+                  response = error.response.data;
+                } else {
+                  // Re-throw other errors
+                  throw error;
+                }
+              }
 
               logger.info('API response:', response);
 
@@ -1006,7 +1024,7 @@ const AvailabilityPage: React.FC = () => {
                 // Invalidate calendar events cache to refresh the view
                 invalidateCalendarEventsForAppointment(queryClient, user?.active_clinic_id);
 
-                await alert('休診時段已建立，但與現有預約衝突');
+                await alert('休診時段已建立');
                 return;
               }
 
@@ -1037,6 +1055,7 @@ const AvailabilityPage: React.FC = () => {
           onConfirm={handleConflictWarningConfirm}
           onCancel={handleConflictWarningCancel}
           formatTimeString={formatTimeString}
+          formatAppointmentDateOnly={formatAppointmentDateOnly}
         />
       )}
 
