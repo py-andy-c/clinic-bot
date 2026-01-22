@@ -23,6 +23,8 @@ interface CalendarSidebarProps {
   resources: Resource[];
   selectedResources: number[];
   onResourcesChange: (ids: number[]) => void;
+  currentUserId: number | null;
+  isPractitioner: boolean;
   isOpen: boolean;
   onClose: () => void;
 }
@@ -36,6 +38,8 @@ const CalendarSidebar: React.FC<CalendarSidebarProps> = ({
   resources,
   selectedResources,
   onResourcesChange,
+  currentUserId,
+  isPractitioner,
   isOpen,
   onClose,
 }) => {
@@ -137,7 +141,9 @@ const CalendarSidebar: React.FC<CalendarSidebarProps> = ({
             <h3 className={styles.sidebarSectionTitle}>
               顯示治療師 ({selectedPractitioners.length}/10)
             </h3>
-            {practitioners.map((practitioner) => {
+            {practitioners
+              .filter((practitioner) => !isPractitioner || practitioner.id !== currentUserId)
+              .map((practitioner) => {
               const isSelected = selectedPractitioners.includes(practitioner.id);
               return (
                 <label key={practitioner.id} className={styles.filterItem}>

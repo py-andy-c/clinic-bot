@@ -58,7 +58,7 @@ import { CalendarPractitionerAvailability } from '../utils/practitionerAvailabil
 
 
 const AvailabilityPage: React.FC = () => {
-  const { user, isLoading: authLoading, isAuthenticated, isClinicUser, hasRole } = useAuth();
+  const { user, isLoading: authLoading, isAuthenticated, isClinicUser, hasRole, isPractitioner } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
@@ -165,6 +165,15 @@ const AvailabilityPage: React.FC = () => {
   // Use React Query for practitioners
   const { data: practitionersData, isLoading: practitionersLoading } = usePractitioners();
   const practitioners = practitionersData || [];
+
+  // Derive effective selected practitioners - always include current practitioner if they are one
+  const effectiveSelectedPractitioners = React.useMemo(() => {
+    const additionalIds = selectedPractitioners;
+    if (isPractitioner && user?.user_id && !additionalIds.includes(user.user_id)) {
+      return [user.user_id, ...additionalIds];
+    }
+    return additionalIds;
+  }, [selectedPractitioners, isPractitioner, user?.user_id]);
 
   // Fetch clinic settings only when modals that need appointment types are opened
   const shouldFetchSettings = isCreateAppointmentModalOpen || isEditAppointmentModalOpen || isCheckoutModalOpen || isServiceItemSelectionModalOpen;
@@ -513,10 +522,8 @@ const AvailabilityPage: React.FC = () => {
           calendarStorage.setCalendarState(user!.user_id, user!.active_clinic_id, newState);
         }
 
-        // Default: select first available practitioner
-        if (practitioners.length > 0 && practitioners[0]) {
-          setSelectedPractitioners([practitioners[0].id]);
-        }
+        // Default: no auto-selection for non-practitioners
+        // Practitioners are auto-selected via effectiveSelectedPractitioners
       }
       setLoading(false);
       setInitialLoadComplete(true);
@@ -658,11 +665,13 @@ const AvailabilityPage: React.FC = () => {
             view={view}
             onViewChange={handleViewChange}
             practitioners={practitioners}
-            selectedPractitioners={selectedPractitioners}
+            selectedPractitioners={effectiveSelectedPractitioners}
             onPractitionersChange={setSelectedPractitioners}
             resources={resources}
             selectedResources={selectedResources}
             onResourcesChange={setSelectedResources}
+            currentUserId={user?.user_id ?? null}
+            isPractitioner={isPractitioner}
             isOpen={sidebarOpen}
             onClose={handleSettings}
           />
@@ -683,7 +692,7 @@ const AvailabilityPage: React.FC = () => {
             view={view}
             currentDate={currentDate}
             events={allEvents}
-            selectedPractitioners={selectedPractitioners}
+            selectedPractitioners={effectiveSelectedPractitioners}
             selectedResources={selectedResources}
             practitioners={practitioners}
             resources={resources}
@@ -697,7 +706,7 @@ const AvailabilityPage: React.FC = () => {
             view={view}
             currentDate={currentDate}
             events={allEvents}
-            selectedPractitioners={selectedPractitioners}
+            selectedPractitioners={effectiveSelectedPractitioners}
             selectedResources={selectedResources}
             practitioners={practitioners}
             resources={resources}

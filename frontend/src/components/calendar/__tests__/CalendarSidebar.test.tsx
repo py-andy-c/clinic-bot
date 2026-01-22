@@ -24,6 +24,8 @@ describe('CalendarSidebar', () => {
     ],
     selectedResources: [3],
     onResourcesChange: vi.fn(),
+    currentUserId: null,
+    isPractitioner: false,
     isOpen: true,
     onClose: vi.fn(),
   };
@@ -48,5 +50,42 @@ describe('CalendarSidebar', () => {
         resources={[]}
       />
     )).not.toThrow();
+  });
+
+  it('filters out current practitioner from sidebar when user is a practitioner', () => {
+    const { queryByText } = render(
+      <CalendarSidebar
+        {...mockProps}
+        practitioners={[
+          { id: 1, full_name: 'Dr. Smith' },
+          { id: 2, full_name: 'Dr. Johnson' },
+        ]}
+        currentUserId={1}
+        isPractitioner={true}
+      />
+    );
+
+    // Dr. Smith (current practitioner) should not be shown
+    expect(queryByText('Dr. Smith')).not.toBeInTheDocument();
+    // Dr. Johnson should be shown
+    expect(queryByText('Dr. Johnson')).toBeInTheDocument();
+  });
+
+  it('shows all practitioners when user is not a practitioner', () => {
+    const { queryByText } = render(
+      <CalendarSidebar
+        {...mockProps}
+        practitioners={[
+          { id: 1, full_name: 'Dr. Smith' },
+          { id: 2, full_name: 'Dr. Johnson' },
+        ]}
+        currentUserId={1}
+        isPractitioner={false}
+      />
+    );
+
+    // Both practitioners should be shown
+    expect(queryByText('Dr. Smith')).toBeInTheDocument();
+    expect(queryByText('Dr. Johnson')).toBeInTheDocument();
   });
 });
