@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from core.database import get_db
-from auth.dependencies import require_admin_role, require_practitioner_or_admin, UserContext, ensure_clinic_access
+from auth.dependencies import require_admin_role, require_practitioner_or_admin, require_authenticated, UserContext, ensure_clinic_access
 from models import ResourceType, Resource, AppointmentType, AppointmentResourceRequirement, AppointmentResourceAllocation, CalendarEvent, Appointment
 
 logger = logging.getLogger(__name__)
@@ -108,7 +108,7 @@ class ResourceRequirementListResponse(BaseModel):
 
 @router.get("/resource-types", summary="List all resource types for clinic")
 async def list_resource_types(
-    current_user: UserContext = Depends(require_practitioner_or_admin),
+    current_user: UserContext = Depends(require_authenticated),
     db: Session = Depends(get_db)
 ) -> ResourceTypeListResponse:
     """Get all resource types for the current clinic."""
@@ -305,7 +305,7 @@ async def delete_resource_type(
 @router.get("/resource-types/{resource_type_id}/resources", summary="List resources for a resource type")
 async def list_resources(
     resource_type_id: int,
-    current_user: UserContext = Depends(require_practitioner_or_admin),
+    current_user: UserContext = Depends(require_authenticated),
     db: Session = Depends(get_db)
 ) -> ResourceListResponse:
     """Get all resources for a resource type."""
@@ -571,7 +571,7 @@ async def delete_resource(
 @router.get("/resource-types/{resource_type_id}/appointment-types", summary="Get appointment types that require a resource type")
 async def get_appointment_types_by_resource_type(
     resource_type_id: int,
-    current_user: UserContext = Depends(require_practitioner_or_admin),
+    current_user: UserContext = Depends(require_authenticated),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """Get all appointment types that require a specific resource type."""
@@ -622,7 +622,7 @@ async def get_appointment_types_by_resource_type(
 @router.get("/appointment-types/{appointment_type_id}/resource-requirements", summary="Get resource requirements for appointment type")
 async def get_resource_requirements(
     appointment_type_id: int,
-    current_user: UserContext = Depends(require_practitioner_or_admin),
+    current_user: UserContext = Depends(require_authenticated),
     db: Session = Depends(get_db)
 ) -> ResourceRequirementListResponse:
     """Get all resource requirements for an appointment type."""
