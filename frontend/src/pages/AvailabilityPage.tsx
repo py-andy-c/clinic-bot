@@ -71,6 +71,7 @@ const AvailabilityPage: React.FC = () => {
       setLoading(true);
       setInitialLoadComplete(false);
       setIsInitialized(false);
+      setResourcesLoaded(false);
       setDataReady({ practitioners: false, resources: false, user: false });
     }
   }, [user?.active_clinic_id]);
@@ -93,6 +94,9 @@ const AvailabilityPage: React.FC = () => {
     resources: false,
     user: false
   });
+
+  // Track whether resources have been loaded (not whether there are resources)
+  const [resourcesLoaded, setResourcesLoaded] = useState(false);
 
   // Use React Query for calendar events
   const {
@@ -188,10 +192,8 @@ const AvailabilityPage: React.FC = () => {
   }, [practitioners.length]);
 
   React.useEffect(() => {
-    if (resources.length > 0) {
-      setDataReady(prev => ({ ...prev, resources: true }));
-    }
-  }, [resources.length]);
+    setDataReady(prev => ({ ...prev, resources: resourcesLoaded }));
+  }, [resourcesLoaded]);
 
   React.useEffect(() => {
     if (user?.user_id && user?.active_clinic_id) {
@@ -427,8 +429,10 @@ const AvailabilityPage: React.FC = () => {
         }
 
         setResources(allResources);
+        setResourcesLoaded(true);
       } catch (err) {
         logger.error('Failed to load resources:', err);
+        setResourcesLoaded(true); // Mark as loaded even on error
       }
     };
 
