@@ -38,7 +38,7 @@ export const CompactMultiSelect: React.FC<CompactMultiSelectProps> = ({
 
   const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const isMobile = useIsMobile();
+  const isMobile = useIsMobile(1024);
 
   // Get IDs of selected items for quick lookup
   const selectedIds = useMemo(() => new Set(selectedItems.map(item => item.id)), [selectedItems]);

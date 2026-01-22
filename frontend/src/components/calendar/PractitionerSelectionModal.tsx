@@ -73,7 +73,7 @@ export const PractitionerSelectionModal: React.FC<PractitionerSelectionModalProp
   title = '選擇治療師',
 }) => {
   const { t } = useTranslation();
-  const isMobile = useIsMobile();
+  const isMobile = useIsMobile(1024);
   const [searchQuery, setSearchQuery] = useState('');
 
   const debouncedSearchQuery = useDebounce(searchQuery, 300);

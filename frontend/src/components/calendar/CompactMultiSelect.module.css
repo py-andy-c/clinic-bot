@@ -167,7 +167,7 @@
 }
 
 /* Mobile optimizations */
-@media (max-width: 640px) {
+@media (max-width: 1024px) {
   .selectedItemText {
     max-width: 80px;
   }

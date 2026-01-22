@@ -177,7 +177,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
   onRecurringAppointmentsCreated,
   event,
 }) => {
-  const isMobile = useIsMobile();
+  const isMobile = useIsMobile(1024);
   const { enqueueModal, showNext } = useModalQueue();
   const { alert } = useModal();
   const [step, setStep] = useState<CreateStep>('form');

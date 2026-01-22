@@ -97,7 +97,7 @@
 }
 
 .timeLabel {
-  height: 80px; /* Cover 4 time slots (15min × 4 = 1 hour) */
+  height: 112px; /* Cover 4 time slots (15min × 4 = 1 hour) */
   display: flex;
   align-items: flex-start;
   justify-content: center;
@@ -130,10 +130,10 @@
 }
 
 .timeSlot {
-  height: 20px;
+  height: 28px;
   border-bottom: 1px solid #f1f5f9; /* Subtle border for 15min intervals */
   cursor: pointer;
-  min-height: 20px;
+  min-height: 28px;
 }
 
 .timeSlot:nth-child(4n-2) {
@@ -154,11 +154,7 @@
 }
 
 /* Mobile touch improvements */
-@media (max-width: 768px) {
-  .timeSlot {
-    min-height: 24px;
-  }
-
+@media (max-width: 1024px) {
   .calendarEvent {
     font-size: 12px;
     padding: 6px 8px;

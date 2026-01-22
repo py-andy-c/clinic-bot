@@ -35,7 +35,7 @@ export const ServiceItemSelectionModal: React.FC<ServiceItemSelectionModalProps>
   title = '選擇服務項目',
   showCustomOtherOption = false,
 }) => {
-  const isMobile = useIsMobile();
+  const isMobile = useIsMobile(1024);
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedGroups, setExpandedGroups] = useState<Set<number | 'other'>>(new Set());
   

@@ -71,7 +71,7 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
   isTimeConfirmation = false,
   alternativeSlots = null,
 }) => {
-  const isMobile = useIsMobile();
+  const isMobile = useIsMobile(1024);
   const [step, setStep] = useState<EditStep>('form');
   const [, setOverrideMode] = useState<boolean>(false);
 
