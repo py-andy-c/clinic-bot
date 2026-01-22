@@ -18,6 +18,8 @@ import {
   getCurrentTaiwanTime,
 } from '../../utils/calendarGridUtils';
 import { CalendarPractitionerAvailability, isTimeSlotAvailable } from '../../utils/practitionerAvailability';
+import { formatAppointmentTimeRange } from '../../utils/calendarUtils';
+import { calculateEventDisplayText, buildEventTooltipText } from '../../utils/calendarEventDisplay';
 import styles from './CalendarGrid.module.css';
 
 // Calendar configuration constants
@@ -636,18 +638,28 @@ const CalendarEventComponent: React.FC<CalendarEventComponentProps> = ({
     };
   }, [event, group, groupIndex, eventIndex, selectedPractitioners, selectedResources]);
 
+  // Calculate display text and tooltip
+  const finalDisplayText = calculateEventDisplayText(event);
+  const tooltipText = buildEventTooltipText(event, formatAppointmentTimeRange(event.start, event.end));
+
   return (
     <div
       className={styles.calendarEvent}
       style={eventStyle}
       onClick={onClick}
-      title={`${event.title} - ${event.resource.patient_name || 'No patient'}`}
+      title={tooltipText}
       role="button"
-      aria-label={`Appointment: ${event.title} with ${event.resource.patient_name || 'no patient'} - Click to view details`}
+      aria-label={`Appointment: ${finalDisplayText} - Click to view details`}
       tabIndex={-1}
       data-testid="calendar-event"
     >
-      {event.title}
+      <div className="flex items-start space-x-1 h-full">
+        <div className="flex-1 min-w-0">
+          <div className="text-xs leading-tight text-white font-medium truncate">
+            {finalDisplayText}
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
@@ -735,16 +747,22 @@ const MonthlyCalendarGrid: React.FC<MonthlyCalendarGridProps> = ({
                   backgroundColor = getResourceColorById(event.resource.resource_id, selectedResources) || '#6b7280';
                 }
 
+                // Calculate display text and tooltip
+                const finalDisplayText = calculateEventDisplayText(event);
+                const tooltipText = buildEventTooltipText(event, formatAppointmentTimeRange(event.start, event.end));
+
                 return (
                   <div
                     key={`${day.date.format('YYYY-MM-DD')}-${event.id}-${eventIndex}`}
                     className={styles.monthEvent}
                     style={{ backgroundColor }}
                     onClick={() => onEventClick && onEventClick(event)}
-                    title={event.title}
+                    title={tooltipText}
                     data-testid="calendar-event"
                   >
-                    {event.title}
+                    <div className="text-xs truncate">
+                      {finalDisplayText}
+                    </div>
                   </div>
                 );
               })}
