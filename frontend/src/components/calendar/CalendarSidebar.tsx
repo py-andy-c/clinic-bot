@@ -25,7 +25,6 @@ interface CalendarSidebarProps {
   selectedResources: number[];
   onResourcesChange: (ids: number[]) => void;
   currentUserId: number | null;
-  isPractitioner: boolean;
   isOpen: boolean;
   onClose: () => void;
 }
@@ -40,7 +39,6 @@ const CalendarSidebar: React.FC<CalendarSidebarProps> = ({
   selectedResources,
   onResourcesChange,
   currentUserId,
-  isPractitioner,
   isOpen,
   onClose,
 }) => {
@@ -112,16 +110,28 @@ const CalendarSidebar: React.FC<CalendarSidebarProps> = ({
               顯示治療師 ({selectedPractitioners.length}/10)
             </h3>
             <CompactMultiSelect
-              selectedItems={selectedPractitioners.map(id => {
-                const practitioner = practitioners.find(p => p.id === id);
-                return {
-                  id,
-                  name: practitioner?.full_name || '',
-                  color: getPractitionerColor(id, -1, selectedPractitioners) || '#6b7280'
-                };
-              })}
+              selectedItems={selectedPractitioners
+                .sort((a, b) => {
+                  // Current user appears first
+                  if (a === currentUserId) return -1;
+                  if (b === currentUserId) return 1;
+                  return 0;
+                })
+                .map(id => {
+                  const practitioner = practitioners.find(p => p.id === id);
+                  return {
+                    id,
+                    name: practitioner?.full_name || '',
+                    color: getPractitionerColor(id, -1, selectedPractitioners) || '#6b7280'
+                  };
+                })}
               allItems={practitioners
-                .filter((practitioner) => !isPractitioner || practitioner.id !== currentUserId)
+                .sort((a, b) => {
+                  // Current user appears first
+                  if (a.id === currentUserId) return -1;
+                  if (b.id === currentUserId) return 1;
+                  return 0;
+                })
                 .map(p => ({ id: p.id, name: p.full_name }))}
               onSelectionChange={onPractitionersChange}
               maxSelections={10}

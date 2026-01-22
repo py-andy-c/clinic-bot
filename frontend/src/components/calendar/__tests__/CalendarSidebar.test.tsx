@@ -24,8 +24,6 @@ describe('CalendarSidebar', () => {
     ],
     selectedResources: [3],
     onResourcesChange: vi.fn(),
-    currentUserId: null,
-    isPractitioner: false,
     isOpen: true,
     onClose: vi.fn(),
   };
@@ -52,7 +50,7 @@ describe('CalendarSidebar', () => {
     )).not.toThrow();
   });
 
-  it('filters out current practitioner from dropdown when user is a practitioner', () => {
+  it('shows all practitioners in dropdown including current practitioner so they can deselect themselves', () => {
     const { queryByText, getByTestId } = render(
       <CalendarSidebar
         {...mockProps}
@@ -61,8 +59,6 @@ describe('CalendarSidebar', () => {
           { id: 2, full_name: 'Dr. Johnson' },
         ]}
         selectedPractitioners={[]} // No practitioners selected initially
-        currentUserId={1}
-        isPractitioner={true}
       />
     );
 
@@ -72,13 +68,12 @@ describe('CalendarSidebar', () => {
       fireEvent.focus(searchInput);
     });
 
-    // Dr. Smith (current practitioner) should not be in dropdown options
-    expect(queryByText('Dr. Smith')).not.toBeInTheDocument();
-    // Dr. Johnson should be available in dropdown
+    // Both practitioners should be available in dropdown so users can select/deselect any practitioner
+    expect(queryByText('Dr. Smith')).toBeInTheDocument();
     expect(queryByText('Dr. Johnson')).toBeInTheDocument();
   });
 
-  it('shows all practitioners in dropdown when user is not a practitioner', () => {
+  it('shows all practitioners in dropdown when none are selected', () => {
     const { queryByText, getByTestId } = render(
       <CalendarSidebar
         {...mockProps}
@@ -87,8 +82,6 @@ describe('CalendarSidebar', () => {
           { id: 2, full_name: 'Dr. Johnson' },
         ]}
         selectedPractitioners={[]} // No practitioners selected initially
-        currentUserId={1}
-        isPractitioner={false}
       />
     );
 
@@ -101,5 +94,30 @@ describe('CalendarSidebar', () => {
     // Both practitioners should be available in dropdown
     expect(queryByText('Dr. Smith')).toBeInTheDocument();
     expect(queryByText('Dr. Johnson')).toBeInTheDocument();
+  });
+
+  it('allows practitioners to deselect themselves', () => {
+    const mockOnPractitionersChange = vi.fn();
+    const { getByText } = render(
+      <CalendarSidebar
+        {...mockProps}
+        practitioners={[
+          { id: 1, full_name: 'Dr. Smith' },
+          { id: 2, full_name: 'Dr. Johnson' },
+        ]}
+        selectedPractitioners={[1, 2]} // Both practitioners selected initially
+        onPractitionersChange={mockOnPractitionersChange}
+        currentUserId={1}
+      />
+    );
+
+    // Click remove button for Dr. Smith (current practitioner)
+    const removeButton = getByText('Dr. Smith').parentElement?.querySelector('button[aria-label="移除 Dr. Smith"]');
+    expect(removeButton).toBeInTheDocument();
+
+    fireEvent.click(removeButton!);
+
+    // Should call onPractitionersChange with only Dr. Johnson remaining
+    expect(mockOnPractitionersChange).toHaveBeenCalledWith([2]);
   });
 });

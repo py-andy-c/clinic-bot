@@ -34,6 +34,7 @@ import {
   BatchAvailableSlotsResponse,
   AvailabilityExceptionRequest,
   AvailabilityExceptionResponse,
+  ConflictWarningResponse,
   SchedulingConflictResponse,
   ResourceType,
   Resource,
@@ -760,7 +761,7 @@ export class ApiService {
   }
 
   // Availability Exception APIs
-  async createAvailabilityException(userId: number, exceptionData: AvailabilityExceptionRequest): Promise<AvailabilityExceptionResponse> {
+  async createAvailabilityException(userId: number, exceptionData: AvailabilityExceptionRequest): Promise<AvailabilityExceptionResponse | ConflictWarningResponse> {
     const response = await this.client.post(`/clinic/practitioners/${userId}/availability/exceptions`, exceptionData);
     return response.data;
   }

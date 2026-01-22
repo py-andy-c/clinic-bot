@@ -38,6 +38,7 @@ interface CalendarGridProps {
   practitioners?: Array<{ id: number; full_name: string }>; // Practitioner data
   resources?: Array<{ id: number; name: string }>; // Resource data
   practitionerAvailability?: CalendarPractitionerAvailability; // Practitioner availability data
+  currentUserId?: number | null; // Current user ID for ordering
   onEventClick?: (event: CalendarEvent) => void;
   onSlotClick?: (slotInfo: { start: Date; end: Date }) => void;
   showHeaderRow?: boolean; // Whether to show the practitioner/resource header row
@@ -52,6 +53,7 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
   practitioners = [],
   resources = [],
   practitionerAvailability = {},
+  currentUserId,
   onEventClick,
   onSlotClick,
   showHeaderRow = true,
@@ -158,8 +160,15 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
   );
 
   // Memoize overlapping groups calculation for performance
-  const practitionerGroups = useMemo(() =>
-    selectedPractitioners.map(practitionerId => {
+  const practitionerGroups = useMemo(() => {
+    const sortedPractitioners = [...selectedPractitioners].sort((a, b) => {
+      // Current user appears first (leftmost)
+      if (a === currentUserId) return -1;
+      if (b === currentUserId) return 1;
+      return 0;
+    });
+
+    return sortedPractitioners.map(practitionerId => {
       const practitionerEvents = events.filter(event => event.resource.practitioner_id === practitionerId);
 
       return {
@@ -167,7 +176,8 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
         events: practitionerEvents,
         groups: calculateOverlappingEvents(practitionerEvents)
       };
-    }), [selectedPractitioners, events]);
+    });
+  }, [selectedPractitioners, events, currentUserId]);
 
   const resourceGroups = useMemo(() =>
     selectedResources.map(resourceId => {

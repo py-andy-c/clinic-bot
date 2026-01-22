@@ -5,6 +5,7 @@ import { useAuth } from '../hooks/useAuth';
 import { usePractitioners, useClinicSettings, useServiceTypeGroups } from '../hooks/queries';
 import { LoadingSpinner } from '../components/shared';
 import { CalendarView, CalendarViews } from '../types/calendar';
+import { formatTimeString } from '../utils/calendarUtils';
 
 // Utility function to update a CalendarEvent with fresh appointment data
 const updateCalendarEventWithAppointmentData = (
@@ -31,6 +32,7 @@ import CalendarGrid, { PractitionerRow } from '../components/calendar/CalendarGr
 import { EventModal } from '../components/calendar/EventModal';
 import { CreateAppointmentModal } from '../components/calendar/CreateAppointmentModal';
 import { ExceptionModal, ExceptionData } from '../components/calendar/ExceptionModal';
+import { ConflictWarningModal } from '../components/calendar/ConflictWarningModal';
 import { EditAppointmentModal } from '../components/calendar/EditAppointmentModal';
 import { CancellationNoteModal } from '../components/calendar/CancellationNoteModal';
 import { CancellationPreviewModal } from '../components/calendar/CancellationPreviewModal';
@@ -124,6 +126,8 @@ const AvailabilityPage: React.FC = () => {
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
   const [isCreateAppointmentModalOpen, setIsCreateAppointmentModalOpen] = useState(false);
   const [isExceptionModalOpen, setIsExceptionModalOpen] = useState(false);
+  const [isConflictWarningModalOpen, setIsConflictWarningModalOpen] = useState(false);
+  const [conflictAppointments, setConflictAppointments] = useState<any[]>([]);
   const [isEditAppointmentModalOpen, setIsEditAppointmentModalOpen] = useState(false);
   const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
   const [isReceiptListModalOpen, setIsReceiptListModalOpen] = useState(false);
@@ -166,14 +170,6 @@ const AvailabilityPage: React.FC = () => {
   const { data: practitionersData, isLoading: practitionersLoading } = usePractitioners();
   const practitioners = practitionersData || [];
 
-  // Derive effective selected practitioners - always include current practitioner if they are one
-  const effectiveSelectedPractitioners = React.useMemo(() => {
-    const additionalIds = selectedPractitioners;
-    if (isPractitioner && user?.user_id && !additionalIds.includes(user.user_id)) {
-      return [user.user_id, ...additionalIds];
-    }
-    return additionalIds;
-  }, [selectedPractitioners, isPractitioner, user?.user_id]);
 
   // Fetch clinic settings only when modals that need appointment types are opened
   const shouldFetchSettings = isCreateAppointmentModalOpen || isEditAppointmentModalOpen || isCheckoutModalOpen || isServiceItemSelectionModalOpen;
@@ -493,6 +489,7 @@ const AvailabilityPage: React.FC = () => {
             const validPractitioners = persistedState.additionalPractitionerIds
               .filter(id => typeof id === 'number' && practitioners.some(p => p.id === id))
               .slice(0, MAX_PRACTITIONERS);
+
             setSelectedPractitioners(validPractitioners);
           }
 
@@ -523,7 +520,7 @@ const AvailabilityPage: React.FC = () => {
         }
 
         // Default: no auto-selection for non-practitioners
-        // Practitioners are auto-selected via effectiveSelectedPractitioners
+        // Practitioners are included in selectedPractitioners by default
       }
       setLoading(false);
       setInitialLoadComplete(true);
@@ -639,6 +636,57 @@ const AvailabilityPage: React.FC = () => {
     setSidebarOpen(!sidebarOpen);
   }, [sidebarOpen]);
 
+  const handleConflictWarningConfirm = async () => {
+    if (!user?.user_id) {
+      logger.error('Cannot create exception: user not authenticated');
+      await alert('無法建立休診時段：用戶未認證', '錯誤');
+      return;
+    }
+
+    try {
+      // Force create the exception
+      const requestData: AvailabilityExceptionRequest = {
+        date: exceptionData.date,
+        start_time: isFullDay ? null : exceptionData.startTime,
+        end_time: isFullDay ? null : exceptionData.endTime,
+        force: true, // Force creation despite conflicts
+      };
+
+      logger.info('Force creating exception with conflicts:', requestData);
+
+      const response = await apiService.createAvailabilityException(user.user_id, requestData);
+
+      logger.info('Force creation response:', response);
+
+      // Force creation should succeed (may have warnings)
+      if ('success' in response && response.success === true) {
+        // Close both modals
+        setIsExceptionModalOpen(false);
+        setIsConflictWarningModalOpen(false);
+
+        // Invalidate calendar events cache to refresh the view
+        invalidateCalendarEventsForAppointment(queryClient, user?.active_clinic_id);
+
+        if (response.warning) {
+          await alert('休診時段已建立，但與現有預約衝突');
+        } else {
+          await alert('休診時段已建立');
+        }
+      } else {
+        throw new Error('Force creation failed');
+      }
+    } catch (error) {
+      logger.error('Failed to force create availability exception:', error);
+      const errorMessage = getErrorMessage(error);
+      await alert(`建立休診時段失敗：${errorMessage}`, '錯誤');
+    }
+  };
+
+  const handleConflictWarningCancel = () => {
+    setIsConflictWarningModalOpen(false);
+    setConflictAppointments([]);
+  };
+
   // Show loading spinner during initial load, but not for subsequent event fetches after initial load is complete
   if (loading || practitionersLoading || (eventsLoading && !initialLoadComplete)) {
     return (
@@ -665,13 +713,12 @@ const AvailabilityPage: React.FC = () => {
             view={view}
             onViewChange={handleViewChange}
             practitioners={practitioners}
-            selectedPractitioners={effectiveSelectedPractitioners}
+            selectedPractitioners={selectedPractitioners}
             onPractitionersChange={setSelectedPractitioners}
             resources={resources}
             selectedResources={selectedResources}
             onResourcesChange={setSelectedResources}
             currentUserId={user?.user_id ?? null}
-            isPractitioner={isPractitioner}
             isOpen={sidebarOpen}
             onClose={handleSettings}
           />
@@ -693,11 +740,12 @@ const AvailabilityPage: React.FC = () => {
             view={view}
             currentDate={currentDate}
             events={allEvents}
-            selectedPractitioners={effectiveSelectedPractitioners}
+            selectedPractitioners={selectedPractitioners}
             selectedResources={selectedResources}
             practitioners={practitioners}
             resources={resources}
             practitionerAvailability={practitionerAvailability}
+            currentUserId={user?.user_id ?? null}
             onEventClick={handleEventClick}
             onSlotClick={handleSlotClick}
           />
@@ -707,11 +755,12 @@ const AvailabilityPage: React.FC = () => {
             view={view}
             currentDate={currentDate}
             events={allEvents}
-            selectedPractitioners={effectiveSelectedPractitioners}
+            selectedPractitioners={selectedPractitioners}
             selectedResources={selectedResources}
             practitioners={practitioners}
             resources={resources}
             practitionerAvailability={practitionerAvailability}
+            currentUserId={user?.user_id ?? null}
             onEventClick={handleEventClick}
             onSlotClick={handleSlotClick}
             showHeaderRow={false}
@@ -928,6 +977,7 @@ const AvailabilityPage: React.FC = () => {
                 date: exceptionData.date,
                 start_time: isFullDay ? null : exceptionData.startTime,
                 end_time: isFullDay ? null : exceptionData.endTime,
+                force: false, // First attempt - check for conflicts
               };
 
               logger.info('Sending exception request to API:', requestData);
@@ -935,7 +985,33 @@ const AvailabilityPage: React.FC = () => {
               // Call the API to create the exception
               const response = await apiService.createAvailabilityException(user.user_id, requestData);
 
-              logger.info('Availability exception created successfully:', response);
+              logger.info('API response:', response);
+
+              // Check if response indicates conflicts (409 status)
+              if ('success' in response && response.success === false && response.conflicts) {
+                // Show conflict warning modal
+                setConflictAppointments(response.conflicts);
+                setIsConflictWarningModalOpen(true);
+                return;
+              }
+
+              // Check if response indicates success with warnings (force=true case)
+              if ('warning' in response && response.warning === true) {
+                logger.info('Availability exception created with conflicts');
+
+                // Close both modals
+                setIsExceptionModalOpen(false);
+                setIsConflictWarningModalOpen(false);
+
+                // Invalidate calendar events cache to refresh the view
+                invalidateCalendarEventsForAppointment(queryClient, user?.active_clinic_id);
+
+                await alert('休診時段已建立，但與現有預約衝突');
+                return;
+              }
+
+              // No conflicts - exception created successfully
+              logger.info('Availability exception created successfully');
 
               // Close the modal
               setIsExceptionModalOpen(false);
@@ -952,6 +1028,15 @@ const AvailabilityPage: React.FC = () => {
           }}
           onExceptionDataChange={setExceptionData}
           onFullDayChange={setIsFullDay}
+        />
+      )}
+
+      {isConflictWarningModalOpen && (
+        <ConflictWarningModal
+          conflictingAppointments={conflictAppointments}
+          onConfirm={handleConflictWarningConfirm}
+          onCancel={handleConflictWarningCancel}
+          formatTimeString={formatTimeString}
         />
       )}
 

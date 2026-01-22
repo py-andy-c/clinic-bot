@@ -531,6 +531,7 @@ export interface AvailabilityExceptionRequest {
   date: string;
   start_time?: string | null;
   end_time?: string | null;
+  force?: boolean;
 }
 
 export interface AvailabilityExceptionResponse {
@@ -540,6 +541,28 @@ export interface AvailabilityExceptionResponse {
   start_time: string;
   end_time: string;
   created_at: string;
+}
+
+export interface ConflictDetail {
+  calendar_event_id: number;
+  start_time: string;
+  end_time: string;
+  patient: string;
+  appointment_type: string | null;
+}
+
+export interface ConflictWarningResponse {
+  success: boolean;
+  message: string;
+  warning?: boolean;  // True when creation succeeded but has conflicts
+  conflicts?: ConflictDetail[];
+  // Include exception data when created with warnings
+  calendar_event_id?: number;
+  exception_id?: number;
+  date?: string;
+  start_time?: string;
+  end_time?: string;
+  created_at?: string;
 }
 
 // Error and warning response types
