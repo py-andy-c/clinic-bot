@@ -1,5 +1,5 @@
 import React from 'react';
-import { render } from '@testing-library/react';
+import { render, fireEvent, act } from '@testing-library/react';
 import { vi } from 'vitest';
 import { CalendarViews } from '../../../types/calendar';
 import CalendarSidebar from '../CalendarSidebar';
@@ -52,39 +52,53 @@ describe('CalendarSidebar', () => {
     )).not.toThrow();
   });
 
-  it('filters out current practitioner from sidebar when user is a practitioner', () => {
-    const { queryByText } = render(
+  it('filters out current practitioner from dropdown when user is a practitioner', () => {
+    const { queryByText, getByTestId } = render(
       <CalendarSidebar
         {...mockProps}
         practitioners={[
           { id: 1, full_name: 'Dr. Smith' },
           { id: 2, full_name: 'Dr. Johnson' },
         ]}
+        selectedPractitioners={[]} // No practitioners selected initially
         currentUserId={1}
         isPractitioner={true}
       />
     );
 
-    // Dr. Smith (current practitioner) should not be shown
+    // Click the search input to open dropdown
+    act(() => {
+      const searchInput = getByTestId('practitioner-multiselect-search-input');
+      fireEvent.focus(searchInput);
+    });
+
+    // Dr. Smith (current practitioner) should not be in dropdown options
     expect(queryByText('Dr. Smith')).not.toBeInTheDocument();
-    // Dr. Johnson should be shown
+    // Dr. Johnson should be available in dropdown
     expect(queryByText('Dr. Johnson')).toBeInTheDocument();
   });
 
-  it('shows all practitioners when user is not a practitioner', () => {
-    const { queryByText } = render(
+  it('shows all practitioners in dropdown when user is not a practitioner', () => {
+    const { queryByText, getByTestId } = render(
       <CalendarSidebar
         {...mockProps}
         practitioners={[
           { id: 1, full_name: 'Dr. Smith' },
           { id: 2, full_name: 'Dr. Johnson' },
         ]}
+        selectedPractitioners={[]} // No practitioners selected initially
         currentUserId={1}
         isPractitioner={false}
       />
     );
 
-    // Both practitioners should be shown
+    // Click the search input to open dropdown
+    act(() => {
+      const searchInput = getByTestId('practitioner-multiselect-search-input');
+      fireEvent.focus(searchInput);
+    });
+
+    // Both practitioners should be available in dropdown
     expect(queryByText('Dr. Smith')).toBeInTheDocument();
     expect(queryByText('Dr. Johnson')).toBeInTheDocument();
   });

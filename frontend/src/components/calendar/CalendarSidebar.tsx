@@ -2,6 +2,7 @@ import React from 'react';
 import { CalendarView, CalendarViews } from '../../types/calendar';
 import { getPractitionerColor } from '../../utils/practitionerColors';
 import { getResourceColorById } from '../../utils/resourceColorUtils';
+import { CompactMultiSelect } from './CompactMultiSelect';
 import styles from './CalendarSidebar.module.css';
 
 interface Practitioner {
@@ -47,37 +48,6 @@ const CalendarSidebar: React.FC<CalendarSidebarProps> = ({
     onViewChange(newView);
   };
 
-  const handlePractitionerToggle = (practitionerId: number) => {
-    const newSelection = selectedPractitioners.includes(practitionerId)
-      ? selectedPractitioners.filter(id => id !== practitionerId)
-      : [...selectedPractitioners, practitionerId];
-
-    // Limit to 10 practitioners
-    if (newSelection.length <= 10) {
-      onPractitionersChange(newSelection);
-    }
-  };
-
-  const handleResourceToggle = (resourceId: number) => {
-    const newSelection = selectedResources.includes(resourceId)
-      ? selectedResources.filter(id => id !== resourceId)
-      : [...selectedResources, resourceId];
-
-    // Limit to 10 resources
-    if (newSelection.length <= 10) {
-      onResourcesChange(newSelection);
-    }
-  };
-
-  const getPractitionerColorStyle = (practitionerId: number) => {
-    const color = getPractitionerColor(practitionerId, -1, selectedPractitioners) || '#6b7280';
-    return { backgroundColor: color };
-  };
-
-  const getResourceColorStyle = (resourceId: number) => {
-    const color = getResourceColorById(resourceId, selectedResources) || '#6b7280';
-    return { backgroundColor: color };
-  };
 
   return (
     <>
@@ -141,32 +111,23 @@ const CalendarSidebar: React.FC<CalendarSidebarProps> = ({
             <h3 className={styles.sidebarSectionTitle}>
               顯示治療師 ({selectedPractitioners.length}/10)
             </h3>
-            {practitioners
-              .filter((practitioner) => !isPractitioner || practitioner.id !== currentUserId)
-              .map((practitioner) => {
-              const isSelected = selectedPractitioners.includes(practitioner.id);
-              return (
-                <label key={practitioner.id} className={styles.filterItem}>
-                  <input
-                    type="checkbox"
-                    checked={isSelected}
-                    onChange={() => handlePractitionerToggle(practitioner.id)}
-                    aria-label={`Show/hide appointments for ${practitioner.full_name}`}
-                  />
-                  <span
-                    className={styles.filterIndicator}
-                    style={getPractitionerColorStyle(practitioner.id)}
-                    aria-hidden="true"
-                  />
-                  {practitioner.full_name}
-                </label>
-              );
-            })}
-            {selectedPractitioners.length >= 10 && (
-              <div style={{ fontSize: '12px', color: '#ef4444', marginTop: '8px' }}>
-                已達治療師上限 (10 位)
-              </div>
-            )}
+            <CompactMultiSelect
+              selectedItems={selectedPractitioners.map(id => {
+                const practitioner = practitioners.find(p => p.id === id);
+                return {
+                  id,
+                  name: practitioner?.full_name || '',
+                  color: getPractitionerColor(id, -1, selectedPractitioners) || '#6b7280'
+                };
+              })}
+              allItems={practitioners
+                .filter((practitioner) => !isPractitioner || practitioner.id !== currentUserId)
+                .map(p => ({ id: p.id, name: p.full_name }))}
+              onSelectionChange={onPractitionersChange}
+              maxSelections={10}
+              placeholder="搜尋治療師..."
+              data-testid="practitioner-multiselect"
+            />
           </div>
 
           {/* Resource Filters */}
@@ -174,30 +135,21 @@ const CalendarSidebar: React.FC<CalendarSidebarProps> = ({
             <h3 className={styles.sidebarSectionTitle}>
               顯示資源 ({selectedResources.length}/10)
             </h3>
-            {resources.map((resource) => {
-              const isSelected = selectedResources.includes(resource.id);
-              return (
-                <label key={resource.id} className={styles.filterItem}>
-                  <input
-                    type="checkbox"
-                    checked={isSelected}
-                    onChange={() => handleResourceToggle(resource.id)}
-                    aria-label={`Show/hide appointments for ${resource.name}`}
-                  />
-                  <span
-                    className={styles.filterIndicator}
-                    style={getResourceColorStyle(resource.id)}
-                    aria-hidden="true"
-                  />
-                  {resource.name}
-                </label>
-              );
-            })}
-            {selectedResources.length >= 10 && (
-              <div style={{ fontSize: '12px', color: '#ef4444', marginTop: '8px' }}>
-                已達資源上限 (10 個)
-              </div>
-            )}
+            <CompactMultiSelect
+              selectedItems={selectedResources.map(id => {
+                const resource = resources.find(r => r.id === id);
+                return {
+                  id,
+                  name: resource?.name || '',
+                  color: getResourceColorById(id, selectedResources) || '#6b7280'
+                };
+              })}
+              allItems={resources.map(r => ({ id: r.id, name: r.name }))}
+              onSelectionChange={onResourcesChange}
+              maxSelections={10}
+              placeholder="搜尋資源..."
+              data-testid="resource-multiselect"
+            />
           </div>
         </div>
       </div>
