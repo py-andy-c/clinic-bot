@@ -12,6 +12,7 @@ interface CalendarDateStripProps {
   onCreateException: () => void;
   onToday: () => void;
   onSettings: () => void;
+  isPractitioner: boolean;
 }
 
 const CalendarDateStrip: React.FC<CalendarDateStripProps> = ({
@@ -22,6 +23,7 @@ const CalendarDateStrip: React.FC<CalendarDateStripProps> = ({
   onCreateException,
   onToday,
   onSettings,
+  isPractitioner,
 }) => {
   const [showMiniCalendar, setShowMiniCalendar] = useState(false);
   const isMobile = useIsMobile(1024); // Hide settings button on desktop (≥1024px)
@@ -110,10 +112,12 @@ const CalendarDateStrip: React.FC<CalendarDateStripProps> = ({
             <span className={styles.actionIcon} aria-hidden="true">+</span>
             <span>預約</span>
           </button>
-          <button className={styles.actionBtn} onClick={onCreateException} aria-label="Create availability exception" title="Create Availability Exception">
-            <span className={styles.actionIcon} aria-hidden="true">+</span>
-            <span>休診</span>
-          </button>
+          {isPractitioner && (
+            <button className={styles.actionBtn} onClick={onCreateException} aria-label="Create availability exception" title="Create Availability Exception">
+              <span className={styles.actionIcon} aria-hidden="true">+</span>
+              <span>休診</span>
+            </button>
+          )}
           <button className={styles.actionBtn} onClick={onToday} aria-label="Jump to today's date" title="Jump to Today">
             <span>今</span>
           </button>

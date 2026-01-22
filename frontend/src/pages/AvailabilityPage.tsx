@@ -685,6 +685,7 @@ const AvailabilityPage: React.FC = () => {
             onCreateException={handleCreateException}
             onToday={handleToday}
             onSettings={handleSettings}
+            isPractitioner={isPractitioner}
           />
         }
         practitionerRow={

@@ -13,6 +13,7 @@ describe('CalendarDateStrip', () => {
     onCreateException: vi.fn(),
     onToday: vi.fn(),
     onSettings: vi.fn(),
+    isPractitioner: true,
   };
 
   beforeEach(() => {
@@ -123,5 +124,17 @@ describe('CalendarDateStrip', () => {
     // Settings button should not be present
     const settingsButton = screen.queryByTitle('Open Settings');
     expect(settingsButton).not.toBeInTheDocument();
+  });
+
+  it('does not show exception button for non-practitioners', () => {
+    render(<CalendarDateStrip {...mockProps} isPractitioner={false} />);
+    const exceptionButton = screen.queryByTitle('Create Availability Exception');
+    expect(exceptionButton).not.toBeInTheDocument();
+  });
+
+  it('shows exception button for practitioners', () => {
+    render(<CalendarDateStrip {...mockProps} isPractitioner={true} />);
+    const exceptionButton = screen.getByTitle('Create Availability Exception');
+    expect(exceptionButton).toBeInTheDocument();
   });
 });
