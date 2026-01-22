@@ -37,17 +37,32 @@ describe('TimeRangePresets', () => {
 describe('getDateRangeForPreset', () => {
   it('calculates month range correctly', () => {
     const result = getDateRangeForPreset('month');
-    const today = moment();
+    const today = moment().tz('Asia/Taipei');
     expect(result.startDate).toBe(today.startOf('month').format('YYYY-MM-DD'));
     expect(result.endDate).toBe(today.endOf('month').format('YYYY-MM-DD'));
   });
 
   it('calculates 3 months range correctly', () => {
     const result = getDateRangeForPreset('3months');
-    const today = moment();
+    const today = moment().tz('Asia/Taipei');
     const expectedStart = today.clone().subtract(2, 'months').startOf('month');
     expect(result.startDate).toBe(expectedStart.format('YYYY-MM-DD'));
     expect(result.endDate).toBe(today.endOf('month').format('YYYY-MM-DD'));
+  });
+
+  it('calculates 6 months range correctly', () => {
+    const result = getDateRangeForPreset('6months');
+    const today = moment().tz('Asia/Taipei');
+    const expectedStart = today.clone().subtract(5, 'months').startOf('month');
+    expect(result.startDate).toBe(expectedStart.format('YYYY-MM-DD'));
+    expect(result.endDate).toBe(today.endOf('month').format('YYYY-MM-DD'));
+  });
+
+  it('calculates year range correctly', () => {
+    const result = getDateRangeForPreset('year');
+    const today = moment().tz('Asia/Taipei');
+    expect(result.startDate).toBe(today.startOf('year').format('YYYY-MM-DD'));
+    expect(result.endDate).toBe(today.endOf('year').format('YYYY-MM-DD'));
   });
 });
 
@@ -62,6 +77,18 @@ describe('detectPresetFromDates', () => {
     const range = getDateRangeForPreset('3months');
     const preset = detectPresetFromDates(range.startDate, range.endDate);
     expect(preset).toBe('3months');
+  });
+
+  it('detects 6months preset correctly', () => {
+    const range = getDateRangeForPreset('6months');
+    const preset = detectPresetFromDates(range.startDate, range.endDate);
+    expect(preset).toBe('6months');
+  });
+
+  it('detects year preset correctly', () => {
+    const range = getDateRangeForPreset('year');
+    const preset = detectPresetFromDates(range.startDate, range.endDate);
+    expect(preset).toBe('year');
   });
 
   it('returns null for non-preset dates', () => {

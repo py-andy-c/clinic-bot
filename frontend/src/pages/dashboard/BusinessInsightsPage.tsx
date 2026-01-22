@@ -23,23 +23,23 @@ const BusinessInsightsPage: React.FC = () => {
   const activeClinicId = user?.active_clinic_id ?? null;
   
   // Active filter state (used for API calls)
-  const [startDate, setStartDate] = useState<string>(moment().startOf('month').format('YYYY-MM-DD'));
-  const [endDate, setEndDate] = useState<string>(moment().endOf('month').format('YYYY-MM-DD'));
+  const [startDate, setStartDate] = useState<string>(moment().tz('Asia/Taipei').startOf('month').format('YYYY-MM-DD'));
+  const [endDate, setEndDate] = useState<string>(moment().tz('Asia/Taipei').endOf('month').format('YYYY-MM-DD'));
   const [selectedPractitionerId, setSelectedPractitionerId] = useState<number | string | null>(null);
   const [selectedServiceItemId, setSelectedServiceItemId] = useState<number | string | null>(null);
   const [selectedGroupId, setSelectedGroupId] = useState<number | string | null>(null);
   
   // Pending filter state (for UI inputs, not applied until button clicked)
-  const [pendingStartDate, setPendingStartDate] = useState<string>(moment().startOf('month').format('YYYY-MM-DD'));
-  const [pendingEndDate, setPendingEndDate] = useState<string>(moment().endOf('month').format('YYYY-MM-DD'));
+  const [pendingStartDate, setPendingStartDate] = useState<string>(moment().tz('Asia/Taipei').startOf('month').format('YYYY-MM-DD'));
+  const [pendingEndDate, setPendingEndDate] = useState<string>(moment().tz('Asia/Taipei').endOf('month').format('YYYY-MM-DD'));
   const [pendingPractitionerId, setPendingPractitionerId] = useState<number | string | null>(null);
   const [pendingServiceItemId, setPendingServiceItemId] = useState<number | string | null>(null);
   const [pendingGroupId, setPendingGroupId] = useState<number | string | null>(null);
   
   // Reset filters to default when clinic changes
   useEffect(() => {
-    const defaultStartDate = moment().startOf('month').format('YYYY-MM-DD');
-    const defaultEndDate = moment().endOf('month').format('YYYY-MM-DD');
+    const defaultStartDate = moment().tz('Asia/Taipei').startOf('month').format('YYYY-MM-DD');
+    const defaultEndDate = moment().tz('Asia/Taipei').endOf('month').format('YYYY-MM-DD');
     
     setStartDate(defaultStartDate);
     setEndDate(defaultEndDate);
