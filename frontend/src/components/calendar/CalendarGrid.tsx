@@ -417,7 +417,11 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
             role="grid"
             aria-label="Calendar grid showing appointments and time slots"
             aria-rowcount={timeSlots.length + 1} // +1 for header
-            aria-colcount={selectedPractitioners.length + selectedResources.length + 1} // +1 for time column
+            aria-colcount={
+              selectedPractitioners.length + selectedResources.length > 0
+                ? selectedPractitioners.length + selectedResources.length + 1 // +1 for time column
+                : (view === CalendarViews.DAY ? 2 : 8) // +1 for time column, +1 for empty day column or +7 for empty week columns
+            }
             tabIndex={0}
             onKeyDown={handleKeyDown}
           >
@@ -551,6 +555,62 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
                       ))}
                   </div>
                 ))}
+
+                {/* Render empty columns when no practitioners or resources are selected */}
+                {practitionerGroups.length === 0 && resourceGroups.length === 0 && (() => {
+                  if (view === CalendarViews.DAY) {
+                    // For Day View: render a single empty column
+                    return (
+                      <div
+                        key="empty-day-column"
+                        className={styles.practitionerColumn}
+                        role="gridcell"
+                        aria-label="Empty calendar column"
+                      >
+                        {timeSlots.map((slot, index) => (
+                          <div
+                            key={index}
+                            className={styles.timeSlot}
+                            onClick={() => handleSlotClick(slot.hour, slot.minute)}
+                            role="button"
+                            aria-label={`Time slot ${slot.time} - Click to create appointment`}
+                            data-testid="time-slot"
+                            tabIndex={-1}
+                          />
+                        ))}
+                      </div>
+                    );
+                  }
+
+                  if (view === CalendarViews.WEEK) {
+                    // For Week View: render 7 empty columns (one for each day)
+                    return Array.from({ length: 7 }, (_, dayIndex) => {
+                      const dayDate = moment(currentDate).startOf('week').add(dayIndex, 'days');
+                      return (
+                        <div
+                          key={`empty-week-column-${dayIndex}`}
+                          className={styles.practitionerColumn}
+                          role="gridcell"
+                          aria-label={`Empty column for ${dayDate.format('dddd')}`}
+                        >
+                          {timeSlots.map((slot, index) => (
+                            <div
+                              key={index}
+                              className={styles.timeSlot}
+                              onClick={() => handleSlotClick(slot.hour, slot.minute)}
+                              role="button"
+                              aria-label={`Time slot ${slot.time} on ${dayDate.format('dddd')} - Click to create appointment`}
+                              data-testid="time-slot"
+                              tabIndex={-1}
+                            />
+                          ))}
+                        </div>
+                      );
+                    });
+                  }
+
+                  return null;
+                })()}
               </div>
             </div>
           </div>

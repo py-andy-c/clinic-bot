@@ -158,4 +158,57 @@ describe('CalendarGrid', () => {
       />
     )).not.toThrow();
   });
+
+  it('renders empty columns when no practitioners or resources are selected', () => {
+    const { container } = render(
+      <CalendarGrid
+        {...mockProps}
+        selectedPractitioners={[]}
+        selectedResources={[]}
+      />
+    );
+
+    // Should render time column
+    const timeLabelsElement = container.querySelector('#time-labels');
+    expect(timeLabelsElement).toBeInTheDocument();
+
+    // Should render calendar grid container
+    const gridContainer = container.querySelector('[data-testid="calendar-grid-container"]');
+    expect(gridContainer).toBeInTheDocument();
+
+    // Should render time slots (clickable slots)
+    const timeSlots = container.querySelectorAll('[data-testid="time-slot"]');
+    expect(timeSlots.length).toBeGreaterThan(0);
+
+    // Should render empty column for day view - check by role="gridcell"
+    const gridCells = container.querySelectorAll('[role="gridcell"]');
+    expect(gridCells.length).toBe(1); // One empty column for day view
+  });
+
+  it('renders 7 empty columns for week view when no practitioners or resources are selected', () => {
+    const { container } = render(
+      <CalendarGrid
+        {...mockProps}
+        view={CalendarViews.WEEK}
+        selectedPractitioners={[]}
+        selectedResources={[]}
+      />
+    );
+
+    // Should render time column
+    const timeLabelsElement = container.querySelector('#time-labels');
+    expect(timeLabelsElement).toBeInTheDocument();
+
+    // Should render calendar grid container
+    const gridContainer = container.querySelector('[data-testid="calendar-grid-container"]');
+    expect(gridContainer).toBeInTheDocument();
+
+    // Should render time slots (clickable slots)
+    const timeSlots = container.querySelectorAll('[data-testid="time-slot"]');
+    expect(timeSlots.length).toBeGreaterThan(0);
+
+    // Should render 7 empty columns for week view - check by role="gridcell"
+    const gridCells = container.querySelectorAll('[role="gridcell"]');
+    expect(gridCells.length).toBe(7); // Seven empty columns for week view
+  });
 });
