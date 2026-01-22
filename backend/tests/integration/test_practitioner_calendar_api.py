@@ -398,7 +398,8 @@ class TestPractitionerCalendarAPI:
         exception_data = {
             "date": "2025-01-15",
             "start_time": "14:00",
-            "end_time": "18:00"
+            "end_time": "18:00",
+            "force": False
         }
 
         # Get authentication token
@@ -467,11 +468,12 @@ class TestPractitionerCalendarAPI:
         db_session.add(appointment)
         db_session.commit()
 
-        # Test creating availability exception that conflicts with appointment
+        # Test creating availability exception that conflicts with appointment (force=false by default)
         exception_data = {
             "date": "2025-01-15",
             "start_time": "14:00",
-            "end_time": "18:00"
+            "end_time": "18:00",
+            "force": False
         }
 
         # Get authentication token
@@ -483,15 +485,54 @@ class TestPractitionerCalendarAPI:
             headers={"Authorization": f"Bearer {token}"}
         )
 
-        assert response.status_code == 201
+        assert response.status_code == 409  # HTTP 409 Conflict
         data = response.json()
-        
-        # Should return warning about conflicts
+
+        # Should return warning about conflicts without creating exception
         assert "success" in data
         assert data["success"] == False
         assert "message" in data
         assert "conflicts" in data
         assert len(data["conflicts"]) > 0
+
+        # Verify exception was NOT created
+        exceptions = db_session.query(CalendarEvent).filter(
+            CalendarEvent.user_id == practitioner.id,
+            CalendarEvent.event_type == "availability_exception",
+            CalendarEvent.date == date(2025, 1, 15)
+        ).all()
+        assert len(exceptions) == 0
+
+        # Test force creation
+        exception_data["force"] = True
+        response = client.post(
+            f"/api/clinic/practitioners/{practitioner.id}/availability/exceptions",
+            json=exception_data,
+            headers={"Authorization": f"Bearer {token}"}
+        )
+
+        assert response.status_code == 200  # Success with warning
+        data = response.json()
+
+        # Should return success with warning about conflicts
+        assert "success" in data
+        assert data["success"] == True
+        assert "warning" in data
+        assert data["warning"] == True
+        assert "message" in data
+        assert "conflicts" in data
+        assert len(data["conflicts"]) > 0
+        # Should include exception data
+        assert "calendar_event_id" in data
+        assert "exception_id" in data
+
+        # Verify exception WAS created despite conflicts
+        exceptions = db_session.query(CalendarEvent).filter(
+            CalendarEvent.user_id == practitioner.id,
+            CalendarEvent.event_type == "availability_exception",
+            CalendarEvent.date == date(2025, 1, 15)
+        ).all()
+        assert len(exceptions) == 1
 
     def test_delete_availability_exception(self, client: TestClient, db_session: Session, test_clinic_and_practitioner):
         """Test deleting availability exception."""

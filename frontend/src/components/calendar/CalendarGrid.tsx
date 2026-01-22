@@ -383,7 +383,7 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
           if (view === 'month') {
             return (
               Array.from({ length: 7 }, (_, i) => {
-                const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                const dayNames = ['日', '一', '二', '三', '四', '五', '六'];
                 return (
                   <div key={`day-${i}`} className={styles.resourceHeader}>
                     {dayNames[i]}
@@ -779,7 +779,7 @@ const MonthlyCalendarGrid: React.FC<MonthlyCalendarGridProps> = ({
     return days;
   }, [calendarStart, calendarEnd, events, month]);
 
-  const weekDays = ['一', '二', '三', '四', '五', '六', '日'];
+  const weekDays = ['日', '一', '二', '三', '四', '五', '六'];
 
   // Group days into weeks
   const weeks = [];
@@ -940,7 +940,7 @@ export const PractitionerRow: React.FC<Omit<CalendarGridProps, 'showHeaderRow'>>
           if (view === 'month') {
             return (
               Array.from({ length: 7 }, (_, i) => {
-                const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                const dayNames = ['日', '一', '二', '三', '四', '五', '六'];
                 return (
                   <div key={`day-${i}`} className={styles.resourceHeader}>
                     {dayNames[i]}

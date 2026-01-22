@@ -136,7 +136,7 @@ const CalendarDateStrip: React.FC<CalendarDateStripProps> = ({
 
       {/* Mini Calendar Modal */}
       {showMiniCalendar && (
-        <div className={styles.miniCalendarModal} onClick={() => setShowMiniCalendar(false)}>
+        <div className={styles.miniCalendarModal} onClick={() => setShowMiniCalendar(false)} data-testid="mini-calendar-modal">
           <div className={styles.miniCalendarContent} onClick={(e) => e.stopPropagation()}>
             <MiniCalendar
               currentDate={currentDate}
@@ -158,7 +158,7 @@ interface MiniCalendarProps {
 const MiniCalendar: React.FC<MiniCalendarProps> = ({ currentDate, onDateSelect }) => {
   const [displayMonth, setDisplayMonth] = useState(currentDate);
 
-  const weekdays = ['一', '二', '三', '四', '五', '六', '日'];
+  const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
 
   const handlePrevMonth = () => {
     const newDate = moment(displayMonth).subtract(1, 'month');
@@ -178,11 +178,8 @@ const MiniCalendar: React.FC<MiniCalendarProps> = ({ currentDate, onDateSelect }
     const lastDay = new Date(year, month + 1, 0);
     const daysInMonth = lastDay.getDate();
 
-    // Get weekday of first day (0 = Sunday, 6 = Saturday)
-    let firstDayOfWeek = firstDay.getDay();
-    // Adjust for Monday-first (0 = Monday, 6 = Sunday)
-    if (firstDayOfWeek === 0) firstDayOfWeek = 6;
-    else firstDayOfWeek--;
+    // Get weekday of first day (0 = Sunday, 6 = Saturday) - using Sunday-first
+    const firstDayOfWeek = firstDay.getDay();
 
     const prevMonth = new Date(year, month, 0);
     const daysInPrevMonth = prevMonth.getDate();
@@ -202,13 +199,14 @@ const MiniCalendar: React.FC<MiniCalendarProps> = ({ currentDate, onDateSelect }
     }
 
     // Current month days
-    const today = new Date();
+    const today = moment().tz('Asia/Taipei');
     const selectedMoment = moment(currentDate).tz('Asia/Taipei');
 
     for (let day = 1; day <= daysInMonth; day++) {
       const date = new Date(year, month, day);
-      const isToday = date.toDateString() === today.toDateString();
-      const isSelected = date.toDateString() === selectedMoment.toDate().toDateString();
+      const dateMoment = moment(date).tz('Asia/Taipei');
+      const isToday = dateMoment.isSame(today, 'day');
+      const isSelected = dateMoment.isSame(selectedMoment, 'day');
 
       days.push({
         day,

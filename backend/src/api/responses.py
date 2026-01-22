@@ -215,6 +215,7 @@ class AvailableSlotsResponse(BaseModel):
 class ConflictDetail(BaseModel):
     """Detail model for appointment conflicts."""
     calendar_event_id: int
+    date: str
     start_time: str
     end_time: str
     patient: str
@@ -222,10 +223,18 @@ class ConflictDetail(BaseModel):
 
 
 class ConflictWarningResponse(BaseModel):
-    """Response model for conflict warning."""
+    """Response model for conflict warning or successful creation with warnings."""
     success: bool
     message: str
-    conflicts: List[ConflictDetail]
+    warning: bool = False  # True when creation succeeded but has conflicts
+    conflicts: Optional[List[ConflictDetail]] = None
+    # Include exception data when created with warnings
+    calendar_event_id: Optional[int] = None
+    exception_id: Optional[int] = None
+    date: Optional[str] = None
+    start_time: Optional[str] = None
+    end_time: Optional[str] = None
+    created_at: Optional[datetime] = None
 
 
 class AppointmentTypeReference(BaseModel):

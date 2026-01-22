@@ -1,6 +1,7 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { vi } from 'vitest';
+import moment from 'moment-timezone';
 import { CalendarViews } from '../../../types/calendar';
 import CalendarDateStrip from '../CalendarDateStrip';
 
@@ -136,5 +137,97 @@ describe('CalendarDateStrip', () => {
     render(<CalendarDateStrip {...mockProps} isPractitioner={true} />);
     const exceptionButton = screen.getByTitle('Create Availability Exception');
     expect(exceptionButton).toBeInTheDocument();
+  });
+
+  describe('Mini Calendar', () => {
+    it('displays weekdays starting with Sunday', () => {
+      render(<CalendarDateStrip {...mockProps} />);
+      const dateDisplay = screen.getByText('1月15日(一)');
+      fireEvent.click(dateDisplay);
+
+      // Check that weekdays are displayed in Sunday-first order
+      const sunday = screen.getByText('日');
+      const monday = screen.getByText('一');
+      const tuesday = screen.getByText('二');
+      const wednesday = screen.getByText('三');
+      const thursday = screen.getByText('四');
+      const friday = screen.getByText('五');
+      const saturday = screen.getByText('六');
+
+      expect(sunday).toBeInTheDocument();
+      expect(monday).toBeInTheDocument();
+      expect(tuesday).toBeInTheDocument();
+      expect(wednesday).toBeInTheDocument();
+      expect(thursday).toBeInTheDocument();
+      expect(friday).toBeInTheDocument();
+      expect(saturday).toBeInTheDocument();
+    });
+
+    it('displays calendar days correctly', () => {
+      render(<CalendarDateStrip {...mockProps} />);
+      const dateDisplay = screen.getByText('1月15日(一)');
+      fireEvent.click(dateDisplay);
+
+      // Verify mini calendar shows January 2024
+      expect(screen.getByText('2024年1月')).toBeInTheDocument();
+
+      // The day 15 should be visible in the calendar
+      expect(screen.getByText('15')).toBeInTheDocument();
+    });
+
+    it('correctly selects the current date in Taiwan timezone', () => {
+      const selectedDate = new Date('2024-01-15');
+      render(<CalendarDateStrip {...mockProps} currentDate={selectedDate} />);
+      const dateDisplay = screen.getByText('1月15日(一)');
+      fireEvent.click(dateDisplay);
+
+      // Verify mini calendar shows January 2024
+      expect(screen.getByText('2024年1月')).toBeInTheDocument();
+
+      // The day 15 should be visible in the calendar
+      expect(screen.getByText('15')).toBeInTheDocument();
+    });
+
+    it('navigates to previous month correctly', () => {
+      render(<CalendarDateStrip {...mockProps} />);
+      const dateDisplay = screen.getByText('1月15日(一)');
+      fireEvent.click(dateDisplay);
+
+      // Click previous month button
+      const prevButton = screen.getAllByText('‹')[1]; // Second ‹ button is for mini calendar
+      fireEvent.click(prevButton);
+
+      // Should now show December 2023
+      expect(screen.getByText('2023年12月')).toBeInTheDocument();
+    });
+
+    it('navigates to next month correctly', () => {
+      render(<CalendarDateStrip {...mockProps} />);
+      const dateDisplay = screen.getByText('1月15日(一)');
+      fireEvent.click(dateDisplay);
+
+      // Click next month button
+      const nextButton = screen.getAllByText('›')[1]; // Second › button is for mini calendar
+      fireEvent.click(nextButton);
+
+      // Should now show February 2024
+      expect(screen.getByText('2024年2月')).toBeInTheDocument();
+    });
+
+    it('closes mini calendar when clicking outside', () => {
+      render(<CalendarDateStrip {...mockProps} />);
+      const dateDisplay = screen.getByText('1月15日(一)');
+      fireEvent.click(dateDisplay);
+
+      // Mini calendar should be open
+      expect(screen.getByText('2024年1月')).toBeInTheDocument();
+
+      // Click on the modal overlay (outside the content)
+      const modal = screen.getByTestId('mini-calendar-modal');
+      fireEvent.click(modal);
+
+      // Mini calendar should be closed (header should not be visible)
+      expect(screen.queryByText('2024年1月')).not.toBeInTheDocument();
+    });
   });
 });

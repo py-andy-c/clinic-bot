@@ -7,7 +7,6 @@
 
 import React from 'react';
 import { BaseModal } from './BaseModal';
-import { formatAppointmentDateOnly } from '../../utils/calendarUtils';
 
 export interface ConflictAppointment {
   calendar_event_id: number;

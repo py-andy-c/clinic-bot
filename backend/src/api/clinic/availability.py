@@ -7,7 +7,7 @@ import logging
 from datetime import datetime, timedelta, date as date_type, time
 from typing import Dict, List, Optional, Any, Union
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Response
 from fastapi import status as http_status
 from pydantic import BaseModel, field_validator
 from sqlalchemy.orm import Session, joinedload
@@ -186,6 +186,7 @@ class AvailabilityExceptionRequest(BaseModel):
     date: str  # Format: "YYYY-MM-DD"
     start_time: Optional[str] = None  # Format: "HH:MM" or None for all-day
     end_time: Optional[str] = None    # Format: "HH:MM" or None for all-day
+    force: bool = False  # Force creation even with conflicts
 
 
 class AvailabilityExceptionResponse(BaseModel):
@@ -348,6 +349,7 @@ def _check_appointment_conflicts(
     for appointment in appointments:
         conflicts.append(ConflictDetail(
             calendar_event_id=appointment.calendar_event_id,
+            date=appointment.calendar_event.date.isoformat(),
             start_time=_format_time(appointment.calendar_event.start_time),
             end_time=_format_time(appointment.calendar_event.end_time),
             patient=appointment.patient.full_name,
@@ -1434,14 +1436,13 @@ async def get_available_slots_batch(
 
 
 @router.post("/practitioners/{user_id}/availability/exceptions",
-             summary="Create availability exception",
-             status_code=status.HTTP_201_CREATED)
+             summary="Create availability exception")
 async def create_availability_exception(
     user_id: int,
     exception_data: AvailabilityExceptionRequest,
     db: Session = Depends(get_db),
     current_user: UserContext = Depends(require_authenticated)
-) -> Union[AvailabilityExceptionResponse, ConflictWarningResponse]:
+) -> Response:
     """
     Create availability exception for practitioner.
     
@@ -1492,17 +1493,41 @@ async def create_availability_exception(
             )
         
         clinic_id = ensure_clinic_access(current_user)
-        
+
         # Check for appointment conflicts
         conflicts = []
         if exception_data.start_time and exception_data.end_time:
             conflicts = _check_appointment_conflicts(
-                db, user_id, target_date, 
-                _parse_time(exception_data.start_time), 
+                db, user_id, target_date,
+                _parse_time(exception_data.start_time),
                 _parse_time(exception_data.end_time),
                 clinic_id
             )
-        
+
+        # If conflicts exist and force=False, return warning without creating
+        if conflicts and not exception_data.force:
+            return Response(
+                content=ConflictWarningResponse(
+                    success=False,
+                    message="此可用時間例外與現有預約衝突。確定要繼續嗎？",
+                    conflicts=conflicts
+                ).model_dump_json(),
+                status_code=status.HTTP_409_CONFLICT,
+                media_type="application/json"
+            )
+
+        # If force=True, re-check conflicts to prevent race conditions
+        if exception_data.force:
+            # These should not be None since force creation only happens after initial conflict check
+            assert exception_data.start_time is not None and exception_data.end_time is not None
+            current_conflicts = _check_appointment_conflicts(
+                db, user_id, target_date,
+                _parse_time(exception_data.start_time),
+                _parse_time(exception_data.end_time),
+                clinic_id
+            )
+            conflicts = current_conflicts  # Update with latest conflicts
+
         # Create calendar event
         calendar_event = CalendarEvent(
             user_id=user_id,
@@ -1514,16 +1539,16 @@ async def create_availability_exception(
         )
         db.add(calendar_event)
         db.flush()  # Get the ID
-        
+
         # Create availability exception
         exception = AvailabilityException(
             calendar_event_id=calendar_event.id
         )
         db.add(exception)
         db.commit()
-        
+
         # Return response
-        response = AvailabilityExceptionResponse(
+        response_data = AvailabilityExceptionResponse(
             calendar_event_id=calendar_event.id,
             exception_id=exception.id,
             date=exception_data.date,
@@ -1531,16 +1556,32 @@ async def create_availability_exception(
             end_time=exception_data.end_time,
             created_at=calendar_event.created_at
         )
-        
-        # If there are conflicts, return warning response
+
+        # If there are conflicts (force=True case), return success with warning
         if conflicts:
-            return ConflictWarningResponse(
-                success=False,
-                message="此可用時間例外與現有預約衝突。預約將保持有效，但標記為「非工作時間」。",
-                conflicts=conflicts
+            return Response(
+                content=ConflictWarningResponse(
+                    success=True,
+                    message="休診時段已建立，但與現有預約衝突。預約將保持有效，但標記為「非工作時間」。",
+                    warning=True,
+                    conflicts=conflicts,
+                    calendar_event_id=calendar_event.id,
+                    exception_id=exception.id,
+                    date=exception_data.date,
+                    start_time=exception_data.start_time,
+                    end_time=exception_data.end_time,
+                    created_at=calendar_event.created_at
+                ).model_dump_json(),
+                status_code=status.HTTP_200_OK,  # Success with warning
+                media_type="application/json"
             )
-        
-        return response
+
+        # No conflicts - return success with 201
+        return Response(
+            content=response_data.model_dump_json(),
+            status_code=status.HTTP_201_CREATED,
+            media_type="application/json"
+        )
         
     except HTTPException:
         raise
