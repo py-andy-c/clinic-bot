@@ -29,7 +29,7 @@
 
 .timeCorner {
   width: 28px;
-  height: 32px;
+  min-height: 32px;
   background: white;
   border-right: 1px solid #e5e7eb;
   flex-shrink: 0;
