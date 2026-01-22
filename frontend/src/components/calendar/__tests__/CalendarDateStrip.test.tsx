@@ -62,18 +62,52 @@ describe('CalendarDateStrip', () => {
     expect(mockProps.onDateChange).toHaveBeenCalled();
   });
 
-  it('calls onCreateAppointment when appointment button is clicked', () => {
+  it('calls onCreateAppointment when appointment button is clicked on desktop', () => {
+    // Mock as desktop (width > 1024px)
+    Object.defineProperty(window, 'innerWidth', {
+      writable: true,
+      configurable: true,
+      value: 1200,
+    });
+    window.dispatchEvent(new Event('resize'));
+
     render(<CalendarDateStrip {...mockProps} />);
     const button = screen.getByTitle('Create Appointment');
     fireEvent.click(button);
     expect(mockProps.onCreateAppointment).toHaveBeenCalled();
   });
 
-  it('calls onCreateException when exception button is clicked', () => {
+  it('calls onCreateException when exception button is clicked on desktop', () => {
+    // Mock as desktop (width > 1024px)
+    Object.defineProperty(window, 'innerWidth', {
+      writable: true,
+      configurable: true,
+      value: 1200,
+    });
+    window.dispatchEvent(new Event('resize'));
+
     render(<CalendarDateStrip {...mockProps} />);
     const button = screen.getByTitle('Create Availability Exception');
     fireEvent.click(button);
     expect(mockProps.onCreateException).toHaveBeenCalled();
+  });
+
+  it('shows FAB on mobile for appointment creation', () => {
+    // Mock as mobile (width ≤ 1024px)
+    Object.defineProperty(window, 'innerWidth', {
+      writable: true,
+      configurable: true,
+      value: 768,
+    });
+    window.dispatchEvent(new Event('resize'));
+
+    render(<CalendarDateStrip {...mockProps} />);
+    const fabButton = screen.getByTitle('Create appointment or exception');
+    fireEvent.click(fabButton);
+
+    const appointmentButton = screen.getByText('+ 預約');
+    fireEvent.click(appointmentButton);
+    expect(mockProps.onCreateAppointment).toHaveBeenCalled();
   });
 
   it('calls onToday when today button is clicked', () => {
@@ -127,15 +161,48 @@ describe('CalendarDateStrip', () => {
     expect(settingsButton).not.toBeInTheDocument();
   });
 
-  it('does not show exception button for non-practitioners', () => {
+  it('does not show exception button for non-practitioners on desktop', () => {
+    // Mock as desktop (width > 1024px)
+    Object.defineProperty(window, 'innerWidth', {
+      writable: true,
+      configurable: true,
+      value: 1200,
+    });
+    window.dispatchEvent(new Event('resize'));
+
     render(<CalendarDateStrip {...mockProps} isPractitioner={false} />);
     const exceptionButton = screen.queryByTitle('Create Availability Exception');
     expect(exceptionButton).not.toBeInTheDocument();
   });
 
-  it('shows exception button for practitioners', () => {
+  it('shows exception button for practitioners on desktop', () => {
+    // Mock as desktop (width > 1024px)
+    Object.defineProperty(window, 'innerWidth', {
+      writable: true,
+      configurable: true,
+      value: 1200,
+    });
+    window.dispatchEvent(new Event('resize'));
+
     render(<CalendarDateStrip {...mockProps} isPractitioner={true} />);
     const exceptionButton = screen.getByTitle('Create Availability Exception');
+    expect(exceptionButton).toBeInTheDocument();
+  });
+
+  it('shows FAB exception button for practitioners on mobile', () => {
+    // Mock as mobile (width ≤ 1024px)
+    Object.defineProperty(window, 'innerWidth', {
+      writable: true,
+      configurable: true,
+      value: 768,
+    });
+    window.dispatchEvent(new Event('resize'));
+
+    render(<CalendarDateStrip {...mockProps} isPractitioner={true} />);
+    const fabButton = screen.getByTitle('Create appointment or exception');
+    fireEvent.click(fabButton);
+
+    const exceptionButton = screen.getByText('+ 休診');
     expect(exceptionButton).toBeInTheDocument();
   });
 
