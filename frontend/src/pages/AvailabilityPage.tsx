@@ -68,6 +68,8 @@ const AvailabilityPage: React.FC = () => {
     if (user?.active_clinic_id) {
       setLoading(true);
       setInitialLoadComplete(false);
+      setIsInitialized(false);
+      setDataReady({ practitioners: false, resources: false, user: false });
     }
   }, [user?.active_clinic_id]);
 
@@ -77,6 +79,18 @@ const AvailabilityPage: React.FC = () => {
   const [selectedPractitioners, setSelectedPractitioners] = useState<number[]>([]);
   const [selectedResources, setSelectedResources] = useState<number[]>([]);
   const [resources, setResources] = useState<Resource[]>([]);
+  const [isInitialized, setIsInitialized] = useState(false);
+
+  // Selection limits (extracted as constants for maintainability)
+  const MAX_PRACTITIONERS = 10;
+  const MAX_RESOURCES = 10;
+
+  // Track when each data source is ready to prevent race conditions
+  const [dataReady, setDataReady] = useState({
+    practitioners: false,
+    resources: false,
+    user: false
+  });
 
   // Use React Query for calendar events
   const {
@@ -160,6 +174,25 @@ const AvailabilityPage: React.FC = () => {
   // Fetch service type groups when service item selection modal is open
   const { data: serviceGroupsData } = useServiceTypeGroups();
   const serviceGroups = serviceGroupsData?.groups || [];
+
+  // Track data readiness to prevent race conditions
+  React.useEffect(() => {
+    if (practitioners.length > 0) {
+      setDataReady(prev => ({ ...prev, practitioners: true }));
+    }
+  }, [practitioners.length]);
+
+  React.useEffect(() => {
+    if (resources.length > 0) {
+      setDataReady(prev => ({ ...prev, resources: true }));
+    }
+  }, [resources.length]);
+
+  React.useEffect(() => {
+    if (user?.user_id && user?.active_clinic_id) {
+      setDataReady(prev => ({ ...prev, user: true }));
+    }
+  }, [user?.user_id, user?.active_clinic_id]);
 
   // Modal context for alerts
   const { alert } = useModal();
@@ -399,11 +432,12 @@ const AvailabilityPage: React.FC = () => {
     }
   }, [isAuthenticated, authLoading, user?.active_clinic_id]);
 
-  // Initialize selection state
+  // Initialize selection state - only run when all data is ready
   useEffect(() => {
-    if (practitioners.length > 0 && user?.user_id && user?.active_clinic_id) {
-      // Load persisted state
-      const persistedState = calendarStorage.getCalendarState(user.user_id, user.active_clinic_id);
+    if (dataReady.practitioners && dataReady.resources && dataReady.user && !isInitialized) {
+      try {
+        // Load persisted state
+        const persistedState = calendarStorage.getCalendarState(user!.user_id, user!.active_clinic_id);
 
       // Check if URL parameters are present (should take precedence)
       const urlViewParam = searchParams.get('view');
@@ -418,7 +452,7 @@ const AvailabilityPage: React.FC = () => {
         }
         // If URL has view param, component state was already set by URL effect, just sync localStorage
         if (urlViewParam && ['day', 'week', 'month'].includes(urlViewParam)) {
-          calendarStorage.setCalendarState(user.user_id, user.active_clinic_id, {
+          calendarStorage.setCalendarState(user!.user_id, user!.active_clinic_id, {
             ...persistedState,
             view: urlViewParam as 'day' | 'week' | 'month'
           });
@@ -434,7 +468,7 @@ const AvailabilityPage: React.FC = () => {
           try {
             const parsedDate = new Date(urlDateParam);
             if (!isNaN(parsedDate.getTime())) {
-              calendarStorage.setCalendarState(user.user_id, user.active_clinic_id, {
+              calendarStorage.setCalendarState(user!.user_id, user!.active_clinic_id, {
                 ...persistedState,
                 currentDate: urlDateParam
               });
@@ -444,18 +478,29 @@ const AvailabilityPage: React.FC = () => {
           }
         }
 
-        // Set practitioners (limit to 10)
-        const validPractitioners = persistedState.additionalPractitionerIds
-          .filter(id => practitioners.some(p => p.id === id))
-          .slice(0, 10);
-        setSelectedPractitioners(validPractitioners);
+        try {
+          // Validate and set practitioners (limit to MAX_PRACTITIONERS)
+          if (persistedState?.additionalPractitionerIds && Array.isArray(persistedState.additionalPractitionerIds)) {
+            const validPractitioners = persistedState.additionalPractitionerIds
+              .filter(id => typeof id === 'number' && practitioners.some(p => p.id === id))
+              .slice(0, MAX_PRACTITIONERS);
+            setSelectedPractitioners(validPractitioners);
+          }
 
-        // Set resources (limit to 10)
-        const resourceState = calendarStorage.getResourceSelection(user.user_id, user.active_clinic_id);
-        const validResources = resourceState
-          .filter(id => resources.some(r => r.id === id))
-          .slice(0, 10);
-        setSelectedResources(validResources);
+          // Validate and set resources (limit to MAX_RESOURCES)
+          const resourceState = calendarStorage.getResourceSelection(user!.user_id, user!.active_clinic_id);
+          if (Array.isArray(resourceState)) {
+            const validResources = resourceState
+              .filter(id => typeof id === 'number' && resources.some(r => r.id === id))
+              .slice(0, MAX_RESOURCES);
+            setSelectedResources(validResources);
+          }
+        } catch (error) {
+          logger.error('Failed to initialize calendar selections:', error);
+          // Fallback to empty selections on error
+          setSelectedPractitioners([]);
+          setSelectedResources([]);
+        }
       } else {
         // No persisted state - sync current URL params to localStorage if present
         if (urlViewParam && ['day', 'week', 'month'].includes(urlViewParam)) {
@@ -465,7 +510,7 @@ const AvailabilityPage: React.FC = () => {
             additionalPractitionerIds: selectedPractitioners,
             defaultPractitionerId: null
           };
-          calendarStorage.setCalendarState(user.user_id, user.active_clinic_id, newState);
+          calendarStorage.setCalendarState(user!.user_id, user!.active_clinic_id, newState);
         }
 
         // Default: select first available practitioner
@@ -475,8 +520,18 @@ const AvailabilityPage: React.FC = () => {
       }
       setLoading(false);
       setInitialLoadComplete(true);
+      setIsInitialized(true);
+      } catch (error) {
+        logger.error('Failed to initialize calendar:', error);
+        // Fallback: reset to defaults on error
+        setSelectedPractitioners([]);
+        setSelectedResources([]);
+        setLoading(false);
+        setInitialLoadComplete(true);
+        setIsInitialized(true);
+      }
     }
-  }, [practitioners, resources, user, searchParams]);
+  }, [dataReady, isInitialized, user?.user_id, user?.active_clinic_id, practitioners, resources]);
 
   // Load calendar events with caching
 
@@ -517,6 +572,30 @@ const AvailabilityPage: React.FC = () => {
       });
     }
   }, [user, selectedPractitioners, view, searchParams, setSearchParams]);
+
+  // Persist selection changes (only after initialization)
+  React.useEffect(() => {
+    if (user?.user_id && user?.active_clinic_id && isInitialized) {
+      try {
+        // Persist practitioners to calendar state
+        const currentState = calendarStorage.getCalendarState(user.user_id, user.active_clinic_id);
+        const defaultDate = new Date().toISOString().split('T')[0];
+        const updatedState = {
+          view: (currentState?.view || 'day') as 'month' | 'week' | 'day',
+          currentDate: (currentState?.currentDate ?? defaultDate) as string,
+          additionalPractitionerIds: selectedPractitioners,
+          defaultPractitionerId: currentState?.defaultPractitionerId || null,
+        };
+        calendarStorage.setCalendarState(user.user_id, user.active_clinic_id, updatedState);
+
+        // Persist resources separately
+        calendarStorage.setResourceSelection(user.user_id, user.active_clinic_id, selectedResources);
+      } catch (error) {
+        logger.error('Failed to persist calendar selections:', error);
+        // Continue execution - don't break the UI due to storage failures
+      }
+    }
+  }, [user?.user_id, user?.active_clinic_id, selectedPractitioners, selectedResources, isInitialized]);
 
   const handleEventClick = useCallback((event: CalendarEvent) => {
     setSelectedEvent(event);
