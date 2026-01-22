@@ -655,7 +655,7 @@ const CalendarEventComponent: React.FC<CalendarEventComponentProps> = ({
     >
       <div className="flex items-start space-x-1 h-full">
         <div className="flex-1 min-w-0">
-          <div className="text-xs leading-tight text-white font-medium truncate">
+          <div className="text-xs text-white font-medium" style={{ lineHeight: '1.2' }}>
             {finalDisplayText}
           </div>
         </div>
