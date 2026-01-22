@@ -67,6 +67,7 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
   const [currentTitle, setCurrentTitle] = useState(event.title);
   const [clinicNotes, setClinicNotes] = useState(event.resource.clinic_notes || '');
   const [isSavingClinicNotes, setIsSavingClinicNotes] = useState(false);
+  const [lastSavedValue, setLastSavedValue] = useState<string | null>(null);
   const [resourceConflictInfo, setResourceConflictInfo] = useState<SchedulingConflictResponse | null>(null);
   const [isCheckingResourceConflict, setIsCheckingResourceConflict] = useState(false);
 
@@ -77,7 +78,10 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
 
   // Update clinic notes when event changes (e.g., after calendar refresh)
   React.useEffect(() => {
-    setClinicNotes(event.resource.clinic_notes || '');
+    const newClinicNotes = event.resource.clinic_notes || '';
+    setClinicNotes(newClinicNotes);
+    // Clear lastSavedValue since we're now using fresh event data
+    setLastSavedValue(null);
   }, [event.resource.clinic_notes]);
 
   // Check for resource conflicts when viewing appointment
@@ -194,14 +198,14 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
       };
       await apiService.editClinicAppointment(event.resource.calendar_event_id, updateData);
 
-      // Optimistically update the event prop by calling the callback
-      // The parent will refresh calendar data and sync the modal state
+      // Update local state immediately and track the saved value
+      setClinicNotes(trimmedNotes);
+      setLastSavedValue(trimmedNotes);
+
+      // Trigger calendar refresh to update the event data
       if (onEventNameUpdated) {
         await onEventNameUpdated(null);
       }
-
-      // Note: The useEffect will sync clinicNotes from event.resource.clinic_notes
-      // when the event prop updates after calendar refresh
     } catch (error) {
       logger.error('Error updating clinic notes:', error);
       alert('更新診所備注失敗，請重試');
@@ -307,7 +311,7 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <p><strong>診所備注:</strong></p>
-                  {canEdit && clinicNotes.trim() !== (event.resource.clinic_notes || '').trim() && (
+                  {canEdit && clinicNotes.trim() !== (lastSavedValue ?? (event.resource.clinic_notes || '')).trim() && (
                     <button
                       onClick={(e) => {
                         e.preventDefault();
