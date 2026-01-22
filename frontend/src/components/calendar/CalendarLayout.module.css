@@ -8,7 +8,7 @@
   bottom: 0;
   display: flex;
   overflow: hidden;
-  z-index: 100; /* Below global header (z-50 = 50) but above other content */
+  z-index: 40; /* Below global header (z-50 = 50) but above other content */
 }
 
 .calendarContent {
