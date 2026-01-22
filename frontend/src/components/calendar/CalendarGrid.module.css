@@ -94,6 +94,7 @@
   background: white;
   border-right: 1px solid #e5e7eb;
   z-index: 50;
+  flex-shrink: 0;
 }
 
 .timeLabel {
