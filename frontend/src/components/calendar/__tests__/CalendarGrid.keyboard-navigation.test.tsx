@@ -40,7 +40,7 @@ describe('CalendarGrid Keyboard Navigation', () => {
     await waitFor(() => {
       const timeSlots = screen.getAllByRole('button', { name: /time slot/i });
       expect(timeSlots.length).toBeGreaterThan(0);
-    }, { timeout: 10000 });
+    }, { timeout: 3000 });
 
     const timeSlots = screen.getAllByRole('button', { name: /time slot/i });
     if (timeSlots.length >= 2) {
@@ -67,7 +67,7 @@ describe('CalendarGrid Keyboard Navigation', () => {
     await waitFor(() => {
       const timeSlots = screen.getAllByRole('button', { name: /time slot/i });
       expect(timeSlots.length).toBeGreaterThan(0);
-    });
+    }, { timeout: 3000 });
 
     const timeSlots = screen.getAllByRole('button', { name: /time slot/i });
     if (timeSlots.length >= 2) {
@@ -94,7 +94,7 @@ describe('CalendarGrid Keyboard Navigation', () => {
     await waitFor(() => {
       const timeSlots = screen.getAllByRole('button', { name: /time slot/i });
       expect(timeSlots.length).toBeGreaterThan(0);
-    });
+    }, { timeout: 3000 });
 
     const timeSlots = screen.getAllByRole('button', { name: /time slot/i });
     const firstSlot = timeSlots[0];
@@ -122,7 +122,7 @@ describe('CalendarGrid Keyboard Navigation', () => {
     await waitFor(() => {
       const timeSlots = screen.getAllByRole('button', { name: /time slot/i });
       expect(timeSlots.length).toBeGreaterThan(0);
-    });
+    }, { timeout: 3000 });
 
     const timeSlots = screen.getAllByRole('button', { name: /time slot/i });
     if (timeSlots.length > 0) {
@@ -144,7 +144,7 @@ describe('CalendarGrid Keyboard Navigation', () => {
     await waitFor(() => {
       const timeSlots = screen.getAllByRole('button', { name: /time slot/i });
       expect(timeSlots.length).toBeGreaterThan(0);
-    });
+    }, { timeout: 3000 });
 
     const timeSlots = screen.getAllByRole('button', { name: /time slot/i });
     if (timeSlots.length > 0) {
@@ -166,7 +166,7 @@ describe('CalendarGrid Keyboard Navigation', () => {
     await waitFor(() => {
       const timeSlots = screen.getAllByRole('button', { name: /time slot/i });
       expect(timeSlots.length).toBeGreaterThan(0);
-    });
+    }, { timeout: 3000 });
 
     const timeSlots = screen.getAllByRole('button', { name: /time slot/i });
     const firstSlot = timeSlots[0];
@@ -188,7 +188,7 @@ describe('CalendarGrid Keyboard Navigation', () => {
     await waitFor(() => {
       const timeSlots = screen.getAllByRole('button', { name: /time slot/i });
       expect(timeSlots.length).toBeGreaterThan(0);
-    });
+    }, { timeout: 3000 });
 
     const timeSlots = screen.getAllByRole('button', { name: /time slot/i });
     if (timeSlots.length > 0) {
@@ -241,8 +241,13 @@ describe('CalendarGrid Keyboard Navigation', () => {
 
     render(<CalendarGrid {...mockProps} events={eventsWithData} />);
 
-    // Test tab navigation between events
-    expect(true).toBe(true); // Placeholder for actual test implementation
+    // Test that events can be focused via tab navigation
+    const eventElements = screen.getAllByRole('button', { name: /appointment|event/i });
+    expect(eventElements.length).toBeGreaterThan(0);
+
+    // Focus first event
+    eventElements[0].focus();
+    expect(document.activeElement).toBe(eventElements[0]);
   });
 
   it('should handle boundary conditions (first/last slots)', async () => {
@@ -252,26 +257,38 @@ describe('CalendarGrid Keyboard Navigation', () => {
     await waitFor(() => {
       const timeSlots = screen.getAllByRole('button', { name: /time slot/i });
       expect(timeSlots.length).toBeGreaterThan(0);
-    });
+    }, { timeout: 3000 });
 
     const timeSlots = screen.getAllByRole('button', { name: /time slot/i });
 
     if (timeSlots.length > 0) {
-      // Test navigation from first slot
+      // Test navigation from first slot - should stay on first slot
       const firstSlot = timeSlots[0];
       firstSlot.focus();
+
+      // Before navigation
+      expect(document.activeElement).toBe(firstSlot);
+
+      // Navigate up from first slot - should stay on first slot
       const upEvent = new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true });
       fireEvent(firstSlot, upEvent);
-      // Should stay on first slot or handle boundary gracefully
 
-      // Test navigation from last slot
+      // Should still be on first slot (boundary handling)
+      expect(document.activeElement).toBe(firstSlot);
+
+      // Test navigation from last slot - should stay on last slot
       const lastSlot = timeSlots[timeSlots.length - 1];
       lastSlot.focus();
+
+      // Before navigation
+      expect(document.activeElement).toBe(lastSlot);
+
+      // Navigate down from last slot - should stay on last slot
       const downEvent = new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true });
       fireEvent(lastSlot, downEvent);
-      // Should stay on last slot or handle boundary gracefully
-    }
 
-    expect(true).toBe(true); // Placeholder for actual boundary test
+      // Should still be on last slot (boundary handling)
+      expect(document.activeElement).toBe(lastSlot);
+    }
   });
 });
