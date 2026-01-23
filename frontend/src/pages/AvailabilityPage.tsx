@@ -84,6 +84,46 @@ const AvailabilityPage: React.FC = () => {
   const [resources, setResources] = useState<Resource[]>([]);
   const [isInitialized, setIsInitialized] = useState(false);
 
+  // Surgical Layout Lock: Prevent header/calendar detachment on mobile
+  // This effect runs once on mount to lock the body and calculate the header height
+  useEffect(() => {
+    // 1. Lock the layout
+    document.body.classList.add('body-calendar-mode');
+
+    // 2. Function to measure total header height (Nav + any visible Warnings)
+    const updateHeaderOffset = () => {
+      // Find the main nav and any amber warning blocks
+      const nav = document.querySelector('nav');
+      const warningBar = document.querySelector('.bg-amber-50');
+
+      let totalHeight = 0;
+      if (nav) totalHeight += nav.offsetHeight;
+      if (warningBar instanceof HTMLElement) totalHeight += warningBar.offsetHeight;
+
+      // Use a fallback of 64px if nav hasn't rendered yet
+      const finalOffset = totalHeight || 64;
+      document.documentElement.style.setProperty('--calendar-top-offset', `${finalOffset}px`);
+    };
+
+    // Initial calculation
+    updateHeaderOffset();
+
+    // Re-calculate if window resizes or if content changes
+    const resizeObserver = new ResizeObserver(updateHeaderOffset);
+    const nav = document.querySelector('nav');
+    if (nav) resizeObserver.observe(nav);
+
+    // Also watch the body in case warning bars appear/disappear dynamically
+    resizeObserver.observe(document.body);
+
+    // Cleanup on unmount
+    return () => {
+      document.body.classList.remove('body-calendar-mode');
+      document.documentElement.style.removeProperty('--calendar-top-offset');
+      resizeObserver.disconnect();
+    };
+  }, []);
+
   // Selection limits (extracted as constants for maintainability)
   const MAX_PRACTITIONERS = 10;
   const MAX_RESOURCES = 10;
@@ -448,87 +488,87 @@ const AvailabilityPage: React.FC = () => {
         // Load persisted state
         const persistedState = calendarStorage.getCalendarState(user!.user_id, user!.active_clinic_id);
 
-      // Check if URL parameters are present (should take precedence)
-      const urlViewParam = searchParams.get('view');
-      const urlDateParam = searchParams.get('date');
+        // Check if URL parameters are present (should take precedence)
+        const urlViewParam = searchParams.get('view');
+        const urlDateParam = searchParams.get('date');
 
-      if (persistedState) {
-        // Set view - URL takes precedence, then localStorage
-        if (!urlViewParam) {
-          // No URL view param, use localStorage preference
-          setView(persistedState.view === 'month' ? CalendarViews.MONTH :
-                  persistedState.view === 'week' ? CalendarViews.WEEK : CalendarViews.DAY);
-        }
-        // If URL has view param, component state was already set by URL effect, just sync localStorage
-        if (urlViewParam && ['day', 'week', 'month'].includes(urlViewParam)) {
-          calendarStorage.setCalendarState(user!.user_id, user!.active_clinic_id, {
-            ...persistedState,
-            view: urlViewParam as 'day' | 'week' | 'month'
-          });
-        }
+        if (persistedState) {
+          // Set view - URL takes precedence, then localStorage
+          if (!urlViewParam) {
+            // No URL view param, use localStorage preference
+            setView(persistedState.view === 'month' ? CalendarViews.MONTH :
+              persistedState.view === 'week' ? CalendarViews.WEEK : CalendarViews.DAY);
+          }
+          // If URL has view param, component state was already set by URL effect, just sync localStorage
+          if (urlViewParam && ['day', 'week', 'month'].includes(urlViewParam)) {
+            calendarStorage.setCalendarState(user!.user_id, user!.active_clinic_id, {
+              ...persistedState,
+              view: urlViewParam as 'day' | 'week' | 'month'
+            });
+          }
 
-        // Set date - URL takes precedence, then localStorage
-        if (!urlDateParam && persistedState.currentDate) {
-          // No URL date param, use localStorage
-          setCurrentDate(new Date(persistedState.currentDate));
-        }
-        // If URL has date param, component state was already set by URL effect, just sync localStorage
-        if (urlDateParam) {
+          // Set date - URL takes precedence, then localStorage
+          if (!urlDateParam && persistedState.currentDate) {
+            // No URL date param, use localStorage
+            setCurrentDate(new Date(persistedState.currentDate));
+          }
+          // If URL has date param, component state was already set by URL effect, just sync localStorage
+          if (urlDateParam) {
+            try {
+              const parsedDate = new Date(urlDateParam);
+              if (!isNaN(parsedDate.getTime())) {
+                calendarStorage.setCalendarState(user!.user_id, user!.active_clinic_id, {
+                  ...persistedState,
+                  currentDate: urlDateParam
+                });
+              }
+            } catch (error) {
+              logger.warn('Invalid date parameter for localStorage sync:', urlDateParam);
+            }
+          }
+
           try {
-            const parsedDate = new Date(urlDateParam);
-            if (!isNaN(parsedDate.getTime())) {
-              calendarStorage.setCalendarState(user!.user_id, user!.active_clinic_id, {
-                ...persistedState,
-                currentDate: urlDateParam
-              });
+            // Validate and set practitioners (limit to MAX_PRACTITIONERS)
+            if (persistedState?.additionalPractitionerIds && Array.isArray(persistedState.additionalPractitionerIds)) {
+              const validPractitioners = persistedState.additionalPractitionerIds
+                .filter(id => typeof id === 'number' && practitioners.some(p => p.id === id))
+                .slice(0, MAX_PRACTITIONERS);
+
+              setSelectedPractitioners(validPractitioners);
+            }
+
+            // Validate and set resources (limit to MAX_RESOURCES)
+            const resourceState = calendarStorage.getResourceSelection(user!.user_id, user!.active_clinic_id);
+            if (Array.isArray(resourceState)) {
+              const validResources = resourceState
+                .filter(id => typeof id === 'number' && resources.some(r => r.id === id))
+                .slice(0, MAX_RESOURCES);
+              setSelectedResources(validResources);
             }
           } catch (error) {
-            logger.warn('Invalid date parameter for localStorage sync:', urlDateParam);
+            logger.error('Failed to initialize calendar selections:', error);
+            // Fallback to empty selections on error
+            setSelectedPractitioners([]);
+            setSelectedResources([]);
           }
-        }
-
-        try {
-          // Validate and set practitioners (limit to MAX_PRACTITIONERS)
-          if (persistedState?.additionalPractitionerIds && Array.isArray(persistedState.additionalPractitionerIds)) {
-            const validPractitioners = persistedState.additionalPractitionerIds
-              .filter(id => typeof id === 'number' && practitioners.some(p => p.id === id))
-              .slice(0, MAX_PRACTITIONERS);
-
-            setSelectedPractitioners(validPractitioners);
+        } else {
+          // No persisted state - sync current URL params to localStorage if present
+          if (urlViewParam && ['day', 'week', 'month'].includes(urlViewParam)) {
+            const newState = {
+              view: urlViewParam as 'day' | 'week' | 'month',
+              currentDate: urlDateParam || getDateString(currentDate),
+              additionalPractitionerIds: selectedPractitioners,
+              defaultPractitionerId: null
+            };
+            calendarStorage.setCalendarState(user!.user_id, user!.active_clinic_id, newState);
           }
 
-          // Validate and set resources (limit to MAX_RESOURCES)
-          const resourceState = calendarStorage.getResourceSelection(user!.user_id, user!.active_clinic_id);
-          if (Array.isArray(resourceState)) {
-            const validResources = resourceState
-              .filter(id => typeof id === 'number' && resources.some(r => r.id === id))
-              .slice(0, MAX_RESOURCES);
-            setSelectedResources(validResources);
-          }
-        } catch (error) {
-          logger.error('Failed to initialize calendar selections:', error);
-          // Fallback to empty selections on error
-          setSelectedPractitioners([]);
-          setSelectedResources([]);
+          // Default: no auto-selection for non-practitioners
+          // Practitioners are included in selectedPractitioners by default
         }
-      } else {
-        // No persisted state - sync current URL params to localStorage if present
-        if (urlViewParam && ['day', 'week', 'month'].includes(urlViewParam)) {
-          const newState = {
-            view: urlViewParam as 'day' | 'week' | 'month',
-            currentDate: urlDateParam || getDateString(currentDate),
-            additionalPractitionerIds: selectedPractitioners,
-            defaultPractitionerId: null
-          };
-          calendarStorage.setCalendarState(user!.user_id, user!.active_clinic_id, newState);
-        }
-
-        // Default: no auto-selection for non-practitioners
-        // Practitioners are included in selectedPractitioners by default
-      }
-      setLoading(false);
-      setInitialLoadComplete(true);
-      setIsInitialized(true);
+        setLoading(false);
+        setInitialLoadComplete(true);
+        setIsInitialized(true);
       } catch (error) {
         logger.error('Failed to initialize calendar:', error);
         // Fallback: reset to defaults on error
@@ -765,7 +805,7 @@ const AvailabilityPage: React.FC = () => {
       />
 
       {/* Modal Components */}
-    {isEventModalOpen && selectedEvent && (
+      {isEventModalOpen && selectedEvent && (
         <EventModal
           event={selectedEvent}
           onClose={() => {
@@ -774,22 +814,22 @@ const AvailabilityPage: React.FC = () => {
           }}
           onEditAppointment={
             canEditEvent(selectedEvent) &&
-            selectedEvent?.resource.type === "appointment"
+              selectedEvent?.resource.type === "appointment"
               ? () => {
-                  setIsEventModalOpen(false);
-                  setIsEditAppointmentModalOpen(true);
-                }
+                setIsEventModalOpen(false);
+                setIsEditAppointmentModalOpen(true);
+              }
               : undefined
           }
           onDeleteAppointment={
             canEditEvent(selectedEvent) &&
-            selectedEvent?.resource.type === "appointment"
+              selectedEvent?.resource.type === "appointment"
               ? handleDeleteAppointment
               : undefined
           }
           onDeleteException={
             canEditEvent(selectedEvent) &&
-            selectedEvent?.resource.type === "availability_exception"
+              selectedEvent?.resource.type === "availability_exception"
               ? handleDeleteException
               : undefined
           }

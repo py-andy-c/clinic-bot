@@ -1,9 +1,8 @@
 /* CalendarLayout.module.css */
 .calendarLayout {
-  /* Fixed positioned calendar layout below global header */
+  /* Fixed positioned calendar layout using dynamic offset from header/warnings */
   position: fixed;
-  top: 64px;
-  /* Align with global header bottom */
+  top: var(--calendar-top-offset, 64px);
   left: 0;
   right: 0;
   bottom: 0;
@@ -14,6 +13,22 @@
   /* Below global header (z-50 = 50) but above other content */
   overscroll-behavior: none;
   /* Prevent bounce at edges */
+}
+
+/* Global utility for AvailabilityPage to lock the main container */
+:global(.body-calendar-mode) main {
+  padding-top: 0 !important;
+  max-width: none !important;
+  margin: 0 !important;
+  height: 100vh;
+  overflow: hidden;
+}
+
+:global(.body-calendar-mode) {
+  overflow: hidden !important;
+  position: fixed;
+  width: 100%;
+  height: 100%;
 }
 
 .calendarContent {
