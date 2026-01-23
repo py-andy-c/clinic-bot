@@ -522,27 +522,32 @@ class AppointmentService:
         slot_end_time = end_time.time()
 
         if requested_practitioner_id:
-            # Specific practitioner requested - validate they're in the list and available
-            practitioner = next(
-                (p for p in practitioners if p.id == requested_practitioner_id),
-                None
-            )
+            # Verify practitioner exists and is active in clinic, but don't require
+            # them to be in the appointment type's practitioner list.
+            # This allows one-off appointments outside normal configurations.
+            # Note: LIFF patient bookings should continue to filter by type (handled upstream)
+            from models.user_clinic_association import UserClinicAssociation
+            association = db.query(UserClinicAssociation).filter(
+                UserClinicAssociation.user_id == requested_practitioner_id,
+                UserClinicAssociation.clinic_id == clinic_id,
+                UserClinicAssociation.is_active == True
+            ).first()
 
-            if not practitioner:
+            if not association:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
-                    detail="找不到治療師或該治療師不提供此預約類型"
+                    detail="找不到治療師"
                 )
 
             if not AppointmentService._is_practitioner_available_at_slot(
-                schedule_data, practitioner.id, slot_start_time, slot_end_time, allow_override=allow_override
+                schedule_data, requested_practitioner_id, slot_start_time, slot_end_time, allow_override=allow_override
             ):
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
                     detail="時段不可用"
                 )
 
-            return practitioner.id
+            return requested_practitioner_id
 
         else:
             # Auto-assign to practitioner with least appointments that day
