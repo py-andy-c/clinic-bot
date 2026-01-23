@@ -76,16 +76,27 @@
   color: #1f2937;
   cursor: pointer;
   transition: all 0.2s;
+  outline: none;
 }
 
 .viewOption:hover {
   background: #f9fafb;
 }
 
+.viewOption:active,
+.viewOption:focus {
+  outline: none;
+  box-shadow: none;
+}
+
 .viewOptionActive {
   background: #2563eb;
   color: white;
   border-color: #2563eb;
+}
+
+.viewOptionActive:hover {
+  background: #1d4ed8;
 }
 
 .filterItem {
