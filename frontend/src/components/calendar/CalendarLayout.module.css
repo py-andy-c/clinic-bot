@@ -22,8 +22,11 @@
 
 .calendarViewport {
   /* The ONE AND ONLY scrollable container - handles both H and V scrolling */
+  /* Using flexbox instead of CSS Grid because columns need equal distribution with min-width constraints.
+     CSS Grid would require explicit grid-template-columns which is less flexible for dynamic column counts. */
   flex: 1;
-  overflow: auto;
+  overflow-x: auto; /* Explicit horizontal scrolling */
+  overflow-y: auto; /* Vertical scrolling for time slots */
   position: relative;
   background: white;
   /* Safety buffer for mobile browsers and home indicators */

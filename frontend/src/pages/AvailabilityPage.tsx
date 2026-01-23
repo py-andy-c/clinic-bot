@@ -845,7 +845,7 @@ const AvailabilityPage: React.FC = () => {
               const appointmentDate = formData.start_time.split('T')[0];
 
               // Use optimistic update mutation
-              const [, timePart] = formData.start_time.split('T');
+              const [, timePart] = formData.start_time.split('T') as [string, string];
               const mutationParams: any = {
                 practitionerId: formData.practitioner_id,
                 appointmentTypeId: formData.appointment_type_id,
@@ -900,7 +900,7 @@ const AvailabilityPage: React.FC = () => {
               const appointmentDate = formData.start_time.split('T')[0];
 
               // Use optimistic update mutation
-              const [, timePart] = formData.start_time.split('T');
+              const [, timePart] = formData.start_time.split('T') as [string, string];
               const mutationParams: any = {
                 practitionerId: formData.practitioner_id,
                 appointmentTypeId: formData.appointment_type_id,

@@ -88,6 +88,9 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
     }), [selectedResources, events]);
 
 
+  // Note: DOM element caching removed for simplicity and test compatibility
+  // Live queries are used for keyboard navigation
+
   const handleSlotClick = (hour: number, minute: number) => {
     if (onSlotClick) {
       const slotDate = createTimeSlotDate(currentDate, hour, minute);
@@ -117,7 +120,7 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
       const currentSlot = target.closest('[role="button"][aria-label*="Time slot"]') as HTMLElement;
       if (!currentSlot) return;
 
-      // Find all time slots
+      // Use live DOM query for keyboard navigation (more reliable in tests)
       const allSlots = Array.from(document.querySelectorAll('[role="button"][aria-label*="Time slot"]')) as HTMLElement[];
       const currentIndex = allSlots.indexOf(currentSlot);
 
@@ -265,7 +268,6 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
               : (view === CalendarViews.DAY ? 2 : 8) // +1 for time column, +1 for empty day column or +7 for empty week columns
           }
           tabIndex={0}
-          onKeyDown={handleKeyDown}
         >
           {/* Current time indicator */}
           <div
@@ -300,6 +302,7 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
                         key={index}
                         className={`${styles.timeSlot} ${!isAvailable ? styles.unavailable : ''}`}
                         onClick={() => handleSlotClick(slot.hour, slot.minute)}
+                        onKeyDown={handleKeyDown}
                         role="button"
                         aria-label={`Time slot ${slot.time} for practitioner ${practitionerId} - Click to create appointment`}
                         data-testid="time-slot"
@@ -363,6 +366,7 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
                         key={index}
                         className={`${styles.timeSlot} ${!isAnyPractitionerAvailable ? styles.unavailable : ''}`}
                         onClick={() => handleSlotClick(slot.hour, slot.minute)}
+                        onKeyDown={handleKeyDown}
                         role="button"
                         aria-label={`Time slot ${slot.time} for resource ${resourceId} - Click to create appointment`}
                         data-testid="time-slot"
@@ -414,6 +418,7 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
                         key={index}
                         className={styles.timeSlot}
                         onClick={() => handleSlotClick(slot.hour, slot.minute)}
+                        onKeyDown={handleKeyDown}
                         role="button"
                         aria-label="Time slot - Click to create appointment"
                         data-testid="time-slot"
@@ -438,6 +443,7 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
                               key={index}
                               className={styles.timeSlot}
                               onClick={() => handleSlotClick(slot.hour, slot.minute)}
+                              onKeyDown={handleKeyDown}
                               role="button"
                               aria-label={`Time slot ${slot.time} on ${dayDate.format('dddd')} - Click to create appointment`}
                               data-testid="time-slot"
