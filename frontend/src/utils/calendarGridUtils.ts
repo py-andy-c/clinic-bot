@@ -6,10 +6,11 @@ import { CalendarEvent } from './calendarDataAdapter';
  * Calendar grid configuration constants
  * Coordinate system: midnight-based (0:00-24:00) with 15-minute slots
  */
-const CALENDAR_GRID_CONFIG = {
+export const CALENDAR_GRID_CONFIG = {
   SLOT_DURATION_MINUTES: 15,
   SLOT_HEIGHT_PX: 20,
   HOUR_HEIGHT_PX: 80, // 4 slots × 20px = 80px per hour
+  SCROLL_BUFFER_PX: 100, // Buffer when scrolling to current time
   OVERLAP_PERCENT_TWO_EVENTS: 15,
   OVERLAP_PERCENT_THREE_TO_FOUR_EVENTS: 12,
   OVERLAP_PERCENT_MAX: 15,
@@ -128,7 +129,7 @@ export const calculateEventPosition = (start: Date): React.CSSProperties => {
 
   // Calculate pixel position from midnight (0:00)
   const top = hours * CALENDAR_GRID_CONFIG.HOUR_HEIGHT_PX +
-             (minutes / CALENDAR_GRID_CONFIG.SLOT_DURATION_MINUTES) * CALENDAR_GRID_CONFIG.SLOT_HEIGHT_PX;
+    (minutes / CALENDAR_GRID_CONFIG.SLOT_DURATION_MINUTES) * CALENDAR_GRID_CONFIG.SLOT_HEIGHT_PX;
   return { top: `${top}px` };
 };
 

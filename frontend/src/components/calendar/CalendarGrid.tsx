@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useCallback, useRef, useEffect } from 'react';
 import moment from 'moment-timezone';
 import { CalendarEvent } from '../../utils/calendarDataAdapter';
 import { CalendarView, CalendarViews } from '../../types/calendar';
@@ -12,6 +12,8 @@ import {
   calculateEventHeight,
   calculateOverlappingEvents,
   calculateEventInGroupPosition,
+  getCurrentTaiwanTime,
+  CALENDAR_GRID_CONFIG,
   OverlappingEventGroup,
 } from '../../utils/calendarGridUtils';
 import { CalendarPractitionerAvailability, isTimeSlotAvailable } from '../../utils/practitionerAvailability';
@@ -49,6 +51,63 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
 }) => {
   // Generate time slots for the grid
   const timeSlots = useMemo(() => generateTimeSlots(), []);
+
+  // Track if we've done initial auto-scroll for this component instance
+  const hasScrolledRef = useRef(false);
+
+  // Scroll to current time functionality
+  const scrollToCurrentTimePosition = useCallback(() => {
+    // Find the scrollable container (calendarViewport) inside CalendarLayout
+    const viewportElement = document.querySelector('[data-testid="calendar-viewport"]') as HTMLElement;
+    if (!viewportElement) return;
+
+    const now = getCurrentTaiwanTime();
+    const today = moment(currentDate).tz('Asia/Taipei').startOf('day');
+    const isViewingToday = now.isSame(today, 'day');
+
+    let targetHours: number;
+    let targetMinutes: number;
+
+    if (isViewingToday) {
+      // Scroll to current time when viewing today
+      targetHours = now.hour();
+      targetMinutes = now.minute();
+    } else {
+      // Scroll to 8 AM when viewing other days
+      targetHours = 8;
+      targetMinutes = 0;
+    }
+
+    // Calculate position: (hours from 0 AM * 60 + minutes) / slot_duration * slot_height
+    const minutesFromMidnight = (targetHours * 60) + targetMinutes;
+    const pixelsFromTop = (minutesFromMidnight / CALENDAR_GRID_CONFIG.SLOT_DURATION_MINUTES) * CALENDAR_GRID_CONFIG.SLOT_HEIGHT_PX;
+
+    // For today, add buffer to show context above current time
+    // For other days, scroll directly to 8 AM (no buffer needed)
+    const scrollPosition = isViewingToday
+      ? Math.max(0, pixelsFromTop - CALENDAR_GRID_CONFIG.SCROLL_BUFFER_PX)
+      : pixelsFromTop;
+
+    // Check if scrollTo is available
+    if (typeof viewportElement.scrollTo === 'function') {
+      viewportElement.scrollTo({
+        top: scrollPosition,
+        behavior: 'instant'
+      });
+    }
+  }, [currentDate]);
+
+  // Auto-scroll only once on initial component mount for day/week views
+  useEffect(() => {
+    if (!hasScrolledRef.current && (view === CalendarViews.DAY || view === CalendarViews.WEEK)) {
+      const timeoutId = setTimeout(() => {
+        hasScrolledRef.current = true;
+        scrollToCurrentTimePosition();
+      }, 100);
+      return () => clearTimeout(timeoutId);
+    }
+    return undefined;
+  }, [scrollToCurrentTimePosition, view]);
 
   // Calculate current time indicator position
   const currentTimeIndicatorStyle = useMemo(
@@ -219,7 +278,7 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
         events={events}
         selectedPractitioners={selectedPractitioners}
         selectedResources={selectedResources}
-        onEventClick={onEventClick || (() => {})}
+        onEventClick={onEventClick || (() => { })}
       />
     );
   }
@@ -237,8 +296,8 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
         resources={resources}
         practitionerAvailability={practitionerAvailability}
         currentUserId={currentUserId ?? null}
-        onEventClick={onEventClick || (() => {})}
-        onSlotClick={onSlotClick || (() => {})}
+        onEventClick={onEventClick || (() => { })}
+        onSlotClick={onSlotClick || (() => { })}
       />
 
       {/* Body Area: Time Column (Sticky Left) + Grid */}
@@ -320,7 +379,7 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
                         groupIndex={groupIndex}
                         selectedPractitioners={selectedPractitioners}
                         selectedResources={selectedResources}
-                        onEventClick={onEventClick || (() => {})}
+                        onEventClick={onEventClick || (() => { })}
                       />
                     ))}
 
@@ -334,7 +393,7 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
                         groupIndex={groupIndex}
                         selectedPractitioners={selectedPractitioners}
                         selectedResources={selectedResources}
-                        onEventClick={onEventClick || (() => {})}
+                        onEventClick={onEventClick || (() => { })}
                       />
                     ))}
                 </div>
@@ -397,7 +456,7 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
                         groupIndex={groupIndex}
                         selectedPractitioners={selectedPractitioners}
                         selectedResources={selectedResources}
-                        onEventClick={onEventClick || (() => {})}
+                        onEventClick={onEventClick || (() => { })}
                       />
                     ))}
                 </div>

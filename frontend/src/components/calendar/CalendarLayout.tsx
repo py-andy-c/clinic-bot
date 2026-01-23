@@ -25,7 +25,7 @@ const CalendarLayout: React.FC<CalendarLayoutProps> = ({
       {sidebar}
       <div className={styles.calendarContent}>
         {dateStrip}
-        <div className={styles.calendarViewport}>
+        <div className={styles.calendarViewport} data-testid="calendar-viewport">
           {calendarGrid}
         </div>
       </div>
