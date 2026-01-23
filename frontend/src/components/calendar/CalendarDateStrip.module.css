@@ -3,15 +3,12 @@
   background: white;
   border-top: 1px solid #e5e7eb;
   border-bottom: 1px solid #e5e7eb;
-  min-height: 40px;
-  height: auto;
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0 8px;
   flex-shrink: 0;
-  flex-wrap: wrap;
-  gap: 8px;
   /* Removed sticky positioning since calendar layout is fixed positioned */
 }
 
@@ -27,11 +24,10 @@
   cursor: pointer;
   font-size: 16px;
   color: #2563eb;
-  padding: 8px 12px;
+  padding: 4px 8px;
   border-radius: 4px;
   transition: background 0.2s;
-  min-width: 44px;
-  min-height: 44px;
+  min-width: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -48,7 +44,8 @@
   margin: 0 4px;
   white-space: nowrap;
   cursor: pointer;
-  padding: 8px 16px;
+  user-select: none;
+  padding: 4px 8px;
   border-radius: 6px;
   transition: background 0.2s;
 }
@@ -72,12 +69,12 @@
   border: none;
   cursor: pointer;
   border-radius: 4px;
-  padding: 8px 12px;
+  padding: 4px 6px;
   font-size: 12px;
   font-weight: 500;
   color: #374151;
-  min-width: 44px;
-  min-height: 44px;
+  min-width: 32px;
+  height: 28px;
   transition: all 0.2s;
 }
 
