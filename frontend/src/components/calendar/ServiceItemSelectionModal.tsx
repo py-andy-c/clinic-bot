@@ -22,6 +22,7 @@ interface ServiceItemSelectionModalProps {
   originalTypeId?: number | null | undefined; // For marking original selection with (原)
   title?: string; // Default: "選擇服務項目"
   showCustomOtherOption?: boolean; // Show separate "其他" option for custom items (CheckoutModal only)
+  practitionerAppointmentTypeIds?: number[] | undefined; // NEW: IDs of appointment types offered by the selected practitioner
 }
 
 export const ServiceItemSelectionModal: React.FC<ServiceItemSelectionModalProps> = ({
@@ -34,11 +35,12 @@ export const ServiceItemSelectionModal: React.FC<ServiceItemSelectionModalProps>
   originalTypeId,
   title = '選擇服務項目',
   showCustomOtherOption = false,
+  practitionerAppointmentTypeIds,
 }) => {
   const isMobile = useIsMobile(1024);
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedGroups, setExpandedGroups] = useState<Set<number | 'other'>>(new Set());
-  
+
   const debouncedSearchQuery = useDebounce(searchQuery, 400);
 
   // Initialize expanded groups
@@ -64,7 +66,7 @@ export const ServiceItemSelectionModal: React.FC<ServiceItemSelectionModalProps>
       if (!grouped[groupId]) grouped[groupId] = [];
       grouped[groupId]!.push(item);
     });
-    
+
     // Sort items within each group by display_order
     Object.keys(grouped).forEach(key => {
       const groupId = key === 'other' ? 'other' : Number(key);
@@ -72,7 +74,7 @@ export const ServiceItemSelectionModal: React.FC<ServiceItemSelectionModalProps>
         grouped[groupId]!.sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0));
       }
     });
-    
+
     return grouped;
   }, [serviceItems]);
 
@@ -86,10 +88,10 @@ export const ServiceItemSelectionModal: React.FC<ServiceItemSelectionModalProps>
     if (!debouncedSearchQuery.trim()) {
       return groupedItems;
     }
-    
+
     const queryLower = debouncedSearchQuery.toLowerCase().trim();
     const filtered: Partial<Record<number | 'other', AppointmentType[]>> = {};
-    
+
     Object.keys(groupedItems).forEach(key => {
       const groupId = key === 'other' ? 'other' : Number(key);
       const items = groupedItems[groupId]?.filter(item =>
@@ -99,7 +101,7 @@ export const ServiceItemSelectionModal: React.FC<ServiceItemSelectionModalProps>
         filtered[groupId] = items;
       }
     });
-    
+
     return filtered;
   }, [groupedItems, debouncedSearchQuery]);
 
@@ -184,10 +186,10 @@ export const ServiceItemSelectionModal: React.FC<ServiceItemSelectionModalProps>
               {/* Regular groups */}
               {sortedGroups.map(group => {
                 if (!shouldShowGroup(group.id)) return null;
-                
+
                 const items = filteredItems[group.id] ?? [];
                 const isExpanded = expandedGroups.has(group.id);
-                
+
                 return (
                   <div key={group.id} className="border-b border-gray-200">
                     {/* Group Header */}
@@ -237,6 +239,11 @@ export const ServiceItemSelectionModal: React.FC<ServiceItemSelectionModalProps>
                               {isOriginalSelection(item) && (
                                 <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium">
                                   原
+                                </span>
+                              )}
+                              {practitionerAppointmentTypeIds && !practitionerAppointmentTypeIds.includes(item.id) && (
+                                <span className="text-xs text-red-600 font-medium ml-1">
+                                  ⚠️ 治療師不提供
                                 </span>
                               )}
                             </div>
@@ -296,6 +303,11 @@ export const ServiceItemSelectionModal: React.FC<ServiceItemSelectionModalProps>
                             {isOriginalSelection(item) && (
                               <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium">
                                 原
+                              </span>
+                            )}
+                            {practitionerAppointmentTypeIds && !practitionerAppointmentTypeIds.includes(item.id) && (
+                              <span className="text-xs text-red-600 font-medium ml-1">
+                                ⚠️ 治療師不提供
                               </span>
                             )}
                           </div>

@@ -25,14 +25,14 @@ import { invalidateAvailabilityAfterAppointmentChange } from "../../utils/reactQ
 import { useQueryClient } from '@tanstack/react-query';
 import { useCreateAppointmentOptimistic } from "../../hooks/queries/useAvailabilitySlots";
 import { invalidateCalendarEventsForAppointment } from "../../hooks/queries/useCalendarEvents";
-import { AppointmentType } from "../../types";
+import { AppointmentType, Practitioner } from "../../types";
 import { extractAppointmentDateTime } from "../../utils/timezoneUtils";
 
 const TAIWAN_TIMEZONE = "Asia/Taipei";
 
 interface PatientAppointmentsListProps {
   patientId: number;
-  practitioners: Array<{ id: number; full_name: string }>;
+  practitioners: Practitioner[];
   appointmentTypes: AppointmentType[];
   onRefetchReady?: (refetch: () => Promise<void>) => void;
 }
@@ -111,7 +111,7 @@ export const PatientAppointmentsList: React.FC<
   const canEdit = hasRole && (hasRole("admin") || hasRole("practitioner"));
   const isAdmin = user?.roles?.includes("admin") ?? false;
   const userId = user?.user_id;
-  
+
   // Helper function to check if user can edit an event (uses shared utility)
   const canEditEvent = useCallback(
     (event: CalendarEvent | null): boolean => {
@@ -294,18 +294,18 @@ export const PatientAppointmentsList: React.FC<
     }
 
     const event = selectedEvent;
-    
+
     // Extract data from the original appointment
     const appointmentTypeId = event.resource.appointment_type_id;
     // Use shared utility to get practitioner_id (hides for auto-assigned when not admin)
     const practitionerId = getPractitionerIdForDuplicate(event, isAdmin);
     const clinicNotes = event.resource.clinic_notes;
-    
+
     // Extract date and time from event.start
     const startMoment = moment(event.start).tz(TAIWAN_TIMEZONE);
     const initialDate = startMoment.format('YYYY-MM-DD');
     const initialTime = startMoment.format('HH:mm');
-    
+
     // Set up duplicate appointment data - only include fields that have values
     // Resources will be fetched by useAppointmentForm in duplicate mode
     setDuplicateData({
@@ -506,31 +506,28 @@ export const PatientAppointmentsList: React.FC<
         <nav className="-mb-px flex space-x-8">
           <button
             onClick={() => setActiveTab("future")}
-            className={`py-2 px-1 border-b-2 font-medium text-sm ${
-              activeTab === "future"
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === "future"
                 ? "border-blue-500 text-blue-600"
                 : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-            }`}
+              }`}
           >
             未來預約 ({futureAppointments.length})
           </button>
           <button
             onClick={() => setActiveTab("completed")}
-            className={`py-2 px-1 border-b-2 font-medium text-sm ${
-              activeTab === "completed"
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === "completed"
                 ? "border-blue-500 text-blue-600"
                 : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-            }`}
+              }`}
           >
             已完成 ({completedAppointments.length})
           </button>
           <button
             onClick={() => setActiveTab("cancelled")}
-            className={`py-2 px-1 border-b-2 font-medium text-sm ${
-              activeTab === "cancelled"
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === "cancelled"
                 ? "border-blue-500 text-blue-600"
                 : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-            }`}
+              }`}
           >
             已取消 ({cancelledAppointments.length})
           </button>
@@ -616,13 +613,13 @@ export const PatientAppointmentsList: React.FC<
           onClose={() => setSelectedEvent(null)}
           onDeleteAppointment={
             canEditEvent(selectedEvent) &&
-            selectedEvent.resource.type === "appointment"
+              selectedEvent.resource.type === "appointment"
               ? handleDeleteAppointment
               : undefined
           }
           onEditAppointment={
             canEditEvent(selectedEvent) &&
-            selectedEvent.resource.type === "appointment"
+              selectedEvent.resource.type === "appointment"
               ? handleEditAppointment
               : undefined
           }

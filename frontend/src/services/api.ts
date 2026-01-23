@@ -20,7 +20,8 @@ import {
   RefreshUserDataResponse,
   PractitionerWithDetails,
   LineUserWithStatus,
-  ServiceTypeGroup
+  ServiceTypeGroup,
+  Practitioner
 } from '../types';
 import {
   validateClinicSettings,
@@ -248,7 +249,7 @@ export class ApiService {
     return response.data.members;
   }
 
-  async getPractitioners(appointmentTypeId?: number, signal?: AbortSignal): Promise<{ id: number; full_name: string }[]> {
+  async getPractitioners(appointmentTypeId?: number, signal?: AbortSignal): Promise<Practitioner[]> {
     const config = signal ? { signal } : {};
     const params = appointmentTypeId ? { appointment_type_id: appointmentTypeId } : {};
 

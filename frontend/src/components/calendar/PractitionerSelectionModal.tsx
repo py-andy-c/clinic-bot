@@ -35,7 +35,7 @@ const PractitionerConflictLabel: React.FC<{ conflictInfo: any }> = ({ conflictIn
       return '不可用時間';
     }
     if (conflictInfo.conflict_type === 'practitioner_type_mismatch') {
-      return '不提供此服務';
+      return '⚠️ 不提供此服務';
     }
     if (conflictInfo.default_availability && !conflictInfo.default_availability.is_within_hours) {
       return '非正常時間';

@@ -14,7 +14,7 @@ import { apiService } from '../../services/api';
 import { getErrorMessage } from '../../types/api';
 import { logger } from '../../utils/logger';
 import { SearchInput } from '../shared';
-import { Patient, AppointmentType, ServiceTypeGroup } from '../../types';
+import { Patient, AppointmentType, ServiceTypeGroup, Practitioner } from '../../types';
 import moment from 'moment-timezone';
 import { formatAppointmentDateTime } from '../../utils/calendarUtils';
 import { usePatients } from '../../hooks/queries';
@@ -147,7 +147,7 @@ export interface CreateAppointmentModalProps {
   preSelectedPractitionerId?: number | undefined;
   preSelectedTime?: string | null | undefined; // Initial time in HH:mm format
   preSelectedClinicNotes?: string | null | undefined; // Initial clinic notes
-  practitioners: { id: number; full_name: string }[];
+  practitioners: Practitioner[];
   appointmentTypes: AppointmentType[];
   onClose: () => void;
   onConfirm: (formData: {
@@ -327,6 +327,13 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
 
     return fullConflicts;
   }, [practitionerConflictsQuery?.data?.results, availablePractitioners, initialPractitioners, selectedAppointmentTypeId]);
+
+  // Compute appointment types offered by the selected practitioner
+  const practitionerAppointmentTypeIds = useMemo(() => {
+    if (!selectedPractitionerId) return undefined;
+    const practitioner = initialPractitioners.find(p => p.id === selectedPractitionerId);
+    return practitioner?.offered_types;
+  }, [selectedPractitionerId, initialPractitioners]);
 
   // Assignment prompt state
   const [currentPatient, setCurrentPatient] = useState<Patient | null>(null);
@@ -1545,6 +1552,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
         serviceItems={appointmentTypes}
         groups={groups}
         selectedServiceItemId={selectedAppointmentTypeId || undefined}
+        practitionerAppointmentTypeIds={practitionerAppointmentTypeIds}
         title="選擇預約類型"
       />
 

@@ -73,11 +73,7 @@ export const useAppointmentForm = ({
       if (abortControllerRef.current) abortControllerRef.current.abort();
       abortControllerRef.current = new AbortController();
 
-      // Optimization: Check if we have event data with resources before starting async operations
-      // This allows us to show the form immediately and prevent flickering.
-      // Strategy: If we have all necessary data from the event (appointment type, practitioner, resources),
-      // we can render the form immediately while fetching fresh data in the background.
-      // This provides instant UI feedback while ensuring data freshness.
+      // Instant UI: Setup form state while fetching fresh data in the background
       const hasEventData = mode === 'edit' && event && (
         event.resource.appointment_type_id &&
         event.resource.practitioner_id &&

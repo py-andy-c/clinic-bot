@@ -163,8 +163,8 @@ vi.mock('../../../hooks/useAppointmentForm', () => ({
     initialResources: [],
     initialAvailability: null,
     availablePractitioners: [
-      { id: 1, full_name: 'Dr. Test 1' },
-      { id: 2, full_name: 'Dr. Test 2' }
+      { id: 1, full_name: 'Dr. Test 1', offered_types: [1] },
+      { id: 2, full_name: 'Dr. Test 2', offered_types: [1] }
     ],
     isInitialLoading: false,
     isLoadingPractitioners: false,
@@ -257,8 +257,8 @@ describe('CreateAppointmentModal', () => {
     // Reset mock state
     mockAppointmentFormState.selectedAppointmentTypeId = null;
     vi.mocked(apiService.getPractitioners).mockResolvedValue([
-      { id: 1, full_name: 'Dr. Test' },
-      { id: 2, full_name: 'Dr. Another' },
+      { id: 1, full_name: 'Dr. Test', offered_types: [1] },
+      { id: 2, full_name: 'Dr. Another', offered_types: [1] },
     ]);
     vi.mocked(usePatients).mockReturnValue({
       data: { patients: mockPatients, total: 1, page: 1, page_size: 100 },
@@ -269,8 +269,8 @@ describe('CreateAppointmentModal', () => {
   });
 
   const mockPractitioners = [
-    { id: 1, full_name: 'Dr. Test' },
-    { id: 2, full_name: 'Dr. Another' },
+    { id: 1, full_name: 'Dr. Test', offered_types: [1] },
+    { id: 2, full_name: 'Dr. Another', offered_types: [1] },
   ];
 
   const mockAppointmentTypes = [
@@ -385,7 +385,7 @@ describe('CreateAppointmentModal', () => {
       setSelectedResourceIds: vi.fn(),
       initialResources: [],
       availablePractitioners: [
-        { id: 2, full_name: 'Dr. Another' }, // Only practitioner 2 available for type 2
+        { id: 2, full_name: 'Dr. Another', offered_types: [1] }, // Only practitioner 2 available for type 2
       ],
       isInitialLoading: false,
       isLoadingPractitioners: false,
@@ -990,8 +990,8 @@ describe('CreateAppointmentModal', () => {
 
     it('should auto-select first assigned practitioner when patient and appointment type are selected', async () => {
       vi.mocked(apiService.getPractitioners).mockResolvedValue([
-        { id: 1, full_name: 'Dr. Assigned' },
-        { id: 2, full_name: 'Dr. Another' },
+        { id: 1, full_name: 'Dr. Assigned', offered_types: [1] },
+        { id: 2, full_name: 'Dr. Another', offered_types: [1] },
       ]);
 
       // Mock the hook to simulate auto-selection
@@ -1012,8 +1012,8 @@ describe('CreateAppointmentModal', () => {
         setSelectedResourceIds: vi.fn(),
         initialResources: [],
         availablePractitioners: [
-          { id: 1, full_name: 'Dr. Assigned' },
-          { id: 2, full_name: 'Dr. Another' },
+          { id: 1, full_name: 'Dr. Assigned', offered_types: [1] },
+          { id: 2, full_name: 'Dr. Another', offered_types: [1] },
         ],
         isInitialLoading: false,
         isLoadingPractitioners: false,
@@ -1072,8 +1072,8 @@ describe('CreateAppointmentModal', () => {
         setSelectedResourceIds: vi.fn(),
         initialResources: [],
         availablePractitioners: [
-          { id: 1, full_name: 'Dr. Assigned' },
-          { id: 2, full_name: 'Dr. Another' },
+          { id: 1, full_name: 'Dr. Assigned', offered_types: [1] },
+          { id: 2, full_name: 'Dr. Another', offered_types: [1] },
         ],
         isInitialLoading: false,
         isLoadingPractitioners: false,
@@ -1133,7 +1133,7 @@ describe('CreateAppointmentModal', () => {
         setSelectedResourceIds: vi.fn(),
         initialResources: [],
         availablePractitioners: [
-          { id: 2, full_name: 'Dr. Another' }, // Only practitioner 2 available for this type
+          { id: 2, full_name: 'Dr. Another', offered_types: [1] }, // Only practitioner 2 available for this type
         ],
         isInitialLoading: false,
         isLoadingPractitioners: false,
@@ -1192,8 +1192,8 @@ describe('CreateAppointmentModal', () => {
         setSelectedResourceIds: vi.fn(),
         initialResources: [],
         availablePractitioners: [
-          { id: 1, full_name: 'Dr. Assigned' },
-          { id: 2, full_name: 'Dr. Another' },
+          { id: 1, full_name: 'Dr. Assigned', offered_types: [1] },
+          { id: 2, full_name: 'Dr. Another', offered_types: [1] },
         ],
         isInitialLoading: false,
         isLoadingPractitioners: false,
@@ -1251,8 +1251,8 @@ describe('CreateAppointmentModal', () => {
         setSelectedResourceIds: vi.fn(),
         initialResources: [],
         availablePractitioners: [
-          { id: 1, full_name: 'Dr. Assigned' },
-          { id: 2, full_name: 'Dr. Another' },
+          { id: 1, full_name: 'Dr. Assigned', offered_types: [1] },
+          { id: 2, full_name: 'Dr. Another', offered_types: [1] },
         ],
         isInitialLoading: false,
         isLoadingPractitioners: false,
@@ -1315,8 +1315,8 @@ describe('CreateAppointmentModal', () => {
         setSelectedResourceIds: vi.fn(),
         initialResources: [],
         availablePractitioners: [
-          { id: 1, full_name: 'Dr. Test' },
-          { id: 2, full_name: 'Dr. Another' },
+          { id: 1, full_name: 'Dr. Test', offered_types: [1] },
+          { id: 2, full_name: 'Dr. Another', offered_types: [1] },
         ],
         isInitialLoading: false,
         isLoadingPractitioners: false,
@@ -1343,8 +1343,8 @@ describe('CreateAppointmentModal', () => {
           preSelectedPractitionerId={slotPractitionerId}
           prePopulatedFromSlot={true}
           practitioners={[
-            { id: 1, full_name: 'Dr. Test' },
-            { id: 2, full_name: 'Dr. Another' },
+            { id: 1, full_name: 'Dr. Test', offered_types: [1] },
+            { id: 2, full_name: 'Dr. Another', offered_types: [1] },
           ]}
           appointmentTypes={[
             { id: 1, name: 'Test Type', duration_minutes: 30, clinic_id: 1 },
@@ -1360,6 +1360,145 @@ describe('CreateAppointmentModal', () => {
 
       const practitionerButton = screen.getByText('Dr. Test');
       expect(practitionerButton).toBeInTheDocument();
+    });
+  });
+
+  describe('Service type mismatch and assigned practitioner warnings', () => {
+    it('should show mismatch warning indicator when practitioner doesn\'t offer appointment type', async () => {
+      vi.mocked(useAppointmentForm).mockReturnValue({
+        selectedPatientId: 1,
+        setSelectedPatientId: vi.fn(),
+        selectedAppointmentTypeId: 2, // Type 2 selected
+        setSelectedAppointmentTypeId: vi.fn(),
+        selectedPractitionerId: 1, // Practitioner 1 selected
+        setSelectedPractitionerId: vi.fn(),
+        selectedDate: '2024-01-15',
+        setSelectedDate: vi.fn(),
+        selectedTime: '09:00',
+        setSelectedTime: vi.fn(),
+        clinicNotes: '',
+        setClinicNotes: vi.fn(),
+        selectedResourceIds: [],
+        setSelectedResourceIds: vi.fn(),
+        initialResources: [],
+        availablePractitioners: [{ id: 2, full_name: 'Dr. Other', offered_types: [1] }], // Only Dr. Other offers type 2
+        isInitialLoading: false,
+        isLoadingPractitioners: false,
+        error: null,
+        setError: vi.fn(),
+        isValid: true,
+        referenceDateTime: null,
+        hasChanges: false,
+        changeDetails: {
+          appointmentTypeChanged: false,
+          practitionerChanged: false,
+          timeChanged: false,
+          dateChanged: false,
+          resourcesChanged: false,
+          originalAppointmentTypeName: 'Type 1',
+          newAppointmentTypeName: 'Type 2',
+          originalPractitionerName: 'Dr. Test',
+          newPractitionerName: 'Dr. Test',
+          originalStartTime: '2024-01-15 09:00',
+          newStartTime: '2024-01-15 09:00'
+        },
+        initialAvailability: null,
+        hasPractitionerTypeMismatch: true, // Mismatch!
+        prePopulatedFromSlot: false,
+      });
+
+      render(
+        <CreateAppointmentModal
+          practitioners={[
+            { id: 1, full_name: 'Dr. Test', offered_types: [1] },
+            { id: 2, full_name: 'Dr. Other', offered_types: [2] },
+          ] as any}
+          appointmentTypes={[
+            { id: 1, name: 'Type 1', duration_minutes: 30, clinic_id: 1 },
+            { id: 2, name: 'Type 2', duration_minutes: 30, clinic_id: 1 },
+          ]}
+          onClose={vi.fn()}
+          onConfirm={vi.fn()}
+        />
+      );
+
+      // Check for conflict indicator (mismatch)
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText(/搜尋病患/)).toBeInTheDocument();
+      });
+    });
+
+    it('should show informational message when patient has different assigned practitioners', async () => {
+      const assignedPractitionerId = 2;
+      const selectedPractitionerId = 1;
+
+      vi.mocked(apiService.getPatient).mockResolvedValue({
+        id: 1,
+        full_name: 'Test Patient',
+        assigned_practitioner_ids: [assignedPractitionerId],
+        created_at: '2024-01-01T00:00:00Z',
+      } as any);
+
+      vi.mocked(useAppointmentForm).mockReturnValue({
+        selectedPatientId: 1,
+        setSelectedPatientId: vi.fn(),
+        selectedAppointmentTypeId: 1,
+        setSelectedAppointmentTypeId: vi.fn(),
+        selectedPractitionerId: selectedPractitionerId,
+        setSelectedPractitionerId: vi.fn(),
+        selectedDate: '2024-01-15',
+        setSelectedDate: vi.fn(),
+        selectedTime: '09:00',
+        setSelectedTime: vi.fn(),
+        clinicNotes: '',
+        setClinicNotes: vi.fn(),
+        selectedResourceIds: [],
+        setSelectedResourceIds: vi.fn(),
+        initialResources: [],
+        availablePractitioners: [
+          { id: 1, full_name: 'Dr. Test', offered_types: [1] },
+          { id: 2, full_name: 'Dr. Assigned', offered_types: [1] },
+        ],
+        isInitialLoading: false,
+        isLoadingPractitioners: false,
+        error: null,
+        setError: vi.fn(),
+        isValid: true,
+        referenceDateTime: null,
+        hasChanges: false,
+        changeDetails: {
+          appointmentTypeChanged: false,
+          practitionerChanged: false,
+          timeChanged: false,
+          dateChanged: false,
+          resourcesChanged: false,
+        },
+        initialAvailability: null,
+        hasPractitionerTypeMismatch: false,
+        prePopulatedFromSlot: true,
+      });
+
+      render(
+        <CreateAppointmentModal
+          preSelectedPatientId={1}
+          preSelectedPractitionerId={selectedPractitionerId}
+          prePopulatedFromSlot={true}
+          practitioners={[
+            { id: 1, full_name: 'Dr. Test', offered_types: [1] },
+            { id: 2, full_name: 'Dr. Assigned', offered_types: [1] },
+          ] as any}
+          appointmentTypes={[
+            { id: 1, name: 'Test Type', duration_minutes: 30, clinic_id: 1 },
+          ]}
+          onClose={vi.fn()}
+          onConfirm={vi.fn()}
+        />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText(/此病患的負責治療師為：/)).toBeInTheDocument();
+        expect(screen.getByText('Dr. Assigned')).toBeInTheDocument();
+      });
     });
   });
 });
