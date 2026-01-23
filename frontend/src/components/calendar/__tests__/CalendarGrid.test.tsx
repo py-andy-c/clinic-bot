@@ -93,8 +93,22 @@ describe('CalendarGrid', () => {
     )).not.toThrow();
   });
 
-  it('handles slot clicks', () => {
-    expect(() => render(<CalendarGrid {...mockProps} />)).not.toThrow();
+  it('handles slot clicks with practitioner context', () => {
+    render(<CalendarGrid {...mockProps} />);
+
+    // Find a time slot for practitioner 1
+    const practitioner1Column = screen.getByLabelText('Column for practitioner 1');
+    const timeSlots = practitioner1Column.querySelectorAll('[data-testid="time-slot"]');
+    const firstSlot = timeSlots[0];
+
+    if (firstSlot) {
+      fireEvent.click(firstSlot);
+      expect(mockProps.onSlotClick).toHaveBeenCalledWith(expect.objectContaining({
+        practitionerId: 1
+      }));
+    } else {
+      throw new Error('No time slot found');
+    }
   });
 
   it('applies correct styling for different event types', () => {

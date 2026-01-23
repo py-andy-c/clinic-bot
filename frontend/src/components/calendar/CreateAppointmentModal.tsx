@@ -80,32 +80,32 @@ const RecurrenceDateTimePickerWrapper: React.FC<{
   const [selectedDate, setSelectedDate] = useState<string | null>(initialDate);
   // When editing (initialTime has value), start with empty selectedTime to prevent auto-initialization
   const [selectedTime, setSelectedTime] = useState<string>('');
-  
+
   const handleDateSelect = (date: string | null) => {
     setSelectedDate(date);
     setSelectedTime(''); // Clear time when date changes
   };
-  
+
   const handleTimeSelect = (time: string) => {
     setSelectedTime(time);
   };
-  
+
   const handleConfirm = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (selectedDate && selectedTime) {
       await onConfirm(selectedDate, selectedTime);
     }
   };
-  
+
   const handleCancel = (e: React.MouseEvent) => {
     e.stopPropagation();
     onCancel();
   };
-  
+
   const handleMouseDown = (e: React.MouseEvent) => {
     e.stopPropagation();
   };
-  
+
   return (
     <div className="space-y-4" onMouseDown={handleMouseDown}>
       <DateTimePicker
@@ -140,11 +140,11 @@ const RecurrenceDateTimePickerWrapper: React.FC<{
 type CreateStep = 'form' | 'conflict-resolution' | 'confirm';
 
 export interface CreateAppointmentModalProps {
-  preSelectedPatientId?: number;
-  preSelectedPatientName?: string; // Optional: patient name for pre-selection
-  initialDate?: string | null; // Initial date in YYYY-MM-DD format
-  preSelectedAppointmentTypeId?: number;
-  preSelectedPractitionerId?: number;
+  preSelectedPatientId?: number | undefined;
+  preSelectedPatientName?: string | undefined; // Optional: patient name for pre-selection
+  initialDate?: string | null | undefined; // Initial date in YYYY-MM-DD format
+  preSelectedAppointmentTypeId?: number | undefined;
+  preSelectedPractitionerId?: number | undefined;
   preSelectedTime?: string | null | undefined; // Initial time in HH:mm format
   preSelectedClinicNotes?: string | null | undefined; // Initial clinic notes
   practitioners: { id: number; full_name: string }[];
@@ -159,6 +159,7 @@ export interface CreateAppointmentModalProps {
     selected_resource_ids?: number[];
   }) => Promise<void>;
   onRecurringAppointmentsCreated?: () => Promise<void>;
+  prePopulatedFromSlot?: boolean;
   event?: CalendarEvent | null | undefined; // Optional original event for duplication reference
 }
 
@@ -175,6 +176,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
   onClose,
   onConfirm,
   onRecurringAppointmentsCreated,
+  prePopulatedFromSlot = false,
   event,
 }) => {
   const isMobile = useIsMobile(1024);
@@ -184,7 +186,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
 
   // Practitioner selection modal state
   const [isPractitionerModalOpen, setIsPractitionerModalOpen] = useState(false);
-  
+
   // Duplication mode detection
   const isDuplication = !!preSelectedTime || !!event;
 
@@ -210,6 +212,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
     setError,
     isValid,
     referenceDateTime,
+    hasPractitionerTypeMismatch,
   } = useAppointmentForm({
     mode: isDuplication ? 'duplicate' : 'create',
     event,
@@ -221,6 +224,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
     preSelectedPractitionerId,
     preSelectedTime,
     preSelectedClinicNotes,
+    prePopulatedFromSlot,
   });
 
   // Conflict checking hooks
@@ -268,12 +272,12 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
     }
     return null;
   });
-  
+
   const [occurrenceResourceIds, setOccurrenceResourceIds] = useState<Record<string, number[]>>({});
   const [isSaving, setIsSaving] = useState(false);
   const [groups, setGroups] = useState<ServiceTypeGroup[]>([]);
   const [isServiceItemModalOpen, setIsServiceItemModalOpen] = useState(false);
-  
+
   // Recurrence state
   const [recurrenceEnabled, setRecurrenceEnabled] = useState<boolean>(false);
   const [weeksInterval, setWeeksInterval] = useState<number>(1);
@@ -290,6 +294,39 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
   const [addingOccurrence, setAddingOccurrence] = useState<boolean>(false);
   const [hasVisitedConflictResolution, setHasVisitedConflictResolution] = useState<boolean>(false);
   const [singleAppointmentConflict, setSingleAppointmentConflict] = useState<any>(null);
+
+  // Compute conflicts for all practitioners, including type mismatches
+  const practitionerConflictsWithTypeMismatch = useMemo(() => {
+    const apiConflicts = practitionerConflictsQuery?.data?.results?.reduce((acc: Record<number, SchedulingConflictResponse>, result: any) => {
+      if (result.practitioner_id) {
+        acc[result.practitioner_id] = result as SchedulingConflictResponse;
+      }
+      return acc;
+    }, {}) || {};
+
+    if (!selectedAppointmentTypeId) return apiConflicts;
+
+    const availableIds = new Set(availablePractitioners.map(p => p.id));
+    const fullConflicts = { ...apiConflicts };
+
+    initialPractitioners.forEach(p => {
+      if (!availableIds.has(p.id)) {
+        // Only add mismatch conflict if there isn't already a more specific conflict from API
+        if (!fullConflicts[p.id]?.has_conflict) {
+          fullConflicts[p.id] = {
+            has_conflict: true,
+            conflict_type: 'practitioner_type_mismatch',
+            appointment_conflict: null,
+            exception_conflict: null,
+            resource_conflicts: null,
+            default_availability: { is_within_hours: true, normal_hours: null }
+          } as SchedulingConflictResponse;
+        }
+      }
+    });
+
+    return fullConflicts;
+  }, [practitionerConflictsQuery?.data?.results, availablePractitioners, initialPractitioners, selectedAppointmentTypeId]);
 
   // Assignment prompt state
   const [currentPatient, setCurrentPatient] = useState<Patient | null>(null);
@@ -353,14 +390,15 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
       selectedAppointmentTypeId &&
       availablePractitioners.length > 0 &&
       !selectedPractitionerId &&
-      !isLoadingPractitioners
+      !isLoadingPractitioners &&
+      !prePopulatedFromSlot
     ) {
       const assignedIds = getAssignedPractitionerIds(currentPatient);
 
       if (assignedIds.length > 0) {
         // Find the first assigned practitioner that is available for the selected appointment type
         const firstAssignedAvailable = availablePractitioners.find((p) => assignedIds.includes(p.id));
-        
+
         if (firstAssignedAvailable) {
           setSelectedPractitionerId(firstAssignedAvailable.id);
         }
@@ -376,7 +414,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
   const searchInputRef = useRef<HTMLInputElement>(null);
   const isCreatingPatientFromModal = useRef(false);
   const searchInputInitializedRef = useRef(!!preSelectedPatientName || (isDuplication && !!event?.resource.patient_name));
-  
+
   // Patient creation modal state
   const [isCreatePatientModalOpen, setIsCreatePatientModalOpen] = useState(false);
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
@@ -387,12 +425,12 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
 
   // Use debounced search for server-side search
   const debouncedSearchQuery = useDebouncedSearch(searchInput, 400, isComposing);
-  
+
   const hasValidSearch = debouncedSearchQuery.trim().length > 0 && shouldTriggerSearch(debouncedSearchQuery);
   const shouldFetchForPreSelected = !!selectedPatientId && !hasValidSearch;
-  
+
   const { } = useAuth();
-  
+
   const {
     data: patientsData,
     isLoading: isLoadingPatients,
@@ -404,7 +442,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
     hasValidSearch ? debouncedSearchQuery : undefined,
     undefined // practitionerId
   );
-  
+
   // Keep previous data visible during loading to prevent flicker
   const [previousPatientsData, setPreviousPatientsData] = useState<{
     patients: Patient[];
@@ -421,15 +459,15 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
     }
   }, [isLoadingPatients, patientsData, hasValidSearch, shouldFetchForPreSelected]);
 
-  const displayData = (hasValidSearch || shouldFetchForPreSelected) && isLoadingPatients && previousPatientsData 
-    ? previousPatientsData 
+  const displayData = (hasValidSearch || shouldFetchForPreSelected) && isLoadingPatients && previousPatientsData
+    ? previousPatientsData
     : (hasValidSearch || shouldFetchForPreSelected)
-      ? patientsData 
+      ? patientsData
       : null;
   const patients = displayData?.patients || [];
   const totalPatients = displayData?.total || 0;
   const displayPatients = patients;
-  
+
   useEffect(() => {
     if (patientsError) {
       setError(patientsError.message || 'Unable to load patients');
@@ -457,7 +495,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
       searchInputInitializedRef.current = false;
     }
   }, [searchInput, selectedPatientId, setSelectedPatientId]);
-  
+
   useEffect(() => {
     if (preSelectedPatientData && selectedPatient && selectedPatient.id === preSelectedPatientData.id && patients.length > 0) {
       try {
@@ -504,10 +542,10 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
         setError('最多只能建立50個預約');
         return;
       }
-      
+
       const baseDateTime = moment.tz(`${selectedDate}T${selectedTime}`, 'Asia/Taipei');
       const generatedOccurrences: Array<{ id: string; date: string; time: string; hasConflict: boolean }> = [];
-      
+
       for (let i = 0; i < occurrenceCount; i++) {
         const occurrenceDate = baseDateTime.clone().add(i * weeksInterval, 'weeks');
         generatedOccurrences.push({
@@ -517,51 +555,51 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
           hasConflict: false,
         });
       }
-      
+
       if (generatedOccurrences.length === 0) {
         setError('所有日期都無效，請調整日期或模式');
         return;
       }
-      
+
       setIsCheckingConflicts(true);
       setError(null);
-      
+
       try {
-        const occurrenceStrings = generatedOccurrences.map(occ => 
+        const occurrenceStrings = generatedOccurrences.map(occ =>
           moment.tz(`${occ.date}T${occ.time}`, 'Asia/Taipei').toISOString()
         );
-        
+
         const conflictResult = await apiService.checkRecurringConflicts({
           practitioner_id: selectedPractitionerId!,
           appointment_type_id: selectedAppointmentTypeId!,
           occurrences: occurrenceStrings,
         });
-        
+
         const updatedOccurrences = generatedOccurrences.map((occ, idx) => {
           const conflictStatus = conflictResult.occurrences[idx];
           if (!conflictStatus) {
             return { ...occ, hasConflict: false, conflictInfo: null };
           }
-          
+
           const conflictInfo = convertConflictStatusToResponse(conflictStatus);
-          
+
           return {
             ...occ,
             hasConflict: conflictStatus.has_conflict || false,
             conflictInfo: conflictInfo?.has_conflict ? conflictInfo : null,
           };
         });
-        
+
         setOccurrences(updatedOccurrences);
-        
+
         const initialOccurrenceResources: Record<string, number[]> = {};
         updatedOccurrences.forEach(occ => {
           initialOccurrenceResources[occ.id] = [...selectedResourceIds];
         });
         setOccurrenceResourceIds(initialOccurrenceResources);
-        
+
         const hasConflicts = updatedOccurrences.some(occ => occ.hasConflict);
-        
+
         if (hasConflicts) {
           setHasVisitedConflictResolution(true);
           setStep('conflict-resolution');
@@ -607,10 +645,10 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
     setError(null);
     try {
       if (recurrenceEnabled && occurrences.length > 0) {
-        const occurrenceStrings = occurrences.map(occ => 
+        const occurrenceStrings = occurrences.map(occ =>
           moment.tz(`${occ.date}T${occ.time}`, 'Asia/Taipei').toISOString()
         );
-        
+
         const result = await apiService.createRecurringAppointments({
           patient_id: selectedPatientId!,
           appointment_type_id: selectedAppointmentTypeId!,
@@ -626,7 +664,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
             };
           }),
         });
-        
+
         if (result.failed_count > 0) {
           const errorMessages = result.failed_occurrences.map(f => `${f.start_time}: ${f.error_message}`).join('\n');
           setError(`已建立 ${result.created_count} 個預約，${result.failed_count} 個失敗：\n${errorMessages}`);
@@ -650,9 +688,9 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
         };
         if (clinicNotes.trim()) formData.clinic_notes = clinicNotes.trim();
         if (selectedResourceIds.length > 0) formData.selected_resource_ids = selectedResourceIds;
-        
+
         await onConfirm(formData);
-        
+
         // After successful appointment creation, check for assignment prompt
         // Only check if practitioner is not null (not "不指定")
         // Use already-fetched patient data if available, otherwise fetch
@@ -664,11 +702,11 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
               patient = await apiService.getPatient(selectedPatientId);
               setCurrentPatient(patient);
             }
-            
+
             // Check if we need to prompt for assignment
             if (shouldPromptForAssignment(patient, selectedPractitionerId)) {
               const practitionerName = availablePractitioners.find(p => p.id === selectedPractitionerId)?.full_name || '';
-              
+
               // Get current assigned practitioners to display
               // Prefer assigned_practitioners array if available, otherwise use assigned_practitioner_ids
               let currentAssigned: Array<{ id: number; full_name: string }> = [];
@@ -686,7 +724,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
                   })
                   .filter((p): p is { id: number; full_name: string } => p !== null);
               }
-              
+
               // Enqueue the assignment prompt modal (defer until this modal closes)
               enqueueModal<React.ComponentProps<typeof PractitionerAssignmentPromptModal>>({
                 id: 'assignment-prompt',
@@ -698,22 +736,22 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
                   onConfirm: async () => {
                     // Handle assignment
                     if (!patient || !selectedPractitionerId) return;
-                    
+
                     try {
                       const updatedPatient = await apiService.assignPractitionerToPatient(
                         patient.id,
                         selectedPractitionerId
                       );
-                      
+
                       // Get all assigned practitioners (including the newly added one)
                       const allAssigned = updatedPatient.assigned_practitioners || [];
                       const activeAssigned = allAssigned
                         .filter((p) => p.is_active !== false)
                         .map((p) => ({ id: p.id, full_name: p.full_name }));
-                      
+
                       // Update patient state
                       setCurrentPatient(updatedPatient);
-                      
+
                       // Enqueue confirmation modal (exclude the newly added practitioner)
                       // Use defer: true to wait for the prompt modal to fully close
                       enqueueModal<React.ComponentProps<typeof PractitionerAssignmentConfirmationModal>>({
@@ -725,7 +763,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
                           excludePractitionerId: selectedPractitionerId,
                         },
                       });
-                      
+
                       // Show the confirmation modal after the prompt modal closes
                       setTimeout(() => {
                         showNext();
@@ -741,7 +779,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
                   },
                 },
               });
-              
+
               // Close this modal, then show the queued prompt modal
               onClose();
               // Delay to ensure this modal closes before showing next
@@ -756,7 +794,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
             // Continue to close modal even if we can't check
           }
         }
-        
+
         // Close modal if no prompt needed
         onClose();
       }
@@ -882,6 +920,26 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
             治療師 <span className="text-red-500">*</span>
+            {prePopulatedFromSlot && (
+              <span className="ml-2 px-1.5 py-0.5 bg-blue-50 text-blue-600 text-[10px] rounded border border-blue-100 font-medium">
+                從行事曆選擇
+              </span>
+            )}
+            {hasPractitionerTypeMismatch && (
+              <span className="ml-2">
+                <ConflictIndicator
+                  compact
+                  conflictInfo={{
+                    has_conflict: true,
+                    conflict_type: 'practitioner_type_mismatch',
+                    appointment_conflict: null,
+                    exception_conflict: null,
+                    resource_conflicts: null,
+                    default_availability: { is_within_hours: true, normal_hours: null }
+                  }}
+                />
+              </span>
+            )}
           </label>
           <button
             type="button"
@@ -892,11 +950,27 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
             {isLoadingPractitioners ? (
               '載入中...'
             ) : selectedPractitionerId ? (
-              availablePractitioners.find(p => p.id === selectedPractitionerId)?.full_name || '未知治療師'
+              initialPractitioners.find(p => p.id === selectedPractitionerId)?.full_name || '未知治療師'
             ) : (
               '選擇治療師'
             )}
           </button>
+
+          {/* Assigned Practitioner Info Message */}
+          {selectedPatientId && selectedPractitionerId && assignedPractitionerIdsSet && !assignedPractitionerIdsSet.has(selectedPractitionerId) && (
+            <div className="mt-2 text-xs text-blue-600 flex items-center gap-1">
+              <span>ℹ️ 此病患的負責治療師為：</span>
+              {Array.from(assignedPractitionerIdsSet).map((id, index) => {
+                const name = initialPractitioners.find(p => p.id === id)?.full_name;
+                return (
+                  <span key={id}>
+                    {name}{index < assignedPractitionerIdsSet.size - 1 ? '、' : ''}
+                  </span>
+                );
+              })}
+            </div>
+          )}
+
           {selectedAppointmentTypeId && !isLoadingPractitioners && availablePractitioners.length === 0 && (
             <p className="text-sm text-gray-500 mt-1">此預約類型目前沒有可用的治療師</p>
           )}
@@ -910,16 +984,11 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
             setSelectedPractitionerId(practitionerId);
             setIsPractitionerModalOpen(false);
           }}
-          practitioners={availablePractitioners}
+          practitioners={initialPractitioners}
           selectedPractitionerId={selectedPractitionerId}
           originalPractitionerId={isDuplication ? event?.resource.practitioner_id || null : null}
           assignedPractitionerIds={assignedPractitionerIdsSet || []}
-          practitionerConflicts={practitionerConflictsQuery?.data?.results?.reduce((acc: Record<number, SchedulingConflictResponse>, result: any) => {
-            if (result.practitioner_id) {
-              acc[result.practitioner_id] = result as SchedulingConflictResponse;
-            }
-            return acc;
-          }, {}) || {}}
+          practitionerConflicts={practitionerConflictsWithTypeMismatch}
           isLoadingConflicts={practitionerConflictsQuery.isLoading}
         />
 
@@ -936,6 +1005,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
             error={error}
             allowOverride={true}
             initialExpanded={isDuplication}
+            prePopulatedFromSlot={prePopulatedFromSlot}
           />
         )}
 
@@ -1038,11 +1108,10 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
       <button
         onClick={handleFormSubmit}
         disabled={!isValid || isCheckingConflicts || (recurrenceEnabled && (!occurrenceCount || occurrenceCount < 1)) || isInitialLoading}
-        className={`btn-primary ${
-          (!isValid || isCheckingConflicts || (recurrenceEnabled && (!occurrenceCount || occurrenceCount < 1)) || isInitialLoading)
-            ? 'opacity-50 cursor-not-allowed'
-            : ''
-        }`}
+        className={`btn-primary ${(!isValid || isCheckingConflicts || (recurrenceEnabled && (!occurrenceCount || occurrenceCount < 1)) || isInitialLoading)
+          ? 'opacity-50 cursor-not-allowed'
+          : ''
+          }`}
       >
         {isCheckingConflicts ? '正在檢查衝突...' : '下一步'}
       </button>
@@ -1056,7 +1125,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
           const dateMoment = moment.tz(`${occ.date}T${occ.time}`, 'Asia/Taipei');
           const formattedDateTime = formatAppointmentDateTime(dateMoment.toDate());
           const isEditing = editingOccurrenceId === occ.id;
-          
+
           return (
             <div key={occ.id} className="space-y-2">
               <div className="flex items-center justify-between gap-3 p-3 rounded-md bg-white border border-gray-200">
@@ -1090,7 +1159,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
                   </button>
                 </div>
               </div>
-              
+
               {isEditing && selectedAppointmentTypeId && selectedPractitionerId && (
                 <div className="border-t border-gray-200 pt-3 space-y-3">
                   <RecurrenceDateTimePickerWrapper
@@ -1103,7 +1172,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
                         setError('此時間已在列表中，請選擇其他時間');
                         return;
                       }
-                      
+
                       try {
                         const occurrenceString = moment.tz(`${date}T${time}`, 'Asia/Taipei').toISOString();
                         const conflictResult = await apiService.checkRecurringConflicts({
@@ -1111,16 +1180,16 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
                           appointment_type_id: selectedAppointmentTypeId!,
                           occurrences: [occurrenceString],
                         });
-                        
+
                         const conflictStatus = conflictResult.occurrences[0];
                         if (!conflictStatus) {
                           setError('無法檢查衝突，請稍後再試');
                           return;
                         }
-                        
+
                         const conflictInfo = convertConflictStatusToResponse(conflictStatus);
                         setOccurrences(occurrences.map(o => o.id === occ.id ? {
-                          ...o, date, time, 
+                          ...o, date, time,
                           hasConflict: conflictStatus.has_conflict || false,
                           conflictInfo: conflictInfo?.has_conflict ? conflictInfo : null
                         } : o));
@@ -1146,7 +1215,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
                   </div>
                 </div>
               )}
-              
+
               {!isEditing && selectedAppointmentTypeId && selectedPractitionerId && (
                 <div className="border-t border-gray-200 pt-3">
                   <ResourceSelection
@@ -1163,7 +1232,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
             </div>
           );
         })}
-        
+
         {!addingOccurrence && (
           <button
             onClick={() => setAddingOccurrence(true)}
@@ -1175,7 +1244,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
             <span className="text-sm font-medium">新增</span>
           </button>
         )}
-        
+
         {addingOccurrence && selectedAppointmentTypeId && selectedPractitionerId && (
           <div className="border-t border-gray-200 pt-3">
             <RecurrenceDateTimePickerWrapper
@@ -1188,7 +1257,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
                   setError('此時間已在列表中，請選擇其他時間');
                   return;
                 }
-                
+
                 try {
                   const occurrenceString = moment.tz(`${date}T${time}`, 'Asia/Taipei').toISOString();
                   const conflictResult = await apiService.checkRecurringConflicts({
@@ -1196,13 +1265,13 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
                     appointment_type_id: selectedAppointmentTypeId!,
                     occurrences: [occurrenceString],
                   });
-                  
+
                   const conflictStatus = conflictResult.occurrences[0];
                   if (!conflictStatus) {
                     setError('無法檢查衝突，請稍後再試');
                     return;
                   }
-                  
+
                   const conflictInfo = convertConflictStatusToResponse(conflictStatus);
                   const newOccId = `new-${Date.now()}`;
                   setOccurrenceResourceIds({ ...occurrenceResourceIds, [newOccId]: [...selectedResourceIds] });
@@ -1223,7 +1292,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
           </div>
         )}
       </div>
-      
+
       {occurrences.length === 0 && (
         <div className="text-center py-4 text-red-600 text-sm">至少需要一個預約時段</div>
       )}
@@ -1257,7 +1326,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
   );
 
   const renderConfirmStepContent = () => {
-    const dateTime = selectedDate && selectedTime 
+    const dateTime = selectedDate && selectedTime
       ? moment.tz(`${selectedDate}T${selectedTime}`, 'Asia/Taipei').toDate()
       : null;
     const formattedDateTime = dateTime ? formatAppointmentDateTime(dateTime) : '';
@@ -1392,25 +1461,25 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
       } catch (err) {
         logger.warn('Failed to store patient data in sessionStorage:', err);
       }
-      
+
       const fallbackPatient: Patient = {
         id: createdPatientId, clinic_id: 0, full_name: createdPatientName,
         phone_number: createdPatientPhone, created_at: new Date().toISOString(),
       };
       if (createdPatientBirthday) fallbackPatient.birthday = createdPatientBirthday;
-      
+
       flushSync(() => {
         setIsSuccessModalOpen(false);
         setPreSelectedPatientData(fallbackPatient);
         setSelectedPatientId(createdPatientId);
         setSearchInput(createdPatientName);
       });
-      
+
       setCreatedPatientId(null);
       setCreatedPatientName('');
       setCreatedPatientPhone(null);
       setCreatedPatientBirthday(null);
-      
+
       (async () => {
         try {
           const response = await apiService.getPatients(1, 100);
@@ -1442,7 +1511,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
             </div>
             <h3 className="text-base font-semibold text-blue-800">{modalTitle}</h3>
           </div>
-          
+
           {error && step === 'form' && (!selectedAppointmentTypeId || !selectedPractitionerId) && (
             <div className="mb-4 bg-red-50 border border-red-200 rounded-md p-3 flex-shrink-0">
               <p className="text-sm text-red-800">{error}</p>
@@ -1459,7 +1528,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
             {step === 'conflict-resolution' && renderConflictResolutionStepContent()}
             {step === 'confirm' && renderConfirmStepContent()}
           </div>
-          
+
           <div className={`flex-shrink-0 ${isMobile ? 'px-4' : ''}`} style={isMobile ? { paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' } : undefined}>
             {step === 'form' && renderFormStepFooter()}
             {step === 'conflict-resolution' && renderConflictResolutionStepFooter()}
@@ -1478,9 +1547,9 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
         selectedServiceItemId={selectedAppointmentTypeId || undefined}
         title="選擇預約類型"
       />
-    
+
       <PatientCreationModal isOpen={isCreatePatientModalOpen} onClose={() => setIsCreatePatientModalOpen(false)} onSuccess={handlePatientCreated} />
-    
+
       {createdPatientId && <PatientCreationSuccessModal isOpen={isSuccessModalOpen} onClose={handleSuccessModalClose} patientId={createdPatientId} patientName={createdPatientName} phoneNumber={createdPatientPhone} birthday={createdPatientBirthday} onCreateAppointment={handleCreateAppointmentFromSuccess} />}
     </>
   );

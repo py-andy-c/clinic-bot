@@ -32,7 +32,7 @@ interface CalendarGridProps {
   practitionerAvailability?: CalendarPractitionerAvailability; // Practitioner availability data
   currentUserId?: number | null; // Current user ID for ordering
   onEventClick?: (event: CalendarEvent) => void;
-  onSlotClick?: (slotInfo: { start: Date; end: Date }) => void;
+  onSlotClick?: (slotInfo: { start: Date; end: Date; practitionerId?: number | undefined }) => void;
   showHeaderRow?: boolean; // Whether to show the practitioner/resource header row
 }
 
@@ -150,12 +150,13 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
   // Note: DOM element caching removed for simplicity and test compatibility
   // Live queries are used for keyboard navigation
 
-  const handleSlotClick = (hour: number, minute: number) => {
+  const handleSlotClick = (hour: number, minute: number, practitionerId?: number) => {
     if (onSlotClick) {
       const slotDate = createTimeSlotDate(currentDate, hour, minute);
       onSlotClick({
         start: slotDate,
         end: new Date(slotDate.getTime() + 15 * 60 * 1000), // 15 minutes later
+        practitionerId,
       });
     }
   };
@@ -226,7 +227,14 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
             if (timeMatch && timeMatch[1] && timeMatch[2]) {
               const hour = parseInt(timeMatch[1], 10);
               const minute = parseInt(timeMatch[2], 10);
-              handleSlotClick(hour, minute);
+
+              // Extract practitioner ID from aria-label if present
+              const practitionerMatch = ariaLabel.match(/for practitioner (\d+)/);
+              const practitionerId = practitionerMatch && practitionerMatch[1]
+                ? parseInt(practitionerMatch[1], 10)
+                : undefined;
+
+              handleSlotClick(hour, minute, practitionerId);
             }
           }
           break;
@@ -360,7 +368,7 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
                       <div
                         key={index}
                         className={`${styles.timeSlot} ${!isAvailable ? styles.unavailable : ''}`}
-                        onClick={() => handleSlotClick(slot.hour, slot.minute)}
+                        onClick={() => handleSlotClick(slot.hour, slot.minute, practitionerId)}
                         onKeyDown={handleKeyDown}
                         role="button"
                         aria-label={`Time slot ${slot.time} for practitioner ${practitionerId} - Click to create appointment`}

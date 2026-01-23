@@ -34,6 +34,9 @@ const PractitionerConflictLabel: React.FC<{ conflictInfo: any }> = ({ conflictIn
     if (conflictInfo.exception_conflict) {
       return '不可用時間';
     }
+    if (conflictInfo.conflict_type === 'practitioner_type_mismatch') {
+      return '不提供此服務';
+    }
     if (conflictInfo.default_availability && !conflictInfo.default_availability.is_within_hours) {
       return '非正常時間';
     }
@@ -160,9 +163,8 @@ export const PractitionerSelectionModal: React.FC<PractitionerSelectionModalProp
                   key={practitioner.id}
                   type="button"
                   onClick={() => handlePractitionerSelect(practitioner.id)}
-                  className={`w-full py-3.5 text-left hover:bg-gray-50 border-b border-gray-100 transition-colors px-6 ${
-                    isSelected(practitioner) ? 'bg-blue-50 border-blue-200' : ''
-                  }`}
+                  className={`w-full py-3.5 text-left hover:bg-gray-50 border-b border-gray-100 transition-colors px-6 ${isSelected(practitioner) ? 'bg-blue-50 border-blue-200' : ''
+                    }`}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-1.5">

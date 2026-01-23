@@ -19,6 +19,7 @@ export interface UseAppointmentFormProps {
   preSelectedPractitionerId?: number | null | undefined;
   preSelectedTime?: string | null | undefined;
   preSelectedClinicNotes?: string | null | undefined;
+  prePopulatedFromSlot?: boolean;
 }
 
 export const useAppointmentForm = ({
@@ -32,6 +33,7 @@ export const useAppointmentForm = ({
   preSelectedPractitionerId,
   preSelectedTime,
   preSelectedClinicNotes,
+  prePopulatedFromSlot,
 }: UseAppointmentFormProps) => {
   const [selectedPatientId, setSelectedPatientId] = useState<number | null>(preSelectedPatientId || event?.resource.patient_id || null);
   const [selectedAppointmentTypeId, setSelectedAppointmentTypeId] = useState<number | null>(null);
@@ -43,12 +45,12 @@ export const useAppointmentForm = ({
   const [initialResourceIds, setInitialResourceIds] = useState<number[]>([]);
   const [initialResources, setInitialResources] = useState<Array<{ id: number; resource_type_id: number; resource_type_name?: string; name: string }>>([]);
   const [initialAvailability, setInitialAvailability] = useState<ResourceAvailabilityResponse | null>(null);
-  
+
   const [availablePractitioners, setAvailablePractitioners] = useState<{ id: number; full_name: string }[]>(allPractitioners);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isLoadingPractitioners, setIsLoadingPractitioners] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+
   const isInitialMountRef = useRef(true);
   const abortControllerRef = useRef<AbortController | null>(null);
   const lastFetchedTypeIdRef = useRef<number | null>(null);
@@ -66,7 +68,7 @@ export const useAppointmentForm = ({
     const init = async () => {
       setIsInitialLoading(true);
       setError(null);
-      
+
       // Setup AbortController for cleanup
       if (abortControllerRef.current) abortControllerRef.current.abort();
       abortControllerRef.current = new AbortController();
@@ -88,7 +90,6 @@ export const useAppointmentForm = ({
         let date = initialDate || (event ? moment(event.start).tz('Asia/Taipei').format('YYYY-MM-DD') : null);
         let time = preSelectedTime || (event ? moment(event.start).tz('Asia/Taipei').format('HH:mm') : '');
         let notes = preSelectedClinicNotes || event?.resource.clinic_notes || '';
-        // Use event.resource.resource_ids for instant UI (will be updated by API fetch if data is fresher)
         let resourceIds = event?.resource.resource_ids || [];
 
         // Special handling for duplication mode: clear time to avoid immediate conflict
@@ -102,19 +103,16 @@ export const useAppointmentForm = ({
         setSelectedTime(time);
         setClinicNotes(notes);
         setSelectedResourceIds(resourceIds);
-        
-        // Track the initial type ID as "fetched"
+
         lastFetchedTypeIdRef.current = typeId;
 
-        // For edit mode with event data, set initial resource IDs immediately
         if (hasEventData && resourceIds.length > 0) {
           setInitialResourceIds(resourceIds);
         }
 
-        // Parallel data fetching: Practitioners filtered by type and Original Resources
         const fetchTasks: Promise<any>[] = [];
         const signal = abortControllerRef.current?.signal;
-        
+
         // 1. Fetch practitioners for the appointment type
         if (typeId) {
           fetchTasks.push(apiService.getPractitioners(typeId, signal));
@@ -134,11 +132,11 @@ export const useAppointmentForm = ({
           // Get duration from appointment type
           const appointmentType = _appointmentTypes.find(t => t.id === typeId);
           const durationMinutes = appointmentType?.duration_minutes || 30;
-          
+
           // Calculate end time
           const startMoment = moment.tz(`${date}T${time}`, 'Asia/Taipei');
           const endMoment = startMoment.clone().add(durationMinutes, 'minutes');
-          
+
           const availabilityParams: {
             appointment_type_id: number;
             practitioner_id: number;
@@ -153,11 +151,11 @@ export const useAppointmentForm = ({
             start_time: startMoment.format('HH:mm'),
             end_time: endMoment.format('HH:mm'),
           };
-          
+
           if (event?.resource.calendar_event_id) {
             availabilityParams.exclude_calendar_event_id = event.resource.calendar_event_id;
           }
-          
+
           fetchTasks.push(apiService.getResourceAvailability(availabilityParams, signal));
         }
 
@@ -166,17 +164,11 @@ export const useAppointmentForm = ({
         // Handle practitioners result
         const practitionersResult = results[0];
         let practitionersReadyFromResult = false;
-        
+
         if (practitionersResult && practitionersResult.status === 'fulfilled') {
           const sorted = [...practitionersResult.value].sort((a, b) => a.full_name.localeCompare(b.full_name, 'zh-TW'));
           setAvailablePractitioners(sorted);
           practitionersReadyFromResult = true;
-          
-          // Auto-deselect practitioner if current selection is not in the filtered list
-          if (pracId && !sorted.find(p => p.id === pracId)) {
-            setSelectedPractitionerId(null);
-            setSelectedTime('');
-          }
         } else if (practitionersResult && practitionersResult.status === 'rejected') {
           const reason = practitionersResult.reason;
           if (reason?.name !== 'CanceledError' && reason?.name !== 'AbortError') {
@@ -201,7 +193,7 @@ export const useAppointmentForm = ({
         // Handle resources result
         const resourcesResult = shouldFetchResources ? results[1] : null;
         const availabilityResult = shouldFetchAvailability ? results[shouldFetchResources ? 2 : 1] : null;
-        
+
         // Wait for both initialResources and initialAvailability (for edit mode) before showing the form
         if (shouldFetchResources && resourcesResult) {
           if (resourcesResult.status === 'fulfilled') {
@@ -246,20 +238,20 @@ export const useAppointmentForm = ({
         // Set loading to false only after all required data is loaded
         // Use practitionersReadyFromResult which handles aborted requests with fallback data
         const practitionersReady = practitionersReadyFromResult;
-        
+
         // Resources are ready if not needed, fetched successfully, or aborted/failed (we have fallback data)
-        const resourcesReady = !shouldFetchResources || 
+        const resourcesReady = !shouldFetchResources ||
           resourcesResult?.status === 'fulfilled' ||
-          (resourcesResult?.status === 'rejected' && 
-           (resourcesResult.reason?.name === 'CanceledError' || 
-            resourcesResult.reason?.name === 'AbortError' ||
-            resourceIds.length > 0)); // Have fallback data
-        
+          (resourcesResult?.status === 'rejected' &&
+            (resourcesResult.reason?.name === 'CanceledError' ||
+              resourcesResult.reason?.name === 'AbortError' ||
+              resourceIds.length > 0)); // Have fallback data
+
         // Availability is ready if not needed, fetched successfully, or aborted/failed (not critical)
-        const availabilityReady = !shouldFetchAvailability || 
+        const availabilityReady = !shouldFetchAvailability ||
           availabilityResult?.status === 'fulfilled' ||
           availabilityResult?.status === 'rejected'; // Always ready if attempted (graceful degradation)
-        
+
         // Wait for practitioners (always required) and resources/availability if needed
         if (practitionersReady && resourcesReady && availabilityReady) {
           setIsInitialLoading(false);
@@ -292,7 +284,7 @@ export const useAppointmentForm = ({
   // Fetch practitioners when appointment type changes (after initial mount)
   useEffect(() => {
     if (isInitialMountRef.current || isInitialLoading) return;
-    
+
     // Skip if this type was already fetched (prevents redundant fetch after initial load)
     if (selectedAppointmentTypeId === lastFetchedTypeIdRef.current) return;
 
@@ -420,6 +412,13 @@ export const useAppointmentForm = ({
     return changeDetails.appointmentTypeChanged || changeDetails.practitionerChanged || changeDetails.timeChanged || changeDetails.dateChanged || changeDetails.resourcesChanged;
   }, [changeDetails]);
 
+  // Check if current selection is incompatible according to configuration
+  const hasPractitionerTypeMismatch = useMemo(() => {
+    if (!selectedAppointmentTypeId || !selectedPractitionerId) return false;
+    // Check if the selected practitioner is in the list of available practitioners for this type
+    return !availablePractitioners.some(p => p.id === selectedPractitionerId);
+  }, [selectedAppointmentTypeId, selectedPractitionerId, availablePractitioners]);
+
   return {
     selectedPatientId,
     setSelectedPatientId,
@@ -446,5 +445,7 @@ export const useAppointmentForm = ({
     hasChanges,
     changeDetails,
     initialAvailability,
+    hasPractitionerTypeMismatch,
+    prePopulatedFromSlot,
   };
 };

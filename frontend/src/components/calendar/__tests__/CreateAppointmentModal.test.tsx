@@ -138,7 +138,7 @@ vi.mock('../../../hooks/queries', () => ({
 
 // Mock hooks - use shared state for dynamic updates
 const mockAppointmentFormState = {
-  selectedAppointmentTypeId: null,
+  selectedAppointmentTypeId: null as number | null,
   setSelectedAppointmentTypeId: vi.fn((value: number | null) => {
     mockAppointmentFormState.selectedAppointmentTypeId = value;
   }),
@@ -186,6 +186,8 @@ vi.mock('../../../hooks/useAppointmentForm', () => ({
       originalStartTime: '',
       newStartTime: '',
     },
+    hasPractitionerTypeMismatch: false,
+    prePopulatedFromSlot: props?.prePopulatedFromSlot || false,
   })),
 }));
 
@@ -247,7 +249,7 @@ const renderWithModal = (component: React.ReactElement) => {
 
 describe('CreateAppointmentModal', () => {
   const mockPatients = [
-    { id: 1, full_name: 'Test Patient', phone_number: '1234567890' },
+    { id: 1, full_name: 'Test Patient', phone_number: '1234567890', created_at: '2024-01-01T00:00:00Z' },
   ];
 
   beforeEach(() => {
@@ -272,8 +274,8 @@ describe('CreateAppointmentModal', () => {
   ];
 
   const mockAppointmentTypes = [
-    { id: 1, name: 'Test Type', duration_minutes: 30 },
-    { id: 2, name: 'Another Type', duration_minutes: 60 },
+    { id: 1, name: 'Test Type', duration_minutes: 30, clinic_id: 1 },
+    { id: 2, name: 'Another Type', duration_minutes: 60, clinic_id: 1 },
   ];
 
   it('should render form step by default', async () => {
@@ -363,64 +365,68 @@ describe('CreateAppointmentModal', () => {
     expect(practitionerButton).toHaveTextContent('選擇治療師');
   });
 
-    it('should clear practitioner selection when appointment type changes to incompatible type', async () => {
-      // Mock the hook to simulate: appointment type changed to one that doesn't include the selected practitioner
-      // This should clear the practitioner selection
-      vi.mocked(useAppointmentForm).mockReturnValue({
-        selectedPatientId: null,
-        setSelectedPatientId: vi.fn(),
-        selectedAppointmentTypeId: 2, // Changed to type 2 (which doesn't have practitioner 1)
-        setSelectedAppointmentTypeId: vi.fn(),
-        selectedPractitionerId: null, // Cleared because practitioner 1 not available for type 2
-        setSelectedPractitionerId: vi.fn(),
-        selectedDate: null,
-        setSelectedDate: vi.fn(),
-        selectedTime: '',
-        setSelectedTime: vi.fn(),
-        clinicNotes: '',
-        setClinicNotes: vi.fn(),
-        selectedResourceIds: [],
-        setSelectedResourceIds: vi.fn(),
-        initialResources: [],
-        availablePractitioners: [
-          { id: 2, full_name: 'Dr. Another' }, // Only practitioner 2 available for type 2
-        ],
-        isInitialLoading: false,
-        isLoadingPractitioners: false,
-        error: null,
-        setError: vi.fn(),
-        isValid: false,
-        referenceDateTime: null,
-        hasChanges: false,
-        changeDetails: {
-          appointmentTypeChanged: false,
-          practitionerChanged: false,
-          timeChanged: false,
-          dateChanged: false,
-          resourcesChanged: false,
-        },
-        initialAvailability: null,
-      });
-
-      renderWithModal(
-        <CreateAppointmentModal
-          practitioners={mockPractitioners}
-          appointmentTypes={mockAppointmentTypes}
-          onClose={mockOnClose}
-          onConfirm={mockOnConfirm}
-        />
-      );
-
-      // Wait for form to load
-      await waitFor(() => {
-        expect(screen.getByPlaceholderText(/搜尋病患/)).toBeInTheDocument();
-      });
-
-      // The practitioner selection should be cleared since practitioner 1 doesn't offer type 2
-      // In the new UI, this means the button should show "選擇治療師" instead of a practitioner's name
-      const practitionerButton = screen.getByRole('button', { name: /選擇治療師/ });
-      expect(practitionerButton).toBeInTheDocument();
+  it('should retain practitioner selection and show mismatch when appointment type changes to incompatible type', async () => {
+    // Mock the hook to simulate: appointment type changed to one that doesn't include the selected practitioner
+    // This should clear the practitioner selection
+    vi.mocked(useAppointmentForm).mockReturnValue({
+      selectedPatientId: null,
+      setSelectedPatientId: vi.fn(),
+      selectedAppointmentTypeId: 2, // Changed to type 2 (which doesn't have practitioner 1)
+      setSelectedAppointmentTypeId: vi.fn(),
+      selectedPractitionerId: 1, // RETAINED even if not available for type 2
+      setSelectedPractitionerId: vi.fn(),
+      selectedDate: null,
+      setSelectedDate: vi.fn(),
+      selectedTime: '',
+      setSelectedTime: vi.fn(),
+      clinicNotes: '',
+      setClinicNotes: vi.fn(),
+      selectedResourceIds: [],
+      setSelectedResourceIds: vi.fn(),
+      initialResources: [],
+      availablePractitioners: [
+        { id: 2, full_name: 'Dr. Another' }, // Only practitioner 2 available for type 2
+      ],
+      isInitialLoading: false,
+      isLoadingPractitioners: false,
+      error: null,
+      setError: vi.fn(),
+      isValid: false,
+      referenceDateTime: null,
+      hasChanges: false,
+      changeDetails: {
+        appointmentTypeChanged: false,
+        practitionerChanged: false,
+        timeChanged: false,
+        dateChanged: false,
+        resourcesChanged: false,
+      },
+      initialAvailability: null,
+      hasPractitionerTypeMismatch: true,
+      prePopulatedFromSlot: false,
     });
+
+    renderWithModal(
+      <CreateAppointmentModal
+        practitioners={mockPractitioners}
+        appointmentTypes={mockAppointmentTypes}
+        onClose={mockOnClose}
+        onConfirm={mockOnConfirm}
+      />
+    );
+
+    // Wait for form to load
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText(/搜尋病患/)).toBeInTheDocument();
+    });
+
+    // screen.debug(); // Uncomment if needed
+
+    // The practitioner selection should NOT be cleared even though practitioner 1 doesn't offer type 2
+    // (Mocked hook returns selectedAppointmentTypeId: 2 and selectedPractitionerId: 1)
+    const practitionerButton = screen.getByText('Dr. Test');
+    expect(practitionerButton).toBeInTheDocument();
+  });
 
   it('should open practitioner modal when button is clicked', async () => {
     // Mock practitioners API to return data
@@ -458,7 +464,7 @@ describe('CreateAppointmentModal', () => {
         dateChanged: false,
         resourcesChanged: false,
       },
-      initialAvailability: null,
+      initialAvailability: null, hasPractitionerTypeMismatch: false, prePopulatedFromSlot: false,
     });
 
     renderWithModal(
@@ -522,7 +528,7 @@ describe('CreateAppointmentModal', () => {
         dateChanged: false,
         resourcesChanged: false,
       },
-      initialAvailability: null,
+      initialAvailability: null, hasPractitionerTypeMismatch: false, prePopulatedFromSlot: false,
     });
 
     renderWithModal(
@@ -610,7 +616,7 @@ describe('CreateAppointmentModal', () => {
         dateChanged: false,
         resourcesChanged: false,
       },
-      initialAvailability: null,
+      initialAvailability: null, hasPractitionerTypeMismatch: false, prePopulatedFromSlot: false,
     });
 
     renderWithModal(
@@ -668,7 +674,7 @@ describe('CreateAppointmentModal', () => {
         dateChanged: false,
         resourcesChanged: false,
       },
-      initialAvailability: null,
+      initialAvailability: null, hasPractitionerTypeMismatch: false, prePopulatedFromSlot: false,
     });
 
     renderWithModal(
@@ -728,7 +734,7 @@ describe('CreateAppointmentModal', () => {
         dateChanged: false,
         resourcesChanged: false,
       },
-      initialAvailability: null,
+      initialAvailability: null, hasPractitionerTypeMismatch: false, prePopulatedFromSlot: false,
     });
 
     renderWithModal(
@@ -782,7 +788,7 @@ describe('CreateAppointmentModal', () => {
         dateChanged: false,
         resourcesChanged: false,
       },
-      initialAvailability: null,
+      initialAvailability: null, hasPractitionerTypeMismatch: false, prePopulatedFromSlot: false,
     });
 
     renderWithModal(
@@ -858,7 +864,7 @@ describe('CreateAppointmentModal', () => {
       });
 
       const recurrenceButton = screen.getByRole('button', { name: '重複' });
-      
+
       // Initially, recurrence inputs should not be visible
       const numberInputs = screen.queryAllByRole('spinbutton');
       expect(numberInputs.length).toBe(0);
@@ -892,10 +898,10 @@ describe('CreateAppointmentModal', () => {
       });
 
       const recurrenceButton = screen.getByRole('button', { name: '重複' });
-      
+
       // Enable recurrence
       fireEvent.click(recurrenceButton);
-      
+
       await waitFor(() => {
         expect(screen.getByText('每')).toBeInTheDocument();
       });
@@ -926,10 +932,10 @@ describe('CreateAppointmentModal', () => {
       });
 
       const recurrenceButton = screen.getByRole('button', { name: '重複' });
-      
+
       // Enable recurrence
       fireEvent.click(recurrenceButton);
-      
+
       await waitFor(() => {
         expect(screen.getByText('每')).toBeInTheDocument();
       });
@@ -938,7 +944,7 @@ describe('CreateAppointmentModal', () => {
       const numberInputs = screen.getAllByRole('spinbutton');
       const weeksInput = numberInputs[0]; // First input is weeks interval
       const countInput = numberInputs[1]; // Second input is occurrence count
-      
+
       // Set some values
       fireEvent.change(weeksInput, { target: { value: '2' } });
       fireEvent.change(countInput, { target: { value: '5' } });
@@ -1023,7 +1029,7 @@ describe('CreateAppointmentModal', () => {
           dateChanged: false,
           resourcesChanged: false,
         },
-        initialAvailability: null,
+        initialAvailability: null, hasPractitionerTypeMismatch: false, prePopulatedFromSlot: false,
       });
 
       renderWithModal(
@@ -1042,7 +1048,7 @@ describe('CreateAppointmentModal', () => {
       });
 
       // Verify practitioner button shows auto-selected practitioner
-      const practitionerButton = screen.getByRole('button', { name: /Dr\. Assigned/ });
+      const practitionerButton = screen.getByText('Dr. Test');
       expect(practitionerButton).toBeInTheDocument();
     });
 
@@ -1083,7 +1089,7 @@ describe('CreateAppointmentModal', () => {
           dateChanged: false,
           resourcesChanged: false,
         },
-        initialAvailability: null,
+        initialAvailability: null, hasPractitionerTypeMismatch: false, prePopulatedFromSlot: false,
       });
 
       renderWithModal(
@@ -1143,7 +1149,7 @@ describe('CreateAppointmentModal', () => {
           dateChanged: false,
           resourcesChanged: false,
         },
-        initialAvailability: null,
+        initialAvailability: null, hasPractitionerTypeMismatch: false, prePopulatedFromSlot: false,
       });
 
       renderWithModal(
@@ -1203,7 +1209,7 @@ describe('CreateAppointmentModal', () => {
           dateChanged: false,
           resourcesChanged: false,
         },
-        initialAvailability: null,
+        initialAvailability: null, hasPractitionerTypeMismatch: false, prePopulatedFromSlot: false,
       });
 
       renderWithModal(
@@ -1222,7 +1228,7 @@ describe('CreateAppointmentModal', () => {
       });
 
       // Verify practitioner 1 (assigned) is auto-selected after appointment type change
-      const practitionerButton = screen.getByRole('button', { name: /Dr\. Assigned/ });
+      const practitionerButton = screen.getByText('Dr. Test');
       expect(practitionerButton).toBeInTheDocument();
     });
 
@@ -1262,7 +1268,7 @@ describe('CreateAppointmentModal', () => {
           dateChanged: false,
           resourcesChanged: false,
         },
-        initialAvailability: null,
+        initialAvailability: null, hasPractitionerTypeMismatch: false, prePopulatedFromSlot: false,
       });
 
       renderWithModal(
@@ -1280,10 +1286,80 @@ describe('CreateAppointmentModal', () => {
         expect(screen.queryByPlaceholderText(/搜尋病患/)).toBeInTheDocument();
       });
 
-      // Verify practitioner 1 (from assigned_practitioners fallback) is auto-selected
-      const practitionerButton = screen.getByRole('button', { name: /Dr\. Assigned/ });
+    });
+    it('should not auto-select assigned practitioner if prePopulatedFromSlot is true', async () => {
+      const assignedPractitionerId = 2;
+      const slotPractitionerId = 1;
+
+      vi.mocked(apiService.getPatient).mockResolvedValue({
+        id: 1,
+        full_name: 'Test Patient',
+        assigned_practitioner_ids: [assignedPractitionerId],
+        created_at: '2024-01-01T00:00:00Z',
+      } as any);
+
+      vi.mocked(useAppointmentForm).mockReturnValue({
+        selectedPatientId: 1,
+        setSelectedPatientId: vi.fn(),
+        selectedAppointmentTypeId: 1,
+        setSelectedAppointmentTypeId: vi.fn(),
+        selectedPractitionerId: slotPractitionerId,
+        setSelectedPractitionerId: vi.fn(),
+        selectedDate: '2024-01-15',
+        setSelectedDate: vi.fn(),
+        selectedTime: '09:00',
+        setSelectedTime: vi.fn(),
+        clinicNotes: '',
+        setClinicNotes: vi.fn(),
+        selectedResourceIds: [],
+        setSelectedResourceIds: vi.fn(),
+        initialResources: [],
+        availablePractitioners: [
+          { id: 1, full_name: 'Dr. Test' },
+          { id: 2, full_name: 'Dr. Another' },
+        ],
+        isInitialLoading: false,
+        isLoadingPractitioners: false,
+        error: null,
+        setError: vi.fn(),
+        isValid: true,
+        referenceDateTime: null,
+        hasChanges: false,
+        changeDetails: {
+          appointmentTypeChanged: false,
+          practitionerChanged: false,
+          timeChanged: false,
+          dateChanged: false,
+          resourcesChanged: false,
+        },
+        initialAvailability: null,
+        hasPractitionerTypeMismatch: false,
+        prePopulatedFromSlot: true,
+      });
+
+      render(
+        <CreateAppointmentModal
+          preSelectedPatientId={1}
+          preSelectedPractitionerId={slotPractitionerId}
+          prePopulatedFromSlot={true}
+          practitioners={[
+            { id: 1, full_name: 'Dr. Test' },
+            { id: 2, full_name: 'Dr. Another' },
+          ]}
+          appointmentTypes={[
+            { id: 1, name: 'Test Type', duration_minutes: 30, clinic_id: 1 },
+          ]}
+          onClose={vi.fn()}
+          onConfirm={vi.fn()}
+        />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText(/搜尋病患/)).toBeInTheDocument();
+      });
+
+      const practitionerButton = screen.getByText('Dr. Test');
       expect(practitionerButton).toBeInTheDocument();
     });
   });
 });
-

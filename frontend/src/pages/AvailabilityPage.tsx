@@ -650,7 +650,10 @@ const AvailabilityPage: React.FC = () => {
     setIsEventModalOpen(true);
   }, []);
 
-  const handleSlotClick = useCallback(() => {
+  const [slotInfo, setSlotInfo] = useState<{ start: Date; end: Date; practitionerId?: number | undefined } | null>(null);
+
+  const handleSlotClick = useCallback((info: { start: Date; end: Date; practitionerId?: number | undefined }) => {
+    setSlotInfo(info);
     setIsCreateAppointmentModalOpen(true);
   }, []);
 
@@ -876,8 +879,13 @@ const AvailabilityPage: React.FC = () => {
         <CreateAppointmentModal
           practitioners={practitioners}
           appointmentTypes={appointmentTypes}
+          initialDate={slotInfo?.start ? getDateString(slotInfo.start) : getDateString(currentDate)}
+          preSelectedPractitionerId={slotInfo?.practitionerId}
+          preSelectedTime={slotInfo?.start ? moment(slotInfo.start).tz('Asia/Taipei').format('HH:mm') : undefined}
+          prePopulatedFromSlot={!!slotInfo?.practitionerId}
           onClose={() => {
             setIsCreateAppointmentModalOpen(false);
+            setSlotInfo(null);
           }}
           onConfirm={async (formData) => {
             try {
@@ -899,6 +907,7 @@ const AvailabilityPage: React.FC = () => {
               await createAppointmentMutation.mutateAsync(mutationParams);
 
               setIsCreateAppointmentModalOpen(false);
+              setSlotInfo(null);
               await alert('預約已建立');
             } catch (error) {
               logger.error('Failed to create appointment:', error);

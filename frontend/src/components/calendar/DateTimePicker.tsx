@@ -47,6 +47,8 @@ export interface DateTimePickerProps {
   alternativeSlots?: string[];
   // Optional: initial expanded state
   initialExpanded?: boolean;
+  // Optional: indicate if values were pre-populated from a calendar slot
+  prePopulatedFromSlot?: boolean;
 }
 
 const dayNames = ['日', '一', '二', '三', '四', '五', '六'];
@@ -68,10 +70,11 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
   isOverrideMode: parentOverrideMode,
   alternativeSlots,
   initialExpanded = false,
+  prePopulatedFromSlot = false,
 }) => {
   const [isExpanded, setIsExpanded] = useState(initialExpanded);
   const pickerRef = useRef<HTMLDivElement>(null);
-  
+
   // Store initial values to ensure original time is always selectable in edit mode,
   // even if it doesn't align with the standard availability grid.
   const initialValuesRef = useRef({
@@ -121,7 +124,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
   // Debounced conflict checking - debounce time/date changes, but check immediately when practitioner/appointment type changes
   const debouncedTime = useDebounce(displayTime, 300);
   const debouncedDate = useDebounce(displayDate, 300);
-  
+
   // Track previous practitioner/appointment type to detect immediate changes
   const prevPractitionerRef = useRef(selectedPractitionerId);
   const prevAppointmentTypeRef = useRef(appointmentTypeId);
@@ -150,13 +153,13 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
       const day = parts[2] ?? new Date().getDate();
       const selectedDateMonth = new Date(year, month - 1, day);
       const selectedMonth = new Date(year, month - 1, 1);
-      
+
       // Use functional update to get current value and avoid stale closure
       setCurrentMonth(prevMonth => {
         // Only update if selectedDate is in a different month than current month
         // This allows manual navigation to work without being reset
-        if (selectedDateMonth.getMonth() !== prevMonth.getMonth() || 
-            selectedDateMonth.getFullYear() !== prevMonth.getFullYear()) {
+        if (selectedDateMonth.getMonth() !== prevMonth.getMonth() ||
+          selectedDateMonth.getFullYear() !== prevMonth.getFullYear()) {
           return selectedMonth;
         }
         return prevMonth; // Keep current month if same
@@ -192,11 +195,11 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
   // Reset override mode when slot candidates change (practitioner/appointment type/date)
   useEffect(() => {
     const prev = prevSlotCandidatesRef.current;
-    const hasChanged = 
+    const hasChanged =
       prev.practitionerId !== selectedPractitionerId ||
       prev.appointmentTypeId !== appointmentTypeId ||
       prev.date !== selectedDate;
-    
+
     if (hasChanged) {
       // Update ref first to prevent duplicate resets
       prevSlotCandidatesRef.current = {
@@ -204,7 +207,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
         appointmentTypeId: appointmentTypeId,
         date: selectedDate,
       };
-      
+
       // Reset override mode if it's currently enabled
       if (overrideMode) {
         setOverrideMode(false);
@@ -283,10 +286,10 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
     // In edit mode, if we are on the original date and practitioner,
     // ensure the original time is included in the list even if it's not in the standard grid.
     if (excludeCalendarEventId &&
-        displayDate === initialValuesRef.current.date &&
-        selectedPractitionerId === initialValuesRef.current.practitionerId &&
-        initialValuesRef.current.time &&
-        !slots.includes(initialValuesRef.current.time)) {
+      displayDate === initialValuesRef.current.date &&
+      selectedPractitionerId === initialValuesRef.current.practitionerId &&
+      initialValuesRef.current.time &&
+      !slots.includes(initialValuesRef.current.time)) {
       slots.push(initialValuesRef.current.time);
       slots.sort();
     }
@@ -496,7 +499,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
       // - No slots available for the date (only if not in edit mode), OR
       // - Slots are available but selectedTime is not in them
       const isUnavailable = (!excludeCalendarEventId && allTimeSlots.length === 0) ||
-                            (allTimeSlots.length > 0 && !allTimeSlots.includes(selectedTime));
+        (allTimeSlots.length > 0 && !allTimeSlots.includes(selectedTime));
 
       if (isUnavailable) {
         onTimeSelect('');
@@ -522,14 +525,14 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
   // Handle click outside to collapse
   useEffect(() => {
     if (!isExpanded) return;
-    
+
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as Node;
       const isInsidePicker = pickerRef.current && pickerRef.current.contains(target);
       // Check if click is inside a modal (modals are rendered via portal to document.body)
       // This is a defensive check - BaseModal should stop propagation, but this provides extra safety
       const isInsideModal = (target as Element)?.closest?.('[role="dialog"]') !== null;
-      
+
       if (pickerRef.current && !isInsidePicker && !isInsideModal) {
         handleCollapse();
       }
@@ -594,15 +597,19 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
           日期與時間 <span className="text-red-500">*</span>
+          {prePopulatedFromSlot && (
+            <span className="ml-2 px-1.5 py-0.5 bg-blue-50 text-blue-600 text-[10px] rounded border border-blue-100 font-medium">
+              從行事曆選擇
+            </span>
+          )}
         </label>
         <button
           type="button"
           onClick={handleCollapsedClick}
-          className={`w-full border rounded-md px-3 py-2 text-left transition-colors flex items-center justify-between ${
-            error
+          className={`w-full border rounded-md px-3 py-2 text-left transition-colors flex items-center justify-between ${error
               ? 'border-red-300 bg-red-50'
               : 'border-gray-300 bg-white hover:border-gray-400'
-          }`}
+            }`}
         >
           <span className={selectedDate && selectedTime ? 'text-gray-900' : 'text-gray-500'}>
             {getCollapsedDisplay()}
@@ -633,194 +640,197 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
     <div ref={pickerRef}>
       <label className="block text-sm font-medium text-gray-700 mb-1">
         日期與時間 <span className="text-red-500">*</span>
+        {prePopulatedFromSlot && (
+          <span className="ml-2 px-1.5 py-0.5 bg-blue-50 text-blue-600 text-[10px] rounded border border-blue-100 font-medium">
+            從行事曆選擇
+          </span>
+        )}
       </label>
       <div className="space-y-4 mt-2">
         {/* Calendar View */}
         <div>
-        {/* Month Navigation Header */}
-        <div className="flex items-center justify-between mb-2">
-          <button
-            onClick={handlePrevMonth}
-            className="p-1.5 hover:bg-gray-100 rounded-full transition-colors"
-            aria-label="上個月"
-          >
-            <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-          </button>
-          <h3 className="text-base font-semibold text-gray-900">
-            {formatMonthYear(currentMonth)}
-          </h3>
-          <button
-            onClick={handleNextMonth}
-            className="p-1.5 hover:bg-gray-100 rounded-full transition-colors"
-            aria-label="下個月"
-          >
-            <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
-          </button>
-        </div>
-
-        {/* Days of Week Header */}
-        <div className="grid grid-cols-7 gap-1 mb-1">
-          {dayNames.map((day) => (
-            <div key={day} className="text-center text-sm font-medium text-gray-600 py-1">
-              {day}
-            </div>
-          ))}
-        </div>
-
-        {/* Calendar Grid */}
-        {isBatchLoading ? (
-          <div className="flex items-center justify-center py-4">
-            <LoadingSpinner size="sm" />
+          {/* Month Navigation Header */}
+          <div className="flex items-center justify-between mb-2">
+            <button
+              onClick={handlePrevMonth}
+              className="p-1.5 hover:bg-gray-100 rounded-full transition-colors"
+              aria-label="上個月"
+            >
+              <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+            <h3 className="text-base font-semibold text-gray-900">
+              {formatMonthYear(currentMonth)}
+            </h3>
+            <button
+              onClick={handleNextMonth}
+              className="p-1.5 hover:bg-gray-100 rounded-full transition-colors"
+              aria-label="下個月"
+            >
+              <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
           </div>
-        ) : (
-          <div className="grid grid-cols-7 gap-1" data-testid="date-picker">
-            {calendarDays.map((date, index) => {
-              if (!date) {
-                return <div key={`empty-${index}`} className="h-9" />;
-              }
 
-              const dateString = formatDateString(date);
-              const available = isDateAvailable(date);
-              const selected = displayDate === dateString;
-              const todayDate = isToday(date);
-              // In override mode, all dates are selectable (even if no normal availability)
-              const isEnabled = overrideMode || available;
-              // In override mode, all dates should look the same (light up) - treat all as available for styling
-              const displayAsAvailable = overrideMode ? true : available;
-
-              return (
-                <button
-                  key={dateString}
-                  onClick={() => handleDateSelect(date)}
-                  disabled={!isEnabled}
-                  className={`h-9 text-center rounded-lg transition-colors ${
-                    selected
-                      ? 'bg-blue-500 text-white font-semibold'
-                      : isEnabled
-                      ? 'bg-white text-gray-900 font-semibold hover:bg-gray-50 border border-gray-200'
-                      : 'bg-gray-50 text-gray-400 cursor-not-allowed border border-gray-100'
-                  }`}
-                >
-                  <div className="flex items-center justify-center h-full">
-                    <span className={`${selected ? 'text-white' : displayAsAvailable ? 'text-gray-900' : 'text-gray-400'} ${todayDate ? `border-b-2 ${selected ? 'border-white' : 'border-gray-500'}` : ''}`}>
-                      {date.getDate()}
-                    </span>
-                  </div>
-                </button>
-              );
-            })}
+          {/* Days of Week Header */}
+          <div className="grid grid-cols-7 gap-1 mb-1">
+            {dayNames.map((day) => (
+              <div key={day} className="text-center text-sm font-medium text-gray-600 py-1">
+                {day}
+              </div>
+            ))}
           </div>
-        )}
-      </div>
 
-      {/* Override Toggle */}
-      {allowOverride && displayDate && (
-        <div className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            id="override-mode"
-            checked={overrideMode}
-            onChange={(e) => handleOverrideToggle(e.target.checked)}
-            className="h-4 w-4 text-amber-600 focus:ring-amber-500 border-gray-300 rounded"
-            aria-label="允許衝突時間"
-          />
-          <label htmlFor="override-mode" className="text-sm text-gray-700 flex items-center gap-1">
-            允許衝突時間
-            <InfoButton 
-              onClick={() => setShowOverrideInfoModal(true)} 
-              ariaLabel="允許衝突時間說明"
-              size="small"
-            />
-          </label>
-        </div>
-      )}
-
-      {/* Time Selection - hide completely during batch availability loading */}
-      {displayDate && !isBatchLoading ? (
-        <div>
-          {isLoadingSlots ? (
+          {/* Calendar Grid */}
+          {isBatchLoading ? (
             <div className="flex items-center justify-center py-4">
               <LoadingSpinner size="sm" />
             </div>
-          ) : overrideMode ? (
-            // Free-form time input mode
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <label className="block text-sm font-medium text-gray-700">
-                  時間 <span className="text-red-500">*</span>
-                </label>
-                {isCheckingConflict && (
-                  <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-gray-400"></div>
-                )}
-              </div>
-              <div data-testid="time-picker">
-                <TimeInput
-                  value={freeFormTime}
-                  onChange={handleFreeFormTimeChange}
-                />
-              </div>
-            </div>
-          ) : error && allTimeSlots.length === 0 ? (
-            // Only show error if there are no time slots available
-            // If there are slots, show them even if there's an error (error might be stale)
-            <div className="bg-red-50 border border-red-200 rounded-md p-3">
-              <p className="text-sm text-red-600">{error}</p>
-            </div>
-          ) : allTimeSlots.length > 0 ? (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h4 className="text-sm font-medium text-gray-700">時段</h4>
-                {isCheckingConflict && (
-                  <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-gray-400"></div>
-                )}
-              </div>
-              <div className="grid grid-cols-4 gap-2">
-                {sortedTimeSlots.map((time) => {
-                  const isSelected = displayTime === time;
-                  const isAlternative = alternativeSlots?.includes(time);
-
-                  return (
-                    <button
-                      key={time}
-                      onClick={() => handleTimeSelect(time)}
-                      className={`border rounded-md py-1.5 px-2 transition-colors text-sm font-medium relative ${
-                        isSelected
-                          ? 'bg-blue-500 text-white border-transparent'
-                          : isAlternative
-                          ? 'bg-white border-teal-300 hover:border-teal-400 hover:bg-teal-50 text-gray-900'
-                          : 'bg-white border-gray-200 hover:border-primary-300 hover:bg-primary-50 text-gray-900'
-                      }`}
-                      title={isAlternative ? '此時段為患者偏好選項' : undefined}
-                    >
-                      {time}
-                      {isAlternative && (
-                        <span className="absolute -top-1 -right-1 text-xs text-teal-600 font-bold">★</span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
           ) : (
-            <div className="text-center py-4">
-              <p className="text-gray-500">此日期沒有可用時段</p>
-              <p className="text-sm text-gray-400 mt-2">請選擇其他日期</p>
+            <div className="grid grid-cols-7 gap-1" data-testid="date-picker">
+              {calendarDays.map((date, index) => {
+                if (!date) {
+                  return <div key={`empty-${index}`} className="h-9" />;
+                }
+
+                const dateString = formatDateString(date);
+                const available = isDateAvailable(date);
+                const selected = displayDate === dateString;
+                const todayDate = isToday(date);
+                // In override mode, all dates are selectable (even if no normal availability)
+                const isEnabled = overrideMode || available;
+                // In override mode, all dates should look the same (light up) - treat all as available for styling
+                const displayAsAvailable = overrideMode ? true : available;
+
+                return (
+                  <button
+                    key={dateString}
+                    onClick={() => handleDateSelect(date)}
+                    disabled={!isEnabled}
+                    className={`h-9 text-center rounded-lg transition-colors ${selected
+                        ? 'bg-blue-500 text-white font-semibold'
+                        : isEnabled
+                          ? 'bg-white text-gray-900 font-semibold hover:bg-gray-50 border border-gray-200'
+                          : 'bg-gray-50 text-gray-400 cursor-not-allowed border border-gray-100'
+                      }`}
+                  >
+                    <div className="flex items-center justify-center h-full">
+                      <span className={`${selected ? 'text-white' : displayAsAvailable ? 'text-gray-900' : 'text-gray-400'} ${todayDate ? `border-b-2 ${selected ? 'border-white' : 'border-gray-500'}` : ''}`}>
+                        {date.getDate()}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
-      ) : displayDate && isBatchLoading ? (
-        <div className="flex items-center justify-center py-4">
-          <LoadingSpinner size="sm" />
-        </div>
-      ) : null}
+
+        {/* Override Toggle */}
+        {allowOverride && displayDate && (
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="override-mode"
+              checked={overrideMode}
+              onChange={(e) => handleOverrideToggle(e.target.checked)}
+              className="h-4 w-4 text-amber-600 focus:ring-amber-500 border-gray-300 rounded"
+              aria-label="允許衝突時間"
+            />
+            <label htmlFor="override-mode" className="text-sm text-gray-700 flex items-center gap-1">
+              允許衝突時間
+              <InfoButton
+                onClick={() => setShowOverrideInfoModal(true)}
+                ariaLabel="允許衝突時間說明"
+                size="small"
+              />
+            </label>
+          </div>
+        )}
+
+        {/* Time Selection - hide completely during batch availability loading */}
+        {displayDate && !isBatchLoading ? (
+          <div>
+            {isLoadingSlots ? (
+              <div className="flex items-center justify-center py-4">
+                <LoadingSpinner size="sm" />
+              </div>
+            ) : overrideMode ? (
+              // Free-form time input mode
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <label className="block text-sm font-medium text-gray-700">
+                    時間 <span className="text-red-500">*</span>
+                  </label>
+                  {isCheckingConflict && (
+                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-gray-400"></div>
+                  )}
+                </div>
+                <div data-testid="time-picker">
+                  <TimeInput
+                    value={freeFormTime}
+                    onChange={handleFreeFormTimeChange}
+                  />
+                </div>
+              </div>
+            ) : error && allTimeSlots.length === 0 ? (
+              // Only show error if there are no time slots available
+              // If there are slots, show them even if there's an error (error might be stale)
+              <div className="bg-red-50 border border-red-200 rounded-md p-3">
+                <p className="text-sm text-red-600">{error}</p>
+              </div>
+            ) : allTimeSlots.length > 0 ? (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-medium text-gray-700">時段</h4>
+                  {isCheckingConflict && (
+                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-gray-400"></div>
+                  )}
+                </div>
+                <div className="grid grid-cols-4 gap-2">
+                  {sortedTimeSlots.map((time) => {
+                    const isSelected = displayTime === time;
+                    const isAlternative = alternativeSlots?.includes(time);
+
+                    return (
+                      <button
+                        key={time}
+                        onClick={() => handleTimeSelect(time)}
+                        className={`border rounded-md py-1.5 px-2 transition-colors text-sm font-medium relative ${isSelected
+                            ? 'bg-blue-500 text-white border-transparent'
+                            : isAlternative
+                              ? 'bg-white border-teal-300 hover:border-teal-400 hover:bg-teal-50 text-gray-900'
+                              : 'bg-white border-gray-200 hover:border-primary-300 hover:bg-primary-50 text-gray-900'
+                          }`}
+                        title={isAlternative ? '此時段為患者偏好選項' : undefined}
+                      >
+                        {time}
+                        {isAlternative && (
+                          <span className="absolute -top-1 -right-1 text-xs text-teal-600 font-bold">★</span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-4">
+                <p className="text-gray-500">此日期沒有可用時段</p>
+                <p className="text-sm text-gray-400 mt-2">請選擇其他日期</p>
+              </div>
+            )}
+          </div>
+        ) : displayDate && isBatchLoading ? (
+          <div className="flex items-center justify-center py-4">
+            <LoadingSpinner size="sm" />
+          </div>
+        ) : null}
       </div>
-      
+
       {/* Conflict Display moved to parent component (EditAppointmentModal) to avoid duplication */}
-      
+
       {/* Override Mode Info Modal */}
       <InfoModal
         isOpen={showOverrideInfoModal}
