@@ -132,7 +132,7 @@ describe('CompactMultiSelect', () => {
   });
 
   describe('Selection Logic', () => {
-    it('adds item to selection when clicked', async () => {
+    it('adds item to selection when clicked and stays open', async () => {
       render(<CompactMultiSelect {...defaultProps} />);
 
       const input = screen.getByTestId('test-multiselect-search-input');
@@ -144,15 +144,22 @@ describe('CompactMultiSelect', () => {
       });
 
       expect(mockOnSelectionChange).toHaveBeenCalledWith([1, 2]);
+      // Dropdown should still be visible
+      expect(screen.getByRole('listbox')).toBeInTheDocument();
     });
 
-    it('removes item from selection when remove button clicked', () => {
+    it('removes item from selection and stays open', async () => {
       render(<CompactMultiSelect {...defaultProps} />);
+
+      const input = screen.getByTestId('test-multiselect-search-input');
+      fireEvent.focus(input); // Open dropdown first
 
       const removeButton = screen.getByRole('button', { name: /移除 Item One/i });
       fireEvent.click(removeButton);
 
       expect(mockOnSelectionChange).toHaveBeenCalledWith([]);
+      // Dropdown should still be visible if it was open
+      expect(screen.getByRole('listbox')).toBeInTheDocument();
     });
 
     it('prevents selection when at max limit', async () => {

@@ -161,7 +161,7 @@ export const CompactMultiSelect: React.FC<CompactMultiSelectProps> = ({
 
 
   return (
-    <div className={styles.container} data-testid={testId}>
+    <div className={styles.container} data-testid={testId} ref={dropdownRef}>
       {/* Selected Items */}
       {selectedItems.length > 0 && (
         <div className={styles.selectedItems}>
@@ -175,6 +175,7 @@ export const CompactMultiSelect: React.FC<CompactMultiSelectProps> = ({
               <button
                 type="button"
                 className={styles.removeButton}
+                onMouseDown={(e) => e.preventDefault()}
                 onClick={() => handleRemoveItem(item.id)}
                 aria-label={`移除 ${item.name}`}
                 disabled={disabled}
@@ -187,7 +188,7 @@ export const CompactMultiSelect: React.FC<CompactMultiSelectProps> = ({
       )}
 
       {/* Search Input */}
-      <div className={styles.dropdownContainer} ref={dropdownRef}>
+      <div className={styles.dropdownContainer}>
         <input
           ref={inputRef}
           type="text"
@@ -227,6 +228,7 @@ export const CompactMultiSelect: React.FC<CompactMultiSelectProps> = ({
                     key={item.id}
                     type="button"
                     className={`${styles.dropdownItem} ${focusedItemIndex === index ? styles.dropdownItemFocused : ''}`}
+                    onMouseDown={(e) => e.preventDefault()}
                     onClick={() => handleItemSelect(item)}
                     role="option"
                     aria-selected={focusedItemIndex === index}
