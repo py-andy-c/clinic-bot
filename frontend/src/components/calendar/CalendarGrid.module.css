@@ -20,6 +20,9 @@
   position: sticky;
   /* Sticky within scrollableCalendarArea */
   top: 0;
+  will-change: transform;
+  transform: translateZ(0);
+  /* Hardware acceleration for smooth sticky tracking */
 }
 
 .timeCorner {
@@ -31,6 +34,8 @@
   position: sticky;
   left: 0;
   z-index: 110;
+  will-change: transform;
+  transform: translateZ(0);
 }
 
 .resourceHeaders {
@@ -95,6 +100,8 @@
   border-right: 1px solid #e5e7eb;
   z-index: 50;
   flex-shrink: 0;
+  will-change: transform;
+  transform: translateZ(0);
 }
 
 .timeLabel {

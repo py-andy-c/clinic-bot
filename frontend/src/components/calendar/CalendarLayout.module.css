@@ -2,13 +2,18 @@
 .calendarLayout {
   /* Fixed positioned calendar layout below global header */
   position: fixed;
-  top: 64px; /* Align with global header bottom */
+  top: 64px;
+  /* Align with global header bottom */
   left: 0;
   right: 0;
   bottom: 0;
   display: flex;
-  overflow: visible; /* Allow calendar content to expand for horizontal scrolling */
-  z-index: 40; /* Below global header (z-50 = 50) but above other content */
+  overflow: hidden;
+  /* Prevent body scroll and layout expansion */
+  z-index: 40;
+  /* Below global header (z-50 = 50) but above other content */
+  overscroll-behavior: none;
+  /* Prevent bounce at edges */
 }
 
 .calendarContent {
@@ -16,7 +21,8 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  overflow: hidden; /* Constrain viewport to prevent expansion */
+  overflow: hidden;
+  /* Constrain viewport to prevent expansion */
   background: white;
 }
 
@@ -25,8 +31,14 @@
   /* Using flexbox instead of CSS Grid because columns need equal distribution with min-width constraints.
      CSS Grid would require explicit grid-template-columns which is less flexible for dynamic column counts. */
   flex: 1;
-  overflow-x: auto; /* Explicit horizontal scrolling */
-  overflow-y: auto; /* Vertical scrolling for time slots */
+  overflow-x: auto;
+  /* Explicit horizontal scrolling */
+  overflow-y: auto;
+  /* Vertical scrolling for time slots */
+  overscroll-behavior: none;
+  /* Prevent rubber-band bounce detaching elements */
+  -webkit-overflow-scrolling: touch;
+  /* Smooth momentum scrolling for mobile */
   position: relative;
   background: white;
   /* Safety buffer for mobile browsers and home indicators */
