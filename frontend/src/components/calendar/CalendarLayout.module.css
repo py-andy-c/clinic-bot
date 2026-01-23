@@ -7,7 +7,7 @@
   right: 0;
   bottom: 0;
   display: flex;
-  overflow: hidden;
+  overflow: visible; /* Allow calendar content to expand for horizontal scrolling */
   z-index: 40; /* Below global header (z-50 = 50) but above other content */
 }
 
@@ -16,8 +16,18 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: hidden; /* Constrain viewport to prevent expansion */
   background: white;
+}
+
+.calendarViewport {
+  /* The ONE AND ONLY scrollable container - handles both H and V scrolling */
+  flex: 1;
+  overflow: auto;
+  position: relative;
+  background: white;
+  /* Safety buffer for mobile browsers and home indicators */
+  padding-bottom: calc(env(safe-area-inset-bottom, 20px) + 60px);
 }
 
 .calendarLayout :global(*) {
