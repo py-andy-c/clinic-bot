@@ -140,7 +140,7 @@ class ResourceAvailabilityResponse(BaseModel):
     """Response model for resource availability."""
     requirements: List[Dict[str, Any]]
     suggested_allocation: List[Dict[str, Any]]
-    conflicts: List[Dict[str, Any]]
+    conflicts: List[Dict[str, Any]] = []
 
 
 @router.get("/appointments/resource-availability", summary="Get resource availability for a time slot")

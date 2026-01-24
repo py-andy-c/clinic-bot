@@ -577,12 +577,6 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
     setSingleAppointmentConflict(null);
   }, [selectedDate, selectedTime]);
 
-  // Clear single appointment conflict when step changes away from confirm
-  useEffect(() => {
-    if (step !== 'confirm') {
-      setSingleAppointmentConflict(null);
-    }
-  }, [step]);
 
   // Clear validation errors when fields are selected
   useEffect(() => {
@@ -769,6 +763,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
             date: selectedDate,
             start_time: selectedTime,
             appointment_type_id: selectedAppointmentTypeId,
+            selected_resource_ids: selectedResourceIds,
           });
           const conflictResponse = result.results[0];
           setSingleAppointmentConflict(mergeConflictWithTypeMismatch(conflictResponse, hasPractitionerTypeMismatch));
