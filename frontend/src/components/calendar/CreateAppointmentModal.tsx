@@ -46,6 +46,50 @@ import { getAssignedPractitionerIds } from '../../utils/patientUtils';
 import { useModal } from '../../contexts/ModalContext';
 import { EMPTY_ARRAY, EMPTY_OBJECT } from '../../utils/constants';
 
+/**
+ * Helper function to merge practitioner type mismatch information with API conflict response.
+ * This ensures the type mismatch warning is preserved alongside other conflict types.
+ * 
+ * @param apiConflict - The conflict response from the API (may be null/undefined)
+ * @param hasPractitionerTypeMismatch - Whether there's a practitioner type mismatch
+ * @returns Merged conflict info or null if no conflicts exist
+ */
+function mergeConflictWithTypeMismatch(
+  apiConflict: SchedulingConflictResponse | null | undefined,
+  hasPractitionerTypeMismatch: boolean
+): SchedulingConflictResponse | null {
+  if (!hasPractitionerTypeMismatch) {
+    // No type mismatch, return API conflict as-is
+    return apiConflict?.has_conflict ? apiConflict : null;
+  }
+
+  if (apiConflict) {
+    // Merge mismatch status with existing API conflicts
+    // Use 'as any' to allow custom is_type_mismatch property
+    return {
+      ...apiConflict,
+      has_conflict: true,
+      // Keep existing conflict type (e.g., 'past_appointment') if present
+      conflict_type: apiConflict.conflict_type || 'practitioner_type_mismatch',
+      // Custom flag to ensure mismatch warning shows alongside other warnings
+      is_type_mismatch: true,
+      // Ensure default availability is set
+      default_availability: apiConflict.default_availability || { is_within_hours: true, normal_hours: null }
+    } as any;
+  } else {
+    // Only type mismatch, no API conflicts
+    // Use 'as any' to allow custom is_type_mismatch property
+    return {
+      has_conflict: true,
+      conflict_type: 'practitioner_type_mismatch',
+      is_type_mismatch: true,
+      appointment_conflict: null,
+      exception_conflict: null,
+      resource_conflicts: null,
+      default_availability: { is_within_hours: true, normal_hours: null }
+    } as any;
+  }
+}
 
 
 /**
@@ -249,35 +293,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
   // Update single appointment conflict state from hook result
   useEffect(() => {
     const apiConflict = singlePractitionerConflictsQuery?.data;
-
-    if (hasPractitionerTypeMismatch) {
-      if (apiConflict) {
-        // Merge mismatch status with existing API conflicts so we don't hide other warnings (like overlaps)
-        setSingleAppointmentConflict({
-          ...apiConflict,
-          has_conflict: true,
-          // Keep existing conflict type (e.g., 'past_appointment') if present, otherwise set to mismatch
-          conflict_type: apiConflict.conflict_type || 'practitioner_type_mismatch',
-          // Custom flag to ensure mismatch warning always shows alongside other warnings
-          is_type_mismatch: true,
-          // Ensure default availability is set if missing
-          default_availability: apiConflict.default_availability || { is_within_hours: true, normal_hours: null }
-        });
-      } else {
-        // Fallback if API data isn't ready yet
-        setSingleAppointmentConflict({
-          has_conflict: true,
-          conflict_type: 'practitioner_type_mismatch',
-          is_type_mismatch: true,
-          appointment_conflict: null,
-          exception_conflict: null,
-          resource_conflicts: null,
-          default_availability: { is_within_hours: true, normal_hours: null }
-        });
-      }
-    } else {
-      setSingleAppointmentConflict(apiConflict?.has_conflict ? apiConflict : null);
-    }
+    setSingleAppointmentConflict(mergeConflictWithTypeMismatch(apiConflict, hasPractitionerTypeMismatch));
   }, [singlePractitionerConflictsQuery?.data, hasPractitionerTypeMismatch]);
 
   // Try to get patient data from sessionStorage if preSelectedPatientId is set
@@ -710,7 +726,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
             appointment_type_id: selectedAppointmentTypeId,
           });
           const conflictResponse = result.results[0];
-          setSingleAppointmentConflict(conflictResponse?.has_conflict ? conflictResponse : null);
+          setSingleAppointmentConflict(mergeConflictWithTypeMismatch(conflictResponse, hasPractitionerTypeMismatch));
         } catch (error) {
           logger.error('Failed to check single appointment conflicts:', error);
           setSingleAppointmentConflict(null);
