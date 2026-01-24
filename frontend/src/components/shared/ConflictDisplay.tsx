@@ -13,7 +13,7 @@ interface ConflictDisplayProps {
  *
  * Displays scheduling conflict information with appropriate styling based on conflict type.
  * Shows ALL conflicts found, not just the highest priority one.
- * Conflicts are displayed in priority order: past_appointment > appointment > exception > availability > resource.
+ * Conflicts are displayed in priority order: past_appointment > practitioner_type_mismatch > appointment > exception > availability > resource.
  */
 export const ConflictDisplay: React.FC<ConflictDisplayProps> = ({
   conflictInfo,
@@ -25,59 +25,65 @@ export const ConflictDisplay: React.FC<ConflictDisplayProps> = ({
     return null;
   }
 
-  const getWarningText = (conflictType: string): string | null => {
-    switch (conflictType) {
-      case 'past_appointment':
-        return '時間在過去';
-
-      case 'appointment':
-        if (!conflictInfo.appointment_conflict) return null;
-        const appt = conflictInfo.appointment_conflict;
-        return `與現有預約重疊：${appt.patient_name} | ${appt.start_time}-${appt.end_time} | ${appt.appointment_type}`;
-
-      case 'exception':
-        if (!conflictInfo.exception_conflict) return null;
-        const exc = conflictInfo.exception_conflict;
-        const reasonText = exc.reason ? ` (${exc.reason})` : '';
-        return `治療師休診：${exc.start_time}-${exc.end_time}${reasonText}`;
-
-      case 'availability':
-        const normalHours = conflictInfo.default_availability?.normal_hours;
-        return normalHours
-          ? `非治療師正常時間（${normalHours}）`
-          : '非治療師正常時間（未設定可用時間）';
-
-      case 'practitioner_type_mismatch':
-        return '治療師不提供此類型';
-
-      default:
-        return null;
-    }
-  };
-
-  const warnings: string[] = [];
-
   // Show all conflicts by default, or filter if filterTypes is specified
   const shouldShowConflict = (conflictType: string) => {
     return !filterTypes || filterTypes.includes(conflictType);
   };
 
-  // Check for standard conflicts
-  ['past_appointment', 'appointment', 'exception', 'availability', 'practitioner_type_mismatch'].forEach(type => {
-    if (shouldShowConflict(type)) {
-      let isMatch = false;
-      if (type === 'past_appointment') isMatch = conflictInfo.conflict_type === 'past_appointment';
-      else if (type === 'appointment') isMatch = !!conflictInfo.appointment_conflict;
-      else if (type === 'exception') isMatch = !!conflictInfo.exception_conflict;
-      else if (type === 'availability') isMatch = conflictInfo.default_availability && !conflictInfo.default_availability.is_within_hours;
-      else if (type === 'practitioner_type_mismatch') isMatch = conflictInfo.conflict_type === 'practitioner_type_mismatch' || (conflictInfo as any).is_type_mismatch;
+  const standardWarnings: { title: string; items?: string[] }[] = [];
 
-      if (isMatch) {
-        const text = getWarningText(type);
-        if (text) warnings.push(text);
+  // 1. Time in past
+  if (shouldShowConflict('past_appointment') && conflictInfo.conflict_type === 'past_appointment') {
+    standardWarnings.push({ title: '時間在過去' });
+  }
+
+  // 2. Type mismatch
+  if (shouldShowConflict('practitioner_type_mismatch') && (conflictInfo.conflict_type === 'practitioner_type_mismatch' || conflictInfo.is_type_mismatch)) {
+    standardWarnings.push({ title: '治療師不提供此類型' });
+  }
+
+  // 3. Appointment conflicts
+  if (shouldShowConflict('appointment')) {
+    const appts = conflictInfo.appointment_conflicts || (conflictInfo.appointment_conflict ? [conflictInfo.appointment_conflict] : []);
+    if (appts.length > 1) {
+      standardWarnings.push({
+        title: '與現有預約重疊',
+        items: appts.map(appt => `${appt.patient_name} | ${appt.start_time}-${appt.end_time} | ${appt.appointment_type}`)
+      });
+    } else if (appts.length === 1) {
+      const appt = appts[0];
+      if (appt) {
+        standardWarnings.push({ title: `與現有預約重疊：${appt.patient_name} | ${appt.start_time}-${appt.end_time} | ${appt.appointment_type}` });
       }
     }
-  });
+  }
+
+  // 4. Exception conflicts
+  if (shouldShowConflict('exception')) {
+    const exceptions = conflictInfo.exception_conflicts || (conflictInfo.exception_conflict ? [conflictInfo.exception_conflict] : []);
+    if (exceptions.length > 1) {
+      standardWarnings.push({
+        title: '治療師休診',
+        items: exceptions.map(exc => exc ? `${exc.start_time}-${exc.end_time}${exc.reason ? ` (${exc.reason})` : ''}` : '')
+      });
+    } else if (exceptions.length === 1) {
+      const exc = exceptions[0];
+      if (exc) {
+        const reasonText = exc.reason ? ` (${exc.reason})` : '';
+        standardWarnings.push({ title: `治療師休診：${exc.start_time}-${exc.end_time}${reasonText}` });
+      }
+    }
+  }
+
+  // 5. Default availability
+  if (shouldShowConflict('availability') && conflictInfo.default_availability && !conflictInfo.default_availability.is_within_hours) {
+    const normalHours = conflictInfo.default_availability.normal_hours;
+    standardWarnings.push({
+      title: normalHours
+        ? `非治療師正常時間（${normalHours}）`
+        : '非治療師正常時間（未設定可用時間）'
+    });
+  }
 
   // Resource warnings (hierarchical)
   const resourceWarnings: string[] = [];
@@ -115,7 +121,7 @@ export const ConflictDisplay: React.FC<ConflictDisplayProps> = ({
     });
   }
 
-  if (warnings.length === 0 && resourceWarnings.length === 0) {
+  if (standardWarnings.length === 0 && resourceWarnings.length === 0) {
     return null;
   }
 
@@ -128,11 +134,23 @@ export const ConflictDisplay: React.FC<ConflictDisplayProps> = ({
       aria-label="預約警告"
     >
       <div className="text-amber-800 text-xs space-y-1">
-        {/* Standard Warnings */}
-        {warnings.map((warning, index) => (
-          <div key={index} className="flex items-start gap-1">
-            <span className="flex-shrink-0 leading-tight">•</span>
-            <span className="leading-tight">{warning}</span>
+        {/* Standard and Hierarchical Warnings */}
+        {standardWarnings.map((warning, index) => (
+          <div key={index} className="space-y-1">
+            <div className="flex items-start gap-1">
+              <span className="flex-shrink-0 leading-tight">•</span>
+              <span className={`leading-tight ${warning.items ? 'font-medium' : ''}`}>{warning.title}</span>
+            </div>
+            {warning.items && (
+              <div className="pl-4 space-y-1">
+                {warning.items.map((item, i) => (
+                  <div key={i} className="flex items-start gap-1">
+                    <span className="flex-shrink-0 leading-tight">•</span>
+                    <span className="leading-tight">{item}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         ))}
 
@@ -157,4 +175,3 @@ export const ConflictDisplay: React.FC<ConflictDisplayProps> = ({
     </div>
   );
 };
-

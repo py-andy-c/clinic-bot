@@ -3857,7 +3857,9 @@ export interface components {
       /** Conflict Type */
       conflict_type?: string | null;
       appointment_conflict?: components["schemas"]["AppointmentConflictDetail"] | null;
+      appointment_conflicts?: components["schemas"]["AppointmentConflictDetail"][] | null;
       exception_conflict?: components["schemas"]["ExceptionConflictDetail"] | null;
+      exception_conflicts?: components["schemas"]["ExceptionConflictDetail"][] | null;
       /** Selection Insufficient Warnings */
       selection_insufficient_warnings?: components["schemas"]["SelectionInsufficientWarning"][] | null;
       /** Resource Conflict Warnings */
@@ -3865,6 +3867,7 @@ export interface components {
       /** Unavailable Resource Ids */
       unavailable_resource_ids?: number[] | null;
       default_availability: components["schemas"]["DefaultAvailabilityInfo"];
+      is_type_mismatch?: boolean;
     };
     /**
      * ServiceTypeGroupBulkOrderRequest

@@ -1626,8 +1626,10 @@ class AvailabilityService:
         
         # Initialize conflict tracking
         past_appointment_conflict = False
-        appointment_conflict = None
-        exception_conflict = None
+        appointment_conflicts: List[Dict[str, Any]] = []
+        appointment_conflict: Optional[Dict[str, Any]] = None
+        exception_conflicts: List[Dict[str, Any]] = []
+        exception_conflict: Optional[Dict[str, Any]] = None
         is_within_hours = AvailabilityService.is_slot_within_default_intervals(
             default_intervals, start_time, end_time
         )
@@ -1668,14 +1670,16 @@ class AvailabilityService:
                     
                     # Note: appointment.calendar_event_id is the primary key of Appointment
                     # and represents the appointment ID used throughout the API
-                    appointment_conflict = {
+                    appointment_conflicts.append({
                         "appointment_id": appointment.calendar_event_id,
                         "patient_name": patient_name,
                         "start_time": AvailabilityService._format_time(event.start_time),
                         "end_time": AvailabilityService._format_time(event.end_time),
                         "appointment_type": appointment_type_name
-                    }
-                    break  # Only need first conflict of this type for display
+                    })
+
+        # Set first conflict for backward compatibility
+        appointment_conflict = appointment_conflicts[0] if appointment_conflicts else None
         
         # 2. Check for availability exception conflicts
         for event in events:
@@ -1688,13 +1692,15 @@ class AvailabilityService:
                 # Get exception reason if available (use custom_event_name as reason)
                 reason = event.custom_event_name if event.custom_event_name else None
                 
-                exception_conflict = {
+                exception_conflicts.append({
                     "exception_id": event.id,
                     "start_time": AvailabilityService._format_time(event.start_time),
                     "end_time": AvailabilityService._format_time(event.end_time),
                     "reason": reason
-                }
-                break  # Only need first conflict for display
+                })
+
+        # Set first conflict for backward compatibility
+        exception_conflict = exception_conflicts[0] if exception_conflicts else None
         
         # 3. Check for resource conflicts
         from services.resource_service import ResourceService
@@ -1744,7 +1750,9 @@ class AvailabilityService:
             "conflict_type": conflict_type,  # Highest priority for backward compatibility
             "is_type_mismatch": is_type_mismatch,
             "appointment_conflict": appointment_conflict,
+            "appointment_conflicts": appointment_conflicts,
             "exception_conflict": exception_conflict,
+            "exception_conflicts": exception_conflicts,
             "selection_insufficient_warnings": selection_insufficient_warnings,
             "resource_conflict_warnings": resource_conflict_warnings,
             "unavailable_resource_ids": unavailable_resource_ids,
@@ -1782,8 +1790,10 @@ class AvailabilityService:
 
         # Initialize conflict tracking
         past_appointment_conflict = False
-        appointment_conflict = None
-        exception_conflict = None
+        appointment_conflicts: List[Dict[str, Any]] = []
+        appointment_conflict: Optional[Dict[str, Any]] = None
+        exception_conflicts: List[Dict[str, Any]] = []
+        exception_conflict: Optional[Dict[str, Any]] = None
         is_within_hours = AvailabilityService.is_slot_within_default_intervals(
             default_intervals, start_time, end_time
         )
@@ -1817,14 +1827,16 @@ class AvailabilityService:
                     appointment_type_name = appointment.appointment_type.name if appointment.appointment_type else "未知"
                     patient_name = appointment.patient.full_name if appointment.patient else "未知"
 
-                    appointment_conflict = {
+                    appointment_conflicts.append({
                         "appointment_id": appointment.calendar_event_id,
                         "patient_name": patient_name,
                         "start_time": AvailabilityService._format_time(event.start_time),
                         "end_time": AvailabilityService._format_time(event.end_time),
                         "appointment_type": appointment_type_name
-                    }
-                    break  # Only need first conflict of this type for display
+                    })
+        
+        # Set first conflict for backward compatibility
+        appointment_conflict = appointment_conflicts[0] if appointment_conflicts else None
 
         # 2. Check for availability exception conflicts
         for event in events:
@@ -1837,13 +1849,15 @@ class AvailabilityService:
                 # Get exception reason if available (use custom_event_name as reason)
                 reason = event.custom_event_name if event.custom_event_name else None
 
-                exception_conflict = {
+                exception_conflicts.append({
                     "exception_id": event.id,
                     "start_time": AvailabilityService._format_time(event.start_time),
                     "end_time": AvailabilityService._format_time(event.end_time),
                     "reason": reason
-                }
-                break  # Only need first conflict for display
+                })
+
+        # Set first conflict for backward compatibility
+        exception_conflict = exception_conflicts[0] if exception_conflicts else None
 
         # 3. Check for resource conflicts
         from services.resource_service import ResourceService
@@ -1891,7 +1905,9 @@ class AvailabilityService:
             "has_conflict": has_conflict,
             "conflict_type": conflict_type,  # Highest priority for backward compatibility
             "appointment_conflict": appointment_conflict,
+            "appointment_conflicts": appointment_conflicts,
             "exception_conflict": exception_conflict,
+            "exception_conflicts": exception_conflicts,
             "selection_insufficient_warnings": selection_insufficient_warnings,
             "resource_conflict_warnings": resource_conflict_warnings,
             "unavailable_resource_ids": unavailable_resource_ids,

@@ -491,7 +491,9 @@ class SchedulingConflictResponse(BaseModel):
     has_conflict: bool
     conflict_type: Optional[str] = None  # "appointment" | "exception" | "availability" | "resource" | "practitioner_type_mismatch" | null
     appointment_conflict: Optional[AppointmentConflictDetail] = None
+    appointment_conflicts: Optional[List[AppointmentConflictDetail]] = None
     exception_conflict: Optional[ExceptionConflictDetail] = None
+    exception_conflicts: Optional[List[ExceptionConflictDetail]] = None
     selection_insufficient_warnings: Optional[List[SelectionInsufficientWarning]] = None
     resource_conflict_warnings: Optional[List[ResourceConflictWarning]] = None
     unavailable_resource_ids: Optional[List[int]] = None
@@ -505,7 +507,9 @@ class BatchSchedulingConflictResponse(BaseModel):
     has_conflict: bool
     conflict_type: Optional[str] = None  # "appointment" | "exception" | "availability" | "resource" | "practitioner_type_mismatch" | null
     appointment_conflict: Optional[AppointmentConflictDetail] = None
+    appointment_conflicts: Optional[List[AppointmentConflictDetail]] = None
     exception_conflict: Optional[ExceptionConflictDetail] = None
+    exception_conflicts: Optional[List[ExceptionConflictDetail]] = None
     selection_insufficient_warnings: Optional[List[SelectionInsufficientWarning]] = None
     resource_conflict_warnings: Optional[List[ResourceConflictWarning]] = None
     unavailable_resource_ids: Optional[List[int]] = None
