@@ -999,21 +999,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
           <label className="block text-sm font-medium text-gray-700 mb-1">
             治療師 <span className="text-red-500">*</span>
 
-            {hasPractitionerTypeMismatch && (
-              <span className="ml-2">
-                <ConflictIndicator
-                  compact
-                  conflictInfo={{
-                    has_conflict: true,
-                    conflict_type: 'practitioner_type_mismatch',
-                    appointment_conflict: null,
-                    exception_conflict: null,
-                    resource_conflicts: null,
-                    default_availability: { is_within_hours: true, normal_hours: null }
-                  }}
-                />
-              </span>
-            )}
+
             {validationErrors.practitioner && (
               <span className="ml-2 text-sm font-normal text-red-600">{validationErrors.practitioner}</span>
             )}
