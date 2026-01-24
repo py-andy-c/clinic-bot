@@ -562,8 +562,8 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
   const handleCollapsedClick = () => {
     if (!canExpand) {
       setShowLockedWarning(true);
-      // Auto-hide warning after 3 seconds
-      setTimeout(() => setShowLockedWarning(false), 3000);
+      // Auto-hide warning after 5 seconds
+      setTimeout(() => setShowLockedWarning(false), 5000);
       return;
     }
     setShowLockedWarning(false);
