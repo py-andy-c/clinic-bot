@@ -340,6 +340,8 @@ const RevenueDistributionPage: React.FC = () => {
         has_any_receipt: appointmentData.has_any_receipt,
         receipt_id: appointmentData.receipt_id || null,
         receipt_ids: appointmentData.receipt_ids || EMPTY_ARRAY,
+        resource_ids: appointmentData.resource_ids || EMPTY_ARRAY,
+        resource_names: appointmentData.resource_names || EMPTY_ARRAY,
       };
 
       // Only include optional fields if they have values

@@ -383,8 +383,8 @@ const PatientsPage: React.FC = () => {
                             }`}
                         >
                           <td className={`px-2 py-2 md:px-6 md:py-4 sticky left-0 z-10 transition-colors ${highlightedPatientId === patient.id.toString()
-                              ? 'bg-blue-50 group-hover:bg-blue-50'
-                              : 'bg-white group-hover:bg-gray-50'
+                            ? 'bg-blue-50 group-hover:bg-blue-50'
+                            : 'bg-white group-hover:bg-gray-50'
                             }`} style={{ minWidth: '80px' }}>
                             <div className="flex items-center gap-1 md:gap-2">
                               <span className="text-sm font-medium text-blue-600 hover:text-blue-800 truncate max-w-[60px] md:max-w-none">
@@ -512,6 +512,7 @@ const PatientsPage: React.FC = () => {
                 date,
                 startTime,
                 patientId: formData.patient_id,
+                ...(formData.selected_resource_ids && { selectedResourceIds: formData.selected_resource_ids }),
                 ...(formData.clinic_notes && { clinicNotes: formData.clinic_notes }),
               });
               setIsAppointmentModalOpen(false);

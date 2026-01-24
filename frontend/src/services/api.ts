@@ -601,6 +601,8 @@ export class ApiService {
     has_any_receipt: boolean;
     receipt_id?: number | null;
     receipt_ids: number[];
+    resource_ids: number[];
+    resource_names: string[];
   }> {
     const response = await this.client.get(`/clinic/appointments/${appointmentId}`);
     return response.data;

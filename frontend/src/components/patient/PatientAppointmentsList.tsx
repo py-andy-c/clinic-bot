@@ -420,6 +420,7 @@ export const PatientAppointmentsList: React.FC<
     practitioner_id: number;
     start_time: string;
     clinic_notes?: string;
+    selected_resource_ids?: number[];
   }) => {
     try {
       const { date, startTime } = extractAppointmentDateTime(formData.start_time);
@@ -429,6 +430,7 @@ export const PatientAppointmentsList: React.FC<
         date,
         startTime,
         patientId: formData.patient_id,
+        ...(formData.selected_resource_ids && { selectedResourceIds: formData.selected_resource_ids }),
         ...(formData.clinic_notes && { clinicNotes: formData.clinic_notes }),
       });
 

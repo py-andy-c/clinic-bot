@@ -200,6 +200,7 @@ const PatientDetailPage: React.FC = () => {
                 date,
                 startTime,
                 patientId: formData.patient_id,
+                ...(formData.selected_resource_ids && { selectedResourceIds: formData.selected_resource_ids }),
                 ...(formData.clinic_notes && { clinicNotes: formData.clinic_notes }),
               });
               setIsAppointmentModalOpen(false);
