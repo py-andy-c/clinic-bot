@@ -22,35 +22,28 @@ import { useBatchAvailabilitySlots } from '../../hooks/queries/useAvailabilitySl
 import moment from 'moment-timezone';
 
 export interface DateTimePickerProps {
+  // ... existing props
   selectedDate: string | null;
   selectedTime: string;
   selectedPractitionerId: number | null;
   appointmentTypeId: number | null;
   onDateSelect: (date: string | null) => void;
   onTimeSelect: (time: string) => void;
-  // Optional: exclude this calendar event ID from conflict checking (for appointment editing)
   excludeCalendarEventId?: number | null;
   error?: string | null;
-  // Optional: notify parent when the current date has any available slots
   onHasAvailableSlotsChange?: (hasSlots: boolean) => void;
-  // Optional: notify parent when practitioner doesn't offer appointment type (404 error)
   onPractitionerError?: (errorMessage: string) => void;
-  // Optional: force clear cache when practitioner error is detected
   practitionerError?: string | null;
-  // Optional: enable override mode toggle
   allowOverride?: boolean;
-  // Optional: callback when override mode changes
   onOverrideChange?: (enabled: boolean) => void;
-  // Optional: force override mode state from parent
   isOverrideMode?: boolean;
-  // Optional: alternative time slots to highlight (for pending appointment review)
   alternativeSlots?: string[];
-  // Optional: initial expanded state
   initialExpanded?: boolean;
-
-  // Optional: control whether the picker can be expanded (requires practitioner + appointmentType)
   canExpand?: boolean;
+  requiredError?: string | null; // New optional prop for required validation error
 }
+
+// ... component definition ...
 
 const dayNames = ['日', '一', '二', '三', '四', '五', '六'];
 
@@ -71,8 +64,8 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
   isOverrideMode: parentOverrideMode,
   alternativeSlots,
   initialExpanded = false,
-
   canExpand = true,
+  requiredError,
 }) => {
   const [isExpanded, setIsExpanded] = useState(initialExpanded);
   const pickerRef = useRef<HTMLDivElement>(null);
@@ -609,7 +602,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
           日期與時間 <span className="text-red-500">*</span>
-
+          {requiredError && <span className="ml-2 text-sm font-normal text-red-600">{requiredError}</span>}
         </label>
         <button
           type="button"
@@ -651,7 +644,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
     <div ref={pickerRef}>
       <label className="block text-sm font-medium text-gray-700 mb-1">
         日期與時間 <span className="text-red-500">*</span>
-
+        {requiredError && <span className="ml-2 text-sm font-normal text-red-600">{requiredError}</span>}
       </label>
       <div className="space-y-4 mt-2">
         {/* Calendar View */}

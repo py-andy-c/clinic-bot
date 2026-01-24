@@ -248,12 +248,21 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
 
   // Update single appointment conflict state from hook result
   useEffect(() => {
-    if (singlePractitionerConflictsQuery?.data) {
+    if (hasPractitionerTypeMismatch) {
+      setSingleAppointmentConflict({
+        has_conflict: true,
+        conflict_type: 'practitioner_type_mismatch',
+        appointment_conflict: null,
+        exception_conflict: null,
+        resource_conflicts: null,
+        default_availability: { is_within_hours: true, normal_hours: null }
+      });
+    } else if (singlePractitionerConflictsQuery?.data) {
       setSingleAppointmentConflict(singlePractitionerConflictsQuery.data.has_conflict ? singlePractitionerConflictsQuery.data : null);
     } else {
       setSingleAppointmentConflict(null);
     }
-  }, [singlePractitionerConflictsQuery?.data]);
+  }, [singlePractitionerConflictsQuery?.data, hasPractitionerTypeMismatch]);
 
   // Try to get patient data from sessionStorage if preSelectedPatientId is set
   const [preSelectedPatientData, setPreSelectedPatientData] = useState<Patient | null>(() => {
@@ -327,6 +336,9 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
 
     return fullConflicts;
   }, [practitionerConflictsQuery?.data?.results, availablePractitioners, initialPractitioners, selectedAppointmentTypeId]);
+
+  // Validation state
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
 
   // Compute appointment types offered by the selected practitioner
   const practitionerAppointmentTypeIds = useMemo(() => {
@@ -531,20 +543,70 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
     }
   }, [step]);
 
+  // Clear validation errors when fields are selected
+  useEffect(() => {
+    if (selectedPatientId) {
+      setValidationErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors.patient;
+        return newErrors;
+      });
+    }
+  }, [selectedPatientId]);
+
+  useEffect(() => {
+    if (selectedAppointmentTypeId) {
+      setValidationErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors.appointmentType;
+        return newErrors;
+      });
+    }
+  }, [selectedAppointmentTypeId]);
+
+  useEffect(() => {
+    if (selectedPractitionerId) {
+      setValidationErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors.practitioner;
+        return newErrors;
+      });
+    }
+  }, [selectedPractitionerId]);
+
+  useEffect(() => {
+    if (selectedDate && selectedTime) {
+      setValidationErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors.dateTime;
+        return newErrors;
+      });
+    }
+  }, [selectedDate, selectedTime]);
+
   const handleFormSubmit = async () => {
-    if (!isValid) {
-      if (!selectedPatientId) setError('請選擇病患');
-      else if (!selectedAppointmentTypeId) setError('請選擇預約類型');
-      else if (!selectedPractitionerId) setError('請選擇治療師');
-      else if (!selectedDate || !selectedTime) setError('請選擇日期與時間');
+    // Check all missing fields
+    const newValidationErrors: Record<string, string> = {};
+    if (!selectedPatientId) newValidationErrors.patient = '必填';
+    if (!selectedAppointmentTypeId) newValidationErrors.appointmentType = '必填';
+    if (!selectedPractitionerId) newValidationErrors.practitioner = '必填';
+    if (!selectedDate || !selectedTime) newValidationErrors.dateTime = '必填';
+
+    if (recurrenceEnabled) {
+      if (!occurrenceCount || occurrenceCount < 1) {
+        newValidationErrors.recurrenceCount = '必填';
+      }
+    }
+
+    if (Object.keys(newValidationErrors).length > 0) {
+      setValidationErrors(newValidationErrors);
       return;
     }
 
     if (recurrenceEnabled) {
-      if (!occurrenceCount || occurrenceCount < 1) {
-        setError('請輸入預約次數');
-        return;
-      }
+      // Should effectively be caught by validation above, but satisfy TS
+      if (!occurrenceCount) return;
+
       if (occurrenceCount > 50) {
         setError('最多只能建立50個預約');
         return;
@@ -832,6 +894,9 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
             病患 <span className="text-red-500">*</span>
+            {validationErrors.patient && (
+              <span className="ml-2 text-sm font-normal text-red-600">{validationErrors.patient}</span>
+            )}
           </label>
           <div className="flex items-center gap-2" data-testid="patient-selector">
             <div className="flex-1">
@@ -899,6 +964,9 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               預約類型 <span className="text-red-500">*</span>
+              {validationErrors.appointmentType && (
+                <span className="ml-2 text-sm font-normal text-red-600">{validationErrors.appointmentType}</span>
+              )}
             </label>
             <button
               type="button"
@@ -916,11 +984,14 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
             </button>
           </div>
         ) : (
-          <AppointmentTypeSelector
-            value={selectedAppointmentTypeId}
-            options={appointmentTypes}
-            onChange={setSelectedAppointmentTypeId}
-          />
+          <div>
+            <AppointmentTypeSelector
+              value={selectedAppointmentTypeId}
+              options={appointmentTypes}
+              onChange={setSelectedAppointmentTypeId}
+              requiredError={validationErrors.appointmentType || undefined}
+            />
+          </div>
         )}
 
         {/* Practitioner Selection Button */}
@@ -942,6 +1013,9 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
                   }}
                 />
               </span>
+            )}
+            {validationErrors.practitioner && (
+              <span className="ml-2 text-sm font-normal text-red-600">{validationErrors.practitioner}</span>
             )}
           </label>
           <button
@@ -997,19 +1071,22 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
 
         <AppointmentReferenceHeader referenceDateTime={referenceDateTime} />
 
-        <DateTimePicker
-          selectedDate={selectedDate}
-          selectedTime={selectedTime}
-          selectedPractitionerId={selectedPractitionerId}
-          appointmentTypeId={selectedAppointmentTypeId}
-          onDateSelect={handleDateSelect}
-          onTimeSelect={setSelectedTime}
-          error={error}
-          allowOverride={true}
-          initialExpanded={false}
+        <div>
+          <DateTimePicker
+            selectedDate={selectedDate}
+            selectedTime={selectedTime}
+            selectedPractitionerId={selectedPractitionerId}
+            appointmentTypeId={selectedAppointmentTypeId}
+            onDateSelect={handleDateSelect}
+            onTimeSelect={setSelectedTime}
+            error={error && error.includes('衝突') ? error : null}
+            requiredError={validationErrors.dateTime || null}
+            allowOverride={true}
+            initialExpanded={false}
 
-          canExpand={!!selectedPractitionerId && !!selectedAppointmentTypeId}
-        />
+            canExpand={!!selectedPractitionerId && !!selectedAppointmentTypeId}
+          />
+        </div>
 
         {/* Recurrence Toggle */}
         <div className="flex items-center gap-4">
@@ -1024,7 +1101,11 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
                 setWeeksInterval(1);
                 setOccurrenceCount(null);
                 setHasVisitedConflictResolution(false);
+              } else {
+                setOccurrenceCount(1);
               }
+              // Clear validation errors when toggling recurrence
+              setValidationErrors({});
             }}
             aria-pressed={recurrenceEnabled}
             className={
@@ -1058,14 +1139,24 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
                   const value = e.target.value ? parseInt(e.target.value) : null;
                   if (value !== null) {
                     setOccurrenceCount(Math.max(1, Math.min(50, value)));
+                    // Clear error on change
+                    setValidationErrors(prev => {
+                      const newErrors = { ...prev };
+                      delete newErrors.recurrenceCount;
+                      return newErrors;
+                    });
                   } else {
                     setOccurrenceCount(null);
                   }
                 }}
                 onWheel={preventScrollWheelChange}
-                className="w-16 border border-gray-300 rounded-md px-2 py-1 text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className={`w-16 border rounded-md px-2 py-1 text-center focus:outline-none focus:ring-2 focus:ring-blue-500 ${validationErrors.recurrenceCount ? 'border-red-300 ring-1 ring-red-500' : 'border-gray-300'
+                  }`}
               />
               <label className="text-sm font-medium text-gray-700 whitespace-nowrap">次</label>
+              {validationErrors.recurrenceCount && (
+                <span className="text-sm font-normal text-red-600 ml-1">{validationErrors.recurrenceCount}</span>
+              )}
             </div>
           )}
         </div>
@@ -1109,8 +1200,8 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
       <ConflictWarningButton conflictInfo={singleAppointmentConflict} />
       <button
         onClick={handleFormSubmit}
-        disabled={!isValid || isCheckingConflicts || (recurrenceEnabled && (!occurrenceCount || occurrenceCount < 1)) || isInitialLoading}
-        className={`btn-primary ${(!isValid || isCheckingConflicts || (recurrenceEnabled && (!occurrenceCount || occurrenceCount < 1)) || isInitialLoading)
+        disabled={isCheckingConflicts || isInitialLoading}
+        className={`btn-primary ${(isCheckingConflicts || isInitialLoading)
           ? 'opacity-50 cursor-not-allowed'
           : ''
           }`}
@@ -1514,11 +1605,6 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
             <h3 className="text-base font-semibold text-blue-800">{modalTitle}</h3>
           </div>
 
-          {error && step === 'form' && (!selectedAppointmentTypeId || !selectedPractitionerId) && (
-            <div className="mb-4 bg-red-50 border border-red-200 rounded-md p-3 flex-shrink-0">
-              <p className="text-sm text-red-800">{error}</p>
-            </div>
-          )}
           {error && step !== 'form' && (
             <div className="mb-4 bg-red-50 border border-red-200 rounded-md p-3 flex-shrink-0">
               <p className="text-sm text-red-800">{error}</p>
