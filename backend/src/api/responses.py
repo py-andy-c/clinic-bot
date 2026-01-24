@@ -489,23 +489,25 @@ class DefaultAvailabilityInfo(BaseModel):
 class SchedulingConflictResponse(BaseModel):
     """Response model for scheduling conflict detection."""
     has_conflict: bool
-    conflict_type: Optional[str] = None  # "appointment" | "exception" | "availability" | "resource" | null
+    conflict_type: Optional[str] = None  # "appointment" | "exception" | "availability" | "resource" | "practitioner_type_mismatch" | null
     appointment_conflict: Optional[AppointmentConflictDetail] = None
     exception_conflict: Optional[ExceptionConflictDetail] = None
     selection_insufficient_warnings: Optional[List[SelectionInsufficientWarning]] = None
     resource_conflict_warnings: Optional[List[ResourceConflictWarning]] = None
     unavailable_resource_ids: Optional[List[int]] = None
     default_availability: DefaultAvailabilityInfo
+    is_type_mismatch: bool = False  # True if practitioner does not offer this appointment type
 
 
 class BatchSchedulingConflictResponse(BaseModel):
     """Response model for batch scheduling conflict detection."""
     practitioner_id: int
     has_conflict: bool
-    conflict_type: Optional[str] = None  # "appointment" | "exception" | "availability" | "resource" | null
+    conflict_type: Optional[str] = None  # "appointment" | "exception" | "availability" | "resource" | "practitioner_type_mismatch" | null
     appointment_conflict: Optional[AppointmentConflictDetail] = None
     exception_conflict: Optional[ExceptionConflictDetail] = None
     selection_insufficient_warnings: Optional[List[SelectionInsufficientWarning]] = None
     resource_conflict_warnings: Optional[List[ResourceConflictWarning]] = None
     unavailable_resource_ids: Optional[List[int]] = None
     default_availability: DefaultAvailabilityInfo
+    is_type_mismatch: bool = False  # True if practitioner does not offer this appointment type

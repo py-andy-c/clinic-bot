@@ -494,25 +494,74 @@ class TestBatchSchedulingConflicts:
                     }
                 }
 
-                result = AvailabilityService.check_batch_scheduling_conflicts(
-                    db=db_session,
-                    practitioners=[{"user_id": 1, "exclude_calendar_event_id": None}],
-                    date=date.today(),
-                    start_time=time(10, 0),
-                    appointment_type_id=1,
-                    clinic_id=1
-                )
+                # Mock get_practitioners_for_appointment_type
+                with patch.object(AvailabilityService, 'get_practitioners_for_appointment_type') as mock_get_practitioners:
+                    mock_practitioner = Mock()
+                    mock_practitioner.id = 1
+                    mock_get_practitioners.return_value = [mock_practitioner]
 
-                # Verify fetch_practitioner_schedule_data was called with correct params
-                mock_fetch.assert_called_once_with(
-                    db=db_session,
-                    practitioner_ids=[1],
-                    date=date.today(),
-                    clinic_id=1,
-                    exclude_calendar_event_id=None
-                )
+                    result = AvailabilityService.check_batch_scheduling_conflicts(
+                        db=db_session,
+                        practitioners=[{"user_id": 1, "exclude_calendar_event_id": None}],
+                        date=date.today(),
+                        start_time=time(10, 0),
+                        appointment_type_id=1,
+                        clinic_id=1
+                    )
 
-                assert isinstance(result, list)
-                assert len(result) == 1
-                assert result[0]["practitioner_id"] == 1
+                    # Verify fetch_practitioner_schedule_data was called with correct params
+                    mock_fetch.assert_called_once_with(
+                        db=db_session,
+                        practitioner_ids=[1],
+                        date=date.today(),
+                        clinic_id=1,
+                        exclude_calendar_event_id=None
+                    )
+
+                    assert isinstance(result, list)
+                    assert len(result) == 1
+                    assert result[0]["practitioner_id"] == 1
+
+    def test_batch_conflicts_practitioner_type_mismatch(self, db_session):
+        """Test batch conflicts when practitioner does not offer appointment type."""
+        from unittest.mock import patch, Mock
+        from datetime import date, time, timedelta
+
+        # Mock appointment type
+        mock_appointment_type = Mock()
+        mock_appointment_type.id = 1
+        mock_appointment_type.duration_minutes = 30
+        mock_appointment_type.scheduling_buffer_minutes = 0
+
+        # Mock the appointment type service
+        with patch('services.appointment_type_service.AppointmentTypeService.get_appointment_type_by_id') as mock_get_type:
+            mock_get_type.return_value = mock_appointment_type
+
+            # Mock schedule data (empty, so no other conflicts)
+            with patch.object(AvailabilityService, 'fetch_practitioner_schedule_data') as mock_fetch:
+                mock_fetch.return_value = {
+                    1: {'default_intervals': [], 'events': []}
+                }
+
+                # Mock get_practitioners_for_appointment_type to return NO practitioners (or just not this one)
+                with patch.object(AvailabilityService, 'get_practitioners_for_appointment_type') as mock_get_practitioners:
+                    mock_get_practitioners.return_value = []
+                    
+                    # Use tomorrow to avoid past_appointment conflict
+                    future_date = date.today() + timedelta(days=1)
+
+                    result = AvailabilityService.check_batch_scheduling_conflicts(
+                        db=db_session,
+                        practitioners=[{"user_id": 1}],
+                        date=future_date,
+                        start_time=time(10, 0),
+                        appointment_type_id=1,
+                        clinic_id=1
+                    )
+
+                    assert len(result) == 1
+                    assert result[0]["practitioner_id"] == 1
+                    assert result[0]["has_conflict"] is True
+                    assert result[0]["is_type_mismatch"] is True
+                    assert result[0]["conflict_type"] == "practitioner_type_mismatch"
 

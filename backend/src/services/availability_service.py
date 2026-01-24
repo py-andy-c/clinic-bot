@@ -1632,6 +1632,11 @@ class AvailabilityService:
             default_intervals, start_time, end_time
         )
         normal_hours = AvailabilityService._format_normal_hours(date, default_intervals)
+
+        # Check if practitioner offers this appointment type
+        is_type_mismatch = not AvailabilityService.validate_practitioner_offers_appointment_type(
+            db, practitioner_id, appointment_type_id, clinic_id
+        )
         
         # 0. Check if appointment is in the past (highest priority, only for clinic users)
         if check_past_appointment:
@@ -1713,6 +1718,8 @@ class AvailabilityService:
         conflict_type = None
         if past_appointment_conflict:
             conflict_type = "past_appointment"
+        elif is_type_mismatch:
+            conflict_type = "practitioner_type_mismatch"
         elif appointment_conflict:
             conflict_type = "appointment"
         elif exception_conflict:
@@ -1725,6 +1732,7 @@ class AvailabilityService:
         # Return all conflicts found
         has_conflict = (
             past_appointment_conflict or
+            is_type_mismatch or
             appointment_conflict is not None or
             exception_conflict is not None or
             not is_within_hours or
@@ -1734,6 +1742,7 @@ class AvailabilityService:
         return {
             "has_conflict": has_conflict,
             "conflict_type": conflict_type,  # Highest priority for backward compatibility
+            "is_type_mismatch": is_type_mismatch,
             "appointment_conflict": appointment_conflict,
             "exception_conflict": exception_conflict,
             "selection_insufficient_warnings": selection_insufficient_warnings,
@@ -1942,6 +1951,12 @@ class AvailabilityService:
             db, appointment_type_id, clinic_id
         )
 
+        # Get allowed practitioners for this appointment type
+        allowed_practitioners = AvailabilityService.get_practitioners_for_appointment_type(
+            db, appointment_type_id, clinic_id
+        )
+        allowed_practitioner_ids = {p.id for p in allowed_practitioners}
+
         # Fetch schedule data for all practitioners in batch (~2 queries total)
         schedule_data = AvailabilityService.fetch_practitioner_schedule_data(
             db=db,
@@ -2011,6 +2026,18 @@ class AvailabilityService:
                 check_past_appointment=True,  # Check past appointments for consistency with single API
                 exclude_calendar_event_id=exclude_calendar_event_id
             )
+
+            # Check if practitioner offers this appointment type
+            if practitioner_id not in allowed_practitioner_ids:
+                conflict_result["has_conflict"] = True
+                conflict_result["is_type_mismatch"] = True
+                # Override conflict_type if not already set or set to lower priority
+                # Priority: past_appointment > practitioner_type_mismatch > appointment > exception > availability > resource
+                current_type = conflict_result.get("conflict_type")
+                if current_type != "past_appointment":
+                    conflict_result["conflict_type"] = "practitioner_type_mismatch"
+            else:
+                conflict_result["is_type_mismatch"] = False
 
             # Add practitioner_id to result
             conflict_result["practitioner_id"] = practitioner_id
