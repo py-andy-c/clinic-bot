@@ -393,8 +393,8 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
                         <button
                           onClick={() => setOpenDropdowns(prev =>
                             prev.includes(group.name)
-                              ? prev.filter(n => n !== group.name)
-                              : [...prev, group.name]
+                              ? []
+                              : [group.name]
                           )}
                           className={`${groupIsActive
                             ? 'border-primary-500 text-gray-900'
