@@ -7,6 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import { apiService } from '../../services/api';
 import { ResourceAvailabilityResponse } from '../../types';
 import moment from 'moment-timezone';
+import { useAuth } from '../useAuth';
 
 export interface UseResourceAvailabilityParams {
   appointmentTypeId: number;
@@ -29,9 +30,13 @@ export const useResourceAvailability = ({
   durationMinutes,
   excludeCalendarEventId,
 }: UseResourceAvailabilityParams) => {
+  const { user } = useAuth();
+  const activeClinicId = user?.active_clinic_id;
+
   return useQuery({
     queryKey: [
       'resource-availability',
+      activeClinicId,
       appointmentTypeId,
       practitionerId,
       date,
@@ -39,6 +44,7 @@ export const useResourceAvailability = ({
       durationMinutes,
       excludeCalendarEventId
     ],
+
     queryFn: async (): Promise<ResourceAvailabilityResponse> => {
       // Calculate end time from start time and duration
       const startMoment = moment.tz(`${date}T${startTime}`, 'Asia/Taipei');

@@ -73,6 +73,7 @@ describe('useAvailabilitySlots', () => {
     });
 
     expect(result.current.data).toEqual(mockSlots);
+    expect(result.current.data).toEqual(mockSlots);
     expect(apiService.getAvailableSlots).toHaveBeenCalledWith(1, '2024-01-01', 2, 3);
   });
 
@@ -206,7 +207,7 @@ describe('useCreateAppointmentOptimistic', () => {
     ];
 
     // Set up initial cache state
-    queryClient.setQueryData(['availability-slots', 1, 2, '2024-01-01'], initialSlots);
+    queryClient.setQueryData(['availability-slots', 1, 1, 2, '2024-01-01', undefined], initialSlots);
 
     vi.mocked(apiService.createClinicAppointment).mockResolvedValue(mockAppointment);
 
@@ -228,7 +229,7 @@ describe('useCreateAppointmentOptimistic', () => {
     });
 
     // Check that the slot was optimistically removed
-    const cachedSlots = queryClient.getQueryData(['availability-slots', 1, 2, '2024-01-01']);
+    const cachedSlots = queryClient.getQueryData(['availability-slots', 1, 1, 2, '2024-01-01', undefined]);
     expect(cachedSlots).toEqual(expectedSlotsAfterOptimistic);
 
     expect(apiService.createClinicAppointment).toHaveBeenCalledWith({
@@ -247,7 +248,7 @@ describe('useCreateAppointmentOptimistic', () => {
     ];
 
     // Set up initial cache state
-    queryClient.setQueryData(['availability-slots', 1, 2, '2024-01-01'], initialSlots);
+    queryClient.setQueryData(['availability-slots', 1, 1, 2, '2024-01-01', undefined], initialSlots);
 
     vi.mocked(apiService.createClinicAppointment).mockRejectedValue(new Error('API Error'));
 
@@ -269,7 +270,7 @@ describe('useCreateAppointmentOptimistic', () => {
     });
 
     // Check that the slots were rolled back
-    const cachedSlots = queryClient.getQueryData(['availability-slots', 1, 2, '2024-01-01']);
+    const cachedSlots = queryClient.getQueryData(['availability-slots', 1, 1, 2, '2024-01-01', undefined]);
     expect(cachedSlots).toEqual(initialSlots);
   });
 
@@ -316,7 +317,7 @@ describe('useCreateAppointmentOptimistic', () => {
     ];
 
     // Set up initial cache state
-    queryClient.setQueryData(['availability-slots', 1, 2, '2024-01-01'], initialSlots);
+    queryClient.setQueryData(['availability-slots', 1, 1, 2, '2024-01-01', undefined], initialSlots);
 
     vi.mocked(apiService.createClinicAppointment)
       .mockResolvedValueOnce(mockAppointment1)
@@ -370,7 +371,8 @@ describe('useCreateAppointmentOptimistic', () => {
     ];
 
     // Set up initial cache state
-    queryClient.setQueryData(['availability-slots', 1, 2, '2024-01-01'], initialSlots);
+    // Set up initial cache state
+    queryClient.setQueryData(['availability-slots', 1, 1, 2, '2024-01-01', undefined], initialSlots);
 
     // Mock network failure
     vi.mocked(apiService.createClinicAppointment).mockRejectedValue(new Error('Network error'));
@@ -393,7 +395,7 @@ describe('useCreateAppointmentOptimistic', () => {
     });
 
     // Verify rollback occurred - slots should be restored
-    const cachedSlots = queryClient.getQueryData(['availability-slots', 1, 2, '2024-01-01']);
+    const cachedSlots = queryClient.getQueryData(['availability-slots', 1, 1, 2, '2024-01-01', undefined]);
     expect(cachedSlots).toEqual(initialSlots);
   });
 
@@ -404,8 +406,9 @@ describe('useCreateAppointmentOptimistic', () => {
     ];
 
     // Set up cache entries with different excludeCalendarEventId values
-    queryClient.setQueryData(['availability-slots', 1, 2, '2024-01-01'], initialSlots);
-    queryClient.setQueryData(['availability-slots', 1, 2, '2024-01-01', 5], initialSlots);
+    // Set up cache entries with different excludeCalendarEventId values
+    queryClient.setQueryData(['availability-slots', 1, 1, 2, '2024-01-01', undefined], initialSlots);
+    queryClient.setQueryData(['availability-slots', 1, 1, 2, '2024-01-01', 5], initialSlots);
 
     vi.mocked(apiService.createClinicAppointment).mockResolvedValue(mockAppointment);
 
@@ -435,8 +438,8 @@ describe('useCreateAppointmentOptimistic', () => {
     const relevantQueries = allQueries.filter(query => {
       const key = query.queryKey as (string | number)[];
       return key.length >= 4 &&
-             key[0] === 'availability-slots' &&
-             key[1] === 1 && key[2] === 2 && key[3] === '2024-01-01';
+        key[0] === 'availability-slots' &&
+        key[1] === 1 && key[2] === 1 && key[3] === 2 && key[4] === '2024-01-01';
     });
 
     // Should have found our test queries

@@ -150,9 +150,11 @@ const GlobalWarnings: React.FC = () => {
 
     // Only refresh if navigating away from settings pages
     if (previousPathname && isSettingsPage(previousPathname) && !isSettingsPage(currentPathname)) {
+      const activeClinicId = user?.active_clinic_id;
+
       // Invalidate cache to ensure fresh data after settings changes
-      queryClient.invalidateQueries({ queryKey: ['clinic-settings'] });
-      queryClient.invalidateQueries({ queryKey: ['members'] });
+      queryClient.invalidateQueries({ queryKey: ['clinicSettings', activeClinicId] });
+      queryClient.invalidateQueries({ queryKey: ['members', activeClinicId] });
 
       // Also invalidate practitioner status caches
       queryClient.invalidateQueries({ queryKey: ['practitioner-status'] });

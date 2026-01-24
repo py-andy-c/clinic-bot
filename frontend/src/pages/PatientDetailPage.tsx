@@ -11,6 +11,7 @@ import { getErrorMessage } from '../types/api';
 import { useModal } from '../contexts/ModalContext';
 import { extractAppointmentDateTime } from '../utils/timezoneUtils';
 import { EMPTY_ARRAY } from '../utils/constants';
+import { invalidatePatientDetail, invalidatePatientAppointments } from '../utils/reactQueryInvalidation';
 import PageHeader from '../components/PageHeader';
 import { PatientInfoSection } from '../components/patient/PatientInfoSection';
 import { PatientNotesSection } from '../components/patient/PatientNotesSection';
@@ -21,7 +22,8 @@ import { CreateAppointmentModal } from '../components/calendar/CreateAppointment
 const PatientDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { hasRole } = useAuth();
+  const { hasRole, user } = useAuth();
+  const activeClinicId = user?.active_clinic_id;
   const { alert } = useModal();
   const queryClient = useQueryClient();
   const [isEditing, setIsEditing] = useState(false);
@@ -69,7 +71,7 @@ const PatientDetailPage: React.FC = () => {
       await apiService.updatePatient(patientId, data);
 
       // Invalidate cache to ensure future fetches get fresh data
-      queryClient.invalidateQueries({ queryKey: ['patient', patientId] });
+      invalidatePatientDetail(queryClient, activeClinicId, patientId);
 
       setIsEditing(false);
       setIsEditingNotes(false);
@@ -216,7 +218,9 @@ const PatientDetailPage: React.FC = () => {
           }}
           onRecurringAppointmentsCreated={async () => {
             // Invalidate appointments cache to refresh the list
-            queryClient.invalidateQueries({ queryKey: ['patient-appointments', patientId] });
+            if (activeClinicId) {
+              invalidatePatientAppointments(queryClient, activeClinicId, patientId);
+            }
 
             // Trigger refetch of appointments list if available
             if (appointmentsListRefetchRef.current) {

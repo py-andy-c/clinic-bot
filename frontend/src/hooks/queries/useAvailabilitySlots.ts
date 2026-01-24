@@ -7,6 +7,7 @@ import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { apiService } from '../../services/api';
 import { useAuth } from '../useAuth';
 import { invalidateCalendarEventsForAppointment } from './useCalendarEvents';
+import { invalidatePatientAppointments } from '../../utils/reactQueryInvalidation';
 import { TimeInterval } from '../../types';
 import type { AxiosError } from 'axios';
 
@@ -27,8 +28,11 @@ export const useAvailabilitySlots = ({
   date,
   excludeCalendarEventId,
 }: UseAvailabilitySlotsParams) => {
+  const { user } = useAuth();
+  const activeClinicId = user?.active_clinic_id;
+
   return useQuery({
-    queryKey: ['availability-slots', practitionerId, appointmentTypeId, date, excludeCalendarEventId],
+    queryKey: ['availability-slots', activeClinicId, practitionerId, appointmentTypeId, date, excludeCalendarEventId],
     queryFn: async (): Promise<TimeInterval[]> => {
       try {
         const response = await apiService.getAvailableSlots(
@@ -72,8 +76,11 @@ export const useBatchAvailabilitySlots = ({
   excludeCalendarEventId?: number | undefined;
   enabled?: boolean;
 }) => {
+  const { user } = useAuth();
+  const activeClinicId = user?.active_clinic_id;
+
   return useQuery({
-    queryKey: ['batch-availability-slots', practitionerId, appointmentTypeId, dates.sort().join(','), excludeCalendarEventId],
+    queryKey: ['batch-availability-slots', activeClinicId, practitionerId, appointmentTypeId, dates.sort().join(','), excludeCalendarEventId],
     queryFn: async (): Promise<Record<string, TimeInterval[]>> => {
       if (dates.length === 0) return {};
 
@@ -145,26 +152,29 @@ export const useCreateAppointmentOptimistic = () => {
       // Cancel any ongoing queries for this practitioner/type/date combination
       await queryClient.cancelQueries({
         predicate: (query) => {
-          const queryKey = query.queryKey as (string | number)[];
-          return queryKey.length >= 4 &&
-            queryKey[0] === 'availability-slots' &&
-            queryKey[1] === params.practitionerId &&
-            queryKey[2] === params.appointmentTypeId &&
-            queryKey[3] === params.date;
+          const queryKey = query.queryKey as (string | number | undefined)[];
+          return queryKey[0] === 'availability-slots' &&
+            queryKey[1] === activeClinicId &&
+            queryKey[2] === params.practitionerId &&
+            queryKey[3] === params.appointmentTypeId &&
+            queryKey[4] === params.date;
         }
       });
+
 
       // Get current slot data
       const previousSlots = queryClient.getQueryData<TimeInterval[]>([
         'availability-slots',
+        activeClinicId,
         params.practitionerId,
         params.appointmentTypeId,
-        params.date
+        params.date,
+        undefined
       ]);
 
       // Mark the specific time slot as unavailable immediately
       queryClient.setQueryData<TimeInterval[]>(
-        ['availability-slots', params.practitionerId, params.appointmentTypeId, params.date],
+        ['availability-slots', activeClinicId, params.practitionerId, params.appointmentTypeId, params.date, undefined],
         (oldSlots) => {
           if (!oldSlots) return oldSlots;
           return oldSlots.filter(slot => slot.start_time !== params.startTime);
@@ -179,7 +189,7 @@ export const useCreateAppointmentOptimistic = () => {
       if (context?.previousSlots) {
         // Only rollback if we have previous state to restore
         queryClient.setQueryData(
-          ['availability-slots', params.practitionerId, params.appointmentTypeId, params.date],
+          ['availability-slots', activeClinicId, params.practitionerId, params.appointmentTypeId, params.date, undefined],
           context.previousSlots
         );
       } else {
@@ -187,15 +197,16 @@ export const useCreateAppointmentOptimistic = () => {
         // This handles edge cases where context is lost
         queryClient.invalidateQueries({
           predicate: (query) => {
-            const queryKey = query.queryKey as (string | number)[];
-            return queryKey.length >= 4 &&
-              queryKey[0] === 'availability-slots' &&
-              queryKey[1] === params.practitionerId &&
-              queryKey[2] === params.appointmentTypeId &&
-              queryKey[3] === params.date;
+            const queryKey = query.queryKey as (string | number | undefined)[];
+            return queryKey[0] === 'availability-slots' &&
+              queryKey[1] === activeClinicId &&
+              queryKey[2] === params.practitionerId &&
+              queryKey[3] === params.appointmentTypeId &&
+              queryKey[4] === params.date;
           }
         });
       }
+
     },
 
     // Always refetch to ensure server accuracy
@@ -204,25 +215,18 @@ export const useCreateAppointmentOptimistic = () => {
       // regardless of excludeCalendarEventId parameter
       queryClient.invalidateQueries({
         predicate: (query) => {
-          const queryKey = query.queryKey as (string | number)[];
-          return queryKey.length >= 4 &&
-            queryKey[0] === 'availability-slots' &&
-            queryKey[1] === params.practitionerId &&
-            queryKey[2] === params.appointmentTypeId &&
-            queryKey[3] === params.date;
+          const queryKey = query.queryKey as (string | number | undefined)[];
+          return queryKey[0] === 'availability-slots' &&
+            queryKey[1] === activeClinicId &&
+            queryKey[2] === params.practitionerId &&
+            queryKey[3] === params.appointmentTypeId &&
+            queryKey[4] === params.date;
         }
       });
       // Invalidate calendar events for the clinic to update the calendar display
       invalidateCalendarEventsForAppointment(queryClient, activeClinicId);
-      // Invalidate all patient appointment queries to prevent stale data
-      // (we don't know the specific patient ID, so invalidate broadly)
-      queryClient.invalidateQueries({
-        predicate: (query) => {
-          const queryKey = query.queryKey as (string | number)[];
-          return queryKey.length >= 2 &&
-            queryKey[0] === 'patient-appointments';
-        }
-      });
+      // Invalidate specific patient appointment queries to prevent stale data
+      invalidatePatientAppointments(queryClient, activeClinicId, params.patientId);
     }
   });
 };

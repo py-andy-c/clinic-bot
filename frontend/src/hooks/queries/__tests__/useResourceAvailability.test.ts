@@ -9,6 +9,13 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useResourceAvailability } from '../useResourceAvailability';
 import { apiService } from '../../../services/api';
 
+// Mock useAuth
+vi.mock('../../../hooks/useAuth', () => ({
+  useAuth: vi.fn(() => ({
+    user: { active_clinic_id: 1 }
+  }))
+}));
+
 // Mock the API service
 vi.mock('../../../services/api', () => ({
   apiService: {

@@ -15,7 +15,8 @@ export function invalidateAvailabilitySlotsForDate(
   queryClient: QueryClient,
   practitionerId: number | null,
   appointmentTypeId: number | null,
-  date: string
+  date: string,
+  clinicId?: number | null
 ): void {
   if (!queryClient) {
     return;
@@ -25,22 +26,24 @@ export function invalidateAvailabilitySlotsForDate(
     predicate: (query) => {
       const queryKey = query.queryKey as (string | number | undefined)[];
 
-      // Match availability-slots queries: ['availability-slots', practitionerId, appointmentTypeId, date, excludeCalendarEventId]
-      // Handle both queries with and without excludeCalendarEventId (5 elements vs 4 elements)
-      if (queryKey.length >= 4 &&
-          queryKey[0] === 'availability-slots' &&
-          queryKey[1] === practitionerId &&
-          queryKey[2] === appointmentTypeId &&
-          queryKey[3] === date) {
-        return true;
+      // Match availability-slots queries: ['availability-slots', (clinicId?), practitionerId, appointmentTypeId, date, excludeCalendarEventId]
+      if (queryKey[0] === 'availability-slots') {
+        const hasClinicId = queryKey.length === 6;
+        const offset = hasClinicId ? 1 : 0;
+
+        // If clinicId is provided, and the query key has a clinicId, they must match
+        if (clinicId !== undefined && hasClinicId && queryKey[1] !== clinicId) {
+          return false;
+        }
+
+        return queryKey[1 + offset] === practitionerId &&
+          queryKey[2 + offset] === appointmentTypeId &&
+          queryKey[3 + offset] === date;
       }
 
       return false;
     }
   });
-
-  // Note: Calendar events invalidation removed due to complex query key structures
-  // Calendar views will refresh naturally via stale time or user navigation
 }
 
 /**
@@ -51,7 +54,8 @@ export function invalidateResourceAvailabilityForDate(
   queryClient: QueryClient,
   practitionerId: number | null,
   appointmentTypeId: number | null,
-  date: string
+  date: string,
+  clinicId?: number | null
 ): void {
   if (!queryClient) {
     return;
@@ -61,15 +65,57 @@ export function invalidateResourceAvailabilityForDate(
     predicate: (query) => {
       const queryKey = query.queryKey as (string | number | undefined)[];
 
-      // Match resource-availability queries: ['resource-availability', appointmentTypeId, practitionerId, date, ...]
-      // The key structure is: ['resource-availability', appointmentTypeId, practitionerId, date, startTime, durationMinutes, excludeCalendarEventId]
-      return queryKey.length >= 4 &&
-             queryKey[0] === 'resource-availability' &&
-             queryKey[1] === appointmentTypeId &&
-             queryKey[2] === practitionerId &&
-             queryKey[3] === date;
+      // Match resource-availability queries: ['resource-availability', (clinicId?), appointmentTypeId, practitionerId, date, ...]
+      if (queryKey[0] === 'resource-availability') {
+        const hasClinicId = queryKey.length === 8;
+        const offset = hasClinicId ? 1 : 0;
+
+        // If clinicId is provided, and the query key has a clinicId, they must match
+        if (clinicId !== undefined && hasClinicId && queryKey[1] !== clinicId) {
+          return false;
+        }
+
+        return queryKey[1 + offset] === appointmentTypeId &&
+          queryKey[2 + offset] === practitionerId &&
+          queryKey[3 + offset] === date;
+      }
+
+      return false;
     }
   });
+}
+
+/**
+ * Invalidate practitioner conflicts for a specific clinic and date
+ */
+export function invalidatePractitionerConflicts(
+  queryClient: QueryClient,
+  clinicId: number | null | undefined,
+  date?: string
+): void {
+  if (!queryClient || clinicId === null || clinicId === undefined) {
+    return;
+  }
+
+  if (date) {
+    // Target specific date conflicts if provided
+    queryClient.invalidateQueries({
+      predicate: (query) => {
+        const queryKey = query.queryKey as (string | number | undefined)[];
+        return (queryKey[0] === 'practitioner-conflicts' || queryKey[0] === 'practitioner-conflicts-batch') &&
+          queryKey[1] === clinicId &&
+          queryKey[2] === date;
+      }
+    });
+  } else {
+    // Invalidate all conflicts for the clinic
+    queryClient.invalidateQueries({
+      queryKey: ['practitioner-conflicts', clinicId]
+    });
+    queryClient.invalidateQueries({
+      queryKey: ['practitioner-conflicts-batch', clinicId]
+    });
+  }
 }
 
 /**
@@ -78,7 +124,24 @@ export function invalidateResourceAvailabilityForDate(
  */
 export function invalidatePatientAppointments(
   queryClient: QueryClient,
-  clinicId: number,
+  clinicId: number | null | undefined,
+  patientId: number
+): void {
+  if (!queryClient || clinicId === null || clinicId === undefined) {
+    return;
+  }
+
+  queryClient.invalidateQueries({
+    queryKey: ['patient-appointments', clinicId, patientId]
+  });
+}
+
+/**
+ * Invalidate patient detail query for a specific patient
+ */
+export function invalidatePatientDetail(
+  queryClient: QueryClient,
+  clinicId: number | null | undefined,
   patientId: number
 ): void {
   if (!queryClient) {
@@ -86,7 +149,7 @@ export function invalidatePatientAppointments(
   }
 
   queryClient.invalidateQueries({
-    queryKey: ['patient-appointments', clinicId, patientId]
+    queryKey: ['patient', clinicId, patientId]
   });
 }
 
@@ -99,7 +162,7 @@ export function invalidateAvailabilityAfterAppointmentChange(
   practitionerId: number | null,
   appointmentTypeId: number | null,
   dates: string[],
-  clinicId?: number,
+  clinicId?: number | null,
   patientId?: number
 ): void {
   if (!queryClient) {
@@ -113,9 +176,25 @@ export function invalidateAvailabilityAfterAppointmentChange(
 
   // Invalidate availability slots and resource availability for all specified dates
   dates.forEach(date => {
-    invalidateAvailabilitySlotsForDate(queryClient, practitionerId, appointmentTypeId, date);
-    invalidateResourceAvailabilityForDate(queryClient, practitionerId, appointmentTypeId, date);
+    invalidateAvailabilitySlotsForDate(queryClient, practitionerId, appointmentTypeId, date, clinicId);
+    invalidateResourceAvailabilityForDate(queryClient, practitionerId, appointmentTypeId, date, clinicId);
+
+    // Also invalidate conflicts for these dates
+    if (clinicId) {
+      invalidatePractitionerConflicts(queryClient, clinicId, date);
+    }
   });
+
+  // Invalidate batch availability queries - more broad but safer
+  if (clinicId) {
+    queryClient.invalidateQueries({
+      queryKey: ['batch-availability-slots', clinicId, practitionerId, appointmentTypeId]
+    });
+  } else {
+    queryClient.invalidateQueries({
+      queryKey: ['batch-availability-slots']
+    });
+  }
 
   // Invalidate patient appointments if clinic and patient IDs are provided
   if (clinicId && patientId) {
