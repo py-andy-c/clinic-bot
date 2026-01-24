@@ -962,6 +962,7 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
             skipInitialDebounce={true}
             initialResources={initialResources}
             initialAvailability={initialAvailability}
+            conflictInfo={conflictInfo}
           />
         )}
 

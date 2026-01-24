@@ -1227,6 +1227,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
             selectedResourceIds={selectedResourceIds}
             onSelectionChange={setSelectedResourceIds}
             skipInitialDebounce={isDuplication}
+            conflictInfo={singleAppointmentConflict}
           />
         )}
 
@@ -1381,6 +1382,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
                       durationMinutes={appointmentTypes.find(t => t.id === selectedAppointmentTypeId)?.duration_minutes || 30}
                       selectedResourceIds={occurrenceResourceIds[occ.id] || EMPTY_ARRAY}
                       onSelectionChange={(ids) => setOccurrenceResourceIds({ ...occurrenceResourceIds, [occ.id]: ids })}
+                      conflictInfo={occ.conflictInfo}
                     />
                   </div>
                 </div>
@@ -1396,6 +1398,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
                     durationMinutes={appointmentTypes.find(t => t.id === selectedAppointmentTypeId)?.duration_minutes || 30}
                     selectedResourceIds={occurrenceResourceIds[occ.id] || EMPTY_ARRAY}
                     onSelectionChange={(ids) => setOccurrenceResourceIds({ ...occurrenceResourceIds, [occ.id]: ids })}
+                    conflictInfo={occ.conflictInfo}
                   />
                 </div>
               )}

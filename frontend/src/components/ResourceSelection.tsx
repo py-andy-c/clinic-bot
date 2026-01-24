@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { ResourceAvailabilityResponse, Resource, ResourceType } from '../types';
+import { ResourceAvailabilityResponse, Resource, ResourceType, SchedulingConflictResponse } from '../types';
 import { apiService } from '../services/api';
 import { logger } from '../utils/logger';
 import { useResourceAvailability } from '../hooks/queries/useResourceAvailability';
@@ -28,6 +28,7 @@ interface ResourceSelectionProps {
   skipInitialDebounce?: boolean;
   initialResources?: SelectionResource[]; // Resources loaded from appointment (for edit mode)
   initialAvailability?: ResourceAvailabilityResponse | null; // Pre-fetched availability (for edit mode)
+  conflictInfo?: SchedulingConflictResponse | null; // External conflict info (e.g. from validation)
 }
 
 export const ResourceSelection: React.FC<ResourceSelectionProps> = ({
@@ -42,6 +43,7 @@ export const ResourceSelection: React.FC<ResourceSelectionProps> = ({
   onResourcesFound,
   initialResources = EMPTY_RESOURCES,
   initialAvailability: initialAvailabilityProp = null,
+  conflictInfo,
 }) => {
   // React Query hook for resource availability
   const {
@@ -141,7 +143,14 @@ export const ResourceSelection: React.FC<ResourceSelectionProps> = ({
     return Array.from(additionalResourceTypeIds);
   }, [currentAvailability, initialResources]);
 
+  // Extract conflicted resource IDs from conflictInfo
+  const conflictedResourceIds = useMemo(() => {
+    if (!conflictInfo?.unavailable_resource_ids) return new Set<number>();
+    return new Set(conflictInfo.unavailable_resource_ids);
+  }, [conflictInfo]);
+
   // Merge additional types from initialResources with manually added types
+
   // This is computed synchronously during render, so both appear immediately
   const additionalResourceTypes = useMemo(() => {
     const merged = [...additionalResourceTypesFromInitial, ...manuallyAddedResourceTypes];
@@ -319,8 +328,22 @@ export const ResourceSelection: React.FC<ResourceSelectionProps> = ({
       }
     }
 
+    // Check in initial resources (for edit mode)
+    const initial = initialResources.find(r => r.id === resourceId);
+    if (initial) {
+      return {
+        id: initial.id,
+        name: initial.name,
+        resource_type_id: initial.resource_type_id,
+        clinic_id: 0,
+        is_deleted: false,
+        created_at: '',
+        updated_at: '',
+      };
+    }
+
     return null;
-  }, [currentAvailability, additionalResources]);
+  }, [currentAvailability, additionalResources, initialResources]);
 
   // Track selection changes from user actions (not from our auto-updates)
   useEffect(() => {
@@ -362,8 +385,14 @@ export const ResourceSelection: React.FC<ResourceSelectionProps> = ({
 
           // Check if any selected resources have conflicts
           const hasSelectedResourceConflicts = selectedResourceIds.some(id => {
-            const resource = req.available_resources.find(r => r.id === id);
-            return resource && !resource.is_available;
+            const resource = getResourceById(id);
+            if (!resource || resource.resource_type_id !== req.resource_type_id) return false;
+
+            const availResource = req.available_resources.find(r => r.id === id);
+            const isAvailConflict = availResource && !availResource.is_available;
+            const isExternalConflict = conflictedResourceIds.has(id);
+
+            return isAvailConflict || isExternalConflict;
           });
 
           if (selectedCount < req.required_quantity ||
@@ -371,6 +400,20 @@ export const ResourceSelection: React.FC<ResourceSelectionProps> = ({
             hasSelectedResourceConflicts) {
             if (!sectionsToExpand.has(req.resource_type_id)) {
               sectionsToExpand.add(req.resource_type_id);
+              changed = true;
+            }
+          }
+        });
+
+        // Also check conflicts for additional resource types (User might have manually added them, now they conflict)
+        additionalResourceTypes.forEach(typeId => {
+          const hasSelectedResourceConflicts = (selectedByType[typeId] || []).some(id => {
+            return conflictedResourceIds.has(id);
+          });
+
+          if (hasSelectedResourceConflicts) {
+            if (!sectionsToExpand.has(typeId)) {
+              sectionsToExpand.add(typeId);
               changed = true;
             }
           }
@@ -545,36 +588,32 @@ export const ResourceSelection: React.FC<ResourceSelectionProps> = ({
 
   // Get selected resource names with conflict indicators for a resource type
   const getSelectedResourceNamesWithConflicts = useCallback((resourceTypeId: number): string[] => {
-    if (!currentAvailability) {
-      // For additional resource types, we don't have availability info, so no conflicts
-      return getSelectedResourceNames(resourceTypeId);
-    }
-
     const selected = selectedResourceIds
       .map(id => {
-        // Find the resource in availability requirements
-        for (const req of currentAvailability.requirements) {
-          if (req.resource_type_id === resourceTypeId) {
-            const resource = req.available_resources.find(r => r.id === id);
-            if (resource) {
-              // Check if this resource has a conflict
-              const hasConflict = !resource.is_available;
-              return hasConflict ? `${resource.name}⚠️` : resource.name;
-            }
+        const resource = getResourceById(id);
+        if (!resource || resource.resource_type_id !== resourceTypeId) return null;
+
+        // Check availability info if available
+        let hasConflict = false;
+        if (currentAvailability) {
+          const req = currentAvailability.requirements.find(r => r.resource_type_id === resourceTypeId);
+          const availResource = req?.available_resources.find(r => r.id === id);
+          if (availResource && !availResource.is_available) {
+            hasConflict = true;
           }
         }
-        // If not found in requirements, check if it's an additional resource
-        const resource = getResourceById(id);
-        if (resource && resource.resource_type_id === resourceTypeId) {
-          // For additional resources, we don't have conflict info, so no indicator
-          return resource.name;
+
+        // Check external conflict info (fallback if not in availability response)
+        if (!hasConflict && conflictedResourceIds.has(id)) {
+          hasConflict = true;
         }
-        return null;
+
+        return hasConflict ? `${resource.name}⚠️` : resource.name;
       })
       .filter((name): name is string => name !== null);
 
     return selected;
-  }, [currentAvailability, selectedResourceIds, getResourceById, getSelectedResourceNames]);
+  }, [currentAvailability, selectedResourceIds, getResourceById, conflictedResourceIds]);
 
   // Build summary text for collapsed view (must be before early return)
   const summaryText = useMemo(() => {
@@ -584,7 +623,8 @@ export const ResourceSelection: React.FC<ResourceSelectionProps> = ({
       currentAvailability.requirements.forEach(req => {
         const selectedCount = selectedByType[req.resource_type_id]?.length || 0;
         const selectedNamesWithConflicts = getSelectedResourceNamesWithConflicts(req.resource_type_id);
-        const status = selectedCount >= req.required_quantity ? '✓' : '⚠️';
+        const hasConflicts = selectedNamesWithConflicts.some(name => name.includes('⚠️'));
+        const status = hasConflicts || selectedCount < req.required_quantity ? '⚠️' : '✓';
 
         if (selectedNamesWithConflicts.length > 0) {
           parts.push(`${req.resource_type_name}: ${selectedCount}/${req.required_quantity} ${status} (${selectedNamesWithConflicts.join(', ')})`);
@@ -596,12 +636,14 @@ export const ResourceSelection: React.FC<ResourceSelectionProps> = ({
 
     // Add additional resource types (show even if empty to provide visual feedback)
     additionalResourceTypes.forEach(typeId => {
-      const selectedNames = getSelectedResourceNames(typeId);
-      const selectedCount = selectedNames.length;
+      const selectedNamesWithConflicts = getSelectedResourceNamesWithConflicts(typeId);
+      const selectedCount = selectedNamesWithConflicts.length;
+      const hasConflicts = selectedNamesWithConflicts.some(name => name.includes('⚠️'));
+      const status = hasConflicts ? '⚠️' : (selectedCount > 0 ? '✓' : '');
+
       if (selectedCount > 0) {
-        // For additional types, show count format with checkmark
-        // Note: Additional resources don't have conflict info from availability API
-        parts.push(`${getResourceTypeName(typeId)}: 已選 ${selectedCount} 個 ✓ (${selectedNames.join(', ')})`);
+        // For additional types, show count format with status indicator
+        parts.push(`${getResourceTypeName(typeId)}: 已選 ${selectedCount} 個 ${status} (${selectedNamesWithConflicts.join(', ')})`);
       } else {
         // Show empty additional type to indicate it was added
         parts.push(`${getResourceTypeName(typeId)}: 已選 0 個`);
@@ -609,7 +651,7 @@ export const ResourceSelection: React.FC<ResourceSelectionProps> = ({
     });
 
     return parts.join(' | ');
-  }, [currentAvailability, selectedByType, additionalResourceTypes, getSelectedResourceNames, getSelectedResourceNamesWithConflicts, getResourceTypeName]);
+  }, [currentAvailability, selectedByType, additionalResourceTypes, getSelectedResourceNamesWithConflicts, getResourceTypeName]);
 
   const toggleSection = (resourceTypeId: number) => {
     setExpandedSections(prev => {
@@ -746,7 +788,7 @@ export const ResourceSelection: React.FC<ResourceSelectionProps> = ({
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                       {req.available_resources.map((resource) => {
                         const isSelected = selectedResourceIds.includes(resource.id);
-                        const isUnavailable = !resource.is_available;
+                        const isUnavailable = !resource.is_available || conflictedResourceIds.has(resource.id);
 
                         return (
                           <button
@@ -830,6 +872,7 @@ export const ResourceSelection: React.FC<ResourceSelectionProps> = ({
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                       {resources.map((resource) => {
                         const isSelected = selectedResourceIds.includes(resource.id);
+                        const isUnavailable = conflictedResourceIds.has(resource.id);
 
                         return (
                           <button
@@ -841,17 +884,28 @@ export const ResourceSelection: React.FC<ResourceSelectionProps> = ({
                             className={`
                               px-3 py-2 rounded-md border text-sm text-left transition-colors
                               ${isSelected
-                                ? 'bg-primary-50 border-primary-500 text-primary-900'
-                                : 'bg-white border-gray-300 text-gray-700 hover:border-primary-300 hover:bg-primary-50'
+                                ? isUnavailable
+                                  ? 'bg-yellow-50 border-yellow-500 text-yellow-900'
+                                  : 'bg-primary-50 border-primary-500 text-primary-900'
+                                : isUnavailable
+                                  ? 'bg-white border-gray-300 text-gray-500'
+                                  : 'bg-white border-gray-300 text-gray-700 hover:border-primary-300 hover:bg-primary-50'
                               }
                             `}
                           >
                             <div className="flex items-center justify-between">
                               <span>{resource.name}</span>
                               {isSelected && (
-                                <svg className="w-4 h-4 text-primary-600" fill="currentColor" viewBox="0 0 20 20">
-                                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                </svg>
+                                isUnavailable ? (
+                                  <span className="text-xs text-yellow-700">衝突</span>
+                                ) : (
+                                  <svg className="w-4 h-4 text-primary-600" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                  </svg>
+                                )
+                              )}
+                              {isUnavailable && !isSelected && (
+                                <span className="text-xs text-gray-400">已使用</span>
                               )}
                             </div>
                           </button>
