@@ -950,7 +950,7 @@ describe('DateTimePicker', () => {
             selectedPractitionerId={null}
             appointmentTypeId={null}
             canExpand={false}
-            prePopulatedFromSlot={true}
+
           />
         </TestWrapper>
       );
@@ -958,8 +958,7 @@ describe('DateTimePicker', () => {
       // Should show the pre-populated date/time in collapsed view
       expect(screen.getByText(/2024/)).toBeInTheDocument();
 
-      // Should show the "從行事曆選擇" badge
-      expect(screen.getByText('從行事曆選擇')).toBeInTheDocument();
+
 
       // Clicking should NOT expand
       const collapsedButton = screen.getByRole('button');

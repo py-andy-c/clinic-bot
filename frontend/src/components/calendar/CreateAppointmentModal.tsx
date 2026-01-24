@@ -927,11 +927,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
             治療師 <span className="text-red-500">*</span>
-            {prePopulatedFromSlot && (
-              <span className="ml-2 px-1.5 py-0.5 bg-blue-50 text-blue-600 text-[10px] rounded border border-blue-100 font-medium">
-                從行事曆選擇
-              </span>
-            )}
+
             {hasPractitionerTypeMismatch && (
               <span className="ml-2">
                 <ConflictIndicator
@@ -1011,7 +1007,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
           error={error}
           allowOverride={true}
           initialExpanded={false}
-          prePopulatedFromSlot={prePopulatedFromSlot}
+
           canExpand={!!selectedPractitionerId && !!selectedAppointmentTypeId}
         />
 

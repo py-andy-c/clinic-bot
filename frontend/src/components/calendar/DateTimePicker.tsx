@@ -47,8 +47,7 @@ export interface DateTimePickerProps {
   alternativeSlots?: string[];
   // Optional: initial expanded state
   initialExpanded?: boolean;
-  // Optional: indicate if values were pre-populated from a calendar slot
-  prePopulatedFromSlot?: boolean;
+
   // Optional: control whether the picker can be expanded (requires practitioner + appointmentType)
   canExpand?: boolean;
 }
@@ -72,7 +71,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
   isOverrideMode: parentOverrideMode,
   alternativeSlots,
   initialExpanded = false,
-  prePopulatedFromSlot = false,
+
   canExpand = true,
 }) => {
   const [isExpanded, setIsExpanded] = useState(initialExpanded);
@@ -610,11 +609,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
           日期與時間 <span className="text-red-500">*</span>
-          {prePopulatedFromSlot && (
-            <span className="ml-2 px-1.5 py-0.5 bg-blue-50 text-blue-600 text-[10px] rounded border border-blue-100 font-medium">
-              從行事曆選擇
-            </span>
-          )}
+
         </label>
         <button
           type="button"
@@ -656,11 +651,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
     <div ref={pickerRef}>
       <label className="block text-sm font-medium text-gray-700 mb-1">
         日期與時間 <span className="text-red-500">*</span>
-        {prePopulatedFromSlot && (
-          <span className="ml-2 px-1.5 py-0.5 bg-blue-50 text-blue-600 text-[10px] rounded border border-blue-100 font-medium">
-            從行事曆選擇
-          </span>
-        )}
+
       </label>
       <div className="space-y-4 mt-2">
         {/* Calendar View */}
