@@ -294,9 +294,18 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
 
   // Update single appointment conflict state from hook result
   useEffect(() => {
-    const apiConflict = singlePractitionerConflictsQuery?.data;
-    setSingleAppointmentConflict(mergeConflictWithTypeMismatch(apiConflict, hasPractitionerTypeMismatch));
-  }, [singlePractitionerConflictsQuery?.data, hasPractitionerTypeMismatch]);
+    if (singlePractitionerConflictsQuery?.data || hasPractitionerTypeMismatch) {
+      setSingleAppointmentConflict(mergeConflictWithTypeMismatch(
+        singlePractitionerConflictsQuery?.data,
+        hasPractitionerTypeMismatch
+      ));
+    } else if (singlePractitionerConflictsQuery?.error) {
+      logger.error('Failed to check conflicts:', singlePractitionerConflictsQuery.error);
+      setSingleAppointmentConflict(null);
+    } else {
+      setSingleAppointmentConflict(null);
+    }
+  }, [singlePractitionerConflictsQuery?.data, singlePractitionerConflictsQuery?.error, hasPractitionerTypeMismatch]);
 
   // Try to get patient data from sessionStorage if preSelectedPatientId is set
   const [preSelectedPatientData, setPreSelectedPatientData] = useState<Patient | null>(() => {
@@ -572,10 +581,6 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
     [appointmentTypes, selectedAppointmentTypeId]
   );
 
-  // Clear single appointment conflict when date/time changes
-  useEffect(() => {
-    setSingleAppointmentConflict(null);
-  }, [selectedDate, selectedTime]);
 
 
   // Clear validation errors when fields are selected
