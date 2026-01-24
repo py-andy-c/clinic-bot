@@ -196,7 +196,6 @@ const AvailabilityPage: React.FC = () => {
   const [duplicateData, setDuplicateData] = useState<{
     preSelectedAppointmentTypeId?: number;
     preSelectedPractitionerId?: number;
-    preSelectedTime?: string;
     preSelectedClinicNotes?: string;
     initialDate?: string;
     event?: CalendarEvent;
@@ -322,10 +321,9 @@ const AvailabilityPage: React.FC = () => {
     const practitionerId = getPractitionerIdForDuplicate(event, user?.roles?.includes('admin') || false);
     const clinicNotes = event.resource.clinic_notes;
 
-    // Extract date and time from event.start
+    // Extract date from event.start
     const startMoment = moment(event.start).tz('Asia/Taipei');
     const initialDate = startMoment.format('YYYY-MM-DD');
-    const initialTime = startMoment.format('HH:mm');
 
     // Set up duplicate appointment data - only include fields that have values
     // Resources will be fetched by useAppointmentForm in duplicate mode
@@ -334,7 +332,6 @@ const AvailabilityPage: React.FC = () => {
       // Only include these if they have values (avoid passing undefined)
       ...(appointmentTypeId !== undefined && { preSelectedAppointmentTypeId: appointmentTypeId }),
       ...(practitionerId !== undefined && { preSelectedPractitionerId: practitionerId }),
-      ...(initialTime && { preSelectedTime: initialTime }),
       ...(clinicNotes !== undefined && clinicNotes !== null && { preSelectedClinicNotes: clinicNotes }),
       event,
     });
@@ -926,7 +923,6 @@ const AvailabilityPage: React.FC = () => {
           {...(duplicateData.initialDate !== undefined && { initialDate: duplicateData.initialDate })}
           {...(duplicateData.preSelectedAppointmentTypeId !== undefined && { preSelectedAppointmentTypeId: duplicateData.preSelectedAppointmentTypeId })}
           {...(duplicateData.preSelectedPractitionerId !== undefined && { preSelectedPractitionerId: duplicateData.preSelectedPractitionerId })}
-          {...(duplicateData.preSelectedTime !== undefined && { preSelectedTime: duplicateData.preSelectedTime })}
           {...(duplicateData.preSelectedClinicNotes !== undefined && { preSelectedClinicNotes: duplicateData.preSelectedClinicNotes })}
           {...(duplicateData.event !== undefined && { event: duplicateData.event })}
           practitioners={practitioners}

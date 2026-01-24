@@ -76,10 +76,10 @@ const RecurrenceDateTimePickerWrapper: React.FC<{
   appointmentTypeId: number;
   onConfirm: (date: string, time: string) => void | Promise<void>;
   onCancel: () => void;
-}> = ({ initialDate, initialTime: _initialTime, selectedPractitionerId, appointmentTypeId, onConfirm, onCancel }) => {
+}> = ({ initialDate, initialTime, selectedPractitionerId, appointmentTypeId, onConfirm, onCancel }) => {
   const [selectedDate, setSelectedDate] = useState<string | null>(initialDate);
-  // When editing (initialTime has value), start with empty selectedTime to prevent auto-initialization
-  const [selectedTime, setSelectedTime] = useState<string>('');
+  // Use initialTime to pre-populate the picker (First Path logic)
+  const [selectedTime, setSelectedTime] = useState<string>(initialTime);
 
   const handleDateSelect = (date: string | null) => {
     setSelectedDate(date);

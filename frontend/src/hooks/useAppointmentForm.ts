@@ -48,9 +48,15 @@ export const useAppointmentForm = ({
     return null;
   });
   const [selectedTime, setSelectedTime] = useState<string>(() => {
-    // For duplication mode, don't pre-populate time to avoid immediate conflict
+    // 1. Explicit Time (Grid Click, Duplicate, Conflict Resolution)
     if (preSelectedTime) return preSelectedTime;
-    if (event && !preSelectedTime) return '';  // Duplication: clear time
+
+    // 2. Fallback: Event object time (Edit)
+    if (event) {
+      return moment(event.start).tz('Asia/Taipei').format('HH:mm');
+    }
+
+    // 3. Default: Empty
     return '';
   });
   const [clinicNotes, setClinicNotes] = useState<string>(preSelectedClinicNotes ?? event?.resource.clinic_notes ?? '');
