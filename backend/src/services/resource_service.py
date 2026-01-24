@@ -64,31 +64,43 @@ class ResourceService:
         requirements = db.query(AppointmentResourceRequirement).filter(
             AppointmentResourceRequirement.appointment_type_id == appointment_type_id
         ).all()
+        
+        req_map = {r.resource_type_id: r.quantity for r in requirements}
 
-        if not requirements:
-            return {
-                'is_available': True,
-                'selection_insufficient_warnings': [],
-                'resource_conflict_warnings': [],
-                'unavailable_resource_ids': []
-            }
-
-        # Ensure selected_resource_ids is a list
-        selected_ids = selected_resource_ids or []
+        # 2. Identify all relevant resource types to check
+        # We need to check both required types AND types of selected resources
+        resource_types_to_check = set(req_map.keys())
+        
+        # Helper to organize selected resources by type
+        selected_resources_by_type: Dict[int, List[int]] = {}
+        
+        if selected_resource_ids:
+            selected_resources = db.query(Resource).filter(
+                Resource.id.in_(selected_resource_ids),
+                Resource.clinic_id == clinic_id  # Enforce clinic scope
+            ).all()
+            
+            for res in selected_resources:
+                resource_types_to_check.add(res.resource_type_id)
+                if res.resource_type_id not in selected_resources_by_type:
+                    selected_resources_by_type[res.resource_type_id] = []
+                selected_resources_by_type[res.resource_type_id].append(res.id)
         
         selection_insufficient_warnings: List[Dict[str, Any]] = []
         resource_conflict_warnings: List[Dict[str, Any]] = []
         global_unavailable_resource_ids: List[int] = []
         is_available = True
 
-        for req in requirements:
-            # Get resource type name
-            resource_type = db.query(ResourceType).filter(ResourceType.id == req.resource_type_id).first()
+        for resource_type_id in resource_types_to_check:
+            required_qty = req_map.get(resource_type_id, 0)
+            
+            # Get resource type details
+            resource_type = db.query(ResourceType).filter(ResourceType.id == resource_type_id).first()
             resource_type_name = resource_type.name if resource_type else "未知資源類型"
 
-            # Get all active resources of this type
+            # Get all active resources of this type in the clinic
             all_resources = db.query(Resource).filter(
-                Resource.resource_type_id == req.resource_type_id,
+                Resource.resource_type_id == resource_type_id,
                 Resource.clinic_id == clinic_id,
                 Resource.is_deleted == False
             ).all()
@@ -126,35 +138,22 @@ class ResourceService:
             allocated_resource_ids = {a.resource_id for a in allocations}
             global_unavailable_resource_ids.extend(list(allocated_resource_ids))
 
-            # 2. Check Availability
-            if selected_resource_ids is None:
-                # General capacity check (no specific selection provided)
-                # Check if there are enough available resources to meet the requirement
-                available_count = len([rid for rid in all_resource_ids if rid not in allocated_resource_ids])
+            # 3. Check Availability & Conflicts
+            
+            # Case A: Specific resources selected for this type
+            if resource_type_id in selected_resources_by_type:
+                selected_for_this_type = selected_resources_by_type[resource_type_id]
                 
-                if available_count < req.quantity:
-                    is_available = False
-                    # We can use selection_insufficient_warnings to indicate shortage, 
-                    # but maybe with a slightly different meaning or messages
-                    selection_insufficient_warnings.append({
-                        "resource_type_name": resource_type_name,
-                        "required_quantity": req.quantity,
-                        "selected_quantity": available_count  # In this context, "selected" means "available"
-                    })
-            else:
-                # Specific selection check
-                selected_for_this_type = [rid for rid in selected_ids if rid in all_resource_ids]
-                
-                # Check Quantity
-                if len(selected_for_this_type) < req.quantity:
+                # Check Quantity (if this type is required)
+                if required_qty > 0 and len(selected_for_this_type) < required_qty:
                     is_available = False
                     selection_insufficient_warnings.append({
                         "resource_type_name": resource_type_name,
-                        "required_quantity": req.quantity,
+                        "required_quantity": required_qty,
                         "selected_quantity": len(selected_for_this_type)
                     })
 
-                # Check Conflicts (only for selected resources)
+                # Check Conflicts (for ALL selected resources of this type)
                 for allocation in allocations:
                     if allocation.resource_id in selected_for_this_type:
                         is_available = False
@@ -167,6 +166,20 @@ class ResourceService:
                                 "end_time": allocation.CalendarEvent.end_time.strftime('%H:%M')
                             }
                         })
+
+            # Case B: No specific resources selected for this type, but it is required
+            # (General capacity check)
+            elif required_qty > 0:
+                # Check if there are enough available resources to meet the requirement
+                available_count = len([rid for rid in all_resource_ids if rid not in allocated_resource_ids])
+                
+                if available_count < required_qty:
+                    is_available = False
+                    selection_insufficient_warnings.append({
+                        "resource_type_name": resource_type_name,
+                        "required_quantity": required_qty,
+                        "selected_quantity": available_count  # In this context, "selected" means "available"
+                    })
 
         return {
             'is_available': is_available,

@@ -508,3 +508,112 @@ class TestResourceService:
         assert allocation is not None
 
 
+
+    def test_check_resource_availability_manual_selection_conflict(self, db_session: Session):
+        """Test resource availability check for manual selection conflict (even with no requirements)."""
+        # Create clinic
+        clinic = Clinic(
+            name="Test Clinic",
+            line_channel_id="test_channel",
+            line_channel_secret="test_secret",
+            line_channel_access_token="test_token"
+        )
+        db_session.add(clinic)
+        db_session.commit()
+
+        # Create appointment type with NO resource requirements
+        appointment_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="Simple Consultation",
+            duration_minutes=30
+        )
+        db_session.add(appointment_type)
+        db_session.commit()
+
+        # Create resource type and resource
+        resource_type = ResourceType(
+            clinic_id=clinic.id,
+            name="Meeting Room"
+        )
+        db_session.add(resource_type)
+        db_session.commit()
+
+        resource1 = Resource(
+            resource_type_id=resource_type.id,
+            clinic_id=clinic.id,
+            name="Room A"
+        )
+        db_session.add(resource1)
+        db_session.commit()
+
+        # Create an existing appointment occupying Room A
+        user = User(
+            email="test@example.com",
+            google_subject_id="test_subject"
+        )
+        db_session.add(user)
+        db_session.commit()
+        
+        association = UserClinicAssociation(
+            user_id=user.id,
+            clinic_id=clinic.id,
+            is_active=True,
+            roles=["practitioner"],
+            full_name="Dr. Test"
+        )
+        db_session.add(association)
+        db_session.commit()
+        
+        # Create a patient
+        patient = Patient(
+            clinic_id=clinic.id,
+            full_name="Test Patient"
+        )
+        db_session.add(patient)
+        db_session.commit()
+
+        calendar_event = CalendarEvent(
+            user_id=user.id,
+            clinic_id=clinic.id,
+            event_type='appointment',
+            date=date(2025, 1, 30),
+            start_time=time(10, 0),
+            end_time=time(10, 30)
+        )
+        db_session.add(calendar_event)
+        db_session.commit()
+
+        appointment = Appointment(
+            calendar_event_id=calendar_event.id,
+            appointment_type_id=appointment_type.id,
+            patient_id=patient.id,  # Assign patient_id
+            status='confirmed'
+        )
+        db_session.add(appointment)
+        db_session.commit()
+
+        allocation = AppointmentResourceAllocation(
+            appointment_id=calendar_event.id,
+            resource_id=resource1.id
+        )
+        db_session.add(allocation)
+        db_session.commit()
+
+        # Now check availability for an overlapping slot with Room A MANUALLY selected
+        check_start = datetime(2025, 1, 30, 10, 0)
+        check_end = datetime(2025, 1, 30, 10, 30)
+
+        result = ResourceService.check_resource_availability(
+            db=db_session,
+            appointment_type_id=appointment_type.id,  # Type has NO requirements
+            clinic_id=clinic.id,
+            start_time=check_start,
+            end_time=check_end,
+            selected_resource_ids=[resource1.id]  # Manually selected Room A
+        )
+
+        assert result['is_available'] is False
+        assert len(result['resource_conflict_warnings']) == 1
+        conflict = result['resource_conflict_warnings'][0]
+        assert conflict['resource_name'] == "Room A"
+        assert conflict['conflicting_appointment']['practitioner_name'] == "Dr. Test"
