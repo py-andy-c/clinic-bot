@@ -25,106 +25,48 @@ export const ConflictDisplay: React.FC<ConflictDisplayProps> = ({
     return null;
   }
 
-  const getConflictDisplay = (conflictType: string) => {
+  const getWarningText = (conflictType: string): string | null => {
     switch (conflictType) {
       case 'past_appointment':
-        return {
-          icon: '⚠️',
-          title: '此預約時間在過去',
-          details: [],
-          borderClass: 'border-amber-300 bg-amber-50',
-          textClass: 'text-amber-800',
-        };
+        return '時間在過去';
 
       case 'appointment':
         if (!conflictInfo.appointment_conflict) return null;
         const appt = conflictInfo.appointment_conflict;
-        return {
-          icon: '⚠️',
-          title: '時間衝突：與現有預約重疊',
-          details: [
-            `病患：${appt.patient_name}`,
-            `預約時間：${appt.start_time}-${appt.end_time}`,
-            `預約類型：${appt.appointment_type}`,
-          ],
-          borderClass: 'border-red-300 bg-red-50',
-          textClass: 'text-red-800',
-        };
+        return `與現有預約重疊：${appt.patient_name} | ${appt.start_time}-${appt.end_time} | ${appt.appointment_type}`;
 
       case 'exception':
         if (!conflictInfo.exception_conflict) return null;
         const exc = conflictInfo.exception_conflict;
-        return {
-          icon: '⚠️',
-          title: '與治療師不可用時間衝突',
-          details: [
-            `不可用時間：${exc.start_time}-${exc.end_time}`,
-            exc.reason ? `原因：${exc.reason}` : null,
-          ].filter((d): d is string => d !== null),
-          borderClass: 'border-orange-300 bg-orange-50',
-          textClass: 'text-orange-800',
-        };
+        const reasonText = exc.reason ? ` (${exc.reason})` : '';
+        return `治療師休診：${exc.start_time}-${exc.end_time}${reasonText}`;
 
       case 'availability':
-        // Show warning even if practitioner has no default availability set
         const normalHours = conflictInfo.default_availability?.normal_hours;
-        return {
-          icon: 'ℹ️',
-          title: '非正常可用時間',
-          details: normalHours
-            ? [`正常可用時間：${normalHours}`]
-            : ['此治療師尚未設定可用時間'],
-          borderClass: 'border-blue-300 bg-blue-50',
-          textClass: 'text-blue-800',
-        };
+        return normalHours
+          ? `非治療師正常時間（${normalHours}）`
+          : '非治療師正常時間（未設定可用時間）';
 
       case 'resource':
         if (!conflictInfo.resource_conflicts || conflictInfo.resource_conflicts.length === 0) return null;
-        const resourceDetails = conflictInfo.resource_conflicts.map((conflict: any) => {
-          // Format: ⚠️ 資源不足：{ResourceTypeName}
-          //   需要數量：{RequiredQuantity}
-          //   總數：{TotalResources} 個，已分配：{AllocatedCount} 個
-          // Note: Date/time is not in conflictInfo, but is shown in the context where this is displayed
-          // Support both old format (available_quantity) and new format (total_resources, allocated_count)
+        const resourceTexts = conflictInfo.resource_conflicts.map((conflict: any) => {
           if ('total_resources' in conflict && 'allocated_count' in conflict) {
-            return `資源不足：${conflict.resource_type_name}\n   需要數量：${conflict.required_quantity}\n   總數：${conflict.total_resources} 個，已分配：${conflict.allocated_count} 個`;
+            return `資源不足：${conflict.resource_type_name}（需要：${conflict.required_quantity}，總數：${conflict.total_resources}，已用：${conflict.allocated_count}）`;
           } else {
-            // Fallback for old format (backward compatibility)
-            return `資源不足：${conflict.resource_type_name}\n   需要數量：${conflict.required_quantity}\n   可用數量：${conflict.available_quantity}`;
+            return `資源不足：${conflict.resource_type_name}（需要：${conflict.required_quantity}，可用：${conflict.available_quantity}）`;
           }
         });
-        return {
-          icon: '⚠️',
-          title: '資源不足',
-          details: resourceDetails,
-          borderClass: 'border-yellow-300 bg-yellow-50',
-          textClass: 'text-yellow-800',
-        };
+        return resourceTexts.join('；');
 
       case 'practitioner_type_mismatch':
-        return {
-          icon: '⚠️',
-          title: '治療師不提供此預約類型',
-          details: ['請選擇其他治療師或預約類型'],
-          borderClass: 'border-amber-300 bg-amber-50',
-          textClass: 'text-amber-800',
-        };
+        return '治療師不提供此類型';
 
       default:
         return null;
     }
   };
 
-  // Collect all conflicts in priority order
-  type ConflictDisplay = {
-    icon: string;
-    title: string;
-    details: string[];
-    borderClass: string;
-    textClass: string;
-  };
-
-  const conflicts: Array<{ type: string; display: ConflictDisplay }> = [];
+  const warnings: string[] = [];
 
   // Show all conflicts by default, or filter if filterTypes is specified
   const shouldShowConflict = (conflictType: string) => {
@@ -132,95 +74,73 @@ export const ConflictDisplay: React.FC<ConflictDisplayProps> = ({
   };
 
   // Check for past appointment conflict (highest priority)
-  // Backend sets conflict_type to "past_appointment" when appointment is in the past
   if (shouldShowConflict('past_appointment')) {
     if (conflictInfo.conflict_type === 'past_appointment') {
-      const display = getConflictDisplay('past_appointment');
-      if (display) {
-        conflicts.push({ type: 'past_appointment', display });
-      }
+      const text = getWarningText('past_appointment');
+      if (text) warnings.push(text);
     }
   }
 
   // Check for appointment conflict
   if (shouldShowConflict('appointment')) {
     if (conflictInfo.appointment_conflict) {
-      const display = getConflictDisplay('appointment');
-      if (display) {
-        conflicts.push({ type: 'appointment', display });
-      }
+      const text = getWarningText('appointment');
+      if (text) warnings.push(text);
     }
   }
 
   // Check for exception conflict
   if (shouldShowConflict('exception')) {
     if (conflictInfo.exception_conflict) {
-      const display = getConflictDisplay('exception');
-      if (display) {
-        conflicts.push({ type: 'exception', display });
-      }
+      const text = getWarningText('exception');
+      if (text) warnings.push(text);
     }
   }
 
   // Check for availability conflict
   if (shouldShowConflict('availability')) {
     if (conflictInfo.default_availability && !conflictInfo.default_availability.is_within_hours) {
-      const display = getConflictDisplay('availability');
-      if (display) {
-        conflicts.push({ type: 'availability', display });
-      }
+      const text = getWarningText('availability');
+      if (text) warnings.push(text);
     }
   }
 
   // Check for resource conflict
   if (shouldShowConflict('resource')) {
     if (conflictInfo.resource_conflicts && conflictInfo.resource_conflicts.length > 0) {
-      const display = getConflictDisplay('resource');
-      if (display) {
-        conflicts.push({ type: 'resource', display });
-      }
+      const text = getWarningText('resource');
+      if (text) warnings.push(text);
     }
   }
 
   // Check for practitioner-type mismatch conflict
   if (shouldShowConflict('practitioner_type_mismatch')) {
     if (conflictInfo.conflict_type === 'practitioner_type_mismatch' || (conflictInfo as any).is_type_mismatch) {
-      const display = getConflictDisplay('practitioner_type_mismatch');
-      if (display) {
-        conflicts.push({ type: 'practitioner_type_mismatch', display });
-      }
+      const text = getWarningText('practitioner_type_mismatch');
+      if (text) warnings.push(text);
     }
   }
 
-  if (conflicts.length === 0) {
+  if (warnings.length === 0) {
     return null;
   }
 
   return (
     <div
-      className={`space-y-2 ${className}`}
+      className={`rounded border border-amber-300 bg-amber-50 px-2 py-1.5 ${className}`}
       aria-live={ariaLive}
       aria-atomic="true"
-      role="status"
-      aria-label="預約衝突警告"
+      role="alert"
+      aria-label="預約警告"
     >
-      {conflicts.map((conflict, index) => (
-        <div key={index} className={`rounded-md border p-3 ${conflict.display.borderClass}`}>
-          <div className={`flex items-start gap-2 ${conflict.display.textClass}`}>
-            <span className="text-lg flex-shrink-0" aria-hidden="true">{conflict.display.icon}</span>
-            <div className="flex-1 min-w-0">
-              <div className="font-medium text-sm mb-1" role="heading" aria-level={3}>
-                {conflict.display.title}
-              </div>
-              {conflict.display.details.map((detail, detailIndex) => (
-                <div key={detailIndex} className="text-xs leading-relaxed whitespace-pre-line">
-                  {detail}
-                </div>
-              ))}
-            </div>
+      <div className="text-amber-800 text-xs space-y-1">
+        {warnings.map((warning, index) => (
+          <div key={index} className="flex items-start gap-1">
+            <span className="flex-shrink-0 leading-tight">•</span>
+            <span className="leading-tight">{warning}</span>
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 };
