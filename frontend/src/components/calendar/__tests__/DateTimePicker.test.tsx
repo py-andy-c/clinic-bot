@@ -52,17 +52,17 @@ vi.mock('../../../utils/calendarUtils', () => ({
     const today = new Date();
     const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
     const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-    
+
     // Add nulls for days before month starts
     for (let i = 0; i < firstDay.getDay(); i++) {
       days.push(null);
     }
-    
+
     // Add days of month
     for (let i = 1; i <= lastDay.getDate(); i++) {
       days.push(new Date(today.getFullYear(), today.getMonth(), i));
     }
-    
+
     return days;
   },
   isToday: () => false,
@@ -93,7 +93,7 @@ describe('DateTimePicker', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    
+
     // Default mock for useBatchAvailabilitySlots
     vi.mocked(useBatchAvailabilitySlots).mockReturnValue({
       data: {
@@ -179,14 +179,14 @@ describe('DateTimePicker', () => {
         />
       </TestWrapper>
     );
-    
+
     // Should be collapsed initially when both date and time are selected
     const button = screen.getByText(/2024/).closest('button');
     expect(button).toBeInTheDocument();
     expect(screen.queryByLabelText('上個月')).not.toBeInTheDocument();
-    
+
     fireEvent.click(button!);
-    
+
     await waitFor(() => {
       expect(screen.getByLabelText('上個月')).toBeInTheDocument();
     });
@@ -202,19 +202,19 @@ describe('DateTimePicker', () => {
         />
       </TestWrapper>
     );
-    
+
     const button = screen.getByText(/2024/).closest('button');
     fireEvent.click(button!);
-    
+
     await waitFor(() => {
       expect(screen.getByLabelText('上個月')).toBeInTheDocument();
     });
-    
+
     // Wait for time slots to be available
     await waitFor(() => {
       expect(screen.getByText('09:00')).toBeInTheDocument();
     });
-    
+
     // Time should be selected in expanded view
     const timeButton = screen.getByText('09:00');
     expect(timeButton).toHaveClass('bg-blue-500');
@@ -244,14 +244,14 @@ describe('DateTimePicker', () => {
     await waitFor(() => {
       expect(screen.getByText('15:00')).toBeInTheDocument();
     });
-    
+
     // Select a time
     const timeButton = screen.getByText('15:00');
     fireEvent.click(timeButton);
-    
+
     // Time should be selected
     expect(timeButton).toHaveClass('bg-blue-500');
-    
+
     // onTimeSelect should be called immediately (not waiting for collapse)
     expect(mockOnTimeSelect).toHaveBeenCalledWith('15:00');
   });
@@ -275,19 +275,19 @@ describe('DateTimePicker', () => {
     await waitFor(() => {
       expect(screen.getByLabelText('上個月')).toBeInTheDocument();
     });
-    
+
     // Wait for time slots to be available
     await waitFor(() => {
       expect(screen.getByText('15:00')).toBeInTheDocument();
     });
-    
+
     // Select a time (15:00)
     const timeButton = screen.getByText('15:00');
     fireEvent.click(timeButton);
-    
+
     // Verify time is selected
     expect(timeButton).toHaveClass('bg-blue-500');
-    
+
     // lastManuallySelectedTime should be set (tested indirectly - time is selected)
     // When collapsing, lastManuallySelectedTime is cleared, which is expected behavior
     await act(async () => {
@@ -295,7 +295,7 @@ describe('DateTimePicker', () => {
       // Wait for setTimeout in click outside handler
       await new Promise(resolve => setTimeout(resolve, 10));
     });
-    
+
     await waitFor(() => {
       expect(screen.queryByLabelText('上個月')).not.toBeInTheDocument();
     }, { timeout: 2000 });
@@ -307,46 +307,46 @@ describe('DateTimePicker', () => {
         <DateTimePicker
           {...defaultProps}
           selectedDate="2024-01-15"
-        selectedTime="09:00"
-      />
+          selectedTime="09:00"
+        />
       </TestWrapper>
     );
-    
+
     const button = screen.getByText(/2024/).closest('button');
     fireEvent.click(button!);
-    
+
     await waitFor(() => {
       expect(screen.getByLabelText('上個月')).toBeInTheDocument();
     });
-    
+
     // Wait for time slots to be available
     await waitFor(() => {
       expect(screen.getByText('15:00')).toBeInTheDocument();
     });
-    
+
     // Select a different time
     const timeButton = screen.getByText('15:00');
     fireEvent.click(timeButton);
-    
+
     // Verify time is selected
     expect(timeButton).toHaveClass('bg-blue-500');
-    
+
     // onTimeSelect should be called immediately when time is selected
     expect(mockOnTimeSelect).toHaveBeenCalledWith('15:00');
-    
+
     // Clear the mock to verify collapse doesn't call it again
     mockOnTimeSelect.mockClear();
-    
+
     // Collapse by clicking outside - need to use act for async state updates
     await act(async () => {
       fireEvent.mouseDown(document.body);
       // Wait for setTimeout in click outside handler
       await new Promise(resolve => setTimeout(resolve, 10));
     });
-    
+
     // onTimeSelect should NOT be called again on collapse (already called immediately)
     expect(mockOnTimeSelect).not.toHaveBeenCalled();
-    
+
     // Date should still be selected (no change)
     expect(mockOnDateSelect).not.toHaveBeenCalled();
   });
@@ -361,21 +361,21 @@ describe('DateTimePicker', () => {
         />
       </TestWrapper>
     );
-    
+
     const button = screen.getByText(/2024/).closest('button');
     fireEvent.click(button!);
-    
+
     await waitFor(() => {
       expect(screen.getByLabelText('上個月')).toBeInTheDocument();
     });
-    
+
     // Clear time by selecting empty (this would require deselecting, which isn't directly possible)
     // Instead, let's test by switching to a date with no time selected
     // For this test, we'll simulate having tempDate but no tempTime
-    
+
     // Collapse by clicking outside
     fireEvent.click(document.body);
-    
+
     // Since we have a date and time initially, both should be saved
     // To test clearing, we'd need to manually set tempTime to empty, which requires internal state access
     // This test verifies the basic collapse behavior works
@@ -405,14 +405,14 @@ describe('DateTimePicker', () => {
     await waitFor(() => {
       expect(screen.getByText('15:00')).toBeInTheDocument();
     });
-    
+
     // Select a time
     const timeButton = screen.getByText('15:00');
     fireEvent.click(timeButton);
-    
+
     // Verify time is selected
     expect(timeButton).toHaveClass('bg-blue-500');
-    
+
     // Change practitioner - this should clear lastManuallySelectedTime
     rerender(
       <TestWrapper>
@@ -423,7 +423,7 @@ describe('DateTimePicker', () => {
         />
       </TestWrapper>
     );
-    
+
     // lastManuallySelectedTime should be cleared (tested indirectly - component re-renders)
     // The component should still be expanded, but the time selection state is reset
   });
@@ -487,19 +487,19 @@ describe('DateTimePicker', () => {
         />
       </TestWrapper>
     );
-    
+
     const button = screen.getByText(/2024/).closest('button');
     fireEvent.click(button!);
-    
+
     await waitFor(() => {
       expect(screen.getByLabelText('上個月')).toBeInTheDocument();
     });
-    
+
     // Wait for time slots to be available
     await waitFor(() => {
       expect(screen.getByText('09:00')).toBeInTheDocument();
     });
-    
+
     // Time slots should be displayed (backend handles including original time when excludeCalendarEventId is provided)
     expect(screen.getByText('09:00')).toBeInTheDocument();
   });
@@ -587,24 +587,24 @@ describe('DateTimePicker', () => {
         />
       </TestWrapper>
     );
-    
+
     // Expand the picker
     const button = screen.getByText(/2024/).closest('button');
     fireEvent.click(button!);
-    
+
     await waitFor(() => {
       expect(screen.getByLabelText('上個月')).toBeInTheDocument();
     });
-    
+
     // Wait for time slots to be available
     await waitFor(() => {
       expect(screen.getByText('10:00')).toBeInTheDocument();
     });
-    
+
     // Select a different time
     const timeButton = screen.getByText('10:00');
     fireEvent.click(timeButton);
-    
+
     // onTimeSelect should be called immediately (not waiting for collapse)
     expect(mockOnTimeSelect).toHaveBeenCalledWith('10:00');
   });
@@ -880,6 +880,132 @@ describe('DateTimePicker', () => {
       await new Promise((resolve) => setTimeout(resolve, 400));
 
       expect(apiService.checkBatchPractitionerConflicts).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Locked Expansion (canExpand prop)', () => {
+    it('should block expansion and show warning when canExpand is false', async () => {
+      render(
+        <TestWrapper>
+          <DateTimePicker
+            {...defaultProps}
+            selectedPractitionerId={null}
+            appointmentTypeId={null}
+            canExpand={false}
+          />
+        </TestWrapper>
+      );
+
+      // Should be collapsed initially
+      expect(screen.queryByLabelText('上個月')).not.toBeInTheDocument();
+
+      // Click the collapsed button
+      const collapsedButton = screen.getByRole('button');
+      fireEvent.click(collapsedButton);
+
+      // Should NOT expand
+      expect(screen.queryByLabelText('上個月')).not.toBeInTheDocument();
+
+      // Should show warning message
+      await waitFor(() => {
+        expect(screen.getByText('請先選擇治療師與預約類型')).toBeInTheDocument();
+      });
+    });
+
+    it('should allow expansion when canExpand is true (default)', async () => {
+      render(
+        <TestWrapper>
+          <DateTimePicker
+            {...defaultProps}
+            selectedPractitionerId={1}
+            appointmentTypeId={1}
+            canExpand={true}
+          />
+        </TestWrapper>
+      );
+
+      // Should be collapsed initially
+      expect(screen.queryByLabelText('上個月')).not.toBeInTheDocument();
+
+      // Click the collapsed button
+      const collapsedButton = screen.getByRole('button');
+      fireEvent.click(collapsedButton);
+
+      // Should expand normally
+      await waitFor(() => {
+        expect(screen.getByLabelText('上個月')).toBeInTheDocument();
+      });
+
+      // Should NOT show warning
+      expect(screen.queryByText('請先選擇治療師與預約類型')).not.toBeInTheDocument();
+    });
+
+    it('should display pre-populated date/time in collapsed view even when canExpand is false', () => {
+      render(
+        <TestWrapper>
+          <DateTimePicker
+            {...defaultProps}
+            selectedDate="2024-01-15"
+            selectedTime="10:00"
+            selectedPractitionerId={null}
+            appointmentTypeId={null}
+            canExpand={false}
+            prePopulatedFromSlot={true}
+          />
+        </TestWrapper>
+      );
+
+      // Should show the pre-populated date/time in collapsed view
+      expect(screen.getByText(/2024/)).toBeInTheDocument();
+
+      // Should show the "從行事曆選擇" badge
+      expect(screen.getByText('從行事曆選擇')).toBeInTheDocument();
+
+      // Clicking should NOT expand
+      const collapsedButton = screen.getByRole('button');
+      fireEvent.click(collapsedButton);
+
+      expect(screen.queryByLabelText('上個月')).not.toBeInTheDocument();
+
+      // Warning should appear after click
+      expect(screen.getByText('請先選擇治療師與預約類型')).toBeInTheDocument();
+    });
+
+    it('should allow expansion after canExpand becomes true', async () => {
+      const { rerender } = render(
+        <TestWrapper>
+          <DateTimePicker
+            {...defaultProps}
+            selectedPractitionerId={null}
+            appointmentTypeId={null}
+            canExpand={false}
+          />
+        </TestWrapper>
+      );
+
+      // Click - should NOT expand due to canExpand=false
+      const collapsedButton = screen.getByRole('button');
+      fireEvent.click(collapsedButton);
+      expect(screen.queryByLabelText('上個月')).not.toBeInTheDocument();
+
+      // Now canExpand becomes true (user selected practitioner and type)
+      rerender(
+        <TestWrapper>
+          <DateTimePicker
+            {...defaultProps}
+            selectedPractitionerId={1}
+            appointmentTypeId={1}
+            canExpand={true}
+          />
+        </TestWrapper>
+      );
+
+      // Click again - should expand now
+      fireEvent.click(screen.getByRole('button'));
+
+      await waitFor(() => {
+        expect(screen.getByLabelText('上個月')).toBeInTheDocument();
+      });
     });
   });
 

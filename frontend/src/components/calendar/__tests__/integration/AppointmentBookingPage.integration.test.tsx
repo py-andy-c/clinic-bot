@@ -50,7 +50,7 @@ const MockAppointmentBookingPage = () => {
     // In a real scenario, this would show success briefly then redirect
     setTimeout(() => {
       handleBookingComplete();
-    }, 100); // Brief success message before redirect
+    }, 500); // Brief success message before redirect (longer timeout to avoid test flakiness)
   };
 
   if (currentView === 'calendar') {

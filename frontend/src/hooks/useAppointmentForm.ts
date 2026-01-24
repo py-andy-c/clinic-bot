@@ -35,13 +35,26 @@ export const useAppointmentForm = ({
   preSelectedClinicNotes,
   prePopulatedFromSlot,
 }: UseAppointmentFormProps) => {
-  const [selectedPatientId, setSelectedPatientId] = useState<number | null>(preSelectedPatientId || event?.resource.patient_id || null);
-  const [selectedAppointmentTypeId, setSelectedAppointmentTypeId] = useState<number | null>(null);
-  const [selectedPractitionerId, setSelectedPractitionerId] = useState<number | null>(null);
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  const [selectedTime, setSelectedTime] = useState<string>('');
-  const [clinicNotes, setClinicNotes] = useState<string>('');
-  const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
+  const [selectedPatientId, setSelectedPatientId] = useState<number | null>(preSelectedPatientId ?? event?.resource.patient_id ?? null);
+  const [selectedAppointmentTypeId, setSelectedAppointmentTypeId] = useState<number | null>(
+    preSelectedAppointmentTypeId ?? event?.resource.appointment_type_id ?? null
+  );
+  const [selectedPractitionerId, setSelectedPractitionerId] = useState<number | null>(
+    preSelectedPractitionerId ?? event?.resource.practitioner_id ?? null
+  );
+  const [selectedDate, setSelectedDate] = useState<string | null>(() => {
+    if (initialDate) return initialDate;
+    if (event) return moment(event.start).tz('Asia/Taipei').format('YYYY-MM-DD');
+    return null;
+  });
+  const [selectedTime, setSelectedTime] = useState<string>(() => {
+    // For duplication mode, don't pre-populate time to avoid immediate conflict
+    if (preSelectedTime) return preSelectedTime;
+    if (event && !preSelectedTime) return '';  // Duplication: clear time
+    return '';
+  });
+  const [clinicNotes, setClinicNotes] = useState<string>(preSelectedClinicNotes ?? event?.resource.clinic_notes ?? '');
+  const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>(event?.resource.resource_ids ?? []);
   const [initialResourceIds, setInitialResourceIds] = useState<number[]>([]);
   const [initialResources, setInitialResources] = useState<Array<{ id: number; resource_type_id: number; resource_type_name?: string; name: string }>>([]);
   const [initialAvailability, setInitialAvailability] = useState<ResourceAvailabilityResponse | null>(null);
@@ -81,24 +94,10 @@ export const useAppointmentForm = ({
       );
 
       try {
-        let typeId = preSelectedAppointmentTypeId || event?.resource.appointment_type_id || null;
-        let pracId = preSelectedPractitionerId || event?.resource.practitioner_id || null;
-        let date = initialDate || (event ? moment(event.start).tz('Asia/Taipei').format('YYYY-MM-DD') : null);
-        let time = preSelectedTime || (event ? moment(event.start).tz('Asia/Taipei').format('HH:mm') : '');
-        let notes = preSelectedClinicNotes || event?.resource.clinic_notes || '';
-        let resourceIds = event?.resource.resource_ids || [];
-
-        // Special handling for duplication mode: clear time to avoid immediate conflict
-        if (mode === 'duplicate') {
-          time = '';
-        }
-
-        setSelectedAppointmentTypeId(typeId);
-        setSelectedPractitionerId(pracId);
-        setSelectedDate(date);
-        setSelectedTime(time);
-        setClinicNotes(notes);
-        setSelectedResourceIds(resourceIds);
+        // State is now initialized directly from props in useState()
+        // We only need to set lastFetchedTypeIdRef and initialResourceIds here
+        const typeId = preSelectedAppointmentTypeId ?? event?.resource.appointment_type_id ?? null;
+        const resourceIds = event?.resource.resource_ids ?? [];
 
         lastFetchedTypeIdRef.current = typeId;
 
@@ -123,14 +122,17 @@ export const useAppointmentForm = ({
         }
 
         // 3. Fetch resource availability for edit mode (when we have all required data)
-        const shouldFetchAvailability = mode === 'edit' && typeId && pracId && date && time;
+        const pracId = preSelectedPractitionerId ?? event?.resource.practitioner_id ?? null;
+        const dateValue = initialDate ?? (event ? moment(event.start).tz('Asia/Taipei').format('YYYY-MM-DD') : null);
+        const timeValue = preSelectedTime ?? (event ? moment(event.start).tz('Asia/Taipei').format('HH:mm') : null);
+        const shouldFetchAvailability = mode === 'edit' && typeId && pracId && dateValue && timeValue;
         if (shouldFetchAvailability) {
           // Get duration from appointment type
           const appointmentType = _appointmentTypes.find(t => t.id === typeId);
           const durationMinutes = appointmentType?.duration_minutes || 30;
 
           // Calculate end time
-          const startMoment = moment.tz(`${date}T${time}`, 'Asia/Taipei');
+          const startMoment = moment.tz(`${dateValue}T${timeValue}`, 'Asia/Taipei');
           const endMoment = startMoment.clone().add(durationMinutes, 'minutes');
 
           const availabilityParams: {
@@ -143,7 +145,7 @@ export const useAppointmentForm = ({
           } = {
             appointment_type_id: typeId,
             practitioner_id: pracId,
-            date,
+            date: dateValue,
             start_time: startMoment.format('HH:mm'),
             end_time: endMoment.format('HH:mm'),
           };
@@ -321,30 +323,9 @@ export const useAppointmentForm = ({
     };
   }, [selectedAppointmentTypeId, allPractitioners, isInitialLoading]);
 
-  // Auto-deselection logic - conditional on mode
-  // For create/duplicate modes: clear dependent selections when appointment type is cleared (user intent)
-  // For edit mode: preserve selections always (design requirement)
-  useEffect(() => {
-    if (isInitialMountRef.current || isInitialLoading) return;
-    if (mode === 'edit') return; // Preserve selections in edit mode
-
-    if (selectedAppointmentTypeId === null && (selectedPractitionerId !== null || selectedTime !== '')) {
-      setSelectedPractitionerId(null);
-      setSelectedDate(null);
-      setSelectedTime('');
-    }
-  }, [mode, selectedAppointmentTypeId, selectedPractitionerId, selectedTime, isInitialLoading]);
-
-  // Handle practitioner null state - conditional on mode
-  useEffect(() => {
-    if (isInitialMountRef.current || isInitialLoading) return;
-    if (mode === 'edit') return; // Preserve selections in edit mode
-
-    if (selectedPractitionerId === null && (selectedDate !== null || selectedTime !== '')) {
-      setSelectedDate(null);
-      setSelectedTime('');
-    }
-  }, [mode, selectedPractitionerId, selectedDate, selectedTime, isInitialLoading]);
+  // NOTE: Cascading deselection logic has been removed.
+  // All fields can now be selected independently in any order.
+  // Mismatch warnings are shown in the UI but don't block selection.
 
   // Form validity check
   const isValid = useMemo(() => {

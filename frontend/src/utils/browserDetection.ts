@@ -11,7 +11,7 @@ export function isInAppBrowser(): boolean {
 
   const userAgent = navigator.userAgent.toLowerCase();
   const standalone = (window.navigator as any).standalone;
-  
+
   // Check for common in-app browser patterns (these are definitive indicators)
   const inAppPatterns = [
     'line/',           // Line app
@@ -32,19 +32,19 @@ export function isInAppBrowser(): boolean {
 
   // Android: Check for WebView indicators (but exclude Chrome)
   // Chrome on Android has 'wv' in user agent but also has 'chrome', so we check for WebView without Chrome
-  const isAndroidWebView = /android/.test(userAgent) && 
-                          (userAgent.includes('wv') || userAgent.includes('webview')) &&
-                          !userAgent.includes('chrome');
+  const isAndroidWebView = /android/.test(userAgent) &&
+    (userAgent.includes('wv') || userAgent.includes('webview')) &&
+    !userAgent.includes('chrome');
 
   // iOS: Check if it's opened from another app
   // If standalone is false, it might be in-app, but we need to be careful not to flag regular Safari
   // We only flag if there are other indicators or if it's clearly not a real browser
   const isIOS = /iphone|ipad|ipod/.test(userAgent);
-  const isIOSInApp = isIOS && 
-                     !standalone && 
-                     !userAgent.includes('crios') && // Chrome iOS
-                     !userAgent.includes('fxios') && // Firefox iOS
-                     !userAgent.includes('version/'); // Regular Safari has version/ in UA
+  const isIOSInApp = isIOS &&
+    !standalone &&
+    !userAgent.includes('crios') && // Chrome iOS
+    !userAgent.includes('fxios') && // Firefox iOS
+    !userAgent.includes('version/'); // Regular Safari has version/ in UA
 
   return isInAppByUA || isAndroidWebView || isIOSInApp;
 }
@@ -58,11 +58,11 @@ function isMessengerOrFacebook(): boolean {
     return false;
   }
   const userAgent = navigator.userAgent.toLowerCase();
-  return userAgent.includes('messenger') || 
-         userAgent.includes('fban') || 
-         userAgent.includes('fbav') || 
-         userAgent.includes('fbios') || 
-         userAgent.includes('fbsv');
+  return userAgent.includes('messenger') ||
+    userAgent.includes('fban') ||
+    userAgent.includes('fbav') ||
+    userAgent.includes('fbios') ||
+    userAgent.includes('fbsv');
 }
 
 /**
@@ -82,12 +82,12 @@ export function openInBrowser(): boolean {
   const currentUrl = window.location.href;
   const userAgent = navigator.userAgent.toLowerCase();
   const isMessenger = isMessengerOrFacebook();
-  
+
   // For Messenger/Facebook, we know it won't work, so don't try
   if (isMessenger) {
     return false;
   }
-  
+
   // For iOS (non-Messenger), try to open in Safari
   if (/iphone|ipad|ipod/.test(userAgent)) {
     // Try Safari URL scheme (works in some in-app browsers like Line)
@@ -102,33 +102,33 @@ export function openInBrowser(): boolean {
       return false;
     }
   }
-  
+
   // For Android (non-Messenger), try to open in default browser using intent
   if (/android/.test(userAgent)) {
     try {
       // Try Android intent URL
       const urlWithoutProtocol = currentUrl.replace(/^https?:\/\//, '');
       const intentUrl = `intent://${urlWithoutProtocol}#Intent;scheme=https;action=android.intent.action.VIEW;end`;
-      
+
       // Use a hidden iframe to avoid navigation errors
       const iframe = document.createElement('iframe');
       iframe.style.display = 'none';
       iframe.src = intentUrl;
       document.body.appendChild(iframe);
-      
+
       // Remove iframe after a short delay
       setTimeout(() => {
-        if (document.body.contains(iframe)) {
+        if (iframe && document.body && document.body.contains(iframe)) {
           document.body.removeChild(iframe);
         }
       }, 100);
-      
+
       return true;
     } catch (e) {
       return false;
     }
   }
-  
+
   // Fallback: try to open in new window/tab
   try {
     const opened = window.open(currentUrl, '_blank');

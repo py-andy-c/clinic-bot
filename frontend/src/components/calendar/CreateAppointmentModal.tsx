@@ -951,7 +951,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
           <button
             type="button"
             onClick={() => setIsPractitionerModalOpen(true)}
-            disabled={!selectedAppointmentTypeId || isLoadingPractitioners}
+            disabled={isLoadingPractitioners}
             className="w-full border border-gray-300 rounded-md px-3 py-2 text-left focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors"
           >
             {isLoadingPractitioners ? (
@@ -1001,20 +1001,19 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
 
         <AppointmentReferenceHeader referenceDateTime={referenceDateTime} />
 
-        {selectedAppointmentTypeId && selectedPractitionerId && (
-          <DateTimePicker
-            selectedDate={selectedDate}
-            selectedTime={selectedTime}
-            selectedPractitionerId={selectedPractitionerId}
-            appointmentTypeId={selectedAppointmentTypeId}
-            onDateSelect={handleDateSelect}
-            onTimeSelect={setSelectedTime}
-            error={error}
-            allowOverride={true}
-            initialExpanded={isDuplication}
-            prePopulatedFromSlot={prePopulatedFromSlot}
-          />
-        )}
+        <DateTimePicker
+          selectedDate={selectedDate}
+          selectedTime={selectedTime}
+          selectedPractitionerId={selectedPractitionerId}
+          appointmentTypeId={selectedAppointmentTypeId}
+          onDateSelect={handleDateSelect}
+          onTimeSelect={setSelectedTime}
+          error={error}
+          allowOverride={true}
+          initialExpanded={false}
+          prePopulatedFromSlot={prePopulatedFromSlot}
+          canExpand={!!selectedPractitionerId && !!selectedAppointmentTypeId}
+        />
 
         {/* Recurrence Toggle */}
         <div className="flex items-center gap-4">

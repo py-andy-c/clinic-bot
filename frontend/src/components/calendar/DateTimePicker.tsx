@@ -49,6 +49,8 @@ export interface DateTimePickerProps {
   initialExpanded?: boolean;
   // Optional: indicate if values were pre-populated from a calendar slot
   prePopulatedFromSlot?: boolean;
+  // Optional: control whether the picker can be expanded (requires practitioner + appointmentType)
+  canExpand?: boolean;
 }
 
 const dayNames = ['日', '一', '二', '三', '四', '五', '六'];
@@ -71,6 +73,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
   alternativeSlots,
   initialExpanded = false,
   prePopulatedFromSlot = false,
+  canExpand = true,
 }) => {
   const [isExpanded, setIsExpanded] = useState(initialExpanded);
   const pickerRef = useRef<HTMLDivElement>(null);
@@ -114,6 +117,9 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
   const [freeFormTime, setFreeFormTime] = useState('');
   const [isCheckingConflict, setIsCheckingConflict] = useState(false);
   const [showOverrideInfoModal, setShowOverrideInfoModal] = useState(false);
+
+  // Locked expansion warning state
+  const [showLockedWarning, setShowLockedWarning] = useState(false);
 
   // Determine which date/time to use for display and slot loading
   // Use tempDate/tempTime when expanded (for UI navigation), selectedDate/selectedTime when collapsed
@@ -554,6 +560,13 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
   };
 
   const handleCollapsedClick = () => {
+    if (!canExpand) {
+      setShowLockedWarning(true);
+      // Auto-hide warning after 3 seconds
+      setTimeout(() => setShowLockedWarning(false), 3000);
+      return;
+    }
+    setShowLockedWarning(false);
     setIsExpanded(true);
   };
 
@@ -607,8 +620,8 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
           type="button"
           onClick={handleCollapsedClick}
           className={`w-full border rounded-md px-3 py-2 text-left transition-colors flex items-center justify-between ${error
-              ? 'border-red-300 bg-red-50'
-              : 'border-gray-300 bg-white hover:border-gray-400'
+            ? 'border-red-300 bg-red-50'
+            : 'border-gray-300 bg-white hover:border-gray-400'
             }`}
         >
           <span className={selectedDate && selectedTime ? 'text-gray-900' : 'text-gray-500'}>
@@ -628,6 +641,14 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
             </svg>
           </div>
         </button>
+        {showLockedWarning && (
+          <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded-md">
+            <p className="text-sm text-amber-700 flex items-center gap-1">
+              <span>⚠️</span>
+              <span>請先選擇治療師與預約類型</span>
+            </p>
+          </div>
+        )}
         {error && (
           <p className="mt-1 text-sm text-red-600">{error}</p>
         )}
@@ -710,10 +731,10 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
                     onClick={() => handleDateSelect(date)}
                     disabled={!isEnabled}
                     className={`h-9 text-center rounded-lg transition-colors ${selected
-                        ? 'bg-blue-500 text-white font-semibold'
-                        : isEnabled
-                          ? 'bg-white text-gray-900 font-semibold hover:bg-gray-50 border border-gray-200'
-                          : 'bg-gray-50 text-gray-400 cursor-not-allowed border border-gray-100'
+                      ? 'bg-blue-500 text-white font-semibold'
+                      : isEnabled
+                        ? 'bg-white text-gray-900 font-semibold hover:bg-gray-50 border border-gray-200'
+                        : 'bg-gray-50 text-gray-400 cursor-not-allowed border border-gray-100'
                       }`}
                   >
                     <div className="flex items-center justify-center h-full">
@@ -799,10 +820,10 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
                         key={time}
                         onClick={() => handleTimeSelect(time)}
                         className={`border rounded-md py-1.5 px-2 transition-colors text-sm font-medium relative ${isSelected
-                            ? 'bg-blue-500 text-white border-transparent'
-                            : isAlternative
-                              ? 'bg-white border-teal-300 hover:border-teal-400 hover:bg-teal-50 text-gray-900'
-                              : 'bg-white border-gray-200 hover:border-primary-300 hover:bg-primary-50 text-gray-900'
+                          ? 'bg-blue-500 text-white border-transparent'
+                          : isAlternative
+                            ? 'bg-white border-teal-300 hover:border-teal-400 hover:bg-teal-50 text-gray-900'
+                            : 'bg-white border-gray-200 hover:border-primary-300 hover:bg-primary-50 text-gray-900'
                           }`}
                         title={isAlternative ? '此時段為患者偏好選項' : undefined}
                       >
