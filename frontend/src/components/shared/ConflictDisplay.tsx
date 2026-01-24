@@ -184,7 +184,7 @@ export const ConflictDisplay: React.FC<ConflictDisplayProps> = ({
 
   // Check for practitioner-type mismatch conflict
   if (shouldShowConflict('practitioner_type_mismatch')) {
-    if (conflictInfo.conflict_type === 'practitioner_type_mismatch') {
+    if (conflictInfo.conflict_type === 'practitioner_type_mismatch' || (conflictInfo as any).is_type_mismatch) {
       const display = getConflictDisplay('practitioner_type_mismatch');
       if (display) {
         conflicts.push({ type: 'practitioner_type_mismatch', display });

@@ -248,19 +248,35 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
 
   // Update single appointment conflict state from hook result
   useEffect(() => {
+    const apiConflict = singlePractitionerConflictsQuery?.data;
+
     if (hasPractitionerTypeMismatch) {
-      setSingleAppointmentConflict({
-        has_conflict: true,
-        conflict_type: 'practitioner_type_mismatch',
-        appointment_conflict: null,
-        exception_conflict: null,
-        resource_conflicts: null,
-        default_availability: { is_within_hours: true, normal_hours: null }
-      });
-    } else if (singlePractitionerConflictsQuery?.data) {
-      setSingleAppointmentConflict(singlePractitionerConflictsQuery.data.has_conflict ? singlePractitionerConflictsQuery.data : null);
+      if (apiConflict) {
+        // Merge mismatch status with existing API conflicts so we don't hide other warnings (like overlaps)
+        setSingleAppointmentConflict({
+          ...apiConflict,
+          has_conflict: true,
+          // Keep existing conflict type (e.g., 'past_appointment') if present, otherwise set to mismatch
+          conflict_type: apiConflict.conflict_type || 'practitioner_type_mismatch',
+          // Custom flag to ensure mismatch warning always shows alongside other warnings
+          is_type_mismatch: true,
+          // Ensure default availability is set if missing
+          default_availability: apiConflict.default_availability || { is_within_hours: true, normal_hours: null }
+        });
+      } else {
+        // Fallback if API data isn't ready yet
+        setSingleAppointmentConflict({
+          has_conflict: true,
+          conflict_type: 'practitioner_type_mismatch',
+          is_type_mismatch: true,
+          appointment_conflict: null,
+          exception_conflict: null,
+          resource_conflicts: null,
+          default_availability: { is_within_hours: true, normal_hours: null }
+        });
+      }
     } else {
-      setSingleAppointmentConflict(null);
+      setSingleAppointmentConflict(apiConflict?.has_conflict ? apiConflict : null);
     }
   }, [singlePractitionerConflictsQuery?.data, hasPractitionerTypeMismatch]);
 
