@@ -20,7 +20,7 @@ import { PractitionerAssignmentPromptModal } from '../components/PractitionerAss
 import { PractitionerAssignmentConfirmationModal } from '../components/PractitionerAssignmentConfirmationModal';
 import { extractAppointmentDateTime } from '../utils/timezoneUtils';
 import { getErrorMessage } from '../types/api';
-import { AppointmentType } from '../types';
+import { AppointmentType, Practitioner } from '../types';
 import { EMPTY_ARRAY } from '../utils/constants';
 
 
@@ -30,7 +30,7 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
   const { enqueueModal, showNext } = useModalQueue();
   const queryClient = useQueryClient();
   const [selectedAppointment, setSelectedAppointment] = useState<AutoAssignedAppointment | null>(null);
-  const [practitioners, setPractitioners] = useState<{ id: number; full_name: string }[]>([]);
+  const [practitioners, setPractitioners] = useState<Practitioner[]>([]);
   const [appointmentTypes, setAppointmentTypes] = useState<AppointmentType[]>([]);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [calendarEvent, setCalendarEvent] = useState<CalendarEvent | null>(null);

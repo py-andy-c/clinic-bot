@@ -11,7 +11,7 @@ import { ServiceItemSelectionModal } from './ServiceItemSelectionModal';
 import { DateTimePicker } from './DateTimePicker';
 import { CalendarEvent } from '../../utils/calendarDataAdapter';
 import { apiService } from '../../services/api';
-import { Resource, Patient, AppointmentType, ServiceTypeGroup, SchedulingConflictResponse } from '../../types';
+import { Resource, Patient, AppointmentType, ServiceTypeGroup, SchedulingConflictResponse, Practitioner } from '../../types';
 import { getErrorMessage } from '../../types/api';
 import { logger } from '../../utils/logger';
 import { getPractitionerDisplayName, formatAppointmentDateTime } from '../../utils/calendarUtils';
@@ -34,15 +34,53 @@ import { PractitionerAssignmentConfirmationModal } from '../PractitionerAssignme
 import { getAssignedPractitionerIds } from '../../utils/patientUtils';
 import { useModalQueue } from '../../contexts/ModalQueueContext';
 import { useModal } from '../../contexts/ModalContext';
-import { EMPTY_ARRAY, EMPTY_OBJECT } from '../../utils/constants';
+import { EMPTY_ARRAY } from '../../utils/constants';
 
 
+
+
+/**
+ * Helper function to merge practitioner type mismatch information with API conflict response.
+ * This ensures the type mismatch warning is preserved alongside other conflict types.
+ */
+function mergeConflictWithTypeMismatch(
+  apiConflict: SchedulingConflictResponse | null | undefined,
+  hasPractitionerTypeMismatch: boolean
+): SchedulingConflictResponse | null {
+  if (!hasPractitionerTypeMismatch) {
+    // No type mismatch, return API conflict as-is
+    return apiConflict?.has_conflict ? apiConflict : null;
+  }
+
+  if (apiConflict) {
+    // Merge mismatch status with existing API conflicts
+    return {
+      ...apiConflict,
+      has_conflict: true,
+      conflict_type: apiConflict.conflict_type || 'practitioner_type_mismatch',
+      // Custom flag to ensure mismatch warning shows alongside other warnings
+      is_type_mismatch: true,
+      // Ensure default availability is set
+      default_availability: apiConflict.default_availability || { is_within_hours: true, normal_hours: null }
+    } as any;
+  } else {
+    // Only type mismatch, no API conflicts
+    return {
+      has_conflict: true,
+      conflict_type: 'practitioner_type_mismatch',
+      is_type_mismatch: true,
+      appointment_conflict: null,
+      exception_conflict: null,
+      default_availability: { is_within_hours: true, normal_hours: null }
+    } as any;
+  }
+}
 
 type EditStep = 'form' | 'review' | 'note' | 'preview';
 
 export interface EditAppointmentModalProps {
   event: CalendarEvent;
-  practitioners: { id: number; full_name: string }[];
+  practitioners: Practitioner[];
   appointmentTypes: AppointmentType[];
   onClose: () => void; // User cancellation → return to previous modal (if applicable)
   onComplete?: () => void; // Successful completion → close everything completely
@@ -102,6 +140,7 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
     referenceDateTime,
     hasChanges: _hasChanges,
     changeDetails,
+    hasPractitionerTypeMismatch,
   } = useAppointmentForm({
     mode: 'edit',
     event,
@@ -150,6 +189,39 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
   const { enqueueModal, showNext } = useModalQueue();
   const { alert } = useModal();
 
+  // Compute conflicts for all practitioners, including type mismatches
+  const practitionerConflictsWithTypeMismatch = useMemo(() => {
+    const apiConflicts = practitionerConflictsQuery?.data?.results?.reduce((acc: Record<number, SchedulingConflictResponse>, result: any) => {
+      if (result.practitioner_id) {
+        acc[result.practitioner_id] = result as SchedulingConflictResponse;
+      }
+      return acc;
+    }, {}) || {};
+
+    if (!selectedAppointmentTypeId) return apiConflicts;
+
+    const availableIds = new Set(availablePractitioners.map(p => p.id));
+    const fullConflicts = { ...apiConflicts };
+
+    practitioners.forEach(p => {
+      if (!availableIds.has(p.id)) {
+        // Only add mismatch conflict if there isn't already a more specific conflict from API
+        if (!fullConflicts[p.id]?.has_conflict) {
+          fullConflicts[p.id] = {
+            has_conflict: true,
+            conflict_type: 'practitioner_type_mismatch',
+            appointment_conflict: null,
+            exception_conflict: null,
+            resource_conflicts: null,
+            default_availability: { is_within_hours: true, normal_hours: null }
+          } as SchedulingConflictResponse;
+        }
+      }
+    });
+
+    return fullConflicts;
+  }, [practitionerConflictsQuery?.data?.results, availablePractitioners, practitioners, selectedAppointmentTypeId]);
+
   // Fetch patient data on mount to get assigned practitioners
   useEffect(() => {
     const loadPatient = async () => {
@@ -181,15 +253,20 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
 
   // Update conflict info from hook result
   useEffect(() => {
-    if (singlePractitionerConflictsQuery?.data) {
-      setConflictInfo(singlePractitionerConflictsQuery.data);
+    if (singlePractitionerConflictsQuery?.data || hasPractitionerTypeMismatch) {
+      setConflictInfo(mergeConflictWithTypeMismatch(
+        singlePractitionerConflictsQuery?.data,
+        hasPractitionerTypeMismatch
+      ));
       setConflictCheckError(null);
     } else if (singlePractitionerConflictsQuery?.error) {
       logger.error('Failed to check conflicts:', singlePractitionerConflictsQuery.error);
       setConflictCheckError('無法檢查時間衝突，請稍後再試');
       setConflictInfo(null);
+    } else {
+      setConflictInfo(null);
     }
-  }, [singlePractitionerConflictsQuery?.data, singlePractitionerConflictsQuery?.error]);
+  }, [singlePractitionerConflictsQuery?.data, singlePractitionerConflictsQuery?.error, hasPractitionerTypeMismatch]);
 
 
   const hasGrouping = groups.length > 0;
@@ -279,6 +356,14 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
       return newMap;
     });
   }, []);
+
+  // Compute appointment types offered by the selected practitioner (offered_types is already on practitioners prop)
+  const practitionerAppointmentTypeIds = useMemo(() => {
+    if (!selectedPractitionerId) return undefined;
+    const practitioner = practitioners.find(p => p.id === selectedPractitionerId);
+    return practitioner?.offered_types;
+  }, [selectedPractitionerId, practitioners]);
+
 
   // Reset step when modal closes or error occurs
   useEffect(() => {
@@ -520,7 +605,7 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
         return false; // No prompt needed
       }
 
-      const practitionerName = availablePractitioners.find(p => p.id === selectedPractitionerId)?.full_name || '';
+      const practitionerName = practitioners.find(p => p.id === selectedPractitionerId)?.full_name || '';
 
       // Capture callbacks in closure before component unmounts
       const capturedOnComplete = onComplete;
@@ -762,14 +847,11 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
             {isLoadingPractitioners ? (
               '載入中...'
             ) : selectedPractitionerId ? (
-              availablePractitioners.find(p => p.id === selectedPractitionerId)?.full_name || '未知治療師'
+              practitioners.find(p => p.id === selectedPractitionerId)?.full_name || '未知治療師'
             ) : (
               '選擇治療師'
             )}
           </button>
-          {selectedAppointmentTypeId && !isLoadingPractitioners && availablePractitioners.length === 0 && (
-            <p className="text-sm text-gray-500 mt-1">此預約類型目前沒有可用的治療師</p>
-          )}
         </div>
 
         {/* Practitioner Selection Modal */}
@@ -780,16 +862,11 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
             setSelectedPractitionerId(practitionerId);
             setIsPractitionerModalOpen(false);
           }}
-          practitioners={availablePractitioners}
+          practitioners={practitioners}
           selectedPractitionerId={selectedPractitionerId}
           originalPractitionerId={event.resource.practitioner_id || null}
           assignedPractitionerIds={assignedPractitionerIdsSet || EMPTY_ARRAY}
-          practitionerConflicts={practitionerConflictsQuery?.data?.results?.reduce((acc: Record<number, SchedulingConflictResponse>, result: any) => {
-            if (result.practitioner_id) {
-              acc[result.practitioner_id] = result;
-            }
-            return acc;
-          }, EMPTY_OBJECT as any) || EMPTY_OBJECT as any}
+          practitionerConflicts={practitionerConflictsWithTypeMismatch}
           isLoadingConflicts={practitionerConflictsQuery.isLoading}
         />
 
@@ -1226,6 +1303,7 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
         selectedServiceItemId={selectedAppointmentTypeId || undefined}
         originalTypeId={event.resource.appointment_type_id}
         title="選擇預約類型"
+        practitionerAppointmentTypeIds={practitionerAppointmentTypeIds}
       />
 
     </>
