@@ -274,6 +274,7 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
       }
     }
     navigate(href);
+    setOpenDropdowns([]);
   }, [hasUnsavedChanges, location.pathname, navigate, confirm]);
 
   const navigationGroups = useMemo(() => [
