@@ -136,13 +136,14 @@ export const useCreateAppointmentOptimistic = () => {
       startTime: string;
       patientId: number;
       clinicNotes?: string;
+      selectedResourceIds?: number[];
     }) => {
       return apiService.createClinicAppointment({
         practitioner_id: params.practitionerId,
         appointment_type_id: params.appointmentTypeId,
         start_time: `${params.date}T${params.startTime}`,
         patient_id: params.patientId,
-        selected_resource_ids: [],
+        selected_resource_ids: params.selectedResourceIds || [],
         ...(params.clinicNotes ? { clinic_notes: params.clinicNotes } : {}),
       });
     },

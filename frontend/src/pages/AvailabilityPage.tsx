@@ -900,6 +900,7 @@ const AvailabilityPage: React.FC = () => {
                 date: appointmentDate,
                 startTime: timePart || '00:00:00', // Extract time part with fallback
                 patientId: formData.patient_id,
+                selectedResourceIds: formData.selected_resource_ids,
               };
               if (formData.clinic_notes) {
                 mutationParams.clinicNotes = formData.clinic_notes;
@@ -955,6 +956,7 @@ const AvailabilityPage: React.FC = () => {
                 date: appointmentDate,
                 startTime: timePart || '00:00:00', // Extract time part with fallback
                 patientId: formData.patient_id,
+                selectedResourceIds: formData.selected_resource_ids,
               };
               if (formData.clinic_notes) {
                 mutationParams.clinicNotes = formData.clinic_notes;

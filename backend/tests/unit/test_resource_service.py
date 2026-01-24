@@ -328,8 +328,8 @@ class TestResourceService:
         assert result['is_available'] is False
         assert len(result['selection_insufficient_warnings']) == 1
 
-    def test_allocate_resources_auto_allocate(self, db_session: Session):
-        """Test automatic resource allocation."""
+    def test_allocate_resources_no_auto_allocate(self, db_session: Session):
+        """Test that automatic resource allocation no longer happens (design change)."""
         # Create clinic and appointment type
         clinic = Clinic(
             name="Test Clinic",
@@ -361,12 +361,7 @@ class TestResourceService:
             clinic_id=clinic.id,
             name="治療室1"
         )
-        resource2 = Resource(
-            resource_type_id=resource_type.id,
-            clinic_id=clinic.id,
-            name="治療室2"
-        )
-        db_session.add_all([resource1, resource2])
+        db_session.add(resource1)
         db_session.commit()
 
         # Create requirement (needs 1 room)
@@ -397,7 +392,7 @@ class TestResourceService:
         db_session.add(calendar_event)
         db_session.commit()
 
-        # Allocate resources
+        # Allocate resources with None (should NOT auto-allocate)
         start_time = datetime(2025, 1, 28, 10, 0)
         end_time = datetime(2025, 1, 28, 11, 0)
         
@@ -411,15 +406,13 @@ class TestResourceService:
             selected_resource_ids=None
         )
 
-        assert len(allocated_ids) == 1
-        assert allocated_ids[0] in [resource1.id, resource2.id]
+        assert len(allocated_ids) == 0  # Changed from 1 to 0
 
-        # Verify allocation exists
+        # Verify no allocation exists
         allocation = db_session.query(AppointmentResourceAllocation).filter(
             AppointmentResourceAllocation.appointment_id == calendar_event.id
         ).first()
-        assert allocation is not None
-        assert allocation.resource_id in [resource1.id, resource2.id]
+        assert allocation is None
 
     def test_allocate_resources_with_selection(self, db_session: Session):
         """Test resource allocation with selected resource IDs."""
@@ -514,55 +507,4 @@ class TestResourceService:
         ).first()
         assert allocation is not None
 
-    def test_find_available_resources_excludes_soft_deleted(self, db_session: Session):
-        """Test that soft-deleted resources are excluded from availability."""
-        # Create clinic and appointment type
-        clinic = Clinic(
-            name="Test Clinic",
-            line_channel_id="test_channel",
-            line_channel_secret="test_secret",
-            line_channel_access_token="test_token"
-        )
-        db_session.add(clinic)
-        db_session.commit()
-
-        # Create resource type and resources
-        resource_type = ResourceType(
-            clinic_id=clinic.id,
-            name="治療室"
-        )
-        db_session.add(resource_type)
-        db_session.commit()
-
-        resource1 = Resource(
-            resource_type_id=resource_type.id,
-            clinic_id=clinic.id,
-            name="治療室1",
-            is_deleted=False
-        )
-        resource2 = Resource(
-            resource_type_id=resource_type.id,
-            clinic_id=clinic.id,
-            name="治療室2",
-            is_deleted=True  # Soft deleted
-        )
-        db_session.add_all([resource1, resource2])
-        db_session.commit()
-
-        # Find available resources
-        start_time = datetime(2025, 1, 28, 10, 0)
-        end_time = datetime(2025, 1, 28, 11, 0)
-        
-        available = ResourceService._find_available_resources(
-            db=db_session,
-            resource_type_id=resource_type.id,
-            clinic_id=clinic.id,
-            start_time=start_time,
-            end_time=end_time
-        )
-
-        # Should only return resource1 (resource2 is soft-deleted)
-        assert len(available) == 1
-        assert available[0].id == resource1.id
-        assert available[0].is_deleted is False
 
