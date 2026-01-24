@@ -642,12 +642,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
           </div>
         </button>
         {showLockedWarning && (
-          <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded-md">
-            <p className="text-sm text-amber-700 flex items-center gap-1">
-              <span>⚠️</span>
-              <span>請先選擇治療師與預約類型</span>
-            </p>
-          </div>
+          <p className="mt-1 text-sm text-red-600">請先選擇治療師與預約類型</p>
         )}
         {error && (
           <p className="mt-1 text-sm text-red-600">{error}</p>
