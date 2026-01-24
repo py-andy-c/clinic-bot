@@ -463,6 +463,13 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
   const [isComposing, setIsComposing] = useState(false);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Refs for scrolling to validation errors
+  const patientFieldRef = useRef<HTMLDivElement>(null);
+  const appointmentTypeFieldRef = useRef<HTMLDivElement>(null);
+  const practitionerFieldRef = useRef<HTMLDivElement>(null);
+  const dateTimeFieldRef = useRef<HTMLDivElement>(null);
+  const recurrenceCountFieldRef = useRef<HTMLDivElement>(null);
   const isCreatingPatientFromModal = useRef(false);
   const searchInputInitializedRef = useRef(!!preSelectedPatientName || (isDuplication && !!event?.resource.patient_name));
 
@@ -616,6 +623,41 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
     }
   }, [selectedDate, selectedTime]);
 
+  // Helper to get field display name in Chinese
+  const getFieldDisplayName = (fieldKey: string): string => {
+    const fieldNames: Record<string, string> = {
+      patient: '病患',
+      appointmentType: '預約類型',
+      practitioner: '治療師',
+      dateTime: '日期時間',
+      recurrenceCount: '預約次數'
+    };
+    return fieldNames[fieldKey] || fieldKey;
+  };
+
+  // Helper to scroll to first error field
+  const scrollToFirstError = (errors: Record<string, string>) => {
+    const fieldRefs: Record<string, React.RefObject<HTMLDivElement>> = {
+      patient: patientFieldRef,
+      appointmentType: appointmentTypeFieldRef,
+      practitioner: practitionerFieldRef,
+      dateTime: dateTimeFieldRef,
+      recurrenceCount: recurrenceCountFieldRef
+    };
+
+    // Find first error field in order
+    const fieldOrder = ['patient', 'appointmentType', 'practitioner', 'dateTime', 'recurrenceCount'];
+    for (const fieldKey of fieldOrder) {
+      if (errors[fieldKey] && fieldRefs[fieldKey]?.current) {
+        fieldRefs[fieldKey].current?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center'
+        });
+        break;
+      }
+    }
+  };
+
   const handleFormSubmit = async () => {
     // Check all missing fields
     const newValidationErrors: Record<string, string> = {};
@@ -632,6 +674,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
 
     if (Object.keys(newValidationErrors).length > 0) {
       setValidationErrors(newValidationErrors);
+      scrollToFirstError(newValidationErrors);
       return;
     }
 
@@ -923,7 +966,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
     return (
       <div className="space-y-4">
         {/* Patient search and selection */}
-        <div>
+        <div ref={patientFieldRef}>
           <label className="block text-sm font-medium text-gray-700 mb-1">
             病患 <span className="text-red-500">*</span>
             {validationErrors.patient && (
@@ -993,7 +1036,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
         </div>
 
         {hasGrouping ? (
-          <div>
+          <div ref={appointmentTypeFieldRef}>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               預約類型 <span className="text-red-500">*</span>
               {validationErrors.appointmentType && (
@@ -1016,7 +1059,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
             </button>
           </div>
         ) : (
-          <div>
+          <div ref={appointmentTypeFieldRef}>
             <AppointmentTypeSelector
               value={selectedAppointmentTypeId}
               options={appointmentTypes}
@@ -1027,7 +1070,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
         )}
 
         {/* Practitioner Selection Button */}
-        <div>
+        <div ref={practitionerFieldRef}>
           <label className="block text-sm font-medium text-gray-700 mb-1">
             治療師 <span className="text-red-500">*</span>
 
@@ -1087,7 +1130,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
 
         <AppointmentReferenceHeader referenceDateTime={referenceDateTime} />
 
-        <div>
+        <div ref={dateTimeFieldRef}>
           <DateTimePicker
             selectedDate={selectedDate}
             selectedTime={selectedTime}
@@ -1105,7 +1148,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
         </div>
 
         {/* Recurrence Toggle */}
-        <div className="flex items-center gap-4">
+        <div ref={recurrenceCountFieldRef} className="flex items-center gap-4">
           <button
             type="button"
             onMouseDown={(e) => e.stopPropagation()}
@@ -1211,21 +1254,42 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
     );
   };
 
-  const renderFormStepFooter = () => (
-    <div className="flex justify-end items-center space-x-2 pt-4 border-t border-gray-200 flex-shrink-0" onMouseDown={(e) => e.stopPropagation()}>
-      <ConflictWarningButton conflictInfo={singleAppointmentConflict} />
-      <button
-        onClick={handleFormSubmit}
-        disabled={isCheckingConflicts || isInitialLoading}
-        className={`btn-primary ${(isCheckingConflicts || isInitialLoading)
-          ? 'opacity-50 cursor-not-allowed'
-          : ''
-          }`}
-      >
-        {isCheckingConflicts ? '正在檢查衝突...' : '下一步'}
-      </button>
-    </div>
-  );
+  const renderFormStepFooter = () => {
+    const errorFields = Object.keys(validationErrors).filter(key => validationErrors[key]);
+    const hasErrors = errorFields.length > 0;
+
+    return (
+      <div className="pt-4 border-t border-gray-200 flex-shrink-0" onMouseDown={(e) => e.stopPropagation()}>
+        {/* Validation Error Summary */}
+        {hasErrors && (
+          <div className="mb-3 px-3 py-2 bg-red-50 border border-red-200 rounded text-sm text-red-800">
+            <div className="flex items-start gap-2">
+              <span className="flex-shrink-0 text-base leading-tight">⚠️</span>
+              <div className="flex-1 leading-tight">
+                <span className="font-medium">請填寫必填欄位：</span>
+                {errorFields.map(getFieldDisplayName).join('、')}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Buttons */}
+        <div className="flex justify-end items-center space-x-2">
+          <ConflictWarningButton conflictInfo={singleAppointmentConflict} />
+          <button
+            onClick={handleFormSubmit}
+            disabled={isCheckingConflicts || isInitialLoading}
+            className={`btn-primary ${(isCheckingConflicts || isInitialLoading)
+              ? 'opacity-50 cursor-not-allowed'
+              : ''
+              }`}
+          >
+            {isCheckingConflicts ? '正在檢查衝突...' : '下一步'}
+          </button>
+        </div>
+      </div>
+    );
+  };
 
   const renderConflictResolutionStepContent = () => (
     <div className="space-y-4">
