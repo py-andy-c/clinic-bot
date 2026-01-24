@@ -77,22 +77,31 @@ export const useBatchAvailabilitySlots = ({
     queryFn: async (): Promise<Record<string, TimeInterval[]>> => {
       if (dates.length === 0) return {};
 
-      const response = await apiService.getBatchAvailableSlots(
-        practitionerId,
-        dates,
-        appointmentTypeId,
-        excludeCalendarEventId
-      );
+      try {
+        const response = await apiService.getBatchAvailableSlots(
+          practitionerId,
+          dates,
+          appointmentTypeId,
+          excludeCalendarEventId
+        );
 
-      // Convert array response to date-keyed object
-      const result: Record<string, TimeInterval[]> = {};
-      response.results.forEach((item) => {
-        if (item.date && item.available_slots) {
-          result[item.date] = item.available_slots;
+        // Convert array response to date-keyed object
+        const result: Record<string, TimeInterval[]> = {};
+        response.results.forEach((item) => {
+          if (item.date && item.available_slots) {
+            result[item.date] = item.available_slots;
+          }
+        });
+
+        return result;
+      } catch (error) {
+        // Handle 404 errors (practitioner doesn't offer appointment type)
+        // Return empty result instead of throwing - the UI will show appropriate warnings
+        if ((error as any)?.response?.status === 404) {
+          return {};
         }
-      });
-
-      return result;
+        throw error;
+      }
     },
     enabled: enabled && !!(practitionerId && appointmentTypeId && dates.length > 0),
     staleTime: 30 * 1000,
@@ -138,10 +147,10 @@ export const useCreateAppointmentOptimistic = () => {
         predicate: (query) => {
           const queryKey = query.queryKey as (string | number)[];
           return queryKey.length >= 4 &&
-                 queryKey[0] === 'availability-slots' &&
-                 queryKey[1] === params.practitionerId &&
-                 queryKey[2] === params.appointmentTypeId &&
-                 queryKey[3] === params.date;
+            queryKey[0] === 'availability-slots' &&
+            queryKey[1] === params.practitionerId &&
+            queryKey[2] === params.appointmentTypeId &&
+            queryKey[3] === params.date;
         }
       });
 
@@ -180,10 +189,10 @@ export const useCreateAppointmentOptimistic = () => {
           predicate: (query) => {
             const queryKey = query.queryKey as (string | number)[];
             return queryKey.length >= 4 &&
-                   queryKey[0] === 'availability-slots' &&
-                   queryKey[1] === params.practitionerId &&
-                   queryKey[2] === params.appointmentTypeId &&
-                   queryKey[3] === params.date;
+              queryKey[0] === 'availability-slots' &&
+              queryKey[1] === params.practitionerId &&
+              queryKey[2] === params.appointmentTypeId &&
+              queryKey[3] === params.date;
           }
         });
       }
@@ -197,10 +206,10 @@ export const useCreateAppointmentOptimistic = () => {
         predicate: (query) => {
           const queryKey = query.queryKey as (string | number)[];
           return queryKey.length >= 4 &&
-                 queryKey[0] === 'availability-slots' &&
-                 queryKey[1] === params.practitionerId &&
-                 queryKey[2] === params.appointmentTypeId &&
-                 queryKey[3] === params.date;
+            queryKey[0] === 'availability-slots' &&
+            queryKey[1] === params.practitionerId &&
+            queryKey[2] === params.appointmentTypeId &&
+            queryKey[3] === params.date;
         }
       });
       // Invalidate calendar events for the clinic to update the calendar display
@@ -211,7 +220,7 @@ export const useCreateAppointmentOptimistic = () => {
         predicate: (query) => {
           const queryKey = query.queryKey as (string | number)[];
           return queryKey.length >= 2 &&
-                 queryKey[0] === 'patient-appointments';
+            queryKey[0] === 'patient-appointments';
         }
       });
     }

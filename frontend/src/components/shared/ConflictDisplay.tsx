@@ -101,6 +101,15 @@ export const ConflictDisplay: React.FC<ConflictDisplayProps> = ({
           textClass: 'text-yellow-800',
         };
 
+      case 'practitioner_type_mismatch':
+        return {
+          icon: '⚠️',
+          title: '治療師不提供此預約類型',
+          details: ['請選擇其他治療師或預約類型'],
+          borderClass: 'border-amber-300 bg-amber-50',
+          textClass: 'text-amber-800',
+        };
+
       default:
         return null;
     }
@@ -114,9 +123,9 @@ export const ConflictDisplay: React.FC<ConflictDisplayProps> = ({
     borderClass: string;
     textClass: string;
   };
-  
+
   const conflicts: Array<{ type: string; display: ConflictDisplay }> = [];
-  
+
   // Show all conflicts by default, or filter if filterTypes is specified
   const shouldShowConflict = (conflictType: string) => {
     return !filterTypes || filterTypes.includes(conflictType);
@@ -169,6 +178,16 @@ export const ConflictDisplay: React.FC<ConflictDisplayProps> = ({
       const display = getConflictDisplay('resource');
       if (display) {
         conflicts.push({ type: 'resource', display });
+      }
+    }
+  }
+
+  // Check for practitioner-type mismatch conflict
+  if (shouldShowConflict('practitioner_type_mismatch')) {
+    if (conflictInfo.conflict_type === 'practitioner_type_mismatch') {
+      const display = getConflictDisplay('practitioner_type_mismatch');
+      if (display) {
+        conflicts.push({ type: 'practitioner_type_mismatch', display });
       }
     }
   }
