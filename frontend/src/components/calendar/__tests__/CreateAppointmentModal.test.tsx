@@ -558,8 +558,8 @@ describe('CreateAppointmentModal', () => {
       expect(dialogs.length).toBeGreaterThan(1);
     });
 
-    // Error message should be displayed in the form (or fallback)
-    expect(screen.getByText('此預約類型目前沒有可用的治療師')).toBeInTheDocument();
+    // Error message should NOT be displayed in the form (removed feature)
+    expect(screen.queryByText('此預約類型目前沒有可用的治療師')).not.toBeInTheDocument();
   });
 
   it('should enable submit button to allow validation feedback', async () => {
@@ -751,8 +751,8 @@ describe('CreateAppointmentModal', () => {
       expect(screen.getByPlaceholderText(/搜尋病患/)).toBeInTheDocument();
     });
 
-    // Message should appear when no practitioners are available for the selected type
-    expect(screen.getByText('此預約類型目前沒有可用的治療師')).toBeInTheDocument();
+    // Message should NOT appear when no practitioners are available (feature removed)
+    expect(screen.queryByText('此預約類型目前沒有可用的治療師')).not.toBeInTheDocument();
   });
 
   it('should clear practitioner when appointment type is cleared', async () => {

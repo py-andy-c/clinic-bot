@@ -1048,9 +1048,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
             </div>
           )}
 
-          {selectedAppointmentTypeId && !isLoadingPractitioners && availablePractitioners.length === 0 && (
-            <p className="text-sm text-gray-500 mt-1">此預約類型目前沒有可用的治療師</p>
-          )}
+
         </div>
 
         {/* Practitioner Selection Modal */}
