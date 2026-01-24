@@ -125,7 +125,6 @@ vi.mock('../../../hooks/queries', () => ({
       conflict_type: null,
       appointment_conflict: null,
       exception_conflict: null,
-      resource_conflicts: null,
       default_availability: {
         is_within_hours: true,
         normal_hours: null,

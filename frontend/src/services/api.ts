@@ -777,6 +777,7 @@ export class ApiService {
     date: string;
     start_time: string;
     appointment_type_id: number;
+    selected_resource_ids?: number[];
   }, signal?: AbortSignal): Promise<{ results: SchedulingConflictResponse[] }> {
     const config: any = {};
     if (signal) {
@@ -790,10 +791,16 @@ export class ApiService {
     appointment_type_id: number;
     start_time: string; // ISO datetime string
     end_time: string; // ISO datetime string
+    selected_resource_ids?: number[];
     exclude_calendar_event_id?: number;
   }, signal?: AbortSignal): Promise<SchedulingConflictResponse> {
+    const params: any = { ...data };
+    if (data.selected_resource_ids && data.selected_resource_ids.length > 0) {
+      params.selected_resource_ids = data.selected_resource_ids.join(',');
+    }
+
     const config: any = {
-      params: data
+      params
     };
     if (signal) {
       config.signal = signal;

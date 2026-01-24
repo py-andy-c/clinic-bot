@@ -25,7 +25,8 @@ from utils.datetime_utils import parse_date_string
 from utils.practitioner_helpers import verify_practitioner_in_clinic, get_practitioner_display_name_for_appointment
 from api.responses import (
     AvailableSlotsResponse, AvailableSlotResponse, ConflictWarningResponse, ConflictDetail,
-    SchedulingConflictResponse, BatchSchedulingConflictResponse, AppointmentConflictDetail, ExceptionConflictDetail, ResourceConflictDetail, DefaultAvailabilityInfo
+    SchedulingConflictResponse, BatchSchedulingConflictResponse, AppointmentConflictDetail, ExceptionConflictDetail, DefaultAvailabilityInfo,
+    SelectionInsufficientWarning, ResourceConflictWarning
 )
 
 logger = logging.getLogger(__name__)
@@ -53,6 +54,7 @@ class BatchConflictCheckRequest(BaseModel):
     date: str
     start_time: str
     appointment_type_id: int
+    selected_resource_ids: Optional[List[int]] = None
 
     @field_validator('practitioners')
     @classmethod
@@ -1779,7 +1781,8 @@ async def check_batch_scheduling_conflicts(
             date=requested_date,
             start_time=start_time_obj,
             appointment_type_id=request.appointment_type_id,
-            clinic_id=clinic_id
+            clinic_id=clinic_id,
+            selected_resource_ids=request.selected_resource_ids
         )
 
         # Convert dict results to proper response objects

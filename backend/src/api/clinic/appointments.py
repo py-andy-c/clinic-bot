@@ -25,8 +25,8 @@ from utils.datetime_utils import datetime_validator, parse_date_string, parse_da
 from utils.practitioner_helpers import get_practitioner_display_name_for_appointment
 from api.responses import (
     AppointmentListItem,
-    AppointmentConflictDetail, ExceptionConflictDetail, ResourceConflictDetail, DefaultAvailabilityInfo,
-    SchedulingConflictResponse
+    AppointmentConflictDetail, ExceptionConflictDetail, DefaultAvailabilityInfo,
+    SchedulingConflictResponse, SelectionInsufficientWarning, ResourceConflictWarning
 )
 
 logger = logging.getLogger(__name__)
@@ -41,6 +41,7 @@ async def check_resource_conflicts(
     appointment_type_id: int = Query(..., description="Appointment type ID"),
     start_time: str = Query(..., description="Start time in ISO datetime format"),
     end_time: str = Query(..., description="End time in ISO datetime format"),
+    selected_resource_ids: str | None = Query(None, description="Comma-separated list of selected resource IDs"),
     exclude_calendar_event_id: int | None = Query(None, description="Calendar event ID to exclude from conflict checking"),
     db: Session = Depends(get_db),
     current_user: UserContext = Depends(require_practitioner_or_admin)
@@ -67,6 +68,17 @@ async def check_resource_conflicts(
                 detail=f"無效的時間格式: {e}"
             )
 
+        # Parse selected_resource_ids if provided
+        resource_ids = []
+        if selected_resource_ids:
+            try:
+                resource_ids = [int(rid.strip()) for rid in selected_resource_ids.split(',') if rid.strip()]
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="無效的資源 ID 格式"
+                )
+
         # Check resource conflicts only
         from services.resource_service import ResourceService
         resource_result = ResourceService.check_resource_availability(
@@ -75,17 +87,19 @@ async def check_resource_conflicts(
             clinic_id=clinic_id,
             start_time=start_datetime,
             end_time=end_datetime,
+            selected_resource_ids=resource_ids,
             exclude_calendar_event_id=exclude_calendar_event_id
         )
 
         # Return only resource conflict information
         has_conflict = not resource_result['is_available']
-        resource_conflicts = resource_result['conflicts'] if not resource_result['is_available'] else None
-
+        
         return SchedulingConflictResponse(
             has_conflict=has_conflict,
             conflict_type="resource" if has_conflict else None,
-            resource_conflicts=resource_conflicts,
+            selection_insufficient_warnings=resource_result.get('selection_insufficient_warnings'),
+            resource_conflict_warnings=resource_result.get('resource_conflict_warnings'),
+            unavailable_resource_ids=resource_result.get('unavailable_resource_ids'),
             default_availability=DefaultAvailabilityInfo(
                 is_within_hours=True,  # Not applicable for resource-only check
                 normal_hours=None
@@ -437,6 +451,7 @@ class CheckRecurringConflictsRequest(BaseModel):
     practitioner_id: int
     appointment_type_id: int
     occurrences: List[str]  # List of ISO datetime strings
+    selected_resource_ids: Optional[List[int]] = None
 
     @field_validator('occurrences')
     @classmethod
@@ -459,7 +474,9 @@ class OccurrenceConflictStatus(BaseModel):
     conflict_type: Optional[str] = None  # "appointment" | "exception" | "availability" | "resource" | "duplicate" | null
     appointment_conflict: Optional["AppointmentConflictDetail"] = None
     exception_conflict: Optional["ExceptionConflictDetail"] = None
-    resource_conflicts: Optional[List["ResourceConflictDetail"]] = None
+    selection_insufficient_warnings: Optional[List["SelectionInsufficientWarning"]] = None
+    resource_conflict_warnings: Optional[List["ResourceConflictWarning"]] = None
+    unavailable_resource_ids: Optional[List[int]] = None
     default_availability: "DefaultAvailabilityInfo"
     # Additional fields for duplicate detection
     is_duplicate: bool = False
@@ -530,7 +547,9 @@ async def check_recurring_conflicts(
                     conflict_type="duplicate",
                     appointment_conflict=None,
                     exception_conflict=None,
-                    resource_conflicts=None,
+                    selection_insufficient_warnings=None,
+                    resource_conflict_warnings=None,
+                    unavailable_resource_ids=None,
                     default_availability=DefaultAvailabilityInfo(
                         is_within_hours=True,  # Default for duplicates
                         normal_hours=None
@@ -548,6 +567,7 @@ async def check_recurring_conflicts(
                     start_time=start_time_obj,
                     appointment_type_id=request.appointment_type_id,
                     clinic_id=clinic_id,
+                    selected_resource_ids=request.selected_resource_ids,
                     exclude_calendar_event_id=None,
                     check_past_appointment=True
                 )
@@ -574,17 +594,16 @@ async def check_recurring_conflicts(
                         reason=ec.get("reason")
                     )
                 
-                resource_conflicts = None
-                if conflict_data.get("resource_conflicts"):
-                    resource_conflicts = [
-                        ResourceConflictDetail(
-                            resource_type_id=rc["resource_type_id"],
-                            resource_type_name=rc["resource_type_name"],
-                            required_quantity=rc["required_quantity"],
-                            total_resources=rc["total_resources"],
-                            allocated_count=rc["allocated_count"]
-                        )
-                        for rc in conflict_data["resource_conflicts"]
+                selection_insufficient_warnings = None
+                if conflict_data.get("selection_insufficient_warnings"):
+                    selection_insufficient_warnings = [
+                        SelectionInsufficientWarning(**w) for w in conflict_data["selection_insufficient_warnings"]
+                    ]
+
+                resource_conflict_warnings = None
+                if conflict_data.get("resource_conflict_warnings"):
+                    resource_conflict_warnings = [
+                        ResourceConflictWarning(**w) for w in conflict_data["resource_conflict_warnings"]
                     ]
                 
                 default_availability = DefaultAvailabilityInfo(
@@ -598,7 +617,9 @@ async def check_recurring_conflicts(
                     conflict_type=conflict_data.get("conflict_type"),
                     appointment_conflict=appointment_conflict,
                     exception_conflict=exception_conflict,
-                    resource_conflicts=resource_conflicts,
+                    selection_insufficient_warnings=selection_insufficient_warnings,
+                    resource_conflict_warnings=resource_conflict_warnings,
+                    unavailable_resource_ids=conflict_data.get("unavailable_resource_ids"),
                     default_availability=default_availability,
                     is_duplicate=False,
                     duplicate_index=None

@@ -47,17 +47,6 @@ export const ConflictDisplay: React.FC<ConflictDisplayProps> = ({
           ? `非治療師正常時間（${normalHours}）`
           : '非治療師正常時間（未設定可用時間）';
 
-      case 'resource':
-        if (!conflictInfo.resource_conflicts || conflictInfo.resource_conflicts.length === 0) return null;
-        const resourceTexts = conflictInfo.resource_conflicts.map((conflict: any) => {
-          if ('total_resources' in conflict && 'allocated_count' in conflict) {
-            return `資源不足：${conflict.resource_type_name}（需要：${conflict.required_quantity}，總數：${conflict.total_resources}，已用：${conflict.allocated_count}）`;
-          } else {
-            return `資源不足：${conflict.resource_type_name}（需要：${conflict.required_quantity}，可用：${conflict.available_quantity}）`;
-          }
-        });
-        return resourceTexts.join('；');
-
       case 'practitioner_type_mismatch':
         return '治療師不提供此類型';
 
@@ -73,55 +62,60 @@ export const ConflictDisplay: React.FC<ConflictDisplayProps> = ({
     return !filterTypes || filterTypes.includes(conflictType);
   };
 
-  // Check for past appointment conflict (highest priority)
-  if (shouldShowConflict('past_appointment')) {
-    if (conflictInfo.conflict_type === 'past_appointment') {
-      const text = getWarningText('past_appointment');
-      if (text) warnings.push(text);
-    }
-  }
+  // Check for standard conflicts
+  ['past_appointment', 'appointment', 'exception', 'availability', 'practitioner_type_mismatch'].forEach(type => {
+    if (shouldShowConflict(type)) {
+      let isMatch = false;
+      if (type === 'past_appointment') isMatch = conflictInfo.conflict_type === 'past_appointment';
+      else if (type === 'appointment') isMatch = !!conflictInfo.appointment_conflict;
+      else if (type === 'exception') isMatch = !!conflictInfo.exception_conflict;
+      else if (type === 'availability') isMatch = conflictInfo.default_availability && !conflictInfo.default_availability.is_within_hours;
+      else if (type === 'practitioner_type_mismatch') isMatch = conflictInfo.conflict_type === 'practitioner_type_mismatch' || (conflictInfo as any).is_type_mismatch;
 
-  // Check for appointment conflict
-  if (shouldShowConflict('appointment')) {
-    if (conflictInfo.appointment_conflict) {
-      const text = getWarningText('appointment');
-      if (text) warnings.push(text);
+      if (isMatch) {
+        const text = getWarningText(type);
+        if (text) warnings.push(text);
+      }
     }
-  }
+  });
 
-  // Check for exception conflict
-  if (shouldShowConflict('exception')) {
-    if (conflictInfo.exception_conflict) {
-      const text = getWarningText('exception');
-      if (text) warnings.push(text);
-    }
-  }
-
-  // Check for availability conflict
-  if (shouldShowConflict('availability')) {
-    if (conflictInfo.default_availability && !conflictInfo.default_availability.is_within_hours) {
-      const text = getWarningText('availability');
-      if (text) warnings.push(text);
-    }
-  }
-
-  // Check for resource conflict
+  // Resource warnings (hierarchical)
+  const resourceWarnings: string[] = [];
   if (shouldShowConflict('resource')) {
-    if (conflictInfo.resource_conflicts && conflictInfo.resource_conflicts.length > 0) {
-      const text = getWarningText('resource');
-      if (text) warnings.push(text);
+    // 1. Group warnings by resource type
+    const warningsByType: Record<string, string[]> = {};
+    const typeOrder: string[] = []; // To maintain order of appearance
+
+    // Helper to add warning
+    const addWarning = (typeName: string, text: string) => {
+      if (!warningsByType[typeName]) {
+        warningsByType[typeName] = [];
+        typeOrder.push(typeName);
+      }
+      warningsByType[typeName].push(text);
+    };
+
+    // 2. Selection insufficient
+    if (conflictInfo.selection_insufficient_warnings?.length) {
+      conflictInfo.selection_insufficient_warnings.forEach(w => {
+        addWarning(w.resource_type_name, `${w.resource_type_name}（需要 ${w.required_quantity} 個，只選了 ${w.selected_quantity} 個）`);
+      });
     }
+
+    // 3. Resource conflicts
+    if (conflictInfo.resource_conflict_warnings?.length) {
+      conflictInfo.resource_conflict_warnings.forEach(w => {
+        addWarning(w.resource_type_name, `${w.resource_name} 已被 ${w.conflicting_appointment.practitioner_name} 使用 (${w.conflicting_appointment.start_time}-${w.conflicting_appointment.end_time})`);
+      });
+    }
+
+    // Flatten to list
+    typeOrder.forEach(typeName => {
+      resourceWarnings.push(...(warningsByType[typeName] ?? []));
+    });
   }
 
-  // Check for practitioner-type mismatch conflict
-  if (shouldShowConflict('practitioner_type_mismatch')) {
-    if (conflictInfo.conflict_type === 'practitioner_type_mismatch' || (conflictInfo as any).is_type_mismatch) {
-      const text = getWarningText('practitioner_type_mismatch');
-      if (text) warnings.push(text);
-    }
-  }
-
-  if (warnings.length === 0) {
+  if (warnings.length === 0 && resourceWarnings.length === 0) {
     return null;
   }
 
@@ -134,12 +128,31 @@ export const ConflictDisplay: React.FC<ConflictDisplayProps> = ({
       aria-label="預約警告"
     >
       <div className="text-amber-800 text-xs space-y-1">
+        {/* Standard Warnings */}
         {warnings.map((warning, index) => (
           <div key={index} className="flex items-start gap-1">
             <span className="flex-shrink-0 leading-tight">•</span>
             <span className="leading-tight">{warning}</span>
           </div>
         ))}
+
+        {/* Hierarchical Resource Warnings */}
+        {resourceWarnings.length > 0 && (
+          <div className="space-y-1">
+            <div className="flex items-start gap-1">
+              <span className="flex-shrink-0 leading-tight">•</span>
+              <span className="leading-tight font-medium">資源選擇</span>
+            </div>
+            <div className="pl-4 space-y-1">
+              {resourceWarnings.map((rw, index) => (
+                <div key={index} className="flex items-start gap-1">
+                  <span className="flex-shrink-0 leading-tight">•</span>
+                  <span className="leading-tight">{rw}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

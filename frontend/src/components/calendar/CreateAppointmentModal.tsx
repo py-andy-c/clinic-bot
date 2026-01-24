@@ -85,7 +85,6 @@ function mergeConflictWithTypeMismatch(
       is_type_mismatch: true,
       appointment_conflict: null,
       exception_conflict: null,
-      resource_conflicts: null,
       default_availability: { is_within_hours: true, normal_hours: null }
     } as any;
   }
@@ -107,7 +106,8 @@ const convertConflictStatusToResponse = (
     conflict_type: conflictStatus.conflict_type || null,
     appointment_conflict: conflictStatus.appointment_conflict || null,
     exception_conflict: conflictStatus.exception_conflict || null,
-    resource_conflicts: conflictStatus.resource_conflicts || null,
+    selection_insufficient_warnings: conflictStatus.selection_insufficient_warnings || [],
+    resource_conflict_warnings: conflictStatus.resource_conflict_warnings || [],
     default_availability: conflictStatus.default_availability || EMPTY_OBJECT as any,
   };
 };
@@ -277,6 +277,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
     selectedDate,
     selectedTime,
     selectedAppointmentTypeId,
+    selectedResourceIds,
     !!selectedDate && !!selectedTime && !!selectedAppointmentTypeId && availablePractitioners.length > 0
   ) || { data: null, isLoading: false };
 
@@ -286,6 +287,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
     selectedDate,
     selectedTime,
     selectedAppointmentTypeId,
+    selectedResourceIds,
     undefined, // excludeCalendarEventId
     !!selectedPractitionerId && !!selectedDate && !!selectedTime && !!selectedAppointmentTypeId
   );

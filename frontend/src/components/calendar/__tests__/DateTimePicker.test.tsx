@@ -116,7 +116,6 @@ describe('DateTimePicker', () => {
         conflict_type: null,
         appointment_conflict: null,
         exception_conflict: null,
-        resource_conflicts: null,
         default_availability: {
           is_within_hours: true,
           normal_hours: null,
@@ -618,7 +617,6 @@ describe('DateTimePicker', () => {
           conflict_type: null,
           appointment_conflict: null,
           exception_conflict: null,
-          resource_conflicts: null,
           default_availability: {
             is_within_hours: true,
             normal_hours: null,

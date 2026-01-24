@@ -9,8 +9,9 @@ This service handles:
 
 import logging
 from datetime import datetime
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, cast
 
+from sqlalchemy import and_
 from sqlalchemy.orm import Session
 
 from models import (
@@ -19,7 +20,8 @@ from models import (
     AppointmentResourceRequirement,
     AppointmentResourceAllocation,
     CalendarEvent,
-    Appointment
+    Appointment,
+    UserClinicAssociation
 )
 
 logger = logging.getLogger(__name__)
@@ -35,29 +37,27 @@ class ResourceService:
         clinic_id: int,
         start_time: datetime,
         end_time: datetime,
+        selected_resource_ids: Optional[List[int]] = None,
         exclude_calendar_event_id: Optional[int] = None
     ) -> Dict[str, Any]:
         """
-        Check if required resources are available for a time slot.
+        Check if resources are available for an appointment type at a given time.
 
         Args:
             db: Database session
             appointment_type_id: Appointment type ID
             clinic_id: Clinic ID
-            start_time: Slot start datetime
-            end_time: Slot end datetime
-            exclude_calendar_event_id: Exclude this appointment from checks
+            start_time: Start datetime
+            end_time: End datetime
+            selected_resource_ids: Optional list of selected resource IDs to check for specific conflicts
+            exclude_calendar_event_id: Optional calendar event ID to exclude
 
         Returns:
             {
                 'is_available': bool,
-                'conflicts': List[{
-                    'resource_type_id': int,
-                    'resource_type_name': str,
-                    'required_quantity': int,
-                    'total_resources': int,
-                    'allocated_count': int
-                }]
+                'selection_insufficient_warnings': List[Dict],
+                'resource_conflict_warnings': List[Dict],
+                'unavailable_resource_ids': List[int]
             }
         """
         # 1. Get resource requirements for appointment type
@@ -66,39 +66,55 @@ class ResourceService:
         ).all()
 
         if not requirements:
-            return {'is_available': True, 'conflicts': []}
+            return {
+                'is_available': True,
+                'selection_insufficient_warnings': [],
+                'resource_conflict_warnings': [],
+                'unavailable_resource_ids': []
+            }
 
-        # 2. For each required resource type, check availability
-        conflicts = []
+        # Ensure selected_resource_ids is a list
+        selected_ids = selected_resource_ids or []
+        
+        selection_insufficient_warnings: List[Dict[str, Any]] = []
+        resource_conflict_warnings: List[Dict[str, Any]] = []
+        global_unavailable_resource_ids: List[int] = []
         is_available = True
 
         for req in requirements:
-            # Count total active resources of this type
-            total_resources = db.query(Resource).filter(
+            # Get resource type name
+            resource_type = db.query(ResourceType).filter(ResourceType.id == req.resource_type_id).first()
+            resource_type_name = resource_type.name if resource_type else "未知資源類型"
+
+            # Get all active resources of this type
+            all_resources = db.query(Resource).filter(
                 Resource.resource_type_id == req.resource_type_id,
                 Resource.clinic_id == clinic_id,
                 Resource.is_deleted == False
-            ).count()
+            ).all()
+            all_resource_ids = [r.id for r in all_resources]
+            resource_map = {r.id: r.name for r in all_resources}
 
-            # Count allocated resources during this time slot
+            # Find allocated resources during this time slot
             # Note: Exclude soft-deleted calendar events and only count confirmed appointments
-            allocated_query = db.query(AppointmentResourceAllocation).join(
+            allocated_query = db.query(
+                AppointmentResourceAllocation.resource_id,
+                CalendarEvent,
+                UserClinicAssociation.full_name.label('practitioner_name')
+            ).join(
                 CalendarEvent, AppointmentResourceAllocation.appointment_id == CalendarEvent.id
             ).join(
                 Appointment, CalendarEvent.id == Appointment.calendar_event_id
+            ).join(
+                UserClinicAssociation, and_(CalendarEvent.user_id == UserClinicAssociation.user_id, CalendarEvent.clinic_id == UserClinicAssociation.clinic_id)
             ).filter(
-                AppointmentResourceAllocation.resource_id.in_(
-                    db.query(Resource.id).filter(
-                        Resource.resource_type_id == req.resource_type_id,
-                        Resource.clinic_id == clinic_id,
-                        Resource.is_deleted == False
-                    )
-                ),
+                AppointmentResourceAllocation.resource_id.in_(all_resource_ids),
                 CalendarEvent.clinic_id == clinic_id,
                 CalendarEvent.date == start_time.date(),
                 CalendarEvent.start_time < end_time.time(),
                 CalendarEvent.end_time > start_time.time(),
-                Appointment.status == 'confirmed'
+                Appointment.status == 'confirmed',
+                UserClinicAssociation.is_active == True
             )
 
             if exclude_calendar_event_id:
@@ -106,24 +122,58 @@ class ResourceService:
                     CalendarEvent.id != exclude_calendar_event_id
                 )
 
-            allocated_count = allocated_query.count()
-            available_quantity = total_resources - allocated_count
+            allocations = allocated_query.all()
+            allocated_resource_ids = {a.resource_id for a in allocations}
+            global_unavailable_resource_ids.extend(list(allocated_resource_ids))
 
-            if available_quantity < req.quantity:
-                is_available = False
-                resource_type = db.query(ResourceType).filter(
-                    ResourceType.id == req.resource_type_id
-                ).first()
-                conflict_dict: Dict[str, Any] = {
-                    'resource_type_id': req.resource_type_id,
-                    'resource_type_name': resource_type.name if resource_type else 'Unknown',
-                    'required_quantity': req.quantity,
-                    'total_resources': total_resources,
-                    'allocated_count': allocated_count
-                }
-                conflicts.append(conflict_dict)  # type: ignore[reportUnknownMemberType]
+            # 2. Check Availability
+            if selected_resource_ids is None:
+                # General capacity check (no specific selection provided)
+                # Check if there are enough available resources to meet the requirement
+                available_count = len([rid for rid in all_resource_ids if rid not in allocated_resource_ids])
+                
+                if available_count < req.quantity:
+                    is_available = False
+                    # We can use selection_insufficient_warnings to indicate shortage, 
+                    # but maybe with a slightly different meaning or messages
+                    selection_insufficient_warnings.append({
+                        "resource_type_name": resource_type_name,
+                        "required_quantity": req.quantity,
+                        "selected_quantity": available_count  # In this context, "selected" means "available"
+                    })
+            else:
+                # Specific selection check
+                selected_for_this_type = [rid for rid in selected_ids if rid in all_resource_ids]
+                
+                # Check Quantity
+                if len(selected_for_this_type) < req.quantity:
+                    is_available = False
+                    selection_insufficient_warnings.append({
+                        "resource_type_name": resource_type_name,
+                        "required_quantity": req.quantity,
+                        "selected_quantity": len(selected_for_this_type)
+                    })
 
-        return {'is_available': is_available, 'conflicts': conflicts}
+                # Check Conflicts (only for selected resources)
+                for allocation in allocations:
+                    if allocation.resource_id in selected_for_this_type:
+                        is_available = False
+                        resource_conflict_warnings.append({
+                            "resource_name": resource_map.get(allocation.resource_id, "未知資源"),
+                            "resource_type_name": resource_type_name,
+                            "conflicting_appointment": {
+                                "practitioner_name": allocation.practitioner_name,
+                                "start_time": allocation.CalendarEvent.start_time.strftime('%H:%M'),
+                                "end_time": allocation.CalendarEvent.end_time.strftime('%H:%M')
+                            }
+                        })
+
+        return {
+            'is_available': is_available,
+            'selection_insufficient_warnings': selection_insufficient_warnings,
+            'resource_conflict_warnings': resource_conflict_warnings,
+            'unavailable_resource_ids': list(set(global_unavailable_resource_ids))
+        }
 
     @staticmethod
     def allocate_resources(
@@ -432,13 +482,11 @@ class ResourceService:
         if not requirements:
             return {
                 "requirements": [],
-                "suggested_allocation": [],
-                "conflicts": []
+                "suggested_allocation": []
             }
 
         result_requirements: List[Dict[str, Any]] = []
         suggested_allocation: List[Dict[str, Any]] = []
-        conflicts: List[Dict[str, Any]] = []
 
         for req in requirements:
             resource_type = db.query(ResourceType).filter(
@@ -489,15 +537,7 @@ class ResourceService:
 
             available_quantity = len([r for r in available_resources if r.get("is_available", False)])
 
-            # Check for conflicts
-            if available_quantity < req.quantity:
-                conflicts.append({
-                    'resource_type_id': req.resource_type_id,
-                    'resource_type_name': resource_type.name,
-                    'required_quantity': req.quantity,
-                    'total_resources': len(all_resources),
-                    'allocated_count': len(allocated_resource_ids)
-                })
+            # available_quantity check is handled by counts above
 
             result_requirements.append({
                 "resource_type_id": req.resource_type_id,
@@ -520,8 +560,7 @@ class ResourceService:
 
         return {
             "requirements": result_requirements,
-            "suggested_allocation": suggested_allocation,
-            "conflicts": conflicts
+            "suggested_allocation": suggested_allocation
         }
 
     @staticmethod

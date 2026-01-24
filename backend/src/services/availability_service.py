@@ -915,6 +915,7 @@ class AvailabilityService:
         # 2. Check resource availability (NEW)
         resources_available = True
         resource_conflicts = []
+        unavailable_resource_ids = []
         
         if check_resources:
             from services.resource_service import ResourceService
@@ -929,7 +930,16 @@ class AvailabilityService:
                 exclude_calendar_event_id=exclude_calendar_event_id
             )
             resources_available = resource_result['is_available']
-            resource_conflicts = resource_result['conflicts']
+            # Combine warnings into a single list for backward compatibility if needed by callers
+            resource_conflicts: List[Dict[str, Any]] = []
+            if resource_result.get('selection_insufficient_warnings'):
+                for w in resource_result['selection_insufficient_warnings']:
+                    resource_conflicts.append({'type': 'insufficient', **w})
+            if resource_result.get('resource_conflict_warnings'):
+                for w in resource_result['resource_conflict_warnings']:
+                    resource_conflicts.append({'type': 'conflict', **w})
+            
+            unavailable_resource_ids = resource_result.get('unavailable_resource_ids', [])
         
         is_available = practitioner_available and resources_available
         
@@ -937,7 +947,8 @@ class AvailabilityService:
             'is_available': is_available,
             'practitioner_available': practitioner_available,
             'resources_available': resources_available,
-            'resource_conflicts': resource_conflicts
+            'resource_conflicts': resource_conflicts,
+            'unavailable_resource_ids': unavailable_resource_ids if not resources_available else []
         }
 
     @staticmethod
@@ -1529,6 +1540,7 @@ class AvailabilityService:
         start_time: time,
         appointment_type_id: int,
         clinic_id: int,
+        selected_resource_ids: Optional[List[int]] = None,
         exclude_calendar_event_id: Optional[int] = None,
         check_past_appointment: bool = True
     ) -> Dict[str, Any]:
@@ -1620,7 +1632,6 @@ class AvailabilityService:
             default_intervals, start_time, end_time
         )
         normal_hours = AvailabilityService._format_normal_hours(date, default_intervals)
-        resource_conflicts = None
         
         # 0. Check if appointment is in the past (highest priority, only for clinic users)
         if check_past_appointment:
@@ -1690,11 +1701,13 @@ class AvailabilityService:
             clinic_id=clinic_id,
             start_time=start_datetime,
             end_time=end_datetime,
+            selected_resource_ids=selected_resource_ids,
             exclude_calendar_event_id=exclude_calendar_event_id
         )
         
-        if not resource_result['is_available']:
-            resource_conflicts = resource_result['conflicts']
+        selection_insufficient_warnings = resource_result.get('selection_insufficient_warnings', [])
+        resource_conflict_warnings = resource_result.get('resource_conflict_warnings', [])
+        unavailable_resource_ids = resource_result.get('unavailable_resource_ids', [])
         
         # Determine highest priority conflict type for backward compatibility
         conflict_type = None
@@ -1706,7 +1719,7 @@ class AvailabilityService:
             conflict_type = "exception"
         elif not is_within_hours:
             conflict_type = "availability"
-        elif resource_conflicts:
+        elif not resource_result['is_available']:
             conflict_type = "resource"
         
         # Return all conflicts found
@@ -1715,7 +1728,7 @@ class AvailabilityService:
             appointment_conflict is not None or
             exception_conflict is not None or
             not is_within_hours or
-            resource_conflicts is not None
+            not resource_result['is_available']
         )
         
         return {
@@ -1723,7 +1736,9 @@ class AvailabilityService:
             "conflict_type": conflict_type,  # Highest priority for backward compatibility
             "appointment_conflict": appointment_conflict,
             "exception_conflict": exception_conflict,
-            "resource_conflicts": resource_conflicts,
+            "selection_insufficient_warnings": selection_insufficient_warnings,
+            "resource_conflict_warnings": resource_conflict_warnings,
+            "unavailable_resource_ids": unavailable_resource_ids,
             "default_availability": {
                 "is_within_hours": is_within_hours,
                 "normal_hours": normal_hours
@@ -1741,6 +1756,7 @@ class AvailabilityService:
         appointment_type: Any,
         resource_requirements: List[Any],
         clinic_id: int,
+        selected_resource_ids: Optional[List[int]] = None,
         check_past_appointment: bool = True,
         exclude_calendar_event_id: Optional[int] = None
     ) -> Dict[str, Any]:
@@ -1763,7 +1779,6 @@ class AvailabilityService:
             default_intervals, start_time, end_time
         )
         normal_hours = AvailabilityService._format_normal_hours(date, default_intervals)
-        resource_conflicts = None
 
         # 0. Check if appointment is in the past (highest priority, only for clinic users)
         if check_past_appointment:
@@ -1832,11 +1847,13 @@ class AvailabilityService:
             clinic_id=clinic_id,
             start_time=start_datetime,
             end_time=end_datetime,
+            selected_resource_ids=selected_resource_ids,
             exclude_calendar_event_id=exclude_calendar_event_id
         )
 
-        if not resource_result['is_available']:
-            resource_conflicts = resource_result['conflicts']
+        selection_insufficient_warnings = resource_result.get('selection_insufficient_warnings', [])
+        resource_conflict_warnings = resource_result.get('resource_conflict_warnings', [])
+        unavailable_resource_ids = resource_result.get('unavailable_resource_ids', [])
 
         # Determine highest priority conflict type for backward compatibility
         conflict_type = None
@@ -1848,7 +1865,7 @@ class AvailabilityService:
             conflict_type = "exception"
         elif not is_within_hours:
             conflict_type = "availability"
-        elif resource_conflicts:
+        elif not resource_result['is_available']:
             conflict_type = "resource"
 
         # Return all conflicts found
@@ -1857,15 +1874,18 @@ class AvailabilityService:
             appointment_conflict is not None or
             exception_conflict is not None or
             not is_within_hours or
-            resource_conflicts is not None
+            not resource_result['is_available']
         )
 
         return {
+            "practitioner_id": practitioner_id,
             "has_conflict": has_conflict,
             "conflict_type": conflict_type,  # Highest priority for backward compatibility
             "appointment_conflict": appointment_conflict,
             "exception_conflict": exception_conflict,
-            "resource_conflicts": resource_conflicts,
+            "selection_insufficient_warnings": selection_insufficient_warnings,
+            "resource_conflict_warnings": resource_conflict_warnings,
+            "unavailable_resource_ids": unavailable_resource_ids,
             "default_availability": {
                 "is_within_hours": is_within_hours,
                 "normal_hours": normal_hours
@@ -1879,7 +1899,8 @@ class AvailabilityService:
         date: date_type,
         start_time: time,
         appointment_type_id: int,
-        clinic_id: int
+        clinic_id: int,
+        selected_resource_ids: Optional[List[int]] = None
     ) -> List[Dict[str, Any]]:
         """
         Check for scheduling conflicts for multiple practitioners at once.
@@ -1986,6 +2007,7 @@ class AvailabilityService:
                 appointment_type=appointment_type,
                 resource_requirements=[],  # Resource conflicts are checked within the method
                 clinic_id=clinic_id,
+                selected_resource_ids=selected_resource_ids,
                 check_past_appointment=True,  # Check past appointments for consistency with single API
                 exclude_calendar_event_id=exclude_calendar_event_id
             )

@@ -100,7 +100,6 @@ vi.mock('../../../hooks/queries', () => ({
       conflict_type: null,
       appointment_conflict: null,
       exception_conflict: null,
-      resource_conflicts: null,
       default_availability: {
         is_within_hours: true,
         normal_hours: null,
@@ -218,7 +217,7 @@ vi.mock('../../../components/ResourceSelection', () => ({
   ResourceSelection: () => <div data-testid="resource-selection">ResourceSelection</div>,
 }));
 
-const mockFormatAppointmentTime = vi.fn((start: Date, end: Date) => 
+const mockFormatAppointmentTime = vi.fn((start: Date, end: Date) =>
   `${start.toLocaleDateString()} ${start.toLocaleTimeString()} - ${end.toLocaleTimeString()}`
 );
 

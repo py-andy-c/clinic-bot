@@ -459,13 +459,25 @@ class ExceptionConflictDetail(BaseModel):
     reason: Optional[str] = None
 
 
-class ResourceConflictDetail(BaseModel):
-    """Detail model for resource conflict."""
-    resource_type_id: int
+class ConflictingAppointmentInfo(BaseModel):
+    """Basic info about a conflicting appointment."""
+    practitioner_name: str
+    start_time: str  # HH:MM format
+    end_time: str    # HH:MM format
+
+
+class SelectionInsufficientWarning(BaseModel):
+    """Warning for insufficient resource selection."""
     resource_type_name: str
     required_quantity: int
-    total_resources: int
-    allocated_count: int
+    selected_quantity: int
+
+
+class ResourceConflictWarning(BaseModel):
+    """Warning for specific resource conflict."""
+    resource_name: str
+    resource_type_name: str
+    conflicting_appointment: ConflictingAppointmentInfo
 
 
 class DefaultAvailabilityInfo(BaseModel):
@@ -480,7 +492,9 @@ class SchedulingConflictResponse(BaseModel):
     conflict_type: Optional[str] = None  # "appointment" | "exception" | "availability" | "resource" | null
     appointment_conflict: Optional[AppointmentConflictDetail] = None
     exception_conflict: Optional[ExceptionConflictDetail] = None
-    resource_conflicts: Optional[List[ResourceConflictDetail]] = None
+    selection_insufficient_warnings: Optional[List[SelectionInsufficientWarning]] = None
+    resource_conflict_warnings: Optional[List[ResourceConflictWarning]] = None
+    unavailable_resource_ids: Optional[List[int]] = None
     default_availability: DefaultAvailabilityInfo
 
 
@@ -491,5 +505,7 @@ class BatchSchedulingConflictResponse(BaseModel):
     conflict_type: Optional[str] = None  # "appointment" | "exception" | "availability" | "resource" | null
     appointment_conflict: Optional[AppointmentConflictDetail] = None
     exception_conflict: Optional[ExceptionConflictDetail] = None
-    resource_conflicts: Optional[List[ResourceConflictDetail]] = None
+    selection_insufficient_warnings: Optional[List[SelectionInsufficientWarning]] = None
+    resource_conflict_warnings: Optional[List[ResourceConflictWarning]] = None
+    unavailable_resource_ids: Optional[List[int]] = None
     default_availability: DefaultAvailabilityInfo

@@ -130,6 +130,7 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
     selectedDate,
     selectedTime,
     selectedAppointmentTypeId,
+    selectedResourceIds,
     !!selectedDate && !!selectedTime && !!selectedAppointmentTypeId && availablePractitioners.length > 0
   ) || { data: null, isLoading: false };
 
@@ -139,6 +140,7 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
     selectedDate,
     selectedTime,
     selectedAppointmentTypeId,
+    selectedResourceIds,
     event.resource.calendar_event_id,
     !!selectedPractitionerId && !!selectedDate && !!selectedTime && !!selectedAppointmentTypeId
   );

@@ -18,6 +18,7 @@ from models.calendar_event import CalendarEvent
 from models.appointment import Appointment
 from models.patient import Patient
 from models.user import User
+from models.user_clinic_association import UserClinicAssociation
 from services.resource_service import ResourceService
 
 
@@ -57,7 +58,8 @@ class TestResourceService:
         )
 
         assert result['is_available'] is True
-        assert result['conflicts'] == []
+        assert result['selection_insufficient_warnings'] == []
+        assert result['resource_conflict_warnings'] == []
 
     def test_check_resource_availability_sufficient_resources(self, db_session: Session):
         """Test resource availability check when sufficient resources are available."""
@@ -122,7 +124,8 @@ class TestResourceService:
         )
 
         assert result['is_available'] is True
-        assert result['conflicts'] == []
+        assert result['selection_insufficient_warnings'] == []
+        assert result['resource_conflict_warnings'] == []
 
     def test_check_resource_availability_insufficient_resources(self, db_session: Session):
         """Test resource availability check when insufficient resources are available."""
@@ -182,11 +185,9 @@ class TestResourceService:
         )
 
         assert result['is_available'] is False
-        assert len(result['conflicts']) == 1
-        assert result['conflicts'][0]['resource_type_id'] == resource_type.id
-        assert result['conflicts'][0]['required_quantity'] == 2
-        assert result['conflicts'][0]['total_resources'] == 1
-        assert result['conflicts'][0]['allocated_count'] == 0
+        assert len(result['selection_insufficient_warnings']) == 1
+        assert result['selection_insufficient_warnings'][0]['required_quantity'] == 2
+        assert result['selection_insufficient_warnings'][0]['selected_quantity'] == 1
 
     def test_check_resource_availability_with_existing_appointment(self, db_session: Session):
         """Test resource availability check when resources are already allocated."""
@@ -254,6 +255,16 @@ class TestResourceService:
         db_session.commit()
 
         # Create existing appointment that uses resource1
+        association = UserClinicAssociation(
+            user_id=user.id,
+            clinic_id=clinic.id,
+            is_active=True,
+            roles=["practitioner"],
+            full_name="Test Practitioner"
+        )
+        db_session.add(association)
+        db_session.commit()
+
         calendar_event = CalendarEvent(
             user_id=user.id,
             clinic_id=clinic.id,
@@ -295,7 +306,8 @@ class TestResourceService:
 
         # Should still be available (resource2 is free)
         assert result['is_available'] is True
-        assert result['conflicts'] == []
+        assert result['selection_insufficient_warnings'] == []
+        assert result['resource_conflict_warnings'] == []
 
         # Check availability when both resources are booked
         allocation2 = AppointmentResourceAllocation(
@@ -314,7 +326,7 @@ class TestResourceService:
         )
 
         assert result['is_available'] is False
-        assert len(result['conflicts']) == 1
+        assert len(result['selection_insufficient_warnings']) == 1
 
     def test_allocate_resources_auto_allocate(self, db_session: Session):
         """Test automatic resource allocation."""

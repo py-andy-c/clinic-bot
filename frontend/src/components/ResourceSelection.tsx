@@ -712,8 +712,6 @@ export const ResourceSelection: React.FC<ResourceSelectionProps> = ({
           <div className="space-y-4">
             {currentAvailability?.requirements.map((req) => {
               const selectedCount = selectedByType[req.resource_type_id]?.length || 0;
-              const hasConflict = req.available_quantity < req.required_quantity;
-              const isQuantityInsufficient = selectedCount < req.required_quantity;
               const isSectionExpanded = expandedSections.has(req.resource_type_id);
               const selectedNames = getSelectedResourceNames(req.resource_type_id);
 
@@ -732,16 +730,6 @@ export const ResourceSelection: React.FC<ResourceSelectionProps> = ({
                           </span>
                         )}
                       </label>
-                      {hasConflict && (
-                        <span className="text-xs text-yellow-600 bg-yellow-50 px-2 py-1 rounded">
-                          資源不足
-                        </span>
-                      )}
-                      {isQuantityInsufficient && !hasConflict && (
-                        <span className="text-xs text-orange-600 bg-orange-50 px-2 py-1 rounded">
-                          數量不足
-                        </span>
-                      )}
                     </div>
                     <div className="flex items-center gap-2">
                       <button

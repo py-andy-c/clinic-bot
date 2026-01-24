@@ -3813,6 +3813,41 @@ export interface components {
       description?: string | null;
     };
     /**
+     * ConflictingAppointmentInfo
+     * @description Basic info about a conflicting appointment.
+     */
+    ConflictingAppointmentInfo: {
+      /** Practitioner Name */
+      practitioner_name: string;
+      /** Start Time */
+      start_time: string;
+      /** End Time */
+      end_time: string;
+    };
+    /**
+     * SelectionInsufficientWarning
+     * @description Warning for insufficient resource selection.
+     */
+    SelectionInsufficientWarning: {
+      /** Resource Type Name */
+      resource_type_name: string;
+      /** Required Quantity */
+      required_quantity: number;
+      /** Selected Quantity */
+      selected_quantity: number;
+    };
+    /**
+     * ResourceConflictWarning
+     * @description Warning for specific resource conflict.
+     */
+    ResourceConflictWarning: {
+      /** Resource Name */
+      resource_name: string;
+      /** Resource Type Name */
+      resource_type_name: string;
+      conflicting_appointment: components["schemas"]["ConflictingAppointmentInfo"];
+    };
+    /**
      * SchedulingConflictResponse
      * @description Response model for scheduling conflict detection.
      */
@@ -3823,8 +3858,12 @@ export interface components {
       conflict_type?: string | null;
       appointment_conflict?: components["schemas"]["AppointmentConflictDetail"] | null;
       exception_conflict?: components["schemas"]["ExceptionConflictDetail"] | null;
-      /** Resource Conflicts */
-      resource_conflicts?: components["schemas"]["ResourceConflictDetail"][] | null;
+      /** Selection Insufficient Warnings */
+      selection_insufficient_warnings?: components["schemas"]["SelectionInsufficientWarning"][] | null;
+      /** Resource Conflict Warnings */
+      resource_conflict_warnings?: components["schemas"]["ResourceConflictWarning"][] | null;
+      /** Unavailable Resource Ids */
+      unavailable_resource_ids?: number[] | null;
       default_availability: components["schemas"]["DefaultAvailabilityInfo"];
     };
     /**

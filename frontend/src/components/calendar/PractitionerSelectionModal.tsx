@@ -40,6 +40,9 @@ const PractitionerConflictLabel: React.FC<{ conflictInfo: any }> = ({ conflictIn
     if (conflictInfo.default_availability && !conflictInfo.default_availability.is_within_hours) {
       return '非正常時間';
     }
+    if (conflictInfo.selection_insufficient_warnings?.length || conflictInfo.resource_conflict_warnings?.length) {
+      return '資源衝突';
+    }
     return '有衝突';
   };
 
