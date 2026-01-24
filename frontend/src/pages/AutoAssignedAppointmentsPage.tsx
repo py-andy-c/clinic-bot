@@ -21,6 +21,7 @@ import { PractitionerAssignmentConfirmationModal } from '../components/Practitio
 import { extractAppointmentDateTime } from '../utils/timezoneUtils';
 import { getErrorMessage } from '../types/api';
 import { AppointmentType } from '../types';
+import { EMPTY_ARRAY } from '../utils/constants';
 
 
 const AutoAssignedAppointmentsPage: React.FC = () => {
@@ -131,23 +132,23 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
     if (isLoadingSettings || (minimumBookingHoursAhead !== null && bookingRestrictionType !== null)) {
       return;
     }
-    
+
     setIsLoadingSettings(true);
     try {
       const settings = await apiService.getClinicSettings();
       const bookingSettings = settings.booking_restriction_settings;
-      
+
       // Get booking restriction type
       const restrictionType = bookingSettings.booking_restriction_type || 'minimum_hours_required';
       setBookingRestrictionType(restrictionType);
-      
+
       if (restrictionType === 'minimum_hours_required') {
         const hoursValue = bookingSettings.minimum_booking_hours_ahead;
         // Convert to number if it's a string, or use default
-        const hours = typeof hoursValue === 'string' 
-          ? parseInt(hoursValue, 10) 
+        const hours = typeof hoursValue === 'string'
+          ? parseInt(hoursValue, 10)
           : (typeof hoursValue === 'number' ? hoursValue : 24);
-        
+
         // Ensure we have a valid number
         const finalHours = (!isNaN(hours) && hours > 0) ? hours : 24;
         setMinimumBookingHoursAhead(finalHours);
@@ -185,7 +186,7 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
     }
   }, [isInfoModalOpen, fetchClinicSettings]);
 
-  const appointments = appointmentsData?.appointments || [];
+  const appointments = appointmentsData?.appointments || EMPTY_ARRAY;
 
   const handleAppointmentClick = async (appointment: AutoAssignedAppointment) => {
     try {
@@ -254,19 +255,19 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
         practitioner_id: formData.practitioner_id,
         start_time: formData.start_time,
       };
-      
+
       if (formData.appointment_type_id !== undefined) {
         updateData.appointment_type_id = formData.appointment_type_id;
       }
-      
+
       if (formData.clinic_notes !== undefined) {
         updateData.clinic_notes = formData.clinic_notes;
       }
-      
+
       if (formData.notification_note !== undefined) {
         updateData.notification_note = formData.notification_note;
       }
-      
+
       if (formData.selected_resource_ids !== undefined) {
         updateData.selected_resource_ids = formData.selected_resource_ids;
       }
@@ -327,11 +328,11 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
     if (bookingRestrictionType === null) {
       return null;
     }
-    
+
     const appointmentTime = moment.tz(startTimeStr, 'Asia/Taipei');
     const now = moment.tz('Asia/Taipei');
     let autoAssignmentTime: moment.Moment;
-    
+
     if (bookingRestrictionType === 'deadline_time_day_before') {
       // Deadline time mode: appointment becomes visible at deadline
       // deadlineOnSameDay=false: deadline on day X-1
@@ -339,7 +340,7 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
       if (!deadlineTimeDayBefore) {
         return null;
       }
-      
+
       // Parse deadline time (stored as 24-hour format HH:MM)
       const parts = deadlineTimeDayBefore.split(':');
       if (parts.length !== 2 || !parts[0] || !parts[1]) {
@@ -350,10 +351,10 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
       if (isNaN(hour) || isNaN(minute)) {
         return null;
       }
-      
+
       // Get appointment date (day X)
       const appointmentDate = appointmentTime.clone().startOf('day');
-      
+
       // Determine deadline date based on deadlineOnSameDay setting
       let deadlineDate;
       if (deadlineOnSameDay) {
@@ -363,7 +364,7 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
         // Deadline is on the day before (date X-1)
         deadlineDate = appointmentDate.clone().subtract(1, 'day');
       }
-      
+
       autoAssignmentTime = deadlineDate.clone().hour(hour).minute(minute).second(0).millisecond(0);
     } else {
       // Default: minimum_hours_required mode
@@ -372,16 +373,16 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
       }
       autoAssignmentTime = appointmentTime.clone().subtract(minimumBookingHoursAhead, 'hours');
     }
-    
+
     if (autoAssignmentTime.isBefore(now) || autoAssignmentTime.isSame(now)) {
       return '即將自動指派';
     }
-    
+
     const duration = moment.duration(autoAssignmentTime.diff(now));
     const days = Math.floor(duration.asDays());
     const hours = duration.hours();
     const minutes = duration.minutes();
-    
+
     if (days > 0) {
       return `將在 ${days} 天 ${hours} 小時後自動指派`;
     } else if (hours > 0) {
@@ -611,7 +612,7 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
                             appointmentData.practitionerId
                           );
 
-                          const allAssigned = updatedPatient.assigned_practitioners || [];
+                          const allAssigned = updatedPatient.assigned_practitioners || EMPTY_ARRAY;
                           const activeAssigned = allAssigned
                             .filter((p) => p.is_active !== false)
                             .map((p) => ({ id: p.id, full_name: p.full_name }));

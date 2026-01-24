@@ -2,7 +2,6 @@ import React from 'react';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter } from 'react-router-dom';
-import AvailabilityPage from '../AvailabilityPage';
 import { AuthProvider } from '../../hooks/useAuth';
 import { ModalProvider } from '../../contexts/ModalContext';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
@@ -16,21 +15,22 @@ vi.mock('../../utils/calendarDataAdapter');
 vi.mock('../../utils/storage');
 
 describe('AvailabilityPage Conflict Detection', () => {
-  const mockEvent: CalendarEvent = {
+  const mockEvent: any = {
     id: 1,
     title: 'Test Appointment',
     start: new Date('2024-01-15T10:00:00'),
     end: new Date('2024-01-15T11:00:00'),
-    patientName: 'Test Patient',
     resource: {
+      calendar_event_id: 1,
       practitioner_id: 1,
-      resource_id: null,
+      resource_id: undefined,
       type: 'appointment',
+      patient_name: 'Test Patient',
+      patient_id: 1,
+      appointment_type_id: 1,
+      clinic_notes: 'Test clinic notes',
+      notes: 'Test notes',
     },
-    notes: 'Test notes',
-    patient_id: 1,
-    appointment_type_id: 1,
-    clinic_notes: 'Test clinic notes',
   };
 
   beforeEach(() => {

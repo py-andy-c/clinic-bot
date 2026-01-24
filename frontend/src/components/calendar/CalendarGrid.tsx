@@ -19,6 +19,7 @@ import {
 import { CalendarPractitionerAvailability, isTimeSlotAvailable } from '../../utils/practitionerAvailability';
 import { formatAppointmentTimeRange } from '../../utils/calendarUtils';
 import { calculateEventDisplayText, buildEventTooltipText } from '../../utils/calendarEventDisplay';
+import { EMPTY_ARRAY, EMPTY_OBJECT } from '../../utils/constants';
 import styles from './CalendarGrid.module.css';
 
 interface CalendarGridProps {
@@ -36,15 +37,17 @@ interface CalendarGridProps {
   showHeaderRow?: boolean; // Whether to show the practitioner/resource header row
 }
 
+
+
 const CalendarGrid: React.FC<CalendarGridProps> = ({
   view,
   currentDate,
   events,
   selectedPractitioners,
   selectedResources,
-  practitioners = [],
-  resources = [],
-  practitionerAvailability = {},
+  practitioners = EMPTY_ARRAY,
+  resources = EMPTY_ARRAY,
+  practitionerAvailability = EMPTY_OBJECT,
   currentUserId,
   onEventClick,
   onSlotClick,
@@ -791,8 +794,8 @@ export const PractitionerRow: React.FC<Omit<CalendarGridProps, 'showHeaderRow'>>
     currentDate,
     selectedPractitioners,
     selectedResources,
-    practitioners = [],
-    resources = [],
+    practitioners = EMPTY_ARRAY,
+    resources = EMPTY_ARRAY,
   } = props;
 
   return (

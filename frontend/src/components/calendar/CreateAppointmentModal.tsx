@@ -44,6 +44,9 @@ import { PractitionerAssignmentConfirmationModal } from '../PractitionerAssignme
 import { useModalQueue } from '../../contexts/ModalQueueContext';
 import { getAssignedPractitionerIds } from '../../utils/patientUtils';
 import { useModal } from '../../contexts/ModalContext';
+import { EMPTY_ARRAY, EMPTY_OBJECT } from '../../utils/constants';
+
+
 
 /**
  * Helper function to convert recurring conflict status to SchedulingConflictResponse format
@@ -61,10 +64,7 @@ const convertConflictStatusToResponse = (
     appointment_conflict: conflictStatus.appointment_conflict || null,
     exception_conflict: conflictStatus.exception_conflict || null,
     resource_conflicts: conflictStatus.resource_conflicts || null,
-    default_availability: conflictStatus.default_availability || {
-      is_within_hours: true,
-      normal_hours: null,
-    },
+    default_availability: conflictStatus.default_availability || EMPTY_OBJECT as any,
   };
 };
 
@@ -361,7 +361,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
     const fetchGroups = async () => {
       try {
         const response = await apiService.getServiceTypeGroups();
-        setGroups(response.groups || []);
+        setGroups(response.groups || EMPTY_ARRAY);
       } catch (err) {
         logger.error('Error loading service type groups:', err);
         setGroups([]);
@@ -471,7 +471,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
     : (hasValidSearch || shouldFetchForPreSelected)
       ? patientsData
       : null;
-  const patients = displayData?.patients || [];
+  const patients = displayData?.patients || EMPTY_ARRAY;
   const totalPatients = displayData?.total || 0;
   const displayPatients = patients;
 
@@ -751,7 +751,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
                       );
 
                       // Get all assigned practitioners (including the newly added one)
-                      const allAssigned = updatedPatient.assigned_practitioners || [];
+                      const allAssigned = updatedPatient.assigned_practitioners || EMPTY_ARRAY;
                       const activeAssigned = allAssigned
                         .filter((p) => p.is_active !== false)
                         .map((p) => ({ id: p.id, full_name: p.full_name }));
@@ -994,7 +994,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
           practitioners={initialPractitioners}
           selectedPractitionerId={selectedPractitionerId}
           originalPractitionerId={isDuplication ? event?.resource.practitioner_id || null : null}
-          assignedPractitionerIds={assignedPractitionerIdsSet || []}
+          assignedPractitionerIds={assignedPractitionerIdsSet || EMPTY_ARRAY}
           practitionerConflicts={practitionerConflictsWithTypeMismatch}
           isLoadingConflicts={practitionerConflictsQuery.isLoading}
         />
@@ -1215,7 +1215,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
                       date={occ.date}
                       startTime={occ.time}
                       durationMinutes={appointmentTypes.find(t => t.id === selectedAppointmentTypeId)?.duration_minutes || 30}
-                      selectedResourceIds={occurrenceResourceIds[occ.id] || []}
+                      selectedResourceIds={occurrenceResourceIds[occ.id] || EMPTY_ARRAY}
                       onSelectionChange={(ids) => setOccurrenceResourceIds({ ...occurrenceResourceIds, [occ.id]: ids })}
                     />
                   </div>
@@ -1230,7 +1230,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
                     date={occ.date}
                     startTime={occ.time}
                     durationMinutes={appointmentTypes.find(t => t.id === selectedAppointmentTypeId)?.duration_minutes || 30}
-                    selectedResourceIds={occurrenceResourceIds[occ.id] || []}
+                    selectedResourceIds={occurrenceResourceIds[occ.id] || EMPTY_ARRAY}
                     onSelectionChange={(ids) => setOccurrenceResourceIds({ ...occurrenceResourceIds, [occ.id]: ids })}
                   />
                 </div>

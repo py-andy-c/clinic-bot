@@ -17,7 +17,7 @@ const updateCalendarEventWithAppointmentData = (
     has_active_receipt: appointmentData.has_active_receipt,
     has_any_receipt: appointmentData.has_any_receipt,
     receipt_id: appointmentData.receipt_id || null,
-    receipt_ids: appointmentData.receipt_ids || [],
+    receipt_ids: appointmentData.receipt_ids || EMPTY_ARRAY,
   };
 
   return {
@@ -56,6 +56,9 @@ import { canEditEvent as canEditEventUtil } from '../utils/eventPermissions';
 import { getErrorMessage } from '../types/api';
 import { AvailabilityExceptionRequest } from '../types';
 import { CalendarPractitionerAvailability } from '../utils/practitionerAvailability';
+import { EMPTY_ARRAY, EMPTY_OBJECT } from '../utils/constants';
+
+
 
 
 
@@ -151,8 +154,8 @@ const AvailabilityPage: React.FC = () => {
   });
 
   // Extract events and practitioner availability from calendar data
-  const allEvents = calendarData?.events || [];
-  const practitionerAvailability: CalendarPractitionerAvailability = calendarData?.practitionerAvailability || {};
+  const allEvents = calendarData?.events || EMPTY_ARRAY;
+  const practitionerAvailability: CalendarPractitionerAvailability = calendarData?.practitionerAvailability || EMPTY_OBJECT;
 
 
   // Optimistic update hook for appointment creation
@@ -211,17 +214,17 @@ const AvailabilityPage: React.FC = () => {
 
   // Use React Query for practitioners
   const { data: practitionersData, isLoading: practitionersLoading } = usePractitioners();
-  const practitioners = practitionersData || [];
+  const practitioners = practitionersData || EMPTY_ARRAY;
 
 
   // Fetch clinic settings only when modals that need appointment types are opened
   const shouldFetchSettings = isCreateAppointmentModalOpen || isEditAppointmentModalOpen || isCheckoutModalOpen || isServiceItemSelectionModalOpen;
   const { data: clinicSettingsData } = useClinicSettings(shouldFetchSettings);
-  const appointmentTypes = clinicSettingsData?.appointment_types || [];
+  const appointmentTypes = clinicSettingsData?.appointment_types || EMPTY_ARRAY;
 
   // Fetch service type groups when service item selection modal is open
   const { data: serviceGroupsData } = useServiceTypeGroups();
-  const serviceGroups = serviceGroupsData?.groups || [];
+  const serviceGroups = serviceGroupsData?.groups || EMPTY_ARRAY;
 
   // Track data readiness to prevent race conditions
   React.useEffect(() => {

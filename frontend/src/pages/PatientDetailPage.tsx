@@ -10,6 +10,7 @@ import { logger } from '../utils/logger';
 import { getErrorMessage } from '../types/api';
 import { useModal } from '../contexts/ModalContext';
 import { extractAppointmentDateTime } from '../utils/timezoneUtils';
+import { EMPTY_ARRAY } from '../utils/constants';
 import PageHeader from '../components/PageHeader';
 import { PatientInfoSection } from '../components/patient/PatientInfoSection';
 import { PatientNotesSection } from '../components/patient/PatientNotesSection';
@@ -50,8 +51,8 @@ const PatientDetailPage: React.FC = () => {
   // Optimistic update hook for appointment creation
   const createAppointmentMutation = useCreateAppointmentOptimistic();
 
-  const practitioners = practitionersData || [];
-  const appointmentTypes = clinicSettings?.appointment_types || [];
+  const practitioners = practitionersData || EMPTY_ARRAY;
+  const appointmentTypes = clinicSettings?.appointment_types || EMPTY_ARRAY;
 
   const handleUpdate = async (data: {
     full_name?: string;
@@ -111,7 +112,7 @@ const PatientDetailPage: React.FC = () => {
           ← 返回病患列表
         </button>
       </div>
-      <PageHeader 
+      <PageHeader
         title={patient.full_name}
         action={
           canCreateAppointment ? (
@@ -168,7 +169,7 @@ const PatientDetailPage: React.FC = () => {
           practitioners={practitioners}
         />
 
-        <PatientAppointmentsList 
+        <PatientAppointmentsList
           patientId={patient.id}
           practitioners={practitioners}
           appointmentTypes={appointmentTypes}
@@ -216,7 +217,7 @@ const PatientDetailPage: React.FC = () => {
           onRecurringAppointmentsCreated={async () => {
             // Invalidate appointments cache to refresh the list
             queryClient.invalidateQueries({ queryKey: ['patient-appointments', patientId] });
-            
+
             // Trigger refetch of appointments list if available
             if (appointmentsListRefetchRef.current) {
               await appointmentsListRefetchRef.current();

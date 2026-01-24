@@ -15,6 +15,7 @@ import { useModal } from '../contexts/ModalContext';
 import { logger } from '../utils/logger';
 import { getErrorMessage } from '../types/api';
 import { extractAppointmentDateTime } from '../utils/timezoneUtils';
+import { EMPTY_ARRAY } from '../utils/constants';
 
 // Component to handle profile picture with fallback on error
 const ProfilePictureWithFallback: React.FC<{
@@ -23,12 +24,12 @@ const ProfilePictureWithFallback: React.FC<{
   size: 'small' | 'medium';
 }> = ({ src, alt, size }) => {
   const [imageError, setImageError] = React.useState(false);
-  
+
   // Reset error state when src changes
   React.useEffect(() => {
     setImageError(false);
   }, [src]);
-  
+
   if (!src || imageError) {
     const containerClass = size === 'small' ? 'w-6 h-6' : 'w-8 h-8';
     const iconClass = size === 'small' ? 'w-4 h-4' : 'w-5 h-5';
@@ -40,7 +41,7 @@ const ProfilePictureWithFallback: React.FC<{
       </div>
     );
   }
-  
+
   const imageClass = size === 'small' ? 'w-6 h-6' : 'w-8 h-8';
   return (
     <img
@@ -56,7 +57,7 @@ const PatientsPage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
-  
+
   // Scroll to top when component mounts
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -90,7 +91,7 @@ const PatientsPage: React.FC = () => {
   const [searchInput, setSearchInput] = useState<string>('');
   const [isComposing, setIsComposing] = useState(false);
   const debouncedSearchQuery = useDebouncedSearch(searchInput, 400, isComposing);
-  
+
   // Practitioner filter
   const [selectedPractitionerId, setSelectedPractitionerId] = useState<number | undefined>(() => {
     const practitionerIdParam = searchParams.get('practitioner_id');
@@ -125,7 +126,7 @@ const PatientsPage: React.FC = () => {
   const patients = displayData?.patients || [];
   const totalPatients = displayData?.total || 0;
   const totalPages = Math.ceil(totalPatients / pageSize);
-  
+
   // Validate currentPage doesn't exceed totalPages and reset if needed
   // This runs after we have totalPages from the API response
   useEffect(() => {
@@ -136,7 +137,7 @@ const PatientsPage: React.FC = () => {
       setSearchParams(newSearchParams, { replace: true });
     }
   }, [currentPage, totalPages, searchParams, setSearchParams]);
-  
+
   // Use validated page for display (clamp to valid range)
   const validatedPage = Math.max(1, Math.min(currentPage, totalPages || 1));
 
@@ -154,13 +155,13 @@ const PatientsPage: React.FC = () => {
   // Optimistic update hook for appointment creation
   const createAppointmentMutation = useCreateAppointmentOptimistic();
 
-  const practitioners = practitionersData || [];
-  const appointmentTypes = clinicSettings?.appointment_types || [];
+  const practitioners = practitionersData || EMPTY_ARRAY;
+  const appointmentTypes = clinicSettings?.appointment_types || EMPTY_ARRAY;
 
   // Memoize PageHeader to prevent re-renders when only data changes
   // Must be called before any conditional returns to follow Rules of Hooks
   const pageHeader = useMemo(() => (
-    <PageHeader 
+    <PageHeader
       title="病患管理"
       action={
         canCreatePatient && !searchInput.trim() ? (
@@ -187,7 +188,7 @@ const PatientsPage: React.FC = () => {
   useEffect(() => {
     const searchChanged = prevSearchQueryRef.current !== debouncedSearchQuery;
     const practitionerChanged = prevPractitionerIdRef.current !== selectedPractitionerId;
-    
+
     if ((searchChanged || practitionerChanged) && currentPage !== 1) {
       const newSearchParams = new URLSearchParams(searchParams);
       newSearchParams.set('page', '1');
@@ -198,7 +199,7 @@ const PatientsPage: React.FC = () => {
       }
       setSearchParams(newSearchParams, { replace: true });
     }
-    
+
     prevSearchQueryRef.current = debouncedSearchQuery;
     prevPractitionerIdRef.current = selectedPractitionerId;
   }, [debouncedSearchQuery, selectedPractitionerId, currentPage, searchParams, setSearchParams]);
@@ -222,7 +223,7 @@ const PatientsPage: React.FC = () => {
   const patientNameFromQuery = searchParams.get('patientName');
   const targetPatientId = useMemo(() => {
     if (!patientNameFromQuery || patients.length === 0) return null;
-    const matchingPatients = patients.filter(p => 
+    const matchingPatients = patients.filter(p =>
       p.full_name.toLowerCase().includes(patientNameFromQuery.toLowerCase())
     );
     const firstPatient = matchingPatients[0];
@@ -263,16 +264,16 @@ const PatientsPage: React.FC = () => {
     if (patientNameFromQuery && patients.length > 0 && !hasHandledQueryRef.current) {
       // Mark as handled
       hasHandledQueryRef.current = true;
-      
+
       // Auto-fill search with patient name
       setSearchInput(patientNameFromQuery);
-      
+
       // Remove query parameter after handling
       const newSearchParams = new URLSearchParams(searchParams);
       newSearchParams.delete('patientName');
       setSearchParams(newSearchParams, { replace: true });
     }
-    
+
     // Reset ref when patientName query is removed
     if (!patientNameFromQuery) {
       hasHandledQueryRef.current = false;
@@ -306,161 +307,159 @@ const PatientsPage: React.FC = () => {
       <div className="space-y-8">
         {/* Patients List */}
         <div className="bg-white md:rounded-lg md:shadow-md p-0 md:p-6">
-        <div className="space-y-4">
-          {/* Search Bar and Filters */}
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="flex-1">
-              <SearchInput
-                ref={searchInputRef}
-                value={searchInput}
-                onChange={setSearchInput}
-                onCompositionStart={() => { setIsComposing(true); }}
-                onCompositionEnd={() => { setIsComposing(false); }}
-                placeholder="搜尋病患姓名、電話或LINE使用者名稱..."
-              />
+          <div className="space-y-4">
+            {/* Search Bar and Filters */}
+            <div className="flex flex-col sm:flex-row gap-4">
+              <div className="flex-1">
+                <SearchInput
+                  ref={searchInputRef}
+                  value={searchInput}
+                  onChange={setSearchInput}
+                  onCompositionStart={() => { setIsComposing(true); }}
+                  onCompositionEnd={() => { setIsComposing(false); }}
+                  placeholder="搜尋病患姓名、電話或LINE使用者名稱..."
+                />
+              </div>
+              <div className="sm:w-48">
+                <select
+                  value={selectedPractitionerId || ''}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setSelectedPractitionerId(value ? parseInt(value, 10) : undefined);
+                  }}
+                  aria-label="負責人員"
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="" disabled hidden>負責人員</option>
+                  <option value="">全部</option>
+                  {practitioners.map((practitioner) => (
+                    <option key={practitioner.id} value={practitioner.id}>
+                      {practitioner.full_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
-            <div className="sm:w-48">
-              <select
-                value={selectedPractitionerId || ''}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  setSelectedPractitionerId(value ? parseInt(value, 10) : undefined);
-                }}
-                aria-label="負責人員"
-                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="" disabled hidden>負責人員</option>
-                <option value="">全部</option>
-                {practitioners.map((practitioner) => (
-                  <option key={practitioner.id} value={practitioner.id}>
-                    {practitioner.full_name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-          
-          {!loading && totalPatients === 0 ? (
-            <div className="text-center py-8">
-              <p className="text-gray-500">尚未有病患註冊</p>
-            </div>
-          ) : !loading && patients.length === 0 ? (
-            <div className="text-center py-8">
-              <p className="text-gray-500">
-                {searchInput.trim() 
-                  ? '找不到符合搜尋條件的病患'
-                  : '目前頁面沒有病患'}
-              </p>
-            </div>
-          ) : (
-            <>
-              <div className="overflow-x-auto relative">
-                <table className="w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-2 py-2 md:px-6 md:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 z-10 bg-gray-50" style={{ minWidth: '80px' }}>
-                        病患姓名
-                      </th>
-                      <th className="px-2 py-2 md:px-6 md:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '90px' }}>
-                        手機號碼
-                      </th>
-                      <th className="px-2 py-2 md:px-6 md:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '100px' }}>
-                        LINE 使用者
-                      </th>
-                      <th className="px-2 py-2 md:px-6 md:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style={{ minWidth: '75px' }}>
-                        操作
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {patients.map((patient) => (
-                      <tr 
-                        key={patient.id} 
-                        data-patient-id={patient.id}
-                        onClick={() => navigate(`/admin/clinic/patients/${patient.id}`)}
-                        className={`group hover:bg-gray-50 transition-colors cursor-pointer ${
-                          highlightedPatientId === patient.id.toString() ? 'bg-blue-50' : ''
-                        }`}
-                      >
-                        <td className={`px-2 py-2 md:px-6 md:py-4 sticky left-0 z-10 transition-colors ${
-                          highlightedPatientId === patient.id.toString()
-                            ? 'bg-blue-50 group-hover:bg-blue-50'
-                            : 'bg-white group-hover:bg-gray-50'
-                        }`} style={{ minWidth: '80px' }}>
-                          <div className="flex items-center gap-1 md:gap-2">
-                            <span className="text-sm font-medium text-blue-600 hover:text-blue-800 truncate max-w-[60px] md:max-w-none">
-                              {patient.full_name}
-                            </span>
-                            {patient.is_deleted && (
-                              <span
-                                className="text-amber-500 flex-shrink-0"
-                                title="此病患已自行刪除帳號。病患無法自行預約，但診所仍可查看、編輯此病患資料，並為其安排預約。"
-                              >
-                                ⚠️
+
+            {!loading && totalPatients === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-gray-500">尚未有病患註冊</p>
+              </div>
+            ) : !loading && patients.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-gray-500">
+                  {searchInput.trim()
+                    ? '找不到符合搜尋條件的病患'
+                    : '目前頁面沒有病患'}
+                </p>
+              </div>
+            ) : (
+              <>
+                <div className="overflow-x-auto relative">
+                  <table className="w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-2 py-2 md:px-6 md:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 z-10 bg-gray-50" style={{ minWidth: '80px' }}>
+                          病患姓名
+                        </th>
+                        <th className="px-2 py-2 md:px-6 md:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '90px' }}>
+                          手機號碼
+                        </th>
+                        <th className="px-2 py-2 md:px-6 md:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '100px' }}>
+                          LINE 使用者
+                        </th>
+                        <th className="px-2 py-2 md:px-6 md:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style={{ minWidth: '75px' }}>
+                          操作
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {patients.map((patient) => (
+                        <tr
+                          key={patient.id}
+                          data-patient-id={patient.id}
+                          onClick={() => navigate(`/admin/clinic/patients/${patient.id}`)}
+                          className={`group hover:bg-gray-50 transition-colors cursor-pointer ${highlightedPatientId === patient.id.toString() ? 'bg-blue-50' : ''
+                            }`}
+                        >
+                          <td className={`px-2 py-2 md:px-6 md:py-4 sticky left-0 z-10 transition-colors ${highlightedPatientId === patient.id.toString()
+                              ? 'bg-blue-50 group-hover:bg-blue-50'
+                              : 'bg-white group-hover:bg-gray-50'
+                            }`} style={{ minWidth: '80px' }}>
+                            <div className="flex items-center gap-1 md:gap-2">
+                              <span className="text-sm font-medium text-blue-600 hover:text-blue-800 truncate max-w-[60px] md:max-w-none">
+                                {patient.full_name}
                               </span>
+                              {patient.is_deleted && (
+                                <span
+                                  className="text-amber-500 flex-shrink-0"
+                                  title="此病患已自行刪除帳號。病患無法自行預約，但診所仍可查看、編輯此病患資料，並為其安排預約。"
+                                >
+                                  ⚠️
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-2 py-2 md:px-6 md:py-4 whitespace-nowrap text-sm text-gray-500" style={{ minWidth: '90px' }}>
+                            {patient.phone_number || '-'}
+                          </td>
+                          <td className="px-2 py-2 md:px-6 md:py-4 text-sm" style={{ minWidth: '100px' }}>
+                            {patient.line_user_id ? (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const lineUserId = patient.line_user_id;
+                                  if (lineUserId) {
+                                    navigate(`/admin/clinic/line-users?lineUserId=${encodeURIComponent(lineUserId)}`);
+                                  }
+                                }}
+                                className="flex items-center gap-1 md:gap-2 text-sm text-blue-600 hover:text-blue-800 hover:underline font-medium w-full"
+                              >
+                                <ProfilePictureWithFallback
+                                  src={patient.line_user_picture_url}
+                                  alt={patient.line_user_display_name || 'LINE user'}
+                                  size="small"
+                                />
+                                <span className="truncate max-w-[60px] md:max-w-none">{patient.line_user_display_name || '未設定名稱'}</span>
+                              </button>
+                            ) : (
+                              <span className="text-sm text-gray-500">-</span>
                             )}
-                          </div>
-                        </td>
-                        <td className="px-2 py-2 md:px-6 md:py-4 whitespace-nowrap text-sm text-gray-500" style={{ minWidth: '90px' }}>
-                          {patient.phone_number || '-'}
-                        </td>
-                        <td className="px-2 py-2 md:px-6 md:py-4 text-sm" style={{ minWidth: '100px' }}>
-                          {patient.line_user_id ? (
+                          </td>
+                          <td className="px-2 py-2 md:px-6 md:py-4 whitespace-nowrap text-sm" style={{ minWidth: '75px' }}>
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                const lineUserId = patient.line_user_id;
-                                if (lineUserId) {
-                                  navigate(`/admin/clinic/line-users?lineUserId=${encodeURIComponent(lineUserId)}`);
-                                }
+                                // Open appointment modal with pre-selected patient
+                                setSelectedPatientIdForAppointment(patient.id);
+                                setSelectedPatientNameForAppointment(patient.full_name);
+                                setIsAppointmentModalOpen(true);
                               }}
-                              className="flex items-center gap-1 md:gap-2 text-sm text-blue-600 hover:text-blue-800 hover:underline font-medium w-full"
+                              className="text-blue-600 hover:text-blue-800 font-medium"
                             >
-                              <ProfilePictureWithFallback
-                                src={patient.line_user_picture_url}
-                                alt={patient.line_user_display_name || 'LINE user'}
-                                size="small"
-                              />
-                              <span className="truncate max-w-[60px] md:max-w-none">{patient.line_user_display_name || '未設定名稱'}</span>
+                              新增預約
                             </button>
-                          ) : (
-                            <span className="text-sm text-gray-500">-</span>
-                          )}
-                        </td>
-                        <td className="px-2 py-2 md:px-6 md:py-4 whitespace-nowrap text-sm" style={{ minWidth: '75px' }}>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              // Open appointment modal with pre-selected patient
-                              setSelectedPatientIdForAppointment(patient.id);
-                              setSelectedPatientNameForAppointment(patient.full_name);
-                              setIsAppointmentModalOpen(true);
-                            }}
-                            className="text-blue-600 hover:text-blue-800 font-medium"
-                          >
-                            新增預約
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              {totalPages > 1 && (
-                <div className="mt-2 pt-2 md:mt-4 md:pt-4 border-t border-gray-200">
-                  <PaginationControls
-                    currentPage={validatedPage}
-                    totalPages={totalPages}
-                    totalItems={totalPatients}
-                    pageSize={pageSize}
-                    onPageChange={handlePageChange}
-                  />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
-              )}
-            </>
-          )}
+                {totalPages > 1 && (
+                  <div className="mt-2 pt-2 md:mt-4 md:pt-4 border-t border-gray-200">
+                    <PaginationControls
+                      currentPage={validatedPage}
+                      totalPages={totalPages}
+                      totalItems={totalPatients}
+                      pageSize={pageSize}
+                      onPageChange={handlePageChange}
+                    />
+                  </div>
+                )}
+              </>
+            )}
+          </div>
         </div>
-      </div>
       </div>
 
       {/* Patient Creation Modal */}
