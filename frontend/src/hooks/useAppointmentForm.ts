@@ -12,7 +12,7 @@ export interface UseAppointmentFormProps {
   mode: AppointmentFormMode;
   event?: CalendarEvent | null | undefined;
   appointmentTypes: { id: number; name: string; duration_minutes: number }[];
-  practitioners: { id: number; full_name: string }[];
+  practitioners: { id: number; full_name: string; offered_types?: number[] }[];
   initialDate?: string | null | undefined;
   preSelectedPatientId?: number | null | undefined;
   preSelectedAppointmentTypeId?: number | null | undefined;
@@ -114,9 +114,21 @@ export const useAppointmentForm = ({
         const fetchTasks: Promise<any>[] = [];
         const signal = abortControllerRef.current?.signal;
 
-        // 1. Fetch practitioners for the appointment type
+        // 1. Setup practitioners for the appointment type
         if (typeId) {
-          fetchTasks.push(apiService.getPractitioners(typeId, signal));
+          // If we have offered_types on practitioners, we can filter locally and avoid an API call
+          const hasOfferedTypes = allPractitioners.length > 0 && Array.isArray(allPractitioners[0]?.offered_types);
+          if (hasOfferedTypes) {
+            const filtered = allPractitioners.filter(p => {
+              const types = p.offered_types;
+              if (!types) return true;
+              return typeId !== null && types.includes(typeId);
+            });
+            fetchTasks.push(Promise.resolve(filtered));
+          } else {
+            // Fallback to API if data is missing or incomplete
+            fetchTasks.push(apiService.getPractitioners(typeId, signal));
+          }
         } else {
           fetchTasks.push(Promise.resolve(allPractitioners));
         }
@@ -299,6 +311,22 @@ export const useAppointmentForm = ({
         if (!isStale) {
           setAvailablePractitioners(allPractitioners);
           lastFetchedTypeIdRef.current = null;
+        }
+        return;
+      }
+
+      // Check if we can filter locally first
+      const hasOfferedTypes = allPractitioners.length > 0 && Array.isArray(allPractitioners[0]?.offered_types);
+      if (hasOfferedTypes) {
+        const filtered = allPractitioners.filter(p => {
+          const types = p.offered_types;
+          if (!types) return true;
+          return selectedAppointmentTypeId !== null && types.includes(selectedAppointmentTypeId);
+        });
+        const sorted = [...filtered].sort((a, b) => a.full_name.localeCompare(b.full_name, 'zh-TW'));
+        if (!isStale) {
+          setAvailablePractitioners(sorted);
+          lastFetchedTypeIdRef.current = selectedAppointmentTypeId;
         }
         return;
       }

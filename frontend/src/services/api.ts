@@ -257,6 +257,9 @@ export class ApiService {
       const response = await this.client.get('/clinic/practitioners', { ...config, params });
       return response.data.practitioners;
     } catch (error) {
+      if (axios.isCancel(error)) {
+        throw error;
+      }
       const err = error as any;
       logger.error('Failed to fetch practitioners', {
         message: err?.message,
