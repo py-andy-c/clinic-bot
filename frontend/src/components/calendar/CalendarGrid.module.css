@@ -232,12 +232,13 @@
 }
 
 .dayCell.otherMonth {
-  background: #f9fafb;
+  background: #e5e7eb;
   color: #9ca3af;
+  border-color: #d1d5db;
 }
 
 .dayCell.today {
-  background: #eff6ff;
+  background: #dbeafe;
 }
 
 .dayNumber {

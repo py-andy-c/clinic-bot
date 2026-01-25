@@ -36,6 +36,7 @@ This PR addresses critical issues in the Calendar Week View implementation where
   - Increased day cell minimum height to 180px for better event visibility.
   - Centered date numbers within cells.
   - Removed misalignment caused by extra borders and padding.
+  - **Visual Distinction**: Darkened "other month" days to gray (#e5e7eb) and highlighted "today" in blue (#dbeafe) for clear separation. Borders adjusted to remain visible.
   - **Interaction**: Clicking any date number in Month View immediately jumps to the Day View for that specific date.
   - **Event Density**: Optimized layout to display up to 6 events per day (vs 3 previously) with a compact `+X` overflow indicator.
 - **`frontend/src/utils/practitionerAvailability.ts`**: Changed assignment to spread merge: `schedule: { ...(prev?.schedule || {}), [date]: schedule }`.
