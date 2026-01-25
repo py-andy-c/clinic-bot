@@ -152,6 +152,8 @@
 
 .resourceGrid {
   display: flex;
+  position: relative;
+  width: 100%;
   /* Allow children to expand/contract */
 }
 

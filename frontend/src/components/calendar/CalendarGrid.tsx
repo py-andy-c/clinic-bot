@@ -23,6 +23,15 @@ import { calculateEventDisplayText, buildEventTooltipText } from '../../utils/ca
 import { EMPTY_ARRAY, EMPTY_OBJECT, CALENDAR_GRID_TIME_COLUMN_WIDTH } from '../../utils/constants';
 import styles from './CalendarGrid.module.css';
 
+interface DragPreview {
+  start: Date;
+  end: Date;
+  practitionerId?: number | undefined;
+  resourceId?: number | undefined;
+  date?: string | undefined;
+  isAvailable?: boolean | undefined;
+}
+
 interface CalendarGridProps {
   view: CalendarView;
   currentDate: Date;
@@ -97,10 +106,11 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
     isDragging: boolean;
     x: number;
     y: number;
-    preview: { start: Date; end: Date; practitionerId?: number | undefined; resourceId?: number | undefined; date?: string; isAvailable?: boolean } | null;
+    preview: DragPreview | null | undefined;
     isTouch: boolean;
     dragOffset: { x: number; y: number };
     dragInitialSize: { width: number; height: number };
+    columnWidth?: number;
   }>({
     event: null,
     isDragging: false,
@@ -114,6 +124,7 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
 
   const gridRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const resourceGridRef = useRef<HTMLDivElement>(null);
   const longPressTimerRef = useRef<any>(null);
   const isLongPressActiveRef = useRef(false);
   const touchStartPosRef = useRef<{ x: number, y: number } | null>(null);
@@ -369,7 +380,8 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
     const y = (clientY - dragState.dragOffset.y) - rect.top;
 
     // Use raw cursor X for horizontal snapping to switch columns only when cursor enters a new region
-    const cursorX = clientX - rect.left;
+    // Use raw cursor X + scroll offset for horizontal snapping
+    const cursorX = (clientX - rect.left) + gridRef.current.scrollLeft;
 
     const slotHeight = CALENDAR_GRID_CONFIG.SLOT_HEIGHT_PX;
     const totalMinutes = Math.floor(y / slotHeight) * CALENDAR_GRID_CONFIG.SLOT_DURATION_MINUTES;
@@ -380,12 +392,13 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
 
     const duration = dragState.event.end.getTime() - dragState.event.start.getTime();
 
+    let result: DragPreview | undefined;
+    const currentDateMoment = moment(currentDate).tz('Asia/Taipei');
+
     if (view === CalendarViews.DAY) {
       const totalColumns = selectedPractitioners.length + selectedResources.length || 1;
-      const columnWidth = rect.width / totalColumns;
-      // Calculate index based purely on cursor X position, but restricted to practitioner columns only
-      const maxPractitionerIndex = Math.max(0, selectedPractitioners.length - 1);
-      const colIndex = Math.max(0, Math.min(maxPractitionerIndex, Math.floor(cursorX / columnWidth)));
+      const columnWidth = dragState.columnWidth || (gridRef.current.scrollWidth / totalColumns);
+      const colIndex = Math.max(0, Math.min(totalColumns - 1, Math.floor(cursorX / columnWidth)));
 
       let targetPractitionerId: number | undefined;
       let targetResourceId: number | undefined;
@@ -399,40 +412,36 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
         targetPractitionerId = dragState.event.resource.practitioner_id ?? undefined;
       }
 
-      const newStart = createTimeSlotDate(currentDate, clampedHours, clampedMinutes);
-      const newEnd = new Date(newStart.getTime() + duration);
-
-      setDragState(prev => ({
-        ...prev,
-        x: clientX,
-        y: clientY,
-        preview: {
-          start: newStart,
-          end: newEnd,
-          practitionerId: targetPractitionerId,
-          resourceId: targetResourceId,
-        }
-      }));
+      result = {
+        start: new Date(currentDateMoment.hour(clampedHours).minute(clampedMinutes).second(0).millisecond(0).valueOf()),
+        end: new Date(currentDateMoment.hour(clampedHours).minute(clampedMinutes).second(0).millisecond(0).valueOf() + duration),
+        practitionerId: targetPractitionerId,
+        resourceId: targetResourceId,
+        date: moment(currentDate).format('YYYY-MM-DD'),
+        isAvailable: targetPractitionerId ? isTimeSlotAvailable(targetPractitionerId, currentDate, clampedHours, clampedMinutes, practitionerAvailability, false) : true
+      };
     } else if (view === CalendarViews.WEEK) {
-      const columnWidth = rect.width / 7;
-      // Use cursor X for day snapping in week view
+      const columnWidth = dragState.columnWidth || (gridRef.current.scrollWidth / 7);
       const dayIndex = Math.max(0, Math.min(6, Math.floor(cursorX / columnWidth)));
       const targetDate = moment(currentDate).startOf('week').add(dayIndex, 'days').toDate();
       const newStart = createTimeSlotDate(targetDate, clampedHours, clampedMinutes);
       const newEnd = new Date(newStart.getTime() + duration);
 
-      setDragState(prev => ({
-        ...prev,
-        x: clientX,
-        y: clientY,
-        preview: {
-          start: newStart,
-          end: newEnd,
-          practitionerId: dragState.event?.resource.practitioner_id ?? undefined,
-          date: moment(targetDate).format('YYYY-MM-DD'),
-        }
-      }));
+      result = {
+        start: newStart,
+        end: newEnd,
+        practitionerId: dragState.event?.resource.practitioner_id ?? undefined,
+        date: moment(targetDate).format('YYYY-MM-DD'),
+        isAvailable: dragState.event?.resource.practitioner_id ? isTimeSlotAvailable(dragState.event.resource.practitioner_id, targetDate, clampedHours, clampedMinutes, practitionerAvailability, false) : true
+      };
     }
+
+    setDragState(prev => ({
+      ...prev,
+      x: clientX,
+      y: clientY,
+      preview: result,
+    }));
 
     if (viewportEl) {
       const vRect = viewportEl.getBoundingClientRect();
@@ -446,7 +455,7 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
       scrollVelocityRef.current = { x: vx, y: vy };
     }
     return undefined;
-  }, [dragState.event, view, selectedPractitioners, selectedResources, currentDate, currentUserId, practitionerAvailability]);
+  }, [dragState.event, dragState.columnWidth, view, selectedPractitioners, selectedResources, currentDate, currentUserId, practitionerAvailability]);
 
   useEffect(() => {
     if (!dragState.isDragging) {
@@ -607,6 +616,18 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
   useEffect(() => {
     if (dragState.isDragging) {
       document.body.classList.add('no-selection');
+
+      const resourceGrid = resourceGridRef.current;
+      if (resourceGrid) {
+        const firstCol = resourceGrid.querySelector('[role="gridcell"]');
+        if (firstCol) {
+          const colWidth = firstCol.getBoundingClientRect().width;
+          setDragState(prev => {
+            if (prev.columnWidth === colWidth) return prev;
+            return { ...prev, columnWidth: colWidth };
+          });
+        }
+      }
     } else {
       document.body.classList.remove('no-selection');
     }
@@ -672,58 +693,6 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
         )}
         <div ref={gridRef} className={styles.calendarGrid} role="grid" tabIndex={0}>
           <div className={styles.timeIndicator} style={currentTimeIndicatorStyle} data-testid="current-time-indicator" />
-          {dragState.isDragging && dragState.preview && (
-            <div
-              data-testid="drop-preview"
-              style={{
-                position: 'absolute',
-                top: calculateEventPosition(dragState.preview.start).top,
-                left: view === CalendarViews.DAY
-                  ? (() => {
-                    const total = selectedPractitioners.length + selectedResources.length || 1;
-                    const pIdx = selectedPractitioners.findIndex(id => id === dragState.preview?.practitionerId);
-                    const rIdx = pIdx === -1 ? selectedResources.findIndex(id => id === dragState.preview?.resourceId) : -1;
-                    const colIdx = pIdx !== -1 ? pIdx : (rIdx !== -1 ? selectedPractitioners.length + rIdx : 0);
-                    return `${(colIdx / total) * 100}%`;
-                  })()
-                  : view === CalendarViews.WEEK
-                    ? `${(moment(dragState.preview.start).tz('Asia/Taipei').day() / 7) * 100}%`
-                    : '0',
-                width: view === CalendarViews.DAY ? `calc(100% / ${selectedPractitioners.length + selectedResources.length || 1})` : view === CalendarViews.WEEK ? 'calc(100% / 7)' : '100%',
-                height: calculateEventHeight(dragState.preview.start, dragState.preview.end).height,
-                backgroundColor: 'rgba(59, 130, 246, 0.6)',
-                border: '2px solid #3b82f6',
-                borderRadius: '8px',
-                zIndex: 40,
-                pointerEvents: 'none',
-                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'flex-start',
-                justifyContent: 'flex-start',
-                padding: '4px 6px',
-                color: 'white',
-                fontSize: '11px',
-                fontWeight: 500
-              }}
-            >
-              <div className="flex flex-col items-start w-full overflow-hidden">
-                <div className="text-[12px] font-bold leading-tight flex items-center gap-1">
-                  <span>{moment(dragState.preview.start).tz('Asia/Taipei').format('HH:mm')}</span>
-                  <span className="opacity-70">-</span>
-                  <span>{moment(dragState.preview.end).tz('Asia/Taipei').format('HH:mm')}</span>
-                </div>
-                {dragColumnInfo && (
-                  <div className="text-[12px] font-medium leading-tight mb-1">
-                    {dragColumnInfo.to}
-                  </div>
-                )}
-                <div className="text-[10px] font-medium opacity-90 whitespace-nowrap overflow-hidden self-stretch">
-                  {dragState.event ? calculateEventDisplayText(dragState.event) : ''}
-                </div>
-              </div>
-            </div>
-          )}
           <div className="grid-container" role="presentation">
             {view === CalendarViews.MONTH ? (
               <MonthlyBody
@@ -732,7 +701,67 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
                 currentUserId={currentUserId} onEventClick={handleEventClick} onHeaderClick={onHeaderClick}
               />
             ) : (
-              <div className={styles.resourceGrid}>
+              <div ref={resourceGridRef} className={styles.resourceGrid}>
+                {dragState.isDragging && dragState.preview && (
+                  <div
+                    data-testid="drop-preview"
+                    style={{
+                      position: 'absolute',
+                      top: calculateEventPosition(dragState.preview.start).top,
+                      left: view === CalendarViews.DAY
+                        ? (() => {
+                          const total = selectedPractitioners.length + selectedResources.length || 1;
+                          const pIdx = selectedPractitioners.findIndex(id => id === dragState.preview?.practitionerId);
+                          const rIdx = pIdx === -1 ? selectedResources.findIndex(id => id === dragState.preview?.resourceId) : -1;
+                          const colIdx = pIdx !== -1 ? pIdx : (rIdx !== -1 ? selectedPractitioners.length + rIdx : 0);
+
+                          if (dragState.columnWidth) {
+                            return `${colIdx * dragState.columnWidth}px`;
+                          }
+                          return `${(colIdx / total) * 100}%`;
+                        })()
+                        : view === CalendarViews.WEEK
+                          ? (dragState.columnWidth
+                            ? `${moment(dragState.preview.start).tz('Asia/Taipei').day() * dragState.columnWidth}px`
+                            : `${(moment(dragState.preview.start).tz('Asia/Taipei').day() / 7) * 100}%`)
+                          : '0',
+                      width: dragState.columnWidth
+                        ? `${dragState.columnWidth}px`
+                        : (view === CalendarViews.DAY ? `calc(100% / ${selectedPractitioners.length + selectedResources.length || 1})` : view === CalendarViews.WEEK ? 'calc(100% / 7)' : '100%'),
+                      height: calculateEventHeight(dragState.preview.start, dragState.preview.end).height,
+                      backgroundColor: 'rgba(59, 130, 246, 0.6)',
+                      border: '2px solid #3b82f6',
+                      borderRadius: '8px',
+                      zIndex: 40,
+                      pointerEvents: 'none',
+                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'flex-start',
+                      justifyContent: 'flex-start',
+                      padding: '4px 6px',
+                      color: 'white',
+                      fontSize: '11px',
+                      fontWeight: 500
+                    }}
+                  >
+                    <div className="flex flex-col items-start w-full overflow-hidden">
+                      <div className="text-[12px] font-bold leading-tight flex items-center gap-1">
+                        <span>{moment(dragState.preview.start).tz('Asia/Taipei').format('HH:mm')}</span>
+                        <span className="opacity-70">-</span>
+                        <span>{moment(dragState.preview.end).tz('Asia/Taipei').format('HH:mm')}</span>
+                      </div>
+                      {dragColumnInfo && (
+                        <div className="text-[12px] font-medium leading-tight mb-1">
+                          {dragColumnInfo.to}
+                        </div>
+                      )}
+                      <div className="text-[10px] font-medium opacity-90 whitespace-nowrap overflow-hidden self-stretch">
+                        {dragState.event ? calculateEventDisplayText(dragState.event) : ''}
+                      </div>
+                    </div>
+                  </div>
+                )}
                 {view === CalendarViews.DAY && practitionerGroups.length === 0 && resourceGroups.length === 0 && (
                   <div className={styles.practitionerColumn} role="gridcell">
                     {timeSlots.map((slot, i) => (
