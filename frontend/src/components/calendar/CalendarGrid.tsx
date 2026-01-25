@@ -41,6 +41,14 @@ interface CalendarGridProps {
   showHeaderRow?: boolean; // Whether to show the practitioner/resource header row
 }
 
+interface MonthlyBodyProps {
+  currentDate: Date;
+  events: CalendarEvent[];
+  selectedPractitioners: number[];
+  selectedResources: number[];
+  onEventClick?: (event: CalendarEvent) => void;
+}
+
 
 
 const CalendarGrid: React.FC<CalendarGridProps> = ({
@@ -450,17 +458,7 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
     }
   };
 
-  if (view === 'month') {
-    return (
-      <MonthlyCalendarGrid
-        currentDate={currentDate}
-        events={events}
-        selectedPractitioners={selectedPractitioners}
-        selectedResources={selectedResources}
-        onEventClick={onEventClick || (() => { })}
-      />
-    );
-  }
+  /* Month view early return removed to share layout */
 
   return (
     <div className={styles.calendarGridContainer} data-testid="calendar-grid-container" style={{ position: 'relative' }}>
@@ -482,20 +480,22 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
 
       {/* Body Area: Time Column (Sticky Left) + Grid */}
       <div className={styles.gridLayer}>
-        <div className={styles.timeColumn} id="time-labels">
-          {(view === CalendarViews.DAY || view === CalendarViews.WEEK) &&
-            timeSlots
-              .filter((_, index) => index % 4 === 0) // Show label every 4 slots (every hour)
-              .map((slot, index) => (
-                <div key={index} className={styles.timeLabel}>
-                  {slot.hour === 0 ? (
-                    <span></span> // Empty span for hour 0, matching mock UI
-                  ) : (
-                    <span>{slot.hour}</span> // Just the hour number, no ":00"
-                  )}
-                </div>
-              ))}
-        </div>
+        {view !== CalendarViews.MONTH && (
+          <div className={styles.timeColumn} id="time-labels">
+            {(view === CalendarViews.DAY || view === CalendarViews.WEEK) &&
+              timeSlots
+                .filter((_, index) => index % 4 === 0) // Show label every 4 slots (every hour)
+                .map((slot, index) => (
+                  <div key={index} className={styles.timeLabel}>
+                    {slot.hour === 0 ? (
+                      <span></span> // Empty span for hour 0, matching mock UI
+                    ) : (
+                      <span>{slot.hour}</span> // Just the hour number, no ":00"
+                    )}
+                  </div>
+                ))}
+          </div>
+        )}
         <div
           className={styles.calendarGrid}
           role="grid"
@@ -518,262 +518,272 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
 
           <div className="grid-container" role="presentation">
             {/* Resource columns */}
-            <div className={styles.resourceGrid}>
-              {view === CalendarViews.DAY && practitionerGroups.map(({ practitionerId, groups }) => (
-                <div
-                  key={`practitioner-${practitionerId}`}
-                  className={styles.practitionerColumn}
-                  role="gridcell"
-                  aria-label={`Column for practitioner ${practitionerId}`}
-                >
-                  {timeSlots.map((slot, index) => {
-                    const isAvailable = isTimeSlotAvailable(
-                      practitionerId,
-                      currentDate,
-                      slot.hour,
-                      slot.minute,
-                      practitionerAvailability,
-                      false // Always check practitioner schedules, not business hours
-                    );
-
-                    return (
-                      <div
-                        key={index}
-                        className={`${styles.timeSlot} ${!isAvailable ? styles.unavailable : ''}`}
-                        onClick={(e) => handleSlotClick(currentDate, slot.hour, slot.minute, practitionerId, e)}
-                        onKeyDown={handleKeyDown}
-                        role="button"
-                        aria-label={`Time slot ${slot.time} for practitioner ${practitionerId} - Click to create appointment`}
-                        data-testid="time-slot"
-                        tabIndex={-1}
-                      />
-                    );
-                  })}
-                  {/* Render single events (full width) */}
-                  {groups
-                    .filter(group => group.events.length === 1)
-                    .map((group, groupIndex) => (
-                      <OverlappingEventGroupComponent
-                        key={`single-${practitionerId}-${groupIndex}`}
-                        group={group}
-                        groupIndex={groupIndex}
-                        selectedPractitioners={selectedPractitioners}
-                        selectedResources={selectedResources}
-                        onEventClick={onEventClick || (() => { })}
-                      />
-                    ))}
-
-                  {/* Render overlapping event groups (multiple events) */}
-                  {groups
-                    .filter(group => group.events.length > 1)
-                    .map((group, groupIndex) => (
-                      <OverlappingEventGroupComponent
-                        key={`group-${practitionerId}-${groupIndex}`}
-                        group={group}
-                        groupIndex={groupIndex}
-                        selectedPractitioners={selectedPractitioners}
-                        selectedResources={selectedResources}
-                        onEventClick={onEventClick || (() => { })}
-                      />
-                    ))}
-                </div>
-              ))}
-
-              {view === CalendarViews.DAY && resourceGroups.map(({ resourceId, groups }) => (
-                <div
-                  key={`resource-${resourceId}`}
-                  className={styles.practitionerColumn}
-                  role="gridcell"
-                  aria-label={`Column for resource ${resourceId}`}
-                >
-                  {timeSlots.map((slot, index) => {
-                    // Resources should follow practitioner availability to prevent double bookings
-                    // Check if any selected practitioner is available at this time slot
-                    const isAnyPractitionerAvailable = selectedPractitioners.some(practitionerId => {
-                      return isTimeSlotAvailable(
+            {view === CalendarViews.MONTH ? (
+              <MonthlyBody
+                currentDate={currentDate}
+                events={events}
+                selectedPractitioners={selectedPractitioners}
+                selectedResources={selectedResources}
+                onEventClick={onEventClick || (() => { })}
+              />
+            ) : (
+              <div className={styles.resourceGrid}>
+                {view === CalendarViews.DAY && practitionerGroups.map(({ practitionerId, groups }) => (
+                  <div
+                    key={`practitioner-${practitionerId}`}
+                    className={styles.practitionerColumn}
+                    role="gridcell"
+                    aria-label={`Column for practitioner ${practitionerId}`}
+                  >
+                    {timeSlots.map((slot, index) => {
+                      const isAvailable = isTimeSlotAvailable(
                         practitionerId,
                         currentDate,
                         slot.hour,
                         slot.minute,
                         practitionerAvailability,
-                        false // Always check practitioner availability, never use business hours
+                        false // Always check practitioner schedules, not business hours
                       );
-                    });
 
-                    return (
+                      return (
+                        <div
+                          key={index}
+                          className={`${styles.timeSlot} ${!isAvailable ? styles.unavailable : ''}`}
+                          onClick={(e) => handleSlotClick(currentDate, slot.hour, slot.minute, practitionerId, e)}
+                          onKeyDown={handleKeyDown}
+                          role="button"
+                          aria-label={`Time slot ${slot.time} for practitioner ${practitionerId} - Click to create appointment`}
+                          data-testid="time-slot"
+                          tabIndex={-1}
+                        />
+                      );
+                    })}
+                    {/* Render single events (full width) */}
+                    {groups
+                      .filter(group => group.events.length === 1)
+                      .map((group, groupIndex) => (
+                        <OverlappingEventGroupComponent
+                          key={`single-${practitionerId}-${groupIndex}`}
+                          group={group}
+                          groupIndex={groupIndex}
+                          selectedPractitioners={selectedPractitioners}
+                          selectedResources={selectedResources}
+                          onEventClick={onEventClick || (() => { })}
+                        />
+                      ))}
+
+                    {/* Render overlapping event groups (multiple events) */}
+                    {groups
+                      .filter(group => group.events.length > 1)
+                      .map((group, groupIndex) => (
+                        <OverlappingEventGroupComponent
+                          key={`group-${practitionerId}-${groupIndex}`}
+                          group={group}
+                          groupIndex={groupIndex}
+                          selectedPractitioners={selectedPractitioners}
+                          selectedResources={selectedResources}
+                          onEventClick={onEventClick || (() => { })}
+                        />
+                      ))}
+                  </div>
+                ))}
+
+                {view === CalendarViews.DAY && resourceGroups.map(({ resourceId, groups }) => (
+                  <div
+                    key={`resource-${resourceId}`}
+                    className={styles.practitionerColumn}
+                    role="gridcell"
+                    aria-label={`Column for resource ${resourceId}`}
+                  >
+                    {timeSlots.map((slot, index) => {
+                      // Resources should follow practitioner availability to prevent double bookings
+                      // Check if any selected practitioner is available at this time slot
+                      const isAnyPractitionerAvailable = selectedPractitioners.some(practitionerId => {
+                        return isTimeSlotAvailable(
+                          practitionerId,
+                          currentDate,
+                          slot.hour,
+                          slot.minute,
+                          practitionerAvailability,
+                          false // Always check practitioner availability, never use business hours
+                        );
+                      });
+
+                      return (
+                        <div
+                          key={index}
+                          className={`${styles.timeSlot} ${!isAnyPractitionerAvailable ? styles.unavailable : ''}`}
+                          onClick={(e) => handleSlotClick(currentDate, slot.hour, slot.minute, undefined, e)}
+                          onKeyDown={handleKeyDown}
+                          role="button"
+                          aria-label={`Time slot ${slot.time} for resource ${resourceId} - Click to create appointment`}
+                          data-testid="time-slot"
+                          tabIndex={-1}
+                        />
+                      );
+                    })}
+                    {/* Render single events (full width) */}
+                    {groups
+                      .filter(group => group.events.length === 1)
+                      .map((group, groupIndex) => (
+                        <CalendarEventComponent
+                          key={`single-${resourceId}-${groupIndex}`}
+                          event={group.events[0]!}
+                          selectedPractitioners={selectedPractitioners}
+                          selectedResources={selectedResources}
+                          onClick={() => onEventClick?.(group.events[0]!)}
+                        />
+                      ))}
+
+                    {/* Render overlapping event groups (multiple events) */}
+                    {groups
+                      .filter(group => group.events.length > 1)
+                      .map((group, groupIndex) => (
+                        <OverlappingEventGroupComponent
+                          key={`group-${resourceId}-${groupIndex}`}
+                          group={group}
+                          groupIndex={groupIndex}
+                          selectedPractitioners={selectedPractitioners}
+                          selectedResources={selectedResources}
+                          onEventClick={onEventClick || (() => { })}
+                        />
+                      ))}
+                  </div>
+                ))}
+
+                {/* Render empty columns when no practitioners or resources are selected */}
+                {view === CalendarViews.DAY && practitionerGroups.length === 0 && resourceGroups.length === 0 && (
+                  // For Day View: render a single empty column
+                  <div
+                    key="empty-day-column"
+                    className={styles.practitionerColumn}
+                    role="gridcell"
+                    aria-label="Empty calendar column"
+                  >
+                    {timeSlots.map((slot, index) => (
                       <div
                         key={index}
-                        className={`${styles.timeSlot} ${!isAnyPractitionerAvailable ? styles.unavailable : ''}`}
+                        className={styles.timeSlot}
                         onClick={(e) => handleSlotClick(currentDate, slot.hour, slot.minute, undefined, e)}
                         onKeyDown={handleKeyDown}
                         role="button"
-                        aria-label={`Time slot ${slot.time} for resource ${resourceId} - Click to create appointment`}
+                        aria-label="Time slot - Click to create appointment"
                         data-testid="time-slot"
                         tabIndex={-1}
                       />
-                    );
-                  })}
-                  {/* Render single events (full width) */}
-                  {groups
-                    .filter(group => group.events.length === 1)
-                    .map((group, groupIndex) => (
-                      <CalendarEventComponent
-                        key={`single-${resourceId}-${groupIndex}`}
-                        event={group.events[0]!}
-                        selectedPractitioners={selectedPractitioners}
-                        selectedResources={selectedResources}
-                        onClick={() => onEventClick?.(group.events[0]!)}
-                      />
                     ))}
+                  </div>
+                )}
 
-                  {/* Render overlapping event groups (multiple events) */}
-                  {groups
-                    .filter(group => group.events.length > 1)
-                    .map((group, groupIndex) => (
-                      <OverlappingEventGroupComponent
-                        key={`group-${resourceId}-${groupIndex}`}
-                        group={group}
-                        groupIndex={groupIndex}
-                        selectedPractitioners={selectedPractitioners}
-                        selectedResources={selectedResources}
-                        onEventClick={onEventClick || (() => { })}
-                      />
-                    ))}
-                </div>
-              ))}
+                {/* Week View Columns */}
+                {view === CalendarViews.WEEK && weekDaysData.map((dayData, index) => (
+                  <div
+                    key={`day-column-${index}`}
+                    className={styles.practitionerColumn}
+                    role="gridcell"
+                    aria-label={`Column for ${dayData.dateMoment.format('dddd')}`}
+                  >
+                    {timeSlots.map((slot, slotIndex) => {
+                      // Check availability for current user
+                      const isAvailable = currentUserId ? isTimeSlotAvailable(
+                        currentUserId,
+                        dayData.date,
+                        slot.hour,
+                        slot.minute,
+                        practitionerAvailability,
+                        false
+                      ) : true;
 
-              {/* Render empty columns when no practitioners or resources are selected */}
-              {view === CalendarViews.DAY && practitionerGroups.length === 0 && resourceGroups.length === 0 && (
-                // For Day View: render a single empty column
-                <div
-                  key="empty-day-column"
-                  className={styles.practitionerColumn}
-                  role="gridcell"
-                  aria-label="Empty calendar column"
-                >
-                  {timeSlots.map((slot, index) => (
-                    <div
-                      key={index}
-                      className={styles.timeSlot}
-                      onClick={(e) => handleSlotClick(currentDate, slot.hour, slot.minute, undefined, e)}
-                      onKeyDown={handleKeyDown}
-                      role="button"
-                      aria-label="Time slot - Click to create appointment"
-                      data-testid="time-slot"
-                      tabIndex={-1}
-                    />
-                  ))}
-                </div>
-              )}
+                      return (
+                        <div
+                          key={slotIndex}
+                          className={`${styles.timeSlot} ${!isAvailable ? styles.unavailable : ''}`}
+                          onClick={(e) => handleSlotClick(dayData.date, slot.hour, slot.minute, currentUserId ?? undefined, e)}
+                          onKeyDown={handleKeyDown}
+                          role="button"
+                          aria-label={`Time slot ${slot.time} on ${dayData.dateMoment.format('dddd')} - Click to create appointment`}
+                          data-testid="time-slot"
+                          tabIndex={-1}
+                        />
+                      );
+                    })}
 
-              {/* Week View Columns */}
-              {view === CalendarViews.WEEK && weekDaysData.map((dayData, index) => (
-                <div
-                  key={`day-column-${index}`}
-                  className={styles.practitionerColumn}
-                  role="gridcell"
-                  aria-label={`Column for ${dayData.dateMoment.format('dddd')}`}
-                >
-                  {timeSlots.map((slot, slotIndex) => {
-                    // Check availability for current user
-                    const isAvailable = currentUserId ? isTimeSlotAvailable(
-                      currentUserId,
-                      dayData.date,
-                      slot.hour,
-                      slot.minute,
-                      practitionerAvailability,
-                      false
-                    ) : true;
+                    {/* Render single events (full width) */}
+                    {dayData.groups
+                      .filter(group => group.events.length === 1)
+                      .map((group, groupIndex) => (
+                        <CalendarEventComponent
+                          key={`week-single-${index}-${groupIndex}`}
+                          event={group.events[0]!}
+                          selectedPractitioners={selectedPractitioners}
+                          selectedResources={selectedResources}
+                          onClick={() => onEventClick?.(group.events[0]!)}
+                        />
+                      ))}
 
-                    return (
-                      <div
-                        key={slotIndex}
-                        className={`${styles.timeSlot} ${!isAvailable ? styles.unavailable : ''}`}
-                        onClick={(e) => handleSlotClick(dayData.date, slot.hour, slot.minute, currentUserId ?? undefined, e)}
-                        onKeyDown={handleKeyDown}
-                        role="button"
-                        aria-label={`Time slot ${slot.time} on ${dayData.dateMoment.format('dddd')} - Click to create appointment`}
-                        data-testid="time-slot"
-                        tabIndex={-1}
-                      />
-                    );
-                  })}
-
-                  {/* Render single events (full width) */}
-                  {dayData.groups
-                    .filter(group => group.events.length === 1)
-                    .map((group, groupIndex) => (
-                      <CalendarEventComponent
-                        key={`week-single-${index}-${groupIndex}`}
-                        event={group.events[0]!}
-                        selectedPractitioners={selectedPractitioners}
-                        selectedResources={selectedResources}
-                        onClick={() => onEventClick?.(group.events[0]!)}
-                      />
-                    ))}
-
-                  {/* Render overlapping event groups (multiple events) */}
-                  {dayData.groups
-                    .filter(group => group.events.length > 1)
-                    .map((group, groupIndex) => (
-                      <OverlappingEventGroupComponent
-                        key={`week-group-${index}-${groupIndex}`}
-                        group={group}
-                        groupIndex={groupIndex}
-                        selectedPractitioners={selectedPractitioners}
-                        selectedResources={selectedResources}
-                        onEventClick={onEventClick || (() => { })}
-                      />
-                    ))}
-                </div>
-              ))}
-            </div>
+                    {/* Render overlapping event groups (multiple events) */}
+                    {dayData.groups
+                      .filter(group => group.events.length > 1)
+                      .map((group, groupIndex) => (
+                        <OverlappingEventGroupComponent
+                          key={`week-group-${index}-${groupIndex}`}
+                          group={group}
+                          groupIndex={groupIndex}
+                          selectedPractitioners={selectedPractitioners}
+                          selectedResources={selectedResources}
+                          onEventClick={onEventClick || (() => { })}
+                        />
+                      ))}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
-        {slotMenu.visible && slotMenu.slotInfo && (
-          (() => {
-            const menu = (
-              <div
-                data-testid="slot-action-menu"
-                ref={slotMenuRef}
-                style={{
-                  position: 'absolute',
-                  left: slotMenu.x,
-                  top: slotMenu.y,
-                  zIndex: 90,
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                <div className="flex flex-col gap-2">
-                  <button
-                    data-testid="fab-create-appointment"
-                    className="btn-secondary px-3 py-1 text-sm rounded-full shadow whitespace-nowrap"
-                    onClick={() => {
-                      onSlotClick?.(slotMenu.slotInfo!);
-                      setSlotMenu(menu => ({ ...menu, visible: false }));
-                    }}
-                    aria-label="Create appointment"
-                  >
-                    + 預約
-                  </button>
-                  <button
-                    data-testid="fab-create-exception"
-                    className="btn-secondary px-3 py-1 text-sm rounded-full shadow whitespace-nowrap"
-                    onClick={() => {
-                      onSlotExceptionClick?.(slotMenu.slotInfo!);
-                      setSlotMenu(menu => ({ ...menu, visible: false }));
-                    }}
-                    aria-label="Create availability exception"
-                  >
-                    + 休診
-                  </button>
-                </div>
-              </div>
-            );
-            return viewportEl ? createPortal(menu, viewportEl) : menu;
-          })()
-        )}
       </div>
+      {slotMenu.visible && slotMenu.slotInfo && (
+        (() => {
+          const menu = (
+            <div
+              data-testid="slot-action-menu"
+              ref={slotMenuRef}
+              style={{
+                position: 'absolute',
+                left: slotMenu.x,
+                top: slotMenu.y,
+                zIndex: 90,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              <div className="flex flex-col gap-2">
+                <button
+                  data-testid="fab-create-appointment"
+                  className="btn-secondary px-3 py-1 text-sm rounded-full shadow whitespace-nowrap"
+                  onClick={() => {
+                    onSlotClick?.(slotMenu.slotInfo!);
+                    setSlotMenu(menu => ({ ...menu, visible: false }));
+                  }}
+                  aria-label="Create appointment"
+                >
+                  + 預約
+                </button>
+                <button
+                  data-testid="fab-create-exception"
+                  className="btn-secondary px-3 py-1 text-sm rounded-full shadow whitespace-nowrap"
+                  onClick={() => {
+                    onSlotExceptionClick?.(slotMenu.slotInfo!);
+                    setSlotMenu(menu => ({ ...menu, visible: false }));
+                  }}
+                  aria-label="Create availability exception"
+                >
+                  + 休診
+                </button>
+              </div>
+            </div>
+          );
+          return viewportEl ? createPortal(menu, viewportEl) : menu;
+        })()
+      )}
     </div>
   );
 };
@@ -883,15 +893,9 @@ const CalendarEventComponent: React.FC<CalendarEventComponentProps> = ({
 };
 
 // Monthly Calendar Grid Component
-interface MonthlyCalendarGridProps {
-  currentDate: Date;
-  events: CalendarEvent[];
-  selectedPractitioners: number[];
-  selectedResources: number[];
-  onEventClick?: (event: CalendarEvent) => void;
-}
+// Monthly Calendar Grid Component
 
-const MonthlyCalendarGrid: React.FC<MonthlyCalendarGridProps> = ({
+const MonthlyBody: React.FC<MonthlyBodyProps> = ({
   currentDate,
   events,
   selectedPractitioners,
@@ -927,24 +931,9 @@ const MonthlyCalendarGrid: React.FC<MonthlyCalendarGridProps> = ({
     return days;
   }, [calendarStart, calendarEnd, events, month]);
 
-  const weekDays = ['日', '一', '二', '三', '四', '五', '六'];
-
-  // Group days into weeks
-  const weeks = [];
-  for (let i = 0; i < calendarDays.length; i += 7) {
-    weeks.push(calendarDays.slice(i, i + 7));
-  }
-
   return (
-    <div className={styles.monthlyGrid}>
-      {/* Weekday headers */}
-      <div className={styles.monthlyHeader}>
-        {weekDays.map(day => (
-          <div key={day} className={styles.weekdayHeader}>
-            {day}
-          </div>
-        ))}
-      </div>
+    <div className={styles.monthlyGrid} style={{ padding: 0 }}>
+      {/* Header removed as it is handled by PractitionerRow */}
 
       {/* Calendar grid */}
       <div className={styles.monthlyCalendar}>
@@ -1045,7 +1034,7 @@ export const PractitionerRow: React.FC<Omit<CalendarGridProps, 'showHeaderRow'>>
 
   return (
     <div className={styles.headerRow} data-testid="calendar-header-row">
-      <div className={styles.timeCorner} data-testid="calendar-time-corner"></div>
+      {view !== CalendarViews.MONTH && <div className={styles.timeCorner} data-testid="calendar-time-corner"></div>}
       <div
         className={styles.resourceHeaders}
         id="resource-headers"

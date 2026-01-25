@@ -201,38 +201,34 @@
 
 /* Monthly Calendar Styles */
 .monthlyGrid {
-  padding: 16px;
+  padding: 0;
   background: white;
 }
 
 .monthlyHeader {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  margin-bottom: 8px;
-}
-
-.weekdayHeader {
-  text-align: center;
-  font-weight: 600;
-  color: #6b7280;
-  padding: 8px;
-  font-size: 12px;
+  display: none;
 }
 
 .monthlyCalendar {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 1px;
-  background: #e5e7eb;
-  border-radius: 8px;
-  overflow: hidden;
+  display: flex;
+  flex-wrap: wrap;
+  width: 100%;
+  /* No border-left to align with header which has none */
 }
 
 .dayCell {
   background: white;
-  min-height: 120px;
+  min-height: 180px;
   padding: 4px;
   position: relative;
+  flex: 0 0 14.2857%;
+  /* 1/7th width */
+  width: 14.2857%;
+  min-width: 80px;
+  /* Match header min-width */
+  border-right: 1px solid #e5e7eb;
+  border-bottom: 1px solid #e5e7eb;
+  box-sizing: border-box;
 }
 
 .dayCell.otherMonth {
@@ -249,6 +245,7 @@
   font-weight: 500;
   margin-bottom: 4px;
   color: #374151;
+  text-align: center;
 }
 
 .dayCell.otherMonth .dayNumber {

@@ -29,9 +29,13 @@ This PR addresses critical issues in the Calendar Week View implementation where
 - **Merge Logic**: Updated the function to correctly **merge** daily schedules into the practitioner's availability object.
 - **Code Cleanup**: Removed accidental duplicate code block in `isTimeSlotAvailable` that was causing potential syntax/logic errors.
 
-## Technical Details
-
-- **`frontend/src/components/calendar/CalendarGrid.tsx`**: Separate logic path for `view === CalendarViews.WEEK`. Corrected `weekDaysData` memoization to group events by day.
+### 3. Month View Overhaul
+- **Alignment Fix**: Completely refactored Month View to use the shared sticky header architecture (`PractitionerRow`).
+- **Layout**: Implemented a responsive 7-column grid that perfectly overlaps with the week-day headers.
+- **Styling updates**:
+  - Increased day cell minimum height to 180px for better event visibility.
+  - Centered date numbers within cells.
+  - Removed misalignment caused by extra borders and padding.
 - **`frontend/src/utils/practitionerAvailability.ts`**: Changed assignment to spread merge: `schedule: { ...(prev?.schedule || {}), [date]: schedule }`.
 - **`frontend/src/hooks/queries/useCalendarEvents.ts`**: modified `fetchCalendarEvents` to include `currentUserId` in the fetch set if distinct from `selectedPractitioners`.
 
