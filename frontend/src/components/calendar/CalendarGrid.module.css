@@ -1,8 +1,8 @@
 /* CalendarGrid.module.css */
 
 .calendarGridContainer {
-  width: 100%;
   min-width: 100%;
+  width: fit-content;
   /* Fill available width */
   min-height: 800px;
   /* Ensure minimum height for calendar grid */
@@ -25,14 +25,11 @@
   border-bottom: 1px solid #e5e7eb;
   z-index: 100;
   flex-shrink: 0;
-  /* Prevent header from shrinking */
+  box-sizing: border-box;
   position: sticky;
-  /* Sticky within scrollableCalendarArea */
   top: 0;
   will-change: transform;
   transform: translateZ(0);
-  /* Hardware acceleration for smooth sticky tracking */
-  box-sizing: border-box;
 }
 
 .timeCorner {
@@ -50,10 +47,9 @@
 
 .resourceHeaders {
   display: flex;
-  /* Allow children to expand/contract */
-  flex: 1 1 100% !important;
-  width: 100% !important;
-  /* Expand to fill remaining space in headerRow */
+  flex: 1 1 0% !important;
+  width: fit-content;
+  min-width: 0;
   background: white;
   box-sizing: border-box;
 }
@@ -101,8 +97,9 @@
 
 .calendarGrid {
   position: relative;
-  flex: 1 1 100% !important;
+  flex: 1 1 0% !important;
   width: 100% !important;
+  min-width: 0;
   background: white;
   box-sizing: border-box;
 }
@@ -153,7 +150,8 @@
 .resourceGrid {
   display: flex;
   position: relative;
-  width: 100%;
+  min-width: 100%;
+  width: fit-content;
   /* Allow children to expand/contract */
 }
 
