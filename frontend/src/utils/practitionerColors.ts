@@ -49,16 +49,22 @@ export const getPractitionerColor = (
   }
 
   // Practitioners get colors from the primary set (colors 0-9)
-  // Calculate the position in the selected practitioners array (excluding primary)
-  const selectedPractitioners = allPractitionerIds.filter(id => id !== primaryUserId);
-  const selectedIndex = selectedPractitioners.indexOf(practitionerId);
+  // We include the primary user in the calculation to ensure consistent slot assignment
+  // Sort practitioners: Primary user first, then others by ID to ensure stable colors
+  const sortedPractitioners = [...allPractitionerIds].sort((a, b) => {
+    if (a === primaryUserId) return -1;
+    if (b === primaryUserId) return 1;
+    return a - b;
+  });
+
+  const selectedIndex = sortedPractitioners.indexOf(practitionerId);
 
   if (selectedIndex === -1) {
     return '#6B7280'; // Fallback color
   }
 
   // Get practitioner colors and return the appropriate one
-  const practitionerColors = generatePractitionerColors(selectedPractitioners.length);
+  const practitionerColors = generatePractitionerColors(sortedPractitioners.length);
   return practitionerColors[selectedIndex] || '#6B7280';
 };
 

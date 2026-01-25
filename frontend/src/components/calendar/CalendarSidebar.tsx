@@ -122,7 +122,7 @@ const CalendarSidebar: React.FC<CalendarSidebarProps> = ({
                   return {
                     id,
                     name: practitioner?.full_name || '',
-                    color: getPractitionerColor(id, -1, selectedPractitioners) || '#6b7280'
+                    color: getPractitionerColor(id, currentUserId ?? -1, selectedPractitioners) || '#3b82f6'
                   };
                 })}
               allItems={practitioners
