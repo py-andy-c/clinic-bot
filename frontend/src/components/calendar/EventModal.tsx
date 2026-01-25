@@ -84,47 +84,67 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
     setLastSavedValue(null);
   }, [event.resource.clinic_notes]);
 
-  // Check for resource conflicts when viewing appointment
+  // Check for resource/practitioner conflicts when viewing appointment
   useEffect(() => {
-    if (event.resource.type === 'appointment' &&
-      event.resource.appointment_type_id &&
-      event.resource.practitioner_id &&
-      event.start &&
-      event.end) {
-      const checkResourceConflict = async () => {
-        setIsCheckingResourceConflict(true);
-        try {
-          const dateStr = moment(event.start).tz('Asia/Taipei').format('YYYY-MM-DD');
-          const timeStr = moment(event.start).tz('Asia/Taipei').format('HH:mm');
+    const runConflictCheck = async () => {
+      if (event.resource.type !== 'appointment' || !event.start || !event.end) {
+        setResourceConflictInfo(null);
+        return;
+      }
 
-          const result = await apiService.checkBatchPractitionerConflicts({
-            practitioners: [{
-              user_id: event.resource.practitioner_id!,
-              exclude_calendar_event_id: event.resource.calendar_event_id
-            }],
-            date: dateStr,
-            start_time: timeStr,
-            appointment_type_id: event.resource.appointment_type_id!,
-            selected_resource_ids: event.resource.resource_ids || [],
-          });
+      setIsCheckingResourceConflict(true);
+      try {
+        // Ensure we have the necessary fields. Resource-lane events may be missing practitioner_id or appointment_type_id.
+        let practitionerId = event.resource.practitioner_id || null;
+        let appointmentTypeId = event.resource.appointment_type_id || null;
+        let selectedResourceIds = event.resource.resource_ids || [];
 
-          const conflictInfo = result.results[0];
-
-          // Only update once data is received to prevent UI flashing
-          setResourceConflictInfo(conflictInfo?.has_conflict ? conflictInfo : null);
-        } catch (err) {
-          logger.error('Failed to check resource conflicts:', err);
-          setResourceConflictInfo(null);
-        } finally {
-          setIsCheckingResourceConflict(false);
+        if ((!practitionerId || !appointmentTypeId) && event.resource.calendar_event_id) {
+          try {
+            const details = await apiService.getAppointmentDetails(event.resource.calendar_event_id);
+            practitionerId = practitionerId || details.practitioner_id || null;
+            appointmentTypeId = appointmentTypeId || details.appointment_type_id || null;
+            // Prefer explicit resource_ids from details when present
+            if (Array.isArray(details.resource_ids)) {
+              selectedResourceIds = details.resource_ids;
+            }
+          } catch (fetchErr) {
+            logger.warn('Unable to fetch appointment details for conflict check:', fetchErr);
+          }
         }
-      };
 
-      checkResourceConflict();
-    } else {
-      setResourceConflictInfo(null);
-    }
-  }, [event.resource.type, event.resource.appointment_type_id, event.resource.practitioner_id, event.start, event.end, event.resource.calendar_event_id]);
+        if (!practitionerId || !appointmentTypeId) {
+          // Still missing required info to run practitioner-based conflict check
+          setResourceConflictInfo(null);
+          return;
+        }
+
+        const dateStr = moment(event.start).tz('Asia/Taipei').format('YYYY-MM-DD');
+        const timeStr = moment(event.start).tz('Asia/Taipei').format('HH:mm');
+
+        const result = await apiService.checkBatchPractitionerConflicts({
+          practitioners: [{
+            user_id: practitionerId!,
+            exclude_calendar_event_id: event.resource.calendar_event_id
+          }],
+          date: dateStr,
+          start_time: timeStr,
+          appointment_type_id: appointmentTypeId!,
+          selected_resource_ids: selectedResourceIds,
+        });
+
+        const conflictInfo = result.results[0];
+        setResourceConflictInfo(conflictInfo?.has_conflict ? conflictInfo : null);
+      } catch (err) {
+        logger.error('Failed to check conflicts:', err);
+        setResourceConflictInfo(null);
+      } finally {
+        setIsCheckingResourceConflict(false);
+      }
+    };
+
+    runConflictCheck();
+  }, [event.resource.type, event.resource.appointment_type_id, event.resource.practitioner_id, event.start, event.end, event.resource.calendar_event_id, event.resource.resource_ids]);
 
   const handleStartEdit = useCallback(() => {
     setEditingName(currentTitle);
