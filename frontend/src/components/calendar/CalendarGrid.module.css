@@ -2,16 +2,20 @@
 
 .calendarGridContainer {
   width: 100%;
+  min-width: 100%;
   /* Fill available width */
   min-height: 800px;
   /* Ensure minimum height for calendar grid */
   display: flex;
   flex-direction: column;
   position: relative;
+  box-sizing: border-box;
 }
 
 .headerRow {
   display: flex;
+  width: 100% !important;
+  min-width: 100% !important;
   background: white;
   border-bottom: 1px solid #e5e7eb;
   z-index: 100;
@@ -23,6 +27,7 @@
   will-change: transform;
   transform: translateZ(0);
   /* Hardware acceleration for smooth sticky tracking */
+  box-sizing: border-box;
 }
 
 .timeCorner {
@@ -41,9 +46,11 @@
 .resourceHeaders {
   display: flex;
   /* Allow children to expand/contract */
-  flex: 1;
+  flex: 1 1 100% !important;
+  width: 100% !important;
   /* Expand to fill remaining space in headerRow */
   background: white;
+  box-sizing: border-box;
 }
 
 .resourceHeader {
@@ -64,6 +71,14 @@
   justify-content: center;
 }
 
+.monthView .resourceHeader {
+  min-width: 0 !important;
+  flex: 0 0 calc(100% / 7) !important;
+  width: calc(100% / 7) !important;
+  max-width: calc(100% / 7) !important;
+  box-sizing: border-box;
+}
+
 .dayNumber {
   font-size: 10px;
   color: #6b7280;
@@ -73,13 +88,18 @@
 .gridLayer {
   display: flex;
   flex: 1;
+  width: 100% !important;
+  min-width: 100% !important;
   position: relative;
+  box-sizing: border-box;
 }
 
 .calendarGrid {
   position: relative;
-  flex: 1;
+  flex: 1 1 100% !important;
+  width: 100% !important;
   background: white;
+  box-sizing: border-box;
 }
 
 .timeIndicator {
@@ -203,6 +223,8 @@
 .monthlyGrid {
   padding: 0;
   background: white;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .monthlyHeader {
@@ -221,11 +243,11 @@
   min-height: 180px;
   padding: 2px;
   position: relative;
-  flex: 0 0 14.2857%;
+  flex: 0 0 calc(100% / 7) !important;
   /* 1/7th width */
-  width: 14.2857%;
-  min-width: 80px;
-  /* Match header min-width */
+  width: calc(100% / 7) !important;
+  max-width: calc(100% / 7) !important;
+  min-width: 0 !important;
   border-right: 1px solid #e5e7eb;
   border-bottom: 1px solid #e5e7eb;
   box-sizing: border-box;

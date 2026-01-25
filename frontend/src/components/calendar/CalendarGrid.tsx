@@ -180,11 +180,6 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
         events: resourceEvents,
         groups: calculateOverlappingEvents(resourceEvents)
       };
-      return {
-        resourceId,
-        events: resourceEvents,
-        groups: calculateOverlappingEvents(resourceEvents)
-      };
     }), [selectedResources, events]);
 
   // Calculate week view data (days columns)
@@ -211,9 +206,6 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
     });
   }, [view, currentDate, events]);
 
-
-  // Note: DOM element caching removed for simplicity and test compatibility
-  // Live queries are used for keyboard navigation
 
   // Live queries are used for keyboard navigation
 
@@ -461,8 +453,9 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
 
   /* Month view early return removed to share layout */
 
+
   return (
-    <div className={styles.calendarGridContainer} data-testid="calendar-grid-container" style={{ position: 'relative' }}>
+    <div className={`${styles.calendarGridContainer} ${view === CalendarViews.MONTH ? styles.monthView : ''}`} data-testid="calendar-grid-container" style={{ position: 'relative' }}>
       {/* Header Row: Sticky Top */}
       <PractitionerRow
         view={view}
@@ -1112,7 +1105,7 @@ export const PractitionerRow: React.FC<Omit<CalendarGridProps, 'showHeaderRow'>>
             );
           }
 
-          if (view === 'month') {
+          if (view === CalendarViews.MONTH) {
             return (
               Array.from({ length: 7 }, (_, i) => {
                 const dayNames = ['日', '一', '二', '三', '四', '五', '六'];
