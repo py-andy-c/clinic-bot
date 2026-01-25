@@ -821,6 +821,28 @@ const AvailabilityPage: React.FC = () => {
             onEventClick={handleEventClick}
             onSlotClick={handleSlotClick}
             onSlotExceptionClick={handleSlotExceptionClick}
+            onHeaderClick={(date) => {
+              // Atomically update state, URL, and storage to ensure consistency
+              const newView = CalendarViews.DAY;
+              setView(newView);
+              setCurrentDate(date);
+
+              // Update URL parameters
+              const newSearchParams = new URLSearchParams(searchParams);
+              newSearchParams.set('view', 'day');
+              newSearchParams.set('date', getDateString(date));
+              setSearchParams(newSearchParams, { replace: true });
+
+              // Persist combined change
+              if (user?.user_id && user?.active_clinic_id) {
+                calendarStorage.setCalendarState(user.user_id, user.active_clinic_id, {
+                  view: 'day',
+                  currentDate: getDateString(date),
+                  additionalPractitionerIds: selectedPractitioners,
+                  defaultPractitionerId: null,
+                });
+              }
+            }}
             showHeaderRow={false}
           />
         }

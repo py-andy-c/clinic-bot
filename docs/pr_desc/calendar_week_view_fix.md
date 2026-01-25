@@ -16,6 +16,9 @@ This PR addresses critical issues in the Calendar Week View implementation where
   - Weekday headers now display in Traditional Chinese (e.g., "18 (日)").
   - Compact "Date First" layout for headers to save vertical space.
   - Reduced header padding for a sleeker look.
+- **Interaction**:
+  - Clicking a date header in Week View now instantly switches to the Day View for that specific date.
+  - This view change is persisted to URL and local storage immediately.
 
 ### 2. Availability Display (Gray-out) Fix
 - **Logic Update**: Implemented availability checks against the **current logged-in user** for Week View slots.

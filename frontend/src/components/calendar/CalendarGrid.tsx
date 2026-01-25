@@ -37,6 +37,7 @@ interface CalendarGridProps {
   onEventClick?: (event: CalendarEvent) => void;
   onSlotClick?: (slotInfo: { start: Date; end: Date; practitionerId?: number | undefined }) => void;
   onSlotExceptionClick?: (slotInfo: { start: Date; end: Date; practitionerId?: number | undefined }) => void;
+  onHeaderClick?: (date: Date) => void;
   showHeaderRow?: boolean; // Whether to show the practitioner/resource header row
 }
 
@@ -55,6 +56,7 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
   onEventClick,
   onSlotClick,
   onSlotExceptionClick,
+  onHeaderClick,
 }) => {
   // Local menu state for slot action FABs
   const [slotMenu, setSlotMenu] = useState<{
@@ -475,6 +477,7 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
         currentUserId={currentUserId ?? null}
         onEventClick={onEventClick || (() => { })}
         onSlotClick={onSlotClick || (() => { })}
+        onHeaderClick={onHeaderClick || (() => { })}
       />
 
       {/* Body Area: Time Column (Sticky Left) + Grid */}
@@ -1037,6 +1040,7 @@ export const PractitionerRow: React.FC<Omit<CalendarGridProps, 'showHeaderRow'>>
     selectedResources,
     practitioners = EMPTY_ARRAY,
     resources = EMPTY_ARRAY,
+    onHeaderClick,
   } = props;
 
   return (
@@ -1080,7 +1084,14 @@ export const PractitionerRow: React.FC<Omit<CalendarGridProps, 'showHeaderRow'>>
                   <div
                     key={`day-${i}`}
                     className={styles.resourceHeader}
-                    style={{ flexDirection: 'row', alignItems: 'baseline', gap: '4px', justifyContent: 'center' }}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'baseline',
+                      gap: '4px',
+                      justifyContent: 'center',
+                      cursor: 'pointer'
+                    }}
+                    onClick={() => onHeaderClick?.(date.toDate())}
                   >
                     <span className="text-sm font-bold text-gray-800">{date.format('D')}</span>
                     <span className="text-xs text-gray-500">({dayNames[i]})</span>
