@@ -1880,3 +1880,106 @@ class TestPractitionerCalendarAPI:
         assert response.status_code == 200
         db_session.refresh(calendar_event)
         assert calendar_event.custom_event_name is None
+
+    def test_create_availability_exception_for_other_practitioner(self, client: TestClient, db_session: Session, test_clinic_and_practitioner):
+        """Test that clinic users can create availability exceptions for other practitioners."""
+        clinic, practitioner = test_clinic_and_practitioner
+
+        # Create another practitioner in the same clinic
+        other_practitioner, _ = create_user_with_clinic_association(
+            db_session=db_session,
+            clinic=clinic,
+            full_name="Dr. Other",
+            email="other@example.com",
+            google_subject_id="other_subject",
+            roles=["practitioner"],
+            is_active=True
+        )
+        db_session.commit()
+
+        # Test creating availability exception for other practitioner
+        exception_data = {
+            "date": "2025-01-15",
+            "start_time": "14:00",
+            "end_time": "18:00",
+            "force": False
+        }
+
+        # Get authentication token for first practitioner
+        token = get_auth_token(client, practitioner.email)
+
+        response = client.post(
+            f"/api/clinic/practitioners/{other_practitioner.id}/availability/exceptions",
+            json=exception_data,
+            headers={"Authorization": f"Bearer {token}"}
+        )
+
+        assert response.status_code == 201
+        data = response.json()
+        
+        assert "calendar_event_id" in data
+        assert "exception_id" in data
+        assert data["date"] == "2025-01-15"
+        assert data["start_time"] == "14:00"
+        assert data["end_time"] == "18:00"
+
+        # Verify database was updated with correct practitioner
+        calendar_event = db_session.query(CalendarEvent).filter(
+            CalendarEvent.id == data["calendar_event_id"]
+        ).first()
+        assert calendar_event is not None
+        assert calendar_event.event_type == "availability_exception"
+        assert calendar_event.user_id == other_practitioner.id
+        assert calendar_event.clinic_id == clinic.id
+
+    def test_delete_availability_exception_for_other_practitioner(self, client: TestClient, db_session: Session, test_clinic_and_practitioner):
+        """Test that clinic users can delete availability exceptions for other practitioners."""
+        clinic, practitioner = test_clinic_and_practitioner
+
+        # Create another practitioner in the same clinic
+        other_practitioner, _ = create_user_with_clinic_association(
+            db_session=db_session,
+            clinic=clinic,
+            full_name="Dr. Other",
+            email="other@example.com",
+            google_subject_id="other_subject",
+            roles=["practitioner"],
+            is_active=True
+        )
+        db_session.commit()
+
+        # Create availability exception for other practitioner
+        calendar_event = create_calendar_event_with_clinic(
+            db_session, other_practitioner, clinic,
+            event_type="availability_exception",
+            event_date=date(2025, 1, 15),
+            start_time=time(14, 0),
+            end_time=time(18, 0)
+        )
+        db_session.flush()
+        
+        exception = AvailabilityException(calendar_event_id=calendar_event.id)
+        db_session.add(exception)
+        db_session.commit()
+
+        # Get authentication token for first practitioner
+        token = get_auth_token(client, practitioner.email)
+
+        response = client.delete(
+            f"/api/clinic/practitioners/{other_practitioner.id}/availability/exceptions/{exception.id}",
+            headers={"Authorization": f"Bearer {token}"}
+        )
+
+        assert response.status_code == 204
+
+        # Verify exception was deleted
+        deleted_exception = db_session.query(AvailabilityException).filter(
+            AvailabilityException.id == exception.id
+        ).first()
+        assert deleted_exception is None
+
+        # Verify calendar event was deleted
+        deleted_calendar_event = db_session.query(CalendarEvent).filter(
+            CalendarEvent.id == calendar_event.id
+        ).first()
+        assert deleted_calendar_event is None

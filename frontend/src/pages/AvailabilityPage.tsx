@@ -208,7 +208,8 @@ const AvailabilityPage: React.FC = () => {
   const [exceptionData, setExceptionData] = useState<ExceptionData>({
     date: getDateString(currentDate),
     startTime: '00:00',
-    endTime: '23:00'
+    endTime: '23:00',
+    practitionerId: user?.user_id ?? 0
   });
   const [isFullDay, setIsFullDay] = useState(false);
 
@@ -666,11 +667,12 @@ const AvailabilityPage: React.FC = () => {
     setExceptionData({
       date: getDateString(currentDate),
       startTime: '00:00',
-      endTime: '23:00'
+      endTime: '23:00',
+      practitionerId: user?.user_id ?? 0
     });
     setIsFullDay(false);
     setIsExceptionModalOpen(true);
-  }, [currentDate]);
+  }, [currentDate, user?.user_id]);
 
   const handleToday = useCallback(() => {
     const today = new Date();
@@ -685,7 +687,6 @@ const AvailabilityPage: React.FC = () => {
 
   const handleConflictWarningConfirm = async () => {
     if (!user?.user_id) {
-      logger.error('Cannot create exception: user not authenticated');
       await alert('無法建立休診時段：用戶未認證', '錯誤');
       return;
     }
@@ -699,11 +700,9 @@ const AvailabilityPage: React.FC = () => {
         force: true, // Force creation despite conflicts
       };
 
-      logger.info('Force creating exception with conflicts:', requestData);
-
       let response;
       try {
-        response = await apiService.createAvailabilityException(user.user_id, requestData);
+        response = await apiService.createAvailabilityException(exceptionData.practitionerId, requestData);
       } catch (error: any) {
         // Handle 409 Conflict response as successful conflict detection (force creation should succeed)
         if (error.response?.status === 409 && error.response?.data) {
@@ -713,8 +712,6 @@ const AvailabilityPage: React.FC = () => {
           throw error;
         }
       }
-
-      logger.info('Force creation response:', response);
 
       // Force creation should succeed (may have warnings)
       if ('success' in response && response.success === true) {
@@ -730,7 +727,6 @@ const AvailabilityPage: React.FC = () => {
         throw new Error('Force creation failed');
       }
     } catch (error) {
-      logger.error('Failed to force create availability exception:', error);
       const errorMessage = getErrorMessage(error);
       await alert(`建立休診時段失敗：${errorMessage}`, '錯誤');
     }
@@ -1007,12 +1003,10 @@ const AvailabilityPage: React.FC = () => {
         <ExceptionModal
           exceptionData={exceptionData}
           isFullDay={isFullDay}
+          practitioners={practitioners.map(p => ({ id: p.id, name: p.full_name || p.email }))}
           onClose={() => setIsExceptionModalOpen(false)}
           onCreate={async () => {
-            logger.info('Creating availability exception:', { exceptionData, isFullDay, userId: user?.user_id });
-
             if (!user?.user_id) {
-              logger.error('Cannot create exception: user not authenticated');
               await alert('無法建立休診時段：用戶未認證', '錯誤');
               return;
             }
@@ -1026,12 +1020,10 @@ const AvailabilityPage: React.FC = () => {
                 force: false, // First attempt - check for conflicts
               };
 
-              logger.info('Sending exception request to API:', requestData);
-
-              // Call the API to create the exception
+              // Call the API to create the exception for the selected practitioner
               let response;
               try {
-                response = await apiService.createAvailabilityException(user.user_id, requestData);
+                response = await apiService.createAvailabilityException(exceptionData.practitionerId, requestData);
               } catch (error: any) {
                 // Handle 409 Conflict response as successful conflict detection
                 if (error.response?.status === 409 && error.response?.data) {
@@ -1041,8 +1033,6 @@ const AvailabilityPage: React.FC = () => {
                   throw error;
                 }
               }
-
-              logger.info('API response:', response);
 
               // Check if response indicates conflicts (409 status)
               if ('success' in response && response.success === false && response.conflicts) {
@@ -1054,8 +1044,6 @@ const AvailabilityPage: React.FC = () => {
 
               // Check if response indicates success with warnings (force=true case)
               if ('warning' in response && response.warning === true) {
-                logger.info('Availability exception created with conflicts');
-
                 // Close both modals
                 setIsExceptionModalOpen(false);
                 setIsConflictWarningModalOpen(false);
@@ -1068,8 +1056,6 @@ const AvailabilityPage: React.FC = () => {
               }
 
               // No conflicts - exception created successfully
-              logger.info('Availability exception created successfully');
-
               // Close the modal
               setIsExceptionModalOpen(false);
 
@@ -1078,7 +1064,6 @@ const AvailabilityPage: React.FC = () => {
 
               await alert('休診時段已建立');
             } catch (error) {
-              logger.error('Failed to create availability exception:', error);
               const errorMessage = getErrorMessage(error);
               await alert(`建立休診時段失敗：${errorMessage}`, '錯誤');
             }

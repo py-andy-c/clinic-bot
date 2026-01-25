@@ -1455,14 +1455,7 @@ async def create_availability_exception(
     but the exception is still created. Appointments remain valid but marked as "outside hours".
     """
     try:
-        # Check permissions - practitioners can only create their own exceptions
-        if current_user.user_type == 'clinic_user' and not current_user.has_role("admin"):
-            if current_user.user_id != user_id:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="您只能建立自己的可用時間例外"
-                )
-        
+        # All clinic users can create exceptions for any practitioner in their clinic
         clinic_id = ensure_clinic_access(current_user)
         
         # Verify user exists, is active, and is a practitioner
@@ -1611,14 +1604,7 @@ async def delete_availability_exception(
     Removes an availability exception. The associated calendar event is also deleted.
     """
     try:
-        # Check permissions - practitioners can only delete their own exceptions
-        if current_user.user_type == 'clinic_user' and not current_user.has_role("admin"):
-            if current_user.user_id != user_id:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="您只能刪除自己的可用時間例外"
-                )
-        
+        # All clinic users can delete exceptions for any practitioner in their clinic
         clinic_id = ensure_clinic_access(current_user)
         
         # Find the exception
