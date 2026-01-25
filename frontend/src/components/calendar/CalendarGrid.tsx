@@ -657,7 +657,7 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
                   position: 'absolute',
                   left: slotMenu.x,
                   top: slotMenu.y,
-                  zIndex: 1000,
+                  zIndex: 90,
                   whiteSpace: 'nowrap',
                 }}
               >
