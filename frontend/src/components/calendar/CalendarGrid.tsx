@@ -101,6 +101,8 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
     y: number;
     preview: { start: Date; end: Date; practitionerId?: number | undefined; resourceId?: number | undefined; date?: string; isAvailable?: boolean } | null;
     isTouch: boolean;
+    dragOffset: { x: number; y: number };
+    dragInitialSize: { width: number; height: number };
   }>({
     event: null,
     isDragging: false,
@@ -108,6 +110,8 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
     y: 0,
     preview: null,
     isTouch: false,
+    dragOffset: { x: 0, y: 0 },
+    dragInitialSize: { width: 0, height: 0 },
   });
 
   const gridRef = useRef<HTMLDivElement>(null);
@@ -176,7 +180,7 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
     [currentDate, view]
   );
 
-  const activeDragEventId = dragState.isDragging ? dragState.event?.id : null;
+  const activeDragEventId = dragState.isDragging ? dragState.event?.id : undefined;
 
   const practitionerGroups = useMemo(() => {
     const sortedPractitioners = [...selectedPractitioners].sort((a, b) => {
@@ -187,8 +191,7 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
 
     return sortedPractitioners.map(practitionerId => {
       const practitionerEvents = events.filter(event =>
-        event.resource.practitioner_id === practitionerId &&
-        event.id !== activeDragEventId
+        event.resource.practitioner_id === practitionerId
       );
       return {
         practitionerId,
@@ -196,20 +199,19 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
         groups: calculateOverlappingEvents(practitionerEvents)
       };
     });
-  }, [selectedPractitioners, events, currentUserId, activeDragEventId]);
+  }, [selectedPractitioners, events, currentUserId]);
 
   const resourceGroups = useMemo(() =>
     selectedResources.map(resourceId => {
       const resourceEvents = events.filter(event =>
-        event.resource.resource_id === resourceId &&
-        event.id !== activeDragEventId
+        event.resource.resource_id === resourceId
       );
       return {
         resourceId,
         events: resourceEvents,
         groups: calculateOverlappingEvents(resourceEvents)
       };
-    }), [selectedResources, events, activeDragEventId]);
+    }), [selectedResources, events]);
 
   const weekDaysData = useMemo(() => {
     if (view !== CalendarViews.WEEK) return [];
@@ -219,8 +221,7 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
       const dateMoment = startOfWeek.clone().add(i, 'days');
       const date = dateMoment.toDate();
       const dayEvents = events.filter(event =>
-        moment(event.start).tz('Asia/Taipei').isSame(dateMoment, 'day') &&
-        event.id !== activeDragEventId
+        moment(event.start).tz('Asia/Taipei').isSame(dateMoment, 'day')
       );
       return {
         date,
@@ -229,7 +230,7 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
         groups: calculateOverlappingEvents(dayEvents)
       };
     });
-  }, [view, currentDate, events, activeDragEventId]);
+  }, [view, currentDate, events]);
 
   const handleSlotClick = (
     baseDate: Date,
@@ -366,8 +367,10 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
   const calculatePreview = useCallback((clientX: number, clientY: number) => {
     if (!gridRef.current || !dragState.event) return undefined;
     const rect = gridRef.current.getBoundingClientRect();
-    const x = clientX - rect.left;
-    const y = clientY - rect.top;
+    const y = (clientY - dragState.dragOffset.y) - rect.top;
+
+    // Use raw cursor X for horizontal snapping to switch columns only when cursor enters a new region
+    const cursorX = clientX - rect.left;
 
     const slotHeight = CALENDAR_GRID_CONFIG.SLOT_HEIGHT_PX;
     const totalMinutes = Math.floor(y / slotHeight) * CALENDAR_GRID_CONFIG.SLOT_DURATION_MINUTES;
@@ -381,7 +384,8 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
     if (view === CalendarViews.DAY) {
       const totalColumns = selectedPractitioners.length + selectedResources.length || 1;
       const columnWidth = rect.width / totalColumns;
-      const colIndex = Math.max(0, Math.min(totalColumns - 1, Math.floor(x / columnWidth)));
+      // Calculate index based purely on cursor X position
+      const colIndex = Math.max(0, Math.min(totalColumns - 1, Math.floor(cursorX / columnWidth)));
 
       let targetPractitionerId: number | undefined;
       let targetResourceId: number | undefined;
@@ -421,7 +425,8 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
       }));
     } else if (view === CalendarViews.WEEK) {
       const columnWidth = rect.width / 7;
-      const dayIndex = Math.max(0, Math.min(6, Math.floor(x / columnWidth)));
+      // Use cursor X for day snapping in week view
+      const dayIndex = Math.max(0, Math.min(6, Math.floor(cursorX / columnWidth)));
       const targetDate = moment(currentDate).startOf('week').add(dayIndex, 'days').toDate();
       const newStart = createTimeSlotDate(targetDate, clampedHours, clampedMinutes);
       const newEnd = new Date(newStart.getTime() + duration);
@@ -488,7 +493,14 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
     };
   }, [dragState.isDragging]);
 
-  const handleDragStart = useCallback((event: CalendarEvent, clientX: number, clientY: number, isTouch: boolean = false) => {
+  const handleDragStart = useCallback((
+    event: CalendarEvent,
+    clientX: number,
+    clientY: number,
+    isTouch: boolean = false,
+    dragOffset: { x: number; y: number } = { x: 0, y: 0 },
+    dragInitialSize: { width: number; height: number } = { width: 120, height: 40 }
+  ) => {
     wasDraggingRef.current = false;
     // Interaction with an event should close any open slot menus (FABs)
     setSlotMenu(prev => ({ ...prev, visible: false }));
@@ -509,6 +521,8 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
             resourceId: event.resource.resource_id ?? undefined,
           },
           isTouch: true,
+          dragOffset,
+          dragInitialSize,
         });
       }, 400);
     } else {
@@ -521,6 +535,8 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
           resourceId: event.resource.resource_id ?? undefined,
         },
         isTouch: false,
+        dragOffset,
+        dragInitialSize,
       });
     }
   }, [canEditEvent]);
@@ -591,7 +607,10 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
     wasDraggingRef.current = dragState.isDragging;
     touchStartPosRef.current = null;
     scrollVelocityRef.current = { x: 0, y: 0 };
-    setDragState({ event: null, isDragging: false, x: 0, y: 0, preview: null, isTouch: false });
+    setDragState({
+      event: null, isDragging: false, x: 0, y: 0, preview: null, isTouch: false,
+      dragOffset: { x: 0, y: 0 }, dragInitialSize: { width: 0, height: 0 }
+    });
   }, [dragState, onEventReschedule, onExceptionMove]);
 
   useEffect(() => {
@@ -605,6 +624,24 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
     }
     return undefined;
   }, [dragState.event, handleDragEnd]);
+
+  const dragColumnInfo = useMemo(() => {
+    if (!dragState.isDragging || !dragState.event || !dragState.preview) return null;
+    const originalP = dragState.event.resource.practitioner_id;
+    const originalR = dragState.event.resource.resource_id;
+    const targetP = dragState.preview.practitionerId;
+    const targetR = dragState.preview.resourceId;
+
+    if (targetP === originalP && targetR === originalR) return null;
+
+    const getPName = (id?: number) => practitioners.find(p => p.id === id)?.full_name;
+    const getRName = (id?: number) => resources.find(r => r.id === id)?.name;
+
+    const from = originalP ? getPName(originalP) : (originalR ? getRName(originalR) : '');
+    const to = targetP ? getPName(targetP) : (targetR ? getRName(targetR) : '');
+
+    return { from, to };
+  }, [dragState.isDragging, dragState.event, dragState.preview, practitioners, resources]);
 
   return (
     <div
@@ -637,29 +674,55 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
           <div className={styles.timeIndicator} style={currentTimeIndicatorStyle} data-testid="current-time-indicator" />
           {dragState.isDragging && dragState.preview && (
             <div
-              className={styles.dropPreview}
+              data-testid="drop-preview"
               style={{
-                ...calculateEventPosition(dragState.preview.start),
-                ...calculateEventHeight(dragState.preview.start, dragState.preview.end),
                 position: 'absolute',
+                top: calculateEventPosition(dragState.preview.start).top,
                 left: view === CalendarViews.DAY
                   ? (() => {
-                    const cols = [...selectedPractitioners, ...selectedResources];
-                    const colIdx = cols.findIndex(id => dragState.preview?.practitionerId === id || dragState.preview?.resourceId === id);
-                    const total = cols.length || 1;
+                    const total = selectedPractitioners.length + selectedResources.length || 1;
+                    const pIdx = selectedPractitioners.findIndex(id => id === dragState.preview?.practitionerId);
+                    const rIdx = pIdx === -1 ? selectedResources.findIndex(id => id === dragState.preview?.resourceId) : -1;
+                    const colIdx = pIdx !== -1 ? pIdx : (rIdx !== -1 ? selectedPractitioners.length + rIdx : 0);
                     return `${(colIdx / total) * 100}%`;
                   })()
                   : view === CalendarViews.WEEK
-                    ? `${((moment(dragState.preview.start).tz('Asia/Taipei').day() === 0 ? 6 : moment(dragState.preview.start).tz('Asia/Taipei').day() - 1) / 7) * 100}%`
+                    ? `${(moment(dragState.preview.start).tz('Asia/Taipei').day() / 7) * 100}%`
                     : '0',
                 width: view === CalendarViews.DAY ? `calc(100% / ${selectedPractitioners.length + selectedResources.length || 1})` : view === CalendarViews.WEEK ? 'calc(100% / 7)' : '100%',
-                backgroundColor: dragState.preview.isAvailable === false ? 'rgba(239, 68, 68, 0.3)' : 'rgba(59, 130, 246, 0.3)',
-                border: dragState.preview.isAvailable === false ? '2px dashed #ef4444' : '2px dashed #3b82f6',
+                height: calculateEventHeight(dragState.preview.start, dragState.preview.end).height,
+                backgroundColor: dragState.preview.isAvailable === false ? 'rgba(239, 68, 68, 0.4)' : 'rgba(59, 130, 246, 0.6)',
+                border: dragState.preview.isAvailable === false ? '2px solid #ef4444' : '2px solid #3b82f6',
                 borderRadius: '8px',
                 zIndex: 40,
                 pointerEvents: 'none',
+                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'flex-start',
+                justifyContent: 'flex-start',
+                padding: '4px 6px',
+                color: 'white',
+                fontSize: '11px',
+                fontWeight: 500
               }}
-            />
+            >
+              <div className="flex flex-col items-start w-full overflow-hidden">
+                <div className="text-[12px] font-bold leading-tight flex items-center gap-1">
+                  <span>{moment(dragState.preview.start).tz('Asia/Taipei').format('HH:mm')}</span>
+                  <span className="opacity-70">-</span>
+                  <span>{moment(dragState.preview.end).tz('Asia/Taipei').format('HH:mm')}</span>
+                </div>
+                {dragColumnInfo && (
+                  <div className="text-[12px] font-medium leading-tight mb-1">
+                    {dragColumnInfo.to}
+                  </div>
+                )}
+                <div className="text-[10px] font-medium opacity-90 whitespace-nowrap overflow-hidden self-stretch">
+                  {dragState.event ? calculateEventDisplayText(dragState.event) : ''}
+                </div>
+              </div>
+            </div>
           )}
           <div className="grid-container" role="presentation">
             {view === CalendarViews.MONTH ? (
@@ -699,7 +762,8 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
                         key={groupIndex} group={group} groupIndex={groupIndex}
                         selectedPractitioners={selectedPractitioners} selectedResources={selectedResources}
                         currentUserId={currentUserId} onEventClick={handleEventClick}
-                        onDragStart={handleDragStart} activeDragEventId={dragState.event?.id}
+                        onDragStart={handleDragStart} activeDragEventId={activeDragEventId}
+                        dragColumnInfo={dragColumnInfo}
                       />
                     ))}
                   </div>
@@ -720,7 +784,8 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
                         key={groupIndex} group={group} groupIndex={groupIndex}
                         selectedPractitioners={selectedPractitioners} selectedResources={selectedResources}
                         currentUserId={currentUserId} onEventClick={handleEventClick}
-                        onDragStart={handleDragStart} activeDragEventId={dragState.event?.id}
+                        onDragStart={handleDragStart} activeDragEventId={activeDragEventId}
+                        dragColumnInfo={dragColumnInfo}
                       />
                     ))}
                   </div>
@@ -741,7 +806,8 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
                         key={groupIndex} group={group} groupIndex={groupIndex}
                         selectedPractitioners={selectedPractitioners} selectedResources={selectedResources}
                         currentUserId={currentUserId} onEventClick={handleEventClick}
-                        onDragStart={handleDragStart} activeDragEventId={dragState.event?.id}
+                        onDragStart={handleDragStart} activeDragEventId={activeDragEventId}
+                        dragColumnInfo={dragColumnInfo}
                       />
                     ))}
                   </div>
@@ -751,16 +817,6 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
           </div>
         </div>
       </div>
-      {dragState.isDragging && (
-        <div style={{
-          position: 'fixed', left: dragState.x, top: dragState.y - (dragState.isTouch ? 40 : 0), width: '120px', height: '40px',
-          backgroundColor: 'rgba(59, 130, 246, 0.8)', color: 'white', borderRadius: '8px', padding: '8px',
-          fontSize: '11px', zIndex: 1000, pointerEvents: 'none', transform: 'scale(1.1)', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center'
-        }}>
-          {dragState.event ? calculateEventDisplayText(dragState.event) : ''}
-        </div>
-      )}
       {slotMenu.visible && slotMenu.slotInfo && (
         (() => {
           const menu = (
@@ -795,12 +851,20 @@ interface CalendarEventComponentProps {
   group?: OverlappingEventGroup;
   groupIndex?: number;
   eventIndex?: number;
-  onDragStart: (event: CalendarEvent, clientX: number, clientY: number, isTouch?: boolean) => void;
+  onDragStart: (
+    event: CalendarEvent,
+    clientX: number,
+    clientY: number,
+    isTouch?: boolean,
+    dragOffset?: { x: number; y: number },
+    dragInitialSize?: { width: number; height: number }
+  ) => void;
   isDragging?: boolean;
+  dragColumnInfo?: { from: string | undefined; to: string | undefined } | null | undefined;
 }
 
 const CalendarEventComponent: React.FC<CalendarEventComponentProps> = ({
-  event, selectedPractitioners, selectedResources, currentUserId, onClick, group, eventIndex = 0, onDragStart, isDragging = false
+  event, selectedPractitioners, selectedResources, currentUserId, onClick, group, eventIndex = 0, onDragStart, isDragging = false, dragColumnInfo
 }) => {
   const eventStyle = useMemo(() => {
     const base = group ? calculateEventInGroupPosition(event, group, eventIndex) : { ...calculateEventPosition(event.start), ...calculateEventHeight(event.start, event.end), left: 0, width: '100%' };
@@ -809,8 +873,23 @@ const CalendarEventComponent: React.FC<CalendarEventComponentProps> = ({
     let br = '8px';
     if (event.resource.practitioner_id) bg = getPractitionerColor(event.resource.practitioner_id, currentUserId ?? -1, selectedPractitioners) || '#3b82f6';
     else if (event.resource.resource_id) { bg = getResourceColorById(event.resource.resource_id, selectedResources) || '#6b7280'; border = '1px dashed rgba(255, 255, 255, 0.5)'; }
-    if (event.resource.type === 'availability_exception') { bg = '#9ca3af'; border = `2px solid ${event.resource.practitioner_id ? getPractitionerColor(event.resource.practitioner_id, currentUserId ?? -1, selectedPractitioners) || '#3b82f6' : '#3b82f6'}`; br = '4px'; }
-    return { ...base, backgroundColor: bg, border, borderRadius: br, zIndex: event.resource.type === 'availability_exception' ? 3 : 5, opacity: isDragging ? 0.3 : 1 };
+
+    const isException = event.resource.type === 'availability_exception';
+    if (isDragging) {
+      if (isException) { bg = '#9ca3af'; border = `2px solid ${event.resource.practitioner_id ? getPractitionerColor(event.resource.practitioner_id, currentUserId ?? -1, selectedPractitioners) || '#3b82f6' : '#3b82f6'}`; br = '4px'; }
+      return {
+        ...base,
+        backgroundColor: 'rgba(0, 0, 0, 0.05)',
+        border: `2px dashed ${bg}`,
+        borderRadius: br,
+        zIndex: isException ? 1 : 2,
+        opacity: 0.8,
+        boxShadow: 'none'
+      };
+    }
+
+    if (isException) { bg = '#9ca3af'; border = `2px solid ${event.resource.practitioner_id ? getPractitionerColor(event.resource.practitioner_id, currentUserId ?? -1, selectedPractitioners) || '#3b82f6' : '#3b82f6'}`; br = '4px'; }
+    return { ...base, backgroundColor: bg, border, borderRadius: br, zIndex: isException ? 3 : 5, opacity: 1 };
   }, [event, group, eventIndex, selectedPractitioners, selectedResources, isDragging, currentUserId]);
 
   return (
@@ -818,10 +897,36 @@ const CalendarEventComponent: React.FC<CalendarEventComponentProps> = ({
       className={styles.calendarEvent} style={eventStyle} onClick={onClick}
       title={buildEventTooltipText(event, formatAppointmentTimeRange(event.start, event.end))}
       role="button" aria-label={`Appointment: ${calculateEventDisplayText(event)}`} tabIndex={-1}
-      onMouseDown={e => { e.stopPropagation(); onDragStart(event, e.clientX, e.clientY); }}
-      onTouchStart={e => { e.stopPropagation(); if (e.touches[0]) onDragStart(event, e.touches[0].clientX, e.touches[0].clientY, true); }}
+      onMouseDown={e => {
+        e.stopPropagation();
+        const rect = e.currentTarget.getBoundingClientRect();
+        onDragStart(event, e.clientX, e.clientY, false, { x: e.clientX - rect.left, y: e.clientY - rect.top }, { width: rect.width, height: rect.height });
+      }}
+      onTouchStart={e => {
+        e.stopPropagation();
+        if (e.touches[0]) {
+          const rect = e.currentTarget.getBoundingClientRect();
+          onDragStart(event, e.touches[0].clientX, e.touches[0].clientY, true, { x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top }, { width: rect.width, height: rect.height });
+        }
+      }}
     >
-      <div className="text-xs text-white font-medium" style={{ lineHeight: '1.2' }}>{calculateEventDisplayText(event)}</div>
+      {isDragging ? (
+        <div className="flex flex-col items-start justify-start h-full p-1 w-full overflow-hidden">
+          <div className="text-[12px] font-bold text-gray-700 leading-tight">
+            {moment(event.start).tz('Asia/Taipei').format('HH:mm')} - {moment(event.end).tz('Asia/Taipei').format('HH:mm')}
+          </div>
+          {dragColumnInfo && (
+            <div className="text-[12px] font-medium text-gray-600 leading-tight">
+              {dragColumnInfo.from}
+            </div>
+          )}
+          <div className="text-[10px] font-medium text-gray-400 whitespace-nowrap overflow-hidden self-stretch mt-0.5">
+            {calculateEventDisplayText(event)}
+          </div>
+        </div>
+      ) : (
+        <div className="text-xs text-white font-medium" style={{ lineHeight: '1.2' }}>{calculateEventDisplayText(event)}</div>
+      )}
     </div>
   );
 };
@@ -875,12 +980,20 @@ interface OverlappingEventGroupProps {
   selectedResources: number[];
   currentUserId?: number | null | undefined;
   onEventClick: (event: CalendarEvent) => void;
-  onDragStart: (event: CalendarEvent, clientX: number, clientY: number, isTouch?: boolean) => void;
+  onDragStart: (
+    event: CalendarEvent,
+    clientX: number,
+    clientY: number,
+    isTouch?: boolean,
+    dragOffset?: { x: number; y: number },
+    dragInitialSize?: { width: number; height: number }
+  ) => void;
   activeDragEventId?: number | string | undefined;
+  dragColumnInfo?: { from: string | undefined; to: string | undefined } | null | undefined;
 }
 
 const OverlappingEventGroupComponent: React.FC<OverlappingEventGroupProps> = ({
-  group, groupIndex, selectedPractitioners, selectedResources, currentUserId, onEventClick, onDragStart, activeDragEventId
+  group, groupIndex, selectedPractitioners, selectedResources, currentUserId, onEventClick, onDragStart, activeDragEventId, dragColumnInfo
 }) => (
   <>
     {group.events.map((event, eventIndex) => (
@@ -889,6 +1002,7 @@ const OverlappingEventGroupComponent: React.FC<OverlappingEventGroupProps> = ({
         group={group} groupIndex={groupIndex} eventIndex={eventIndex} currentUserId={currentUserId}
         onClick={() => onEventClick?.(event)} onDragStart={onDragStart}
         isDragging={event.id === activeDragEventId}
+        dragColumnInfo={dragColumnInfo}
       />
     ))}
   </>
