@@ -379,7 +379,6 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
     const rect = gridRef.current.getBoundingClientRect();
     const y = (clientY - dragState.dragOffset.y) - rect.top;
 
-    // Use raw cursor X for horizontal snapping to switch columns only when cursor enters a new region
     // Use raw cursor X + scroll offset for horizontal snapping
     const cursorX = (clientX - rect.left) + gridRef.current.scrollLeft;
 
@@ -646,6 +645,24 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
     return undefined;
   }, [dragState.event, handleDragEnd]);
 
+  const previewColor = useMemo(() => {
+    if (!dragState.event || !dragState.preview) return '#3b82f6';
+
+    if (dragState.event.resource.type === 'availability_exception') {
+      return '#6b7280'; // Grey for exceptions
+    }
+
+    if (dragState.preview.practitionerId) {
+      return getPractitionerColor(dragState.preview.practitionerId, currentUserId ?? -1, selectedPractitioners) || '#3b82f6';
+    }
+
+    if (dragState.preview.resourceId) {
+      return getResourceColorById(dragState.preview.resourceId, selectedResources) || '#6b7280';
+    }
+
+    return '#3b82f6';
+  }, [dragState.event, dragState.preview, currentUserId, selectedPractitioners, selectedResources]);
+
 
   return (
     <div
@@ -712,8 +729,9 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
                         ? `${dragState.columnWidth}px`
                         : (view === CalendarViews.DAY ? `calc(100% / ${selectedPractitioners.length + selectedResources.length || 1})` : view === CalendarViews.WEEK ? 'calc(100% / 7)' : '100%'),
                       height: calculateEventHeight(dragState.preview.start, dragState.preview.end).height,
-                      backgroundColor: 'rgba(59, 130, 246, 0.6)',
-                      border: '2px solid #3b82f6',
+                      backgroundColor: previewColor,
+                      opacity: 0.7,
+                      border: `2px solid ${previewColor}`,
                       borderRadius: '8px',
                       zIndex: 40,
                       pointerEvents: 'none',
@@ -882,6 +900,8 @@ const CalendarEventComponent: React.FC<CalendarEventComponentProps> = ({
       if (isException) { bg = '#9ca3af'; border = `2px solid ${event.resource.practitioner_id ? getPractitionerColor(event.resource.practitioner_id, currentUserId ?? -1, selectedPractitioners) || '#3b82f6' : '#3b82f6'}`; br = '4px'; }
       return {
         ...base,
+        left: 0,
+        width: '100%',
         backgroundColor: 'rgba(0, 0, 0, 0.05)',
         border: `2px dashed ${bg}`,
         borderRadius: br,
