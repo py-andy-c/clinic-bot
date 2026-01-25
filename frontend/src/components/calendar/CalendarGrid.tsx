@@ -113,6 +113,7 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
   });
 
   const gridRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const longPressTimerRef = useRef<any>(null);
   const isLongPressActiveRef = useRef(false);
   const touchStartPosRef = useRef<{ x: number, y: number } | null>(null);
@@ -548,6 +549,22 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
     }
   }, [dragState.event, dragState.isDragging, calculatePreview]);
 
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    // Use { passive: false } to confirm intention to call preventDefault()
+    const activeTouchHandler = (e: TouchEvent) => {
+      if (dragState.isDragging && dragState.event) {
+        e.preventDefault();
+      }
+      handleTouchMove(e as unknown as React.TouchEvent);
+    };
+
+    container.addEventListener('touchmove', activeTouchHandler, { passive: false });
+    return () => container.removeEventListener('touchmove', activeTouchHandler);
+  }, [dragState.isDragging, dragState.event, handleTouchMove]);
+
   const handleDragEnd = useCallback(() => {
     if (longPressTimerRef.current) {
       clearTimeout(longPressTimerRef.current);
@@ -628,11 +645,11 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
 
   return (
     <div
+      ref={containerRef}
       className={`${styles.calendarGridContainer} ${view === CalendarViews.MONTH ? styles.monthView : ''}`}
       data-testid="calendar-grid-container"
       style={{ position: 'relative' }}
       onMouseMove={handleMouseMove}
-      onTouchMove={handleTouchMove}
     >
       <PractitionerRow
         view={view} currentDate={currentDate} events={events}
