@@ -47,6 +47,7 @@ interface MonthlyBodyProps {
   selectedPractitioners: number[];
   selectedResources: number[];
   onEventClick?: (event: CalendarEvent) => void;
+  onHeaderClick?: (date: Date) => void;
 }
 
 
@@ -525,6 +526,7 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
                 selectedPractitioners={selectedPractitioners}
                 selectedResources={selectedResources}
                 onEventClick={onEventClick || (() => { })}
+                onHeaderClick={onHeaderClick || (() => { })}
               />
             ) : (
               <div className={styles.resourceGrid}>
@@ -901,6 +903,7 @@ const MonthlyBody: React.FC<MonthlyBodyProps> = ({
   selectedPractitioners,
   selectedResources,
   onEventClick,
+  onHeaderClick,
 }) => {
   const month = moment(currentDate).tz('Asia/Taipei');
   const monthStart = month.clone().startOf('month');
@@ -942,7 +945,14 @@ const MonthlyBody: React.FC<MonthlyBodyProps> = ({
             key={`${day.date.format('YYYY-MM-DD')}-${index}`}
             className={`${styles.dayCell} ${!day.isCurrentMonth ? styles.otherMonth : ''} ${day.isToday ? styles.today : ''}`}
           >
-            <div className={styles.dayNumber}>
+            <div
+              className={styles.dayNumber}
+              style={{ cursor: 'pointer' }}
+              onClick={(e) => {
+                e.stopPropagation(); // Prevent triggering cell click if any
+                onHeaderClick?.(day.date.toDate());
+              }}
+            >
               {day.date.date()}
             </div>
             <div className={styles.dayEvents}>

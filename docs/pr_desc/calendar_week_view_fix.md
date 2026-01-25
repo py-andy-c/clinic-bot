@@ -36,6 +36,7 @@ This PR addresses critical issues in the Calendar Week View implementation where
   - Increased day cell minimum height to 180px for better event visibility.
   - Centered date numbers within cells.
   - Removed misalignment caused by extra borders and padding.
+  - **Interaction**: Clicking any date number in Month View immediately jumps to the Day View for that specific date.
   - **Event Density**: Optimized layout to display up to 6 events per day (vs 3 previously) with a compact `+X` overflow indicator.
 - **`frontend/src/utils/practitionerAvailability.ts`**: Changed assignment to spread merge: `schedule: { ...(prev?.schedule || {}), [date]: schedule }`.
 - **`frontend/src/hooks/queries/useCalendarEvents.ts`**: modified `fetchCalendarEvents` to include `currentUserId` in the fetch set if distinct from `selectedPractitioners`.
