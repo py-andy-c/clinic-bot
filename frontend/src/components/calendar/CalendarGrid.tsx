@@ -970,7 +970,7 @@ const MonthlyBody: React.FC<MonthlyBodyProps> = ({
                     title={tooltipText}
                     data-testid="calendar-event"
                   >
-                    <div className="text-xs truncate">
+                    <div className="text-xs">
                       {finalDisplayText}
                     </div>
                   </div>

@@ -276,7 +276,7 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
           </div>
         ) : (
           <div className="flex items-center gap-2 flex-1 min-w-0">
-            <h3 className="text-lg font-semibold truncate" title={displayTitle}>
+            <h3 className="text-lg font-semibold" title={displayTitle}>
               {displayTitle}
             </h3>
             <button

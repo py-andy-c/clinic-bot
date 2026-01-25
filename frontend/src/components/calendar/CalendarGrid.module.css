@@ -191,7 +191,7 @@
 /* Mobile touch improvements */
 @media (max-width: 1024px) {
   .calendarEvent {
-    font-size: 12px;
+    font-size: 11px;
     padding: 6px 8px;
     min-height: 24px;
   }
@@ -207,7 +207,7 @@
   cursor: pointer;
   z-index: 5;
   overflow: hidden;
-  text-overflow: ellipsis;
+  text-overflow: clip;
   word-wrap: break-word;
   overflow-wrap: break-word;
   line-height: 1.2;
@@ -293,9 +293,15 @@
   border-radius: 4px;
   font-size: 11px;
   overflow: hidden;
-  text-overflow: ellipsis;
+  text-overflow: clip;
   white-space: nowrap;
   cursor: pointer;
+}
+
+@media (max-width: 1024px) {
+  .monthEvent {
+    font-size: 11px;
+  }
 }
 
 .monthEvent:hover {
