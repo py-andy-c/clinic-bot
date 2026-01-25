@@ -6,3 +6,4 @@
 
 export const EMPTY_ARRAY: any[] = [];
 export const EMPTY_OBJECT: Record<string, any> = {};
+export const CALENDAR_GRID_TIME_COLUMN_WIDTH = 28; // px

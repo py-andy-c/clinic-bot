@@ -707,6 +707,75 @@ const AvailabilityPage: React.FC = () => {
     setSidebarOpen(!sidebarOpen);
   }, [sidebarOpen]);
 
+  const handleEventReschedule = useCallback((event: CalendarEvent, newInfo: { start: Date; end: Date; practitionerId?: number | undefined }) => {
+    if (!canEditEvent(event)) {
+      alert("您沒有權限修改此預約");
+      return;
+    }
+
+    // We update the event with new times and practitioner before opening the modal.
+    // The EditAppointmentModal will use these as initial values.
+    const updatedEvent = {
+      ...event,
+      start: newInfo.start,
+      end: newInfo.end,
+      resource: {
+        ...event.resource,
+        practitioner_id: newInfo.practitionerId ?? event.resource.practitioner_id ?? null
+      }
+    } as CalendarEvent;
+    setSelectedEvent(updatedEvent);
+    setIsEditAppointmentModalOpen(true);
+  }, [canEditEvent, alert]);
+
+  const handleExceptionMove = useCallback(async (event: CalendarEvent, newInfo: { start: Date; end: Date; practitionerId?: number | undefined }) => {
+    if (!event.resource.exception_id) return;
+    if (!canEditEvent(event)) {
+      alert("您沒有權限修改此休診時段");
+      return;
+    }
+
+    const startMoment = moment(newInfo.start).tz('Asia/Taipei');
+    const endMoment = moment(newInfo.end).tz('Asia/Taipei');
+
+    // Robust request data for the new exception
+    const requestData: AvailabilityExceptionRequest = {
+      date: startMoment.format('YYYY-MM-DD'),
+      start_time: startMoment.format('HH:mm'),
+      end_time: endMoment.format('HH:mm'),
+      force: true // Silent overwrite enabled for lightweight UX as per design doc
+    };
+
+    const targetUserId = newInfo.practitionerId || event.resource.practitioner_id || user!.user_id;
+    const oldExceptionId = event.resource.exception_id;
+
+    try {
+      // Step 1: Delete the existing exception
+      await apiService.deleteAvailabilityException(targetUserId, oldExceptionId);
+
+      try {
+        // Step 2: Create the new exception at the target location
+        await apiService.createAvailabilityException(targetUserId, requestData);
+        invalidateCalendarEventsForAppointment(queryClient, user?.active_clinic_id);
+        await alert('休診時段已更新');
+      } catch (createError) {
+        // Critical Fallback: If creation fails, the original is already deleted.
+        // We warn the user explicitly since "undo" is not easily possible without the original state.
+        logger.error('Failed to create new exception after deletion:', createError);
+        const errorMessage = getErrorMessage(createError);
+        await alert(
+          `休診時段已從原位置刪除，但在新位置建立失敗：${errorMessage}。請手動重新建立。`,
+          '更新失敗'
+        );
+        invalidateCalendarEventsForAppointment(queryClient, user?.active_clinic_id);
+      }
+    } catch (deleteError) {
+      logger.error('Failed to delete old exception during move:', deleteError);
+      const errorMessage = getErrorMessage(deleteError);
+      await alert(`更新失敗（無法刪除原時段）：${errorMessage}`, '錯誤');
+    }
+  }, [user, queryClient, alert, canEditEvent]);
+
   const handleConflictWarningConfirm = async () => {
     if (!user?.user_id) {
       await alert('無法建立休診時段：用戶未認證', '錯誤');
@@ -821,6 +890,9 @@ const AvailabilityPage: React.FC = () => {
             onEventClick={handleEventClick}
             onSlotClick={handleSlotClick}
             onSlotExceptionClick={handleSlotExceptionClick}
+            onEventReschedule={handleEventReschedule}
+            onExceptionMove={handleExceptionMove}
+            canEditEvent={canEditEvent}
             onHeaderClick={(date) => {
               // Atomically update state, URL, and storage to ensure consistency
               const newView = CalendarViews.DAY;
