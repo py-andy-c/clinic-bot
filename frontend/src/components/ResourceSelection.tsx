@@ -577,14 +577,6 @@ export const ResourceSelection: React.FC<ResourceSelectionProps> = ({
     return type?.name || `資源類型 ${typeId}`;
   }, [currentAvailability, resourceTypeNamesFromInitial, allResourceTypes]);
 
-  // Get selected resource names for a resource type
-  const getSelectedResourceNames = useCallback((resourceTypeId: number): string[] => {
-    const selected = selectedResourceIds
-      .map(id => getResourceById(id))
-      .filter((r): r is Resource => r !== null && r.resource_type_id === resourceTypeId)
-      .map(r => r.name);
-    return selected;
-  }, [selectedResourceIds, getResourceById]);
 
   // Get selected resource names with conflict indicators for a resource type
   const getSelectedResourceNamesWithConflicts = useCallback((resourceTypeId: number): string[] => {
@@ -755,20 +747,24 @@ export const ResourceSelection: React.FC<ResourceSelectionProps> = ({
             {currentAvailability?.requirements.map((req) => {
               const selectedCount = selectedByType[req.resource_type_id]?.length || 0;
               const isSectionExpanded = expandedSections.has(req.resource_type_id);
-              const selectedNames = getSelectedResourceNames(req.resource_type_id);
+              const selectedNamesWithConflicts = getSelectedResourceNamesWithConflicts(req.resource_type_id);
+              const hasConflicts = selectedNamesWithConflicts.some(name => name.includes('⚠️'));
+              const isUnderfilled = selectedCount < req.required_quantity;
+              const hasIssue = hasConflicts || isUnderfilled;
 
               return (
                 <div key={req.resource_type_id} className="space-y-2">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 flex-1">
-                      <label className="text-sm font-medium text-gray-700">
+                      <label className={`text-sm font-medium ${hasIssue ? 'text-orange-700' : 'text-gray-700'}`}>
                         {req.resource_type_name}
-                        <span className="text-gray-500 ml-1">
+                        <span className={`${hasIssue ? 'text-orange-600' : 'text-gray-500'} ml-1`}>
                           (需要 {req.required_quantity} 個，已選 {selectedCount} 個)
                         </span>
-                        {selectedNames.length > 0 && (
-                          <span className="text-gray-600 ml-1">
-                            ({selectedNames.join(', ')})
+                        {hasIssue && <span className="ml-1">⚠️</span>}
+                        {selectedNamesWithConflicts.length > 0 && (
+                          <span className={`${hasIssue ? 'text-orange-600' : 'text-gray-600'} ml-1`}>
+                            ({selectedNamesWithConflicts.join(', ')})
                           </span>
                         )}
                       </label>
@@ -837,22 +833,24 @@ export const ResourceSelection: React.FC<ResourceSelectionProps> = ({
             {additionalResourceTypes.map(typeId => {
               const typeName = getResourceTypeName(typeId);
               const resources = additionalResources[typeId] || [];
-              const selectedNames = getSelectedResourceNames(typeId);
-              const selectedCount = selectedNames.length;
+              const selectedNamesWithConflicts = getSelectedResourceNamesWithConflicts(typeId);
+              const selectedCount = selectedNamesWithConflicts.length;
+              const hasConflicts = selectedNamesWithConflicts.some(name => name.includes('⚠️'));
               const isSectionExpanded = expandedSections.has(typeId);
 
               return (
                 <div key={typeId} className="space-y-2">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 flex-1">
-                      <label className="text-sm font-medium text-gray-700">
+                      <label className={`text-sm font-medium ${hasConflicts ? 'text-orange-700' : 'text-gray-700'}`}>
                         {typeName}
-                        <span className="text-gray-500 ml-1">
+                        <span className={`${hasConflicts ? 'text-orange-600' : 'text-gray-500'} ml-1`}>
                           (已選 {selectedCount} 個)
                         </span>
-                        {selectedNames.length > 0 && (
-                          <span className="text-gray-600 ml-1">
-                            ({selectedNames.join(', ')})
+                        {hasConflicts && <span className="ml-1">⚠️</span>}
+                        {selectedNamesWithConflicts.length > 0 && (
+                          <span className={`${hasConflicts ? 'text-orange-600' : 'text-gray-600'} ml-1`}>
+                            ({selectedNamesWithConflicts.join(', ')})
                           </span>
                         )}
                       </label>
