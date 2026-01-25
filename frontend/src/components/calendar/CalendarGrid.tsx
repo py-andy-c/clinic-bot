@@ -203,16 +203,16 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
         anchorY: (slotRect.top - viewportRect.top) + viewportElement.scrollTop + (slotRect.height / 2),
         anchorTop: (slotRect.top - viewportRect.top) + viewportElement.scrollTop,
         // Seed x/y close to the anchor
-        x: (slotRect.right - viewportRect.left) + viewportElement.scrollLeft + 2,
-        y: (slotRect.top - viewportRect.top) + viewportElement.scrollTop + 2,
+        x: (slotRect.right - viewportRect.left) + viewportElement.scrollLeft + 8,
+        y: (slotRect.top - viewportRect.top) + viewportElement.scrollTop,
         slotInfo,
       });
     } else {
       // Fallback to viewport coordinates
       setSlotMenu({
         visible: true,
-        x: event.clientX + 2,
-        y: event.clientY + 2,
+        x: event.clientX + 8,
+        y: event.clientY,
         anchorX: event.clientX,
         anchorY: event.clientY,
         anchorTop: event.clientY,
@@ -240,8 +240,8 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
     const menuRect = slotMenuRef.current.getBoundingClientRect();
     const margin = 8;
     // Desired positions from anchors: place to the right and align top to slot top for tight proximity
-    let x = slotMenu.anchorX + 2; // 2px gap to the right of the slot
-    let y = slotMenu.anchorTop + 2;
+    let x = slotMenu.anchorX + 8; // 8px gap to the right of the slot
+    let y = slotMenu.anchorTop;
 
     const viewportElement = document.querySelector('[data-testid="calendar-viewport"]') as HTMLElement | null;
     if (viewportElement) {
@@ -661,7 +661,7 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
                   whiteSpace: 'nowrap',
                 }}
               >
-                <div className="flex flex-col gap-0.5">
+                <div className="flex flex-col gap-2">
                   <button
                     data-testid="fab-create-appointment"
                     className="btn-secondary px-3 py-1 text-sm rounded-full shadow whitespace-nowrap"
