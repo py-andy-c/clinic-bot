@@ -19,15 +19,19 @@ export const canEditAppointment = (
   isAdmin: boolean
 ): boolean => {
   if (!event || event.resource.type !== 'appointment') return false;
-  
+
+  // Rule: Cannot edit checked out appointments (must void receipt first)
+  // This applies to everyone including admins to maintain data integrity with receipts
+  if (event.resource.has_active_receipt) return false;
+
   // Admins can edit any appointment
   if (isAdmin) return true;
-  
+
   // Non-admin practitioners cannot edit auto-assigned appointments
   // (even if they are the assigned practitioner, they shouldn't know about it)
   const isAutoAssigned = event.resource.is_auto_assigned ?? false;
   if (isAutoAssigned) return false;
-  
+
   // Check if it's their own appointment
   // Use practitioner_id if available, otherwise fallback to userId
   const eventPractitionerId = event.resource.practitioner_id || userId;
@@ -69,9 +73,9 @@ export const getPractitionerIdForDuplicate = (
   isAdmin: boolean
 ): number | undefined => {
   if (!event || event.resource.type !== 'appointment') return undefined;
-  
+
   const practitionerId = event.resource.practitioner_id;
-  
+
   // Security: Hide practitioner_id for auto-assigned appointments when user is not admin
   // This prevents non-admin practitioners from seeing who was auto-assigned
   // Note: Backend should also filter/hide this, but this provides defense in depth
@@ -79,7 +83,7 @@ export const getPractitionerIdForDuplicate = (
   if (isAutoAssigned && !isAdmin) {
     return undefined; // Don't include practitioner_id for auto-assigned appointments
   }
-  
+
   return practitionerId ?? undefined;
 };
 

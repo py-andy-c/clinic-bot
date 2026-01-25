@@ -95,6 +95,21 @@ describe('appointmentPermissions', () => {
       });
       expect(canEditAppointment(event, 1, false)).toBe(false);
     });
+
+    it('should return false for anyone (including admin) if appointment has an active receipt', () => {
+      const event = createMockAppointment({
+        has_active_receipt: true,
+      });
+      expect(canEditAppointment(event, 1, false)).toBe(false);
+      expect(canEditAppointment(event, 1, true)).toBe(false);
+    });
+
+    it('should return true for admin if appointment has no active receipt', () => {
+      const event = createMockAppointment({
+        has_active_receipt: false,
+      });
+      expect(canEditAppointment(event, 1, true)).toBe(true);
+    });
   });
 
   describe('canDuplicateAppointment', () => {
