@@ -287,7 +287,6 @@
 }
 
 .monthEvent {
-  background: #3b82f6;
   color: white;
   padding: 2px 4px;
   border-radius: 4px;
@@ -296,6 +295,7 @@
   text-overflow: clip;
   white-space: nowrap;
   cursor: pointer;
+  box-sizing: border-box;
 }
 
 @media (max-width: 1024px) {
