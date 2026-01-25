@@ -397,7 +397,11 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
     if (view === CalendarViews.DAY) {
       const totalColumns = selectedPractitioners.length + selectedResources.length || 1;
       const columnWidth = dragState.columnWidth || (gridRef.current.scrollWidth / totalColumns);
-      const colIndex = Math.max(0, Math.min(totalColumns - 1, Math.floor(cursorX / columnWidth)));
+
+      // Restrict appointments and exceptions to practitioner columns only. 
+      // This prevents dragging into the "illegal zone" (resource columns like beds/rooms).
+      const maxAllowedIndex = selectedPractitioners.length - 1;
+      const colIndex = Math.max(0, Math.min(maxAllowedIndex, Math.floor(cursorX / columnWidth)));
 
       let targetPractitionerId: number | undefined;
       let targetResourceId: number | undefined;
@@ -775,9 +779,9 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
                   <div
                     key={practitionerId}
                     className={`${styles.practitionerColumn} ${dragState.isDragging &&
-                        dragState.event?.resource.type === 'availability_exception' &&
-                        dragState.event.resource.practitioner_id !== practitionerId
-                        ? styles.restrictedZone : ''
+                      dragState.event?.resource.type === 'availability_exception' &&
+                      dragState.event.resource.practitioner_id !== practitionerId
+                      ? styles.restrictedZone : ''
                       }`}
                     role="gridcell"
                     aria-label={`Column for practitioner ${practitionerId}`}
