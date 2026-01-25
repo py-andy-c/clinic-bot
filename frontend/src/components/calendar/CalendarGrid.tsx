@@ -1072,13 +1072,18 @@ export const PractitionerRow: React.FC<Omit<CalendarGridProps, 'showHeaderRow'>>
           }
 
           if (view === CalendarViews.WEEK) {
+            const dayNames = ['日', '一', '二', '三', '四', '五', '六'];
             return (
               Array.from({ length: 7 }, (_, i) => {
                 const date = moment(currentDate).startOf('week').add(i, 'days');
                 return (
-                  <div key={`day-${i}`} className={styles.resourceHeader}>
-                    {date.format('ddd')}
-                    <div className={styles.dayNumber}>{date.format('D')}</div>
+                  <div
+                    key={`day-${i}`}
+                    className={styles.resourceHeader}
+                    style={{ flexDirection: 'row', alignItems: 'baseline', gap: '4px', justifyContent: 'center' }}
+                  >
+                    <span className="text-sm font-bold text-gray-800">{date.format('D')}</span>
+                    <span className="text-xs text-gray-500">({dayNames[i]})</span>
                   </div>
                 );
               })

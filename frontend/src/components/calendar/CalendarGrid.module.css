@@ -51,7 +51,7 @@
   /* Expand to fill available space */
   min-width: 80px;
   /* Minimum width when many columns - matches mock UI header min-width for better text readability */
-  padding: 8px 4px;
+  padding: 4px;
   text-align: center;
   font-size: 12px;
   font-weight: 500;
