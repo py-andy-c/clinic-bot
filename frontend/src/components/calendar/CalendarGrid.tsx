@@ -925,12 +925,14 @@ const CalendarEventComponent: React.FC<CalendarEventComponentProps> = ({
     }
 
     if (isException) { bg = '#9ca3af'; border = `2px solid ${event.resource.practitioner_id ? getPractitionerColor(event.resource.practitioner_id, currentUserId ?? -1, selectedPractitioners) || '#3b82f6' : '#3b82f6'}`; br = '4px'; }
-    return { ...base, backgroundColor: bg, border, borderRadius: br, zIndex: isException ? 3 : 5, opacity: 1 };
+    return { ...base, backgroundColor: bg, border, borderRadius: br, zIndex: isException ? 3 : 5 };
   }, [event, group, eventIndex, selectedPractitioners, selectedResources, isDragging, currentUserId]);
+
+  const isCheckedOut = event.resource.has_active_receipt;
 
   return (
     <div
-      className={styles.calendarEvent} style={eventStyle} onClick={onClick}
+      className={`${styles.calendarEvent} ${isCheckedOut ? styles.checkedOut : ''}`} style={eventStyle} onClick={onClick}
       title={buildEventTooltipText(event, formatAppointmentTimeRange(event.start, event.end))}
       role="button" aria-label={`Appointment: ${calculateEventDisplayText(event)}`} tabIndex={-1}
       onMouseDown={e => {
@@ -983,18 +985,21 @@ const MonthlyBody: React.FC<MonthlyBodyProps> = ({ currentDate, events, selected
           <div key={i} className={`${styles.dayCell} ${!day.isCurrentMonth ? styles.otherMonth : ''} ${day.isToday ? styles.today : ''}`}>
             <div className={styles.dayNumber} style={{ cursor: 'pointer' }} onClick={() => onHeaderClick?.(day.date.toDate())}>{day.date.date()}</div>
             <div className={styles.dayEvents}>
-              {day.events.slice(0, 6).map((e, ei) => (
-                <div
-                  key={ei} className={styles.monthEvent}
-                  style={{
-                    backgroundColor: e.resource.type === 'availability_exception' ? '#9ca3af' : (e.resource.practitioner_id ? getPractitionerColor(e.resource.practitioner_id, currentUserId ?? -1, selectedPractitioners) || '#3b82f6' : (e.resource.resource_id ? getResourceColorById(e.resource.resource_id, selectedResources) || '#6b7280' : '#6b7280')),
-                    border: e.resource.type === 'availability_exception' ? `2px solid ${e.resource.practitioner_id ? getPractitionerColor(e.resource.practitioner_id, currentUserId ?? -1, selectedPractitioners) || '#3b82f6' : '#3b82f6'}` : (e.resource.resource_id ? '1px dashed rgba(255, 255, 255, 0.5)' : 'none')
-                  }}
-                  onClick={() => onEventClick?.(e)} title={buildEventTooltipText(e, formatAppointmentTimeRange(e.start, e.end))}
-                >
-                  <div className="text-xs">{calculateEventDisplayText(e)}</div>
-                </div>
-              ))}
+              {day.events.slice(0, 6).map((e, ei) => {
+                const isCheckedOut = e.resource.has_active_receipt;
+                return (
+                  <div
+                    key={ei} className={`${styles.monthEvent} ${isCheckedOut ? styles.checkedOut : ''}`}
+                    style={{
+                      backgroundColor: e.resource.type === 'availability_exception' ? '#9ca3af' : (e.resource.practitioner_id ? getPractitionerColor(e.resource.practitioner_id, currentUserId ?? -1, selectedPractitioners) || '#3b82f6' : (e.resource.resource_id ? getResourceColorById(e.resource.resource_id, selectedResources) || '#6b7280' : '#6b7280')),
+                      border: e.resource.type === 'availability_exception' ? `2px solid ${e.resource.practitioner_id ? getPractitionerColor(e.resource.practitioner_id, currentUserId ?? -1, selectedPractitioners) || '#3b82f6' : '#3b82f6'}` : (e.resource.resource_id ? '1px dashed rgba(255, 255, 255, 0.5)' : 'none')
+                    }}
+                    onClick={() => onEventClick?.(e)} title={buildEventTooltipText(e, formatAppointmentTimeRange(e.start, e.end))}
+                  >
+                    <div className="text-xs">{calculateEventDisplayText(e)}</div>
+                  </div>
+                );
+              })}
               {day.events.length > 6 && <div className={styles.monthEvent} style={{ backgroundColor: 'transparent', color: '#4b5563', fontSize: '11px', textAlign: 'center' }}>+{day.events.length - 6}</div>}
             </div>
           </div>

@@ -224,6 +224,10 @@
   opacity: 0.9;
 }
 
+.checkedOut {
+  opacity: 0.5 !important;
+}
+
 /* Monthly Calendar Styles */
 .monthlyGrid {
   padding: 0;
