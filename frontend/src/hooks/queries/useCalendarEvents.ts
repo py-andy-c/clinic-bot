@@ -41,31 +41,39 @@ const getDateRange = (currentDate: Date, view: CalendarView) => {
   }
 };
 
-const fetchCalendarEvents = async (params: UseCalendarEventsParams): Promise<{
+const fetchCalendarEvents = async (params: UseCalendarEventsParams & { currentUserId?: number }): Promise<{
   events: CalendarEvent[];
   practitionerAvailability: CalendarPractitionerAvailability;
 }> => {
-  const { selectedPractitioners, selectedResources, currentDate, view } = params;
+  const { selectedPractitioners, selectedResources, currentDate, view, currentUserId } = params;
   const { startDate, endDate } = getDateRange(currentDate, view);
 
+  // Always fetch availability for the current user if they exist,
+  // plus any selected practitioners
+  const practitionerIdsToFetch = Array.from(new Set([
+    ...selectedPractitioners,
+    ...(currentUserId ? [currentUserId] : [])
+  ]));
+
   const [practitionerEvents, resourceEvents] = await Promise.all([
-    selectedPractitioners.length > 0
+    practitionerIdsToFetch.length > 0
       ? apiService.getBatchCalendar({
-          practitionerIds: selectedPractitioners,
-          startDate,
-          endDate
-        })
+        practitionerIds: practitionerIdsToFetch,
+        startDate,
+        endDate
+      })
       : Promise.resolve({ results: [] }),
     selectedResources.length > 0
       ? apiService.getBatchResourceCalendar({
-          resourceIds: selectedResources,
-          startDate,
-          endDate
-        })
+        resourceIds: selectedResources,
+        startDate,
+        endDate
+      })
       : Promise.resolve({ results: [] })
   ]);
 
   // Extract practitioner availability from calendar results
+  // This will include availability for current user even if they aren't in selectedPractitioners
   let practitionerAvailability: CalendarPractitionerAvailability = {};
   try {
     practitionerAvailability = extractPractitionerAvailability(practitionerEvents.results || []);
@@ -76,9 +84,13 @@ const fetchCalendarEvents = async (params: UseCalendarEventsParams): Promise<{
   }
 
   // Transform events - need to include date and practitioner_id from result level
-  const practitionerEventsRaw = practitionerEvents.results.flatMap(r =>
-    r.events.map(event => ({ ...event, date: r.date, practitioner_id: r.user_id }))
-  );
+  // Filter events to ONLY show those for selectedPractitioners to respect the sidebar filters
+  const practitionerEventsRaw = practitionerEvents.results
+    .filter(r => selectedPractitioners.includes(r.user_id))
+    .flatMap(r =>
+      r.events.map(event => ({ ...event, date: r.date, practitioner_id: r.user_id }))
+    );
+
   const resourceEventsRaw = resourceEvents.results?.flatMap(r =>
     r.events.map(event => ({ ...event, date: r.date, resource_id: r.resource_id, is_resource_event: true }))
   ) || [];
@@ -117,7 +129,10 @@ export const useCalendarEvents = (params: UseCalendarEventsParams) => {
       dateRangeKey,
       view
     }],
-    queryFn: () => fetchCalendarEvents(params),
+    queryFn: () => fetchCalendarEvents({
+      ...params,
+      ...(user?.user_id ? { currentUserId: user.user_id } : {})
+    }),
     enabled: !!activeClinicId && (selectedPractitioners.length > 0 || selectedResources.length > 0),
     staleTime: 1 * 60 * 1000, // 1 minute - calendar data should be relatively fresh
     gcTime: 5 * 60 * 1000, // 5 minutes

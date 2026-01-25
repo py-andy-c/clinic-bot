@@ -77,12 +77,11 @@ export function extractPractitionerAvailability(calendarResults: Array<{
 
     availability[result.user_id] = {
       schedule: {
+        ...(availability[result.user_id]?.schedule || {}),
         [result.date]: validSchedule
       }
     };
   });
-
-
 
   return availability;
 }

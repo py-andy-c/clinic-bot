@@ -169,20 +169,52 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
         events: resourceEvents,
         groups: calculateOverlappingEvents(resourceEvents)
       };
+      return {
+        resourceId,
+        events: resourceEvents,
+        groups: calculateOverlappingEvents(resourceEvents)
+      };
     }), [selectedResources, events]);
+
+  // Calculate week view data (days columns)
+  const weekDaysData = useMemo(() => {
+    if (view !== CalendarViews.WEEK) return [];
+
+    const startOfWeek = moment(currentDate).tz('Asia/Taipei').startOf('week');
+
+    return Array.from({ length: 7 }, (_, i) => {
+      const dateMoment = startOfWeek.clone().add(i, 'days');
+      const date = dateMoment.toDate();
+
+      // Filter events for this specific day
+      const dayEvents = events.filter(event =>
+        moment(event.start).tz('Asia/Taipei').isSame(dateMoment, 'day')
+      );
+
+      return {
+        date,
+        dateMoment,
+        events: dayEvents,
+        groups: calculateOverlappingEvents(dayEvents)
+      };
+    });
+  }, [view, currentDate, events]);
 
 
   // Note: DOM element caching removed for simplicity and test compatibility
   // Live queries are used for keyboard navigation
 
+  // Live queries are used for keyboard navigation
+
   const handleSlotClick = (
+    baseDate: Date,
     hour: number,
     minute: number,
     practitionerId: number | undefined,
     event: React.MouseEvent<HTMLDivElement>
   ) => {
     // Open FABs near the click position, do not immediately trigger appointment flow
-    const slotDate = createTimeSlotDate(currentDate, hour, minute);
+    const slotDate = createTimeSlotDate(baseDate, hour, minute);
     const slotInfo: { start: Date; end: Date; practitionerId?: number } = {
       start: slotDate,
       end: new Date(slotDate.getTime() + 15 * 60 * 1000),
@@ -309,7 +341,7 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
           newIndex = Math.min(allSlots.length - 1, currentIndex + 1);
           break;
         case 'ArrowLeft':
-          // Navigate to previous column (practitioner/resource)
+          // Navigate to previous column (practitioner/resource or day)
           if (view === CalendarViews.DAY) {
             const slotsPerColumn = timeSlots.length;
             const columnIndex = Math.floor(currentIndex / slotsPerColumn);
@@ -317,16 +349,32 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
             if (columnIndex > 0) {
               newIndex = (columnIndex - 1) * slotsPerColumn + slotInColumn;
             }
+          } else if (view === CalendarViews.WEEK) {
+            const slotsPerColumn = timeSlots.length;
+            const columnIndex = Math.floor(currentIndex / slotsPerColumn);
+            const slotInColumn = currentIndex % slotsPerColumn;
+            // 7 days in a week
+            if (columnIndex > 0) {
+              newIndex = (columnIndex - 1) * slotsPerColumn + slotInColumn;
+            }
           }
           break;
         case 'ArrowRight':
-          // Navigate to next column (practitioner/resource)
+          // Navigate to next column (practitioner/resource or day)
           if (view === CalendarViews.DAY) {
             const slotsPerColumn = timeSlots.length;
             const columnIndex = Math.floor(currentIndex / slotsPerColumn);
             const slotInColumn = currentIndex % slotsPerColumn;
             const totalColumns = selectedPractitioners.length + selectedResources.length;
             if (columnIndex < totalColumns - 1) {
+              newIndex = (columnIndex + 1) * slotsPerColumn + slotInColumn;
+            }
+          } else if (view === CalendarViews.WEEK) {
+            const slotsPerColumn = timeSlots.length;
+            const columnIndex = Math.floor(currentIndex / slotsPerColumn);
+            const slotInColumn = currentIndex % slotsPerColumn;
+            // 7 days in a week
+            if (columnIndex < 6) {
               newIndex = (columnIndex + 1) * slotsPerColumn + slotInColumn;
             }
           }
@@ -468,7 +516,7 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
           <div className="grid-container" role="presentation">
             {/* Resource columns */}
             <div className={styles.resourceGrid}>
-              {practitionerGroups.map(({ practitionerId, groups }) => (
+              {view === CalendarViews.DAY && practitionerGroups.map(({ practitionerId, groups }) => (
                 <div
                   key={`practitioner-${practitionerId}`}
                   className={styles.practitionerColumn}
@@ -489,7 +537,7 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
                       <div
                         key={index}
                         className={`${styles.timeSlot} ${!isAvailable ? styles.unavailable : ''}`}
-                        onClick={(e) => handleSlotClick(slot.hour, slot.minute, practitionerId, e)}
+                        onClick={(e) => handleSlotClick(currentDate, slot.hour, slot.minute, practitionerId, e)}
                         onKeyDown={handleKeyDown}
                         role="button"
                         aria-label={`Time slot ${slot.time} for practitioner ${practitionerId} - Click to create appointment`}
@@ -528,7 +576,7 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
                 </div>
               ))}
 
-              {resourceGroups.map(({ resourceId, groups }) => (
+              {view === CalendarViews.DAY && resourceGroups.map(({ resourceId, groups }) => (
                 <div
                   key={`resource-${resourceId}`}
                   className={styles.practitionerColumn}
@@ -553,7 +601,7 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
                       <div
                         key={index}
                         className={`${styles.timeSlot} ${!isAnyPractitionerAvailable ? styles.unavailable : ''}`}
-                        onClick={(e) => handleSlotClick(slot.hour, slot.minute, undefined, e)}
+                        onClick={(e) => handleSlotClick(currentDate, slot.hour, slot.minute, undefined, e)}
                         onKeyDown={handleKeyDown}
                         role="button"
                         aria-label={`Time slot ${slot.time} for resource ${resourceId} - Click to create appointment`}
@@ -592,58 +640,90 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
               ))}
 
               {/* Render empty columns when no practitioners or resources are selected */}
-              {practitionerGroups.length === 0 && resourceGroups.length === 0 && (
-                view === CalendarViews.DAY ? (
-                  // For Day View: render a single empty column
-                  <div
-                    key="empty-day-column"
-                    className={styles.practitionerColumn}
-                    role="gridcell"
-                    aria-label="Empty calendar column"
-                  >
-                    {timeSlots.map((slot, index) => (
+              {view === CalendarViews.DAY && practitionerGroups.length === 0 && resourceGroups.length === 0 && (
+                // For Day View: render a single empty column
+                <div
+                  key="empty-day-column"
+                  className={styles.practitionerColumn}
+                  role="gridcell"
+                  aria-label="Empty calendar column"
+                >
+                  {timeSlots.map((slot, index) => (
+                    <div
+                      key={index}
+                      className={styles.timeSlot}
+                      onClick={(e) => handleSlotClick(currentDate, slot.hour, slot.minute, undefined, e)}
+                      onKeyDown={handleKeyDown}
+                      role="button"
+                      aria-label="Time slot - Click to create appointment"
+                      data-testid="time-slot"
+                      tabIndex={-1}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {/* Week View Columns */}
+              {view === CalendarViews.WEEK && weekDaysData.map((dayData, index) => (
+                <div
+                  key={`day-column-${index}`}
+                  className={styles.practitionerColumn}
+                  role="gridcell"
+                  aria-label={`Column for ${dayData.dateMoment.format('dddd')}`}
+                >
+                  {timeSlots.map((slot, slotIndex) => {
+                    // Check availability for current user
+                    const isAvailable = currentUserId ? isTimeSlotAvailable(
+                      currentUserId,
+                      dayData.date,
+                      slot.hour,
+                      slot.minute,
+                      practitionerAvailability,
+                      false
+                    ) : true;
+
+                    return (
                       <div
-                        key={index}
-                        className={styles.timeSlot}
-                        onClick={(e) => handleSlotClick(slot.hour, slot.minute, undefined, e)}
+                        key={slotIndex}
+                        className={`${styles.timeSlot} ${!isAvailable ? styles.unavailable : ''}`}
+                        onClick={(e) => handleSlotClick(dayData.date, slot.hour, slot.minute, currentUserId ?? undefined, e)}
                         onKeyDown={handleKeyDown}
                         role="button"
-                        aria-label="Time slot - Click to create appointment"
+                        aria-label={`Time slot ${slot.time} on ${dayData.dateMoment.format('dddd')} - Click to create appointment`}
                         data-testid="time-slot"
                         tabIndex={-1}
                       />
+                    );
+                  })}
+
+                  {/* Render single events (full width) */}
+                  {dayData.groups
+                    .filter(group => group.events.length === 1)
+                    .map((group, groupIndex) => (
+                      <CalendarEventComponent
+                        key={`week-single-${index}-${groupIndex}`}
+                        event={group.events[0]!}
+                        selectedPractitioners={selectedPractitioners}
+                        selectedResources={selectedResources}
+                        onClick={() => onEventClick?.(group.events[0]!)}
+                      />
                     ))}
-                  </div>
-                ) : view === CalendarViews.WEEK ? (
-                  // For Week View: render 7 empty columns (one for each day)
-                  <>
-                    {Array.from({ length: 7 }, (_, dayIndex) => {
-                      const dayDate = moment(currentDate).startOf('week').add(dayIndex, 'days');
-                      return (
-                        <div
-                          key={`empty-week-column-${dayIndex}`}
-                          className={styles.practitionerColumn}
-                          role="gridcell"
-                          aria-label={`Empty column for ${dayDate.format('dddd')}`}
-                        >
-                          {timeSlots.map((slot, index) => (
-                            <div
-                              key={index}
-                              className={styles.timeSlot}
-                              onClick={(e) => handleSlotClick(slot.hour, slot.minute, undefined, e)}
-                              onKeyDown={handleKeyDown}
-                              role="button"
-                              aria-label={`Time slot ${slot.time} on ${dayDate.format('dddd')} - Click to create appointment`}
-                              data-testid="time-slot"
-                              tabIndex={-1}
-                            />
-                          ))}
-                        </div>
-                      );
-                    })}
-                  </>
-                ) : null
-              )}
+
+                  {/* Render overlapping event groups (multiple events) */}
+                  {dayData.groups
+                    .filter(group => group.events.length > 1)
+                    .map((group, groupIndex) => (
+                      <OverlappingEventGroupComponent
+                        key={`week-group-${index}-${groupIndex}`}
+                        group={group}
+                        groupIndex={groupIndex}
+                        selectedPractitioners={selectedPractitioners}
+                        selectedResources={selectedResources}
+                        onEventClick={onEventClick || (() => { })}
+                      />
+                    ))}
+                </div>
+              ))}
             </div>
           </div>
         </div>
