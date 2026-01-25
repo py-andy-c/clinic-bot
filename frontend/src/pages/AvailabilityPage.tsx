@@ -658,6 +658,28 @@ const AvailabilityPage: React.FC = () => {
     setIsCreateAppointmentModalOpen(true);
   }, []);
 
+  const handleSlotExceptionClick = useCallback((info: { start: Date; end: Date; practitionerId?: number | undefined }) => {
+    // Compute start/end time strings from clicked slot
+    const startMoment = moment(info.start).tz('Asia/Taipei');
+    const endMoment = moment(info.start).tz('Asia/Taipei').add(1, 'hour');
+
+    // Determine practitioner per spec
+    // - Day view: use clicked column practitioner when present; otherwise fallback to current user
+    // - Week view: always use current user (default)
+    const practitionerId = view === CalendarViews.WEEK
+      ? (user?.user_id ?? 0)
+      : (info.practitionerId ?? (user?.user_id ?? 0));
+
+    setExceptionData({
+      date: startMoment.format('YYYY-MM-DD'),
+      startTime: startMoment.format('HH:mm'),
+      endTime: endMoment.format('HH:mm'),
+      practitionerId,
+    });
+    setIsFullDay(false);
+    setIsExceptionModalOpen(true);
+  }, [user?.user_id, view]);
+
   const handleCreateAppointment = useCallback(() => {
     setIsCreateAppointmentModalOpen(true);
   }, []);
@@ -798,6 +820,7 @@ const AvailabilityPage: React.FC = () => {
             currentUserId={user?.user_id ?? null}
             onEventClick={handleEventClick}
             onSlotClick={handleSlotClick}
+            onSlotExceptionClick={handleSlotExceptionClick}
             showHeaderRow={false}
           />
         }

@@ -1,5 +1,6 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
 import { CalendarViews } from '../../../types/calendar';
 import CalendarGrid from '../CalendarGrid';
@@ -19,6 +20,7 @@ describe('CalendarGrid', () => {
     selectedResources: [3, 4],
     onEventClick: vi.fn(),
     onSlotClick: vi.fn(),
+    onSlotExceptionClick: vi.fn(),
   };
 
   beforeEach(() => {
@@ -93,7 +95,8 @@ describe('CalendarGrid', () => {
     )).not.toThrow();
   });
 
-  it('handles slot clicks with practitioner context', () => {
+  it('handles slot clicks with practitioner context via FAB', async () => {
+    const u = userEvent.setup();
     render(<CalendarGrid {...mockProps} />);
 
     // Find a time slot for practitioner 1
@@ -103,12 +106,25 @@ describe('CalendarGrid', () => {
 
     if (firstSlot) {
       fireEvent.click(firstSlot);
-      expect(mockProps.onSlotClick).toHaveBeenCalledWith(expect.objectContaining({
-        practitionerId: 1
-      }));
+      // Click the + 預約 FAB
+      const fab = await screen.findByTestId('fab-create-appointment');
+      await u.click(fab);
+      expect(mockProps.onSlotClick).toHaveBeenCalledWith(expect.objectContaining({ practitionerId: 1 }));
     } else {
       throw new Error('No time slot found');
     }
+  });
+
+  it('triggers exception flow via FAB', async () => {
+    const u = userEvent.setup();
+    render(<CalendarGrid {...mockProps} />);
+
+    // Click any slot
+    const anySlot = screen.getAllByTestId('time-slot')[0];
+    fireEvent.click(anySlot);
+    const exceptionFab = await screen.findByTestId('fab-create-exception');
+    await u.click(exceptionFab);
+    expect(mockProps.onSlotExceptionClick).toHaveBeenCalled();
   });
 
   it('applies correct styling for different event types', () => {

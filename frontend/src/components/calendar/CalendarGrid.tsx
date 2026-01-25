@@ -1,9 +1,11 @@
-import React, { useMemo, useCallback, useRef, useEffect } from 'react';
+import React, { useMemo, useCallback, useRef, useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import moment from 'moment-timezone';
 import { CalendarEvent } from '../../utils/calendarDataAdapter';
 import { CalendarView, CalendarViews } from '../../types/calendar';
 import { getPractitionerColor } from '../../utils/practitionerColors';
 import { getResourceColorById } from '../../utils/resourceColorUtils';
+// logger removed after debug cleanup
 import {
   generateTimeSlots,
   calculateCurrentTimeIndicatorPosition,
@@ -34,6 +36,7 @@ interface CalendarGridProps {
   currentUserId?: number | null; // Current user ID for ordering
   onEventClick?: (event: CalendarEvent) => void;
   onSlotClick?: (slotInfo: { start: Date; end: Date; practitionerId?: number | undefined }) => void;
+  onSlotExceptionClick?: (slotInfo: { start: Date; end: Date; practitionerId?: number | undefined }) => void;
   showHeaderRow?: boolean; // Whether to show the practitioner/resource header row
 }
 
@@ -51,7 +54,20 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
   currentUserId,
   onEventClick,
   onSlotClick,
+  onSlotExceptionClick,
 }) => {
+  // Local menu state for slot action FABs
+  const [slotMenu, setSlotMenu] = useState<{
+    visible: boolean;
+    x: number; // computed left for menu
+    y: number; // computed top for menu
+    anchorX: number; // anchor near slot's right edge in scroll space
+    anchorY: number; // anchor at slot vertical center in scroll space
+    anchorTop: number; // anchor at slot top in scroll space
+    slotInfo: { start: Date; end: Date; practitionerId?: number } | null;
+  }>({ visible: false, x: 0, y: 0, anchorX: 0, anchorY: 0, anchorTop: 0, slotInfo: null });
+  const slotMenuRef = useRef<HTMLDivElement | null>(null);
+  const [viewportEl, setViewportEl] = useState<HTMLElement | null>(null);
   // Generate time slots for the grid
   const timeSlots = useMemo(() => generateTimeSlots(), []);
 
@@ -112,6 +128,12 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
     return undefined;
   }, [scrollToCurrentTimePosition, view]);
 
+  // Cache the scrollable viewport element for portals
+  useEffect(() => {
+    const el = document.querySelector('[data-testid="calendar-viewport"]') as HTMLElement | null;
+    if (el) setViewportEl(el);
+  }, []);
+
   // Calculate current time indicator position
   const currentTimeIndicatorStyle = useMemo(
     () => calculateCurrentTimeIndicatorPosition(currentDate, view),
@@ -153,16 +175,104 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
   // Note: DOM element caching removed for simplicity and test compatibility
   // Live queries are used for keyboard navigation
 
-  const handleSlotClick = (hour: number, minute: number, practitionerId?: number) => {
-    if (onSlotClick) {
-      const slotDate = createTimeSlotDate(currentDate, hour, minute);
-      onSlotClick({
-        start: slotDate,
-        end: new Date(slotDate.getTime() + 15 * 60 * 1000), // 15 minutes later
-        practitionerId,
+  const handleSlotClick = (
+    hour: number,
+    minute: number,
+    practitionerId: number | undefined,
+    event: React.MouseEvent<HTMLDivElement>
+  ) => {
+    // Open FABs near the click position, do not immediately trigger appointment flow
+    const slotDate = createTimeSlotDate(currentDate, hour, minute);
+    const slotInfo: { start: Date; end: Date; practitionerId?: number } = {
+      start: slotDate,
+      end: new Date(slotDate.getTime() + 15 * 60 * 1000),
+    };
+    if (practitionerId != null) slotInfo.practitionerId = practitionerId;
+
+    // Position relative to the scrollable viewport so FABs move with the grid when scrolling
+    const viewportElement = document.querySelector('[data-testid="calendar-viewport"]') as HTMLElement | null;
+    if (viewportElement) {
+      const viewportRect = viewportElement.getBoundingClientRect();
+      const slotEl = event.currentTarget as HTMLElement;
+      const slotRect = slotEl.getBoundingClientRect();
+      // Debug logs removed
+      setSlotMenu({
+        visible: true,
+        // Compute anchors in scroll space relative to viewport
+        anchorX: (slotRect.right - viewportRect.left) + viewportElement.scrollLeft,
+        anchorY: (slotRect.top - viewportRect.top) + viewportElement.scrollTop + (slotRect.height / 2),
+        anchorTop: (slotRect.top - viewportRect.top) + viewportElement.scrollTop,
+        // Seed x/y close to the anchor
+        x: (slotRect.right - viewportRect.left) + viewportElement.scrollLeft + 2,
+        y: (slotRect.top - viewportRect.top) + viewportElement.scrollTop + 2,
+        slotInfo,
+      });
+    } else {
+      // Fallback to viewport coordinates
+      setSlotMenu({
+        visible: true,
+        x: event.clientX + 2,
+        y: event.clientY + 2,
+        anchorX: event.clientX,
+        anchorY: event.clientY,
+        anchorTop: event.clientY,
+        slotInfo,
       });
     }
   };
+
+  // Dismiss menu on outside click
+  useEffect(() => {
+    if (!slotMenu.visible) return;
+    const onDocClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('[data-testid="slot-action-menu"]')) {
+        setSlotMenu(menu => ({ ...menu, visible: false }));
+      }
+    };
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [slotMenu.visible]);
+
+  // Clamp FAB menu within the scrollable viewport and flip vertically if needed
+  useEffect(() => {
+    if (!slotMenu.visible || !slotMenuRef.current) return;
+    const menuRect = slotMenuRef.current.getBoundingClientRect();
+    const margin = 8;
+    // Desired positions from anchors: place to the right and align top to slot top for tight proximity
+    let x = slotMenu.anchorX + 2; // 2px gap to the right of the slot
+    let y = slotMenu.anchorTop + 2;
+
+    const viewportElement = document.querySelector('[data-testid="calendar-viewport"]') as HTMLElement | null;
+    if (viewportElement) {
+      const maxX = viewportElement.scrollLeft + viewportElement.clientWidth - margin - menuRect.width;
+      const maxY = viewportElement.scrollTop + viewportElement.clientHeight - margin - menuRect.height;
+
+      // Horizontal clamp
+      x = Math.min(Math.max(viewportElement.scrollLeft + margin, x), Math.max(viewportElement.scrollLeft + margin, maxX));
+
+      // Vertical clamp or flip above if needed
+      if (y > maxY) {
+        // Flip above the slot if needed
+        y = Math.max(viewportElement.scrollTop + margin, slotMenu.anchorTop - menuRect.height - 8);
+      }
+      // Ensure within top bound
+      y = Math.max(viewportElement.scrollTop + margin, y);
+      // Debug logs removed
+    } else {
+      // Fallback to window bounds (rare)
+      const maxX = window.innerWidth - margin - menuRect.width;
+      const maxY = window.innerHeight - margin - menuRect.height;
+      x = Math.min(Math.max(margin, x), Math.max(margin, maxX));
+      if (y > maxY) y = Math.max(margin, slotMenu.anchorTop - menuRect.height - 8);
+      y = Math.max(margin, y);
+      // Debug logs removed
+    }
+
+    if (x !== slotMenu.x || y !== slotMenu.y) {
+      setSlotMenu(menu => ({ ...menu, x, y }));
+    }
+  }, [slotMenu.visible, slotMenu.x, slotMenu.y, slotMenu.anchorX, slotMenu.anchorTop]);
 
   // Keyboard navigation support
   const handleKeyDown = (event: React.KeyboardEvent) => {
@@ -223,7 +333,7 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
           break;
         case 'Enter':
         case ' ': {
-          // Trigger slot click by calling handleSlotClick with extracted time
+          // For keyboard activation, directly initiate appointment flow for accessibility
           const ariaLabel = currentSlot.getAttribute('aria-label');
           if (ariaLabel) {
             const timeMatch = ariaLabel.match(/Time slot (\d{1,2}):(\d{2})/);
@@ -237,7 +347,15 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
                 ? parseInt(practitionerMatch[1], 10)
                 : undefined;
 
-              handleSlotClick(hour, minute, practitionerId);
+              if (onSlotClick) {
+                const slotDate = createTimeSlotDate(currentDate, hour, minute);
+                const slotInfo: { start: Date; end: Date; practitionerId?: number } = {
+                  start: slotDate,
+                  end: new Date(slotDate.getTime() + 15 * 60 * 1000),
+                };
+                if (practitionerId != null) slotInfo.practitionerId = practitionerId;
+                onSlotClick(slotInfo);
+              }
             }
           }
           break;
@@ -295,7 +413,7 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
   }
 
   return (
-    <div className={styles.calendarGridContainer} data-testid="calendar-grid-container">
+    <div className={styles.calendarGridContainer} data-testid="calendar-grid-container" style={{ position: 'relative' }}>
       {/* Header Row: Sticky Top */}
       <PractitionerRow
         view={view}
@@ -371,7 +489,7 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
                       <div
                         key={index}
                         className={`${styles.timeSlot} ${!isAvailable ? styles.unavailable : ''}`}
-                        onClick={() => handleSlotClick(slot.hour, slot.minute, practitionerId)}
+                        onClick={(e) => handleSlotClick(slot.hour, slot.minute, practitionerId, e)}
                         onKeyDown={handleKeyDown}
                         role="button"
                         aria-label={`Time slot ${slot.time} for practitioner ${practitionerId} - Click to create appointment`}
@@ -435,7 +553,7 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
                       <div
                         key={index}
                         className={`${styles.timeSlot} ${!isAnyPractitionerAvailable ? styles.unavailable : ''}`}
-                        onClick={() => handleSlotClick(slot.hour, slot.minute)}
+                        onClick={(e) => handleSlotClick(slot.hour, slot.minute, undefined, e)}
                         onKeyDown={handleKeyDown}
                         role="button"
                         aria-label={`Time slot ${slot.time} for resource ${resourceId} - Click to create appointment`}
@@ -487,7 +605,7 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
                       <div
                         key={index}
                         className={styles.timeSlot}
-                        onClick={() => handleSlotClick(slot.hour, slot.minute)}
+                        onClick={(e) => handleSlotClick(slot.hour, slot.minute, undefined, e)}
                         onKeyDown={handleKeyDown}
                         role="button"
                         aria-label="Time slot - Click to create appointment"
@@ -512,7 +630,7 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
                             <div
                               key={index}
                               className={styles.timeSlot}
-                              onClick={() => handleSlotClick(slot.hour, slot.minute)}
+                              onClick={(e) => handleSlotClick(slot.hour, slot.minute, undefined, e)}
                               onKeyDown={handleKeyDown}
                               role="button"
                               aria-label={`Time slot ${slot.time} on ${dayDate.format('dddd')} - Click to create appointment`}
@@ -529,6 +647,49 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
             </div>
           </div>
         </div>
+        {slotMenu.visible && slotMenu.slotInfo && (
+          (() => {
+            const menu = (
+              <div
+                data-testid="slot-action-menu"
+                ref={slotMenuRef}
+                style={{
+                  position: 'absolute',
+                  left: slotMenu.x,
+                  top: slotMenu.y,
+                  zIndex: 1000,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                <div className="flex flex-col gap-0.5">
+                  <button
+                    data-testid="fab-create-appointment"
+                    className="btn-secondary px-3 py-1 text-sm rounded-full shadow whitespace-nowrap"
+                    onClick={() => {
+                      onSlotClick?.(slotMenu.slotInfo!);
+                      setSlotMenu(menu => ({ ...menu, visible: false }));
+                    }}
+                    aria-label="Create appointment"
+                  >
+                    + 預約
+                  </button>
+                  <button
+                    data-testid="fab-create-exception"
+                    className="btn-secondary px-3 py-1 text-sm rounded-full shadow whitespace-nowrap"
+                    onClick={() => {
+                      onSlotExceptionClick?.(slotMenu.slotInfo!);
+                      setSlotMenu(menu => ({ ...menu, visible: false }));
+                    }}
+                    aria-label="Create availability exception"
+                  >
+                    + 休診
+                  </button>
+                </div>
+              </div>
+            );
+            return viewportEl ? createPortal(menu, viewportEl) : menu;
+          })()
+        )}
       </div>
     </div>
   );
