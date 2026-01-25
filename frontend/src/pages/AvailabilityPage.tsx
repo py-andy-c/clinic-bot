@@ -749,6 +749,30 @@ const AvailabilityPage: React.FC = () => {
     const targetUserId = newInfo.practitionerId || event.resource.practitioner_id || user!.user_id;
     const oldExceptionId = event.resource.exception_id;
 
+    // Optimistically update the query cache to prevent jumping
+    queryClient.setQueriesData<any>(
+      { queryKey: ['calendar-events', user?.active_clinic_id] },
+      (oldData: any) => {
+        if (!oldData || !oldData.events) return oldData;
+        return {
+          ...oldData,
+          events: oldData.events.map((e: any) =>
+            e.id === event.id
+              ? {
+                ...e,
+                start: newInfo.start,
+                end: newInfo.end,
+                resource: {
+                  ...e.resource,
+                  practitioner_id: newInfo.practitionerId ?? e.resource.practitioner_id
+                }
+              }
+              : e
+          )
+        };
+      }
+    );
+
     try {
       // Step 1: Delete the existing exception
       await apiService.deleteAvailabilityException(targetUserId, oldExceptionId);

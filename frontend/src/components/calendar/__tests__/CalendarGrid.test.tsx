@@ -10,6 +10,12 @@ import { CalendarEvent } from '../../../utils/calendarDataAdapter';
 vi.mock('../../../utils/calendarDataAdapter');
 vi.mock('../../../utils/practitionerColors');
 vi.mock('../../../utils/resourceColorUtils');
+vi.mock('../../../contexts/ModalContext', () => ({
+  useModal: () => ({
+    alert: vi.fn(),
+    confirm: vi.fn(),
+  }),
+}));
 
 describe('CalendarGrid', () => {
   const mockProps = {

@@ -21,6 +21,7 @@ import { CalendarPractitionerAvailability, isTimeSlotAvailable } from '../../uti
 import { formatAppointmentTimeRange } from '../../utils/calendarUtils';
 import { calculateEventDisplayText, buildEventTooltipText } from '../../utils/calendarEventDisplay';
 import { EMPTY_ARRAY, EMPTY_OBJECT, CALENDAR_GRID_TIME_COLUMN_WIDTH } from '../../utils/constants';
+import { useModal } from '../../contexts/ModalContext';
 import styles from './CalendarGrid.module.css';
 
 interface CalendarGridProps {
@@ -71,6 +72,14 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
   onEventReschedule,
   onExceptionMove,
 }) => {
+  const handleEventClick = useCallback((event: CalendarEvent) => {
+    if (wasDraggingRef.current) {
+      wasDraggingRef.current = false;
+      return;
+    }
+    onEventClick?.(event);
+  }, [onEventClick]);
+
   const [slotMenu, setSlotMenu] = useState<{
     visible: boolean;
     x: number;
@@ -83,6 +92,7 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
 
   const slotMenuRef = useRef<HTMLDivElement | null>(null);
   const [viewportEl, setViewportEl] = useState<HTMLElement | null>(null);
+  const { alert } = useModal();
 
   const [dragState, setDragState] = useState<{
     event: CalendarEvent | null;
@@ -106,6 +116,7 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
   const touchStartPosRef = useRef<{ x: number, y: number } | null>(null);
   const scrollVelocityRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const scrollRafRef = useRef<number | null>(null);
+  const wasDraggingRef = useRef(false);
 
   const timeSlots = useMemo(() => generateTimeSlots(), []);
   const hasScrolledRef = useRef(false);
@@ -439,9 +450,8 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
       }));
     }
 
-    const viewport = document.querySelector('[data-testid="calendar-viewport"]') as HTMLElement;
-    if (viewport) {
-      const vRect = viewport.getBoundingClientRect();
+    if (viewportEl) {
+      const vRect = viewportEl.getBoundingClientRect();
       const zone = 60;
       let vx = 0;
       let vy = 0;
@@ -464,10 +474,9 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
     const scrollLoop = () => {
       const { x, y } = scrollVelocityRef.current;
       if (x !== 0 || y !== 0) {
-        const viewport = document.querySelector('[data-testid="calendar-viewport"]') as HTMLElement;
-        if (viewport) {
-          viewport.scrollTop += y;
-          viewport.scrollLeft += x;
+        if (viewportEl) {
+          viewportEl.scrollTop += y;
+          viewportEl.scrollLeft += x;
         }
       }
       scrollRafRef.current = requestAnimationFrame(scrollLoop);
@@ -480,6 +489,10 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
   }, [dragState.isDragging]);
 
   const handleDragStart = useCallback((event: CalendarEvent, clientX: number, clientY: number, isTouch: boolean = false) => {
+    wasDraggingRef.current = false;
+    // Interaction with an event should close any open slot menus (FABs)
+    setSlotMenu(prev => ({ ...prev, visible: false }));
+
     if (event.resource.is_resource_event) return;
     if (canEditEvent && !canEditEvent(event)) return;
 
@@ -500,7 +513,8 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
       }, 400);
     } else {
       setDragState({
-        event, isDragging: true, x: clientX, y: clientY,
+        event, isDragging: false, // Don't start visually until threshold met
+        x: clientX, y: clientY,
         preview: {
           start: event.start, end: event.end,
           practitionerId: event.resource.practitioner_id ?? undefined,
@@ -512,9 +526,18 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
   }, [canEditEvent]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (!dragState.isDragging) return;
-    calculatePreview(e.clientX, e.clientY);
-  }, [dragState.isDragging, calculatePreview]);
+    if (!dragState.event) return;
+    if (!dragState.isDragging && !dragState.isTouch) {
+      const dist = Math.sqrt(Math.pow(e.clientX - dragState.x, 2) + Math.pow(e.clientY - dragState.y, 2));
+      if (dist > 5) {
+        setDragState(prev => ({ ...prev, isDragging: true }));
+      }
+      return;
+    }
+    if (dragState.isDragging) {
+      calculatePreview(e.clientX, e.clientY);
+    }
+  }, [dragState.event, dragState.isDragging, dragState.isTouch, dragState.x, dragState.y, calculatePreview]);
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
     const touch = e.touches[0];
@@ -525,9 +548,11 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
         longPressTimerRef.current = null;
       }
     }
-    if (!dragState.isDragging) return;
-    if (touch) calculatePreview(touch.clientX, touch.clientY);
-  }, [dragState.isDragging, calculatePreview]);
+    if (!dragState.event) return;
+    if (dragState.isDragging) {
+      if (touch) calculatePreview(touch.clientX, touch.clientY);
+    }
+  }, [dragState.event, dragState.isDragging, calculatePreview]);
 
   const handleDragEnd = useCallback(() => {
     if (longPressTimerRef.current) {
@@ -537,31 +562,40 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
     isLongPressActiveRef.current = false;
     if (dragState.isDragging && dragState.preview && dragState.event) {
       const { event, preview } = dragState;
-      if (event.resource.type !== 'availability_exception') {
-        onEventReschedule?.(event, {
-          start: preview.start,
-          end: preview.end,
-          practitionerId: preview.practitionerId ?? undefined,
-        });
-      } else {
-        if (preview.isAvailable === false) {
-          alert('無法移動休診時段到不可用時段。'); // Rollback alert
-        } else {
-          onExceptionMove?.(event, {
+
+      const hasMoved =
+        moment(event.start).unix() !== moment(preview.start).unix() ||
+        moment(event.end).unix() !== moment(preview.end).unix() ||
+        (preview.practitionerId !== undefined && preview.practitionerId !== event.resource.practitioner_id);
+
+      if (hasMoved) {
+        if (event.resource.type !== 'availability_exception') {
+          onEventReschedule?.(event, {
             start: preview.start,
             end: preview.end,
             practitionerId: preview.practitionerId ?? undefined,
           });
+        } else {
+          if (preview.isAvailable === false) {
+            alert('無法移動休診時段到不可用時段。', '不可用時段'); // Use premium alert
+          } else {
+            onExceptionMove?.(event, {
+              start: preview.start,
+              end: preview.end,
+              practitionerId: preview.practitionerId ?? undefined,
+            });
+          }
         }
       }
     }
+    wasDraggingRef.current = dragState.isDragging;
     touchStartPosRef.current = null;
     scrollVelocityRef.current = { x: 0, y: 0 };
     setDragState({ event: null, isDragging: false, x: 0, y: 0, preview: null, isTouch: false });
   }, [dragState, onEventReschedule, onExceptionMove]);
 
   useEffect(() => {
-    if (dragState.isDragging) {
+    if (dragState.event) {
       window.addEventListener('mouseup', handleDragEnd);
       window.addEventListener('touchend', handleDragEnd);
       return () => {
@@ -570,7 +604,7 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
       };
     }
     return undefined;
-  }, [dragState.isDragging, handleDragEnd]);
+  }, [dragState.event, handleDragEnd]);
 
   return (
     <div
@@ -632,7 +666,7 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
               <MonthlyBody
                 currentDate={currentDate} events={events}
                 selectedPractitioners={selectedPractitioners} selectedResources={selectedResources}
-                currentUserId={currentUserId} onEventClick={onEventClick} onHeaderClick={onHeaderClick}
+                currentUserId={currentUserId} onEventClick={handleEventClick} onHeaderClick={onHeaderClick}
               />
             ) : (
               <div className={styles.resourceGrid}>
@@ -664,7 +698,7 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
                       <OverlappingEventGroupComponent
                         key={groupIndex} group={group} groupIndex={groupIndex}
                         selectedPractitioners={selectedPractitioners} selectedResources={selectedResources}
-                        currentUserId={currentUserId} onEventClick={onEventClick || (() => { })}
+                        currentUserId={currentUserId} onEventClick={handleEventClick}
                         onDragStart={handleDragStart} activeDragEventId={dragState.event?.id}
                       />
                     ))}
@@ -685,7 +719,7 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
                       <OverlappingEventGroupComponent
                         key={groupIndex} group={group} groupIndex={groupIndex}
                         selectedPractitioners={selectedPractitioners} selectedResources={selectedResources}
-                        currentUserId={currentUserId} onEventClick={onEventClick || (() => { })}
+                        currentUserId={currentUserId} onEventClick={handleEventClick}
                         onDragStart={handleDragStart} activeDragEventId={dragState.event?.id}
                       />
                     ))}
@@ -706,7 +740,7 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
                       <OverlappingEventGroupComponent
                         key={groupIndex} group={group} groupIndex={groupIndex}
                         selectedPractitioners={selectedPractitioners} selectedResources={selectedResources}
-                        currentUserId={currentUserId} onEventClick={onEventClick || (() => { })}
+                        currentUserId={currentUserId} onEventClick={handleEventClick}
                         onDragStart={handleDragStart} activeDragEventId={dragState.event?.id}
                       />
                     ))}
