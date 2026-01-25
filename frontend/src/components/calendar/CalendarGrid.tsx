@@ -646,23 +646,6 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
     return undefined;
   }, [dragState.event, handleDragEnd]);
 
-  const dragColumnInfo = useMemo(() => {
-    if (!dragState.isDragging || !dragState.event || !dragState.preview) return null;
-    const originalP = dragState.event.resource.practitioner_id;
-    const originalR = dragState.event.resource.resource_id;
-    const targetP = dragState.preview.practitionerId;
-    const targetR = dragState.preview.resourceId;
-
-    if (targetP === originalP && targetR === originalR) return null;
-
-    const getPName = (id?: number) => practitioners.find(p => p.id === id)?.full_name;
-    const getRName = (id?: number) => resources.find(r => r.id === id)?.name;
-
-    const from = originalP ? getPName(originalP) : (originalR ? getRName(originalR) : '');
-    const to = targetP ? getPName(targetP) : (targetR ? getRName(targetR) : '');
-
-    return { from, to };
-  }, [dragState.isDragging, dragState.event, dragState.preview, practitioners, resources]);
 
   return (
     <div
@@ -751,11 +734,6 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
                         <span className="opacity-70">-</span>
                         <span>{moment(dragState.preview.end).tz('Asia/Taipei').format('HH:mm')}</span>
                       </div>
-                      {dragColumnInfo && (
-                        <div className="text-[12px] font-medium leading-tight mb-1">
-                          {dragColumnInfo.to}
-                        </div>
-                      )}
                       <div className="text-[10px] font-medium opacity-90 whitespace-nowrap overflow-hidden self-stretch">
                         {dragState.event ? calculateEventDisplayText(dragState.event) : ''}
                       </div>
@@ -792,7 +770,6 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
                         selectedPractitioners={selectedPractitioners} selectedResources={selectedResources}
                         currentUserId={currentUserId} onEventClick={handleEventClick}
                         onDragStart={handleDragStart} activeDragEventId={activeDragEventId}
-                        dragColumnInfo={dragColumnInfo}
                       />
                     ))}
                   </div>
@@ -814,7 +791,6 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
                         selectedPractitioners={selectedPractitioners} selectedResources={selectedResources}
                         currentUserId={currentUserId} onEventClick={handleEventClick}
                         onDragStart={handleDragStart} activeDragEventId={activeDragEventId}
-                        dragColumnInfo={dragColumnInfo}
                       />
                     ))}
                   </div>
@@ -836,7 +812,6 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
                         selectedPractitioners={selectedPractitioners} selectedResources={selectedResources}
                         currentUserId={currentUserId} onEventClick={handleEventClick}
                         onDragStart={handleDragStart} activeDragEventId={activeDragEventId}
-                        dragColumnInfo={dragColumnInfo}
                       />
                     ))}
                   </div>
@@ -889,11 +864,10 @@ interface CalendarEventComponentProps {
     dragInitialSize?: { width: number; height: number }
   ) => void;
   isDragging?: boolean;
-  dragColumnInfo?: { from: string | undefined; to: string | undefined } | null | undefined;
 }
 
 const CalendarEventComponent: React.FC<CalendarEventComponentProps> = ({
-  event, selectedPractitioners, selectedResources, currentUserId, onClick, group, eventIndex = 0, onDragStart, isDragging = false, dragColumnInfo
+  event, selectedPractitioners, selectedResources, currentUserId, onClick, group, eventIndex = 0, onDragStart, isDragging = false
 }) => {
   const eventStyle = useMemo(() => {
     const base = group ? calculateEventInGroupPosition(event, group, eventIndex) : { ...calculateEventPosition(event.start), ...calculateEventHeight(event.start, event.end), left: 0, width: '100%' };
@@ -944,11 +918,6 @@ const CalendarEventComponent: React.FC<CalendarEventComponentProps> = ({
           <div className="text-[12px] font-bold text-gray-700 leading-tight">
             {moment(event.start).tz('Asia/Taipei').format('HH:mm')} - {moment(event.end).tz('Asia/Taipei').format('HH:mm')}
           </div>
-          {dragColumnInfo && (
-            <div className="text-[12px] font-medium text-gray-700 leading-tight">
-              {dragColumnInfo.from}
-            </div>
-          )}
           <div className="text-[10px] font-medium text-gray-700 whitespace-nowrap overflow-hidden self-stretch mt-0.5">
             {calculateEventDisplayText(event)}
           </div>
@@ -1018,11 +987,10 @@ interface OverlappingEventGroupProps {
     dragInitialSize?: { width: number; height: number }
   ) => void;
   activeDragEventId?: number | string | undefined;
-  dragColumnInfo?: { from: string | undefined; to: string | undefined } | null | undefined;
 }
 
 const OverlappingEventGroupComponent: React.FC<OverlappingEventGroupProps> = ({
-  group, groupIndex, selectedPractitioners, selectedResources, currentUserId, onEventClick, onDragStart, activeDragEventId, dragColumnInfo
+  group, groupIndex, selectedPractitioners, selectedResources, currentUserId, onEventClick, onDragStart, activeDragEventId
 }) => (
   <>
     {group.events.map((event, eventIndex) => (
@@ -1031,7 +999,6 @@ const OverlappingEventGroupComponent: React.FC<OverlappingEventGroupProps> = ({
         group={group} groupIndex={groupIndex} eventIndex={eventIndex} currentUserId={currentUserId}
         onClick={() => onEventClick?.(event)} onDragStart={onDragStart}
         isDragging={event.id === activeDragEventId}
-        dragColumnInfo={dragColumnInfo}
       />
     ))}
   </>
