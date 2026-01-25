@@ -94,6 +94,10 @@ export interface EditAppointmentModalProps {
   skipAssignmentCheck?: boolean; // If true, skip assignment check in this modal (assignment will be handled externally) (default: false)
   isTimeConfirmation?: boolean; // If true, this is a time confirmation modal with alternative slots display
   alternativeSlots?: string[] | null; // Alternative time slots available for time confirmation
+  initialValues?: {
+    start: Date;
+    practitionerId?: number | undefined;
+  } | undefined;
 }
 
 export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.memo(({
@@ -111,10 +115,19 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
   skipAssignmentCheck = false,
   isTimeConfirmation = false,
   alternativeSlots = null,
+  initialValues,
 }) => {
   const isMobile = useIsMobile(1024);
   const [step, setStep] = useState<EditStep>('form');
   const [, setOverrideMode] = useState<boolean>(false);
+
+  const initialDateString = useMemo(() =>
+    initialValues?.start ? moment(initialValues.start).tz('Asia/Taipei').format('YYYY-MM-DD') : undefined,
+    [initialValues?.start]);
+
+  const initialTimeString = useMemo(() =>
+    initialValues?.start ? moment(initialValues.start).tz('Asia/Taipei').format('HH:mm') : undefined,
+    [initialValues?.start]);
 
   const {
     selectedAppointmentTypeId,
@@ -146,6 +159,9 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
     event,
     appointmentTypes,
     practitioners,
+    initialDate: initialDateString,
+    preSelectedTime: initialTimeString,
+    preSelectedPractitionerId: initialValues?.practitionerId,
   });
 
 

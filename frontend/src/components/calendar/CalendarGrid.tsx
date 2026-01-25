@@ -21,7 +21,6 @@ import { CalendarPractitionerAvailability, isTimeSlotAvailable } from '../../uti
 import { formatAppointmentTimeRange } from '../../utils/calendarUtils';
 import { calculateEventDisplayText, buildEventTooltipText } from '../../utils/calendarEventDisplay';
 import { EMPTY_ARRAY, EMPTY_OBJECT, CALENDAR_GRID_TIME_COLUMN_WIDTH } from '../../utils/constants';
-import { useModal } from '../../contexts/ModalContext';
 import styles from './CalendarGrid.module.css';
 
 interface CalendarGridProps {
@@ -92,7 +91,6 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
 
   const slotMenuRef = useRef<HTMLDivElement | null>(null);
   const [viewportEl, setViewportEl] = useState<HTMLElement | null>(null);
-  const { alert } = useModal();
 
   const [dragState, setDragState] = useState<{
     event: CalendarEvent | null;
@@ -384,8 +382,9 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
     if (view === CalendarViews.DAY) {
       const totalColumns = selectedPractitioners.length + selectedResources.length || 1;
       const columnWidth = rect.width / totalColumns;
-      // Calculate index based purely on cursor X position
-      const colIndex = Math.max(0, Math.min(totalColumns - 1, Math.floor(cursorX / columnWidth)));
+      // Calculate index based purely on cursor X position, but restricted to practitioner columns only
+      const maxPractitionerIndex = Math.max(0, selectedPractitioners.length - 1);
+      const colIndex = Math.max(0, Math.min(maxPractitionerIndex, Math.floor(cursorX / columnWidth)));
 
       let targetPractitionerId: number | undefined;
       let targetResourceId: number | undefined;
@@ -402,15 +401,6 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
       const newStart = createTimeSlotDate(currentDate, clampedHours, clampedMinutes);
       const newEnd = new Date(newStart.getTime() + duration);
 
-      const isAvailable = targetPractitionerId ? isTimeSlotAvailable(
-        targetPractitionerId,
-        currentDate,
-        clampedHours,
-        clampedMinutes,
-        practitionerAvailability,
-        false
-      ) : true;
-
       setDragState(prev => ({
         ...prev,
         x: clientX,
@@ -420,7 +410,6 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
           end: newEnd,
           practitionerId: targetPractitionerId,
           resourceId: targetResourceId,
-          isAvailable,
         }
       }));
     } else if (view === CalendarViews.WEEK) {
@@ -431,16 +420,6 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
       const newStart = createTimeSlotDate(targetDate, clampedHours, clampedMinutes);
       const newEnd = new Date(newStart.getTime() + duration);
 
-      const pId = dragState.event.resource.practitioner_id ?? currentUserId;
-      const isAvailable = pId ? isTimeSlotAvailable(
-        pId,
-        targetDate,
-        clampedHours,
-        clampedMinutes,
-        practitionerAvailability,
-        false
-      ) : true;
-
       setDragState(prev => ({
         ...prev,
         x: clientX,
@@ -450,7 +429,6 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
           end: newEnd,
           practitionerId: dragState.event?.resource.practitioner_id ?? undefined,
           date: moment(targetDate).format('YYYY-MM-DD'),
-          isAvailable,
         }
       }));
     }
@@ -592,15 +570,11 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
             practitionerId: preview.practitionerId ?? undefined,
           });
         } else {
-          if (preview.isAvailable === false) {
-            alert('無法移動休診時段到不可用時段。', '不可用時段'); // Use premium alert
-          } else {
-            onExceptionMove?.(event, {
-              start: preview.start,
-              end: preview.end,
-              practitionerId: preview.practitionerId ?? undefined,
-            });
-          }
+          onExceptionMove?.(event, {
+            start: preview.start,
+            end: preview.end,
+            practitionerId: preview.practitionerId ?? undefined,
+          });
         }
       }
     }
@@ -612,6 +586,15 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
       dragOffset: { x: 0, y: 0 }, dragInitialSize: { width: 0, height: 0 }
     });
   }, [dragState, onEventReschedule, onExceptionMove]);
+
+  useEffect(() => {
+    if (dragState.isDragging) {
+      document.body.classList.add('no-selection');
+    } else {
+      document.body.classList.remove('no-selection');
+    }
+    return () => document.body.classList.remove('no-selection');
+  }, [dragState.isDragging]);
 
   useEffect(() => {
     if (dragState.event) {
@@ -691,8 +674,8 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
                     : '0',
                 width: view === CalendarViews.DAY ? `calc(100% / ${selectedPractitioners.length + selectedResources.length || 1})` : view === CalendarViews.WEEK ? 'calc(100% / 7)' : '100%',
                 height: calculateEventHeight(dragState.preview.start, dragState.preview.end).height,
-                backgroundColor: dragState.preview.isAvailable === false ? 'rgba(239, 68, 68, 0.4)' : 'rgba(59, 130, 246, 0.6)',
-                border: dragState.preview.isAvailable === false ? '2px solid #ef4444' : '2px solid #3b82f6',
+                backgroundColor: 'rgba(59, 130, 246, 0.6)',
+                border: '2px solid #3b82f6',
                 borderRadius: '8px',
                 zIndex: 40,
                 pointerEvents: 'none',
@@ -769,7 +752,7 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
                   </div>
                 ))}
                 {view === CalendarViews.DAY && resourceGroups.map(({ resourceId, groups }) => (
-                  <div key={resourceId} className={styles.practitionerColumn} role="gridcell">
+                  <div key={resourceId} className={`${styles.practitionerColumn} ${dragState.isDragging ? styles.restrictedZone : ''}`} role="gridcell">
                     {timeSlots.map((slot, i) => (
                       <div
                         key={i} className={styles.timeSlot}
@@ -882,7 +865,7 @@ const CalendarEventComponent: React.FC<CalendarEventComponentProps> = ({
         backgroundColor: 'rgba(0, 0, 0, 0.05)',
         border: `2px dashed ${bg}`,
         borderRadius: br,
-        zIndex: isException ? 1 : 2,
+        zIndex: 30,
         opacity: 0.8,
         boxShadow: 'none'
       };
@@ -916,11 +899,11 @@ const CalendarEventComponent: React.FC<CalendarEventComponentProps> = ({
             {moment(event.start).tz('Asia/Taipei').format('HH:mm')} - {moment(event.end).tz('Asia/Taipei').format('HH:mm')}
           </div>
           {dragColumnInfo && (
-            <div className="text-[12px] font-medium text-gray-600 leading-tight">
+            <div className="text-[12px] font-medium text-gray-700 leading-tight">
               {dragColumnInfo.from}
             </div>
           )}
-          <div className="text-[10px] font-medium text-gray-400 whitespace-nowrap overflow-hidden self-stretch mt-0.5">
+          <div className="text-[10px] font-medium text-gray-700 whitespace-nowrap overflow-hidden self-stretch mt-0.5">
             {calculateEventDisplayText(event)}
           </div>
         </div>

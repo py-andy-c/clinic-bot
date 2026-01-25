@@ -184,6 +184,7 @@ const AvailabilityPage: React.FC = () => {
 
   // Modal data state
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
+  const [pendingRescheduleInfo, setPendingRescheduleInfo] = useState<{ start: Date; practitionerId?: number | undefined } | null>(null);
   const [selectedAppointmentId, setSelectedAppointmentId] = useState<number | null>(null);
   const [cancellationNote, setCancellationNote] = useState('');
 
@@ -713,18 +714,15 @@ const AvailabilityPage: React.FC = () => {
       return;
     }
 
-    // We update the event with new times and practitioner before opening the modal.
-    // The EditAppointmentModal will use these as initial values.
-    const updatedEvent = {
-      ...event,
+    // Store original event for comparison
+    setSelectedEvent(event);
+
+    // Store new drag destination info
+    setPendingRescheduleInfo({
       start: newInfo.start,
-      end: newInfo.end,
-      resource: {
-        ...event.resource,
-        practitioner_id: newInfo.practitionerId ?? event.resource.practitioner_id ?? null
-      }
-    } as CalendarEvent;
-    setSelectedEvent(updatedEvent);
+      practitionerId: newInfo.practitionerId
+    });
+
     setIsEditAppointmentModalOpen(true);
   }, [canEditEvent, alert]);
 
@@ -1229,6 +1227,10 @@ const AvailabilityPage: React.FC = () => {
           event={selectedEvent}
           practitioners={practitioners}
           appointmentTypes={appointmentTypes}
+          initialValues={pendingRescheduleInfo ? {
+            start: pendingRescheduleInfo.start,
+            practitionerId: pendingRescheduleInfo.practitionerId
+          } : undefined}
           onClose={() => {
             setIsEditAppointmentModalOpen(false);
             setSelectedEvent(null);

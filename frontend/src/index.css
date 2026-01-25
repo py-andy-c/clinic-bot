@@ -14,6 +14,10 @@
     height: 100%;
   }
 
+  body.no-selection {
+    user-select: none;
+    -webkit-user-select: none;
+  }
 }
 
 @layer components {
@@ -36,13 +40,15 @@
     max-width: 100%;
     min-height: 2.5rem;
   }
-  
+
   /* Fix for date/time inputs on mobile - reset browser defaults that cause overflow */
   input[type="date"].input,
   input[type="time"].input,
   input[type="datetime-local"].input {
-    -webkit-appearance: none; /* Remove iOS Safari default styling */
-    -moz-appearance: none; /* Remove Firefox default styling */
+    -webkit-appearance: none;
+    /* Remove iOS Safari default styling */
+    -moz-appearance: none;
+    /* Remove Firefox default styling */
   }
 
   .card {
