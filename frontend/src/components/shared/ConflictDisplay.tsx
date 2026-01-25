@@ -39,7 +39,7 @@ export const ConflictDisplay: React.FC<ConflictDisplayProps> = ({
 
   // 2. Type mismatch
   if (shouldShowConflict('practitioner_type_mismatch') && (conflictInfo.conflict_type === 'practitioner_type_mismatch' || conflictInfo.is_type_mismatch)) {
-    standardWarnings.push({ title: '治療師不提供此類型' });
+    standardWarnings.push({ title: '治療師不提供此類型預約' });
   }
 
   // 3. Appointment conflicts
@@ -63,14 +63,14 @@ export const ConflictDisplay: React.FC<ConflictDisplayProps> = ({
     const exceptions = conflictInfo.exception_conflicts || (conflictInfo.exception_conflict ? [conflictInfo.exception_conflict] : []);
     if (exceptions.length > 1) {
       standardWarnings.push({
-        title: '治療師休診',
+        title: '與治療師休診時段重疊',
         items: exceptions.map(exc => exc ? `${exc.start_time}-${exc.end_time}${exc.reason ? ` (${exc.reason})` : ''}` : '')
       });
     } else if (exceptions.length === 1) {
       const exc = exceptions[0];
       if (exc) {
         const reasonText = exc.reason ? ` (${exc.reason})` : '';
-        standardWarnings.push({ title: `治療師休診：${exc.start_time}-${exc.end_time}${reasonText}` });
+        standardWarnings.push({ title: `與治療師休診時段重疊：${exc.start_time}-${exc.end_time}${reasonText}` });
       }
     }
   }
