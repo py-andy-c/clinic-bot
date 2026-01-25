@@ -772,7 +772,16 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
                   </div>
                 )}
                 {view === CalendarViews.DAY && practitionerGroups.map(({ practitionerId, groups }) => (
-                  <div key={practitionerId} className={styles.practitionerColumn} role="gridcell" aria-label={`Column for practitioner ${practitionerId}`}>
+                  <div
+                    key={practitionerId}
+                    className={`${styles.practitionerColumn} ${dragState.isDragging &&
+                        dragState.event?.resource.type === 'availability_exception' &&
+                        dragState.event.resource.practitioner_id !== practitionerId
+                        ? styles.restrictedZone : ''
+                      }`}
+                    role="gridcell"
+                    aria-label={`Column for practitioner ${practitionerId}`}
+                  >
                     {timeSlots.map((slot, i) => (
                       <div
                         key={i} className={`${styles.timeSlot} ${!isTimeSlotAvailable(practitionerId, currentDate, slot.hour, slot.minute, practitionerAvailability, false) ? styles.unavailable : ''}`}
