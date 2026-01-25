@@ -946,7 +946,7 @@ const MonthlyBody: React.FC<MonthlyBodyProps> = ({
               {day.date.date()}
             </div>
             <div className={styles.dayEvents}>
-              {day.events.slice(0, 3).map((event, eventIndex) => {
+              {day.events.slice(0, 6).map((event, eventIndex) => {
                 let backgroundColor = '#6b7280';
                 if (event.resource.practitioner_id) {
                   backgroundColor = getPractitionerColor(event.resource.practitioner_id, -1, selectedPractitioners) || '#6b7280';
@@ -973,9 +973,21 @@ const MonthlyBody: React.FC<MonthlyBodyProps> = ({
                   </div>
                 );
               })}
-              {day.events.length > 3 && (
-                <div className={styles.monthEvent} style={{ backgroundColor: '#9ca3af' }}>
-                  +{day.events.length - 3} 更多
+              {day.events.length > 6 && (
+                <div
+                  className={styles.monthEvent}
+                  style={{
+                    backgroundColor: 'transparent',
+                    color: '#4b5563',
+                    padding: 0,
+                    textAlign: 'center',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    height: '16px',
+                    lineHeight: '16px'
+                  }}
+                >
+                  +{day.events.length - 6}
                 </div>
               )}
             </div>
