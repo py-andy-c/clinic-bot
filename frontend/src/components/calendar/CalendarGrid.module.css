@@ -61,8 +61,8 @@
 .resourceHeader {
   flex: 1;
   /* Expand to fill available space */
-  min-width: 80px;
-  /* Minimum width when many columns - matches mock UI header min-width for better text readability */
+  min-width: 100px;
+  /* Minimum width when many columns - increased to 100px for better visibility */
   padding: 4px;
   text-align: center;
   font-size: 12px;
@@ -160,8 +160,8 @@
 .practitionerColumn {
   flex: 1;
   /* Match header behavior - expand to fill space */
-  min-width: 80px;
-  /* Match header min-width for perfect alignment (note: mock UI uses 56px but we prioritize alignment) */
+  min-width: 100px;
+  /* Match header min-width for perfect alignment */
   position: relative;
   border-right: 1px solid #e5e7eb;
   background: white;
