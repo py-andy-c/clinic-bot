@@ -64,7 +64,13 @@ The startup script now performs a "Phase 0" inventory before any migrations:
 ### 3.4 Layer 4: Standardized Naming Convention
 PostgreSQL tests now enforce that the database name must contain the substring "test". This protects local development `_dev` databases from accidental wipes during local test runs.
 
+### 3.5 Layer 5: Framework Hardening (Baseline Migration & DB Utilities)
+We have added explicit environment guards to specific "Nuclear" functions in the codebase:
+*   **Alembic Baseline**: The `downgrade()` function in the baseline migration now checks for `RAILWAY_ENVIRONMENT_NAME == 'production'` before allowing a `drop_all()`.
+*   **Database Utility**: The `drop_tables()` helper in `core/database.py` now includes a local environment check to prevent accidental execution in production.
+
 ## 4. Final Conclusion
-While we were unable to reproduce the exact "phantom" test execution in a controlled environment, the implementation of the **Layer 1 Code Guard** and **Layer 3 Inventory System** ensures that:
-1.  Destructive code is blocked from execution on production URLs.
-2.  If a wipe were to happen (via a different path), we would have an immediate log-based proof of the state change.
+While we were unable to reproduce the exact "phantom" test execution in a controlled environment, the implementation of these **five layers of defense-in-depth** ensures that:
+1.  **Destructive code is blocked** at the source, whether it's triggered by the test framework, the migration framework, or a manual utility call.
+2.  **Intentional overrides** (e.g., `ALLOW_DANGEROUS_TEST_CLEANUP`) are required for any destructive operation on a non-test database.
+3.  **Real-time visibility** is provided via Phase 0 logging, ensuring we always know the database state before a deployment proceeds.

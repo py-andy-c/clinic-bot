@@ -128,6 +128,9 @@ def downgrade() -> None:
     
     This removes all tables, indexes, and constraints created by the baseline migration.
     """
+    # PRODUCTION SAFETY GUARD
+    if os.getenv("RAILWAY_ENVIRONMENT_NAME") == "production":
+        raise Exception("🛑 Stop! You are attempting to drop all tables in a PRODUCTION environment via Alembic.")
     # Drop indexes first (before dropping tables)
     # Note: idx_users_clinic_active and idx_users_roles_gin removed - no longer exist
     op.drop_index('idx_appointment_types_clinic_deleted', table_name='appointment_types')

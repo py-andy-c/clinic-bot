@@ -246,6 +246,10 @@ def drop_tables() -> None:
         Only use in testing or development environments.
         In production, prefer using Alembic migrations for schema changes.
     """
+    import os
+    if os.getenv("RAILWAY_ENVIRONMENT_NAME") == "production":
+        logger.error("🛑 CRITICAL SAFETY BREACH: drop_tables() called in PRODUCTION environment!")
+        return
     try:
         Base.metadata.drop_all(bind=engine)
         logger.info("Database tables dropped successfully")
