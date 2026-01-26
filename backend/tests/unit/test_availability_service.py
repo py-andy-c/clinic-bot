@@ -547,8 +547,10 @@ class TestBatchSchedulingConflicts:
                 with patch.object(AvailabilityService, 'get_practitioners_for_appointment_type') as mock_get_practitioners:
                     mock_get_practitioners.return_value = []
                     
-                    # Use tomorrow to avoid past_appointment conflict
-                    future_date = date.today() + timedelta(days=1)
+                    from utils.datetime_utils import taiwan_now
+                    # Use a date in the future to avoid past_appointment conflict
+                    # Use 2 days ahead to be safe against timezone differences and late night execution
+                    future_date = taiwan_now().date() + timedelta(days=2)
 
                     result = AvailabilityService.check_batch_scheduling_conflicts(
                         db=db_session,
