@@ -915,11 +915,12 @@ const CalendarEventComponent: React.FC<CalendarEventComponentProps> = ({
         ...base,
         left: 0,
         width: '100%',
-        backgroundColor: 'rgba(0, 0, 0, 0.05)',
+        backgroundColor: 'rgba(255, 255, 255, 0.6)',
+        backdropFilter: 'blur(4px)',
+        WebkitBackdropFilter: 'blur(4px)',
         border: `2px dashed ${bg}`,
         borderRadius: br,
         zIndex: 30,
-        opacity: 0.8,
         boxShadow: 'none'
       };
     }
