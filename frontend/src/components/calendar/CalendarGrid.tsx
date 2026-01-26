@@ -62,6 +62,24 @@ interface MonthlyBodyProps {
   onHeaderClick?: ((date: Date) => void) | undefined;
 }
 
+// Utility to convert hex to rgba for backgrounds
+const hexToRgba = (hex: string, alpha: number) => {
+  let r = 0, g = 0, b = 0;
+  if (hex.length === 4) {
+    r = parseInt(hex[1] + hex[1], 16);
+    g = parseInt(hex[2] + hex[2], 16);
+    b = parseInt(hex[3] + hex[3], 16);
+  } else if (hex.length === 7) {
+    r = parseInt(hex.slice(1, 3), 16);
+    g = parseInt(hex.slice(3, 5), 16);
+    b = parseInt(hex.slice(5, 7), 16);
+  } else {
+    // Fallback for named colors or invalid hex
+    return hex;
+  }
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};
+
 const CalendarGrid: React.FC<CalendarGridProps> = ({
   view,
   currentDate,
@@ -902,15 +920,23 @@ const CalendarEventComponent: React.FC<CalendarEventComponentProps> = ({
 }) => {
   const eventStyle = useMemo(() => {
     const base = group ? calculateEventInGroupPosition(event, group, eventIndex) : { ...calculateEventPosition(event.start), ...calculateEventHeight(event.start, event.end), left: 0, width: '100%' };
-    let bg = '#6b7280';
-    let border = 'none';
-    let br = '8px';
-    if (event.resource.practitioner_id) bg = getPractitionerColor(event.resource.practitioner_id, currentUserId ?? -1, selectedPractitioners) || '#3b82f6';
-    else if (event.resource.resource_id) { bg = getResourceColorById(event.resource.resource_id, selectedResources) || '#6b7280'; border = '1px dashed rgba(255, 255, 255, 0.5)'; }
+    let primaryColor = '#6b7280';
+
+    if (event.resource.practitioner_id) primaryColor = getPractitionerColor(event.resource.practitioner_id, currentUserId ?? -1, selectedPractitioners) || '#3b82f6';
+    else if (event.resource.resource_id) primaryColor = getResourceColorById(event.resource.resource_id, selectedResources) || '#6b7280';
 
     const isException = event.resource.type === 'availability_exception';
+    if (isException) primaryColor = '#9ca3af';
+
+    // Adjust padding and font size for narrow events (columnar layout)
+    const isNarrow = base.width && typeof base.width === 'string' && parseFloat(base.width) < 50;
+    const padding = isNarrow ? '1px 3px' : '2px 4px';
+    const fontSize = isNarrow ? '10px' : '11px';
+
+    // Respect calculated zIndex from utility if it exists (for column stacking), otherwise fallback
+    const finalZIndex = base.zIndex !== undefined ? base.zIndex : (isException ? 3 : 5);
+
     if (isDragging) {
-      if (isException) { bg = '#9ca3af'; border = `2px solid ${event.resource.practitioner_id ? getPractitionerColor(event.resource.practitioner_id, currentUserId ?? -1, selectedPractitioners) || '#3b82f6' : '#3b82f6'}`; br = '4px'; }
       return {
         ...base,
         left: 0,
@@ -918,35 +944,45 @@ const CalendarEventComponent: React.FC<CalendarEventComponentProps> = ({
         backgroundColor: 'rgba(255, 255, 255, 0.6)',
         backdropFilter: 'blur(4px)',
         WebkitBackdropFilter: 'blur(4px)',
-        border: `2px dashed ${bg}`,
-        borderRadius: br,
+        border: `2px dashed ${primaryColor}`,
+        borderRadius: '4px',
         zIndex: 30,
-        boxShadow: 'none'
+        boxShadow: 'none',
+        padding,
+        fontSize
       };
     }
 
-    if (isException) { bg = '#9ca3af'; border = `2px solid ${event.resource.practitioner_id ? getPractitionerColor(event.resource.practitioner_id, currentUserId ?? -1, selectedPractitioners) || '#3b82f6' : '#3b82f6'}`; br = '4px'; }
+    // New "Apple-style" visuals:
+    // - Left border strip (3px)
+    // - Tinter background (15% opacity)
+    // - Dark text using gray-800 (#1f2937)
+    // - No full border, just shadow
 
-    // Adjust padding and font size for narrow events (columnar layout)
-    const isNarrow = base.width && typeof base.width === 'string' && parseFloat(base.width) < 50;
-    const padding = isNarrow ? '2px 4px' : '4px 6px';
-    const fontSize = isNarrow ? '10px' : '11px';
+    const backgroundColor = hexToRgba(primaryColor, 0.15);
+    const borderLeft = `3px solid ${primaryColor}`;
+    const color = '#1f2937'; // Dark gray text for contrast on light bg
 
-    // Respect calculated zIndex from utility if it exists (for column stacking), otherwise fallback
-    const finalZIndex = base.zIndex !== undefined ? base.zIndex : (isException ? 3 : 5);
+    // Resource events keep dashed border style if preferred, or unify. Let's unify for cleaner look but keep distinction via color/icon if needed.
+    // For resource events specifically, maybe keeping a subtle border is good?
+    const border = event.resource.resource_id && !event.resource.practitioner_id ? `1px dashed ${primaryColor}` : 'none';
 
     return {
       ...base,
-      backgroundColor: bg,
-      border,
-      borderRadius: br,
+      backgroundColor,
+      borderLeft,
+      borderTop: border, borderRight: border, borderBottom: border,
+      borderRadius: '4px',
+      color,
       zIndex: finalZIndex,
       padding,
-      fontSize
+      fontSize,
+      boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)' // Subtle shadow
     };
   }, [event, group, eventIndex, selectedPractitioners, selectedResources, isDragging, currentUserId]);
 
   const isCheckedOut = event.resource.has_active_receipt;
+  const isShortDuration = (event.end.getTime() - event.start.getTime()) < 30 * 60 * 1000;
 
   return (
     <div
@@ -968,19 +1004,36 @@ const CalendarEventComponent: React.FC<CalendarEventComponentProps> = ({
     >
       {isDragging ? (
         <div className="flex flex-col items-start justify-start h-full p-1 w-full overflow-hidden">
-          <div className="text-[12px] font-bold text-gray-700 leading-tight">
-            {moment(event.start).tz('Asia/Taipei').format('HH:mm')} - {moment(event.end).tz('Asia/Taipei').format('HH:mm')}
-          </div>
-          <div className="text-[10px] font-medium text-gray-700 break-words self-stretch mt-0.5 leading-tight">
+          <div className="text-[10px] font-bold text-gray-700 leading-tight">
             {calculateEventDisplayText(event)}
           </div>
         </div>
       ) : (
-        <div className="text-xs text-white font-medium" style={{ lineHeight: '1.2' }}>{calculateEventDisplayText(event)}</div>
+        <div className={`flex flex-col h-full w-full overflow-hidden ${isShortDuration ? 'justify-center' : ''}`} style={{ lineHeight: '1.2' }}>
+          {/* Smart Layout: Prioritize Name. Remove time duration as requested. */}
+          <div className="font-bold text-[inherit] leading-tight break-words whitespace-normal overflow-hidden" style={{
+            display: '-webkit-box',
+            WebkitBoxOrient: 'vertical',
+            WebkitLineClamp: isShortDuration ? 1 : 'unset', // Clamp to 1 line if very short, else let it flow
+            maxHeight: '100%'
+          }}>
+            {calculateEventDisplayText(event)}
+          </div>
+        </div>
       )}
     </div>
   );
 };
+
+interface MonthlyBodyProps {
+  currentDate: Date;
+  events: CalendarEvent[];
+  selectedPractitioners: number[];
+  selectedResources: number[];
+  currentUserId?: number | null | undefined;
+  onEventClick: (event: CalendarEvent) => void; // Restored onEventClick
+  onHeaderClick?: (date: Date) => void;
+}
 
 const MonthlyBody: React.FC<MonthlyBodyProps> = ({ currentDate, events, selectedPractitioners, selectedResources, currentUserId, onEventClick, onHeaderClick }) => {
   const month = moment(currentDate).tz('Asia/Taipei');
