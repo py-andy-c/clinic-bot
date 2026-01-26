@@ -249,6 +249,7 @@ RescheduleFlow (Page Component)
 ### References
 
 - [Multiple Time Slot Selection](./multiple_time_slot_selection.md) - Current multi-slot implementation
+- [Multi-Slot Lifecycle Fix](./multi_slot_lifecycle_technical_details.md) - Detailed lifecycle and approval logic fix
 - [Appointments](./appointments.md) - Core appointment business logic
 - [Patient Practitioner Assignment](./patient_practitioner_assignment.md) - Permission patterns
 

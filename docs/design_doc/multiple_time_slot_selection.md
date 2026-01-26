@@ -565,6 +565,7 @@ All phases have been successfully merged into the main branch with comprehensive
 ## References
 
 - [Appointment Business Logic](./appointments.md) - Core appointment system rules
+- [Multi-Slot Lifecycle Fix](./multi_slot_lifecycle_technical_details.md) - Detailed lifecycle and approval logic fix
 - [LINE Integration](./line_integration.md) - Notification and messaging system
 - [Settings Management](./settings_management.md) - Appointment type configuration
 - [Patient Practitioner Assignment](./patient_practitioner_assignment.md) - Auto-assignment patterns

@@ -1662,7 +1662,7 @@ async def reschedule_appointment(
             success_message='預約已修改',
             appointment=appointment,  # Pass pre-fetched appointment to avoid duplicate query
             selected_time_slots=selected_time_slots,
-            allow_multiple_time_slot_selection=bool(selected_time_slots and len(selected_time_slots) > 1)
+            allow_multiple_time_slot_selection=appointment_type.allow_multiple_time_slot_selection
         )
 
         return result

@@ -212,6 +212,15 @@ class AutoTimeConfirmationService:
 
                                 # Mark appointment as confirmed
                                 appointment.pending_time_confirmation = False
+                                
+                                # Add audit trail for auto-confirmation
+                                appointment.confirmed_at = taiwan_now()
+                                appointment.confirmed_by_user_id = None  # None indicates system auto-confirmation
+
+                                # If the appointment was auto-assigned, mark it as resolved
+                                # so it disappears from the review dashboard
+                                appointment.is_auto_assigned = False
+                                appointment.alternative_time_slots = None
 
                                 # Commit the confirmation
                                 db.commit()

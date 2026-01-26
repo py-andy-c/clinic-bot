@@ -1368,7 +1368,8 @@ class AppointmentService:
         time_actually_changed: Optional[bool] = None,
         originally_auto_assigned: Optional[bool] = None,
         new_appointment_type_id: Optional[int] = None,
-        allow_override: bool = False
+        allow_override: bool = False,
+        is_time_confirmation: bool = False
     ) -> None:
         """
         Core shared logic for updating an appointment.
@@ -1616,19 +1617,35 @@ class AppointmentService:
 
             # Send patient edit notification if requested
             # Skip if patient triggered the edit (they already see confirmation in UI)
-            if should_send_notification and reassigned_by_user_id is not None:
+            if send_patient_notification and reassigned_by_user_id is not None:
                 from services.notification_service import NotificationService
-                # Only send if clinic triggered (reassigned_by_user_id is not None)
-                NotificationService.send_appointment_edit_notification(
-                    db=db,
-                    appointment=appointment,
-                    old_practitioner=old_practitioner,
-                    new_practitioner=new_practitioner,
-                    old_start_time=old_start_time,
-                    new_start_time=new_start_time if new_start_time is not None else old_start_time,
-                    note=notification_note,
-                    trigger_source='clinic_triggered'
-                )
+                
+                if is_time_confirmation:
+                    # Final confirmation for pending multi-slot appointment
+                    from utils.practitioner_helpers import get_practitioner_display_name_with_title
+                    practitioner_name = get_practitioner_display_name_with_title(
+                        db, practitioner_id_to_use, clinic.id
+                    )
+                    
+                    NotificationService.send_appointment_confirmation(
+                        db=db,
+                        appointment=appointment,
+                        practitioner_name=practitioner_name,
+                        clinic=clinic,
+                        trigger_source='clinic_triggered'
+                    )
+                elif should_send_notification:
+                    # Standard edit notification
+                    NotificationService.send_appointment_edit_notification(
+                        db=db,
+                        appointment=appointment,
+                        old_practitioner=old_practitioner,
+                        new_practitioner=new_practitioner,
+                        old_start_time=old_start_time,
+                        new_start_time=new_start_time if new_start_time is not None else old_start_time,
+                        note=notification_note,
+                        trigger_source='clinic_triggered'
+                    )
 
             # Send practitioner notifications
             # Case 1: Practitioner changed (from specific to specific)
@@ -2088,6 +2105,11 @@ class AppointmentService:
         if not locked_appointment:
             raise HTTPException(status_code=404, detail="預約不存在")
         
+        # Capture the original state of the appointment for notification logic
+        # this must be done BEFORE any modifications, especially confirm_time_selection
+        old_is_auto_assigned = appointment.is_auto_assigned
+        originally_auto_assigned = appointment.originally_auto_assigned
+        
         # Check if appointment has any receipt (within same transaction)
         # Allow clinic notes updates even when receipts exist (clinic notes don't affect appointment details)
         from models.receipt import Receipt
@@ -2111,6 +2133,7 @@ class AppointmentService:
             )
 
         # Handle time confirmation for pending multiple slot appointments
+        is_resolving_time_confirmation = False
         if confirm_time_selection:
             if not new_start_time:
                 raise HTTPException(
@@ -2118,27 +2141,21 @@ class AppointmentService:
                     detail="確認時間時必須提供新的開始時間"
                 )
 
-            # Get clinic for booking settings
-            clinic_id = appointment.patient.clinic_id
-            clinic = db.query(Clinic).filter(Clinic.id == clinic_id).first()
-            if not clinic:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="診所不存在"
-                )
-
-            booking_settings = clinic.settings.get("booking_restriction_settings", {})
-            return AppointmentService.confirm_appointment_time(
-                db=db,
-                appointment_id=appointment_id,
-                confirmed_time=new_start_time,
-                confirmed_by_user_id=reassigned_by_user_id,
-                booking_time_minimum_hours_ahead=booking_settings.get("minimum_booking_hours_ahead", 24),
-                booking_time_deadline_time_day_before=booking_settings.get("deadline_time_day_before"),
-                booking_time_deadline_on_same_day=booking_settings.get("deadline_on_same_day"),
-                booking_time_restriction_type=booking_settings.get("booking_restriction_type", "none"),
-                appointment=appointment
-            )
+            # Mark that we are resolving confirmation, but don't return early.
+            # We'll set the flags now and let the rest of the method handle the update
+            # (practitioner assignment, resource allocation, and visibility).
+            is_resolving_time_confirmation = True
+            appointment.pending_time_confirmation = False
+            appointment.confirmed_by_user_id = reassigned_by_user_id
+            appointment.confirmed_at = taiwan_now()
+            appointment.alternative_time_slots = None
+            
+            # Since admin is confirming, it should no longer be auto-assigned
+            # This handles the "Immediate Auto-Assigned" visibility principle
+            if reassigned_by_user_id is not None:
+                appointment.is_auto_assigned = False
+                appointment.reassigned_by_user_id = reassigned_by_user_id
+                appointment.reassigned_at = taiwan_now()
 
         # Get clinic from appointment
         clinic_id = appointment.patient.clinic_id
@@ -2188,9 +2205,7 @@ class AppointmentService:
         )
         duration_minutes = appointment_type.duration_minutes
 
-        # Store old values for notification (before any updates)
-        old_is_auto_assigned = appointment.is_auto_assigned
-        originally_auto_assigned = appointment.originally_auto_assigned
+        # Store old practitioner ID for notification (before any updates)
         old_practitioner_id = calendar_event.user_id
 
         # Resolve practitioner ID to use
@@ -2254,6 +2269,10 @@ class AppointmentService:
         )
         should_send_patient_notification = notification_requirements["will_send_notification"]
         
+        # Force notification for time confirmation (approval of multi-slot)
+        if is_resolving_time_confirmation:
+            should_send_patient_notification = True
+        
         # Update appointment using shared core method
         # Allow override (skip availability interval checks) for clinic edits (when apply_booking_constraints=False)
         AppointmentService._update_appointment_core(
@@ -2280,7 +2299,8 @@ class AppointmentService:
             time_actually_changed=time_actually_changed,  # Pass pre-calculated value to avoid recalculation
             originally_auto_assigned=originally_auto_assigned,  # Pass for special handling
             new_appointment_type_id=appointment_type_id_to_use if appointment_type_actually_changed else None,
-            allow_override=not apply_booking_constraints  # Allow override for clinic edits
+            allow_override=not apply_booking_constraints,  # Allow override for clinic edits
+            is_time_confirmation=is_resolving_time_confirmation
         )
 
         # Handle multi-slot appointment updates
@@ -2357,169 +2377,4 @@ class AppointmentService:
             'success': True,
             'appointment_id': appointment_id,
             'message': success_message
-        }
-
-    @staticmethod
-    def confirm_appointment_time(
-        db: Session,
-        appointment_id: int,
-        confirmed_time: datetime,
-        confirmed_by_user_id: Optional[int],
-        booking_time_minimum_hours_ahead: int,
-        booking_time_deadline_time_day_before: Optional[time],
-        booking_time_deadline_on_same_day: Optional[time],
-        booking_time_restriction_type: str,
-        appointment: Optional[Appointment] = None
-    ) -> Dict[str, Any]:
-        """
-        Manually confirm time slot for pending multiple slot appointment.
-
-        Args:
-            db: Database session
-            appointment_id: Calendar event ID of the appointment
-            confirmed_time: The time slot to confirm
-            confirmed_by_user_id: User ID who confirmed (NULL for auto-confirmations)
-            booking_time_minimum_hours_ahead: Minimum hours ahead for booking
-            booking_time_deadline_time_day_before: Deadline time for day before
-            booking_time_deadline_on_same_day: Deadline time for same day
-            booking_time_restriction_type: Type of booking restriction
-            appointment: Optional pre-fetched appointment to avoid duplicate query
-
-        Returns:
-            Dict with confirmation result
-
-        Raises:
-            HTTPException: If confirmation fails or validation errors
-        """
-        from services.notification_service import NotificationService
-
-        # Get and validate appointment
-        if not appointment:
-            appointment, calendar_event = AppointmentService._get_and_validate_appointment_for_update(
-                db, appointment_id
-            )
-        else:
-            # Get calendar event if appointment was pre-fetched
-            calendar_event = db.query(CalendarEvent).filter(
-                CalendarEvent.id == appointment.calendar_event_id
-            ).first()
-            if not calendar_event:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="找不到預約事件"
-                )
-
-        # Validate that appointment is pending time confirmation
-        if not appointment.pending_time_confirmation:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="此預約不需要時間確認"
-            )
-
-        # Validate that confirmed time is in alternative slots or current slot
-        alternative_slots = appointment.alternative_time_slots or []
-        if calendar_event.start_time is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="預約缺少開始時間"
-            )
-
-        # Parse alternative slots from ISO strings to datetime objects
-        alternative_datetimes: List[datetime] = []
-        for slot_str in alternative_slots:
-            try:
-                slot_dt = datetime.fromisoformat(slot_str.replace('Z', '+00:00'))
-                alternative_datetimes.append(slot_dt)
-            except ValueError:
-                logger.warning(f"Invalid datetime format in alternative_time_slots: {slot_str}")
-                continue
-
-        # Allow selection of any valid time for both clinic and patient confirmations
-        # The original restriction to alternative_time_slots was too limiting
-
-        # Validate that confirmed time is still available (not double-booked)
-        clinic_id = appointment.patient.clinic_id
-        appointment_type = appointment.appointment_type
-        if not appointment_type:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="找不到預約類型"
-            )
-
-        practitioner_id = calendar_event.user_id
-        duration_minutes = appointment_type.duration_minutes
-
-        # Check for conflicts at the new time
-        is_valid, error_message, _ = AppointmentService.check_appointment_edit_conflicts(
-            db, appointment_id, practitioner_id, confirmed_time,
-            appointment.appointment_type_id, clinic_id, allow_override=True
-        )
-
-        if not is_valid:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=error_message or "確認的時間發生衝突"
-            )
-
-        # Apply booking constraints to ensure clinic can book at this time
-        # calendar_event.start_time is already validated to be non-None at the beginning of this method
-        current_time_for_constraints = datetime.combine(
-            calendar_event.date, calendar_event.start_time  # type: ignore[arg-type]
-        ).replace(tzinfo=TAIWAN_TZ)
-
-        clinic_for_validation = db.query(Clinic).filter(Clinic.id == clinic_id).first()
-        if not clinic_for_validation:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="診所不存在"
-            )
-
-        AppointmentService._validate_booking_constraints(
-            clinic=clinic_for_validation,
-            new_start_time=confirmed_time,
-            current_start_time=current_time_for_constraints,
-            check_max_future_appointments=False,
-            check_minimum_cancellation_hours=False  # Allow clinic to confirm even if past minimum cancellation hours
-        )
-
-        # Update calendar event with confirmed time
-        confirmed_date = confirmed_time.date()
-        confirmed_start_time = confirmed_time.time()
-        confirmed_end_time = (confirmed_time + timedelta(minutes=duration_minutes)).time()
-
-        calendar_event.date = confirmed_date
-        calendar_event.start_time = confirmed_start_time
-        calendar_event.end_time = confirmed_end_time
-
-        # Update appointment to mark as confirmed
-        appointment.pending_time_confirmation = False
-        appointment.confirmed_by_user_id = confirmed_by_user_id
-        appointment.confirmed_at = datetime.now(TAIWAN_TZ)
-
-        # Send patient notification
-        try:
-            clinic_for_notification = db.query(Clinic).filter(Clinic.id == clinic_id).first()
-            if not clinic_for_notification:
-                logger.warning(f"Clinic {clinic_id} not found for notification")
-            else:
-                from utils.practitioner_helpers import get_practitioner_display_name_with_title
-                practitioner_name = get_practitioner_display_name_with_title(
-                    db, calendar_event.user_id, clinic_id
-                )
-                NotificationService.send_appointment_confirmation(
-                    db=db,
-                    appointment=appointment,
-                    practitioner_name=practitioner_name,
-                    clinic=clinic_for_notification
-                )
-        except Exception as e:
-            logger.warning(f"Failed to send confirmation notification for appointment {appointment_id}: {e}")
-            # Continue with confirmation even if notification fails
-
-        logger.info(f"Manually confirmed time for appointment {appointment_id} to {confirmed_time}")
-
-        return {
-            'success': True,
-            'appointment_id': appointment_id,
-            'message': '預約時間已確認'
         }
