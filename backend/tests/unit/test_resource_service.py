@@ -18,6 +18,7 @@ from models.calendar_event import CalendarEvent
 from models.appointment import Appointment
 from models.patient import Patient
 from models.user import User
+from models.user_clinic_association import UserClinicAssociation
 from services.resource_service import ResourceService
 
 
@@ -57,7 +58,8 @@ class TestResourceService:
         )
 
         assert result['is_available'] is True
-        assert result['conflicts'] == []
+        assert result['selection_insufficient_warnings'] == []
+        assert result['resource_conflict_warnings'] == []
 
     def test_check_resource_availability_sufficient_resources(self, db_session: Session):
         """Test resource availability check when sufficient resources are available."""
@@ -122,7 +124,8 @@ class TestResourceService:
         )
 
         assert result['is_available'] is True
-        assert result['conflicts'] == []
+        assert result['selection_insufficient_warnings'] == []
+        assert result['resource_conflict_warnings'] == []
 
     def test_check_resource_availability_insufficient_resources(self, db_session: Session):
         """Test resource availability check when insufficient resources are available."""
@@ -182,11 +185,9 @@ class TestResourceService:
         )
 
         assert result['is_available'] is False
-        assert len(result['conflicts']) == 1
-        assert result['conflicts'][0]['resource_type_id'] == resource_type.id
-        assert result['conflicts'][0]['required_quantity'] == 2
-        assert result['conflicts'][0]['total_resources'] == 1
-        assert result['conflicts'][0]['allocated_count'] == 0
+        assert len(result['selection_insufficient_warnings']) == 1
+        assert result['selection_insufficient_warnings'][0]['required_quantity'] == 2
+        assert result['selection_insufficient_warnings'][0]['selected_quantity'] == 1
 
     def test_check_resource_availability_with_existing_appointment(self, db_session: Session):
         """Test resource availability check when resources are already allocated."""
@@ -254,6 +255,16 @@ class TestResourceService:
         db_session.commit()
 
         # Create existing appointment that uses resource1
+        association = UserClinicAssociation(
+            user_id=user.id,
+            clinic_id=clinic.id,
+            is_active=True,
+            roles=["practitioner"],
+            full_name="Test Practitioner"
+        )
+        db_session.add(association)
+        db_session.commit()
+
         calendar_event = CalendarEvent(
             user_id=user.id,
             clinic_id=clinic.id,
@@ -295,7 +306,8 @@ class TestResourceService:
 
         # Should still be available (resource2 is free)
         assert result['is_available'] is True
-        assert result['conflicts'] == []
+        assert result['selection_insufficient_warnings'] == []
+        assert result['resource_conflict_warnings'] == []
 
         # Check availability when both resources are booked
         allocation2 = AppointmentResourceAllocation(
@@ -314,10 +326,10 @@ class TestResourceService:
         )
 
         assert result['is_available'] is False
-        assert len(result['conflicts']) == 1
+        assert len(result['selection_insufficient_warnings']) == 1
 
-    def test_allocate_resources_auto_allocate(self, db_session: Session):
-        """Test automatic resource allocation."""
+    def test_allocate_resources_no_auto_allocate(self, db_session: Session):
+        """Test that automatic resource allocation no longer happens (design change)."""
         # Create clinic and appointment type
         clinic = Clinic(
             name="Test Clinic",
@@ -349,12 +361,7 @@ class TestResourceService:
             clinic_id=clinic.id,
             name="治療室1"
         )
-        resource2 = Resource(
-            resource_type_id=resource_type.id,
-            clinic_id=clinic.id,
-            name="治療室2"
-        )
-        db_session.add_all([resource1, resource2])
+        db_session.add(resource1)
         db_session.commit()
 
         # Create requirement (needs 1 room)
@@ -385,7 +392,7 @@ class TestResourceService:
         db_session.add(calendar_event)
         db_session.commit()
 
-        # Allocate resources
+        # Allocate resources with None (should NOT auto-allocate)
         start_time = datetime(2025, 1, 28, 10, 0)
         end_time = datetime(2025, 1, 28, 11, 0)
         
@@ -399,15 +406,13 @@ class TestResourceService:
             selected_resource_ids=None
         )
 
-        assert len(allocated_ids) == 1
-        assert allocated_ids[0] in [resource1.id, resource2.id]
+        assert len(allocated_ids) == 0  # Changed from 1 to 0
 
-        # Verify allocation exists
+        # Verify no allocation exists
         allocation = db_session.query(AppointmentResourceAllocation).filter(
             AppointmentResourceAllocation.appointment_id == calendar_event.id
         ).first()
-        assert allocation is not None
-        assert allocation.resource_id in [resource1.id, resource2.id]
+        assert allocation is None
 
     def test_allocate_resources_with_selection(self, db_session: Session):
         """Test resource allocation with selected resource IDs."""
@@ -502,9 +507,11 @@ class TestResourceService:
         ).first()
         assert allocation is not None
 
-    def test_find_available_resources_excludes_soft_deleted(self, db_session: Session):
-        """Test that soft-deleted resources are excluded from availability."""
-        # Create clinic and appointment type
+
+
+    def test_check_resource_availability_manual_selection_conflict(self, db_session: Session):
+        """Test resource availability check for manual selection conflict (even with no requirements)."""
+        # Create clinic
         clinic = Clinic(
             name="Test Clinic",
             line_channel_id="test_channel",
@@ -514,10 +521,19 @@ class TestResourceService:
         db_session.add(clinic)
         db_session.commit()
 
-        # Create resource type and resources
+        # Create appointment type with NO resource requirements
+        appointment_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="Simple Consultation",
+            duration_minutes=30
+        )
+        db_session.add(appointment_type)
+        db_session.commit()
+
+        # Create resource type and resource
         resource_type = ResourceType(
             clinic_id=clinic.id,
-            name="治療室"
+            name="Meeting Room"
         )
         db_session.add(resource_type)
         db_session.commit()
@@ -525,32 +541,79 @@ class TestResourceService:
         resource1 = Resource(
             resource_type_id=resource_type.id,
             clinic_id=clinic.id,
-            name="治療室1",
-            is_deleted=False
+            name="Room A"
         )
-        resource2 = Resource(
-            resource_type_id=resource_type.id,
-            clinic_id=clinic.id,
-            name="治療室2",
-            is_deleted=True  # Soft deleted
-        )
-        db_session.add_all([resource1, resource2])
+        db_session.add(resource1)
         db_session.commit()
 
-        # Find available resources
-        start_time = datetime(2025, 1, 28, 10, 0)
-        end_time = datetime(2025, 1, 28, 11, 0)
+        # Create an existing appointment occupying Room A
+        user = User(
+            email="test@example.com",
+            google_subject_id="test_subject"
+        )
+        db_session.add(user)
+        db_session.commit()
         
-        available = ResourceService._find_available_resources(
-            db=db_session,
-            resource_type_id=resource_type.id,
+        association = UserClinicAssociation(
+            user_id=user.id,
             clinic_id=clinic.id,
-            start_time=start_time,
-            end_time=end_time
+            is_active=True,
+            roles=["practitioner"],
+            full_name="Dr. Test"
+        )
+        db_session.add(association)
+        db_session.commit()
+        
+        # Create a patient
+        patient = Patient(
+            clinic_id=clinic.id,
+            full_name="Test Patient"
+        )
+        db_session.add(patient)
+        db_session.commit()
+
+        calendar_event = CalendarEvent(
+            user_id=user.id,
+            clinic_id=clinic.id,
+            event_type='appointment',
+            date=date(2025, 1, 30),
+            start_time=time(10, 0),
+            end_time=time(10, 30)
+        )
+        db_session.add(calendar_event)
+        db_session.commit()
+
+        appointment = Appointment(
+            calendar_event_id=calendar_event.id,
+            appointment_type_id=appointment_type.id,
+            patient_id=patient.id,  # Assign patient_id
+            status='confirmed'
+        )
+        db_session.add(appointment)
+        db_session.commit()
+
+        allocation = AppointmentResourceAllocation(
+            appointment_id=calendar_event.id,
+            resource_id=resource1.id
+        )
+        db_session.add(allocation)
+        db_session.commit()
+
+        # Now check availability for an overlapping slot with Room A MANUALLY selected
+        check_start = datetime(2025, 1, 30, 10, 0)
+        check_end = datetime(2025, 1, 30, 10, 30)
+
+        result = ResourceService.check_resource_availability(
+            db=db_session,
+            appointment_type_id=appointment_type.id,  # Type has NO requirements
+            clinic_id=clinic.id,
+            start_time=check_start,
+            end_time=check_end,
+            selected_resource_ids=[resource1.id]  # Manually selected Room A
         )
 
-        # Should only return resource1 (resource2 is soft-deleted)
-        assert len(available) == 1
-        assert available[0].id == resource1.id
-        assert available[0].is_deleted is False
-
+        assert result['is_available'] is False
+        assert len(result['resource_conflict_warnings']) == 1
+        conflict = result['resource_conflict_warnings'][0]
+        assert conflict['resource_name'] == "Room A"
+        assert conflict['conflicting_appointment']['practitioner_name'] == "Dr. Test"

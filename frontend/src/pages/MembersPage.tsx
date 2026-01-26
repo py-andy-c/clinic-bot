@@ -402,7 +402,7 @@ const InviteMemberModal: React.FC<InviteMemberModalProps> = ({ onClose, onInvite
                             className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
                           />
                           <label htmlFor="role-admin" className="ml-3 text-sm text-gray-700">
-                            <span className="font-medium">管理員</span> - 完整診所管理權限
+                            <span className="font-medium">管理員</span> - 可以編輯診所設定
                           </label>
                         </div>
                         <div className="flex items-center">
@@ -415,7 +415,7 @@ const InviteMemberModal: React.FC<InviteMemberModalProps> = ({ onClose, onInvite
                             className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
                           />
                           <label htmlFor="role-practitioner" className="ml-3 text-sm text-gray-700">
-                            <span className="font-medium">治療師</span> - 預約管理
+                            <span className="font-medium">治療師</span> - 可以接受預約
                           </label>
                         </div>
                         <div className="mt-2 text-xs text-gray-500">
@@ -534,9 +534,7 @@ const EditRolesModal: React.FC<EditRolesModalProps> = ({ member, onClose, onUpda
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (roles.length > 0) {
-      await onUpdate(member.id, roles);
-    }
+    await onUpdate(member.id, roles);
   };
 
   const hasRole = (role: UserRole) => roles.includes(role);
@@ -572,7 +570,7 @@ const EditRolesModal: React.FC<EditRolesModalProps> = ({ member, onClose, onUpda
                         className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
                       />
                       <label htmlFor="edit-role-admin" className="ml-3 text-sm text-gray-700">
-                        <span className="font-medium">管理員</span> - 完整診所管理權限
+                        <span className="font-medium">管理員</span> - 可以編輯診所設定
                       </label>
                     </div>
                     <div className="flex items-center">
@@ -585,16 +583,19 @@ const EditRolesModal: React.FC<EditRolesModalProps> = ({ member, onClose, onUpda
                         className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
                       />
                       <label htmlFor="edit-role-practitioner" className="ml-3 text-sm text-gray-700">
-                        <span className="font-medium">治療師</span> - 預約管理
+                        <span className="font-medium">治療師</span> - 可以接受預約
                       </label>
                     </div>
+                  </div>
+                  <div className="mt-2 text-xs text-gray-500">
+                    <p>💡 提示：如果都不選擇，成員將獲得唯讀存取權限，可以查看診所資料但無法進行修改。</p>
                   </div>
                 </fieldset>
 
                 <div className="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse">
                   <button
                     type="submit"
-                    disabled={updating || roles.length === 0}
+                    disabled={updating}
                     className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-primary-600 text-base font-medium text-white hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50"
                   >
                     {updating ? '更新中...' : '更新角色'}

@@ -215,6 +215,7 @@ class AvailableSlotsResponse(BaseModel):
 class ConflictDetail(BaseModel):
     """Detail model for appointment conflicts."""
     calendar_event_id: int
+    date: str
     start_time: str
     end_time: str
     patient: str
@@ -222,10 +223,18 @@ class ConflictDetail(BaseModel):
 
 
 class ConflictWarningResponse(BaseModel):
-    """Response model for conflict warning."""
+    """Response model for conflict warning or successful creation with warnings."""
     success: bool
     message: str
-    conflicts: List[ConflictDetail]
+    warning: bool = False  # True when creation succeeded but has conflicts
+    conflicts: Optional[List[ConflictDetail]] = None
+    # Include exception data when created with warnings
+    calendar_event_id: Optional[int] = None
+    exception_id: Optional[int] = None
+    date: Optional[str] = None
+    start_time: Optional[str] = None
+    end_time: Optional[str] = None
+    created_at: Optional[datetime] = None
 
 
 class AppointmentTypeReference(BaseModel):
@@ -450,13 +459,25 @@ class ExceptionConflictDetail(BaseModel):
     reason: Optional[str] = None
 
 
-class ResourceConflictDetail(BaseModel):
-    """Detail model for resource conflict."""
-    resource_type_id: int
+class ConflictingAppointmentInfo(BaseModel):
+    """Basic info about a conflicting appointment."""
+    practitioner_name: str
+    start_time: str  # HH:MM format
+    end_time: str    # HH:MM format
+
+
+class SelectionInsufficientWarning(BaseModel):
+    """Warning for insufficient resource selection."""
     resource_type_name: str
     required_quantity: int
-    total_resources: int
-    allocated_count: int
+    selected_quantity: int
+
+
+class ResourceConflictWarning(BaseModel):
+    """Warning for specific resource conflict."""
+    resource_name: str
+    resource_type_name: str
+    conflicting_appointment: ConflictingAppointmentInfo
 
 
 class DefaultAvailabilityInfo(BaseModel):
@@ -468,19 +489,29 @@ class DefaultAvailabilityInfo(BaseModel):
 class SchedulingConflictResponse(BaseModel):
     """Response model for scheduling conflict detection."""
     has_conflict: bool
-    conflict_type: Optional[str] = None  # "appointment" | "exception" | "availability" | "resource" | null
+    conflict_type: Optional[str] = None  # "appointment" | "exception" | "availability" | "resource" | "practitioner_type_mismatch" | null
     appointment_conflict: Optional[AppointmentConflictDetail] = None
+    appointment_conflicts: Optional[List[AppointmentConflictDetail]] = None
     exception_conflict: Optional[ExceptionConflictDetail] = None
-    resource_conflicts: Optional[List[ResourceConflictDetail]] = None
+    exception_conflicts: Optional[List[ExceptionConflictDetail]] = None
+    selection_insufficient_warnings: Optional[List[SelectionInsufficientWarning]] = None
+    resource_conflict_warnings: Optional[List[ResourceConflictWarning]] = None
+    unavailable_resource_ids: Optional[List[int]] = None
     default_availability: DefaultAvailabilityInfo
+    is_type_mismatch: bool = False  # True if practitioner does not offer this appointment type
 
 
 class BatchSchedulingConflictResponse(BaseModel):
     """Response model for batch scheduling conflict detection."""
     practitioner_id: int
     has_conflict: bool
-    conflict_type: Optional[str] = None  # "appointment" | "exception" | "availability" | "resource" | null
+    conflict_type: Optional[str] = None  # "appointment" | "exception" | "availability" | "resource" | "practitioner_type_mismatch" | null
     appointment_conflict: Optional[AppointmentConflictDetail] = None
+    appointment_conflicts: Optional[List[AppointmentConflictDetail]] = None
     exception_conflict: Optional[ExceptionConflictDetail] = None
-    resource_conflicts: Optional[List[ResourceConflictDetail]] = None
+    exception_conflicts: Optional[List[ExceptionConflictDetail]] = None
+    selection_insufficient_warnings: Optional[List[SelectionInsufficientWarning]] = None
+    resource_conflict_warnings: Optional[List[ResourceConflictWarning]] = None
+    unavailable_resource_ids: Optional[List[int]] = None
     default_availability: DefaultAvailabilityInfo
+    is_type_mismatch: bool = False  # True if practitioner does not offer this appointment type

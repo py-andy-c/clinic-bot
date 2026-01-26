@@ -1,0 +1,250 @@
+import React from 'react';
+import { render, screen, fireEvent } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { vi } from 'vitest';
+import { CalendarViews } from '../../../types/calendar';
+import CalendarGrid from '../CalendarGrid';
+import { CalendarEvent } from '../../../utils/calendarDataAdapter';
+
+// Mock the calendar data adapter and color utilities
+vi.mock('../../../utils/calendarDataAdapter');
+vi.mock('../../../utils/practitionerColors');
+vi.mock('../../../utils/resourceColorUtils');
+vi.mock('../../../contexts/ModalContext', () => ({
+  useModal: () => ({
+    alert: vi.fn(),
+    confirm: vi.fn(),
+  }),
+}));
+
+describe('CalendarGrid', () => {
+  const mockProps = {
+    view: CalendarViews.DAY,
+    currentDate: new Date('2024-01-15'),
+    events: [] as CalendarEvent[],
+    selectedPractitioners: [1, 2],
+    selectedResources: [3, 4],
+    onEventClick: vi.fn(),
+    onSlotClick: vi.fn(),
+    onSlotExceptionClick: vi.fn(),
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('renders without crashing', () => {
+    expect(() => render(<CalendarGrid {...mockProps} />)).not.toThrow();
+  });
+
+  it('renders without crashing for month view', () => {
+    expect(() => render(<CalendarGrid {...mockProps} view={CalendarViews.MONTH} />)).not.toThrow();
+  });
+
+  it('renders without crashing with empty selections', () => {
+    expect(() => render(
+      <CalendarGrid
+        {...mockProps}
+        selectedPractitioners={[]}
+        selectedResources={[]}
+      />
+    )).not.toThrow();
+  });
+
+  it('renders time slots for day view', () => {
+    const { container } = render(<CalendarGrid {...mockProps} />);
+
+    // Should render time column with time labels
+    const timeLabelsElement = container.querySelector('#time-labels');
+    expect(timeLabelsElement).toBeInTheDocument();
+
+    // Check that we have hour labels within the time column
+    const timeLabels = timeLabelsElement?.querySelectorAll('span');
+    expect(timeLabels?.length).toBeGreaterThan(0);
+
+    // Should contain hour 8
+    const hourLabels = Array.from(timeLabels || []).map(span => span.textContent);
+    expect(hourLabels).toContain('8');
+    expect(hourLabels).toContain('9');
+  });
+
+  it('renders calendar grid container', () => {
+    const { container } = render(<CalendarGrid {...mockProps} />);
+    // CSS modules transform class names, so we check for any div with the transformed class
+    const gridElement = container.querySelector('[class*="calendarGrid"]');
+    expect(gridElement).toBeInTheDocument();
+  });
+
+  it('renders monthly calendar with proper structure', () => {
+    render(<CalendarGrid {...mockProps} view={CalendarViews.MONTH} />);
+    // Should render weekday headers
+    expect(screen.getByText('一')).toBeInTheDocument();
+    expect(screen.getByText('二')).toBeInTheDocument();
+    expect(screen.getByText('三')).toBeInTheDocument();
+  });
+
+  it('handles event clicks', () => {
+    const mockEvent: CalendarEvent = {
+      id: '1',
+      title: 'Test Event',
+      start: new Date('2024-01-15T10:00:00'),
+      end: new Date('2024-01-15T11:00:00'),
+      resource: { practitioner_id: 1 },
+    };
+
+    expect(() => render(
+      <CalendarGrid
+        {...mockProps}
+        events={[mockEvent]}
+        selectedPractitioners={[1]}
+      />
+    )).not.toThrow();
+  });
+
+  it('handles slot clicks with practitioner context via FAB', async () => {
+    const u = userEvent.setup();
+    render(<CalendarGrid {...mockProps} />);
+
+    // Find a time slot for practitioner 1
+    const practitioner1Column = screen.getByLabelText('Column for practitioner 1');
+    const timeSlots = practitioner1Column.querySelectorAll('[data-testid="time-slot"]');
+    const firstSlot = timeSlots[0];
+
+    if (firstSlot) {
+      fireEvent.click(firstSlot);
+      // Click the + 預約 FAB
+      const fab = await screen.findByTestId('fab-create-appointment');
+      await u.click(fab);
+      expect(mockProps.onSlotClick).toHaveBeenCalledWith(expect.objectContaining({ practitionerId: 1 }));
+    } else {
+      throw new Error('No time slot found');
+    }
+  });
+
+  it('triggers exception flow via FAB', async () => {
+    const u = userEvent.setup();
+    render(<CalendarGrid {...mockProps} />);
+
+    // Click any slot
+    const anySlot = screen.getAllByTestId('time-slot')[0];
+    fireEvent.click(anySlot);
+    const exceptionFab = await screen.findByTestId('fab-create-exception');
+    await u.click(exceptionFab);
+    expect(mockProps.onSlotExceptionClick).toHaveBeenCalled();
+  });
+
+  it('applies correct styling for different event types', () => {
+    const appointmentEvent: CalendarEvent = {
+      id: '1',
+      title: 'Appointment',
+      start: new Date('2024-01-15T10:00:00'),
+      end: new Date('2024-01-15T11:00:00'),
+      resource: { practitioner_id: 1, type: 'appointment' },
+    };
+
+    const exceptionEvent: CalendarEvent = {
+      id: '2',
+      title: 'Exception',
+      start: new Date('2024-01-15T11:00:00'),
+      end: new Date('2024-01-15T12:00:00'),
+      resource: { practitioner_id: 1, type: 'availability_exception' },
+    };
+
+    const resourceEvent: CalendarEvent = {
+      id: '3',
+      title: 'Resource Event',
+      start: new Date('2024-01-15T12:00:00'),
+      end: new Date('2024-01-15T13:00:00'),
+      resource: { resource_id: 3, type: 'appointment' },
+    };
+
+    expect(() => render(
+      <CalendarGrid
+        {...mockProps}
+        events={[appointmentEvent, exceptionEvent, resourceEvent]}
+        selectedPractitioners={[1]}
+        selectedResources={[3]}
+      />
+    )).not.toThrow();
+  });
+
+  it('handles overlapping events correctly', () => {
+    const overlappingEvents: CalendarEvent[] = [
+      {
+        id: '1',
+        title: 'Event 1',
+        start: new Date('2024-01-15T10:00:00'),
+        end: new Date('2024-01-15T11:00:00'),
+        resource: { practitioner_id: 1 },
+      },
+      {
+        id: '2',
+        title: 'Event 2',
+        start: new Date('2024-01-15T10:30:00'),
+        end: new Date('2024-01-15T11:30:00'),
+        resource: { practitioner_id: 1 },
+      },
+    ];
+
+    expect(() => render(
+      <CalendarGrid
+        {...mockProps}
+        events={overlappingEvents}
+        selectedPractitioners={[1]}
+      />
+    )).not.toThrow();
+  });
+
+  it('renders empty columns when no practitioners or resources are selected', () => {
+    const { container } = render(
+      <CalendarGrid
+        {...mockProps}
+        selectedPractitioners={[]}
+        selectedResources={[]}
+      />
+    );
+
+    // Should render time column
+    const timeLabelsElement = container.querySelector('#time-labels');
+    expect(timeLabelsElement).toBeInTheDocument();
+
+    // Should render calendar grid container
+    const gridContainer = container.querySelector('[data-testid="calendar-grid-container"]');
+    expect(gridContainer).toBeInTheDocument();
+
+    // Should render time slots (clickable slots)
+    const timeSlots = container.querySelectorAll('[data-testid="time-slot"]');
+    expect(timeSlots.length).toBeGreaterThan(0);
+
+    // Should render empty column for day view - check by role="gridcell"
+    const gridCells = container.querySelectorAll('[role="gridcell"]');
+    expect(gridCells.length).toBe(1); // One empty column for day view
+  });
+
+  it('renders 7 empty columns for week view when no practitioners or resources are selected', () => {
+    const { container } = render(
+      <CalendarGrid
+        {...mockProps}
+        view={CalendarViews.WEEK}
+        selectedPractitioners={[]}
+        selectedResources={[]}
+      />
+    );
+
+    // Should render time column
+    const timeLabelsElement = container.querySelector('#time-labels');
+    expect(timeLabelsElement).toBeInTheDocument();
+
+    // Should render calendar grid container
+    const gridContainer = container.querySelector('[data-testid="calendar-grid-container"]');
+    expect(gridContainer).toBeInTheDocument();
+
+    // Should render time slots (clickable slots)
+    const timeSlots = container.querySelectorAll('[data-testid="time-slot"]');
+    expect(timeSlots.length).toBeGreaterThan(0);
+
+    // Should render 7 empty columns for week view - check by role="gridcell"
+    const gridCells = container.querySelectorAll('[role="gridcell"]');
+    expect(gridCells.length).toBe(7); // Seven empty columns for week view
+  });
+});

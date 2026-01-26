@@ -53,20 +53,20 @@ export function getDateRangeForPreset(preset: TimeRangePreset): { startDate: str
 
   switch (preset) {
     case 'month':
-      startDate = moment().startOf('month');
-      endDate = moment().endOf('month');
+      startDate = moment().tz('Asia/Taipei').startOf('month');
+      endDate = moment().tz('Asia/Taipei').endOf('month');
       break;
     case '3months':
-      startDate = moment().subtract(2, 'months').startOf('month');
-      endDate = moment().endOf('month');
+      startDate = moment().tz('Asia/Taipei').subtract(2, 'months').startOf('month');
+      endDate = moment().tz('Asia/Taipei').endOf('month');
       break;
     case '6months':
-      startDate = moment().subtract(5, 'months').startOf('month');
-      endDate = moment().endOf('month');
+      startDate = moment().tz('Asia/Taipei').subtract(5, 'months').startOf('month');
+      endDate = moment().tz('Asia/Taipei').endOf('month');
       break;
     case 'year':
-      startDate = moment().startOf('year');
-      endDate = moment().endOf('month');
+      startDate = moment().tz('Asia/Taipei').startOf('year');
+      endDate = moment().tz('Asia/Taipei').endOf('year');
       break;
   }
 

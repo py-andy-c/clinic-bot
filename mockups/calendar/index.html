@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>診所行事曆 - 概念原型</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Noto+Sans+TC:wght@300;400;500;700&display=swap"
+        rel="stylesheet">
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- Global Header (Production Environment) -->
+        <header class="global-navbar">
+            <div class="nav-left">
+                <div class="branding">
+                    <span class="icon">🏥</span>
+                    <span class="platform-name">診所小幫手</span>
+                </div>
+                <!-- Desktop Navigation -->
+                <nav class="desktop-nav">
+                    <button class="nav-item active has-dropdown" data-menu="appointments">📅 預約管理</button>
+                    <button class="nav-item has-dropdown" data-menu="patients">👥 病患管理</button>
+                    <button class="nav-item has-dropdown" data-menu="clinic">🏥 診所管理</button>
+                    <button class="nav-item">👤 個人設定</button>
+                </nav>
+            </div>
+            <div class="nav-right">
+                <div class="user-info desktop-only">
+                    <span class="user-name">王大明</span>
+                    <span class="user-email">admin@clinic.com</span>
+                </div>
+                <button class="menu-icon" id="mobile-menu-trigger">☰</button>
+            </div>
+        </header>
+
+        <!-- Main Content Area with Sidebar -->
+        <main class="main-content">
+            <!-- Sidebar remains fixed -->
+            <aside class="sidebar" id="sidebar">
+                <div class="sidebar-content">
+
+
+                    <!-- View Switcher Section -->
+                    <div class="sidebar-section">
+                        <span class="sidebar-section-title">模式</span>
+                        <div class="view-options-row">
+                            <button class="view-option-compact active" data-view="month">月</button>
+                            <button class="view-option-compact" data-view="week">週</button>
+                            <button class="view-option-compact" data-view="day">日</button>
+                        </div>
+                    </div>
+
+                    <!-- Practitioner Filter Section -->
+                    <div class="sidebar-section">
+                        <h3 class="sidebar-section-title">顯示治療師</h3>
+                        <label class="filter-item practitioner-filter-item">
+                            <input type="checkbox" checked data-practitioner="1">
+                            <span class="filter-indicator practitioner-indicator"></span>
+                            陳大文
+                        </label>
+                        <label class="filter-item practitioner-filter-item">
+                            <input type="checkbox" checked data-practitioner="2">
+                            <span class="filter-indicator practitioner-indicator"></span>
+                            林美玲
+                        </label>
+                        <label class="filter-item practitioner-filter-item">
+                            <input type="checkbox" checked data-practitioner="3">
+                            <span class="filter-indicator practitioner-indicator"></span>
+                            張志遠
+                        </label>
+                        <label class="filter-item practitioner-filter-item">
+                            <input type="checkbox" checked data-practitioner="4">
+                            <span class="filter-indicator practitioner-indicator"></span>
+                            李佳穎
+                        </label>
+                        <label class="filter-item practitioner-filter-item">
+                            <input type="checkbox" checked data-practitioner="5">
+                            <span class="filter-indicator practitioner-indicator"></span>
+                            周杰瑞
+                        </label>
+                        <label class="filter-item practitioner-filter-item">
+                            <input type="checkbox" checked data-practitioner="6">
+                            <span class="filter-indicator practitioner-indicator"></span>
+                            測試醫師
+                        </label>
+                    </div>
+
+                    <!-- Resource Filter Section -->
+                    <div class="sidebar-section">
+                        <h3 class="sidebar-section-title">顯示資源</h3>
+                        <label class="filter-item resource-filter-item">
+                            <input type="checkbox" checked data-resource="1">
+                            <span class="filter-indicator resource-indicator"></span>
+                            治療室1
+                        </label>
+                        <label class="filter-item resource-filter-item">
+                            <input type="checkbox" checked data-resource="2">
+                            <span class="filter-indicator resource-indicator"></span>
+                            治療室2
+                        </label>
+                        <label class="filter-item resource-filter-item">
+                            <input type="checkbox" data-resource="3">
+                            <span class="filter-indicator resource-indicator"></span>
+                            治療室3
+                        </label>
+                        <label class="filter-item resource-filter-item">
+                            <input type="checkbox" data-resource="4">
+                            <span class="filter-indicator resource-indicator"></span>
+                            設備A
+                        </label>
+                        <label class="filter-item resource-filter-item">
+                            <input type="checkbox" data-resource="5">
+                            <span class="filter-indicator resource-indicator"></span>
+                            設備B
+                        </label>
+                    </div>
+
+                </div>
+            </aside>
+
+            <!-- Calendar Content -->
+            <div class="calendar-content">
+                <div class="date-strip-container">
+                    <div class="date-strip" id="date-strip"></div>
+                    <div class="action-buttons">
+                        <button class="action-btn" id="create-appointment-btn" title="Create Appointment">
+                            <span class="action-icon">+</span>
+                            <span class="action-text">預約</span>
+                        </button>
+                        <button class="action-btn" id="create-exception-btn" title="Create Availability Exception">
+                            <span class="action-icon">+</span>
+                            <span class="action-text">休診</span>
+                        </button>
+                        <button class="action-btn" id="today-btn" title="Jump to Today">
+                            <span class="action-text">今</span>
+                        </button>
+                        <button class="action-btn" id="settings-btn" title="Open Settings">
+                            <span class="action-icon">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="12" cy="12" r="3"></circle>
+                                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1 1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                                </svg>
+                            </span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Unified Scroll Viewport -->
+                <div class="calendar-viewport" id="main-viewport">
+                    <div class="calendar-grid-container">
+
+                        <!-- Header Row: Sticky Top -->
+                        <div class="header-row">
+                            <div class="time-corner"></div>
+                            <div class="resource-headers" id="resource-headers">
+                                <!-- Injected JS -->
+                            </div>
+                        </div>
+
+                        <!-- Body Area: Time Column (Sticky Left) + Grid -->
+                        <div class="grid-layer">
+                            <div class="time-column" id="time-labels">
+                                <!-- Injected JS -->
+                            </div>
+                            <div class="resource-grid" id="calendar-grid">
+                                <!-- Injected JS -->
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- Sidebar Backdrop (Mobile Overlay) -->
+                <div id="sidebar-backdrop" class="sidebar-backdrop"></div>
+
+                <!-- Mini Calendar Modal (for date navigation) -->
+                <div id="mini-calendar-modal" class="mini-calendar-modal">
+                    <div class="mini-calendar-modal-content">
+                        <div class="mini-calendar-component">
+                            <div class="mini-calendar-header">
+                                <button class="month-nav-btn prev-month" id="modal-prev-month-btn">‹</button>
+                                <h3 class="current-month-label" id="modal-month-year">2026年1月</h3>
+                                <button class="month-nav-btn next-month" id="modal-next-month-btn">›</button>
+                            </div>
+                            <div class="mini-calendar" id="modal-mini-calendar">
+                                <!-- Injected JS -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+
+</html>

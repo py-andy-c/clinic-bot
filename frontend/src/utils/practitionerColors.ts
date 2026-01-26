@@ -1,38 +1,38 @@
 /**
- * Utility functions for generating colors for practitioners in calendar view
+ * Utility functions for generating colors for practitioners and resources in calendar view
+ * Implements the exact 20-color palette specified in the design document
  */
 
+// Extended 20-color palette: 10 primary (practitioners) + 10 secondary (resources) colors
+export const CALENDAR_COLORS = [
+  // Primary set (practitioners - first 10)
+  '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
+  '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#6366f1',
+  // Secondary set (resources - next 10)
+  '#7c3aed', '#be123c', '#ea580c', '#65a30d', '#0891b2',
+  '#c2410c', '#7c2d12', '#365314', '#1e3a8a', '#581c87'
+];
+
 /**
- * Generate dynamic colors for practitioners
- * @param count - Number of colors to generate
- * @returns Array of color strings (hex or hsl)
+ * Get colors for practitioners (first 10 colors from the palette)
+ * @param count - Number of colors needed (max 10)
+ * @returns Array of color strings for practitioners
  */
 export const generatePractitionerColors = (count: number): string[] => {
-  if (count <= 6) {
-    // Use predefined colors for small counts
-    return [
-      '#10B981', // Green
-      '#F59E0B', // Amber
-      '#EF4444', // Red
-      '#8B5CF6', // Purple
-      '#EC4899', // Pink
-      '#06B6D4', // Cyan
-    ];
-  }
-  
-  // Generate colors dynamically using HSL for better distribution
-  const colors: string[] = [];
-  const hueStep = 360 / count;
-  for (let i = 0; i < count; i++) {
-    const hue = (i * hueStep) % 360;
-    // Use medium saturation and lightness for good visibility
-    colors.push(`hsl(${hue}, 65%, 50%)`);
-  }
-  return colors;
+  return CALENDAR_COLORS.slice(0, Math.min(count, 10));
 };
 
 /**
- * Get the color for a specific practitioner
+ * Get colors for resources (next 10 colors from the palette)
+ * @param count - Number of colors needed (max 10)
+ * @returns Array of color strings for resources
+ */
+export const generateResourceColors = (count: number): string[] => {
+  return CALENDAR_COLORS.slice(10, 10 + Math.min(count, 10));
+};
+
+/**
+ * Get the color for a specific practitioner using the primary color set (colors 0-9)
  * @param practitionerId - ID of the practitioner
  * @param primaryUserId - ID of the primary practitioner (uses blue). Use -1 if no primary.
  * @param allPractitionerIds - Array of all practitioner IDs (primary + additional)
@@ -43,26 +43,29 @@ export const getPractitionerColor = (
   primaryUserId: number,
   allPractitionerIds: number[]
 ): string | null => {
-  const practitionerIndex = allPractitionerIds.indexOf(practitionerId);
-  
   // Primary practitioner uses blue (null = blue)
   if (primaryUserId !== -1 && practitionerId === primaryUserId) {
     return null;
   }
-  
-  // Calculate color count and get color
-  const hasPrimary = primaryUserId !== -1;
-  const colorCount = hasPrimary
-    ? Math.max(allPractitionerIds.length - 1, 1)
-    : Math.max(allPractitionerIds.length, 1);
-  const colors = generatePractitionerColors(colorCount);
-  
-  // Get color index (skip primary if exists)
-  const colorIndex = hasPrimary && practitionerIndex > 0
-    ? practitionerIndex - 1
-    : practitionerIndex;
-  
-  return colors[colorIndex % colors.length] || null;
+
+  // Practitioners get colors from the primary set (colors 0-9)
+  // We include the primary user in the calculation to ensure consistent slot assignment
+  // Sort practitioners: Primary user first, then others by ID to ensure stable colors
+  const sortedPractitioners = [...allPractitionerIds].sort((a, b) => {
+    if (a === primaryUserId) return -1;
+    if (b === primaryUserId) return 1;
+    return a - b;
+  });
+
+  const selectedIndex = sortedPractitioners.indexOf(practitionerId);
+
+  if (selectedIndex === -1) {
+    return '#6B7280'; // Fallback color
+  }
+
+  // Get practitioner colors and return the appropriate one
+  const practitionerColors = generatePractitionerColors(sortedPractitioners.length);
+  return practitionerColors[selectedIndex] || '#6B7280';
 };
 
 

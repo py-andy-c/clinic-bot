@@ -34,8 +34,14 @@ const PractitionerConflictLabel: React.FC<{ conflictInfo: any }> = ({ conflictIn
     if (conflictInfo.exception_conflict) {
       return '不可用時間';
     }
+    if (conflictInfo.conflict_type === 'practitioner_type_mismatch') {
+      return '⚠️ 不提供此服務';
+    }
     if (conflictInfo.default_availability && !conflictInfo.default_availability.is_within_hours) {
       return '非正常時間';
+    }
+    if (conflictInfo.selection_insufficient_warnings?.length || conflictInfo.resource_conflict_warnings?.length) {
+      return '資源衝突';
     }
     return '有衝突';
   };
@@ -73,7 +79,7 @@ export const PractitionerSelectionModal: React.FC<PractitionerSelectionModalProp
   title = '選擇治療師',
 }) => {
   const { t } = useTranslation();
-  const isMobile = useIsMobile();
+  const isMobile = useIsMobile(1024);
   const [searchQuery, setSearchQuery] = useState('');
 
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
@@ -160,9 +166,8 @@ export const PractitionerSelectionModal: React.FC<PractitionerSelectionModalProp
                   key={practitioner.id}
                   type="button"
                   onClick={() => handlePractitionerSelect(practitioner.id)}
-                  className={`w-full py-3.5 text-left hover:bg-gray-50 border-b border-gray-100 transition-colors px-6 ${
-                    isSelected(practitioner) ? 'bg-blue-50 border-blue-200' : ''
-                  }`}
+                  className={`w-full py-3.5 text-left hover:bg-gray-50 border-b border-gray-100 transition-colors px-6 ${isSelected(practitioner) ? 'bg-blue-50 border-blue-200' : ''
+                    }`}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-1.5">

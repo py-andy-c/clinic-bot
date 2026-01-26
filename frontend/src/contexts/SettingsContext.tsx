@@ -114,9 +114,9 @@ export const SettingsProvider: React.FC<SettingsProviderProps> = ({ children }) 
       // This will only be called if saveDataInternal succeeds
       // But we override saveData to handle all three types, so this might not be called
       // if there are service items changes. We'll handle success in the outer saveData.
-      
+
       // Invalidate cache after successful save so other components see fresh data
-      queryClient.invalidateQueries({ queryKey: ['clinic-settings'] });
+      queryClient.invalidateQueries({ queryKey: ['clinicSettings', activeClinicId] });
 
       // Check if clinic info was changed and saved by comparing with the data before save
       if (settings && originalData) {
@@ -144,7 +144,7 @@ export const SettingsProvider: React.FC<SettingsProviderProps> = ({ children }) 
     const currentClinicId = activeClinicId;
     if (!isLoading && currentClinicId && previousClinicIdRef.current !== currentClinicId && previousClinicIdRef.current !== null && previousClinicIdRef.current !== undefined) {
       // Invalidate cache when clinic changes
-      queryClient.invalidateQueries({ queryKey: ['clinic-settings'] });
+      queryClient.invalidateQueries({ queryKey: ['clinicSettings', currentClinicId] });
       queryClient.invalidateQueries({ queryKey: ['practitioner-status'] });
       queryClient.invalidateQueries({ queryKey: ['batch-practitioner-status'] });
       // Clear service items store when clinic changes (will be reloaded for new clinic)
@@ -161,7 +161,7 @@ export const SettingsProvider: React.FC<SettingsProviderProps> = ({ children }) 
 
   // Save function that saves appointment types
   const saveData = async () => {
-        await saveDataInternal();
+    await saveDataInternal();
   };
 
 

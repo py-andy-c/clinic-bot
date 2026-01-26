@@ -5,6 +5,7 @@ import { logger } from '../utils/logger';
 import { tokenRefreshService } from './tokenRefresh';
 import { authStorage } from '../utils/storage';
 import { decodeJwtPayload } from '../utils/jwtUtils';
+import { trackCalendarAPICall, completeCalendarAPICall } from '../utils/performanceMonitor';
 import {
   Clinic,
   Member,
@@ -19,7 +20,8 @@ import {
   RefreshUserDataResponse,
   PractitionerWithDetails,
   LineUserWithStatus,
-  ServiceTypeGroup
+  ServiceTypeGroup,
+  Practitioner
 } from '../types';
 import {
   validateClinicSettings,
@@ -33,6 +35,7 @@ import {
   BatchAvailableSlotsResponse,
   AvailabilityExceptionRequest,
   AvailabilityExceptionResponse,
+  ConflictWarningResponse,
   SchedulingConflictResponse,
   ResourceType,
   Resource,
@@ -246,7 +249,7 @@ export class ApiService {
     return response.data.members;
   }
 
-  async getPractitioners(appointmentTypeId?: number, signal?: AbortSignal): Promise<{ id: number; full_name: string }[]> {
+  async getPractitioners(appointmentTypeId?: number, signal?: AbortSignal): Promise<Practitioner[]> {
     const config = signal ? { signal } : {};
     const params = appointmentTypeId ? { appointment_type_id: appointmentTypeId } : {};
 
@@ -254,6 +257,9 @@ export class ApiService {
       const response = await this.client.get('/clinic/practitioners', { ...config, params });
       return response.data.practitioners;
     } catch (error) {
+      if (axios.isCancel(error)) {
+        throw error;
+      }
       const err = error as any;
       logger.error('Failed to fetch practitioners', {
         message: err?.message,
@@ -598,6 +604,8 @@ export class ApiService {
     has_any_receipt: boolean;
     receipt_id?: number | null;
     receipt_ids: number[];
+    resource_ids: number[];
+    resource_names: string[];
   }> {
     const response = await this.client.get(`/clinic/appointments/${appointmentId}`);
     return response.data;
@@ -670,12 +678,19 @@ export class ApiService {
       events: any[];
     }>;
   }> {
-    const response = await this.client.post('/clinic/practitioners/calendar/batch', {
-      practitioner_ids: data.practitionerIds,
-      start_date: data.startDate,
-      end_date: data.endDate,
-    });
-    return response.data;
+    const callId = trackCalendarAPICall('/clinic/practitioners/calendar/batch', 'POST');
+    try {
+      const response = await this.client.post('/clinic/practitioners/calendar/batch', {
+        practitioner_ids: data.practitionerIds,
+        start_date: data.startDate,
+        end_date: data.endDate,
+      });
+      completeCalendarAPICall(callId, true, false);
+      return response.data;
+    } catch (error) {
+      completeCalendarAPICall(callId, false, false, error instanceof Error ? error.message : 'Unknown error');
+      throw error;
+    }
   }
 
   async getAvailableSlots(userId: number, date: string, appointmentTypeId: number, excludeCalendarEventId?: number): Promise<AvailableSlotsResponse> {
@@ -709,12 +724,19 @@ export class ApiService {
       events: any[];
     }>;
   }> {
-    const response = await this.client.post('/clinic/resources/calendar/batch', {
-      resource_ids: data.resourceIds,
-      start_date: data.startDate,
-      end_date: data.endDate,
-    });
-    return response.data;
+    const callId = trackCalendarAPICall('/clinic/resources/calendar/batch', 'POST');
+    try {
+      const response = await this.client.post('/clinic/resources/calendar/batch', {
+        resource_ids: data.resourceIds,
+        start_date: data.startDate,
+        end_date: data.endDate,
+      });
+      completeCalendarAPICall(callId, true, false);
+      return response.data;
+    } catch (error) {
+      completeCalendarAPICall(callId, false, false, error instanceof Error ? error.message : 'Unknown error');
+      throw error;
+    }
   }
 
   async getBatchAvailableSlots(
@@ -745,7 +767,7 @@ export class ApiService {
   }
 
   // Availability Exception APIs
-  async createAvailabilityException(userId: number, exceptionData: AvailabilityExceptionRequest): Promise<AvailabilityExceptionResponse> {
+  async createAvailabilityException(userId: number, exceptionData: AvailabilityExceptionRequest): Promise<AvailabilityExceptionResponse | ConflictWarningResponse> {
     const response = await this.client.post(`/clinic/practitioners/${userId}/availability/exceptions`, exceptionData);
     return response.data;
   }
@@ -760,6 +782,7 @@ export class ApiService {
     date: string;
     start_time: string;
     appointment_type_id: number;
+    selected_resource_ids?: number[];
   }, signal?: AbortSignal): Promise<{ results: SchedulingConflictResponse[] }> {
     const config: any = {};
     if (signal) {
@@ -773,10 +796,16 @@ export class ApiService {
     appointment_type_id: number;
     start_time: string; // ISO datetime string
     end_time: string; // ISO datetime string
+    selected_resource_ids?: number[];
     exclude_calendar_event_id?: number;
   }, signal?: AbortSignal): Promise<SchedulingConflictResponse> {
+    const params: any = { ...data };
+    if (data.selected_resource_ids && data.selected_resource_ids.length > 0) {
+      params.selected_resource_ids = data.selected_resource_ids.join(',');
+    }
+
     const config: any = {
-      params: data
+      params
     };
     if (signal) {
       config.signal = signal;

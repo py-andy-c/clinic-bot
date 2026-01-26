@@ -17,6 +17,29 @@ vi.mock('@tanstack/react-query', () => ({
   useQuery: vi.fn(),
 }));
 
+// Mock useResourceAvailability hook
+vi.mock('../../../hooks/queries/useResourceAvailability', () => ({
+  useResourceAvailability: vi.fn(() => ({
+    data: {
+      requirements: [
+        {
+          resource_type_id: 1,
+          resource_type_name: 'Room',
+          required_quantity: 1,
+          available_resources: [
+            { id: 1, name: 'Room A', description: null, is_available: true }
+          ],
+          available_quantity: 1,
+        }
+      ],
+      suggested_allocation: [],
+      conflicts: [],
+    },
+    isLoading: false,
+    error: null,
+  })),
+}));
+
 // Mock createPortal to render directly
 vi.mock('react-dom', async () => {
   const actual = await vi.importActual('react-dom');
@@ -44,6 +67,14 @@ vi.mock('../../../services/api', () => ({
       available_resources: [],
     }),
     getServiceTypeGroups: vi.fn().mockResolvedValue({ groups: [] }),
+    getResourceTypes: vi.fn(() => Promise.resolve([
+      { id: 1, name: 'Room', display_order: 1 },
+      { id: 2, name: 'Equipment', display_order: 2 }
+    ])),
+    getResources: vi.fn(() => Promise.resolve([
+      { id: 1, name: 'Room A', resource_type_id: 1, description: 'Main consultation room' },
+      { id: 2, name: 'Room B', resource_type_id: 1, description: 'Secondary room' }
+    ])),
   },
 }));
 
@@ -69,7 +100,6 @@ vi.mock('../../../hooks/queries', () => ({
       conflict_type: null,
       appointment_conflict: null,
       exception_conflict: null,
-      resource_conflicts: null,
       default_availability: {
         is_within_hours: true,
         normal_hours: null,
@@ -182,7 +212,12 @@ vi.mock('../DateTimePicker', () => ({
   },
 }));
 
-const mockFormatAppointmentTime = vi.fn((start: Date, end: Date) => 
+// Mock ResourceSelection to avoid complex async operations
+vi.mock('../../../components/ResourceSelection', () => ({
+  ResourceSelection: () => <div data-testid="resource-selection">ResourceSelection</div>,
+}));
+
+const mockFormatAppointmentTime = vi.fn((start: Date, end: Date) =>
   `${start.toLocaleDateString()} ${start.toLocaleTimeString()} - ${end.toLocaleTimeString()}`
 );
 

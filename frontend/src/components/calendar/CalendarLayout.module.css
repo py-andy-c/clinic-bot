@@ -1,0 +1,65 @@
+/* CalendarLayout.module.css */
+.calendarLayout {
+  /* Fixed positioned calendar layout using dynamic offset from header/warnings */
+  position: fixed;
+  top: var(--calendar-top-offset, 64px);
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  overflow: hidden;
+  /* Prevent body scroll and layout expansion */
+  z-index: 40;
+  /* Below global header (z-50 = 50) but above other content */
+  overscroll-behavior: none;
+  /* Prevent bounce at edges */
+}
+
+/* Global utility for AvailabilityPage to lock the main container */
+:global(.body-calendar-mode) main {
+  padding-top: 0 !important;
+  max-width: none !important;
+  margin: 0 !important;
+  height: 100vh;
+  overflow: hidden;
+}
+
+:global(.body-calendar-mode) {
+  overflow: hidden !important;
+  position: fixed;
+  width: 100%;
+  height: 100%;
+}
+
+.calendarContent {
+  /* Calendar content area takes remaining space after sidebar */
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  /* Constrain viewport to prevent expansion */
+  background: white;
+}
+
+.calendarViewport {
+  /* The ONE AND ONLY scrollable container - handles both H and V scrolling */
+  /* Using flexbox instead of CSS Grid because columns need equal distribution with min-width constraints.
+     CSS Grid would require explicit grid-template-columns which is less flexible for dynamic column counts. */
+  flex: 1;
+  overflow-x: auto;
+  /* Explicit horizontal scrolling */
+  overflow-y: auto;
+  /* Vertical scrolling for time slots */
+  overscroll-behavior: none;
+  /* Prevent rubber-band bounce detaching elements */
+  -webkit-overflow-scrolling: touch;
+  /* Smooth momentum scrolling for mobile */
+  position: relative;
+  background: white;
+  /* Safety buffer for mobile browsers and home indicators */
+  padding-bottom: calc(env(safe-area-inset-bottom, 20px) + 60px);
+}
+
+.calendarLayout :global(*) {
+  box-sizing: border-box;
+}

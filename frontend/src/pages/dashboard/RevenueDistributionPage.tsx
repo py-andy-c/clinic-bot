@@ -16,6 +16,28 @@ import { formatEventTimeRange } from '../../utils/calendarDataAdapter';
 import { useAuth } from '../../hooks/useAuth';
 import { logger } from '../../utils/logger';
 import DashboardBackButton from '../../components/DashboardBackButton';
+import { useQueryClient } from '@tanstack/react-query';
+import { invalidateCalendarEventsForAppointment } from '../../hooks/queries/useCalendarEvents';
+import { EMPTY_ARRAY } from '../../utils/constants';
+
+// Utility function to update a CalendarEvent with fresh appointment data
+const updateCalendarEventWithAppointmentData = (
+  existingEvent: CalendarEvent,
+  appointmentData: any
+): CalendarEvent => {
+  const updatedResource = {
+    ...existingEvent.resource,
+    has_active_receipt: appointmentData.has_active_receipt,
+    has_any_receipt: appointmentData.has_any_receipt,
+    receipt_id: appointmentData.receipt_id || null,
+    receipt_ids: appointmentData.receipt_ids || EMPTY_ARRAY,
+  };
+
+  return {
+    ...existingEvent,
+    resource: updatedResource,
+  };
+};
 
 import { AppointmentType } from '../../types';
 import {
@@ -27,18 +49,19 @@ import {
 const RevenueDistributionPage: React.FC = () => {
   const { user, isClinicUser, isClinicAdmin } = useAuth();
   const activeClinicId = user?.active_clinic_id ?? null;
-  
+  const queryClient = useQueryClient();
+
   // Active filter state (used for API calls)
-  const [startDate, setStartDate] = useState<string>(moment().startOf('month').format('YYYY-MM-DD'));
-  const [endDate, setEndDate] = useState<string>(moment().endOf('month').format('YYYY-MM-DD'));
+  const [startDate, setStartDate] = useState<string>(moment().tz('Asia/Taipei').startOf('month').format('YYYY-MM-DD'));
+  const [endDate, setEndDate] = useState<string>(moment().tz('Asia/Taipei').endOf('month').format('YYYY-MM-DD'));
   const [selectedPractitionerId, setSelectedPractitionerId] = useState<number | string | null>(null);
   const [selectedServiceItemId, setSelectedServiceItemId] = useState<number | string | null>(null);
   const [selectedGroupId, setSelectedGroupId] = useState<number | string | null>(null);
   const [showOverwrittenOnly, setShowOverwrittenOnly] = useState(false);
-  
+
   // Pending filter state (for UI inputs, not applied until button clicked)
-  const [pendingStartDate, setPendingStartDate] = useState<string>(moment().startOf('month').format('YYYY-MM-DD'));
-  const [pendingEndDate, setPendingEndDate] = useState<string>(moment().endOf('month').format('YYYY-MM-DD'));
+  const [pendingStartDate, setPendingStartDate] = useState<string>(moment().tz('Asia/Taipei').startOf('month').format('YYYY-MM-DD'));
+  const [pendingEndDate, setPendingEndDate] = useState<string>(moment().tz('Asia/Taipei').endOf('month').format('YYYY-MM-DD'));
   const [pendingPractitionerId, setPendingPractitionerId] = useState<number | string | null>(null);
   const [pendingServiceItemId, setPendingServiceItemId] = useState<number | string | null>(null);
   const [pendingGroupId, setPendingGroupId] = useState<number | string | null>(null);
@@ -48,11 +71,11 @@ const RevenueDistributionPage: React.FC = () => {
     direction: 'desc',
   });
   const [page, setPage] = useState(1);
-  
+
   // Reset filters to default when clinic changes
   useEffect(() => {
-    const defaultStartDate = moment().startOf('month').format('YYYY-MM-DD');
-    const defaultEndDate = moment().endOf('month').format('YYYY-MM-DD');
+    const defaultStartDate = moment().tz('Asia/Taipei').startOf('month').format('YYYY-MM-DD');
+    const defaultEndDate = moment().tz('Asia/Taipei').endOf('month').format('YYYY-MM-DD');
 
     // For non-admin users, auto-filter to their own practitioner ID
     const defaultPractitionerId = !isClinicAdmin && user?.user_id ? user.user_id : null;
@@ -85,7 +108,7 @@ const RevenueDistributionPage: React.FC = () => {
   // TODO: Create useServiceTypeGroups hook when needed
 
   const practitioners = useMemo<PractitionerOption[]>(() => {
-    if (!membersData || !Array.isArray(membersData)) return [];
+    if (!membersData || !Array.isArray(membersData)) return EMPTY_ARRAY as any;
     let pracs = membersData
       .filter(m => m.roles.includes('practitioner'))
       .map(m => ({ id: m.id, full_name: m.full_name }));
@@ -101,7 +124,7 @@ const RevenueDistributionPage: React.FC = () => {
 
   const groups = useMemo<ServiceTypeGroupOption[]>(() => {
     // TODO: Implement useServiceTypeGroups hook
-    return [];
+    return EMPTY_ARRAY as any;
   }, []);
 
   // Check if clinic has groups configured
@@ -187,7 +210,7 @@ const RevenueDistributionPage: React.FC = () => {
         pendingGroupId,
         hasGroups
       );
-      
+
       predefinedItems.push(...appointmentTypesToServiceItemOptions(filteredAppointmentTypes));
     }
 
@@ -195,7 +218,7 @@ const RevenueDistributionPage: React.FC = () => {
     // Use customItemsData (unfiltered) instead of data (filtered) to ensure all custom items
     // always appear in the dropdown, even when a service_item_id filter is applied
     const customItemsMap = new Map<string, ServiceItemOption>();
-    
+
     if (shouldShowCustomItems(hasGroups, pendingGroupId) && customItemsData?.by_service) {
       customItemsData.by_service.forEach(item => {
         if (item.is_custom && item.receipt_name) {
@@ -295,10 +318,10 @@ const RevenueDistributionPage: React.FC = () => {
     const rowKey = `${receiptId}-${rowIndex}`;
     try {
       setLoadingRowKey(rowKey);
-      
+
       // Fetch appointment details directly by ID (no need for date/practitioner)
       const appointmentData = await apiService.getAppointmentDetails(appointmentId);
-      
+
       // Convert AppointmentListItem to CalendarEvent format for EventModal
       const resource: CalendarEvent['resource'] = {
         type: 'appointment',
@@ -316,9 +339,11 @@ const RevenueDistributionPage: React.FC = () => {
         has_active_receipt: appointmentData.has_active_receipt,
         has_any_receipt: appointmentData.has_any_receipt,
         receipt_id: appointmentData.receipt_id || null,
-        receipt_ids: appointmentData.receipt_ids || [],
+        receipt_ids: appointmentData.receipt_ids || EMPTY_ARRAY,
+        resource_ids: appointmentData.resource_ids || EMPTY_ARRAY,
+        resource_names: appointmentData.resource_names || EMPTY_ARRAY,
       };
-      
+
       // Only include optional fields if they have values
       if (appointmentData.notes) {
         resource.notes = appointmentData.notes;
@@ -329,7 +354,7 @@ const RevenueDistributionPage: React.FC = () => {
       if (appointmentData.line_display_name) {
         resource.line_display_name = appointmentData.line_display_name;
       }
-      
+
       const calendarEvent: CalendarEvent = {
         id: appointmentData.calendar_event_id,
         title: appointmentData.event_name,
@@ -337,7 +362,7 @@ const RevenueDistributionPage: React.FC = () => {
         end: new Date(appointmentData.end_time),
         resource,
       };
-      
+
       setSelectedAppointmentEvent(calendarEvent);
       setShowAppointmentModal(true);
     } catch (error) {
@@ -377,330 +402,357 @@ const RevenueDistributionPage: React.FC = () => {
       <DashboardBackButton />
       <div className="max-w-7xl mx-auto px-0 md:px-6 md:py-6">
         {/* Page Header */}
-      <div className="px-3 md:px-0 mb-4 md:mb-6">
-        <div className="flex items-center gap-2">
-          <h1 className="text-xl md:text-2xl font-semibold text-gray-900">診所分潤審核</h1>
-          <InfoButton onClick={() => setShowPageInfoModal(true)} ariaLabel="查看說明" />
-        </div>
-        <p className="text-xs md:text-sm text-gray-600 mt-1">審核和檢視診所分潤，確認計費方案選擇和金額覆寫</p>
-      </div>
-
-      {/* Filters */}
-      <DashboardFilters
-        startDate={pendingStartDate}
-        endDate={pendingEndDate}
-        onStartDateChange={setPendingStartDate}
-        onEndDateChange={setPendingEndDate}
-        practitionerId={pendingPractitionerId}
-        onPractitionerChange={setPendingPractitionerId}
-        practitioners={practitioners}
-        hasNullPractitionerInData={hasNullPractitionerInData}
-        hasGroups={hasGroups}
-        groupId={pendingGroupId}
-        onGroupChange={setPendingGroupId}
-        groups={groups}
-        serviceItemId={pendingServiceItemId}
-        onServiceItemChange={setPendingServiceItemId}
-        serviceItems={serviceItems}
-        standardServiceItemIds={standardServiceItemIds}
-        onApplyFilters={handleApplyFilters}
-        onTimeRangePreset={handleTimeRangePreset}
-        activePreset={detectPresetFromDates(startDate, endDate)}
-        checkbox={{
-          checked: pendingShowOverwrittenOnly,
-          onChange: setPendingShowOverwrittenOnly,
-          label: '僅顯示覆寫計費方案',
-          infoButton: {
-            onClick: () => setShowOverwrittenFilterInfoModal(true),
-            ariaLabel: '查看覆寫計費方案說明',
-          },
-        }}
-      />
-
-      {/* Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-4 mb-4 md:mb-6">
-        <div className="bg-white md:rounded-lg md:border md:border-gray-200 md:shadow-sm px-3 py-2 md:px-6 md:py-6">
-          <p className="text-xs md:text-sm text-gray-600 mb-1">總營收</p>
-          <p className="text-lg md:text-2xl font-semibold text-gray-900">{formatCurrency(summary.total_revenue)}</p>
-        </div>
-        <div className="bg-white md:rounded-lg md:border md:border-gray-200 md:shadow-sm px-3 py-2 md:px-6 md:py-6">
-          <p className="text-xs md:text-sm text-gray-600 mb-1">總診所分潤</p>
-          <p className="text-lg md:text-2xl font-semibold text-blue-600">{formatCurrency(summary.total_clinic_share)}</p>
-        </div>
-        <div className="bg-white md:rounded-lg md:border md:border-gray-200 md:shadow-sm px-3 py-2 md:px-6 md:py-6">
-          <p className="text-xs md:text-sm text-gray-600 mb-1">收據項目數</p>
-          <p className="text-lg md:text-2xl font-semibold text-gray-900">{summary.receipt_item_count}</p>
-        </div>
-      </div>
-
-      {/* Receipts List */}
-      <div className="bg-white md:rounded-lg md:border md:border-gray-200 md:shadow-sm pt-6 border-t border-gray-200 md:pt-0 md:border-t-0">
-        <div className="px-3 py-2 md:px-6 md:py-6 border-b border-gray-200">
-          <h2 className="text-base md:text-lg font-semibold text-gray-900">收據明細</h2>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="divide-y divide-gray-200" style={{ minWidth: '1200px' }}>
-            <thead className="bg-gray-50">
-              <tr>
-                <SortableTableHeader
-                  column="receipt_number"
-                  currentSort={currentSort}
-                  onSort={handleSort}
-                  align="left"
-                  className="whitespace-nowrap"
-                  style={{ minWidth: '100px' }}
-                >
-                  收據編號
-                </SortableTableHeader>
-                <SortableTableHeader
-                  column="date"
-                  currentSort={currentSort}
-                  onSort={handleSort}
-                  align="left"
-                  className="whitespace-nowrap"
-                  style={{ minWidth: '90px' }}
-                >
-                  預約日期
-                </SortableTableHeader>
-                <SortableTableHeader
-                  column="patient"
-                  currentSort={currentSort}
-                  onSort={handleSort}
-                  align="left"
-                  className="whitespace-nowrap"
-                  style={{ minWidth: '80px' }}
-                >
-                  病患
-                </SortableTableHeader>
-                <SortableTableHeader
-                  column="item"
-                  currentSort={currentSort}
-                  onSort={handleSort}
-                  align="left"
-                  style={{ minWidth: '140px' }}
-                >
-                  項目
-                </SortableTableHeader>
-                <SortableTableHeader
-                  column="quantity"
-                  currentSort={currentSort}
-                  onSort={handleSort}
-                  align="center"
-                  className="whitespace-nowrap"
-                  style={{ minWidth: '60px' }}
-                >
-                  數量
-                </SortableTableHeader>
-                <SortableTableHeader
-                  column="practitioner"
-                  currentSort={currentSort}
-                  onSort={handleSort}
-                  align="left"
-                  style={{ minWidth: '100px' }}
-                >
-                  治療師
-                </SortableTableHeader>
-                <SortableTableHeader
-                  column="billing_scenario"
-                  currentSort={currentSort}
-                  onSort={handleSort}
-                  align="left"
-                  style={{ minWidth: '100px' }}
-                >
-                  計費方案
-                </SortableTableHeader>
-                <SortableTableHeader
-                  column="amount"
-                  currentSort={currentSort}
-                  onSort={handleSort}
-                  align="right"
-                  className="whitespace-nowrap"
-                  style={{ minWidth: '90px' }}
-                >
-                  金額
-                </SortableTableHeader>
-                <SortableTableHeader
-                  column="revenue_share"
-                  currentSort={currentSort}
-                  onSort={handleSort}
-                  align="right"
-                  className="whitespace-nowrap"
-                  style={{ minWidth: '100px' }}
-                >
-                  診所分潤
-                </SortableTableHeader>
-                <th className="px-2 md:px-4 py-2 md:py-3 text-center text-xs font-medium text-gray-500 uppercase whitespace-nowrap" style={{ minWidth: '140px' }}>
-                  操作
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {items.length === 0 ? (
-                <tr>
-                  <td colSpan={10} className="px-2 md:px-4 py-2 md:py-3 text-center text-xs md:text-sm text-gray-500">
-                    目前沒有符合條件的資料
-                  </td>
-                </tr>
-              ) : (
-                items.map((item, index) => {
-                  const isOverwritten = item.billing_scenario === '其他';
-                  return (
-                    <tr
-                      key={`${item.receipt_id}-${index}`}
-                      className={isOverwritten ? 'bg-yellow-100' : ''}
-                    >
-                      <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm font-medium text-gray-900 whitespace-nowrap">
-                        {item.receipt_number}
-                      </td>
-                      <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-500 whitespace-nowrap">
-                        {item.date}
-                      </td>
-                      <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-900 whitespace-nowrap">
-                        {item.patient_name}
-                      </td>
-                      <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-900">
-                        {item.is_custom ? (
-                          <>
-                            <span className="italic text-gray-600">{item.receipt_name}</span>
-                            <span className="text-xs text-gray-400 ml-1">(自訂)</span>
-                          </>
-                        ) : (
-                          serviceItemIdToName.get(item.service_item_id!) || item.service_item_name
-                        )}
-                      </td>
-                      <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-500 text-center whitespace-nowrap">
-                        {item.quantity}
-                      </td>
-                      <td className={`px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm whitespace-nowrap ${
-                        item.practitioner_id === null ? 'text-gray-500' : 'text-gray-900'
-                      }`}>
-                        {item.practitioner_name || '無'}
-                      </td>
-                      <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-500 whitespace-nowrap">
-                        {item.billing_scenario}
-                      </td>
-                      <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-900 text-right whitespace-nowrap">
-                        {formatCurrency(item.amount)}
-                      </td>
-                      <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-blue-600 text-right whitespace-nowrap">
-                        {formatCurrency(item.revenue_share)}
-                      </td>
-                      <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-center whitespace-nowrap">
-                        <div className="flex items-center justify-center gap-2">
-                          {item.appointment_id && (
-                            <>
-                              <button
-                                className="text-blue-600 hover:text-blue-800 text-xs md:text-sm whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
-                                onClick={() => handleViewAppointment(item.appointment_id!, item.receipt_id, index)}
-                                disabled={loadingRowKey === `${item.receipt_id}-${index}`}
-                              >
-                                {loadingRowKey === `${item.receipt_id}-${index}` ? '載入中...' : '檢視預約'}
-                              </button>
-                              <span className="text-gray-300">|</span>
-                            </>
-                          )}
-                          <button
-                            className="text-blue-600 hover:text-blue-800 text-xs md:text-sm whitespace-nowrap"
-                            onClick={() => handleViewReceipt(item.receipt_id)}
-                          >
-                            檢視收據
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-        {/* Pagination */}
-        <div className="px-3 md:px-6 py-3 md:py-4 border-t border-gray-200 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2">
-          <div className="text-xs md:text-sm text-gray-700">
-            顯示 <span className="font-medium">{(currentPage - 1) * page_size + 1}</span> 到{' '}
-            <span className="font-medium">{Math.min(currentPage * page_size, total)}</span> 筆，共{' '}
-            <span className="font-medium">{total}</span> 筆項目
+        <div className="px-3 md:px-0 mb-4 md:mb-6">
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl md:text-2xl font-semibold text-gray-900">診所分潤審核</h1>
+            <InfoButton onClick={() => setShowPageInfoModal(true)} ariaLabel="查看說明" />
           </div>
-          <div className="flex gap-2">
-            <button
-              className="px-2 md:px-3 py-1 border border-gray-300 rounded-md text-xs md:text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={currentPage === 1}
-              onClick={() => setPage(prev => Math.max(1, prev - 1))}
-            >
-              上一頁
-            </button>
-            <button
-              className="px-2 md:px-3 py-1 border border-gray-300 rounded-md text-xs md:text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={currentPage >= totalPages}
-              onClick={() => setPage(prev => Math.min(totalPages, prev + 1))}
-            >
-              下一頁
-            </button>
-          </div>
+          <p className="text-xs md:text-sm text-gray-600 mt-1">審核和檢視診所分潤，確認計費方案選擇和金額覆寫</p>
         </div>
-      </div>
 
-      {/* Info Modals */}
-      {showPageInfoModal && (
-        <InfoModal
-          isOpen={showPageInfoModal}
-          onClose={() => setShowPageInfoModal(false)}
-          title="診所分潤審核說明"
-        >
-          <p><strong>目的：</strong>此頁面用於審核和檢視診所分潤，確認治療師在結帳時選擇的計費方案是否正確，以及是否有金額覆寫的情況。</p>
-          <p><strong>計費方案：</strong>治療師在結帳時可以選擇預設的計費方案（如「原價」、「九折」、「會員價」），或選擇「其他」並手動輸入金額。</p>
-          <p><strong>覆寫項目：</strong>當計費方案顯示為「其他」時，表示金額已被覆寫，需要特別審核確認是否正確。覆寫項目會以黃色背景標示。覆寫可能發生在標準服務項目（使用預設計費方案但金額被手動修改）或自訂服務項目（選擇「其他」並輸入自訂金額）上。</p>
-          <p><strong>自訂服務項目：</strong>如果服務項目名稱顯示為斜體並標註「(自訂)」，表示這是治療師在結帳時輸入的自訂項目名稱。</p>
-          <p><strong>標準項目覆寫：</strong>即使是標準服務項目（如「初診評估」、「復健治療」），如果治療師選擇「其他」計費方案並手動輸入金額，也會被標記為覆寫項目。</p>
-          <p><strong>數量：</strong>顯示該項目的數量。金額和診所分潤欄位顯示的是總額（單價 × 數量）。例如：數量為 3，金額為 $5,400，表示單價為 $1,800，總共 3 個單位。</p>
-          <p><strong>無治療師：</strong>如果治療師欄位顯示「無」，表示該項目未指定治療師。</p>
-        </InfoModal>
-      )}
-
-      {showOverwrittenFilterInfoModal && (
-        <InfoModal
-          isOpen={showOverwrittenFilterInfoModal}
-          onClose={() => setShowOverwrittenFilterInfoModal(false)}
-          title="覆寫計費方案說明"
-        >
-          <p><strong>什麼是覆寫計費方案？</strong></p>
-          <p>當治療師在結帳時選擇「其他」計費方案並手動輸入金額時，該項目會被標記為「覆寫計費方案」。</p>
-        </InfoModal>
-      )}
-
-      {/* Receipt View Modal */}
-      {showReceiptModal && selectedReceiptId && (
-        <ReceiptViewModal
-          receiptId={selectedReceiptId}
-          onClose={() => {
-            setShowReceiptModal(false);
-            setSelectedReceiptId(null);
-          }}
-          onReceiptVoided={() => {
-            // Refetch data after voiding
-            // React Query will automatically refetch when data changes
-          }}
-          isClinicUser={isClinicUser || false}
-        />
-      )}
-
-      {/* Appointment View Modal */}
-      {showAppointmentModal && selectedAppointmentEvent && (
-        <EventModal
-          event={selectedAppointmentEvent}
-          onClose={() => {
-            setShowAppointmentModal(false);
-            setSelectedAppointmentEvent(null);
-          }}
-          formatAppointmentTime={formatEventTimeRange}
-          appointmentTypes={settingsData?.appointment_types || []}
+        {/* Filters */}
+        <DashboardFilters
+          startDate={pendingStartDate}
+          endDate={pendingEndDate}
+          onStartDateChange={setPendingStartDate}
+          onEndDateChange={setPendingEndDate}
+          practitionerId={pendingPractitionerId}
+          onPractitionerChange={setPendingPractitionerId}
           practitioners={practitioners}
-          onReceiptCreated={() => {
-            // Refetch data after receipt creation
-            // React Query will automatically refetch when data changes
+          hasNullPractitionerInData={hasNullPractitionerInData}
+          hasGroups={hasGroups}
+          groupId={pendingGroupId}
+          onGroupChange={setPendingGroupId}
+          groups={groups}
+          serviceItemId={pendingServiceItemId}
+          onServiceItemChange={setPendingServiceItemId}
+          serviceItems={serviceItems}
+          standardServiceItemIds={standardServiceItemIds}
+          onApplyFilters={handleApplyFilters}
+          onTimeRangePreset={handleTimeRangePreset}
+          activePreset={detectPresetFromDates(startDate, endDate)}
+          checkbox={{
+            checked: pendingShowOverwrittenOnly,
+            onChange: setPendingShowOverwrittenOnly,
+            label: '僅顯示覆寫計費方案',
+            infoButton: {
+              onClick: () => setShowOverwrittenFilterInfoModal(true),
+              ariaLabel: '查看覆寫計費方案說明',
+            },
           }}
         />
-      )}
+
+        {/* Summary Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-4 mb-4 md:mb-6">
+          <div className="bg-white md:rounded-lg md:border md:border-gray-200 md:shadow-sm px-3 py-2 md:px-6 md:py-6">
+            <p className="text-xs md:text-sm text-gray-600 mb-1">總營收</p>
+            <p className="text-lg md:text-2xl font-semibold text-gray-900">{formatCurrency(summary.total_revenue)}</p>
+          </div>
+          <div className="bg-white md:rounded-lg md:border md:border-gray-200 md:shadow-sm px-3 py-2 md:px-6 md:py-6">
+            <p className="text-xs md:text-sm text-gray-600 mb-1">總診所分潤</p>
+            <p className="text-lg md:text-2xl font-semibold text-blue-600">{formatCurrency(summary.total_clinic_share)}</p>
+          </div>
+          <div className="bg-white md:rounded-lg md:border md:border-gray-200 md:shadow-sm px-3 py-2 md:px-6 md:py-6">
+            <p className="text-xs md:text-sm text-gray-600 mb-1">收據項目數</p>
+            <p className="text-lg md:text-2xl font-semibold text-gray-900">{summary.receipt_item_count}</p>
+          </div>
+        </div>
+
+        {/* Receipts List */}
+        <div className="bg-white md:rounded-lg md:border md:border-gray-200 md:shadow-sm pt-6 border-t border-gray-200 md:pt-0 md:border-t-0">
+          <div className="px-3 py-2 md:px-6 md:py-6 border-b border-gray-200">
+            <h2 className="text-base md:text-lg font-semibold text-gray-900">收據明細</h2>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="divide-y divide-gray-200" style={{ minWidth: '1200px' }}>
+              <thead className="bg-gray-50">
+                <tr>
+                  <SortableTableHeader
+                    column="receipt_number"
+                    currentSort={currentSort}
+                    onSort={handleSort}
+                    align="left"
+                    className="whitespace-nowrap"
+                    style={{ minWidth: '100px' }}
+                  >
+                    收據編號
+                  </SortableTableHeader>
+                  <SortableTableHeader
+                    column="date"
+                    currentSort={currentSort}
+                    onSort={handleSort}
+                    align="left"
+                    className="whitespace-nowrap"
+                    style={{ minWidth: '90px' }}
+                  >
+                    預約日期
+                  </SortableTableHeader>
+                  <SortableTableHeader
+                    column="patient"
+                    currentSort={currentSort}
+                    onSort={handleSort}
+                    align="left"
+                    className="whitespace-nowrap"
+                    style={{ minWidth: '80px' }}
+                  >
+                    病患
+                  </SortableTableHeader>
+                  <SortableTableHeader
+                    column="item"
+                    currentSort={currentSort}
+                    onSort={handleSort}
+                    align="left"
+                    style={{ minWidth: '140px' }}
+                  >
+                    項目
+                  </SortableTableHeader>
+                  <SortableTableHeader
+                    column="quantity"
+                    currentSort={currentSort}
+                    onSort={handleSort}
+                    align="center"
+                    className="whitespace-nowrap"
+                    style={{ minWidth: '60px' }}
+                  >
+                    數量
+                  </SortableTableHeader>
+                  <SortableTableHeader
+                    column="practitioner"
+                    currentSort={currentSort}
+                    onSort={handleSort}
+                    align="left"
+                    style={{ minWidth: '100px' }}
+                  >
+                    治療師
+                  </SortableTableHeader>
+                  <SortableTableHeader
+                    column="billing_scenario"
+                    currentSort={currentSort}
+                    onSort={handleSort}
+                    align="left"
+                    style={{ minWidth: '100px' }}
+                  >
+                    計費方案
+                  </SortableTableHeader>
+                  <SortableTableHeader
+                    column="amount"
+                    currentSort={currentSort}
+                    onSort={handleSort}
+                    align="right"
+                    className="whitespace-nowrap"
+                    style={{ minWidth: '90px' }}
+                  >
+                    金額
+                  </SortableTableHeader>
+                  <SortableTableHeader
+                    column="revenue_share"
+                    currentSort={currentSort}
+                    onSort={handleSort}
+                    align="right"
+                    className="whitespace-nowrap"
+                    style={{ minWidth: '100px' }}
+                  >
+                    診所分潤
+                  </SortableTableHeader>
+                  <th className="px-2 md:px-4 py-2 md:py-3 text-center text-xs font-medium text-gray-500 uppercase whitespace-nowrap" style={{ minWidth: '140px' }}>
+                    操作
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {items.length === 0 ? (
+                  <tr>
+                    <td colSpan={10} className="px-2 md:px-4 py-2 md:py-3 text-center text-xs md:text-sm text-gray-500">
+                      目前沒有符合條件的資料
+                    </td>
+                  </tr>
+                ) : (
+                  items.map((item, index) => {
+                    const isOverwritten = item.billing_scenario === '其他';
+                    return (
+                      <tr
+                        key={`${item.receipt_id}-${index}`}
+                        className={isOverwritten ? 'bg-yellow-100' : ''}
+                      >
+                        <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm font-medium text-gray-900 whitespace-nowrap">
+                          {item.receipt_number}
+                        </td>
+                        <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-500 whitespace-nowrap">
+                          {item.date}
+                        </td>
+                        <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-900 whitespace-nowrap">
+                          {item.patient_name}
+                        </td>
+                        <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-900">
+                          {item.is_custom ? (
+                            <>
+                              <span className="italic text-gray-600">{item.receipt_name}</span>
+                              <span className="text-xs text-gray-400 ml-1">(自訂)</span>
+                            </>
+                          ) : (
+                            serviceItemIdToName.get(item.service_item_id!) || item.service_item_name
+                          )}
+                        </td>
+                        <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-500 text-center whitespace-nowrap">
+                          {item.quantity}
+                        </td>
+                        <td className={`px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm whitespace-nowrap ${item.practitioner_id === null ? 'text-gray-500' : 'text-gray-900'
+                          }`}>
+                          {item.practitioner_name || '無'}
+                        </td>
+                        <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-500 whitespace-nowrap">
+                          {item.billing_scenario}
+                        </td>
+                        <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-900 text-right whitespace-nowrap">
+                          {formatCurrency(item.amount)}
+                        </td>
+                        <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-blue-600 text-right whitespace-nowrap">
+                          {formatCurrency(item.revenue_share)}
+                        </td>
+                        <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-center whitespace-nowrap">
+                          <div className="flex items-center justify-center gap-2">
+                            {item.appointment_id && (
+                              <>
+                                <button
+                                  className="text-blue-600 hover:text-blue-800 text-xs md:text-sm whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+                                  onClick={() => handleViewAppointment(item.appointment_id!, item.receipt_id, index)}
+                                  disabled={loadingRowKey === `${item.receipt_id}-${index}`}
+                                >
+                                  {loadingRowKey === `${item.receipt_id}-${index}` ? '載入中...' : '檢視預約'}
+                                </button>
+                                <span className="text-gray-300">|</span>
+                              </>
+                            )}
+                            <button
+                              className="text-blue-600 hover:text-blue-800 text-xs md:text-sm whitespace-nowrap"
+                              onClick={() => handleViewReceipt(item.receipt_id)}
+                            >
+                              檢視收據
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+          {/* Pagination */}
+          <div className="px-3 md:px-6 py-3 md:py-4 border-t border-gray-200 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2">
+            <div className="text-xs md:text-sm text-gray-700">
+              顯示 <span className="font-medium">{(currentPage - 1) * page_size + 1}</span> 到{' '}
+              <span className="font-medium">{Math.min(currentPage * page_size, total)}</span> 筆，共{' '}
+              <span className="font-medium">{total}</span> 筆項目
+            </div>
+            <div className="flex gap-2">
+              <button
+                className="px-2 md:px-3 py-1 border border-gray-300 rounded-md text-xs md:text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={currentPage === 1}
+                onClick={() => setPage(prev => Math.max(1, prev - 1))}
+              >
+                上一頁
+              </button>
+              <button
+                className="px-2 md:px-3 py-1 border border-gray-300 rounded-md text-xs md:text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={currentPage >= totalPages}
+                onClick={() => setPage(prev => Math.min(totalPages, prev + 1))}
+              >
+                下一頁
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Info Modals */}
+        {showPageInfoModal && (
+          <InfoModal
+            isOpen={showPageInfoModal}
+            onClose={() => setShowPageInfoModal(false)}
+            title="診所分潤審核說明"
+          >
+            <p><strong>目的：</strong>此頁面用於審核和檢視診所分潤，確認治療師在結帳時選擇的計費方案是否正確，以及是否有金額覆寫的情況。</p>
+            <p><strong>計費方案：</strong>治療師在結帳時可以選擇預設的計費方案（如「原價」、「九折」、「會員價」），或選擇「其他」並手動輸入金額。</p>
+            <p><strong>覆寫項目：</strong>當計費方案顯示為「其他」時，表示金額已被覆寫，需要特別審核確認是否正確。覆寫項目會以黃色背景標示。覆寫可能發生在標準服務項目（使用預設計費方案但金額被手動修改）或自訂服務項目（選擇「其他」並輸入自訂金額）上。</p>
+            <p><strong>自訂服務項目：</strong>如果服務項目名稱顯示為斜體並標註「(自訂)」，表示這是治療師在結帳時輸入的自訂項目名稱。</p>
+            <p><strong>標準項目覆寫：</strong>即使是標準服務項目（如「初診評估」、「復健治療」），如果治療師選擇「其他」計費方案並手動輸入金額，也會被標記為覆寫項目。</p>
+            <p><strong>數量：</strong>顯示該項目的數量。金額和診所分潤欄位顯示的是總額（單價 × 數量）。例如：數量為 3，金額為 $5,400，表示單價為 $1,800，總共 3 個單位。</p>
+            <p><strong>無治療師：</strong>如果治療師欄位顯示「無」，表示該項目未指定治療師。</p>
+          </InfoModal>
+        )}
+
+        {showOverwrittenFilterInfoModal && (
+          <InfoModal
+            isOpen={showOverwrittenFilterInfoModal}
+            onClose={() => setShowOverwrittenFilterInfoModal(false)}
+            title="覆寫計費方案說明"
+          >
+            <p><strong>什麼是覆寫計費方案？</strong></p>
+            <p>當治療師在結帳時選擇「其他」計費方案並手動輸入金額時，該項目會被標記為「覆寫計費方案」。</p>
+          </InfoModal>
+        )}
+
+        {/* Receipt View Modal */}
+        {showReceiptModal && selectedReceiptId && (
+          <ReceiptViewModal
+            receiptId={selectedReceiptId}
+            onClose={() => {
+              setShowReceiptModal(false);
+              setSelectedReceiptId(null);
+            }}
+            onReceiptVoided={() => {
+              // Refetch data after voiding
+              // React Query will automatically refetch when data changes
+            }}
+            isClinicUser={isClinicUser || false}
+          />
+        )}
+
+        {/* Appointment View Modal */}
+        {showAppointmentModal && selectedAppointmentEvent && (
+          <EventModal
+            event={selectedAppointmentEvent}
+            onClose={() => {
+              setShowAppointmentModal(false);
+              setSelectedAppointmentEvent(null);
+            }}
+            formatAppointmentTime={formatEventTimeRange}
+            appointmentTypes={settingsData?.appointment_types || EMPTY_ARRAY}
+            practitioners={practitioners}
+            onReceiptCreated={() => {
+              // Refetch data after receipt creation
+              // React Query will automatically refetch when data changes
+            }}
+            onEventNameUpdated={async (updateTrigger) => {
+              // Invalidate calendar events to refresh appointment data after modifications
+              try {
+                if (queryClient && activeClinicId) {
+                  invalidateCalendarEventsForAppointment(queryClient, activeClinicId);
+                }
+
+                // If called with null, it means the event data changed (e.g., after checkout)
+                // Fetch fresh appointment data and update the selectedAppointmentEvent
+                if (updateTrigger === null && selectedAppointmentEvent?.resource.appointment_id) {
+                  try {
+                    const appointmentData = await apiService.getAppointmentDetails(selectedAppointmentEvent.resource.appointment_id);
+
+                    // Update the event with fresh appointment data
+                    const updatedEvent = updateCalendarEventWithAppointmentData(selectedAppointmentEvent, appointmentData);
+                    setSelectedAppointmentEvent(updatedEvent);
+                  } catch (fetchError) {
+                    // Failed to fetch updated appointment data - close modal as fallback
+                    // to ensure user sees fresh data when reopened
+                    setShowAppointmentModal(false);
+                    setSelectedAppointmentEvent(null);
+                  }
+                }
+              } catch (error) {
+                // Cache invalidation failed - this is non-critical for user experience
+                // The calendar will still function, just with potentially stale data
+              }
+            }}
+          />
+        )}
       </div>
     </>
   );

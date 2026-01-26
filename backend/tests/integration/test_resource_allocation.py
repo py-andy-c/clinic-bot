@@ -27,8 +27,8 @@ from services.availability_service import AvailabilityService
 class TestResourceAllocationIntegration:
     """Integration tests for resource allocation."""
 
-    def test_create_appointment_with_resource_allocation(self, db_session: Session):
-        """Test that resources are automatically allocated when creating an appointment."""
+    def test_create_appointment_no_auto_allocation(self, db_session: Session):
+        """Test that resources are NO LONGER automatically allocated when creating an appointment (design change)."""
         # Create clinic
         clinic = Clinic(
             name="Test Clinic",
@@ -96,12 +96,7 @@ class TestResourceAllocationIntegration:
             clinic_id=clinic.id,
             name="治療室1"
         )
-        resource2 = Resource(
-            resource_type_id=resource_type.id,
-            clinic_id=clinic.id,
-            name="治療室2"
-        )
-        db_session.add_all([resource1, resource2])
+        db_session.add(resource1)
         db_session.commit()
 
         # Create requirement (needs 1 room)
@@ -122,13 +117,13 @@ class TestResourceAllocationIntegration:
             appointment_type_id=appointment_type.id,
             start_time=start_time,
             practitioner_id=user.id,
-            selected_resource_ids=None  # Auto-allocate
+            selected_resource_ids=None  # No longer auto-allocates
         )
 
         # Verify appointment was created
         assert result['appointment_id'] is not None
 
-        # Verify resource was allocated
+        # Verify NO resource was allocated
         calendar_event = db_session.query(CalendarEvent).filter(
             CalendarEvent.id == result['calendar_event_id']
         ).first()
@@ -138,8 +133,7 @@ class TestResourceAllocationIntegration:
             AppointmentResourceAllocation.appointment_id == calendar_event.id
         ).all()
 
-        assert len(allocations) == 1
-        assert allocations[0].resource_id in [resource1.id, resource2.id]
+        assert len(allocations) == 0  # Changed from 1 to 0
 
     def test_create_appointment_with_selected_resources(self, db_session: Session):
         """Test that selected resources are used when provided."""
@@ -337,7 +331,7 @@ class TestResourceAllocationIntegration:
         db_session.add(requirement)
         db_session.commit()
 
-        # Create appointment at 10:00
+        # Create appointment at 10:00 with explicit resource selection (initial allocation)
         start_time = datetime(2025, 1, 28, 10, 0)
         result = AppointmentService.create_appointment(
             db=db_session,
@@ -345,7 +339,8 @@ class TestResourceAllocationIntegration:
             patient_id=patient.id,
             appointment_type_id=appointment_type.id,
             start_time=start_time,
-            practitioner_id=user.id
+            practitioner_id=user.id,
+            selected_resource_ids=[resource1.id]  # Explicitly select a resource
         )
 
         calendar_event = db_session.query(CalendarEvent).filter(
@@ -357,9 +352,10 @@ class TestResourceAllocationIntegration:
             AppointmentResourceAllocation.appointment_id == calendar_event.id
         ).all()
         assert len(initial_allocations) == 1
-        initial_resource_id = initial_allocations[0].resource_id
+        assert initial_allocations[0].resource_id == resource1.id
 
-        # Update appointment time to 14:00
+        # Update appointment time to 14:00 (without providing selected_resource_ids)
+        # It should PRESERVE the existing resource (resource1)
         new_start_time = datetime(2025, 1, 28, 14, 0)
         AppointmentService.update_appointment(
             db=db_session,
@@ -367,15 +363,16 @@ class TestResourceAllocationIntegration:
             new_practitioner_id=None,
             new_start_time=new_start_time,
             apply_booking_constraints=False,
-            allow_auto_assignment=False
+            allow_auto_assignment=False,
+            selected_resource_ids=None  # Should preserve existing
         )
 
-        # Verify resources were re-allocated (old allocation deleted, new one created)
+        # Verify resources were PRESERVED and re-allocated to the new time
         allocations = db_session.query(AppointmentResourceAllocation).filter(
             AppointmentResourceAllocation.appointment_id == calendar_event.id
         ).all()
         assert len(allocations) == 1
-        # Resource might be the same or different (depends on availability)
+        assert allocations[0].resource_id == resource1.id
 
     def test_resource_availability_affects_slot_calculation(self, db_session: Session):
         """Test that resource availability affects available slot calculation."""
@@ -469,7 +466,8 @@ class TestResourceAllocationIntegration:
             patient_id=patient.id,
             appointment_type_id=appointment_type.id,
             start_time=start_time,
-            practitioner_id=user.id
+            practitioner_id=user.id,
+            selected_resource_ids=[resource1.id]  # Explicitly select the only resource
         )
 
         # Check available slots for same time - should show no slots available

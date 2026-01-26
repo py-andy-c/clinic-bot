@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from main import app
 from utils.datetime_utils import taiwan_now
-from models import User, Clinic, AppointmentType, Patient, PractitionerAvailability, CalendarEvent, AvailabilityException, Appointment
+from models import User, Clinic, AppointmentType, Patient, PractitionerAvailability, CalendarEvent, AvailabilityException, Appointment, PractitionerAppointmentTypes
 from core.database import get_db
 from tests.conftest import (
     create_user_with_clinic_association,
@@ -86,6 +86,15 @@ class TestSchedulingConflicts:
         db_session.add(appointment_type)
         db_session.flush()
 
+        # Link to practitioner
+        link = PractitionerAppointmentTypes(
+            user_id=practitioner.id,
+            appointment_type_id=appointment_type.id,
+            clinic_id=clinic.id
+        )
+        db_session.add(link)
+        db_session.flush()
+
         # Create default availability
         past_date = (taiwan_now() - timedelta(days=1)).date()
         day_of_week = past_date.weekday()
@@ -134,6 +143,15 @@ class TestSchedulingConflicts:
             scheduling_buffer_minutes=0
         )
         db_session.add(appointment_type)
+        db_session.flush()
+
+        # Link to practitioner
+        link = PractitionerAppointmentTypes(
+            user_id=practitioner.id,
+            appointment_type_id=appointment_type.id,
+            clinic_id=clinic.id
+        )
+        db_session.add(link)
         db_session.flush()
 
         # Create default availability
@@ -213,6 +231,15 @@ class TestSchedulingConflicts:
             scheduling_buffer_minutes=0
         )
         db_session.add(appointment_type)
+        db_session.flush()
+
+        # Link to practitioner
+        link = PractitionerAppointmentTypes(
+            user_id=practitioner.id,
+            appointment_type_id=appointment_type.id,
+            clinic_id=clinic.id
+        )
+        db_session.add(link)
         db_session.flush()
 
         # Create default availability
@@ -296,6 +323,15 @@ class TestSchedulingConflicts:
         db_session.add(appointment_type)
         db_session.flush()
 
+        # Link to practitioner
+        link = PractitionerAppointmentTypes(
+            user_id=practitioner.id,
+            appointment_type_id=appointment_type.id,
+            clinic_id=clinic.id
+        )
+        db_session.add(link)
+        db_session.flush()
+
         # Create default availability
         future_date = (taiwan_now() + timedelta(days=2)).date()
         day_of_week = future_date.weekday()
@@ -367,6 +403,15 @@ class TestSchedulingConflicts:
         db_session.add(appointment_type)
         db_session.flush()
 
+        # Link to practitioner
+        link = PractitionerAppointmentTypes(
+            user_id=practitioner.id,
+            appointment_type_id=appointment_type.id,
+            clinic_id=clinic.id
+        )
+        db_session.add(link)
+        db_session.flush()
+
         # Create default availability (9 AM to 5 PM)
         future_date = (taiwan_now() + timedelta(days=2)).date()
         day_of_week = future_date.weekday()
@@ -421,6 +466,15 @@ class TestSchedulingConflicts:
         db_session.add(appointment_type)
         db_session.flush()
 
+        # Link to practitioner
+        link = PractitionerAppointmentTypes(
+            user_id=practitioner.id,
+            appointment_type_id=appointment_type.id,
+            clinic_id=clinic.id
+        )
+        db_session.add(link)
+        db_session.flush()
+
         # Create default availability
         future_date = (taiwan_now() + timedelta(days=2)).date()
         day_of_week = future_date.weekday()
@@ -471,6 +525,15 @@ class TestSchedulingConflicts:
             scheduling_buffer_minutes=0
         )
         db_session.add(appointment_type)
+        db_session.flush()
+
+        # Link to practitioner
+        link = PractitionerAppointmentTypes(
+            user_id=practitioner.id,
+            appointment_type_id=appointment_type.id,
+            clinic_id=clinic.id
+        )
+        db_session.add(link)
         db_session.flush()
 
         # Create default availability
@@ -548,6 +611,15 @@ class TestSchedulingConflicts:
             scheduling_buffer_minutes=0
         )
         db_session.add(appointment_type)
+        db_session.flush()
+
+        # Link to practitioner
+        link = PractitionerAppointmentTypes(
+            user_id=practitioner.id,
+            appointment_type_id=appointment_type.id,
+            clinic_id=clinic.id
+        )
+        db_session.add(link)
         db_session.flush()
 
         # Create default availability
@@ -651,6 +723,15 @@ class TestRecurringConflicts:
         db_session.add(appointment_type)
         db_session.flush()
 
+        # Link to practitioner
+        link = PractitionerAppointmentTypes(
+            user_id=practitioner.id,
+            appointment_type_id=appointment_type.id,
+            clinic_id=clinic.id
+        )
+        db_session.add(link)
+        db_session.flush()
+
         # Create default availability for both past and future dates
         past_date = (taiwan_now() - timedelta(days=1)).date()
         future_date = (taiwan_now() + timedelta(days=2)).date()
@@ -727,6 +808,15 @@ class TestRecurringConflicts:
             scheduling_buffer_minutes=0
         )
         db_session.add(appointment_type)
+        db_session.flush()
+
+        # Link to practitioner
+        link = PractitionerAppointmentTypes(
+            user_id=practitioner.id,
+            appointment_type_id=appointment_type.id,
+            clinic_id=clinic.id
+        )
+        db_session.add(link)
         db_session.flush()
 
         # Create default availability
@@ -827,6 +917,15 @@ class TestRecurringConflicts:
         db_session.add(appointment_type)
         db_session.flush()
 
+        # Link to practitioner
+        link = PractitionerAppointmentTypes(
+            user_id=practitioner.id,
+            appointment_type_id=appointment_type.id,
+            clinic_id=clinic.id
+        )
+        db_session.add(link)
+        db_session.flush()
+
         # Create default availability
         future_date = (taiwan_now() + timedelta(days=2)).date()
         day_of_week = future_date.weekday()
@@ -900,6 +999,15 @@ class TestRecurringConflicts:
         db_session.add(appointment_type)
         db_session.flush()
 
+        # Link to practitioner
+        link = PractitionerAppointmentTypes(
+            user_id=practitioner.id,
+            appointment_type_id=appointment_type.id,
+            clinic_id=clinic.id
+        )
+        db_session.add(link)
+        db_session.flush()
+
         # Create default availability (9 AM to 5 PM)
         future_date = (taiwan_now() + timedelta(days=2)).date()
         day_of_week = future_date.weekday()
@@ -954,6 +1062,15 @@ class TestRecurringConflicts:
             scheduling_buffer_minutes=0
         )
         db_session.add(appointment_type)
+        db_session.flush()
+
+        # Link to practitioner
+        link = PractitionerAppointmentTypes(
+            user_id=practitioner.id,
+            appointment_type_id=appointment_type.id,
+            clinic_id=clinic.id
+        )
+        db_session.add(link)
         db_session.flush()
 
         # Create default availability
@@ -1019,6 +1136,15 @@ class TestRecurringConflicts:
             scheduling_buffer_minutes=0
         )
         db_session.add(appointment_type)
+        db_session.flush()
+
+        # Link to practitioner
+        link = PractitionerAppointmentTypes(
+            user_id=practitioner.id,
+            appointment_type_id=appointment_type.id,
+            clinic_id=clinic.id
+        )
+        db_session.add(link)
         db_session.flush()
 
         # Create default availability

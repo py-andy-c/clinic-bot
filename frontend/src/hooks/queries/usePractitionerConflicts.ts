@@ -11,6 +11,7 @@ export const usePractitionerConflicts = (
   date: string | null,
   startTime: string | null,
   appointmentTypeId: number | null,
+  selectedResourceIds?: number[] | null,
   excludeCalendarEventId?: number | null,
   enabled: boolean = true
 ) => {
@@ -30,6 +31,7 @@ export const usePractitionerConflicts = (
       debouncedStartTime,
       debouncedAppointmentTypeId,
       practitionerId,
+      selectedResourceIds?.join(','),
       excludeCalendarEventId
     ],
     queryFn: async () => {
@@ -49,6 +51,7 @@ export const usePractitionerConflicts = (
         date: debouncedDate,
         start_time: debouncedStartTime,
         appointment_type_id: debouncedAppointmentTypeId,
+        ...(selectedResourceIds ? { selected_resource_ids: selectedResourceIds } : {})
       });
 
       // Extract the single practitioner result from batch response
@@ -73,6 +76,7 @@ export const useBatchPractitionerConflicts = (
   date: string | null,
   startTime: string | null,
   appointmentTypeId: number | null,
+  selectedResourceIds?: number[] | null,
   enabled: boolean = true
 ) => {
   const { user } = useAuth();
@@ -90,7 +94,8 @@ export const useBatchPractitionerConflicts = (
       debouncedDate,
       debouncedStartTime,
       debouncedAppointmentTypeId,
-      practitioners?.map(p => `${p.user_id}-${p.exclude_calendar_event_id || 0}`).join(',')
+      practitioners?.map(p => `${p.user_id}-${p.exclude_calendar_event_id || 0}`).join(','),
+      selectedResourceIds?.join(',')
     ],
     queryFn: () => {
       if (!practitioners || practitioners.length === 0 || !debouncedDate || !debouncedStartTime || !debouncedAppointmentTypeId) {
@@ -101,6 +106,7 @@ export const useBatchPractitionerConflicts = (
         date: debouncedDate,
         start_time: debouncedStartTime,
         appointment_type_id: debouncedAppointmentTypeId,
+        ...(selectedResourceIds ? { selected_resource_ids: selectedResourceIds } : {})
       });
     },
     enabled: enabled && !!activeClinicId && !!practitioners && practitioners.length > 0 && !!debouncedDate && !!debouncedStartTime && !!debouncedAppointmentTypeId,
@@ -116,6 +122,7 @@ export const useResourceConflicts = (
   appointmentTypeId: number | null,
   startTime: string | null, // ISO datetime string
   endTime: string | null, // ISO datetime string
+  selectedResourceIds?: number[] | null,
   excludeCalendarEventId?: number | null,
   enabled: boolean = true
 ) => {
@@ -134,6 +141,7 @@ export const useResourceConflicts = (
       debouncedStartTime,
       debouncedEndTime,
       debouncedAppointmentTypeId,
+      selectedResourceIds?.join(','),
       excludeCalendarEventId
     ],
     queryFn: () => {
@@ -144,11 +152,13 @@ export const useResourceConflicts = (
         appointment_type_id: number;
         start_time: string;
         end_time: string;
+        selected_resource_ids?: number[];
         exclude_calendar_event_id?: number;
       } = {
         appointment_type_id: debouncedAppointmentTypeId,
         start_time: debouncedStartTime,
         end_time: debouncedEndTime,
+        ...(selectedResourceIds ? { selected_resource_ids: selectedResourceIds } : {})
       };
 
       if (excludeCalendarEventId) {

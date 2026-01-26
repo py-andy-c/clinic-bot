@@ -5,12 +5,13 @@ import { apiService } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
 import { usePatientDetail, useClinicSettings, usePractitioners } from '../hooks/queries';
 import { useQueryClient } from '@tanstack/react-query';
+import { useCreateAppointmentOptimistic } from '../hooks/queries/useAvailabilitySlots';
 import { logger } from '../utils/logger';
 import { getErrorMessage } from '../types/api';
-import { invalidateCacheForDate } from '../utils/availabilityCache';
-import { invalidateResourceCacheForDate } from '../utils/resourceAvailabilityCache';
-import moment from 'moment-timezone';
 import { useModal } from '../contexts/ModalContext';
+import { extractAppointmentDateTime } from '../utils/timezoneUtils';
+import { EMPTY_ARRAY } from '../utils/constants';
+import { invalidatePatientDetail, invalidatePatientAppointments } from '../utils/reactQueryInvalidation';
 import PageHeader from '../components/PageHeader';
 import { PatientInfoSection } from '../components/patient/PatientInfoSection';
 import { PatientNotesSection } from '../components/patient/PatientNotesSection';
@@ -21,7 +22,8 @@ import { CreateAppointmentModal } from '../components/calendar/CreateAppointment
 const PatientDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { hasRole } = useAuth();
+  const { hasRole, user } = useAuth();
+  const activeClinicId = user?.active_clinic_id;
   const { alert } = useModal();
   const queryClient = useQueryClient();
   const [isEditing, setIsEditing] = useState(false);
@@ -48,8 +50,11 @@ const PatientDetailPage: React.FC = () => {
   // Fetch practitioners (needed for edit/delete appointment buttons and create modal)
   const { data: practitionersData } = usePractitioners();
 
-  const practitioners = practitionersData || [];
-  const appointmentTypes = clinicSettings?.appointment_types || [];
+  // Optimistic update hook for appointment creation
+  const createAppointmentMutation = useCreateAppointmentOptimistic();
+
+  const practitioners = practitionersData || EMPTY_ARRAY;
+  const appointmentTypes = clinicSettings?.appointment_types || EMPTY_ARRAY;
 
   const handleUpdate = async (data: {
     full_name?: string;
@@ -66,7 +71,7 @@ const PatientDetailPage: React.FC = () => {
       await apiService.updatePatient(patientId, data);
 
       // Invalidate cache to ensure future fetches get fresh data
-      queryClient.invalidateQueries({ queryKey: ['patient', patientId] });
+      invalidatePatientDetail(queryClient, activeClinicId, patientId);
 
       setIsEditing(false);
       setIsEditingNotes(false);
@@ -109,7 +114,7 @@ const PatientDetailPage: React.FC = () => {
           ← 返回病患列表
         </button>
       </div>
-      <PageHeader 
+      <PageHeader
         title={patient.full_name}
         action={
           canCreateAppointment ? (
@@ -166,7 +171,7 @@ const PatientDetailPage: React.FC = () => {
           practitioners={practitioners}
         />
 
-        <PatientAppointmentsList 
+        <PatientAppointmentsList
           patientId={patient.id}
           practitioners={practitioners}
           appointmentTypes={appointmentTypes}
@@ -188,24 +193,23 @@ const PatientDetailPage: React.FC = () => {
           }}
           onConfirm={async (formData) => {
             try {
-              await apiService.createClinicAppointment(formData);
+              const { date, startTime } = extractAppointmentDateTime(formData.start_time);
+              await createAppointmentMutation.mutateAsync({
+                practitionerId: formData.practitioner_id,
+                appointmentTypeId: formData.appointment_type_id,
+                date,
+                startTime,
+                patientId: formData.patient_id,
+                ...(formData.selected_resource_ids && { selectedResourceIds: formData.selected_resource_ids }),
+                ...(formData.clinic_notes && { clinicNotes: formData.clinic_notes }),
+              });
               setIsAppointmentModalOpen(false);
-              
-              // Invalidate appointments cache to refresh the list
-              queryClient.invalidateQueries({ queryKey: ['patient-appointments', patientId] });
-              
-              // Invalidate availability cache for the appointment's date, practitioner, and appointment type
-              const appointmentDate = moment(formData.start_time).format('YYYY-MM-DD');
-              invalidateCacheForDate(formData.practitioner_id, formData.appointment_type_id, appointmentDate);
-              
-              // Invalidate resource availability cache for the appointment's date, practitioner, and appointment type
-              invalidateResourceCacheForDate(formData.practitioner_id, formData.appointment_type_id, appointmentDate);
-              
+
               // Trigger refetch of appointments list if available
               if (appointmentsListRefetchRef.current) {
                 await appointmentsListRefetchRef.current();
               }
-              
+
               await alert('預約已建立');
             } catch (error) {
               logger.error('Error creating appointment:', error);
@@ -215,8 +219,10 @@ const PatientDetailPage: React.FC = () => {
           }}
           onRecurringAppointmentsCreated={async () => {
             // Invalidate appointments cache to refresh the list
-            queryClient.invalidateQueries({ queryKey: ['patient-appointments', patientId] });
-            
+            if (activeClinicId) {
+              invalidatePatientAppointments(queryClient, activeClinicId, patientId);
+            }
+
             // Trigger refetch of appointments list if available
             if (appointmentsListRefetchRef.current) {
               await appointmentsListRefetchRef.current();

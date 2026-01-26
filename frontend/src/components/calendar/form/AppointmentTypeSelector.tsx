@@ -12,6 +12,7 @@ interface AppointmentTypeSelectorProps {
   onChange: (id: number | null) => void;
   originalTypeId?: number | null | undefined;
   disabled?: boolean;
+  requiredError?: string | undefined;
 }
 
 export const AppointmentTypeSelector: React.FC<AppointmentTypeSelectorProps> = ({
@@ -20,6 +21,7 @@ export const AppointmentTypeSelector: React.FC<AppointmentTypeSelectorProps> = (
   onChange,
   originalTypeId,
   disabled = false,
+  requiredError,
 }) => {
   const sortedOptions = useMemo(() => {
     return [...options].sort((a, b) => a.name.localeCompare(b.name, 'zh-TW'));
@@ -29,6 +31,7 @@ export const AppointmentTypeSelector: React.FC<AppointmentTypeSelectorProps> = (
     <div>
       <label className="block text-sm font-medium text-gray-700 mb-1">
         預約類型 <span className="text-red-500">*</span>
+        {requiredError && <span className="ml-2 text-sm font-normal text-red-600">{requiredError}</span>}
       </label>
       <select
         value={value || ''}

@@ -12,13 +12,14 @@ export interface UseAppointmentFormProps {
   mode: AppointmentFormMode;
   event?: CalendarEvent | null | undefined;
   appointmentTypes: { id: number; name: string; duration_minutes: number }[];
-  practitioners: { id: number; full_name: string }[];
+  practitioners: { id: number; full_name: string; offered_types?: number[] }[];
   initialDate?: string | null | undefined;
   preSelectedPatientId?: number | null | undefined;
   preSelectedAppointmentTypeId?: number | null | undefined;
   preSelectedPractitionerId?: number | null | undefined;
   preSelectedTime?: string | null | undefined;
   preSelectedClinicNotes?: string | null | undefined;
+  prePopulatedFromSlot?: boolean;
 }
 
 export const useAppointmentForm = ({
@@ -32,23 +33,43 @@ export const useAppointmentForm = ({
   preSelectedPractitionerId,
   preSelectedTime,
   preSelectedClinicNotes,
+  prePopulatedFromSlot,
 }: UseAppointmentFormProps) => {
-  const [selectedPatientId, setSelectedPatientId] = useState<number | null>(preSelectedPatientId || event?.resource.patient_id || null);
-  const [selectedAppointmentTypeId, setSelectedAppointmentTypeId] = useState<number | null>(null);
-  const [selectedPractitionerId, setSelectedPractitionerId] = useState<number | null>(null);
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  const [selectedTime, setSelectedTime] = useState<string>('');
-  const [clinicNotes, setClinicNotes] = useState<string>('');
-  const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
+  const [selectedPatientId, setSelectedPatientId] = useState<number | null>(preSelectedPatientId ?? event?.resource.patient_id ?? null);
+  const [selectedAppointmentTypeId, setSelectedAppointmentTypeId] = useState<number | null>(
+    preSelectedAppointmentTypeId ?? event?.resource.appointment_type_id ?? null
+  );
+  const [selectedPractitionerId, setSelectedPractitionerId] = useState<number | null>(
+    preSelectedPractitionerId ?? event?.resource.practitioner_id ?? null
+  );
+  const [selectedDate, setSelectedDate] = useState<string | null>(() => {
+    if (initialDate) return initialDate;
+    if (event) return moment(event.start).tz('Asia/Taipei').format('YYYY-MM-DD');
+    return null;
+  });
+  const [selectedTime, setSelectedTime] = useState<string>(() => {
+    // 1. Explicit Time (Grid Click, Duplicate, Conflict Resolution)
+    if (preSelectedTime) return preSelectedTime;
+
+    // 2. Fallback: Event object time (Edit)
+    if (event) {
+      return moment(event.start).tz('Asia/Taipei').format('HH:mm');
+    }
+
+    // 3. Default: Empty
+    return '';
+  });
+  const [clinicNotes, setClinicNotes] = useState<string>(preSelectedClinicNotes ?? event?.resource.clinic_notes ?? '');
+  const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>(event?.resource.resource_ids ?? []);
   const [initialResourceIds, setInitialResourceIds] = useState<number[]>([]);
   const [initialResources, setInitialResources] = useState<Array<{ id: number; resource_type_id: number; resource_type_name?: string; name: string }>>([]);
   const [initialAvailability, setInitialAvailability] = useState<ResourceAvailabilityResponse | null>(null);
-  
+
   const [availablePractitioners, setAvailablePractitioners] = useState<{ id: number; full_name: string }[]>(allPractitioners);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isLoadingPractitioners, setIsLoadingPractitioners] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+
   const isInitialMountRef = useRef(true);
   const abortControllerRef = useRef<AbortController | null>(null);
   const lastFetchedTypeIdRef = useRef<number | null>(null);
@@ -66,16 +87,12 @@ export const useAppointmentForm = ({
     const init = async () => {
       setIsInitialLoading(true);
       setError(null);
-      
+
       // Setup AbortController for cleanup
       if (abortControllerRef.current) abortControllerRef.current.abort();
       abortControllerRef.current = new AbortController();
 
-      // Optimization: Check if we have event data with resources before starting async operations
-      // This allows us to show the form immediately and prevent flickering.
-      // Strategy: If we have all necessary data from the event (appointment type, practitioner, resources),
-      // we can render the form immediately while fetching fresh data in the background.
-      // This provides instant UI feedback while ensuring data freshness.
+      // Instant UI: Setup form state while fetching fresh data in the background
       const hasEventData = mode === 'edit' && event && (
         event.resource.appointment_type_id &&
         event.resource.practitioner_id &&
@@ -83,41 +100,35 @@ export const useAppointmentForm = ({
       );
 
       try {
-        let typeId = preSelectedAppointmentTypeId || event?.resource.appointment_type_id || null;
-        let pracId = preSelectedPractitionerId || event?.resource.practitioner_id || null;
-        let date = initialDate || (event ? moment(event.start).tz('Asia/Taipei').format('YYYY-MM-DD') : null);
-        let time = preSelectedTime || (event ? moment(event.start).tz('Asia/Taipei').format('HH:mm') : '');
-        let notes = preSelectedClinicNotes || event?.resource.clinic_notes || '';
-        // Use event.resource.resource_ids for instant UI (will be updated by API fetch if data is fresher)
-        let resourceIds = event?.resource.resource_ids || [];
+        // State is now initialized directly from props in useState()
+        // We only need to set lastFetchedTypeIdRef and initialResourceIds here
+        const typeId = preSelectedAppointmentTypeId ?? event?.resource.appointment_type_id ?? null;
+        const resourceIds = event?.resource.resource_ids ?? [];
 
-        // Special handling for duplication mode: clear time to avoid immediate conflict
-        if (mode === 'duplicate') {
-          time = '';
-        }
-
-        setSelectedAppointmentTypeId(typeId);
-        setSelectedPractitionerId(pracId);
-        setSelectedDate(date);
-        setSelectedTime(time);
-        setClinicNotes(notes);
-        setSelectedResourceIds(resourceIds);
-        
-        // Track the initial type ID as "fetched"
         lastFetchedTypeIdRef.current = typeId;
 
-        // For edit mode with event data, set initial resource IDs immediately
         if (hasEventData && resourceIds.length > 0) {
           setInitialResourceIds(resourceIds);
         }
 
-        // Parallel data fetching: Practitioners filtered by type and Original Resources
         const fetchTasks: Promise<any>[] = [];
         const signal = abortControllerRef.current?.signal;
-        
-        // 1. Fetch practitioners for the appointment type
+
+        // 1. Setup practitioners for the appointment type
         if (typeId) {
-          fetchTasks.push(apiService.getPractitioners(typeId, signal));
+          // If we have offered_types on practitioners, we can filter locally and avoid an API call
+          const hasOfferedTypes = allPractitioners.length > 0 && Array.isArray(allPractitioners[0]?.offered_types);
+          if (hasOfferedTypes) {
+            const filtered = allPractitioners.filter(p => {
+              const types = p.offered_types;
+              if (!types) return true;
+              return typeId !== null && types.includes(typeId);
+            });
+            fetchTasks.push(Promise.resolve(filtered));
+          } else {
+            // Fallback to API if data is missing or incomplete
+            fetchTasks.push(apiService.getPractitioners(typeId, signal));
+          }
         } else {
           fetchTasks.push(Promise.resolve(allPractitioners));
         }
@@ -129,16 +140,19 @@ export const useAppointmentForm = ({
         }
 
         // 3. Fetch resource availability for edit mode (when we have all required data)
-        const shouldFetchAvailability = mode === 'edit' && typeId && pracId && date && time;
+        const pracId = preSelectedPractitionerId ?? event?.resource.practitioner_id ?? null;
+        const dateValue = initialDate ?? (event ? moment(event.start).tz('Asia/Taipei').format('YYYY-MM-DD') : null);
+        const timeValue = preSelectedTime ?? (event ? moment(event.start).tz('Asia/Taipei').format('HH:mm') : null);
+        const shouldFetchAvailability = mode === 'edit' && typeId && pracId && dateValue && timeValue;
         if (shouldFetchAvailability) {
           // Get duration from appointment type
           const appointmentType = _appointmentTypes.find(t => t.id === typeId);
           const durationMinutes = appointmentType?.duration_minutes || 30;
-          
+
           // Calculate end time
-          const startMoment = moment.tz(`${date}T${time}`, 'Asia/Taipei');
+          const startMoment = moment.tz(`${dateValue}T${timeValue}`, 'Asia/Taipei');
           const endMoment = startMoment.clone().add(durationMinutes, 'minutes');
-          
+
           const availabilityParams: {
             appointment_type_id: number;
             practitioner_id: number;
@@ -149,15 +163,15 @@ export const useAppointmentForm = ({
           } = {
             appointment_type_id: typeId,
             practitioner_id: pracId,
-            date,
+            date: dateValue,
             start_time: startMoment.format('HH:mm'),
             end_time: endMoment.format('HH:mm'),
           };
-          
+
           if (event?.resource.calendar_event_id) {
             availabilityParams.exclude_calendar_event_id = event.resource.calendar_event_id;
           }
-          
+
           fetchTasks.push(apiService.getResourceAvailability(availabilityParams, signal));
         }
 
@@ -166,17 +180,11 @@ export const useAppointmentForm = ({
         // Handle practitioners result
         const practitionersResult = results[0];
         let practitionersReadyFromResult = false;
-        
+
         if (practitionersResult && practitionersResult.status === 'fulfilled') {
           const sorted = [...practitionersResult.value].sort((a, b) => a.full_name.localeCompare(b.full_name, 'zh-TW'));
           setAvailablePractitioners(sorted);
           practitionersReadyFromResult = true;
-          
-          // Auto-deselect practitioner if current selection is not in the filtered list
-          if (pracId && !sorted.find(p => p.id === pracId)) {
-            setSelectedPractitionerId(null);
-            setSelectedTime('');
-          }
         } else if (practitionersResult && practitionersResult.status === 'rejected') {
           const reason = practitionersResult.reason;
           if (reason?.name !== 'CanceledError' && reason?.name !== 'AbortError') {
@@ -201,7 +209,7 @@ export const useAppointmentForm = ({
         // Handle resources result
         const resourcesResult = shouldFetchResources ? results[1] : null;
         const availabilityResult = shouldFetchAvailability ? results[shouldFetchResources ? 2 : 1] : null;
-        
+
         // Wait for both initialResources and initialAvailability (for edit mode) before showing the form
         if (shouldFetchResources && resourcesResult) {
           if (resourcesResult.status === 'fulfilled') {
@@ -246,20 +254,20 @@ export const useAppointmentForm = ({
         // Set loading to false only after all required data is loaded
         // Use practitionersReadyFromResult which handles aborted requests with fallback data
         const practitionersReady = practitionersReadyFromResult;
-        
+
         // Resources are ready if not needed, fetched successfully, or aborted/failed (we have fallback data)
-        const resourcesReady = !shouldFetchResources || 
+        const resourcesReady = !shouldFetchResources ||
           resourcesResult?.status === 'fulfilled' ||
-          (resourcesResult?.status === 'rejected' && 
-           (resourcesResult.reason?.name === 'CanceledError' || 
-            resourcesResult.reason?.name === 'AbortError' ||
-            resourceIds.length > 0)); // Have fallback data
-        
+          (resourcesResult?.status === 'rejected' &&
+            (resourcesResult.reason?.name === 'CanceledError' ||
+              resourcesResult.reason?.name === 'AbortError' ||
+              resourceIds.length > 0)); // Have fallback data
+
         // Availability is ready if not needed, fetched successfully, or aborted/failed (not critical)
-        const availabilityReady = !shouldFetchAvailability || 
+        const availabilityReady = !shouldFetchAvailability ||
           availabilityResult?.status === 'fulfilled' ||
           availabilityResult?.status === 'rejected'; // Always ready if attempted (graceful degradation)
-        
+
         // Wait for practitioners (always required) and resources/availability if needed
         if (practitionersReady && resourcesReady && availabilityReady) {
           setIsInitialLoading(false);
@@ -292,7 +300,7 @@ export const useAppointmentForm = ({
   // Fetch practitioners when appointment type changes (after initial mount)
   useEffect(() => {
     if (isInitialMountRef.current || isInitialLoading) return;
-    
+
     // Skip if this type was already fetched (prevents redundant fetch after initial load)
     if (selectedAppointmentTypeId === lastFetchedTypeIdRef.current) return;
 
@@ -303,6 +311,22 @@ export const useAppointmentForm = ({
         if (!isStale) {
           setAvailablePractitioners(allPractitioners);
           lastFetchedTypeIdRef.current = null;
+        }
+        return;
+      }
+
+      // Check if we can filter locally first
+      const hasOfferedTypes = allPractitioners.length > 0 && Array.isArray(allPractitioners[0]?.offered_types);
+      if (hasOfferedTypes) {
+        const filtered = allPractitioners.filter(p => {
+          const types = p.offered_types;
+          if (!types) return true;
+          return selectedAppointmentTypeId !== null && types.includes(selectedAppointmentTypeId);
+        });
+        const sorted = [...filtered].sort((a, b) => a.full_name.localeCompare(b.full_name, 'zh-TW'));
+        if (!isStale) {
+          setAvailablePractitioners(sorted);
+          lastFetchedTypeIdRef.current = selectedAppointmentTypeId;
         }
         return;
       }
@@ -333,30 +357,9 @@ export const useAppointmentForm = ({
     };
   }, [selectedAppointmentTypeId, allPractitioners, isInitialLoading]);
 
-  // Auto-deselection logic - conditional on mode
-  // For create/duplicate modes: clear dependent selections when appointment type is cleared (user intent)
-  // For edit mode: preserve selections always (design requirement)
-  useEffect(() => {
-    if (isInitialMountRef.current || isInitialLoading) return;
-    if (mode === 'edit') return; // Preserve selections in edit mode
-
-    if (selectedAppointmentTypeId === null && (selectedPractitionerId !== null || selectedTime !== '')) {
-      setSelectedPractitionerId(null);
-      setSelectedDate(null);
-      setSelectedTime('');
-    }
-  }, [mode, selectedAppointmentTypeId, selectedPractitionerId, selectedTime, isInitialLoading]);
-
-  // Handle practitioner null state - conditional on mode
-  useEffect(() => {
-    if (isInitialMountRef.current || isInitialLoading) return;
-    if (mode === 'edit') return; // Preserve selections in edit mode
-
-    if (selectedPractitionerId === null && (selectedDate !== null || selectedTime !== '')) {
-      setSelectedDate(null);
-      setSelectedTime('');
-    }
-  }, [mode, selectedPractitionerId, selectedDate, selectedTime, isInitialLoading]);
+  // NOTE: Cascading deselection logic has been removed.
+  // All fields can now be selected independently in any order.
+  // Mismatch warnings are shown in the UI but don't block selection.
 
   // Form validity check
   const isValid = useMemo(() => {
@@ -420,6 +423,13 @@ export const useAppointmentForm = ({
     return changeDetails.appointmentTypeChanged || changeDetails.practitionerChanged || changeDetails.timeChanged || changeDetails.dateChanged || changeDetails.resourcesChanged;
   }, [changeDetails]);
 
+  // Check if current selection is incompatible according to configuration
+  const hasPractitionerTypeMismatch = useMemo(() => {
+    if (!selectedAppointmentTypeId || !selectedPractitionerId) return false;
+    // Check if the selected practitioner is in the list of available practitioners for this type
+    return !availablePractitioners.some(p => p.id === selectedPractitionerId);
+  }, [selectedAppointmentTypeId, selectedPractitionerId, availablePractitioners]);
+
   return {
     selectedPatientId,
     setSelectedPatientId,
@@ -446,5 +456,7 @@ export const useAppointmentForm = ({
     hasChanges,
     changeDetails,
     initialAvailability,
+    hasPractitionerTypeMismatch,
+    prePopulatedFromSlot,
   };
 };

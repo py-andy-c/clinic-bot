@@ -1,6 +1,5 @@
 import React, { useState, useCallback, useEffect } from "react";
 import { usePatientAppointments } from "../../hooks/queries";
-import { useQueryClient } from '@tanstack/react-query';
 import { apiService } from '../../services/api';
 import { LoadingSpinner, ErrorMessage } from "../shared";
 import moment from "moment-timezone";
@@ -11,27 +10,29 @@ import { CreateAppointmentModal } from "../calendar/CreateAppointmentModal";
 import { CancellationNoteModal } from "../calendar/CancellationNoteModal";
 import { CancellationPreviewModal } from "../calendar/CancellationPreviewModal";
 import { EventModal } from "../calendar/EventModal";
-import { ReceiptViewModal } from "../calendar/ReceiptViewModal";
-import { ReceiptListModal } from "../calendar/ReceiptListModal";
 import {
   CalendarEvent,
   formatEventTimeRange,
 } from "../../utils/calendarDataAdapter";
 import { appointmentToCalendarEvent } from "./appointmentUtils";
-import { canEditAppointment, canDuplicateAppointment, getPractitionerIdForDuplicate } from "../../utils/appointmentPermissions";
+import { canDuplicateAppointment, getPractitionerIdForDuplicate } from "../../utils/appointmentPermissions";
+import { canEditEvent as canEditEventUtil } from "../../utils/eventPermissions";
 import { useModal } from "../../contexts/ModalContext";
 import { useAuth } from "../../hooks/useAuth";
 import { getErrorMessage } from "../../types/api";
 import { logger } from "../../utils/logger";
-import { invalidateCacheForDate } from "../../utils/availabilityCache";
-import { invalidateResourceCacheForDate } from "../../utils/resourceAvailabilityCache";
-import { AppointmentType } from "../../types";
+import { invalidateAvailabilityAfterAppointmentChange, invalidatePatientAppointments } from "../../utils/reactQueryInvalidation";
+import { useQueryClient } from '@tanstack/react-query';
+import { useCreateAppointmentOptimistic } from "../../hooks/queries/useAvailabilitySlots";
+import { invalidateCalendarEventsForAppointment } from "../../hooks/queries/useCalendarEvents";
+import { AppointmentType, Practitioner } from "../../types";
+import { extractAppointmentDateTime } from "../../utils/timezoneUtils";
 
 const TAIWAN_TIMEZONE = "Asia/Taipei";
 
 interface PatientAppointmentsListProps {
   patientId: number;
-  practitioners: Array<{ id: number; full_name: string }>;
+  practitioners: Practitioner[];
   appointmentTypes: AppointmentType[];
   onRefetchReady?: (refetch: () => Promise<void>) => void;
 }
@@ -67,8 +68,11 @@ export const PatientAppointmentsList: React.FC<
 > = ({ patientId, practitioners, appointmentTypes, onRefetchReady }) => {
   const [activeTab, setActiveTab] = useState<TabType>("future");
   const { alert } = useModal();
-  const { hasRole, user, isClinicUser } = useAuth();
+  const { hasRole, user } = useAuth();
   const queryClient = useQueryClient();
+
+  // Optimistic update hook for appointment creation
+  const createAppointmentMutation = useCreateAppointmentOptimistic();
 
   // Event modal state
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(
@@ -102,29 +106,19 @@ export const PatientAppointmentsList: React.FC<
     event?: CalendarEvent;
   } | null>(null);
 
-  // Receipt viewing state
-  const [showReceiptModal, setShowReceiptModal] = useState(false);
-  const [selectedReceiptAppointmentId, setSelectedReceiptAppointmentId] = useState<number | undefined>(undefined);
-  const [selectedReceiptId, setSelectedReceiptId] = useState<number | undefined>(undefined);
 
   // Check if user can edit appointments
   const canEdit = hasRole && (hasRole("admin") || hasRole("practitioner"));
   const isAdmin = user?.roles?.includes("admin") ?? false;
   const userId = user?.user_id;
-  
-  // Helper function to check if user can edit an event
-  // Uses shared utility for appointments, handles other event types
+
+  // Helper function to check if user can edit an event (uses shared utility)
   const canEditEvent = useCallback(
     (event: CalendarEvent | null): boolean => {
-      if (!event || !canEdit) return false;
-      // Use shared utility for appointments
-      if (event.resource.type === "appointment") {
-        return canEditAppointment(event, userId, isAdmin);
-      }
-      // For other events, check if it's their own event
-      // Use practitioner_id if available, otherwise fallback to userId
-      const eventPractitionerId = event.resource.practitioner_id || userId;
-      return eventPractitionerId === userId;
+      return canEditEventUtil(event, canEdit, {
+        userId,
+        isAdmin
+      });
     },
     [canEdit, isAdmin, userId],
   );
@@ -134,16 +128,28 @@ export const PatientAppointmentsList: React.FC<
 
   const allAppointments = data?.appointments || [];
 
+  // Helper function for efficient array comparison
+  const arraysEqual = useCallback((a: number[] | undefined, b: number[] | undefined): boolean => {
+    if (!a && !b) return true;
+    if (!a || !b) return false;
+    if (a.length !== b.length) return false;
+    return a.every((val, idx) => val === b[idx]);
+  }, []);
+
   // Helper function to check if event data has changed
   const hasEventDataChanged = useCallback(
     (current: CalendarEvent, updated: CalendarEvent): boolean => {
       return (
         current.title !== updated.title ||
         current.resource.clinic_notes !== updated.resource.clinic_notes ||
-        current.resource.notes !== updated.resource.notes
+        current.resource.notes !== updated.resource.notes ||
+        current.resource.has_active_receipt !== updated.resource.has_active_receipt ||
+        current.resource.has_any_receipt !== updated.resource.has_any_receipt ||
+        current.resource.receipt_id !== updated.resource.receipt_id ||
+        !arraysEqual(current.resource.receipt_ids, updated.resource.receipt_ids)
       );
     },
-    [],
+    [arraysEqual],
   );
 
   // Update selectedEvent when appointments data changes (e.g., after refresh)
@@ -207,11 +213,24 @@ export const PatientAppointmentsList: React.FC<
   // Helper function to refresh appointments list after mutations
   const refreshAppointmentsList = useCallback(async () => {
     // Invalidate cache for appointments list
-    queryClient.invalidateQueries({ queryKey: ['patient-appointments', patientId] });
+    invalidatePatientAppointments(queryClient, user?.active_clinic_id, patientId);
 
     // Refetch the data
     await refetch();
-  }, [queryClient, patientId, refetch]);
+  }, [queryClient, patientId, refetch, user?.active_clinic_id]);
+
+
+  // Consolidated cache invalidation helper to prevent redundant calls
+  const invalidateCalendarCache = useCallback(async () => {
+    if (queryClient && user?.active_clinic_id) {
+      try {
+        await invalidateCalendarEventsForAppointment(queryClient, user.active_clinic_id);
+      } catch (error) {
+        logger.error('Failed to invalidate calendar cache:', error);
+        // Continue execution - cache invalidation failure shouldn't break the flow
+      }
+    }
+  }, [queryClient, user?.active_clinic_id]);
 
   // Expose refetch function to parent component
   useEffect(() => {
@@ -269,19 +288,25 @@ export const PatientAppointmentsList: React.FC<
   const handleDuplicateAppointment = useCallback(async () => {
     if (!selectedEvent) return;
 
+    // Security check: Ensure user has permission to duplicate this appointment
+    if (!canEditEvent(selectedEvent)) {
+      await alert("您只能複製自己的預約");
+      return;
+    }
+
     const event = selectedEvent;
-    
+
     // Extract data from the original appointment
     const appointmentTypeId = event.resource.appointment_type_id;
     // Use shared utility to get practitioner_id (hides for auto-assigned when not admin)
     const practitionerId = getPractitionerIdForDuplicate(event, isAdmin);
     const clinicNotes = event.resource.clinic_notes;
-    
+
     // Extract date and time from event.start
     const startMoment = moment(event.start).tz(TAIWAN_TIMEZONE);
     const initialDate = startMoment.format('YYYY-MM-DD');
     const initialTime = startMoment.format('HH:mm');
-    
+
     // Set up duplicate appointment data - only include fields that have values
     // Resources will be fetched by useAppointmentForm in duplicate mode
     setDuplicateData({
@@ -308,32 +333,44 @@ export const PatientAppointmentsList: React.FC<
   }) => {
     if (!editingAppointment) return;
 
-    // Don't close modal here - let EditAppointmentModal handle closing via onComplete
-    // This allows assignment check to happen before modal closes
-    await apiService.editClinicAppointment(
-      editingAppointment.resource.calendar_event_id,
-      formData,
-    );
+    try {
+      // Don't close modal here - let EditAppointmentModal handle closing via onComplete
+      // This allows assignment check to happen before modal closes
+      await apiService.editClinicAppointment(
+        editingAppointment.resource.calendar_event_id,
+        formData,
+      );
 
-    // Refresh appointments list
-    await refreshAppointmentsList();
+      // Refresh appointments list
+      await refreshAppointmentsList();
 
-    // Invalidate availability cache for both old and new dates
-    const oldDate = moment(editingAppointment.start).format('YYYY-MM-DD');
-    const newDate = moment(formData.start_time).format('YYYY-MM-DD');
-    const practitionerId = formData.practitioner_id ?? editingAppointment.resource.practitioner_id;
-    const appointmentTypeId = editingAppointment.resource.appointment_type_id;
-    if (practitionerId && appointmentTypeId) {
-      invalidateCacheForDate(practitionerId, appointmentTypeId, oldDate);
-      invalidateResourceCacheForDate(practitionerId, appointmentTypeId, oldDate);
-      if (newDate !== oldDate) {
-        invalidateCacheForDate(practitionerId, appointmentTypeId, newDate);
-        invalidateResourceCacheForDate(practitionerId, appointmentTypeId, newDate);
+      // Invalidate React Query cache for both old and new dates
+      try {
+        const oldDate = moment(editingAppointment.start).format('YYYY-MM-DD');
+        const { date: newDate } = extractAppointmentDateTime(formData.start_time);
+        const practitionerId = formData.practitioner_id ?? editingAppointment.resource.practitioner_id;
+        const appointmentTypeId = editingAppointment.resource.appointment_type_id;
+        const clinicId = user?.active_clinic_id;
+
+        if (practitionerId && appointmentTypeId && clinicId && patientId) {
+          const datesToInvalidate = [oldDate];
+          if (newDate !== oldDate) {
+            datesToInvalidate.push(newDate);
+          }
+          invalidateAvailabilityAfterAppointmentChange(queryClient, practitionerId, appointmentTypeId, datesToInvalidate, clinicId, patientId);
+        }
+      } catch (cacheError) {
+        logger.warn('Failed to invalidate cache after appointment edit:', cacheError);
+        // Continue with success flow - cache inconsistency is not critical for user experience
       }
-    }
 
-    // Show success message (modal will close via onComplete)
-    await alert("預約已更新");
+      // Show success message (modal will close via onComplete)
+      await alert("預約已更新");
+    } catch (error) {
+      logger.error("Error editing appointment:", error);
+      const errorMessage = getErrorMessage(error);
+      await alert(`預約更新失敗：${errorMessage}`, '錯誤');
+    }
   };
 
   // Handle event name update from EventModal
@@ -383,17 +420,20 @@ export const PatientAppointmentsList: React.FC<
     practitioner_id: number;
     start_time: string;
     clinic_notes?: string;
+    selected_resource_ids?: number[];
   }) => {
     try {
-      await apiService.createClinicAppointment(formData);
-      
-      // Invalidate availability cache for the appointment's date, practitioner, and appointment type
-      const appointmentDate = moment(formData.start_time).format('YYYY-MM-DD');
-      invalidateCacheForDate(formData.practitioner_id, formData.appointment_type_id, appointmentDate);
-      
-      // Invalidate resource availability cache for the appointment's date, practitioner, and appointment type
-      invalidateResourceCacheForDate(formData.practitioner_id, formData.appointment_type_id, appointmentDate);
-      
+      const { date, startTime } = extractAppointmentDateTime(formData.start_time);
+      await createAppointmentMutation.mutateAsync({
+        practitionerId: formData.practitioner_id,
+        appointmentTypeId: formData.appointment_type_id,
+        date,
+        startTime,
+        patientId: formData.patient_id,
+        ...(formData.selected_resource_ids && { selectedResourceIds: formData.selected_resource_ids }),
+        ...(formData.clinic_notes && { clinicNotes: formData.clinic_notes }),
+      });
+
       await refreshAppointmentsList();
       setIsCreateModalOpen(false);
       setDuplicateData(null);
@@ -401,7 +441,7 @@ export const PatientAppointmentsList: React.FC<
     } catch (error) {
       logger.error("Error creating appointment:", error);
       const errorMessage = getErrorMessage(error);
-      throw new Error(errorMessage);
+      await alert(`預約建立失敗：${errorMessage}`, '錯誤');
     }
   };
 
@@ -419,14 +459,18 @@ export const PatientAppointmentsList: React.FC<
       // Refresh appointments list
       await refreshAppointmentsList();
 
-      // Invalidate availability cache for the appointment's date
+      // Invalidate React Query cache for the appointment's date
       const appointmentDate = moment(deletingAppointment.start).format('YYYY-MM-DD');
       const practitionerId = deletingAppointment.resource.practitioner_id;
       const appointmentTypeId = deletingAppointment.resource.appointment_type_id;
-      if (practitionerId && appointmentTypeId) {
-        invalidateCacheForDate(practitionerId, appointmentTypeId, appointmentDate);
-        invalidateResourceCacheForDate(practitionerId, appointmentTypeId, appointmentDate);
+      const clinicId = user?.active_clinic_id;
+
+      if (practitionerId && appointmentTypeId && clinicId && patientId) {
+        invalidateAvailabilityAfterAppointmentChange(queryClient, practitionerId, appointmentTypeId, [appointmentDate], clinicId, patientId);
       }
+
+      // Also invalidate calendar events to update the calendar page
+      await invalidateCalendarCache();
 
       setDeletingAppointment(null);
       setCancellationNote("");
@@ -465,31 +509,28 @@ export const PatientAppointmentsList: React.FC<
         <nav className="-mb-px flex space-x-8">
           <button
             onClick={() => setActiveTab("future")}
-            className={`py-2 px-1 border-b-2 font-medium text-sm ${
-              activeTab === "future"
-                ? "border-blue-500 text-blue-600"
-                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-            }`}
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === "future"
+              ? "border-blue-500 text-blue-600"
+              : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              }`}
           >
             未來預約 ({futureAppointments.length})
           </button>
           <button
             onClick={() => setActiveTab("completed")}
-            className={`py-2 px-1 border-b-2 font-medium text-sm ${
-              activeTab === "completed"
-                ? "border-blue-500 text-blue-600"
-                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-            }`}
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === "completed"
+              ? "border-blue-500 text-blue-600"
+              : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              }`}
           >
             已完成 ({completedAppointments.length})
           </button>
           <button
             onClick={() => setActiveTab("cancelled")}
-            className={`py-2 px-1 border-b-2 font-medium text-sm ${
-              activeTab === "cancelled"
-                ? "border-blue-500 text-blue-600"
-                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-            }`}
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === "cancelled"
+              ? "border-blue-500 text-blue-600"
+              : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              }`}
           >
             已取消 ({cancelledAppointments.length})
           </button>
@@ -562,30 +603,6 @@ export const PatientAppointmentsList: React.FC<
                   </div>
                 )}
 
-                {/* Receipt View Button */}
-                {appointment.has_any_receipt && appointment.receipt_ids && appointment.receipt_ids.length > 0 && (
-                  <div className="mt-3 pt-3 border-t border-gray-200">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation(); // Prevent opening EventModal
-                        const receiptIds = appointment.receipt_ids || [];
-                        if (receiptIds.length > 1) {
-                          // Multiple receipts: show list modal
-                          setSelectedReceiptAppointmentId(appointment.calendar_event_id);
-                          setShowReceiptModal(true);
-                        } else {
-                          // Single receipt: show directly
-                          setSelectedReceiptId(receiptIds[0]);
-                          setSelectedReceiptAppointmentId(appointment.calendar_event_id);
-                          setShowReceiptModal(true);
-                        }
-                      }}
-                      className="w-full px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors text-sm font-medium"
-                    >
-                      檢視收據
-                    </button>
-                  </div>
-                )}
               </div>
             </div>
           ))}
@@ -599,13 +616,13 @@ export const PatientAppointmentsList: React.FC<
           onClose={() => setSelectedEvent(null)}
           onDeleteAppointment={
             canEditEvent(selectedEvent) &&
-            selectedEvent.resource.type === "appointment"
+              selectedEvent.resource.type === "appointment"
               ? handleDeleteAppointment
               : undefined
           }
           onEditAppointment={
             canEditEvent(selectedEvent) &&
-            selectedEvent.resource.type === "appointment"
+              selectedEvent.resource.type === "appointment"
               ? handleEditAppointment
               : undefined
           }
@@ -626,58 +643,6 @@ export const PatientAppointmentsList: React.FC<
         />
       )}
 
-      {/* Receipt List Modal (when multiple receipts) */}
-      {showReceiptModal && selectedReceiptAppointmentId && (
-        <>
-          {allAppointments.find(a => a.calendar_event_id === selectedReceiptAppointmentId)?.receipt_ids && 
-           allAppointments.find(a => a.calendar_event_id === selectedReceiptAppointmentId)!.receipt_ids!.length > 1 && (
-            <ReceiptListModal
-              appointmentId={selectedReceiptAppointmentId}
-              receiptIds={allAppointments.find(a => a.calendar_event_id === selectedReceiptAppointmentId)!.receipt_ids!}
-              onClose={() => {
-                setShowReceiptModal(false);
-                setSelectedReceiptAppointmentId(undefined);
-                setSelectedReceiptId(undefined);
-              }}
-              onSelectReceipt={(receiptId: number) => {
-                setSelectedReceiptId(receiptId);
-                setShowReceiptModal(false); // Close list modal
-              }}
-            />
-          )}
-        </>
-      )}
-
-      {/* Receipt View Modal */}
-      {selectedReceiptId && (
-        <ReceiptViewModal
-          receiptId={selectedReceiptId}
-          onClose={() => {
-            setSelectedReceiptId(undefined);
-            setSelectedReceiptAppointmentId(undefined);
-            setShowReceiptModal(false);
-          }}
-          onReceiptVoided={async () => {
-            await refreshAppointmentsList();
-          }}
-          isClinicUser={isClinicUser || false}
-        />
-      )}
-      {showReceiptModal && selectedReceiptAppointmentId && !selectedReceiptId && 
-       allAppointments.find(a => a.calendar_event_id === selectedReceiptAppointmentId)?.receipt_ids &&
-       allAppointments.find(a => a.calendar_event_id === selectedReceiptAppointmentId)!.receipt_ids!.length === 1 && (
-        <ReceiptViewModal
-          appointmentId={selectedReceiptAppointmentId}
-          onClose={() => {
-            setSelectedReceiptAppointmentId(undefined);
-            setShowReceiptModal(false);
-          }}
-          onReceiptVoided={async () => {
-            await refreshAppointmentsList();
-          }}
-          isClinicUser={isClinicUser || false}
-        />
-      )}
 
       {/* Edit Appointment Modal */}
       {editingAppointment && (

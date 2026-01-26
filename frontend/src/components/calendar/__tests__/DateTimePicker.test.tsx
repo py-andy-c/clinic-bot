@@ -5,9 +5,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent, act } from '@testing-library/react';
 import React from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { DateTimePicker } from '../DateTimePicker';
 import { apiService } from '../../../services/api';
-import { useDateSlotSelection } from '../../../hooks/useDateSlotSelection';
+import { useBatchAvailabilitySlots } from '../../../hooks/queries/useAvailabilitySlots';
 
 // Mock react-dom
 vi.mock('react-dom', async () => {
@@ -26,10 +27,23 @@ vi.mock('../../../services/api', () => ({
   },
 }));
 
-// Mock useDateSlotSelection hook
-vi.mock('../../../hooks/useDateSlotSelection', () => ({
-  useDateSlotSelection: vi.fn(),
-}));
+// Mock useBatchAvailabilitySlots hook
+vi.mock('../../../hooks/queries/useAvailabilitySlots');
+
+// Create QueryClient for tests
+const createTestQueryClient = () => new QueryClient({
+  defaultOptions: {
+    queries: { retry: false },
+    mutations: { retry: false },
+  },
+});
+
+// Test wrapper with QueryClientProvider
+const TestWrapper = ({ children }: { children: React.ReactNode }) => (
+  <QueryClientProvider client={createTestQueryClient()}>
+    {children}
+  </QueryClientProvider>
+);
 
 // Mock calendarUtils
 vi.mock('../../../utils/calendarUtils', () => ({
@@ -38,17 +52,17 @@ vi.mock('../../../utils/calendarUtils', () => ({
     const today = new Date();
     const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
     const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-    
+
     // Add nulls for days before month starts
     for (let i = 0; i < firstDay.getDay(); i++) {
       days.push(null);
     }
-    
+
     // Add days of month
     for (let i = 1; i <= lastDay.getDate(); i++) {
       days.push(new Date(today.getFullYear(), today.getMonth(), i));
     }
-    
+
     return days;
   },
   isToday: () => false,
@@ -79,11 +93,19 @@ describe('DateTimePicker', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    
-    // Default mock for useDateSlotSelection
-    vi.mocked(useDateSlotSelection).mockReturnValue({
-      availableSlots: ['09:00', '10:00', '15:00', '16:00'],
-      isLoadingSlots: false,
+
+    // Default mock for useBatchAvailabilitySlots
+    vi.mocked(useBatchAvailabilitySlots).mockReturnValue({
+      data: {
+        '2024-01-15': [
+          { start_time: '09:00' },
+          { start_time: '10:00' },
+          { start_time: '15:00' },
+          { start_time: '16:00' }
+        ]
+      },
+      isLoading: false,
+      error: null,
     });
 
     // Default mock for checkBatchPractitionerConflicts
@@ -94,7 +116,6 @@ describe('DateTimePicker', () => {
         conflict_type: null,
         appointment_conflict: null,
         exception_conflict: null,
-        resource_conflicts: null,
         default_availability: {
           is_within_hours: true,
           normal_hours: null,
@@ -136,7 +157,7 @@ describe('DateTimePicker', () => {
   };
 
   it('should stay collapsed when empty (no auto-expansion)', async () => {
-    render(<DateTimePicker {...defaultProps} />);
+    render(<TestWrapper><DateTimePicker {...defaultProps} /></TestWrapper>);
 
     // Should stay collapsed when empty (no date or time selected)
     // Check that calendar navigation buttons are not visible
@@ -149,20 +170,22 @@ describe('DateTimePicker', () => {
   it('should expand when clicking collapsed button', async () => {
     // Render with date and time selected so it starts collapsed
     render(
-      <DateTimePicker
-        {...defaultProps}
-        selectedDate="2024-01-15"
-        selectedTime="09:00"
-      />
+      <TestWrapper>
+        <DateTimePicker
+          {...defaultProps}
+          selectedDate="2024-01-15"
+          selectedTime="09:00"
+        />
+      </TestWrapper>
     );
-    
+
     // Should be collapsed initially when both date and time are selected
     const button = screen.getByText(/2024/).closest('button');
     expect(button).toBeInTheDocument();
     expect(screen.queryByLabelText('上個月')).not.toBeInTheDocument();
-    
+
     fireEvent.click(button!);
-    
+
     await waitFor(() => {
       expect(screen.getByLabelText('上個月')).toBeInTheDocument();
     });
@@ -170,25 +193,27 @@ describe('DateTimePicker', () => {
 
   it('should initialize temp state from confirmed state on expand', async () => {
     render(
-      <DateTimePicker
-        {...defaultProps}
-        selectedDate="2024-01-15"
-        selectedTime="09:00"
-      />
+      <TestWrapper>
+        <DateTimePicker
+          {...defaultProps}
+          selectedDate="2024-01-15"
+          selectedTime="09:00"
+        />
+      </TestWrapper>
     );
-    
+
     const button = screen.getByText(/2024/).closest('button');
     fireEvent.click(button!);
-    
+
     await waitFor(() => {
       expect(screen.getByLabelText('上個月')).toBeInTheDocument();
     });
-    
+
     // Wait for time slots to be available
     await waitFor(() => {
       expect(screen.getByText('09:00')).toBeInTheDocument();
     });
-    
+
     // Time should be selected in expanded view
     const timeButton = screen.getByText('09:00');
     expect(timeButton).toHaveClass('bg-blue-500');
@@ -196,11 +221,13 @@ describe('DateTimePicker', () => {
 
   it('should update tempTime and lastManuallySelectedTime when time is selected', async () => {
     render(
-      <DateTimePicker
-        {...defaultProps}
-        selectedDate="2024-01-15"
-        selectedTime=""
-      />
+      <TestWrapper>
+        <DateTimePicker
+          {...defaultProps}
+          selectedDate="2024-01-15"
+          selectedTime=""
+        />
+      </TestWrapper>
     );
 
     // Should stay collapsed, manually expand
@@ -216,25 +243,27 @@ describe('DateTimePicker', () => {
     await waitFor(() => {
       expect(screen.getByText('15:00')).toBeInTheDocument();
     });
-    
+
     // Select a time
     const timeButton = screen.getByText('15:00');
     fireEvent.click(timeButton);
-    
+
     // Time should be selected
     expect(timeButton).toHaveClass('bg-blue-500');
-    
+
     // onTimeSelect should be called immediately (not waiting for collapse)
     expect(mockOnTimeSelect).toHaveBeenCalledWith('15:00');
   });
 
   it('should preserve lastManuallySelectedTime when switching dates', async () => {
     render(
-      <DateTimePicker
-        {...defaultProps}
-        selectedDate="2024-01-15"
-        selectedTime=""
-      />
+      <TestWrapper>
+        <DateTimePicker
+          {...defaultProps}
+          selectedDate="2024-01-15"
+          selectedTime=""
+        />
+      </TestWrapper>
     );
 
     // Should stay collapsed, manually expand
@@ -245,19 +274,19 @@ describe('DateTimePicker', () => {
     await waitFor(() => {
       expect(screen.getByLabelText('上個月')).toBeInTheDocument();
     });
-    
+
     // Wait for time slots to be available
     await waitFor(() => {
       expect(screen.getByText('15:00')).toBeInTheDocument();
     });
-    
+
     // Select a time (15:00)
     const timeButton = screen.getByText('15:00');
     fireEvent.click(timeButton);
-    
+
     // Verify time is selected
     expect(timeButton).toHaveClass('bg-blue-500');
-    
+
     // lastManuallySelectedTime should be set (tested indirectly - time is selected)
     // When collapsing, lastManuallySelectedTime is cleared, which is expected behavior
     await act(async () => {
@@ -265,7 +294,7 @@ describe('DateTimePicker', () => {
       // Wait for setTimeout in click outside handler
       await new Promise(resolve => setTimeout(resolve, 10));
     });
-    
+
     await waitFor(() => {
       expect(screen.queryByLabelText('上個月')).not.toBeInTheDocument();
     }, { timeout: 2000 });
@@ -273,75 +302,79 @@ describe('DateTimePicker', () => {
 
   it('should save both date and time on collapse if both are valid', async () => {
     render(
-      <DateTimePicker
-        {...defaultProps}
-        selectedDate="2024-01-15"
-        selectedTime="09:00"
-      />
+      <TestWrapper>
+        <DateTimePicker
+          {...defaultProps}
+          selectedDate="2024-01-15"
+          selectedTime="09:00"
+        />
+      </TestWrapper>
     );
-    
+
     const button = screen.getByText(/2024/).closest('button');
     fireEvent.click(button!);
-    
+
     await waitFor(() => {
       expect(screen.getByLabelText('上個月')).toBeInTheDocument();
     });
-    
+
     // Wait for time slots to be available
     await waitFor(() => {
       expect(screen.getByText('15:00')).toBeInTheDocument();
     });
-    
+
     // Select a different time
     const timeButton = screen.getByText('15:00');
     fireEvent.click(timeButton);
-    
+
     // Verify time is selected
     expect(timeButton).toHaveClass('bg-blue-500');
-    
+
     // onTimeSelect should be called immediately when time is selected
     expect(mockOnTimeSelect).toHaveBeenCalledWith('15:00');
-    
+
     // Clear the mock to verify collapse doesn't call it again
     mockOnTimeSelect.mockClear();
-    
+
     // Collapse by clicking outside - need to use act for async state updates
     await act(async () => {
       fireEvent.mouseDown(document.body);
       // Wait for setTimeout in click outside handler
       await new Promise(resolve => setTimeout(resolve, 10));
     });
-    
+
     // onTimeSelect should NOT be called again on collapse (already called immediately)
     expect(mockOnTimeSelect).not.toHaveBeenCalled();
-    
+
     // Date should still be selected (no change)
     expect(mockOnDateSelect).not.toHaveBeenCalled();
   });
 
   it('should clear both date and time on collapse if time is not selected', async () => {
     render(
-      <DateTimePicker
-        {...defaultProps}
-        selectedDate="2024-01-15"
-        selectedTime="09:00"
-      />
+      <TestWrapper>
+        <DateTimePicker
+          {...defaultProps}
+          selectedDate="2024-01-15"
+          selectedTime="09:00"
+        />
+      </TestWrapper>
     );
-    
+
     const button = screen.getByText(/2024/).closest('button');
     fireEvent.click(button!);
-    
+
     await waitFor(() => {
       expect(screen.getByLabelText('上個月')).toBeInTheDocument();
     });
-    
+
     // Clear time by selecting empty (this would require deselecting, which isn't directly possible)
     // Instead, let's test by switching to a date with no time selected
     // For this test, we'll simulate having tempDate but no tempTime
-    
+
     // Collapse by clicking outside
     fireEvent.click(document.body);
-    
+
     // Since we have a date and time initially, both should be saved
     // To test clearing, we'd need to manually set tempTime to empty, which requires internal state access
     // This test verifies the basic collapse behavior works
@@ -349,11 +382,13 @@ describe('DateTimePicker', () => {
 
   it('should clear lastManuallySelectedTime when practitioner changes', async () => {
     const { rerender } = render(
-      <DateTimePicker
-        {...defaultProps}
-        selectedDate="2024-01-15"
-        selectedPractitionerId={1}
-      />
+      <TestWrapper>
+        <DateTimePicker
+          {...defaultProps}
+          selectedDate="2024-01-15"
+          selectedPractitionerId={1}
+        />
+      </TestWrapper>
     );
 
     // Should stay collapsed, manually expand
@@ -369,34 +404,38 @@ describe('DateTimePicker', () => {
     await waitFor(() => {
       expect(screen.getByText('15:00')).toBeInTheDocument();
     });
-    
+
     // Select a time
     const timeButton = screen.getByText('15:00');
     fireEvent.click(timeButton);
-    
+
     // Verify time is selected
     expect(timeButton).toHaveClass('bg-blue-500');
-    
+
     // Change practitioner - this should clear lastManuallySelectedTime
     rerender(
-      <DateTimePicker
-        {...defaultProps}
-        selectedDate="2024-01-15"
-        selectedPractitionerId={2}
-      />
+      <TestWrapper>
+        <DateTimePicker
+          {...defaultProps}
+          selectedDate="2024-01-15"
+          selectedPractitionerId={2}
+        />
+      </TestWrapper>
     );
-    
+
     // lastManuallySelectedTime should be cleared (tested indirectly - component re-renders)
     // The component should still be expanded, but the time selection state is reset
   });
 
   it('should clear lastManuallySelectedTime when appointment type changes', async () => {
     const { rerender } = render(
-      <DateTimePicker
-        {...defaultProps}
-        selectedDate="2024-01-15"
-        appointmentTypeId={1}
-      />
+      <TestWrapper>
+        <DateTimePicker
+          {...defaultProps}
+          selectedDate="2024-01-15"
+          appointmentTypeId={1}
+        />
+      </TestWrapper>
     );
 
     // Should remain collapsed (no auto-expansion)
@@ -425,11 +464,13 @@ describe('DateTimePicker', () => {
 
     // Change appointment type - this should clear lastManuallySelectedTime
     rerender(
-      <DateTimePicker
-        {...defaultProps}
-        selectedDate="2024-01-15"
-        appointmentTypeId={2}
-      />
+      <TestWrapper>
+        <DateTimePicker
+          {...defaultProps}
+          selectedDate="2024-01-15"
+          appointmentTypeId={2}
+        />
+      </TestWrapper>
     );
 
     // lastManuallySelectedTime should be cleared (tested indirectly - component re-renders)
@@ -437,42 +478,53 @@ describe('DateTimePicker', () => {
 
   it('should display time slots when date is selected', async () => {
     render(
-      <DateTimePicker
-        {...defaultProps}
-        selectedDate="2024-01-15"
-        selectedTime="09:00"
-      />
+      <TestWrapper>
+        <DateTimePicker
+          {...defaultProps}
+          selectedDate="2024-01-15"
+          selectedTime="09:00"
+        />
+      </TestWrapper>
     );
-    
+
     const button = screen.getByText(/2024/).closest('button');
     fireEvent.click(button!);
-    
+
     await waitFor(() => {
       expect(screen.getByLabelText('上個月')).toBeInTheDocument();
     });
-    
+
     // Wait for time slots to be available
     await waitFor(() => {
       expect(screen.getByText('09:00')).toBeInTheDocument();
     });
-    
+
     // Time slots should be displayed (backend handles including original time when excludeCalendarEventId is provided)
     expect(screen.getByText('09:00')).toBeInTheDocument();
   });
 
   it('should keep conflicted time when collapsed (no auto-expansion)', async () => {
-    // Render with a time that's not in available slots
-    vi.mocked(useDateSlotSelection).mockReturnValue({
-      availableSlots: ['10:00', '11:00', '15:00'], // 09:00 is not available
-      isLoadingSlots: false,
+    // Mock React Query to return slots that don't include 09:00
+    vi.mocked(useBatchAvailabilitySlots).mockReturnValue({
+      data: {
+        '2024-01-15': [
+          { start_time: '10:00' },
+          { start_time: '11:00' },
+          { start_time: '15:00' }
+        ]
+      },
+      isLoading: false,
+      error: null,
     });
 
     render(
-      <DateTimePicker
-        {...defaultProps}
-        selectedDate="2024-01-15"
-        selectedTime="09:00" // This time is not in available slots
-      />
+      <TestWrapper>
+        <DateTimePicker
+          {...defaultProps}
+          selectedDate="2024-01-15"
+          selectedTime="09:00" // This time is not in available slots
+        />
+      </TestWrapper>
     );
 
     // Should NOT clear the time or auto-expand - keep conflicted time with warnings
@@ -488,18 +540,27 @@ describe('DateTimePicker', () => {
   });
 
   it('should clear conflicted time when expanded (user intent to reselect)', async () => {
-    // Render with a time that's not in available slots
-    vi.mocked(useDateSlotSelection).mockReturnValue({
-      availableSlots: ['10:00', '11:00', '15:00'], // 09:00 is not available
-      isLoadingSlots: false,
+    // Mock React Query to return slots that don't include 09:00
+    vi.mocked(useBatchAvailabilitySlots).mockReturnValue({
+      data: {
+        '2024-01-15': [
+          { start_time: '10:00' },
+          { start_time: '11:00' },
+          { start_time: '15:00' }
+        ]
+      },
+      isLoading: false,
+      error: null,
     });
 
     render(
-      <DateTimePicker
-        {...defaultProps}
-        selectedDate="2024-01-15"
-        selectedTime="09:00" // This time is not in available slots
-      />
+      <TestWrapper>
+        <DateTimePicker
+          {...defaultProps}
+          selectedDate="2024-01-15"
+          selectedTime="09:00" // This time is not in available slots
+        />
+      </TestWrapper>
     );
 
     // Click to expand the picker
@@ -517,30 +578,32 @@ describe('DateTimePicker', () => {
 
   it('should call onTimeSelect immediately when time is selected', async () => {
     render(
-      <DateTimePicker
-        {...defaultProps}
-        selectedDate="2024-01-15"
-        selectedTime="09:00"
-      />
+      <TestWrapper>
+        <DateTimePicker
+          {...defaultProps}
+          selectedDate="2024-01-15"
+          selectedTime="09:00"
+        />
+      </TestWrapper>
     );
-    
+
     // Expand the picker
     const button = screen.getByText(/2024/).closest('button');
     fireEvent.click(button!);
-    
+
     await waitFor(() => {
       expect(screen.getByLabelText('上個月')).toBeInTheDocument();
     });
-    
+
     // Wait for time slots to be available
     await waitFor(() => {
       expect(screen.getByText('10:00')).toBeInTheDocument();
     });
-    
+
     // Select a different time
     const timeButton = screen.getByText('10:00');
     fireEvent.click(timeButton);
-    
+
     // onTimeSelect should be called immediately (not waiting for collapse)
     expect(mockOnTimeSelect).toHaveBeenCalledWith('10:00');
   });
@@ -554,7 +617,6 @@ describe('DateTimePicker', () => {
           conflict_type: null,
           appointment_conflict: null,
           exception_conflict: null,
-          resource_conflicts: null,
           default_availability: {
             is_within_hours: true,
             normal_hours: null,
@@ -816,6 +878,131 @@ describe('DateTimePicker', () => {
       await new Promise((resolve) => setTimeout(resolve, 400));
 
       expect(apiService.checkBatchPractitionerConflicts).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Locked Expansion (canExpand prop)', () => {
+    it('should block expansion and show warning when canExpand is false', async () => {
+      render(
+        <TestWrapper>
+          <DateTimePicker
+            {...defaultProps}
+            selectedPractitionerId={null}
+            appointmentTypeId={null}
+            canExpand={false}
+          />
+        </TestWrapper>
+      );
+
+      // Should be collapsed initially
+      expect(screen.queryByLabelText('上個月')).not.toBeInTheDocument();
+
+      // Click the collapsed button
+      const collapsedButton = screen.getByRole('button');
+      fireEvent.click(collapsedButton);
+
+      // Should NOT expand
+      expect(screen.queryByLabelText('上個月')).not.toBeInTheDocument();
+
+      // Should show warning message
+      await waitFor(() => {
+        expect(screen.getByText('請先選擇治療師與預約類型')).toBeInTheDocument();
+      });
+    });
+
+    it('should allow expansion when canExpand is true (default)', async () => {
+      render(
+        <TestWrapper>
+          <DateTimePicker
+            {...defaultProps}
+            selectedPractitionerId={1}
+            appointmentTypeId={1}
+            canExpand={true}
+          />
+        </TestWrapper>
+      );
+
+      // Should be collapsed initially
+      expect(screen.queryByLabelText('上個月')).not.toBeInTheDocument();
+
+      // Click the collapsed button
+      const collapsedButton = screen.getByRole('button');
+      fireEvent.click(collapsedButton);
+
+      // Should expand normally
+      await waitFor(() => {
+        expect(screen.getByLabelText('上個月')).toBeInTheDocument();
+      });
+
+      // Should NOT show warning
+      expect(screen.queryByText('請先選擇治療師與預約類型')).not.toBeInTheDocument();
+    });
+
+    it('should display pre-populated date/time in collapsed view even when canExpand is false', () => {
+      render(
+        <TestWrapper>
+          <DateTimePicker
+            {...defaultProps}
+            selectedDate="2024-01-15"
+            selectedTime="10:00"
+            selectedPractitionerId={null}
+            appointmentTypeId={null}
+            canExpand={false}
+
+          />
+        </TestWrapper>
+      );
+
+      // Should show the pre-populated date/time in collapsed view
+      expect(screen.getByText(/2024/)).toBeInTheDocument();
+
+
+
+      // Clicking should NOT expand
+      const collapsedButton = screen.getByRole('button');
+      fireEvent.click(collapsedButton);
+
+      expect(screen.queryByLabelText('上個月')).not.toBeInTheDocument();
+
+      // Warning should appear after click
+      expect(screen.getByText('請先選擇治療師與預約類型')).toBeInTheDocument();
+    });
+
+    it('should allow expansion after canExpand becomes true', async () => {
+      const { rerender } = render(
+        <TestWrapper>
+          <DateTimePicker
+            {...defaultProps}
+            selectedPractitionerId={null}
+            appointmentTypeId={null}
+            canExpand={false}
+          />
+        </TestWrapper>
+      );
+
+      // Click - should NOT expand due to canExpand=false
+      const collapsedButton = screen.getByRole('button');
+      fireEvent.click(collapsedButton);
+      expect(screen.queryByLabelText('上個月')).not.toBeInTheDocument();
+
+      // Now canExpand becomes true (user selected practitioner and type)
+      rerender(
+        <TestWrapper>
+          <DateTimePicker
+            {...defaultProps}
+            selectedPractitionerId={1}
+            appointmentTypeId={1}
+            canExpand={true}
+          />
+        </TestWrapper>
+      );
+
+      // Click again - should expand now
+      fireEvent.click(screen.getByRole('button'));
+
+      await waitFor(() => {
+        expect(screen.getByLabelText('上個月')).toBeInTheDocument();
+      });
     });
   });
 

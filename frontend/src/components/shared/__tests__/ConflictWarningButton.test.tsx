@@ -7,7 +7,7 @@ import { SchedulingConflictResponse } from '../../../types';
 // Mock the ConflictIndicator component
 vi.mock('../ConflictIndicator', () => ({
   ConflictIndicator: ({ conflictInfo }: { conflictInfo: SchedulingConflictResponse }) => (
-    <span data-testid="conflict-indicator" onClick={() => {}}>
+    <span data-testid="conflict-indicator" onClick={() => { }}>
       ⚠️ Conflict: {conflictInfo.conflict_type}
     </span>
   ),
@@ -28,7 +28,7 @@ describe('ConflictWarningButton', () => {
       conflict_type: null,
       appointment_conflict: null,
       exception_conflict: null,
-      resource_conflicts: null,
+      default_availability: { is_within_hours: true },
     };
 
     const { container } = render(

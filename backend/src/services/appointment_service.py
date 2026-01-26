@@ -17,7 +17,8 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
 from models import (
-    Appointment, CalendarEvent, User, Patient, Clinic
+    Appointment, CalendarEvent, User, Patient, Clinic,
+    AppointmentResourceAllocation
 )
 from services.patient_service import PatientService
 from services.availability_service import AvailabilityService
@@ -28,6 +29,7 @@ from services.follow_up_message_service import FollowUpMessageService
 from utils.datetime_utils import taiwan_now, TAIWAN_TZ
 from utils.appointment_type_queries import get_appointment_type_by_id_with_soft_delete_check
 from utils.appointment_queries import filter_future_appointments
+from services.resource_service import ResourceService
 
 logger = logging.getLogger(__name__)
 
@@ -522,27 +524,32 @@ class AppointmentService:
         slot_end_time = end_time.time()
 
         if requested_practitioner_id:
-            # Specific practitioner requested - validate they're in the list and available
-            practitioner = next(
-                (p for p in practitioners if p.id == requested_practitioner_id),
-                None
-            )
+            # Verify practitioner exists and is active in clinic, but don't require
+            # them to be in the appointment type's practitioner list.
+            # This allows one-off appointments outside normal configurations.
+            # Note: LIFF patient bookings should continue to filter by type (handled upstream)
+            from models.user_clinic_association import UserClinicAssociation
+            association = db.query(UserClinicAssociation).filter(
+                UserClinicAssociation.user_id == requested_practitioner_id,
+                UserClinicAssociation.clinic_id == clinic_id,
+                UserClinicAssociation.is_active == True
+            ).first()
 
-            if not practitioner:
+            if not association:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
-                    detail="找不到治療師或該治療師不提供此預約類型"
+                    detail="找不到治療師"
                 )
 
             if not AppointmentService._is_practitioner_available_at_slot(
-                schedule_data, practitioner.id, slot_start_time, slot_end_time, allow_override=allow_override
+                schedule_data, requested_practitioner_id, slot_start_time, slot_end_time, allow_override=allow_override
             ):
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
                     detail="時段不可用"
                 )
 
-            return practitioner.id
+            return requested_practitioner_id
 
         else:
             # Auto-assign to practitioner with least appointments that day
@@ -2286,25 +2293,36 @@ class AppointmentService:
             appointment.pending_time_confirmation = True
             appointment.alternative_time_slots = sorted(selected_time_slots)
 
+        # Determine which resources to allocate
+        # If selected_resource_ids is None (not provided in request), we'll use existing ones if we need to re-allocate
+        resource_ids_to_allocate = selected_resource_ids
+        
         # Check if resources changed by comparing current allocations with selected_resource_ids
         resources_changed = False
-        from models.appointment_resource_allocation import AppointmentResourceAllocation
         
+        # We only consider resources "changed" if the frontend explicitly sent a new list (even if empty)
         if selected_resource_ids is not None:
             # Get current resource allocations
             current_allocations = db.query(AppointmentResourceAllocation).filter(
                 AppointmentResourceAllocation.appointment_id == appointment_id
             ).all()
             current_resource_ids = sorted([alloc.resource_id for alloc in current_allocations])
-            new_resource_ids = sorted(selected_resource_ids) if selected_resource_ids else []
+            new_resource_ids = sorted(selected_resource_ids)
             
             # Check if resources actually changed
             resources_changed = current_resource_ids != new_resource_ids
         
         # Re-allocate resources if time, appointment type, or resources changed
         if time_actually_changed or appointment_type_actually_changed or resources_changed:
-            from services.resource_service import ResourceService
             
+            # If we are re-allocating due to time/type change but NO new selection was provided, 
+            # we must fetch the existing IDs to preserve them.
+            if resource_ids_to_allocate is None:
+                current_allocations = db.query(AppointmentResourceAllocation).filter(
+                    AppointmentResourceAllocation.appointment_id == appointment_id
+                ).all()
+                resource_ids_to_allocate = [alloc.resource_id for alloc in current_allocations]
+
             # Delete old allocations
             db.query(AppointmentResourceAllocation).filter(
                 AppointmentResourceAllocation.appointment_id == appointment_id
@@ -2315,7 +2333,7 @@ class AppointmentService:
             # Calculate new end time
             new_end_time = normalized_start_time + timedelta(minutes=duration_minutes)
             
-            # Allocate new resources (use selected_resource_ids if provided, otherwise auto-allocate)
+            # Allocate new resources
             try:
                 ResourceService.allocate_resources(
                     db=db,
@@ -2324,8 +2342,8 @@ class AppointmentService:
                     start_time=normalized_start_time,
                     end_time=new_end_time,
                     clinic_id=clinic_id,
-                    selected_resource_ids=selected_resource_ids,  # Use provided selection or auto-allocate
-                    exclude_calendar_event_id=appointment_id  # Exclude current appointment from availability checks
+                    selected_resource_ids=resource_ids_to_allocate,
+                    exclude_calendar_event_id=appointment_id
                 )
                 # Flush to ensure new allocations are visible to subsequent queries
                 db.flush()

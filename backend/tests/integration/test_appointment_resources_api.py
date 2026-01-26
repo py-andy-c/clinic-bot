@@ -339,7 +339,8 @@ class TestResourceConflicts:
 
             assert data["has_conflict"] is False
             assert data["conflict_type"] is None
-            assert data["resource_conflicts"] is None
+            assert data["selection_insufficient_warnings"] == []
+            assert data["resource_conflict_warnings"] == []
         finally:
             app.dependency_overrides.pop(get_current_user, None)
 
@@ -452,8 +453,8 @@ class TestResourceConflicts:
 
             assert data["has_conflict"] is True
             assert data["conflict_type"] == "resource"
-            assert data["resource_conflicts"] is not None
-            assert len(data["resource_conflicts"]) > 0
+            assert data["selection_insufficient_warnings"] is not None
+            assert len(data["selection_insufficient_warnings"]) > 0
         finally:
             app.dependency_overrides.pop(get_current_user, None)
 

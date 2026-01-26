@@ -13,7 +13,7 @@ interface ConflictDisplayProps {
  *
  * Displays scheduling conflict information with appropriate styling based on conflict type.
  * Shows ALL conflicts found, not just the highest priority one.
- * Conflicts are displayed in priority order: past_appointment > appointment > exception > availability > resource.
+ * Conflicts are displayed in priority order: past_appointment > practitioner_type_mismatch > appointment > exception > availability > resource.
  */
 export const ConflictDisplay: React.FC<ConflictDisplayProps> = ({
   conflictInfo,
@@ -25,184 +25,153 @@ export const ConflictDisplay: React.FC<ConflictDisplayProps> = ({
     return null;
   }
 
-  const getConflictDisplay = (conflictType: string) => {
-    switch (conflictType) {
-      case 'past_appointment':
-        return {
-          icon: '⚠️',
-          title: '此預約時間在過去',
-          details: [],
-          borderClass: 'border-amber-300 bg-amber-50',
-          textClass: 'text-amber-800',
-        };
-
-      case 'appointment':
-        if (!conflictInfo.appointment_conflict) return null;
-        const appt = conflictInfo.appointment_conflict;
-        return {
-          icon: '⚠️',
-          title: '時間衝突：與現有預約重疊',
-          details: [
-            `病患：${appt.patient_name}`,
-            `預約時間：${appt.start_time}-${appt.end_time}`,
-            `預約類型：${appt.appointment_type}`,
-          ],
-          borderClass: 'border-red-300 bg-red-50',
-          textClass: 'text-red-800',
-        };
-
-      case 'exception':
-        if (!conflictInfo.exception_conflict) return null;
-        const exc = conflictInfo.exception_conflict;
-        return {
-          icon: '⚠️',
-          title: '與治療師不可用時間衝突',
-          details: [
-            `不可用時間：${exc.start_time}-${exc.end_time}`,
-            exc.reason ? `原因：${exc.reason}` : null,
-          ].filter((d): d is string => d !== null),
-          borderClass: 'border-orange-300 bg-orange-50',
-          textClass: 'text-orange-800',
-        };
-
-      case 'availability':
-        // Show warning even if practitioner has no default availability set
-        const normalHours = conflictInfo.default_availability?.normal_hours;
-        return {
-          icon: 'ℹ️',
-          title: '非正常可用時間',
-          details: normalHours
-            ? [`正常可用時間：${normalHours}`]
-            : ['此治療師尚未設定可用時間'],
-          borderClass: 'border-blue-300 bg-blue-50',
-          textClass: 'text-blue-800',
-        };
-
-      case 'resource':
-        if (!conflictInfo.resource_conflicts || conflictInfo.resource_conflicts.length === 0) return null;
-        const resourceDetails = conflictInfo.resource_conflicts.map((conflict: any) => {
-          // Format: ⚠️ 資源不足：{ResourceTypeName}
-          //   需要數量：{RequiredQuantity}
-          //   總數：{TotalResources} 個，已分配：{AllocatedCount} 個
-          // Note: Date/time is not in conflictInfo, but is shown in the context where this is displayed
-          // Support both old format (available_quantity) and new format (total_resources, allocated_count)
-          if ('total_resources' in conflict && 'allocated_count' in conflict) {
-            return `資源不足：${conflict.resource_type_name}\n   需要數量：${conflict.required_quantity}\n   總數：${conflict.total_resources} 個，已分配：${conflict.allocated_count} 個`;
-          } else {
-            // Fallback for old format (backward compatibility)
-            return `資源不足：${conflict.resource_type_name}\n   需要數量：${conflict.required_quantity}\n   可用數量：${conflict.available_quantity}`;
-          }
-        });
-        return {
-          icon: '⚠️',
-          title: '資源不足',
-          details: resourceDetails,
-          borderClass: 'border-yellow-300 bg-yellow-50',
-          textClass: 'text-yellow-800',
-        };
-
-      default:
-        return null;
-    }
-  };
-
-  // Collect all conflicts in priority order
-  type ConflictDisplay = {
-    icon: string;
-    title: string;
-    details: string[];
-    borderClass: string;
-    textClass: string;
-  };
-  
-  const conflicts: Array<{ type: string; display: ConflictDisplay }> = [];
-  
   // Show all conflicts by default, or filter if filterTypes is specified
   const shouldShowConflict = (conflictType: string) => {
     return !filterTypes || filterTypes.includes(conflictType);
   };
 
-  // Check for past appointment conflict (highest priority)
-  // Backend sets conflict_type to "past_appointment" when appointment is in the past
-  if (shouldShowConflict('past_appointment')) {
-    if (conflictInfo.conflict_type === 'past_appointment') {
-      const display = getConflictDisplay('past_appointment');
-      if (display) {
-        conflicts.push({ type: 'past_appointment', display });
-      }
-    }
+  const standardWarnings: { title: string; items?: string[] }[] = [];
+
+  // 1. Time in past
+  if (shouldShowConflict('past_appointment') && conflictInfo.conflict_type === 'past_appointment') {
+    standardWarnings.push({ title: '時間在過去' });
   }
 
-  // Check for appointment conflict
+  // 2. Type mismatch
+  if (shouldShowConflict('practitioner_type_mismatch') && (conflictInfo.conflict_type === 'practitioner_type_mismatch' || conflictInfo.is_type_mismatch)) {
+    standardWarnings.push({ title: '治療師不提供此類型預約' });
+  }
+
+  // 3. Appointment conflicts
   if (shouldShowConflict('appointment')) {
-    if (conflictInfo.appointment_conflict) {
-      const display = getConflictDisplay('appointment');
-      if (display) {
-        conflicts.push({ type: 'appointment', display });
+    const appts = conflictInfo.appointment_conflicts || (conflictInfo.appointment_conflict ? [conflictInfo.appointment_conflict] : []);
+    if (appts.length > 1) {
+      standardWarnings.push({
+        title: '與現有預約重疊',
+        items: appts.map(appt => `${appt.patient_name} | ${appt.start_time}-${appt.end_time} | ${appt.appointment_type}`)
+      });
+    } else if (appts.length === 1) {
+      const appt = appts[0];
+      if (appt) {
+        standardWarnings.push({ title: `與現有預約重疊：${appt.patient_name} | ${appt.start_time}-${appt.end_time} | ${appt.appointment_type}` });
       }
     }
   }
 
-  // Check for exception conflict
+  // 4. Exception conflicts
   if (shouldShowConflict('exception')) {
-    if (conflictInfo.exception_conflict) {
-      const display = getConflictDisplay('exception');
-      if (display) {
-        conflicts.push({ type: 'exception', display });
+    const exceptions = conflictInfo.exception_conflicts || (conflictInfo.exception_conflict ? [conflictInfo.exception_conflict] : []);
+    if (exceptions.length > 1) {
+      standardWarnings.push({
+        title: '與治療師休診時段重疊',
+        items: exceptions.map(exc => exc ? `${exc.start_time}-${exc.end_time}${exc.reason ? ` (${exc.reason})` : ''}` : '')
+      });
+    } else if (exceptions.length === 1) {
+      const exc = exceptions[0];
+      if (exc) {
+        const reasonText = exc.reason ? ` (${exc.reason})` : '';
+        standardWarnings.push({ title: `與治療師休診時段重疊：${exc.start_time}-${exc.end_time}${reasonText}` });
       }
     }
   }
 
-  // Check for availability conflict
-  if (shouldShowConflict('availability')) {
-    if (conflictInfo.default_availability && !conflictInfo.default_availability.is_within_hours) {
-      const display = getConflictDisplay('availability');
-      if (display) {
-        conflicts.push({ type: 'availability', display });
-      }
-    }
+  // 5. Default availability
+  if (shouldShowConflict('availability') && conflictInfo.default_availability && !conflictInfo.default_availability.is_within_hours) {
+    const normalHours = conflictInfo.default_availability.normal_hours;
+    standardWarnings.push({
+      title: normalHours
+        ? `非治療師正常時間（${normalHours}）`
+        : '非治療師正常時間（未設定可用時間）'
+    });
   }
 
-  // Check for resource conflict
+  // Resource warnings (hierarchical)
+  const resourceWarnings: string[] = [];
   if (shouldShowConflict('resource')) {
-    if (conflictInfo.resource_conflicts && conflictInfo.resource_conflicts.length > 0) {
-      const display = getConflictDisplay('resource');
-      if (display) {
-        conflicts.push({ type: 'resource', display });
+    // 1. Group warnings by resource type
+    const warningsByType: Record<string, string[]> = {};
+    const typeOrder: string[] = []; // To maintain order of appearance
+
+    // Helper to add warning
+    const addWarning = (typeName: string, text: string) => {
+      if (!warningsByType[typeName]) {
+        warningsByType[typeName] = [];
+        typeOrder.push(typeName);
       }
+      warningsByType[typeName].push(text);
+    };
+
+    // 2. Selection insufficient
+    if (conflictInfo.selection_insufficient_warnings?.length) {
+      conflictInfo.selection_insufficient_warnings.forEach(w => {
+        addWarning(w.resource_type_name, `${w.resource_type_name}（需要 ${w.required_quantity} 個，只選了 ${w.selected_quantity} 個）`);
+      });
     }
+
+    // 3. Resource conflicts
+    if (conflictInfo.resource_conflict_warnings?.length) {
+      conflictInfo.resource_conflict_warnings.forEach(w => {
+        addWarning(w.resource_type_name, `${w.resource_name} 已被 ${w.conflicting_appointment.practitioner_name} 使用 (${w.conflicting_appointment.start_time}-${w.conflicting_appointment.end_time})`);
+      });
+    }
+
+    // Flatten to list
+    typeOrder.forEach(typeName => {
+      resourceWarnings.push(...(warningsByType[typeName] ?? []));
+    });
   }
 
-  if (conflicts.length === 0) {
+  if (standardWarnings.length === 0 && resourceWarnings.length === 0) {
     return null;
   }
 
   return (
     <div
-      className={`space-y-2 ${className}`}
+      className={`rounded border border-amber-300 bg-amber-50 px-2 py-1.5 ${className}`}
       aria-live={ariaLive}
       aria-atomic="true"
-      role="status"
-      aria-label="預約衝突警告"
+      role="alert"
+      aria-label="預約警告"
     >
-      {conflicts.map((conflict, index) => (
-        <div key={index} className={`rounded-md border p-3 ${conflict.display.borderClass}`}>
-          <div className={`flex items-start gap-2 ${conflict.display.textClass}`}>
-            <span className="text-lg flex-shrink-0" aria-hidden="true">{conflict.display.icon}</span>
-            <div className="flex-1 min-w-0">
-              <div className="font-medium text-sm mb-1" role="heading" aria-level={3}>
-                {conflict.display.title}
+      <div className="text-amber-800 text-xs space-y-1">
+        {/* Standard and Hierarchical Warnings */}
+        {standardWarnings.map((warning, index) => (
+          <div key={index} className="space-y-1">
+            <div className="flex items-start gap-1">
+              <span className="flex-shrink-0 leading-tight">•</span>
+              <span className={`leading-tight ${warning.items ? 'font-medium' : ''}`}>{warning.title}</span>
+            </div>
+            {warning.items && (
+              <div className="pl-4 space-y-1">
+                {warning.items.map((item, i) => (
+                  <div key={i} className="flex items-start gap-1">
+                    <span className="flex-shrink-0 leading-tight">•</span>
+                    <span className="leading-tight">{item}</span>
+                  </div>
+                ))}
               </div>
-              {conflict.display.details.map((detail, detailIndex) => (
-                <div key={detailIndex} className="text-xs leading-relaxed whitespace-pre-line">
-                  {detail}
+            )}
+          </div>
+        ))}
+
+        {/* Hierarchical Resource Warnings */}
+        {resourceWarnings.length > 0 && (
+          <div className="space-y-1">
+            <div className="flex items-start gap-1">
+              <span className="flex-shrink-0 leading-tight">•</span>
+              <span className="leading-tight font-medium">資源選擇</span>
+            </div>
+            <div className="pl-4 space-y-1">
+              {resourceWarnings.map((rw, index) => (
+                <div key={index} className="flex items-start gap-1">
+                  <span className="flex-shrink-0 leading-tight">•</span>
+                  <span className="leading-tight">{rw}</span>
                 </div>
               ))}
             </div>
           </div>
-        </div>
-      ))}
+        )}
+      </div>
     </div>
   );
 };
-

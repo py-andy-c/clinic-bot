@@ -20,9 +20,6 @@ export type { CancellationNoteModalProps } from './CancellationNoteModal';
 export { CancellationPreviewModal } from './CancellationPreviewModal';
 export type { CancellationPreviewModalProps } from './CancellationPreviewModal';
 
-export { DeleteConfirmationModal } from './DeleteConfirmationModal';
-export type { DeleteConfirmationModalProps } from './DeleteConfirmationModal';
-
 export { EditAppointmentModal } from './EditAppointmentModal';
 export type { EditAppointmentModalProps } from './EditAppointmentModal';
 
@@ -37,3 +34,10 @@ export { ServiceItemSelectionModal } from './ServiceItemSelectionModal';
 export { PractitionerSelectionModal } from './PractitionerSelectionModal';
 export type { PractitionerSelectionModalProps } from './PractitionerSelectionModal';
 
+export { CheckoutModal } from './CheckoutModal';
+
+export { ReceiptListModal } from './ReceiptListModal';
+export { ReceiptViewModal } from './ReceiptViewModal';
+
+export { default as NotificationModal } from './NotificationModal';
+export type { NotificationModalProps, NotificationPreview } from './NotificationModal';

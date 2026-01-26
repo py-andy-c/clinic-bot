@@ -47,10 +47,10 @@ const MockAppointmentBookingPage = () => {
   const handleBookAppointment = async () => {
     // Simulate successful booking
     setBookingSuccess(true);
-    // In a real scenario, this would trigger the completion after a delay
+    // In a real scenario, this would show success briefly then redirect
     setTimeout(() => {
       handleBookingComplete();
-    }, 100);
+    }, 500); // Brief success message before redirect (longer timeout to avoid test flakiness)
   };
 
   if (currentView === 'calendar') {
@@ -216,12 +216,17 @@ describe('Appointment Booking Page - Complete Workflow Integration', () => {
       const bookButton = screen.getByTestId('book-appointment-btn');
       await user.click(bookButton);
 
-      // Step 6: Verify booking completion (success state)
+      // Step 6: Verify booking completion (success state appears briefly)
       await waitFor(() => {
         expect(screen.getByTestId('booking-success')).toBeVisible();
       });
 
       expect(screen.getByText('Appointment booked successfully!')).toBeInTheDocument();
+
+      // Step 7: Verify return to calendar view after success
+      await waitFor(() => {
+        expect(screen.getByRole('heading', { name: 'Appointment Calendar' })).toBeInTheDocument();
+      }, { timeout: 500 });
     });
 
     it('handles booking cancellation and returns to calendar view', async () => {

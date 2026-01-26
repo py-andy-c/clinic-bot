@@ -60,7 +60,7 @@ const GlobalWarnings: React.FC = () => {
     const hasErrors = (isClinicAdmin && (clinicSettingsError || membersError)) ||
       (hasRole && hasRole('practitioner') && practitionerStatusError) ||
       (isClinicAdmin && batchPractitionerStatusError);
-    
+
     if (hasErrors) {
       // Log errors but continue with defaults to avoid breaking the UI
       logger.warn('Some warning data failed to load, using defaults', {
@@ -150,9 +150,11 @@ const GlobalWarnings: React.FC = () => {
 
     // Only refresh if navigating away from settings pages
     if (previousPathname && isSettingsPage(previousPathname) && !isSettingsPage(currentPathname)) {
+      const activeClinicId = user?.active_clinic_id;
+
       // Invalidate cache to ensure fresh data after settings changes
-      queryClient.invalidateQueries({ queryKey: ['clinic-settings'] });
-      queryClient.invalidateQueries({ queryKey: ['members'] });
+      queryClient.invalidateQueries({ queryKey: ['clinicSettings', activeClinicId] });
+      queryClient.invalidateQueries({ queryKey: ['members', activeClinicId] });
 
       // Also invalidate practitioner status caches
       queryClient.invalidateQueries({ queryKey: ['practitioner-status'] });
@@ -173,7 +175,7 @@ const GlobalWarnings: React.FC = () => {
   }
 
   return (
-    <div className="bg-amber-50 border-b border-amber-200 py-3">
+    <div className="relative z-50 bg-amber-50 border-b border-amber-200 py-3">
       <div className="max-w-7xl mx-auto sm:px-6 lg:px-8">
         <div className="px-4 py-0 sm:px-0">
           <div className="max-w-4xl mx-auto">
@@ -248,6 +250,7 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
   } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+
   const { hasUnsavedChanges } = useUnsavedChanges();
   const { confirm } = useModal();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -271,6 +274,7 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
       }
     }
     navigate(href);
+    setOpenDropdowns([]);
   }, [hasUnsavedChanges, location.pathname, navigate, confirm]);
 
   const navigationGroups = useMemo(() => [
@@ -343,10 +347,11 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
     return undefined;
   }, [openDropdowns]);
 
+
   return (
-    <div className="min-h-screen bg-white md:bg-gray-50">
+    <div className="min-h-screen bg-white">
       {/* Top Navigation */}
-      <nav className="bg-white shadow-sm border-b border-gray-200">
+      <nav className="relative z-50 bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
             <div className="flex items-center">
@@ -389,8 +394,8 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
                         <button
                           onClick={() => setOpenDropdowns(prev =>
                             prev.includes(group.name)
-                              ? prev.filter(n => n !== group.name)
-                              : [...prev, group.name]
+                              ? []
+                              : [group.name]
                           )}
                           className={`${groupIsActive
                             ? 'border-primary-500 text-gray-900'
@@ -493,7 +498,10 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
 
         {/* Mobile menu - Show on md and below */}
         {isMobileMenuOpen && (
-          <div className="lg:hidden" ref={mobileMenuRef}>
+          <div
+            className="lg:hidden"
+            ref={mobileMenuRef}
+          >
             <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3 bg-white border-t border-gray-200">
               {navigationGroups.map((group) => {
                 if (group.href) {
@@ -606,7 +614,7 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
       <GlobalWarnings />
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto py-2 md:py-6 sm:px-6 lg:px-8">
+      <main className="max-w-7xl mx-auto py-2 md:py-6 sm:px-6 lg:px-8 pt-16">
         <div className="px-4 py-2 md:py-6 sm:px-0 md:max-w-4xl md:mx-auto">
           {children}
         </div>

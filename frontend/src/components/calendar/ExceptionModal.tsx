@@ -12,11 +12,13 @@ export interface ExceptionData {
   date: string;
   startTime: string;
   endTime: string;
+  practitionerId: number;
 }
 
 export interface ExceptionModalProps {
   exceptionData: ExceptionData;
   isFullDay: boolean;
+  practitioners: Array<{ id: number; name: string }>;
   onClose: () => void;
   onCreate: () => void;
   onExceptionDataChange: (data: ExceptionData) => void;
@@ -26,6 +28,7 @@ export interface ExceptionModalProps {
 export const ExceptionModal: React.FC<ExceptionModalProps> = React.memo(({
   exceptionData,
   isFullDay,
+  practitioners,
   onClose,
   onCreate,
   onExceptionDataChange,
@@ -40,6 +43,22 @@ export const ExceptionModal: React.FC<ExceptionModalProps> = React.memo(({
           <h3 className="text-lg font-semibold">新增休診時段</h3>
         </div>
         <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              治療師
+            </label>
+            <select
+              className="input"
+              value={exceptionData.practitionerId}
+              onChange={(e) => onExceptionDataChange({ ...exceptionData, practitionerId: parseInt(e.target.value) })}
+            >
+              {practitioners.map(practitioner => (
+                <option key={practitioner.id} value={practitioner.id}>
+                  {practitioner.name}
+                </option>
+              ))}
+            </select>
+          </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               日期
@@ -60,7 +79,7 @@ export const ExceptionModal: React.FC<ExceptionModalProps> = React.memo(({
                 const checked = e.target.checked;
                 onFullDayChange(checked);
                 if (checked) {
-                  onExceptionDataChange({ ...exceptionData, startTime: '00:00', endTime: '23:59' });
+                  onExceptionDataChange({ ...exceptionData, startTime: '00:00', endTime: '23:00' });
                 }
               }}
               className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
@@ -103,8 +122,10 @@ export const ExceptionModal: React.FC<ExceptionModalProps> = React.memo(({
           </div>
         </div>
         <div className="flex justify-end mt-6">
-          <button 
-            onClick={onCreate}
+          <button
+            onClick={() => {
+              onCreate();
+            }}
             className="btn-primary w-full sm:w-auto"
           >
             儲存休診時段
