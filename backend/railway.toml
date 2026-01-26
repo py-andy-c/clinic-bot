@@ -16,9 +16,7 @@ builder = "RAILPACK"
 [build.nixpacksPlan.phases.setup]
 nixPkgs = ["python312"]
 
-# SAFETY: Explicitly disable build-time tests to prevent accidental database wipes.
-# Railway's builder may auto-detect and run tests if this is not set.
-testCommand = "echo 'Build-time tests explicitly disabled for safety'"
+
 
 [deploy]
 # Start command - runs migrations and starts the app via start.sh
