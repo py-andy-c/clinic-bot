@@ -38,6 +38,9 @@ We will standardize the entire settings system into two predictable interaction 
 Structural changes that are not "content edits" happen immediately with confirmation:
 -   **Reordering**: Drag-and-drop auto-saves order via a dedicated bulk-update API.
 -   **Deletion**: Clicking "Delete" (with confirm) hits the API immediately.
+    -   **Safety Check**: The system must perform a pre-delete validation (e.g., checking for future appointments or practitioner assignments) before allowing the API call to proceed.
+-   **Concurrency Protection**: Structural actions must trigger a **Global Loading Overlay** to prevent users from performing multiple structural changes (like reordering then immediately deleting) while a request is in flight. This prevents `display_order` collisions.
+-   **Note**: Structural actions DO NOT trigger the Page-Level Sticky Save Bar. They are treated as separate, immediate transactions.
 
 ---
 
@@ -63,11 +66,15 @@ To solve the nested dependency problem (Service Item > Practitioner Appointment 
 }
 ```
 
-### 3.2 Backend Sync Logic
-The backend must sync the associations in a single transaction:
-1.  **Practitioner Appointment Type Sync**: Delete old assignments, create new ones.
-2.  **Billing Scenario Sync**: Use IDs for existing records, match by attributes for deletion of missing records.
-3.  **Result**: 100% data integrity. The frontend no longer manages the "relay race".
+### 3.2 Backend Sync Logic: The "Hard Sync" Approach
+The backend must sync the associations in a single transaction using a **Replace-All (Hard Sync)** strategy for maximal reliability:
+1.  **Practitioner Appointment Type Sync**: Overwrite the entire list of assignments with the incoming `practitioner_ids`.
+2.  **Billing Scenario & Resource Sync**: 
+    -   Update existing scenarios/requirements based on `id` (if present).
+    -   Delete any existing records NOT present in the payload.
+    -   Create new records (those without an `id`).
+3.  **Transactional Rollback**: Ensure the entire `AppointmentType` update and all `sync_*` calls are wrapped in a single database transaction. If any sub-sync fails, the entire operation must roll back.
+4.  **Result**: 100% data integrity. The frontend no longer manages the "relay race" of IDs or manual diffing.
 
 ---
 
@@ -143,11 +150,17 @@ For "Flat" settings pages, we will provide a consolidated `SettingsUpdate` endpo
 ## 6. Technical Implementation: Frontend (React/Zustand/TanStack Query)
 
 ### 6.1 Transitioning from SettingsContext to TanStack Query
-We will move away from the centralized `SettingsContext` (which triggers global re-renders and staging complexity) to a **Query-Per-Page** model.
+We will move away from the centralized `SettingsContext` towards a **Hierarchical Granular Query Model**.
 
-1.  **Query**: Use `useQuery(['clinic-settings'])` to fetch the baseline.
-2.  **Mutation**: Use `useMutation` for the bundle saves.
-3.  **Invalidation**: Broadly invalidate the query path after any successful mutation to ensure all components see the updated server state.
+1.  **Hierarchical Keys**: Use a nested structure for easier management:
+    -   `['settings', 'clinic']` (General Info, LIFF URLs)
+    -   `['settings', 'service-items']` (Full list)
+    -   `['settings', 'service-item', id]` (Specific item aggregate)
+    -   `['settings', 'resource-types']`
+2.  **Mutation & Invalidation**:
+    -   `useMutation` calls for bundle saves.
+    -   **Invalidation Policy**: Invalidate the specific leaf (e.g., `['settings', 'service-item', id]`) after a success. Use `queryClient.invalidateQueries({ queryKey: ['settings'] })` only for structural changes that affect multiple pages.
+3.  **Conflict Resolution**: When an Entity Modal is open, the Page-Level Sticky Bar should be **hidden or disabled** to prevent ambiguous batch-saves while an atomic modal save is pending.
 
 ### 6.2 The "Sticky Save Bar" Component
 A reusable `SettingsActionFooter` component that:
@@ -170,6 +183,7 @@ To minimize risk and ensure stability, the redesign will be rolled out in four p
 
 ### Phase 1: Infrastructure & "Structural" Cleanup
 -   **Backend**: Implement the new `ServiceItemBundle` and `ResourceTypeBundle` endpoints.
+    -   *Detail*: Ensure the `ResourceTypeBundle` can handle updating multiple `Resource` child entities simultaneously.
 -   **Frontend**: Create the `SettingsActionFooter` (Sticky Bar) component.
 -   **Frontend**: Change "Reorder" and "Delete" actions to hit API immediately with a reload trigger.
 -   **Milestone**: Baseline architecture is ready.
@@ -178,6 +192,7 @@ To minimize risk and ensure stability, the redesign will be rolled out in four p
 -   **Target**: Appointments, Reminders, Clinic Info, Receipts.
 -   **Action**: Convert these pages to use the `SettingsActionFooter` and standard `react-hook-form` logic.
 -   **Cleanup**: Remove these sub-stores from the `SettingsContext`.
+-   **Risk Mitigation**: Keep the old store paths available during this phase to allow for side-by-side verification and easy rollback if a specific settings section breaks.
 -   **Milestone**: All simple settings are protected by the new batch-save pattern.
 
 ### Phase 3: Entity Modal Consolidation (The "Heavy Lift")
