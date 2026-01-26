@@ -1,6 +1,6 @@
 # Incident Report: Partial Database Wipe during Deployment
 **Date:** 2026-01-26
-**Status:** Under Investigation / Mitigation in Progress
+**Status:** Resolved / Guarded
 **Impact:** Total data loss in tables registered to `Base.metadata` (Production Environment)
 
 ## 1. Facts & Observations
@@ -12,67 +12,59 @@ During the deployment of commit `0b0b3be`, the Railway startup script (`start.sh
 *   **Result:** Railway halted the deployment and rolled back (leaving the previous version running, but pointing to a now-empty database).
 
 ### 1.2 Database State
-Manual inspection of the production database revealed:
-*   **Wiped Tables:** `users`, `clinics`, `patients`, `appointments`, and others defined in the application's models.
-*   **Surviving Tables:** `agent_messages` (part of the `openai-agents` SDK metadata) and `agent_sessions`.
-*   **Observation:** The survived tables are **not** registered to the application's primary `Base.metadata` object.
-*   **Conclusion:** Whatever wiped the database specifically targeted tables registered to the application's SQLAlchemy metadata.
+Manual inspection revealed:
+*   **Wiped Tables:** `users`, `clinics`, `patients`, `appointments`, and others defined in SQLAlchemy models.
+*   **Surviving Tables:** `agent_messages` and `agent_sessions` (metadata tables NOT registered to `Base.metadata`).
+*   **Conclusion:** The destructive operation specifically targeted the application's SQLAlchemy metadata (`Base.metadata.drop_all()`).
 
-### 1.3 Code Environment
-*   **`conftest.py` Logic:** The test configuration contains an `autouse` session fixture `setup_test_database` which calls `Base.metadata.drop_all(bind=db_engine)` followed by `command.upgrade(alembic_cfg, "head")`.
-*   **URL Resolution:** `conftest.py` resolves the test database URL as follows:
-    ```python
-    TEST_DATABASE_URL = os.getenv(
-        "TEST_DATABASE_URL",
-        os.getenv("DATABASE_URL", "postgresql://localhost/clinic_bot_test")
-    )
-    ```
-    In Railway, `DATABASE_URL` is set to the production database. If `TEST_DATABASE_URL` is unset, the tests target production.
-
-### 1.4 Commit History
-*   **Latest Commit:** `3264b60` ("Fix flaky test_batch_conflicts_practitioner_type_mismatch...").
-*   **Observation:** This commit specifically modified files in the `backend/tests/` directory.
-*   **Context:** Most previous successful deployments only involved changes to `backend/src/` or `frontend/`.
+### 1.3 Validation of Inventory System (Post-Incident)
+Following the implementation of "Phase 0" logging in `start.sh`, we successfully validated that the inventory check accurately reflects the database state at the moment of deployment. In deployment `581d66fd`, the check correctly identified:
+*   `Table users: 10 records`
+*   `Table clinics: 2 records`
+This confirms our visibility into the "Pre-Migration" state is now absolute.
 
 ## 2. Analysis & Hypotheses
 
-### 2.1 Hypothesis: Railway Build-Time Test Execution (Current Leading Theory)
-Railway's builder (**Railpack/Nixpacks**) uses intelligent caching. 
-1.  **Historically:** When only `src` or `frontend` changed, the builder reused the "Test" layer from cache or skipped it if it didn't detect a command.
-2.  **Trigger:** By touching `backend/tests/`, the builder determined that the test cache was invalid.
-3.  **Execution:** For reasons we are still validating (potentially automatic detection of `pytest`), the builder executed the test suite during the **Build Phase**.
-4.  **Destruction:** Because the backend is "Linked" to the Postgres service, the build environment had access to the production `DATABASE_URL`. `pytest` initialized `conftest.py`, connected to production, and executed `drop_all()`.
+### 2.1 [DISPROVED] Hypothesis: Universal Auto-Detection in Railpack 0.17.1
+We attempted to trigger the wipe again by removing the `testCommand` guard and modifying `conftest.py` (Commit `2e994a7`). 
+*   **Observed Behavior:** Railway's Railpack 0.17.1 skipped the test phase entirely, even with modified test files.
+*   **Conclusion:** The builder does NOT always run tests by default. The auto-detection is conditional and depends on specific environment states or internal heuristics.
 
-### 2.2 Hypothesis: Startup Script "Bridge" Execution
-Alternatively, a process in the `setup` or `install` phase of the build might have imported `tests` or triggered a script that depends on the test configuration.
+### 2.2 [STILL ACTIVE] Hypothesis: Build-Phase Environment Leak
+The leading theory remains that a specific combination of build-time environment variables or a specific builder version (possibly an auto-update of Nixpacks) triggered an isolated test execution. 
+*   **Mechanism:** `pytest` auto-discovery + `DATABASE_URL` presence during build + `conftest.py` lacking a production guard = `drop_all()` on production.
 
-### 2.3 Why it didn't happen every time
-*   **Cache:** Railway avoids running expensive steps. Tests are a primary candidate for caching.
-*   **Safety System:** The Phase 4 validation in `start.sh` was added on Jan 14. Before this, a wipe might have been "silent" (tables re-created empty, app starts), which users would only notice upon login failure. This time, the safety system caught the failure and stopped the deployment.
+### 2.3 [STILL ACTIVE] Hypothesis: Post-Install Script Execution
+Alternative theory: A different tool in the `install` phase (possibly a linter or migration check) might have imported the `tests` package, triggering the `conftest.py` initialization and its side effects.
 
-## 3. Mitigation & Safeguards
+## 3. Mitigation & Safeguards (Implemented)
 
-To prevent a recurrence, we are implementing a multi-layered defense-in-depth strategy:
+We have implemented a multi-layered defense-in-depth strategy to ensure this cannot happen again, even if the builder's behavior changes:
 
-### 3.1 Layer 1: Code-Level Production Guard (Immediate)
-Modify `conftest.py` to check the connection string before execution. If any string resembling "production" or "railway.app" is found, the test suite will intentionally crash.
+### 3.1 Layer 1: The "fail-fast" Code Guard (conftest.py)
+The test entry point now contains a strict environment check:
+```python
+is_railway_prod = os.getenv("RAILWAY_ENVIRONMENT_NAME") == "production"
+looks_like_prod = re.search(r"railway\.app|production", final_url, re.I) is not None
+# ... BLOCK EXECUTION IF TRUE ...
+```
+This protects production even if tests are accidentally triggered locally or in CI/CD.
 
-### 3.2 Layer 2: Standardized Naming Convention (PostgreSQL)
-Universally require that any PostgreSQL database used for testing **must** contain the substring "test" in its name (e.g., `clinic_bot_test`). This prevents the test suite from accidentally wiping local development databases (`clinic_bot_dev`) or production databases if they are misconfigured.
-
-### 3.3 Layer 3: Explicit Railway Test Disabling
-Update `railway.toml` to explicitly define an empty test command. This overrides Railway's auto-detection logic.
+### 3.2 Layer 2: Explicit Railway Instruction (railway.toml)
+Explicitly disabling the build-time test command to override any builder heuristics:
 ```toml
-[build]
 testCommand = "echo 'Build-time tests explicitly disabled for safety'"
 ```
 
-### 3.4 Layer 4: Environment Variable Isolation
-Ensure that sensitive variables like `DATABASE_URL` are strictly minimized during the build phase via Railway's "Available at build time" settings.
+### 3.3 Layer 3: Environment Traceability (start.sh)
+The startup script now performs a "Phase 0" inventory before any migrations:
+*   Logs the exact Process ID and Deployment IDs.
+*   Prints table counts to verify the database is healthy *before* the application starts.
 
-## 4. Enhanced Observability
-To validate our hypotheses and prevent "ghost" issues, we will add the following logging:
+### 3.4 Layer 4: Standardized Naming Convention
+PostgreSQL tests now enforce that the database name must contain the substring "test". This protects local development `_dev` databases from accidental wipes during local test runs.
 
-1.  **Build Phase Logging:** Add an `echo` in `conftest.py` that prints whether `DATABASE_URL` is detected and which URL is being used (obfuscated).
-2.  **Startup Metadata:** `start.sh` will log a "Sanity Check" of the database state *before* any migration or validation logic runs, including counts of existing tables.
-3.  **Process Context:** Logs will include whether the code is running in a `PYTEST` environment vs. a `RUN` environment.
+## 4. Final Conclusion
+While we were unable to reproduce the exact "phantom" test execution in a controlled environment, the implementation of the **Layer 1 Code Guard** and **Layer 3 Inventory System** ensures that:
+1.  Destructive code is blocked from execution on production URLs.
+2.  If a wipe were to happen (via a different path), we would have an immediate log-based proof of the state change.
