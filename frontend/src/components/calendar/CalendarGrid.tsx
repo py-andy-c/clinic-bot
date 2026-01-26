@@ -52,15 +52,8 @@ interface CalendarGridProps {
   onExceptionMove?: (event: CalendarEvent, newInfo: { start: Date; end: Date; practitionerId?: number | undefined }) => void;
 }
 
-interface MonthlyBodyProps {
-  currentDate: Date;
-  events: CalendarEvent[];
-  selectedPractitioners: number[];
-  selectedResources: number[];
-  currentUserId?: number | null | undefined;
-  onEventClick?: ((event: CalendarEvent) => void) | undefined;
-  onHeaderClick?: ((date: Date) => void) | undefined;
-}
+
+// Utility to convert hex to rgba for backgrounds
 
 const CalendarGrid: React.FC<CalendarGridProps> = ({
   view,
@@ -927,13 +920,20 @@ const CalendarEventComponent: React.FC<CalendarEventComponentProps> = ({
 
     if (isException) { bg = '#9ca3af'; border = `2px solid ${event.resource.practitioner_id ? getPractitionerColor(event.resource.practitioner_id, currentUserId ?? -1, selectedPractitioners) || '#3b82f6' : '#3b82f6'}`; br = '4px'; }
 
-    // Adjust padding and font size for narrow events (columnar layout)
+    // High-Density Professional Visuals
+    // 1. Reduced Padding: 2px standard, 1px if narrow
     const isNarrow = base.width && typeof base.width === 'string' && parseFloat(base.width) < 50;
-    const padding = isNarrow ? '2px 4px' : '4px 6px';
+    const padding = isNarrow ? '1px 2px' : '2px 4px';
     const fontSize = isNarrow ? '10px' : '11px';
+
+    // 2. Corner Radius: 4px default (sharper than 8px)
+    br = isException ? '4px' : '4px';
 
     // Respect calculated zIndex from utility if it exists (for column stacking), otherwise fallback
     const finalZIndex = base.zIndex !== undefined ? base.zIndex : (isException ? 3 : 5);
+
+    // 3. Subtle Shadow for depth
+    const boxShadow = '0 1px 2px 0 rgba(0, 0, 0, 0.15)';
 
     return {
       ...base,
@@ -942,11 +942,16 @@ const CalendarEventComponent: React.FC<CalendarEventComponentProps> = ({
       borderRadius: br,
       zIndex: finalZIndex,
       padding,
-      fontSize
+      fontSize,
+      boxShadow
     };
   }, [event, group, eventIndex, selectedPractitioners, selectedResources, isDragging, currentUserId]);
 
   const isCheckedOut = event.resource.has_active_receipt;
+
+  // Use duration to determine line clamping strategy
+  const isShortDuration = (event.end.getTime() - event.start.getTime()) < 30 * 60 * 1000;
+  const isTinyDuration = (event.end.getTime() - event.start.getTime()) <= 15 * 60 * 1000;
 
   return (
     <div
@@ -976,11 +981,36 @@ const CalendarEventComponent: React.FC<CalendarEventComponentProps> = ({
           </div>
         </div>
       ) : (
-        <div className="text-xs text-white font-medium" style={{ lineHeight: '1.2' }}>{calculateEventDisplayText(event)}</div>
+        <div className={`flex flex-col h-full w-full overflow-hidden ${isShortDuration ? 'justify-center' : ''}`} style={{ lineHeight: '1.1' }}>
+          {/* Smart Layout: High Density. 
+               - Bold Text
+               - No Time
+               - Dynamic Clamping: 1 line if tiny (<15m), else let it flow (unset) to show full name
+           */}
+          <div className="font-bold text-white text-[inherit] leading-tight break-words whitespace-normal overflow-hidden" style={{
+            display: '-webkit-box',
+            WebkitBoxOrient: 'vertical',
+            WebkitLineClamp: isTinyDuration ? 1 : 'unset',
+            maxHeight: '100%',
+            wordBreak: 'break-word'
+          }}>
+            {calculateEventDisplayText(event)}
+          </div>
+        </div>
       )}
     </div>
   );
 };
+
+interface MonthlyBodyProps {
+  currentDate: Date;
+  events: CalendarEvent[];
+  selectedPractitioners: number[];
+  selectedResources: number[];
+  currentUserId?: number | null | undefined;
+  onEventClick?: ((event: CalendarEvent) => void) | undefined;
+  onHeaderClick?: ((date: Date) => void) | undefined;
+}
 
 const MonthlyBody: React.FC<MonthlyBodyProps> = ({ currentDate, events, selectedPractitioners, selectedResources, currentUserId, onEventClick, onHeaderClick }) => {
   const month = moment(currentDate).tz('Asia/Taipei');

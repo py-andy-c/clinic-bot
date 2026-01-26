@@ -1,85 +1,57 @@
-# Design Doc: Calendar Visual Polish & Modernization
+# Design Doc: Calendar Visual Polish & Modernization (v2 - Refined)
 
-## Status
-- **Author**: Antigravity
-- **Last Updated**: 2026-01-25
-- **Status**: Proposed
+## 1. Context
+Previous attempts to switch completely to an "Apple-style" light/transparent design felt underwhelming or didn't offer enough visual improvement over the existing solid blocks. The user has specifically requested an alternative proposal, focusing on improvements that can be learned from popular apps, while keeping "Name Visibility" as the #1 priority.
 
-## 1. Problem Statement
-While the layout logic for overlapping events has been fixed, the visual design of the event cards themselves remains basic.
-- **Current State**: Solid, bright blue blocks with uniform white text. Functional but generic.
-- **Goal**: Elevate the aesthetic to match modern standards (Google Calendar, Apple Calendar), improving readability and visual hierarchy.
+## 2. Updated Analysis
 
-## 2. Analysis of Inspiration
+### 2.1 The "Google Calendar" approach (Solid Pastels)
+Instead of the "Glassy/Transparent" look (which can look washed out if not perfect), Google uses **solid pastel colors** with dark text.
+- **Why it works**: High contrast, readable text, clear blocking.
+- **Relevance**: Our current implementation is "Saturated Blue + White Text". A "Pastel + Dark Text" approach might look cleaner and more professional without losing the "solidness" of the event.
 
-### 2.1 Google Calendar
-- **Aesthetic**: Material Design, clean, flat.
-- **Key Features**:
-    - Pastel/Muted background colors with darker text (easier on eyes than saturated solids).
-    - Rounded corners (~4-6px).
-    - **Typography**: Time range often precedes title or is on a separate line. Bold title.
-    - **Short Events**: Changes layout to horizontal (`Time - Title`) when height is restricted.
+### 2.2 The "Apple Calendar" Approach (Revisited)
+Apple uses a solid color, but with very subtle gradients and high-quality typography.
+- **Key Detail**: The padding is minimal, and the text is very crisp.
 
-### 2.2 Apple Calendar (macOS/iOS)
-- **Aesthetic**: Premium, "Glassy" (especially in dark mode), high contrast.
-- **Key Features**:
-    - **Left Indicator**: A strong, colored vertical bar ("pill") on the left edge to denote calendar/category.
-    - **Background**: Semi-transparent or neutral background allows the indicator to pop.
-    - **Typography**: White crisp text. Strong hierarchy between Title (Bold) and Details (Regular/Light).
-    - **Shadows**: Subtle drop shadows for depth.
+## 3. Alternative Proposal: "High-Density Professional"
 
-## 3. Proposed Options
+Instead of changing the *style* (glass vs solid) drastically, we should focus on **Density and Typography** to maximize name visibility.
 
-### Option A: The "Modern Clean" (Google-Inspired)
-Refine the current solid blocks but use a better color system and typography.
-- **Style**: Solid background colors (derived from practitioner color).
-- **Typography**:
-    - Time: Smaller, slightly transparent (opacity 0.9).
-    - Title: Bold, larger.
-- **Layout**: Standard vertical stack.
+### Key Changes Proposed:
+1.  **Reduce Padding**:
+    - Current: ~4px or dynamic.
+    - Proposed: **1px - 2px** standard padding.Maximize the content area.
+2.  **Typography**:
+    - **Bold User Name**: Make the patient name the dominant visual element.
+    - **Remove "No Title"**: If no title exists, fallback gracefully.
+3.  **Color Palette Refinement (Solid but Muted)**:
+    - Instead of pure saturated colors (e.g. Blue `#3b82f6`), use slightly desaturated versions solid backgrounds. 
+    - **However**, since we just reverted the Apple style, let's stick to the current solid style but **optimize the layout**.
 
-### Option B: The "Premium Glassy" (Apple-Inspired) - **Recommended**
-Adopts the "Left Indicator" pattern with a semi-transparent or lighter background. This aligns with the "Rich Aesthetics" and "Glassmorphism" goals.
-- **Style**:
-    - **Left Border/Bar**: 3-4px wide, solid color (Practitioner Color).
-    - **Background**: A lighter/desaturated version of the practitioner color (or white/dark grey with slight tint).
-    - **Shadow**: Subtle shadow to lift events off the grid.
-- **Typography**:
-    - Clear distinction between Time (secondary) and Title (primary).
-- **Pros**: Looks very professional ("Clinic" feel), easier to scan multiple practitioners because the color doesn't overwhelm the text.
+### 4. Special Logic: "Super Dense" Layout
+For very short overlapping events (< 30 mins):
+- **remove** the gap between items.
+- **remove** border radius (make them look like a continuous block if consecutive, or just smaller radius like 2px).
+- **remove** shadows to save pixel space.
 
-### Option C: Hybrid Smart Layout
-Focuses on "Short Event" handling regardless of style.
-- **Logic**: If event duration < 30 mins:
-    - Switch to `flex-row` (Horizontal layout).
-    - Format: `[Time] · [Title]`.
-    - Hide secondary details.
+## 5. Implementation Strategy (Google Style Hybrid)
 
-## 4. Detailed Recommendation
-Combine **Option B (Visuals)** with **Option C (Smart Layout)**.
+We will aim for a **Google Calendar Modern** look:
+- **Rounded Corners**: 4px.
+- **Background**: Solid color (current), maybe slightly lower saturation if possible, but keep white text if contrast allows.
+- **Content**:
+    - **Top Left**: Name (Bold).
+    - **No Time**: (As requested).
+    - **Font Size**: Increase slightly if space permits, or keep compact.
 
-### 4.1 Visual Specs
-- **Border Radius**: 4px (refined from 8px, looks sharper).
-- **Left Indicator**: 3px solid strip.
-- **Background**: `rgba(Color, 0.15)` for light mode, or `rgba(Color, 0.3)` for dark/glassy mode.
-- **Text Color**: Dark grey (`#1f2937`) for readability on light backgrounds, or keep White if using dark backgrounds.
+### Comparison
+| Feature | Current | Proposal (Google Hybrid) |
+| :--- | :--- | :--- |
+| **Background** | Solid Saturated | Solid Saturated (Unchanged or slightly refined) |
+| **Padding** | ~4px | **2px** (More space for text) |
+| **Corner Radius** | 8px | **4px** (Sharper, more professional) |
+| **Shadow** | None/Small | **Subtle Drop Shadow** (Depth) |
+| **Text** | Normal | **Bold Name**, No Time |
 
-### 4.2 Typography Hierarchy
-- **Time**: `font-size: 11px`, `font-weight: 500`, `opacity: 0.8`.
-- **Title**: `font-size: 12px`, `font-weight: 700`.
-
-### 4.3 Short Event Handling
-- **If height < 40px** (approx 30 mins):
-    - Layout: `flex-row items-center gap-1`
-    - Content: `Dot Indicator` + `Title` (Time shown on hover or shortened).
-- **If height < 25px** (15 mins):
-    - Hide Time, show Title only.
-
-## 5. Implementation Plan
-1.  **Modify `CalendarEventComponent`**:
-    - Update styling to use the "Left Indicator" pattern.
-    - Use `hexToRgba` utility (need to create if missing) to generate background tints from practitioner colors.
-2.  **Update `CalendarGrid.module.css`**:
-    - Refine shadows and transitions.
-3.  **Refine "Narrow" Logic**:
-    - Ensure the new style works well with the recently implemented columnar expansion.
+This minimizes the "drastic" visual change while strictly optimizing for the user's #1 goal: **See the Name**.
