@@ -39,6 +39,12 @@ Research indicates that Railpack (Railway's default builder) generates a `railpa
 ### 2.3 [STILL ACTIVE] Alternative: Post-Install Imports
 A tool in the `install` phase (linter, internal Railway check) might have imported the `tests` package, triggering the `conftest.py` initialization and its side effects.
 
+### 2.4 [STILL ACTIVE] General Industry Finding: The "Alembic Rollback" Trap
+Research into deployment failures on platform-as-a-service (PaaS) providers reveals a common failure pattern:
+*   **Automatic Self-Healing**: Some CI/CD or deployment managers are configured to run `alembic downgrade -1` automatically if an `upgrade head` fails.
+*   **The Baseline Risk**: Since our migration history was recently reset (Nov 5), a `downgrade -1` from the head would target the **Baseline Migration**.
+*   **Destruction**: Historically, baseline downgrades contain `drop_all()`. An automated rollback triggered by a minor migration timeout could have theoretically triggered a full wipe.
+
 ## 3. Mitigation & Safeguards (Implemented)
 
 We have implemented a multi-layered defense-in-depth strategy to ensure this cannot happen again, even if the builder's behavior changes:
