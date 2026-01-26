@@ -26,16 +26,18 @@ This confirms our visibility into the "Pre-Migration" state is now absolute.
 ## 2. Analysis & Hypotheses
 
 ### 2.1 [DISPROVED] Hypothesis: Universal Auto-Detection in Railpack 0.17.1
-We attempted to trigger the wipe again by removing the `testCommand` guard and modifying `conftest.py` (Commit `2e994a7`). 
-*   **Observed Behavior:** Railway's Railpack 0.17.1 skipped the test phase entirely, even with modified test files.
-*   **Conclusion:** The builder does NOT always run tests by default. The auto-detection is conditional and depends on specific environment states or internal heuristics.
+We attempted to trigger the wipe again by removing the `testCommand` guard and modifying `conftest.py`. 
+*   **Observed Behavior:** Railpack 0.17.1 skipped the test phase entirely.
+*   **Conclusion:** The builder does NOT always run tests by default.
 
-### 2.2 [STILL ACTIVE] Hypothesis: Build-Phase Environment Leak
-The leading theory remains that a specific combination of build-time environment variables or a specific builder version (possibly an auto-update of Nixpacks) triggered an isolated test execution. 
-*   **Mechanism:** `pytest` auto-discovery + `DATABASE_URL` presence during build + `conftest.py` lacking a production guard = `drop_all()` on production.
+### 2.2 [REFINED] Hypothesis: Railpack Heuristic Trap
+Research indicates that Railpack (Railway's default builder) generates a `railpack-plan.json` dynamically. 
+*   **Mechanism:** If Railpack detects substantial changes to the `tests/` directory or modifications to test dependencies (e.g., `requirements.txt`), it can inject an ephemeral `test` step into the build plan.
+*   **The Leak:** Because `DATABASE_URL` was available at build-time, this "helpful" auto-detected test step connects to production.
+*   **The Wipe**: The original incident involved significant changes to `backend/tests/`, which likely triggered this heuristic. Our reproduction attempt failed because it was too minor (a comment) to invalidate the Railpack "Confidence Bit."
 
-### 2.3 [STILL ACTIVE] Hypothesis: Post-Install Script Execution
-Alternative theory: A different tool in the `install` phase (possibly a linter or migration check) might have imported the `tests` package, triggering the `conftest.py` initialization and its side effects.
+### 2.3 [STILL ACTIVE] Alternative: Post-Install Imports
+A tool in the `install` phase (linter, internal Railway check) might have imported the `tests` package, triggering the `conftest.py` initialization and its side effects.
 
 ## 3. Mitigation & Safeguards (Implemented)
 
