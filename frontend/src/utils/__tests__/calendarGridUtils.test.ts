@@ -2,7 +2,9 @@ import moment from 'moment-timezone';
 import { vi } from 'vitest';
 import {
   calculateEventPosition,
-  calculateCurrentTimeIndicatorPosition
+  calculateCurrentTimeIndicatorPosition,
+  calculateOverlappingEvents,
+  calculateEventInGroupPosition
 } from '../calendarGridUtils';
 import { CalendarViews } from '../../types/calendar';
 
@@ -98,6 +100,107 @@ describe('calendarGridUtils - Timezone Consistency', () => {
         expect(indicatorPosition.width).toBe('100%');
         expect(indicatorPosition.right).toBe('auto');
       }
+    });
+  });
+
+  describe('calculateOverlappingEvents', () => {
+    it('should group overlapping events together', () => {
+      const events: any[] = [
+        { id: '1', start: new Date('2024-01-15T10:00:00Z'), end: new Date('2024-01-15T11:00:00Z'), resource: { type: 'appointment' } },
+        { id: '2', start: new Date('2024-01-15T10:30:00Z'), end: new Date('2024-01-15T11:30:00Z'), resource: { type: 'appointment' } },
+        { id: '3', start: new Date('2024-01-15T12:00:00Z'), end: new Date('2024-01-15T13:00:00Z'), resource: { type: 'appointment' } },
+      ];
+
+      const groups = calculateOverlappingEvents(events);
+      expect(groups).toHaveLength(2);
+      expect(groups[0].events).toHaveLength(2);
+      expect(groups[1].events).toHaveLength(1);
+    });
+
+    it('should calculate correct widths for overlapping clusters', () => {
+      const events: any[] = [
+        { id: '1', start: new Date('2024-01-15T10:00:00Z'), end: new Date('2024-01-15T11:00:00Z'), resource: { type: 'appointment' } },
+        { id: '2', start: new Date('2024-01-15T10:30:00Z'), end: new Date('2024-01-15T11:30:00Z'), resource: { type: 'appointment' } },
+      ];
+
+      const groups = calculateOverlappingEvents(events);
+      // New behavior: 2 columns, width 50% each (initially)
+      expect(groups[0].eventLayouts['1'].totalColumns).toBe(2);
+      expect(groups[0].eventLayouts['1'].column).toBe(0);
+      expect(groups[0].eventLayouts['2'].column).toBe(1);
+    });
+
+    it('should implement right expansion', () => {
+      const events: any[] = [
+        { id: '1', start: new Date('2024-01-15T10:00:00Z'), end: new Date('2024-01-15T12:00:00Z'), resource: { type: 'appointment' } },
+        { id: '2', start: new Date('2024-01-15T10:00:00Z'), end: new Date('2024-01-15T11:00:00Z'), resource: { type: 'appointment' } },
+        { id: '3', start: new Date('2024-01-15T11:00:00Z'), end: new Date('2024-01-15T12:00:00Z'), resource: { type: 'appointment' } },
+      ];
+      // 1 overlaps with 2 and 3.
+      // Column 0: Event 1 (10:00-12:00)
+      // Column 1: Event 2 (10:00-11:00), Event 3 (11:00-12:00)
+
+      const groups = calculateOverlappingEvents(events);
+      expect(groups[0].eventLayouts['1'].span).toBe(1);
+      expect(groups[0].eventLayouts['2'].span).toBe(1);
+      expect(groups[0].eventLayouts['3'].span).toBe(1);
+    });
+  });
+
+  describe('calculateEventInGroupPosition', () => {
+    it('should calculate correct positioning within a group', () => {
+      const event1 = { id: '1', start: new Date('2024-01-15T10:00:00Z'), end: new Date('2024-01-15T11:00:00Z'), resource: { type: 'appointment' } };
+      const event2 = { id: '2', start: new Date('2024-01-15T10:30:00Z'), end: new Date('2024-01-15T11:30:00Z'), resource: { type: 'appointment' } };
+
+      const group: any = {
+        events: [event1, event2],
+        eventLayouts: {
+          '1': { column: 0, totalColumns: 2, span: 1 },
+          '2': { column: 1, totalColumns: 2, span: 1 },
+        }
+      };
+
+      const pos1 = calculateEventInGroupPosition(event1 as any, group, 0);
+      const pos2 = calculateEventInGroupPosition(event2 as any, group, 1);
+
+      // New behavior: 50% width, 0% and 50% left
+      expect(pos1.left).toBe('0%');
+      expect(pos1.width).toBe('50%');
+      expect(pos2.left).toBe('50%');
+      expect(pos2.width).toBe('50%');
+    });
+
+    it('should handle right expansion in CSS properties', () => {
+      const event1 = { id: '1', start: new Date('2024-01-15T10:00:00Z'), end: new Date('2024-01-15T11:00:00Z'), resource: { type: 'appointment' } };
+      const group: any = {
+        events: [event1],
+        eventLayouts: {
+          '1': { column: 0, totalColumns: 2, span: 2 },
+        }
+      };
+
+      const pos1 = calculateEventInGroupPosition(event1 as any, group, 0);
+      expect(pos1.width).toBe('100%'); // (span 2 / total 2) * 100
+    });
+
+    it('should assign correct zIndex based on column', () => {
+      const event1 = { id: '1', start: new Date('2024-01-15T10:00:00Z'), end: new Date('2024-01-15T11:00:00Z'), resource: { type: 'appointment' } };
+      const event2 = { id: '2', start: new Date('2024-01-15T10:00:00Z'), end: new Date('2024-01-15T11:00:00Z'), resource: { type: 'appointment' } };
+
+      const group: any = {
+        events: [event1, event2],
+        eventLayouts: {
+          '1': { column: 0, totalColumns: 2, span: 1 },
+          '2': { column: 1, totalColumns: 2, span: 1 },
+        }
+      };
+
+      const pos1 = calculateEventInGroupPosition(event1 as any, group, 0);
+      const pos2 = calculateEventInGroupPosition(event2 as any, group, 1);
+
+      // Base z-index for appointment is 5
+      expect(pos1.zIndex).toBe(5); // 5 + column 0
+      expect(pos2.zIndex).toBe(6); // 5 + column 1
     });
   });
 });

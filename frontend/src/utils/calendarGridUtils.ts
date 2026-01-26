@@ -11,10 +11,6 @@ export const CALENDAR_GRID_CONFIG = {
   SLOT_HEIGHT_PX: 20,
   HOUR_HEIGHT_PX: 80, // 4 slots × 20px = 80px per hour
   SCROLL_BUFFER_PX: 100, // Buffer when scrolling to current time
-  OVERLAP_PERCENT_TWO_EVENTS: 15,
-  OVERLAP_PERCENT_THREE_TO_FOUR_EVENTS: 12,
-  OVERLAP_PERCENT_MAX: 15,
-  OVERLAP_WIDTH_DENOMINATOR: 75,
 } as const;
 
 /**
@@ -51,25 +47,6 @@ export const getCurrentTaiwanTime = () => {
   return moment().tz('Asia/Taipei');
 };
 
-/**
- * Calculate overlap percentage for event stacking based on event count
- * Implements mock UI design: 15% for 2 events, 12% for 3-4 events, calculated for 5+
- * @param eventCount - Number of overlapping events
- * @returns Percentage overlap (0-15)
- */
-const getOverlapPercentage = (eventCount: number): number => {
-  if (eventCount <= 2) {
-    return CALENDAR_GRID_CONFIG.OVERLAP_PERCENT_TWO_EVENTS; // 15%
-  }
-  if (eventCount <= 4) {
-    return CALENDAR_GRID_CONFIG.OVERLAP_PERCENT_THREE_TO_FOUR_EVENTS; // 12%
-  }
-  // For 5+ events, ensure minimum readable width with max 15% overlap
-  return Math.min(
-    CALENDAR_GRID_CONFIG.OVERLAP_PERCENT_MAX,
-    CALENDAR_GRID_CONFIG.OVERLAP_WIDTH_DENOMINATOR / (eventCount - 1)
-  );
-};
 
 /**
  * Calculate current time indicator position for calendar grid
@@ -153,19 +130,28 @@ export const calculateEventHeight = (start: Date, end: Date): React.CSSPropertie
  */
 export interface OverlappingEventGroup {
   events: CalendarEvent[];
-  left: number;
-  width: number;
+  // Map event ID to its layout info within the group
+  eventLayouts: Record<string | number, {
+    column: number;
+    totalColumns: number;
+    span: number;
+  }>;
 }
 
 /**
  * Calculate overlapping event groups and their positioning
- * Implements the mock UI overlapping logic (15%/12%/calculated percentages)
+ * Implements Google Calendar style columnar layout with Right Expansion
  */
 export const calculateOverlappingEvents = (events: CalendarEvent[]): OverlappingEventGroup[] => {
   if (events.length === 0) return [];
 
-  // Sort events by start time
-  const sortedEvents = [...events].sort((a, b) => a.start.getTime() - b.start.getTime());
+  // Sort events by start time, then by duration (longer events first for better placement)
+  const sortedEvents = [...events].sort((a, b) => {
+    if (a.start.getTime() !== b.start.getTime()) {
+      return a.start.getTime() - b.start.getTime();
+    }
+    return b.end.getTime() - a.end.getTime();
+  });
 
   const groups: OverlappingEventGroup[] = [];
 
@@ -174,6 +160,7 @@ export const calculateOverlappingEvents = (events: CalendarEvent[]): Overlapping
 
     // Try to place in existing group
     for (const group of groups) {
+      // An event belongs to a group if it overlaps with ANY event already in that group
       const hasOverlap = group.events.some(existingEvent =>
         event.start < existingEvent.end && event.end > existingEvent.start
       );
@@ -187,24 +174,63 @@ export const calculateOverlappingEvents = (events: CalendarEvent[]): Overlapping
 
     // Create new group if couldn't place in existing one
     if (!placed) {
-      groups.push({ events: [event], left: 0, width: 100 });
+      groups.push({
+        events: [event],
+        eventLayouts: {}
+      });
     }
   }
 
-  // Calculate positioning for each group - matching mock UI exactly
+  // Calculate positioning for each group
   groups.forEach(group => {
-    const count = group.events.length;
+    const columns: CalendarEvent[][] = [];
 
-    if (count === 1) {
-      // Single event takes full width
-      group.left = 0;
-      group.width = 100;
-    } else {
-      // Use shared overlap calculation logic matching mock UI design
-      const overlapPercent = getOverlapPercentage(count);
-      group.width = 100 - ((count - 1) * overlapPercent);
-      group.left = 0;
-    }
+    // 1. Assign columns greedily
+    group.events.forEach(event => {
+      let colIdx = columns.findIndex(colEvents =>
+        !colEvents.some(existingEvent =>
+          event.start < existingEvent.end && event.end > existingEvent.start
+        )
+      );
+
+      if (colIdx === -1) {
+        colIdx = columns.length;
+        columns.push([event]);
+      } else {
+        columns[colIdx]!.push(event);
+      }
+
+      group.eventLayouts[event.id] = {
+        column: colIdx,
+        totalColumns: 0, // Will update after column count is known
+        span: 1
+      };
+    });
+
+    const totalColumns = columns.length;
+
+    // 2. Set totalColumns and calculate Right Expansion
+    group.events.forEach(event => {
+      const layout = group.eventLayouts[event.id];
+      if (!layout) return;
+
+      layout.totalColumns = totalColumns;
+
+      // Expand to the right if possible
+      let span = 1;
+      for (let nextColIdx = layout.column + 1; nextColIdx < totalColumns; nextColIdx++) {
+        const hasOverlapInNextCol = columns[nextColIdx]?.some(otherEvent =>
+          event.start < otherEvent.end && event.end > otherEvent.start
+        );
+
+        if (!hasOverlapInNextCol) {
+          span++;
+        } else {
+          break;
+        }
+      }
+      layout.span = span;
+    });
   });
 
   return groups;
@@ -212,20 +238,30 @@ export const calculateOverlappingEvents = (events: CalendarEvent[]): Overlapping
 
 /**
  * Calculate individual event position within an overlapping group
- * Matches mock UI overlapping logic exactly
+ * Implements Google Calendar style logic with column-based width and offset
  */
 export const calculateEventInGroupPosition = (
   event: CalendarEvent,
   group: OverlappingEventGroup,
-  eventIndex: number
+  _eventIndex: number // Kept for backward compatibility, but we use event.id
 ): React.CSSProperties => {
   const position = calculateEventPosition(event.start);
   const size = calculateEventHeight(event.start, event.end);
 
-  // Use shared overlap calculation logic matching mock UI design
-  const count = group.events.length;
-  const overlapPercent = getOverlapPercentage(count);
-  const eventWidth = 100 - ((count - 1) * overlapPercent);
+  const layout = group.eventLayouts[event.id];
+
+  // If we don't have layout info (shouldn't happen), fall back to full width
+  if (!layout || layout.totalColumns === 0) {
+    return {
+      ...position,
+      ...size,
+      left: '0%',
+      width: '100%',
+      zIndex: 5
+    };
+  }
+
+  const columnWidth = 100 / layout.totalColumns;
 
   // Determine base z-index based on event type hierarchy:
   // Current time indicator > Appointments > Availability exceptions
@@ -237,8 +273,8 @@ export const calculateEventInGroupPosition = (
   return {
     ...position,
     ...size,
-    left: `${eventIndex * overlapPercent}%`,
-    width: `${eventWidth}%`,
-    zIndex: baseZIndex + eventIndex, // Base z-index by type + eventIndex for stacking
+    left: `${layout.column * columnWidth}%`,
+    width: `${layout.span * columnWidth}%`,
+    zIndex: baseZIndex + layout.column, // Use column for stacking priority if needed
   };
 };

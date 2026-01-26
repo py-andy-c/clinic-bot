@@ -926,7 +926,24 @@ const CalendarEventComponent: React.FC<CalendarEventComponentProps> = ({
     }
 
     if (isException) { bg = '#9ca3af'; border = `2px solid ${event.resource.practitioner_id ? getPractitionerColor(event.resource.practitioner_id, currentUserId ?? -1, selectedPractitioners) || '#3b82f6' : '#3b82f6'}`; br = '4px'; }
-    return { ...base, backgroundColor: bg, border, borderRadius: br, zIndex: isException ? 3 : 5 };
+
+    // Adjust padding and font size for narrow events (columnar layout)
+    const isNarrow = base.width && typeof base.width === 'string' && parseFloat(base.width) < 50;
+    const padding = isNarrow ? '2px 4px' : '4px 6px';
+    const fontSize = isNarrow ? '10px' : '11px';
+
+    // Respect calculated zIndex from utility if it exists (for column stacking), otherwise fallback
+    const finalZIndex = base.zIndex !== undefined ? base.zIndex : (isException ? 3 : 5);
+
+    return {
+      ...base,
+      backgroundColor: bg,
+      border,
+      borderRadius: br,
+      zIndex: finalZIndex,
+      padding,
+      fontSize
+    };
   }, [event, group, eventIndex, selectedPractitioners, selectedResources, isDragging, currentUserId]);
 
   const isCheckedOut = event.resource.has_active_receipt;
