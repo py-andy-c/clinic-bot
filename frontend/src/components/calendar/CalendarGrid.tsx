@@ -756,7 +756,7 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
                         <span className="opacity-70">-</span>
                         <span>{moment(dragState.preview.end).tz('Asia/Taipei').format('HH:mm')}</span>
                       </div>
-                      <div className="text-[10px] font-medium opacity-90 whitespace-nowrap overflow-hidden self-stretch">
+                      <div className="text-[10px] font-medium opacity-90 break-words self-stretch leading-tight">
                         {dragState.event ? calculateEventDisplayText(dragState.event) : ''}
                       </div>
                     </div>
@@ -954,7 +954,7 @@ const CalendarEventComponent: React.FC<CalendarEventComponentProps> = ({
           <div className="text-[12px] font-bold text-gray-700 leading-tight">
             {moment(event.start).tz('Asia/Taipei').format('HH:mm')} - {moment(event.end).tz('Asia/Taipei').format('HH:mm')}
           </div>
-          <div className="text-[10px] font-medium text-gray-700 whitespace-nowrap overflow-hidden self-stretch mt-0.5">
+          <div className="text-[10px] font-medium text-gray-700 break-words self-stretch mt-0.5 leading-tight">
             {calculateEventDisplayText(event)}
           </div>
         </div>
