@@ -50,3 +50,19 @@ A comprehensive clinic management system with LINE integration.
 ./frontend/run_frontend_tests.sh --full
 ./run_e2e_tests.sh --full
 ```
+
+### Database Safety & Production Guards
+
+The test suite includes a "fail-fast" security guard to prevent accidental destructive operations (like `Base.metadata.drop_all()`) on sensitive databases.
+
+**Safety Criteria:**
+1.  **Railway Production:** Tests will always block if `RAILWAY_ENVIRONMENT_NAME` is set to `production`.
+2.  **Naming Convention:** PostgreSQL database names **must** contain the substring "test" (e.g., `clinic_bot_test`). Local development databases (e.g., `clinic_bot_dev`) are protected from accidental wipes.
+3.  **Production Indicators:** URLs containing `railway.app` or `production` patterns are automatically blocked.
+
+**Emergency Override:**
+In extremely rare scenarios where you intentionally need to run tests against a non-standard database name (e.g., during complex E2E migrations), you can bypass these guards by setting:
+```bash
+export ALLOW_DANGEROUS_TEST_CLEANUP=true
+```
+*USE WITH EXTREME CAUTION. Data loss in targeted databases will be permanent.*

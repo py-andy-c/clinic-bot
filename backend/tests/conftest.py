@@ -50,11 +50,69 @@ from models.follow_up_message import FollowUpMessage
 from models.scheduled_line_message import ScheduledLineMessage
 
 
-# Test database URL
-TEST_DATABASE_URL = os.getenv(
-    "TEST_DATABASE_URL",
-    os.getenv("DATABASE_URL", "postgresql://localhost/clinic_bot_test")
-)
+# Test database URL resolution with enhanced logging and safety guards
+def _get_test_db_url():
+    raw_url = os.getenv("DATABASE_URL")
+    test_url = os.getenv("TEST_DATABASE_URL")
+    
+    # Logic: Prioritize TEST_DATABASE_URL, then fall back to DATABASE_URL, then localhost
+    final_url = test_url or raw_url or "postgresql://localhost/clinic_bot_test"
+    
+    # OBFUSCATED LOGGING FOR OBSERVABILITY
+    # This helps us see what the test suite is seeing without leaking credentials
+    url_source = "TEST_DATABASE_URL" if test_url else ("DATABASE_URL" if raw_url else "DEFAULT")
+    masked_url = final_url.split('@')[-1] if '@' in final_url else final_url.split('/')[-1]
+    
+    print(f"\n--- 🧪 TEST ENVIRONMENT INITIALIZATION ---")
+    print(f"Source: {url_source}")
+    print(f"Target (Partial): ...@{masked_url}")
+    print(f"PID: {os.getpid()}")
+    print(f"Railway Env: {os.getenv('RAILWAY_ENVIRONMENT_NAME', 'None')}")
+    print(f"------------------------------------------\n")
+
+    # PRODUCTION SAFETY GUARD
+    import re
+    is_postgres = final_url.startswith("postgresql")
+    has_test_keyword = "test" in final_url.lower()
+    is_railway_prod = os.getenv("RAILWAY_ENVIRONMENT_NAME") == "production"
+    looks_like_prod = re.search(r"railway\.app|production", final_url, re.I) is not None
+    
+    # CRITICAL SECURITY LOGIC:
+    # 1. If it's a Railway production environment, ALWAYS block.
+    # 2. If it's Postgres and doesn't have 'test' in the name, block (to protect local dev DBs too).
+    # 3. If the URL explicitly contains 'production' or 'railway.app', block.
+    
+    should_block = False
+    fail_reason = ""
+    
+    if is_railway_prod:
+        should_block = True
+        fail_reason = "Railway Production environment detected."
+    elif is_postgres and not has_test_keyword:
+        should_block = True
+        fail_reason = "PostgreSQL URL does not contain 'test' keyword (safety naming convention)."
+    elif looks_like_prod:
+        should_block = True
+        fail_reason = "URL pattern matches production/railway naming."
+
+    if should_block and not os.getenv("ALLOW_DANGEROUS_TEST_CLEANUP") == "true":
+        error_msg = (
+            "\n"
+            "🛑 STOP! CRITICAL SAFETY BREACH DETECTED 🛑\n\n"
+            f"Reason: {fail_reason}\n"
+            f"Target: ...@{masked_url}\n\n"
+            "The test suite is attempting to connect to a database that does not meet safety criteria.\n"
+            "Destructive operations (drop_all) are strictly blocked to prevent data loss.\n\n"
+            "REQUIRED FIX: Ensure your test database name contains the word 'test'.\n"
+            "EMERGENCY OVERRIDE: Set ALLOW_DANGEROUS_TEST_CLEANUP=true.\n"
+        )
+        import sys
+        sys.stderr.write(error_msg)
+        os._exit(1)
+            
+    return final_url
+
+TEST_DATABASE_URL = _get_test_db_url()
 
 
 @pytest.fixture(scope="session")

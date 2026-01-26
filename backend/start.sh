@@ -148,6 +148,50 @@ if [ -d "alembic" ] && [ -f "alembic.ini" ]; then
     echo "🛡️  Production Database Migration Safety System"
     echo "=========================================="
 
+# Phase 0: Pre-flight Sanity Check & Traceability
+# Purpose: Log the exact state of the environment and database BEFORE any logic runs.
+# This ensures that if a wipe happened in the Build Phase, we catch it here.
+echo "🔍 Phase 0: Environment Traceability..."
+echo "------------------------------------------"
+echo "Process ID: $$"
+echo "Railway Env: ${RAILWAY_ENVIRONMENT_NAME:-None}"
+echo "Deployment ID: ${RAILWAY_DEPLOYMENT_ID:-None}"
+echo "Build Timestamp: ${RAILWAY_BUILD_TIMESTAMP:-None}" # If set by your build process
+
+# Check if DATABASE_URL is masked or set (don't print the secret)
+if [ -n "$DATABASE_URL" ]; then
+    MASKED_DB=$(echo "$DATABASE_URL" | sed 's/:.*@/@/')
+    echo "✅ DATABASE_URL detected (...$MASKED_DB)"
+else
+    echo "❌ DATABASE_URL NOT FOUND"
+fi
+
+# Log table counts BEFORE Phase 1
+echo "📊 Current Database Inventory (Snapshot):"
+python3 -c "
+import sys
+sys.path.insert(0, 'src')
+from sqlalchemy import text, inspect
+from core.database import get_db
+
+try:
+    with next(get_db()) as db:
+        inspector = inspect(db.connection())
+        tables = inspector.get_table_names()
+        print(f'   - Tables found: {len(tables)}')
+        if len(tables) > 0:
+            print(f'   - Table names: {sorted(tables)[:10]}...')
+            
+            # Check critical table counts
+            for t in ['users', 'clinics', 'agent_messages']:
+                if t in tables:
+                    count = db.execute(text(f'SELECT COUNT(*) FROM {t}')).scalar()
+                    print(f'   - Table {t}: {count} records')
+except Exception as e:
+    print(f'   ⚠️ Could not inventory database: {e}')
+"
+echo "------------------------------------------"
+
     # Phase 1: Pre-flight validation (MANDATORY)
     echo "🔍 Phase 1: Pre-migration validation..."
 
