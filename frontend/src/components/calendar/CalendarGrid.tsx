@@ -22,6 +22,8 @@ import { formatAppointmentTimeRange } from '../../utils/calendarUtils';
 import { calculateEventDisplayText, buildEventTooltipText } from '../../utils/calendarEventDisplay';
 import { EMPTY_ARRAY, EMPTY_OBJECT, CALENDAR_GRID_TIME_COLUMN_WIDTH } from '../../utils/constants';
 import styles from './CalendarGrid.module.css';
+import { Tooltip } from '../common/Tooltip';
+
 
 interface DragPreview {
   start: Date;
@@ -893,6 +895,23 @@ interface CalendarEventComponentProps {
 const CalendarEventComponent: React.FC<CalendarEventComponentProps> = ({
   event, selectedPractitioners, selectedResources, currentUserId, onClick, group, eventIndex = 0, onDragStart, isDragging = false
 }) => {
+  // State for internal tooltip
+  const [tooltipState, setTooltipState] = useState({ visible: false, x: 0, y: 0 });
+
+  const handleMouseEnter = useCallback((e: React.MouseEvent) => {
+    if (isDragging) return;
+    setTooltipState({ visible: true, x: e.clientX, y: e.clientY });
+  }, [isDragging]);
+
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (isDragging) return;
+    setTooltipState(prev => ({ ...prev, x: e.clientX, y: e.clientY }));
+  }, [isDragging]);
+
+  const handleMouseLeave = useCallback(() => {
+    setTooltipState(prev => ({ ...prev, visible: false }));
+  }, []);
+
   const eventStyle = useMemo(() => {
     const base = group ? calculateEventInGroupPosition(event, group, eventIndex) : { ...calculateEventPosition(event.start), ...calculateEventHeight(event.start, event.end), left: 0, width: '100%' };
     let bg = '#6b7280';
@@ -953,52 +972,61 @@ const CalendarEventComponent: React.FC<CalendarEventComponentProps> = ({
   const isShortDuration = (event.end.getTime() - event.start.getTime()) < 30 * 60 * 1000;
   const isTinyDuration = (event.end.getTime() - event.start.getTime()) <= 15 * 60 * 1000;
 
+  // Reconstruct the tooltip text
+  const tooltipText = buildEventTooltipText(event, formatAppointmentTimeRange(event.start, event.end));
+
   return (
-    <div
-      className={`${styles.calendarEvent} ${isCheckedOut ? styles.checkedOut : ''}`} style={eventStyle} onClick={onClick}
-      title={buildEventTooltipText(event, formatAppointmentTimeRange(event.start, event.end))}
-      role="button" aria-label={`Appointment: ${calculateEventDisplayText(event)}`} tabIndex={-1}
-      onMouseDown={e => {
-        e.stopPropagation();
-        const rect = e.currentTarget.getBoundingClientRect();
-        onDragStart(event, e.clientX, e.clientY, false, { x: e.clientX - rect.left, y: e.clientY - rect.top }, { width: rect.width, height: rect.height });
-      }}
-      onTouchStart={e => {
-        e.stopPropagation();
-        if (e.touches[0]) {
+    <>
+      <div
+        className={`${styles.calendarEvent} ${isCheckedOut ? styles.checkedOut : ''}`} style={eventStyle} onClick={onClick}
+        // Remove native title to prevent double tooltip
+        role="button" aria-label={`Appointment: ${calculateEventDisplayText(event)}`} tabIndex={-1}
+        onMouseEnter={handleMouseEnter}
+        onMouseMove={handleMouseMove}
+        onMouseLeave={handleMouseLeave}
+        onMouseDown={e => {
+          e.stopPropagation();
           const rect = e.currentTarget.getBoundingClientRect();
-          onDragStart(event, e.touches[0].clientX, e.touches[0].clientY, true, { x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top }, { width: rect.width, height: rect.height });
-        }
-      }}
-    >
-      {isDragging ? (
-        <div className="flex flex-col items-start justify-start h-full p-1 w-full overflow-hidden">
-          <div className="text-[12px] font-bold text-gray-700 leading-tight">
-            {moment(event.start).tz('Asia/Taipei').format('HH:mm')} - {moment(event.end).tz('Asia/Taipei').format('HH:mm')}
+          onDragStart(event, e.clientX, e.clientY, false, { x: e.clientX - rect.left, y: e.clientY - rect.top }, { width: rect.width, height: rect.height });
+        }}
+        onTouchStart={e => {
+          e.stopPropagation();
+          if (e.touches[0]) {
+            const rect = e.currentTarget.getBoundingClientRect();
+            onDragStart(event, e.touches[0].clientX, e.touches[0].clientY, true, { x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top }, { width: rect.width, height: rect.height });
+          }
+        }}
+      >
+        {isDragging ? (
+          <div className="flex flex-col items-start justify-start h-full p-1 w-full overflow-hidden">
+            <div className="text-[12px] font-bold text-gray-700 leading-tight">
+              {moment(event.start).tz('Asia/Taipei').format('HH:mm')} - {moment(event.end).tz('Asia/Taipei').format('HH:mm')}
+            </div>
+            <div className="text-[10px] font-medium text-gray-700 break-words self-stretch mt-0.5 leading-tight">
+              {calculateEventDisplayText(event)}
+            </div>
           </div>
-          <div className="text-[10px] font-medium text-gray-700 break-words self-stretch mt-0.5 leading-tight">
-            {calculateEventDisplayText(event)}
-          </div>
-        </div>
-      ) : (
-        <div className={`flex flex-col h-full w-full overflow-hidden ${isShortDuration ? 'justify-center' : ''}`} style={{ lineHeight: '1.1' }}>
-          {/* Smart Layout: High Density. 
+        ) : (
+          <div className={`flex flex-col h-full w-full overflow-hidden ${isShortDuration ? 'justify-center' : ''}`} style={{ lineHeight: '1.1' }}>
+            {/* Smart Layout: High Density. 
                - Bold Text
                - No Time
                - Dynamic Clamping: 1 line if tiny (<15m), else let it flow (unset) to show full name
            */}
-          <div className="font-bold text-white text-[inherit] leading-tight break-words whitespace-normal overflow-hidden" style={{
-            display: '-webkit-box',
-            WebkitBoxOrient: 'vertical',
-            WebkitLineClamp: isTinyDuration ? 1 : 'unset',
-            maxHeight: '100%',
-            wordBreak: 'break-word'
-          }}>
-            {calculateEventDisplayText(event)}
+            <div className="font-bold text-white text-[inherit] leading-tight break-words whitespace-normal overflow-hidden" style={{
+              display: '-webkit-box',
+              WebkitBoxOrient: 'vertical',
+              WebkitLineClamp: isTinyDuration ? 1 : 'unset',
+              maxHeight: '100%',
+              wordBreak: 'break-word'
+            }}>
+              {calculateEventDisplayText(event)}
+            </div>
           </div>
-        </div>
-      )}
-    </div>
+        )}
+      </div>
+      <Tooltip text={tooltipText} x={tooltipState.x} y={tooltipState.y} visible={tooltipState.visible} />
+    </>
   );
 };
 
