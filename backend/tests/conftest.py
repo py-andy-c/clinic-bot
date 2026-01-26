@@ -3,6 +3,7 @@ Test configuration and shared fixtures for the Clinic Bot test suite.
 
 Uses PostgreSQL for all tests with transaction-based isolation.
 Each test gets a clean database state via automatic transaction rollback.
+# TRIGGER: This comment is added to force Railway to invalidate its test cache and attempt build-time execution.
 """
 
 import asyncio
@@ -150,7 +151,7 @@ def setup_test_database(db_engine):
     This runs once at the start of the test session and ensures
     the test database has the correct schema from migrations.
 
-    Strategy: Run all migrations from scratch (base → head).
+    Strategy: Run all migrations from scratch (base -> head).
     This tests that ALL migrations work correctly together.
 
     After Path B Week 2 (migration history reset), we now have a baseline migration
