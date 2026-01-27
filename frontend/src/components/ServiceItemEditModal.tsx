@@ -115,6 +115,9 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
   const [showMultipleTimeSlotModal, setShowMultipleTimeSlotModal] = useState(false);
   const [showFollowUpInfoModal, setShowFollowUpInfoModal] = useState(false);
 
+  // Validation state
+  const [messageValidationErrors, setMessageValidationErrors] = useState<string[]>([]);
+
   useEffect(() => {
     if (bundle) {
       // Map resource requirements
@@ -302,7 +305,34 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
     }
   });
 
-  const handleSave = (data: ServiceItemBundleFormData) => {
+  const handleSave = async (data: ServiceItemBundleFormData) => {
+    // Custom validation for message settings
+    const messageErrors: string[] = [];
+
+    if (data.send_patient_confirmation && data.patient_confirmation_message && data.patient_confirmation_message.length > 1000) {
+      messageErrors.push('病患預約成功通知：訊息模板長度不能超過 1000 字元');
+    }
+
+    if (data.send_clinic_confirmation && data.clinic_confirmation_message && data.clinic_confirmation_message.length > 1000) {
+      messageErrors.push('診所預約通知：訊息模板長度不能超過 1000 字元');
+    }
+
+    if (data.send_reminder && data.reminder_message && data.reminder_message.length > 3500) {
+      messageErrors.push('提醒訊息：訊息模板長度不能超過 3500 字元');
+    }
+
+    if (messageErrors.length > 0) {
+      setMessageValidationErrors(messageErrors);
+      // Scroll to message settings section
+      const messageSection = document.querySelector('[data-message-settings]');
+      if (messageSection) {
+        messageSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      return;
+    }
+
+    setMessageValidationErrors([]);
+
     saveMutation.mutate(data);
   };
 
@@ -740,16 +770,41 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                 </section>
 
                 <section className="bg-white rounded-xl md:rounded-2xl p-4 md:p-6 shadow-sm border border-gray-100">
-                  <div className="flex items-center justify-between mb-4 md:mb-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4 md:mb-6 flex items-center gap-2">
+                    <span className="w-1.5 h-6 bg-orange-500 rounded-full"></span>
+                    訊息設定
+                  </h3>
+                  {isClinicAdmin && (
+                    <MessageSettingsSection
+                      appointmentType={appointmentTypeProxy}
+                      onUpdate={onUpdateLocalItem}
+                      disabled={!isClinicAdmin}
+                      {...(clinicInfoAvailability !== undefined && { clinicInfoAvailability })}
+                    />
+                  )}
+                  {messageValidationErrors.length > 0 && (
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-4 mt-4">
+                      <div className="text-sm font-medium text-red-800 mb-2">請修正以下錯誤：</div>
+                      <ul className="list-disc list-inside space-y-1 text-sm text-red-700">
+                        {messageValidationErrors.map((error, index) => (
+                          <li key={index}>{error}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </section>
+
+                <section className="bg-white rounded-xl md:rounded-2xl p-4 md:p-6 shadow-sm border border-gray-100">
+                  <div className="mb-4 md:mb-6">
                     <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
                       <span className="w-1.5 h-6 bg-cyan-500 rounded-full"></span>
                       追蹤訊息設定
+                      <InfoButton
+                        onClick={() => setShowFollowUpInfoModal(true)}
+                        ariaLabel="追蹤訊息設定說明"
+                        size="small"
+                      />
                     </h3>
-                    <InfoButton
-                      onClick={() => setShowFollowUpInfoModal(true)}
-                      ariaLabel="追蹤訊息設定說明"
-                      size="small"
-                    />
                   </div>
                   <FollowUpMessagesSection
                     appointmentType={appointmentTypeProxy}
