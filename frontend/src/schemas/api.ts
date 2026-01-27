@@ -204,25 +204,25 @@ export const AppointmentTypeSchema = createValidatedSchema(
   z.object({
     id: z.number(),
     clinic_id: z.number(),
-    name: z.string(),
-    duration_minutes: z.number(),
-    receipt_name: z.string().nullable().optional(),
+    name: z.string().min(1, '請輸入名稱').max(255, '名稱最長 255 字元'),
+    duration_minutes: z.number().min(1, '服務時長必須大於 0'),
+    receipt_name: z.string().max(255, '收據名稱最長 255 字元').nullable().optional(),
     allow_patient_booking: z.boolean().optional(),
     allow_patient_practitioner_selection: z.boolean().optional(),
-    description: z.string().nullable().optional(),
-    scheduling_buffer_minutes: z.number().optional(),
+    description: z.string().max(1000, '說明最長 1000 字元').nullable().optional(),
+    scheduling_buffer_minutes: z.number().min(0).optional(),
     service_type_group_id: z.number().nullable().optional(),
     display_order: z.number().optional(),
     // Message customization fields
     send_patient_confirmation: z.boolean().optional(),
     send_clinic_confirmation: z.boolean().optional(),
     send_reminder: z.boolean().optional(),
-    patient_confirmation_message: z.string().optional(),
-    clinic_confirmation_message: z.string().optional(),
-    reminder_message: z.string().optional(),
+    patient_confirmation_message: z.string().max(3500, '訊息最長 3500 字元').optional(),
+    clinic_confirmation_message: z.string().max(3500, '訊息最長 3500 字元').optional(),
+    reminder_message: z.string().max(3500, '訊息最長 3500 字元').optional(),
     // Notes customization fields
     require_notes: z.boolean().optional(),
-    notes_instructions: z.string().nullable().optional(),
+    notes_instructions: z.string().max(1000, '備註指引最長 1000 字元').nullable().optional(),
     // Note: follow_up_messages and resource_requirements are intentionally excluded
     // as they are loaded separately via dedicated API endpoints
   }).passthrough(), // Preserve unknown fields to prevent silent data loss.
@@ -310,12 +310,12 @@ export const ResourceSchema = z.object({
 
 // Strict Resource Form schemas
 export const ResourceTypeFormSchema = z.object({
-  name: z.string().min(1, '資源類型名稱不能為空'),
+  name: z.string().min(1, '資源類型名稱不能為空').max(255, '名稱最長 255 字元'),
 });
 
 export const ResourceFormSchema = z.object({
-  name: z.string().min(1, '資源名稱不能為空'),
-  description: z.string().nullable().optional(),
+  name: z.string().min(1, '資源名稱不能為空').max(255, '名稱最長 255 字元'),
+  description: z.string().max(500, '內容最長 500 字元').nullable().optional(),
 });
 
 export const ResourceTypeWithResourcesFormSchema = z.object({
@@ -335,9 +335,9 @@ export const ResourcesSettingsFormSchema = z.object({
 export const BillingScenarioBundleSchema = z.object({
   id: z.number().optional(),
   practitioner_id: z.number(),
-  name: z.string().min(1, '請輸入方案名稱'),
-  amount: z.coerce.number().min(0),
-  revenue_share: z.coerce.number().min(0),
+  name: z.string().min(1, '請輸入方案名稱').max(255, '名稱最長 255 字元'),
+  amount: z.coerce.number().min(0, '金額不能為負數'),
+  revenue_share: z.coerce.number().min(0, '分潤不能為負數'),
   is_default: z.boolean(),
 }).refine(data => data.amount >= data.revenue_share, {
   message: '金額必須大於或等於分潤',
@@ -353,12 +353,37 @@ export const ResourceRequirementBundleSchema = z.object({
 export const FollowUpMessageBundleSchema = z.object({
   id: z.number().optional(),
   timing_mode: z.enum(['hours_after', 'specific_time']),
-  hours_after: z.coerce.number().min(0).nullable().optional(),
-  days_after: z.coerce.number().min(0).nullable().optional(),
-  time_of_day: z.string().regex(/^(0[0-9]|1[0-9]|2[0-3]):[0-5][0-9]$/).nullable().optional(),
-  message_template: z.string().min(1, '請輸入訊息內容'),
+  hours_after: z.coerce.number().min(0, '小時數不能為負數').nullable().optional(),
+  days_after: z.coerce.number().min(0, '天數不能為負數').nullable().optional(),
+  time_of_day: z.string().nullable().optional(), // Regex validation logic moved to refine/superRefine for better error mapping
+  message_template: z.string().min(1, '請輸入訊息內容').max(3500, '訊息最長 3500 字元'),
   is_enabled: z.boolean().optional(),
   display_order: z.number().optional(),
+}).superRefine((data, ctx) => {
+  if (data.timing_mode === 'hours_after') {
+    if (data.hours_after === null || data.hours_after === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: '小時數為必填',
+        path: ['hours_after'],
+      });
+    }
+  } else if (data.timing_mode === 'specific_time') {
+    if (data.days_after === null || data.days_after === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: '天數為必填',
+        path: ['days_after'],
+      });
+    }
+    if (!data.time_of_day || !/^(0[0-9]|1[0-9]|2[0-3]):[0-5][0-9]$/.test(data.time_of_day)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: '時間格式必須為 HH:MM',
+        path: ['time_of_day'],
+      });
+    }
+  }
 });
 
 export const ServiceItemBundleSchema = z.object({
@@ -369,19 +394,19 @@ export const ServiceItemBundleSchema = z.object({
   allow_existing_patient_booking: z.boolean().optional(),
   allow_patient_practitioner_selection: z.boolean().optional(),
   allow_multiple_time_slot_selection: z.boolean().optional(),
-  scheduling_buffer_minutes: z.coerce.number().min(0).optional(),
-  receipt_name: z.string().optional(),
-  description: z.string().optional(),
+  scheduling_buffer_minutes: z.coerce.number().min(0, '緩衝時間不能為負數').optional(),
+  receipt_name: z.string().max(255, '收據名稱最長 255 字元').optional(),
+  description: z.string().max(1000, '內容最長 1000 字元').optional(),
   require_notes: z.boolean().optional(),
-  notes_instructions: z.string().optional(),
+  notes_instructions: z.string().max(1000, '備註填寫指引最長 1000 字元').optional(),
 
   // Message customization
   send_patient_confirmation: z.boolean().optional(),
   send_clinic_confirmation: z.boolean().optional(),
   send_reminder: z.boolean().optional(),
-  patient_confirmation_message: z.string().optional(),
-  clinic_confirmation_message: z.string().optional(),
-  reminder_message: z.string().optional(),
+  patient_confirmation_message: z.string().max(3500, '訊息最長 3500 字元').optional(),
+  clinic_confirmation_message: z.string().max(3500, '訊息最長 3500 字元').optional(),
+  reminder_message: z.string().max(3500, '訊息最長 3500 字元').optional(),
 
   // Staged associations (for validation only, not part of AppointmentType strictly)
   follow_up_messages: z.array(FollowUpMessageBundleSchema).optional(),

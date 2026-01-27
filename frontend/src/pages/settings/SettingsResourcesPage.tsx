@@ -108,6 +108,7 @@ const SettingsResourcesPage: React.FC = () => {
             {(editingResourceType || isAddingNew) && (
                 <ResourceTypeEditModal
                     resourceTypeId={editingResourceType}
+                    existingNames={resourceTypes.map(rt => rt.name)}
                     onClose={() => {
                         setEditingResourceType(null);
                         setIsAddingNew(false);

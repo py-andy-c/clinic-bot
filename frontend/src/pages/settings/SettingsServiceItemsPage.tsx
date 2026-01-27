@@ -463,6 +463,7 @@ const SettingsServiceItemsPage: React.FC = () => {
           members={members || []}
           isClinicAdmin={isClinicAdmin}
           availableGroups={availableGroups}
+          existingNames={serviceItems.map(item => item.name)}
           {...(settings?.clinic_info_settings ? {
             clinicInfoAvailability: {
               has_address: !!settings.clinic_info_settings?.address,

@@ -1221,7 +1221,10 @@ def create_service_item_bundle(
             AppointmentType.is_deleted == False
         ).with_for_update().first()
         if existing:
-            raise HTTPException(status_code=400, detail="服務項目名稱已重疊")
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="服務項目名稱已重疊"
+            )
 
         # 1. Create Appointment Type
         # Get max order
@@ -1298,6 +1301,20 @@ def update_service_item_bundle(
                 detail="服務項目不存在"
             )
         
+        # 0. Check for name uniqueness if name changed
+        if at.name != request.item.name:
+            existing = db.query(AppointmentType).filter(
+                AppointmentType.clinic_id == clinic_id,
+                AppointmentType.name == request.item.name,
+                AppointmentType.is_deleted == False,
+                AppointmentType.id != id
+            ).first()
+            if existing:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="服務項目名稱已重疊"
+                )
+
         # 1. Update Appointment Type
         at.name = request.item.name
         at.duration_minutes = request.item.duration_minutes

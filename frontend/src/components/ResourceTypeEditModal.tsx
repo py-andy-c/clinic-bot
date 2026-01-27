@@ -17,19 +17,8 @@ const resourceBundleSchema = z.object({
 });
 
 const resourceTypeBundleSchema = z.object({
-    name: z.string().min(1, '請輸入資源類型名稱'),
+    name: z.string().min(1, '請輸入資源類型名稱').max(255, '名稱最長 255 字元'),
     resources: z.array(resourceBundleSchema),
-}).superRefine((data, ctx) => {
-    const names = data.resources.map(r => r.name.trim().toLowerCase()).filter(n => n !== "");
-    const hasDuplicates = names.length !== new Set(names).size;
-
-    if (hasDuplicates) {
-        ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: '清單中不能有重複的名稱',
-            path: ['resources'],
-        });
-    }
 });
 
 type ResourceTypeBundleFormData = z.infer<typeof resourceTypeBundleSchema>;
@@ -37,11 +26,13 @@ type ResourceTypeBundleFormData = z.infer<typeof resourceTypeBundleSchema>;
 interface ResourceTypeEditModalProps {
     resourceTypeId?: number | null; // If undefined/null, we're creating a new one
     onClose: () => void;
+    existingNames?: string[]; // To prevent duplicate names across different types
 }
 
 const ResourceTypeEditModal: React.FC<ResourceTypeEditModalProps> = ({
     resourceTypeId,
     onClose,
+    existingNames = [],
 }) => {
     const queryClient = useQueryClient();
     const { alert } = useModal();
@@ -54,8 +45,39 @@ const ResourceTypeEditModal: React.FC<ResourceTypeEditModalProps> = ({
         enabled: isEdit,
     });
 
+    const typeSchema = resourceTypeBundleSchema.superRefine((data, ctx) => {
+        // 1. Check for duplicates within the current list of resources
+        const resourceNames = data.resources.map(r => r.name.trim().toLowerCase()).filter(n => n !== "");
+        const hasDuplicates = resourceNames.length !== new Set(resourceNames).size;
+
+        if (hasDuplicates) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: '清單中不能有重複的名稱',
+                path: ['resources'],
+            });
+        }
+
+        // 2. Check for duplicate resource type name (if it's not the one we are editing)
+        const currentTypeName = data.name.trim().toLowerCase();
+        const conflict = existingNames.some(name => name.toLowerCase() === currentTypeName);
+
+        // If we are editing, bundle?.resource_type.name is the original name.
+        // If current name is NOT the original name, and it exists in existingNames, it's a conflict.
+        if (conflict) {
+            const originalName = bundle?.resource_type.name.toLowerCase();
+            if (!isEdit || currentTypeName !== originalName) {
+                ctx.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    message: '資源類型名稱已存在',
+                    path: ['name'],
+                });
+            }
+        }
+    });
+
     const methods = useForm<ResourceTypeBundleFormData>({
-        resolver: zodResolver(resourceTypeBundleSchema),
+        resolver: zodResolver(typeSchema),
         defaultValues: {
             name: '',
             resources: [],

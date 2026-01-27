@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useForm, FormProvider } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { BaseModal } from './shared/BaseModal';
 import { apiService } from '../services/api';
@@ -13,7 +15,6 @@ import {
   ResourceRequirementBundleData,
   FollowUpMessageBundleData
 } from '../types';
-import { zodResolver } from '@hookform/resolvers/zod';
 import { ServiceItemBundleSchema, ServiceItemBundleFormData } from '../schemas/api';
 import { useModal } from '../contexts/ModalContext';
 import { useServiceItemBundle } from '../hooks/queries/useServiceItemBundle';
@@ -40,6 +41,7 @@ interface ServiceItemEditModalProps {
   members: Member[];
   isClinicAdmin: boolean;
   availableGroups: ServiceTypeGroup[];
+  existingNames?: string[];
   clinicInfoAvailability?: {
     has_address: boolean;
     has_phone: boolean;
@@ -55,6 +57,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
   members,
   isClinicAdmin,
   availableGroups,
+  existingNames = [],
   clinicInfoAvailability,
 }) => {
   const queryClient = useQueryClient();
@@ -67,12 +70,26 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
 
   // Removed localItem state to avoid dual-state anti-pattern
 
+  const isEdit = serviceItemId !== null;
 
-  // Associations are now managed by RHF
-  // Removed localItem state to avoid dual-state anti-pattern
+  const refinedSchema = ServiceItemBundleSchema.superRefine((data, ctx) => {
+    const currentName = data.name.trim().toLowerCase();
+    const conflict = existingNames.some(name => name.toLowerCase() === currentName);
+
+    if (conflict) {
+      const originalName = bundle?.item.name.toLowerCase();
+      if (!isEdit || currentName !== originalName) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: '服務項目名稱已存在',
+          path: ['name'],
+        });
+      }
+    }
+  });
 
   const methods = useForm<ServiceItemBundleFormData>({
-    resolver: zodResolver(ServiceItemBundleSchema),
+    resolver: zodResolver(refinedSchema),
     defaultValues: {
       name: '',
       duration_minutes: 30,
