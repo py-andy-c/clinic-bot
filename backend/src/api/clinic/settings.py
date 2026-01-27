@@ -1236,54 +1236,52 @@ def update_service_item_bundle(
     try:
         clinic_id = ensure_clinic_access(current_user)
         
-        # Start transaction
-        with db.begin():
-            # Get appointment type with pessimistic lock
-            at = db.query(AppointmentType).filter(
-                AppointmentType.id == id,
-                AppointmentType.clinic_id == clinic_id
-            ).with_for_update().first()
-            
-            if not at:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="服務項目不存在"
-                )
-            
-            # 1. Update Appointment Type
-            at.name = request.item.name
-            at.duration_minutes = request.item.duration_minutes
-            at.receipt_name = request.item.receipt_name
-            at.allow_patient_booking = request.item.allow_patient_booking
-            at.allow_new_patient_booking = request.item.allow_new_patient_booking
-            at.allow_existing_patient_booking = request.item.allow_existing_patient_booking
-            at.allow_patient_practitioner_selection = request.item.allow_patient_practitioner_selection
-            at.allow_multiple_time_slot_selection = request.item.allow_multiple_time_slot_selection
-            at.description = request.item.description
-            at.scheduling_buffer_minutes = request.item.scheduling_buffer_minutes
-            at.service_type_group_id = request.item.service_type_group_id
-            at.display_order = request.item.display_order
-            at.send_patient_confirmation = request.item.send_patient_confirmation
-            at.send_clinic_confirmation = request.item.send_clinic_confirmation
-            at.send_reminder = request.item.send_reminder
-            at.patient_confirmation_message = request.item.patient_confirmation_message or at.patient_confirmation_message
-            at.clinic_confirmation_message = request.item.clinic_confirmation_message or at.clinic_confirmation_message
-            at.reminder_message = request.item.reminder_message or at.reminder_message
-            at.require_notes = request.item.require_notes
-            at.notes_instructions = request.item.notes_instructions
-            
-            # 2. Sync Associations
-            _sync_service_item_associations(db, clinic_id, at.id, request.associations)
-            
-        # Transaction committed by context manager
-        # Transaction committed by context manager
+        # Get appointment type with pessimistic lock
+        at = db.query(AppointmentType).filter(
+            AppointmentType.id == id,
+            AppointmentType.clinic_id == clinic_id
+        ).with_for_update().first()
+        
+        if not at:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="服務項目不存在"
+            )
+        
+        # 1. Update Appointment Type
+        at.name = request.item.name
+        at.duration_minutes = request.item.duration_minutes
+        at.receipt_name = request.item.receipt_name
+        at.allow_patient_booking = request.item.allow_patient_booking
+        at.allow_new_patient_booking = request.item.allow_new_patient_booking
+        at.allow_existing_patient_booking = request.item.allow_existing_patient_booking
+        at.allow_patient_practitioner_selection = request.item.allow_patient_practitioner_selection
+        at.allow_multiple_time_slot_selection = request.item.allow_multiple_time_slot_selection
+        at.description = request.item.description
+        at.scheduling_buffer_minutes = request.item.scheduling_buffer_minutes
+        at.service_type_group_id = request.item.service_type_group_id
+        at.display_order = request.item.display_order
+        at.send_patient_confirmation = request.item.send_patient_confirmation
+        at.send_clinic_confirmation = request.item.send_clinic_confirmation
+        at.send_reminder = request.item.send_reminder
+        at.patient_confirmation_message = request.item.patient_confirmation_message or at.patient_confirmation_message
+        at.clinic_confirmation_message = request.item.clinic_confirmation_message or at.clinic_confirmation_message
+        at.reminder_message = request.item.reminder_message or at.reminder_message
+        at.require_notes = request.item.require_notes
+        at.notes_instructions = request.item.notes_instructions
+        
+        # 2. Sync Associations
+        _sync_service_item_associations(db, clinic_id, at.id, request.associations)
+        
+        db.commit()
         return get_service_item_bundle(at.id, current_user, db)
         
     except HTTPException:
+        db.rollback()
         raise
     except Exception as e:
+        db.rollback()
         logger.exception(f"Error updating service item bundle: {e}")
-        # db.begin() handles rollback on exception automatically
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法更新服務項目"
