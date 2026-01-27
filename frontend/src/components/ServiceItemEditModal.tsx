@@ -103,6 +103,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
   // Watch values for conditional rendering and warnings
   const allow_new_patient_booking = watch('allow_new_patient_booking');
   const allow_existing_patient_booking = watch('allow_existing_patient_booking');
+  const name = watch('name');
 
   // Modal states
   const [showDurationModal, setShowDurationModal] = useState(false);
@@ -445,8 +446,29 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                       <input
                         {...register('name', { required: '請輸入名稱' })}
                         className={`input w-full ${errors.name ? 'border-red-500' : ''}`}
-                        placeholder="例如：復健治療、初診評估"
+                        placeholder="例如：初診評估"
                       />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5 flex items-center gap-2">
+                        收據項目名稱
+                        <InfoButton onClick={() => setShowReceiptNameModal(true)} />
+                      </label>
+                      <input
+                        {...register('receipt_name')}
+                        className="input w-full"
+                        placeholder={name || '例如：初診評估'}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">群組</label>
+                      <select
+                        {...register('service_type_group_id', { valueAsNumber: true })}
+                        className="input w-full"
+                      >
+                        <option value="">未分類</option>
+                        {availableGroups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                      </select>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1.5 flex items-center gap-2">
@@ -472,27 +494,6 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                         name="scheduling_buffer_minutes"
                         placeholder="0"
                         className="w-full"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">群組</label>
-                      <select
-                        {...register('service_type_group_id', { valueAsNumber: true })}
-                        className="input w-full"
-                      >
-                        <option value="">未分類</option>
-                        {availableGroups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5 flex items-center gap-2">
-                        收據項目名稱
-                        <InfoButton onClick={() => setShowReceiptNameModal(true)} />
-                      </label>
-                      <input
-                        {...register('receipt_name')}
-                        className="input w-full"
-                        placeholder="若未填寫則顯示項目名稱"
                       />
                     </div>
                     <div>
@@ -616,10 +617,10 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                           </WarningPopover>
                         )}
                       </label>
-                      <input
+                      <textarea
                         {...register('notes_instructions')}
-                        className="input w-full"
-                        placeholder="例如：請簡述您的症狀..."
+                        className="input w-full min-h-[100px] resize-none"
+                        placeholder="病患在透過Line預約，填寫備註時，將會看到此指引（若未填寫，將使用「預約設定」頁面中的「備註填寫指引」）"
                       />
                     </div>
                   </div>
