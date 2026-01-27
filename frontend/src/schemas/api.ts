@@ -387,7 +387,7 @@ export const FollowUpMessageBundleSchema = z.object({
 });
 
 export const ServiceItemBundleSchema = z.object({
-  name: z.string().min(1, '請輸入項目名稱'),
+  name: z.string().min(1, '請輸入項目名稱').max(255, '名稱最長 255 字元'),
   duration_minutes: z.coerce.number().min(1, '服務時長必須大於 0'),
   service_type_group_id: z.number().nullable().optional(),
   allow_new_patient_booking: z.boolean().optional(),
