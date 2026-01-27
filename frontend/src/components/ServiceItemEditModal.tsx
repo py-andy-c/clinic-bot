@@ -341,13 +341,16 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
         errors.name = '此治療師已有相同名稱的方案';
       }
     }
-    if (scenarioForm.amount < 0) {
+    const amount = Number(scenarioForm.amount);
+    const revenueShare = Number(scenarioForm.revenue_share);
+
+    if (amount < 0) {
       errors.amount = '金額不能為負數';
     }
-    if (scenarioForm.revenue_share < 0) {
+    if (revenueShare < 0) {
       errors.revenue_share = '分潤不能為負數';
     }
-    if (scenarioForm.revenue_share > scenarioForm.amount) {
+    if (revenueShare > amount) {
       errors.revenue_share = '分潤不能大於金額';
     }
 
