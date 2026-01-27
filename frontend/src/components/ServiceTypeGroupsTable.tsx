@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ServiceTypeGroup } from '../types';
 import { useIsMobile } from '../hooks/useIsMobile';
+import { useMobileSortable } from '../hooks/useMobileSortable';
 
 interface ServiceTypeGroupsTableProps {
   groups: ServiceTypeGroup[];
@@ -43,31 +44,18 @@ export const ServiceTypeGroupsTable: React.FC<ServiceTypeGroupsTableProps> = ({
   const [errorMessage, setErrorMessage] = useState<string>('');
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Touch handling refs and state
-  const touchStartYRef = useRef<number | null>(null);
-  const touchStartGroupIdRef = useRef<number | null>(null);
-  const touchStartElementRef = useRef<HTMLElement | null>(null);
-  const [dragOffset, setDragOffset] = useState<{ y: number } | null>(null);
-  const onMoveRef = useRef(onMove);
-  const onDragEndRef = useRef(onDragEnd);
-  const lastSwapTimeRef = useRef<number>(0);
-
-  // Keep refs in sync with props
-  useEffect(() => {
-    onMoveRef.current = onMove;
-    onDragEndRef.current = onDragEnd;
-  }, [onMove, onDragEnd]);
-
-  // Cleanup on unmount to prevent memory leaks
-  useEffect(() => {
-    return () => {
-      // Clean up all touch-related state
-      touchStartYRef.current = null;
-      touchStartGroupIdRef.current = null;
-      touchStartElementRef.current = null;
-      setDragOffset(null);
-    };
-  }, []);
+  const {
+    dragOffset,
+    handleTouchStart,
+    handleTouchMove,
+    handleTouchEnd
+  } = useMobileSortable({
+    onDragStart: onDragStart as ((e: React.DragEvent | React.TouchEvent, id: number) => void) | undefined,
+    onMove,
+    onDragEnd,
+    dataAttribute: 'data-group-id',
+    isDragEnabled: isClinicAdmin
+  });
 
   // Auto-focus input when editing starts
   useEffect(() => {
@@ -162,91 +150,7 @@ export const ServiceTypeGroupsTable: React.FC<ServiceTypeGroupsTableProps> = ({
   };
 
   // Touch event handler for starting drag on mobile
-  const handleTouchStart = (e: React.TouchEvent, groupId: number) => {
-    if (!isClinicAdmin || !onDragStart) return;
-
-    e.stopPropagation();
-
-    const touch = e.touches[0];
-    if (!touch) return;
-
-    touchStartYRef.current = touch.clientY;
-    touchStartGroupIdRef.current = groupId;
-
-    // Store the element being dragged for visual feedback
-    const target = e.currentTarget.closest('[data-group-id]') as HTMLElement;
-    if (target) {
-      touchStartElementRef.current = target;
-    }
-
-    setDragOffset({ y: 0 });
-
-    // Create a synthetic drag event to trigger drag start
-    const syntheticEvent = {
-      ...e,
-      dataTransfer: {
-        effectAllowed: 'move',
-        setDragImage: () => { },
-        setData: () => { }, // Mock setData to prevent crash
-      },
-    } as unknown as React.DragEvent;
-
-    onDragStart(syntheticEvent, groupId);
-  };
-
-  // Touch event handler for moving drag on mobile
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (!touchStartGroupIdRef.current || !onMoveRef.current) return;
-
-    e.preventDefault();
-    const touch = e.touches[0];
-    if (!touch) return;
-
-    const currentY = touch.clientY;
-    const startY = touchStartYRef.current || 0;
-    const deltaY = currentY - startY;
-
-    setDragOffset({ y: deltaY });
-
-    // Find the element under the touch point
-    const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
-
-    const itemElement = elementBelow?.closest('[data-group-id]') as HTMLElement;
-
-    if (itemElement) {
-      const targetGroupId = parseInt(itemElement.getAttribute('data-group-id') || '0', 10);
-
-      // Debounce swaps to prevent thrashing (wait 150ms between swaps)
-      const now = Date.now();
-      if (now - lastSwapTimeRef.current < 150) {
-        return;
-      }
-
-      if (targetGroupId && targetGroupId !== touchStartGroupIdRef.current) {
-        onMoveRef.current(touchStartGroupIdRef.current, targetGroupId);
-        // Update start position for next movement
-        touchStartYRef.current = currentY;
-        lastSwapTimeRef.current = now;
-      }
-    }
-  };
-
-  // Touch event handler for ending drag on mobile
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    if (!touchStartGroupIdRef.current) return;
-
-    e.preventDefault();
-
-    // Clean up all touch-related state
-    touchStartYRef.current = null;
-    touchStartGroupIdRef.current = null;
-    touchStartElementRef.current = null;
-    setDragOffset(null);
-
-    if (onDragEndRef.current) {
-      onDragEndRef.current();
-    }
-  };
+  // Delegated to useMobileSortable hook
 
   const renderGroupRow = (group: ServiceTypeGroup) => {
     const isEditing = editingGroupId === group.id;

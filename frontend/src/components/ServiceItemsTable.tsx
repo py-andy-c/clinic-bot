@@ -1,6 +1,7 @@
-import React, { useRef, useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { AppointmentType, ServiceTypeGroup } from '../types';
 import { useIsMobile } from '../hooks/useIsMobile';
+import { useMobileSortable } from '../hooks/useMobileSortable';
 
 // Constants
 const DRAG_OPACITY = 0.6;
@@ -44,31 +45,21 @@ export const ServiceItemsTable: React.FC<ServiceItemsTableProps> = ({
   disabled = false,
 }) => {
   const isMobile = useIsMobile();
-  const touchStartYRef = useRef<number | null>(null);
-  const touchStartItemIdRef = useRef<number | null>(null);
-  const touchStartElementRef = useRef<HTMLElement | null>(null);
-  const [dragOffset, setDragOffset] = useState<{ y: number } | null>(null);
   const [dropTargetId, setDropTargetId] = useState<number | null>(null);
   const [dropPosition, setDropPosition] = useState<'above' | 'below' | null>(null);
-  const onMoveRef = useRef(onMove);
-  const onDragEndRef = useRef(onDragEnd);
 
-  // Keep refs in sync with props
-  useEffect(() => {
-    onMoveRef.current = onMove;
-    onDragEndRef.current = onDragEnd;
-  }, [onMove, onDragEnd]);
-
-  // Cleanup on unmount to prevent memory leaks
-  useEffect(() => {
-    return () => {
-      // Clean up all touch-related state
-      touchStartYRef.current = null;
-      touchStartItemIdRef.current = null;
-      touchStartElementRef.current = null;
-      setDragOffset(null);
-    };
-  }, []);
+  const {
+    dragOffset,
+    handleTouchStart,
+    handleTouchMove,
+    handleTouchEnd
+  } = useMobileSortable({
+    onDragStart: onDragStart as ((e: React.DragEvent | React.TouchEvent, id: number) => void) | undefined,
+    onMove,
+    onDragEnd,
+    dataAttribute: 'data-item-id',
+    isDragEnabled: isClinicAdmin && !disabled
+  });
 
   // Memoized group ID-to-name mapping for O(1) lookup performance
   const groupIdToNameMap = useMemo(() => {
@@ -127,82 +118,8 @@ export const ServiceItemsTable: React.FC<ServiceItemsTableProps> = ({
   };
 
   // Touch event handler for starting drag on mobile
-  const handleTouchStart = (e: React.TouchEvent, itemId: number) => {
-    if (!isClinicAdmin || !onDragStart) return;
+  // Delegated to useMobileSortable hook
 
-    e.stopPropagation();
-
-    const touch = e.touches[0];
-    if (!touch) return;
-
-    touchStartYRef.current = touch.clientY;
-    touchStartItemIdRef.current = itemId;
-
-    // Store the element being dragged for visual feedback
-    const target = e.currentTarget.closest('[data-item-id]') as HTMLElement;
-    if (target) {
-      touchStartElementRef.current = target;
-    }
-
-    setDragOffset({ y: 0 });
-
-    // Create a synthetic drag event to trigger drag start
-    const syntheticEvent = {
-      ...e,
-      dataTransfer: {
-        effectAllowed: 'move',
-        setDragImage: () => {},
-        setData: () => {}, // Mock setData to prevent crash
-      },
-    } as unknown as React.DragEvent;
-
-    onDragStart(syntheticEvent, itemId);
-  };
-
-  // Touch event handler for moving drag on mobile
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (!touchStartItemIdRef.current || !onMoveRef.current) return;
-
-    e.preventDefault();
-    const touch = e.touches[0];
-    if (!touch) return;
-
-    const currentY = touch.clientY;
-    const startY = touchStartYRef.current || 0;
-    const deltaY = currentY - startY;
-
-    setDragOffset({ y: deltaY });
-
-    // Find the element under the touch point
-    const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
-    const itemElement = elementBelow?.closest('[data-item-id]') as HTMLElement;
-    
-    if (itemElement) {
-      const targetItemId = parseInt(itemElement.getAttribute('data-item-id') || '0', 10);
-      if (targetItemId && targetItemId !== touchStartItemIdRef.current) {
-        onMoveRef.current(touchStartItemIdRef.current, targetItemId);
-        // Update start position for next movement
-        touchStartYRef.current = currentY;
-      }
-    }
-  };
-
-  // Touch event handler for ending drag on mobile
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    if (!touchStartItemIdRef.current) return;
-
-    e.preventDefault();
-
-    // Clean up all touch-related state
-    touchStartYRef.current = null;
-    touchStartItemIdRef.current = null;
-    touchStartElementRef.current = null;
-    setDragOffset(null);
-
-    if (onDragEndRef.current) {
-      onDragEndRef.current();
-    }
-  };
 
   if (isMobile) {
     // Mobile: Card list view
