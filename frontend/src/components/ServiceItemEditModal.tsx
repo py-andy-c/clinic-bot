@@ -928,25 +928,27 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
             </div>
           </div>
         </InfoModal>
-        <InfoModal isOpen={showFollowUpInfoModal} onClose={() => setShowFollowUpInfoModal(false)} title="追蹤訊息說明">
-          <div className="space-y-4">
-            <p>追蹤訊息功能讓您能自動發送訊息給病患，無論是為了衛教提醒、滿意度調查，或是定期回診通知。</p>
-            <div>
-              <h4 className="font-medium text-gray-900 mb-2">發送時機模式</h4>
-              <ul className="text-sm text-gray-700 space-y-1 ml-4">
-                <li>• <strong>預約結束後 X 小時</strong>：適合用於即時的衛教資訊或滿意度調查（例如：治療後 2 小時）。</li>
-                <li>• <strong>預約日期後 Y 天的特定時間</strong>：適合用於隔日的關懷或長期追蹤（例如：治療後 3 天的晚上 9 點）。</li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-medium text-gray-900 mb-2">注意事項</h4>
-              <ul className="text-sm text-gray-700 space-y-1 ml-4">
-                <li>• 系統會自動檢查並發送符合條件的訊息。</li>
-                <li>• 您可以隨時停用特定的追蹤訊息。</li>
-                <li>• 建議使用變數（如 {'{病患姓名}'}）來讓訊息更具親和力。</li>
-              </ul>
-            </div>
-          </div>
+        <InfoModal isOpen={showFollowUpInfoModal} onClose={() => setShowFollowUpInfoModal(false)} title="追蹤訊息設定說明">
+          <p>
+            <strong>什麼是追蹤訊息？</strong>
+          </p>
+          <p>
+            追蹤訊息是在病患完成預約後，系統自動發送的 LINE 訊息。您可以設定多個追蹤訊息，每個訊息可以有不同的發送時機和內容。
+          </p>
+          <p>
+            <strong>發送時機：</strong>
+          </p>
+          <ul className="list-disc list-inside space-y-1 ml-2">
+            <li><strong>預約結束後 X 小時：</strong>在預約結束時間後，延遲指定小時數發送（例如：2 小時後）。X=0 表示預約結束後立即發送。</li>
+            <li><strong>預約日期後 Y 天的特定時間：</strong>在預約日期後的第 Y 天，於指定時間發送（例如：1 天後的晚上 9 點）。Y=0 表示預約當天的指定時間。</li>
+          </ul>
+          <p>
+            <strong>注意事項：</strong>
+          </p>
+          <ul className="list-disc list-inside space-y-1 ml-2">
+            <li>如果預約被取消，已排程的追蹤訊息將不會發送</li>
+            <li>如果預約時間變更，系統會自動重新排程追蹤訊息</li>
+          </ul>
         </InfoModal>
       </BaseModal>
     </FormProvider>
