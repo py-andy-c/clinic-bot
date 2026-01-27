@@ -656,18 +656,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                   </div>
                 </section>
 
-                <section className="bg-white rounded-xl md:rounded-2xl p-4 md:p-6 shadow-sm border border-gray-100">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4 md:mb-6 flex items-center gap-2">
-                    <span className="w-1.5 h-6 bg-orange-500 rounded-full"></span>
-                    訊息設定
-                  </h3>
-                  <MessageSettingsSection
-                    appointmentType={appointmentTypeProxy}
-                    onUpdate={onUpdateLocalItem}
-                    disabled={!isClinicAdmin}
-                    clinicInfoAvailability={clinicInfoAvailability || {}}
-                  />
-                </section>
+
 
                 <section className="bg-white rounded-xl md:rounded-2xl p-4 md:p-6 shadow-sm border border-gray-100">
                   <h3 className="text-lg font-semibold text-gray-900 mb-2 flex items-center gap-2">
