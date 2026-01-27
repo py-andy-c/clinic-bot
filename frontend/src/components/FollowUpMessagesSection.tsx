@@ -187,8 +187,14 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
     };
 
     const handleDeleteMessage = async (messageId: number) => {
-        // Stage deletion - remove from local state
-        const updated = followUpMessages.filter(m => m.id !== messageId);
+        // Stage deletion - remove from local state and re-index display orders
+        const updated = followUpMessages
+            .filter(m => m.id !== messageId)
+            .map((m, index) => ({
+                ...m,
+                display_order: index,
+                updated_at: new Date().toISOString()
+            }));
         updateStagedMessages(updated);
     };
 
@@ -224,7 +230,7 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
         }
 
         if (isNewMessage) {
-            // Create new message in staging with temporary ID (negative timestamp)
+            // Create new message in staging with temporary ID
             const newMessage: FollowUpMessage = {
                 id: generateTemporaryId(),
                 appointment_type_id: appointmentType.id,
@@ -235,11 +241,18 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
                 time_of_day: formData.timing_mode === 'specific_time' ? (formData.time_of_day ?? null) : null,
                 message_template: formData.message_template,
                 is_enabled: formData.is_enabled,
-                display_order: formData.display_order,
+                display_order: followUpMessages.length, // Will be re-indexed
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString(),
             };
-            const updated = [...followUpMessages, newMessage].sort((a, b) => a.display_order - b.display_order);
+
+            // Append and re-index all to ensure sequential order
+            const updated = [...followUpMessages, newMessage]
+                .map((m, index) => ({
+                    ...m,
+                    display_order: index
+                }));
+
             updateStagedMessages(updated);
             setEditingMessage(null);
             setIsNewMessage(false);
