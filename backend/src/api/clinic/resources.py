@@ -426,14 +426,29 @@ async def create_resource(
         # Check if name already exists for this resource type
         existing = db.query(Resource).filter(
             Resource.resource_type_id == resource_type_id,
-            Resource.name == request.name,
-            Resource.is_deleted == False
+            Resource.name == request.name
         ).first()
         
         if existing:
-            raise HTTPException(
-                status_code=http_status.HTTP_409_CONFLICT,
-                detail="資源名稱已存在"
+            if not existing.is_deleted:
+                raise HTTPException(
+                    status_code=http_status.HTTP_409_CONFLICT,
+                    detail="資源名稱已存在"
+                )
+            # Reactivate soft-deleted resource
+            existing.is_deleted = False
+            existing.description = request.description
+            db.commit()
+            db.refresh(existing)
+            return ResourceResponse(
+                id=existing.id,
+                resource_type_id=existing.resource_type_id,
+                clinic_id=existing.clinic_id,
+                name=existing.name,
+                description=existing.description,
+                is_deleted=existing.is_deleted,
+                created_at=existing.created_at,
+                updated_at=existing.updated_at
             )
         
         resource = Resource(
@@ -489,18 +504,17 @@ async def update_resource(
                 detail="資源不存在"
             )
         
-        # Check if new name conflicts with existing resource of same type
+        # Check if new name conflicts with existing resource of same type (including soft-deleted)
         existing = db.query(Resource).filter(
             Resource.resource_type_id == resource.resource_type_id,
             Resource.name == request.name,
-            Resource.id != resource_id,
-            Resource.is_deleted == False
+            Resource.id != resource_id
         ).first()
         
         if existing:
             raise HTTPException(
                 status_code=http_status.HTTP_409_CONFLICT,
-                detail="資源名稱已存在"
+                detail="資源名稱已存在 (包含已刪除項目)"
             )
         
         resource.name = request.name
@@ -959,13 +973,27 @@ def _sync_resource_type_resources(
                 resource.description = r_data.description
                 resource.is_deleted = False # Ensure reactivated if it was soft-deleted
         else:
-            resource = Resource(
-                resource_type_id=resource_type_id,
-                clinic_id=clinic_id,
-                name=r_data.name,
-                description=r_data.description
-            )
-            db.add(resource)
+            # Check if a soft-deleted resource with this name already exists
+            # to avoid unique constraint violations
+            existing_deleted = db.query(Resource).filter(
+                Resource.resource_type_id == resource_type_id,
+                Resource.clinic_id == clinic_id,
+                Resource.name == r_data.name,
+                Resource.is_deleted == True
+            ).first()
+            
+            if existing_deleted:
+                existing_deleted.is_deleted = False
+                existing_deleted.description = r_data.description
+                resource = existing_deleted
+            else:
+                resource = Resource(
+                    resource_type_id=resource_type_id,
+                    clinic_id=clinic_id,
+                    name=r_data.name,
+                    description=r_data.description
+                )
+                db.add(resource)
 
 
 @router.post("/resource-types/bundle", summary="Create resource type bundle")

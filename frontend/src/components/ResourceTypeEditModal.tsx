@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useForm, useFieldArray, FormProvider } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -19,6 +19,17 @@ const resourceBundleSchema = z.object({
 const resourceTypeBundleSchema = z.object({
     name: z.string().min(1, '請輸入資源類型名稱'),
     resources: z.array(resourceBundleSchema),
+}).superRefine((data, ctx) => {
+    const names = data.resources.map(r => r.name.trim().toLowerCase()).filter(n => n !== "");
+    const hasDuplicates = names.length !== new Set(names).size;
+
+    if (hasDuplicates) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: '清單中不能有重複的名稱',
+            path: ['resources'],
+        });
+    }
 });
 
 type ResourceTypeBundleFormData = z.infer<typeof resourceTypeBundleSchema>;
@@ -35,6 +46,7 @@ const ResourceTypeEditModal: React.FC<ResourceTypeEditModalProps> = ({
     const queryClient = useQueryClient();
     const { alert } = useModal();
     const isEdit = !!resourceTypeId;
+    const errorRef = useRef<HTMLDivElement>(null);
 
     const { data: bundle, isLoading } = useQuery({
         queryKey: ['settings', 'resource-type', resourceTypeId],
@@ -62,6 +74,31 @@ const ResourceTypeEditModal: React.FC<ResourceTypeEditModalProps> = ({
         control,
         name: 'resources',
     });
+
+    const watchTypeName = methods.watch('name');
+
+    const handleAddResource = () => {
+        const currentResources = methods.getValues('resources') || [];
+        const resolvedTypeName = watchTypeName?.trim() || '資源';
+
+        let maxNum = 0;
+        const escapedTypeName = resolvedTypeName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const namePattern = new RegExp(`^${escapedTypeName}(\\d+)$`);
+
+        currentResources.forEach(r => {
+            const match = r.name.match(namePattern);
+            if (match && match[1]) {
+                const num = parseInt(match[1], 10);
+                if (num > maxNum) maxNum = num;
+            }
+        });
+
+        // Use the next number after the max found, or fields.length + 1 as fallback
+        const nextNum = maxNum + 1;
+        const name = `${resolvedTypeName}${nextNum}`;
+
+        append({ name, description: '' }, { shouldFocus: false });
+    };
 
     useUnsavedChangesDetection({
         hasUnsavedChanges: () => methods.formState.isDirty,
@@ -117,10 +154,17 @@ const ResourceTypeEditModal: React.FC<ResourceTypeEditModalProps> = ({
         mutation.mutate(data);
     };
 
+    const onInvalid = () => {
+        // Clear a bit of stack to let the error render first if it wasn't there
+        setTimeout(() => {
+            errorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 100);
+    };
+
     return (
         <BaseModal onClose={onClose} aria-label={isEdit ? '編輯資源類型' : '新增資源類型'}>
             <FormProvider {...methods}>
-                <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-6 max-h-[85vh] overflow-y-auto w-full max-w-2xl">
+                <form onSubmit={handleSubmit(onSubmit, onInvalid)} className="p-6 space-y-6 max-h-[85vh] overflow-y-auto w-full max-w-2xl">
                     <div className="flex justify-between items-center border-b pb-4">
                         <h2 className="text-xl font-bold text-gray-900">
                             {isEdit ? '編輯資源類型' : '新增資源類型'}
@@ -158,12 +202,23 @@ const ResourceTypeEditModal: React.FC<ResourceTypeEditModalProps> = ({
                                     <h3 className="text-md font-semibold text-gray-800">具體資源清單</h3>
                                     <button
                                         type="button"
-                                        onClick={() => append({ name: '', description: '' })}
+                                        onClick={handleAddResource}
                                         className="text-sm text-primary-600 hover:text-primary-700 font-medium"
                                     >
                                         + 新增資源
                                     </button>
                                 </div>
+
+                                {(() => {
+                                    const err = errors.resources as any;
+                                    const msg = err?.root?.message || err?.message;
+                                    if (!msg) return null;
+                                    return (
+                                        <div ref={errorRef}>
+                                            <p className="text-sm text-red-600 mb-2">{msg}</p>
+                                        </div>
+                                    );
+                                })()}
 
                                 <div className="space-y-3">
                                     {fields.map((field, index) => (
@@ -187,8 +242,12 @@ const ResourceTypeEditModal: React.FC<ResourceTypeEditModalProps> = ({
                                                         {...register(`resources.${index}.name` as const)}
                                                         type="text"
                                                         placeholder="例如：診間 1"
-                                                        className="block w-full rounded-md border-gray-300 shadow-sm focus:ring-primary-500 focus:border-primary-500 sm:text-sm p-2"
+                                                        className={`block w-full rounded-md border shadow-sm focus:ring-primary-500 focus:border-primary-500 sm:text-sm p-2 ${errors.resources?.[index]?.name ? 'border-red-300 ring-1 ring-red-300' : 'border-gray-300'
+                                                            }`}
                                                     />
+                                                    {errors.resources?.[index]?.name && (
+                                                        <p className="mt-1 text-xs text-red-600">{(errors.resources[index] as any).name.message}</p>
+                                                    )}
                                                 </div>
                                                 <div>
                                                     <label className="block text-xs font-medium text-gray-500 mb-1">
@@ -210,13 +269,14 @@ const ResourceTypeEditModal: React.FC<ResourceTypeEditModalProps> = ({
                                             <p className="text-sm text-gray-500">尚未新增任何資源</p>
                                             <button
                                                 type="button"
-                                                onClick={() => append({ name: '', description: '' })}
+                                                onClick={handleAddResource}
                                                 className="mt-2 text-sm text-primary-600 font-medium"
                                             >
                                                 點此新增第一個資源
                                             </button>
                                         </div>
                                     )}
+
                                 </div>
                             </div>
 
