@@ -7,6 +7,7 @@ import { useModal } from '../../contexts/ModalContext';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '../../services/api';
 import ResourceTypeEditModal from '../../components/ResourceTypeEditModal';
+import { ValidationErrorBoundary } from '../../components/shared/ValidationErrorBoundary';
 import { ResourceType } from '../../types';
 import { getErrorMessage } from '../../types/api';
 
@@ -106,14 +107,16 @@ const SettingsResourcesPage: React.FC = () => {
             </div>
 
             {(editingResourceType || isAddingNew) && (
-                <ResourceTypeEditModal
-                    resourceTypeId={editingResourceType}
-                    existingNames={resourceTypes.map(rt => rt.name)}
-                    onClose={() => {
-                        setEditingResourceType(null);
-                        setIsAddingNew(false);
-                    }}
-                />
+                <ValidationErrorBoundary>
+                    <ResourceTypeEditModal
+                        resourceTypeId={editingResourceType}
+                        existingNames={resourceTypes.map(rt => rt.name)}
+                        onClose={() => {
+                            setEditingResourceType(null);
+                            setIsAddingNew(false);
+                        }}
+                    />
+                </ValidationErrorBoundary>
             )}
             {deleteMutation.isPending && <LoadingSpinner fullScreen />}
         </div>

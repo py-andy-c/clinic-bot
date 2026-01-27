@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useForm, FormProvider } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -72,21 +72,24 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
 
   const isEdit = serviceItemId !== null;
 
-  const refinedSchema = ServiceItemBundleSchema.superRefine((data, ctx) => {
-    const currentName = data.name.trim().toLowerCase();
-    const conflict = existingNames.some(name => name.toLowerCase() === currentName);
+  const refinedSchema = useMemo(() => 
+    ServiceItemBundleSchema.superRefine((data, ctx) => {
+      const currentName = data.name.trim().toLowerCase();
+      const conflict = existingNames.some(name => name.toLowerCase() === currentName);
 
-    if (conflict) {
-      const originalName = bundle?.item.name.toLowerCase();
-      if (!isEdit || currentName !== originalName) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: '服務項目名稱已存在',
-          path: ['name'],
-        });
+      if (conflict) {
+        const originalName = bundle?.item.name.toLowerCase();
+        if (!isEdit || currentName !== originalName) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: '服務項目名稱已存在',
+            path: ['name'],
+          });
+        }
       }
-    }
-  });
+    }), 
+    [existingNames, bundle?.item.name, isEdit]
+  );
 
   const methods = useForm<ServiceItemBundleFormData>({
     resolver: zodResolver(refinedSchema),

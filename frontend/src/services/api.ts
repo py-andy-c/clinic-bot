@@ -554,18 +554,21 @@ export class ApiService {
   }
 
   // Service Item Bundle APIs
-  async getServiceItemBundle(serviceItemId: number): Promise<ServiceItemBundleResponse> {
-    const response = await this.client.get(`/clinic/service-items/${serviceItemId}/bundle`);
+  async getServiceItemBundle(serviceItemId: number, signal?: AbortSignal): Promise<ServiceItemBundleResponse> {
+    const config = signal ? { signal } : {};
+    const response = await this.client.get(`/clinic/service-items/${serviceItemId}/bundle`, config);
     return response.data;
   }
 
-  async createServiceItemBundle(bundle: ServiceItemBundleRequest): Promise<ServiceItemBundleResponse> {
-    const response = await this.client.post('/clinic/service-items/bundle', bundle);
+  async createServiceItemBundle(bundle: ServiceItemBundleRequest, signal?: AbortSignal): Promise<ServiceItemBundleResponse> {
+    const config = signal ? { signal } : {};
+    const response = await this.client.post('/clinic/service-items/bundle', bundle, config);
     return response.data;
   }
 
-  async updateServiceItemBundle(serviceItemId: number, bundle: ServiceItemBundleRequest): Promise<ServiceItemBundleResponse> {
-    const response = await this.client.put(`/clinic/service-items/${serviceItemId}/bundle`, bundle);
+  async updateServiceItemBundle(serviceItemId: number, bundle: ServiceItemBundleRequest, signal?: AbortSignal): Promise<ServiceItemBundleResponse> {
+    const config = signal ? { signal } : {};
+    const response = await this.client.put(`/clinic/service-items/${serviceItemId}/bundle`, bundle, config);
     return response.data;
   }
 
@@ -598,18 +601,21 @@ export class ApiService {
   }
 
   // Resource Type Bundle APIs
-  async getResourceTypeBundle(resourceTypeId: number): Promise<ResourceTypeBundleResponse> {
-    const response = await this.client.get(`/clinic/resource-types/${resourceTypeId}/bundle`);
+  async getResourceTypeBundle(resourceTypeId: number, signal?: AbortSignal): Promise<ResourceTypeBundleResponse> {
+    const config = signal ? { signal } : {};
+    const response = await this.client.get(`/clinic/resource-types/${resourceTypeId}/bundle`, config);
     return response.data;
   }
 
-  async createResourceTypeBundle(bundle: ResourceTypeBundleRequest): Promise<ResourceTypeBundleResponse> {
-    const response = await this.client.post('/clinic/resource-types/bundle', bundle);
+  async createResourceTypeBundle(bundle: ResourceTypeBundleRequest, signal?: AbortSignal): Promise<ResourceTypeBundleResponse> {
+    const config = signal ? { signal } : {};
+    const response = await this.client.post('/clinic/resource-types/bundle', bundle, config);
     return response.data;
   }
 
-  async updateResourceTypeBundle(resourceTypeId: number, bundle: ResourceTypeBundleRequest): Promise<ResourceTypeBundleResponse> {
-    const response = await this.client.put(`/clinic/resource-types/${resourceTypeId}/bundle`, bundle);
+  async updateResourceTypeBundle(resourceTypeId: number, bundle: ResourceTypeBundleRequest, signal?: AbortSignal): Promise<ResourceTypeBundleResponse> {
+    const config = signal ? { signal } : {};
+    const response = await this.client.put(`/clinic/resource-types/${resourceTypeId}/bundle`, bundle, config);
     return response.data;
   }
 
