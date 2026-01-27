@@ -504,17 +504,18 @@ async def update_resource(
                 detail="資源不存在"
             )
         
-        # Check if new name conflicts with existing resource of same type (including soft-deleted)
+        # Check if new name conflicts with existing active resource of same type
         existing = db.query(Resource).filter(
             Resource.resource_type_id == resource.resource_type_id,
             Resource.name == request.name,
-            Resource.id != resource_id
+            Resource.id != resource_id,
+            Resource.is_deleted == False
         ).first()
         
         if existing:
             raise HTTPException(
                 status_code=http_status.HTTP_409_CONFLICT,
-                detail="資源名稱已存在 (包含已刪除項目)"
+                detail="資源名稱已存在"
             )
         
         resource.name = request.name
