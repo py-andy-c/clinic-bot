@@ -25,6 +25,7 @@ import {
 import { MessageSettingsSection } from './MessageSettingsSection';
 import { FollowUpMessagesSection } from './FollowUpMessagesSection';
 import { ResourceRequirementsSection } from './ResourceRequirementsSection';
+import { FormInput } from './forms/FormInput';
 import { generateTemporaryId } from '../utils/idUtils';
 import { useUnsavedChangesDetection } from '../hooks/useUnsavedChangesDetection';
 import { formatCurrency } from '../utils/currencyUtils';
@@ -429,12 +430,12 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1.5">服務時長 (分鐘)</label>
-                      <input
+                      <FormInput
                         type="number"
                         step="5"
-                        {...register('duration_minutes')}
-                        onWheel={preventScrollWheelChange}
-                        className="input w-full"
+                        name="duration_minutes"
+                        placeholder="30"
+                        className="w-full"
                       />
                     </div>
                     <div>
@@ -530,15 +531,13 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">緩衝時間 (分鐘)</label>
-                      <input
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">預約緩衝時間 (分鐘)</label>
+                      <FormInput
                         type="number"
                         step="5"
-                        min="0"
-                        {...register('scheduling_buffer_minutes')}
-                        onWheel={preventScrollWheelChange}
-                        className="input w-full"
-                        placeholder="預約結束後的緩衝時間"
+                        name="scheduling_buffer_minutes"
+                        placeholder="0"
+                        className="w-full"
                       />
                     </div>
                   </div>

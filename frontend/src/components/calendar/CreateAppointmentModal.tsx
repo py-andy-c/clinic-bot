@@ -1210,6 +1210,15 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
                     setOccurrenceCount(null);
                   }
                 }}
+                onBlur={(e) => {
+                  if (e.target.value !== '') {
+                    const val = parseInt(e.target.value, 10);
+                    if (!isNaN(val)) {
+                      const constrained = Math.max(1, Math.min(50, val));
+                      e.target.value = constrained.toString();
+                    }
+                  }
+                }}
                 onWheel={preventScrollWheelChange}
                 className={`w-16 border rounded-md px-2 py-1 text-center focus:outline-none focus:ring-2 focus:ring-blue-500 ${validationErrors.recurrenceCount ? 'border-red-300 ring-1 ring-red-500' : 'border-gray-300'
                   }`}

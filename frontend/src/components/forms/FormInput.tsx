@@ -22,6 +22,16 @@ export const FormInput: React.FC<FormInputProps> = ({
       {...props}
       type={type}
       onBlur={(e) => {
+        // Auto-correct number formatting on blur (e.g., 0345 -> 345)
+        if (type === 'number' && e.target.value !== '') {
+          const val = parseFloat(e.target.value);
+          if (!isNaN(val)) {
+            const normalized = val.toString();
+            if (e.target.value !== normalized) {
+              e.target.value = normalized;
+            }
+          }
+        }
         rhfOnBlur(e);
         onBlur?.(e);
       }}

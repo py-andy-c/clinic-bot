@@ -72,7 +72,7 @@ describe('useNumberInput', () => {
         } as React.FocusEvent<HTMLInputElement>);
       });
 
-      expect(result.current.displayValue).toBe(0);
+      expect(result.current.displayValue).toBe('0');
       expect(mockOnChange).toHaveBeenCalledWith(0);
     });
   });
@@ -90,7 +90,7 @@ describe('useNumberInput', () => {
       });
 
       expect(mockOnChange).toHaveBeenCalledWith(5);
-      expect(result.current.displayValue).toBe(5);
+      expect(result.current.displayValue).toBe('5.7');
     });
 
     it('should use parseFloat when specified', () => {
@@ -105,7 +105,7 @@ describe('useNumberInput', () => {
       });
 
       expect(mockOnChange).toHaveBeenCalledWith(5.7);
-      expect(result.current.displayValue).toBe(5.7);
+      expect(result.current.displayValue).toBe('5.7');
     });
 
     it('should default to parseFloat', () => {
@@ -136,7 +136,7 @@ describe('useNumberInput', () => {
       });
 
       expect(mockOnChange).toHaveBeenCalledWith(10);
-      expect(result.current.displayValue).toBe(10);
+      expect(result.current.displayValue).toBe('5');
     });
 
     it('should enforce max constraint', () => {
@@ -151,7 +151,7 @@ describe('useNumberInput', () => {
       });
 
       expect(mockOnChange).toHaveBeenCalledWith(10);
-      expect(result.current.displayValue).toBe(10);
+      expect(result.current.displayValue).toBe('15');
     });
 
     it('should enforce both min and max constraints', () => {
@@ -188,7 +188,7 @@ describe('useNumberInput', () => {
       });
 
       expect(mockOnChange).toHaveBeenCalledWith(10);
-      expect(result.current.displayValue).toBe(10);
+      expect(result.current.displayValue).toBe('10');
     });
   });
 
@@ -205,7 +205,7 @@ describe('useNumberInput', () => {
       });
 
       expect(mockOnChange).toHaveBeenCalledWith(6);
-      expect(result.current.displayValue).toBe(6);
+      expect(result.current.displayValue).toBe('5.7');
     });
 
     it('should not round when round option is false', () => {
@@ -220,7 +220,7 @@ describe('useNumberInput', () => {
       });
 
       expect(mockOnChange).toHaveBeenCalledWith(5.7);
-      expect(result.current.displayValue).toBe(5.7);
+      expect(result.current.displayValue).toBe('5.7');
     });
 
     it('should default to not rounding', () => {
@@ -274,7 +274,7 @@ describe('useNumberInput', () => {
         } as React.FocusEvent<HTMLInputElement>);
       });
 
-      expect(result.current.displayValue).toBe(0);
+      expect(result.current.displayValue).toBe('0');
       expect(mockOnChange).toHaveBeenCalledWith(0);
     });
   });
@@ -292,7 +292,7 @@ describe('useNumberInput', () => {
       });
 
       expect(mockOnChange).toHaveBeenCalledWith(-5);
-      expect(result.current.displayValue).toBe(-5);
+      expect(result.current.displayValue).toBe('-5');
     });
 
     it('should handle zero', () => {
@@ -307,7 +307,14 @@ describe('useNumberInput', () => {
       });
 
       expect(mockOnChange).toHaveBeenCalledWith(0);
-      expect(result.current.displayValue).toBe(0);
+      expect(result.current.displayValue).toBe('0');
+
+      act(() => {
+        result.current.onBlur({
+          target: { value: '0' },
+        } as React.FocusEvent<HTMLInputElement>);
+      });
+      expect(result.current.displayValue).toBe('0');
     });
 
     it('should handle very large numbers', () => {
@@ -349,8 +356,31 @@ describe('useNumberInput', () => {
         } as React.FocusEvent<HTMLInputElement>);
       });
 
-      expect(result.current.displayValue).toBe(42);
+      expect(result.current.displayValue).toBe('42');
       expect(mockOnChange).toHaveBeenCalledWith(42);
+    });
+
+    it('should correct leading zeros on blur', () => {
+      const { result } = renderHook(() =>
+        useNumberInput(0, mockOnChange, { fallback: 0 })
+      );
+
+      act(() => {
+        result.current.onChange({
+          target: { value: '0345' },
+        } as React.ChangeEvent<HTMLInputElement>);
+      });
+
+      expect(result.current.displayValue).toBe('0345');
+      expect(mockOnChange).toHaveBeenCalledWith(345);
+
+      act(() => {
+        result.current.onBlur({
+          target: { value: '0345' },
+        } as React.FocusEvent<HTMLInputElement>);
+      });
+
+      expect(result.current.displayValue).toBe('345');
     });
   });
 });
