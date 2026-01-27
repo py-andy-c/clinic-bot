@@ -23,9 +23,7 @@ const SettingsRemindersPage: React.FC = () => {
     const queryClient = useQueryClient();
     const { data: settings, isLoading } = useClinicSettings();
     const { isClinicAdmin } = useAuth();
-
     const { alert } = useModal();
-    const [refreshTrigger, setRefreshTrigger] = React.useState(0);
 
     const methods = useForm<RemindersSettingsFormData>({
         resolver: zodResolver(RemindersSettingsFormSchema),
@@ -73,7 +71,6 @@ const SettingsRemindersPage: React.FC = () => {
             reset(variables);
             await queryClient.invalidateQueries({ queryKey: ['settings'] });
             alert('設定已成功儲存');
-            setRefreshTrigger(prev => prev + 1);
         },
         onError: (err: any) => {
             logger.error('Failed to save reminder settings:', err);
@@ -116,7 +113,6 @@ const SettingsRemindersPage: React.FC = () => {
                 <div className="bg-white md:rounded-xl md:border md:border-gray-100 md:shadow-sm p-0 md:p-6">
                     <ClinicReminderSettings
                         isClinicAdmin={isClinicAdmin}
-                        refreshTrigger={refreshTrigger}
                     />
                 </div>
             </form>
