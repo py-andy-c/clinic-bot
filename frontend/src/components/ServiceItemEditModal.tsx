@@ -287,8 +287,10 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
 
   if (loadingBundle && serviceItemId !== null) {
     return (
-      <BaseModal onClose={() => onClose()} aria-label="載入中">
-        <div className="p-12 flex justify-center"><LoadingSpinner /></div>
+      <BaseModal onClose={() => onClose()} aria-label="載入中" fullScreen>
+        <div className="flex items-center justify-center h-full">
+          <LoadingSpinner />
+        </div>
       </BaseModal>
     );
   }
@@ -298,31 +300,25 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
       <BaseModal
         onClose={() => onClose()}
         aria-label={serviceItemId ? '編輯服務項目' : '新增服務項目'}
-        className="max-w-6xl"
+        fullScreen
       >
-        <form onSubmit={handleSubmit(handleSave)} className="flex flex-col h-[90vh]">
+        <form onSubmit={handleSubmit(handleSave)} className="flex flex-col h-full bg-gray-50/50">
           {/* Header */}
-          <div className="px-8 py-6 border-b border-gray-100 flex justify-between items-center bg-white rounded-t-2xl">
+          <div className="px-4 py-4 md:px-8 md:py-6 border-b border-gray-100 flex justify-between items-center bg-white shadow-sm z-10 shrink-0">
             <div>
-              <h2 className="text-2xl font-bold text-gray-900">
+              <h2 className="text-xl md:text-2xl font-bold text-gray-900">
                 {serviceItemId ? '編輯服務項目' : '新增服務項目'}
               </h2>
-              {serviceItemId && <p className="text-sm text-gray-500 mt-1">ID: {serviceItemId}</p>}
             </div>
-            <button type="button" onClick={() => onClose()} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
-              <svg className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
           </div>
 
           {/* Scrollable Content */}
-          <main className="flex-1 overflow-y-auto p-8 bg-gray-50/30">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <main className="flex-1 overflow-y-auto p-3 md:p-8">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 md:gap-8 max-w-7xl mx-auto w-full">
               {/* Left Column: Basic Info & Restrictions */}
-              <div className="space-y-8">
-                <section className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-6 flex items-center gap-2">
+              <div className="space-y-3 md:space-y-8">
+                <section className="bg-white rounded-xl md:rounded-2xl p-4 md:p-6 shadow-sm border border-gray-100">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4 md:mb-6 flex items-center gap-2">
                     <span className="w-1.5 h-6 bg-blue-500 rounded-full"></span>
                     基本資訊
                   </h3>
@@ -372,8 +368,8 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                   </div>
                 </section>
 
-                <section className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-6 flex items-center gap-2">
+                <section className="bg-white rounded-xl md:rounded-2xl p-4 md:p-6 shadow-sm border border-gray-100">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4 md:mb-6 flex items-center gap-2">
                     <span className="w-1.5 h-6 bg-purple-500 rounded-full"></span>
                     預約規則
                   </h3>
@@ -413,8 +409,8 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                   </div>
                 </section>
 
-                <section className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-6 flex items-center gap-2">
+                <section className="bg-white rounded-xl md:rounded-2xl p-4 md:p-6 shadow-sm border border-gray-100">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4 md:mb-6 flex items-center gap-2">
                     <span className="w-1.5 h-6 bg-teal-500 rounded-full"></span>
                     預約備註
                   </h3>
@@ -445,7 +441,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                   clinicInfoAvailability={clinicInfoAvailability || {}}
                 />
 
-                <section className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                <section className="bg-white rounded-xl md:rounded-2xl p-4 md:p-6 shadow-sm border border-gray-100">
                   <ResourceRequirementsSection
                     appointmentTypeId={serviceItemId || 0}
                     isClinicAdmin={isClinicAdmin}
@@ -456,9 +452,9 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
               </div>
 
               {/* Right Column: Practitioners & Others */}
-              <div className="space-y-8">
-                <section className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-6 flex items-center gap-2">
+              <div className="space-y-3 md:space-y-8">
+                <section className="bg-white rounded-xl md:rounded-2xl p-4 md:p-6 shadow-sm border border-gray-100">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4 md:mb-6 flex items-center gap-2">
                     <span className="w-1.5 h-6 bg-indigo-500 rounded-full"></span>
                     治療師指派
                   </h3>
@@ -470,9 +466,9 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                       const scenarios = billingScenarios.filter(s => s.practitioner_id === m.id);
 
                       return (
-                        <div key={m.id} className={`p-4 rounded-2xl border transition-all ${isAssigned ? 'bg-indigo-50 border-indigo-200' : 'bg-gray-50 border-gray-100'}`}>
-                          <div className="flex items-center justify-between mb-3">
-                            <label className="flex items-center cursor-pointer">
+                        <div key={m.id} className={`p-4 rounded-xl md:rounded-2xl border transition-all ${isAssigned ? 'bg-indigo-50 border-indigo-200' : 'bg-gray-50 border-gray-100'}`}>
+                          <div className="flex items-center justify-between mb-3 gap-2">
+                            <label className="flex items-center cursor-pointer min-w-0">
                               <input
                                 type="checkbox"
                                 checked={isAssigned}
@@ -480,15 +476,15 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                                   if (e.target.checked) setValue('practitioner_ids', [...practitionerIds, m.id], { shouldDirty: true });
                                   else setValue('practitioner_ids', practitionerIds.filter(id => id !== m.id), { shouldDirty: true });
                                 }}
-                                className="w-4 h-4 text-indigo-600 rounded border-gray-300 mr-3"
+                                className="w-5 h-5 text-indigo-600 rounded border-gray-300 mr-3 flex-shrink-0"
                               />
-                              <span className="font-semibold text-gray-900">{m.full_name}</span>
+                              <span className="font-semibold text-gray-900 truncate">{m.full_name}</span>
                             </label>
                             {isAssigned && (
                               <button
                                 type="button"
                                 onClick={() => handleAddScenario(m.id)}
-                                className="text-xs font-medium text-indigo-600 hover:text-indigo-800"
+                                className="text-xs font-medium text-indigo-600 hover:text-indigo-800 whitespace-nowrap flex-shrink-0 px-2 py-1 hover:bg-indigo-100 rounded-lg transition-colors"
                               >
                                 + 新增計費方案
                               </button>
@@ -496,25 +492,35 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                           </div>
 
                           {isAssigned && (
-                            <div className="space-y-2 pl-7">
+                            <div className="space-y-2 pl-8">
                               {scenarios.length > 0 ? scenarios.map((s, idx) => (
-                                <div key={idx} className="flex items-center justify-between bg-white/60 p-2.5 rounded-xl border border-indigo-100/50">
-                                  <div className="text-sm">
-                                    <span className="font-medium text-gray-800">{s.name}</span>
-                                    <span className="mx-2 text-gray-300">|</span>
-                                    <span className="text-gray-600">${s.amount}</span>
+                                <div key={idx} className="flex items-center justify-between bg-white p-3 rounded-lg md:rounded-xl border border-indigo-100 shadow-sm hover:shadow-md transition-shadow">
+                                  <div className="flex items-baseline min-w-0 flex-1 mr-2">
+                                    <span className="font-medium text-gray-800 truncate" title={s.name}>{s.name}</span>
+                                    <span className="mx-2 text-gray-300 flex-shrink-0">|</span>
+                                    <span className="text-gray-600 font-mono flex-shrink-0">${s.amount}</span>
                                   </div>
-                                  <div className="flex gap-2">
-                                    <button type="button" onClick={() => handleEditScenario(m.id, s as BillingScenarioBundleData)} className="p-1.5 hover:bg-indigo-50 rounded-lg text-indigo-600 transition-colors">
+                                  <div className="flex gap-1 flex-shrink-0">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleEditScenario(m.id, s as BillingScenarioBundleData)}
+                                      className="p-1.5 hover:bg-indigo-50 rounded-lg text-indigo-600 transition-colors"
+                                      title="編輯方案"
+                                    >
                                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
                                     </button>
-                                    <button type="button" onClick={() => setValue('billing_scenarios', (billingScenarios).filter((bs) => bs !== s), { shouldDirty: true })} className="p-1.5 hover:bg-red-50 rounded-lg text-red-500 transition-colors">
+                                    <button
+                                      type="button"
+                                      onClick={() => setValue('billing_scenarios', (billingScenarios).filter((bs) => bs !== s), { shouldDirty: true })}
+                                      className="p-1.5 hover:bg-red-50 rounded-lg text-red-500 transition-colors"
+                                      title="刪除方案"
+                                    >
                                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                                     </button>
                                   </div>
                                 </div>
                               )) : (
-                                <p className="text-xs text-gray-400 italic">尚無計費方案</p>
+                                <p className="text-xs text-gray-400 italic py-2">尚未設定計費方案，將使用預設價格</p>
                               )}
                             </div>
                           )}
@@ -535,7 +541,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
           </main>
 
           {/* Footer */}
-          <div className="px-8 py-6 border-t border-gray-100 bg-white flex justify-between items-center rounded-b-2xl">
+          <div className="px-4 py-4 md:px-8 md:py-6 border-t border-gray-100 bg-white flex justify-between items-center rounded-b-none shrink-0 z-10">
             <div className="text-sm text-gray-500">
               {isDirty && <span className="flex items-center gap-1.5 text-amber-600 font-medium">● 有未儲存的變更</span>}
             </div>
