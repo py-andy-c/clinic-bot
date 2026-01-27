@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { BaseModal } from '../components/shared/BaseModal';
 import { Z_INDEX } from '../constants/app';
@@ -36,7 +36,7 @@ interface ModalProviderProps {
 export const ModalProvider: React.FC<ModalProviderProps> = ({ children }) => {
   const [modal, setModal] = useState<ModalState | null>(null);
 
-  const alert = (message: any, title?: string): Promise<void> => {
+  const alert = useCallback((message: any, title?: string): Promise<void> => {
     return new Promise((resolve) => {
       setModal({
         isOpen: true,
@@ -49,9 +49,9 @@ export const ModalProvider: React.FC<ModalProviderProps> = ({ children }) => {
         },
       });
     });
-  };
+  }, []);
 
-  const confirm = (message: any, title?: string): Promise<boolean> => {
+  const confirm = useCallback((message: any, title?: string): Promise<boolean> => {
     return new Promise((resolve) => {
       setModal({
         isOpen: true,
@@ -68,18 +68,18 @@ export const ModalProvider: React.FC<ModalProviderProps> = ({ children }) => {
         },
       });
     });
-  };
+  }, []);
 
-  const closeModal = () => {
+  const closeModal = useCallback(() => {
     setModal(null);
-  };
+  }, []);
 
-  const value: ModalContextType = {
+  const value = useMemo(() => ({
     modal,
     alert,
     confirm,
     closeModal,
-  };
+  }), [modal, alert, confirm, closeModal]);
 
   return (
     <ModalContext.Provider value={value}>
