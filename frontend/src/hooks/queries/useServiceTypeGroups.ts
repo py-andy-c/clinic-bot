@@ -7,7 +7,7 @@ export const useServiceTypeGroups = () => {
   const activeClinicId = user?.active_clinic_id;
 
   return useQuery({
-    queryKey: ['serviceTypeGroups', activeClinicId],
+    queryKey: ['settings', 'service-type-groups', activeClinicId],
     queryFn: () => apiService.getServiceTypeGroups(),
     enabled: !!activeClinicId,
     staleTime: 5 * 60 * 1000, // 5 minutes

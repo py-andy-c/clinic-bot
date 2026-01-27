@@ -7,6 +7,7 @@ interface ServiceItemsTableProps {
   groups: ServiceTypeGroup[];
   practitionerAssignments: Record<number, number[]>; // appointmentTypeId -> practitionerIds[]
   onEdit: (appointmentType: AppointmentType) => void;
+  onDelete: (appointmentType: AppointmentType) => void;
   isClinicAdmin: boolean;
   resultCountText?: string; // Optional text to display in first column header
   draggedItemId?: number | null;
@@ -14,6 +15,7 @@ interface ServiceItemsTableProps {
   onDragOver?: (e: React.DragEvent) => void;
   onDrop?: (e: React.DragEvent, targetItemId: number, position?: 'above' | 'below') => void;
   onDragEnd?: () => void;
+  disabled?: boolean;
 }
 
 export const ServiceItemsTable: React.FC<ServiceItemsTableProps> = ({
@@ -21,6 +23,7 @@ export const ServiceItemsTable: React.FC<ServiceItemsTableProps> = ({
   groups,
   practitionerAssignments,
   onEdit,
+  onDelete,
   isClinicAdmin,
   resultCountText,
   draggedItemId = null,
@@ -28,6 +31,7 @@ export const ServiceItemsTable: React.FC<ServiceItemsTableProps> = ({
   onDragOver,
   onDrop,
   onDragEnd,
+  disabled = false,
 }) => {
   const isMobile = useIsMobile();
   const [dropIndicator, setDropIndicator] = useState<{ itemId: number; position: 'above' | 'below' } | null>(null);
@@ -82,7 +86,7 @@ export const ServiceItemsTable: React.FC<ServiceItemsTableProps> = ({
       const rect = rowElement.getBoundingClientRect();
       const touchY = touch.clientY;
       const rowCenter = rect.top + rect.height / 2;
-      
+
       // Determine if drop should be above or below based on touch position
       const position = touchY < rowCenter ? 'above' : 'below';
       setDropIndicator({ itemId: targetItemId, position });
@@ -137,19 +141,19 @@ export const ServiceItemsTable: React.FC<ServiceItemsTableProps> = ({
         // Get current drop indicator state - read from state directly
         setDropIndicator((currentIndicator) => {
           const position = currentIndicator?.itemId === targetItemId ? currentIndicator.position : undefined;
-          
+
           // Create a synthetic drop event
           const syntheticEvent = {
-            preventDefault: () => {},
+            preventDefault: () => { },
           } as unknown as React.DragEvent;
-          
+
           if (onDropRef.current) {
             onDropRef.current(syntheticEvent, targetItemId, position);
           }
-          
+
           return null; // Clear indicator
         });
-        
+
         touchStartYRef.current = null;
         touchStartItemIdRef.current = null;
         touchStartElementRef.current = null;
@@ -157,7 +161,7 @@ export const ServiceItemsTable: React.FC<ServiceItemsTableProps> = ({
         if (onDragEndRef.current) onDragEndRef.current();
         return;
       }
-      
+
       // No valid drop target
       setDropIndicator(null);
       setDragOffset(null);
@@ -194,7 +198,7 @@ export const ServiceItemsTable: React.FC<ServiceItemsTableProps> = ({
     if (onDragOver) {
       onDragOver(e);
     }
-    
+
     // Update drop indicator based on current mouse position
     if (!draggedItemId || draggedItemId === itemId) {
       setDropIndicator(null);
@@ -204,7 +208,7 @@ export const ServiceItemsTable: React.FC<ServiceItemsTableProps> = ({
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const mouseY = e.clientY;
     const rowCenter = rect.top + rect.height / 2;
-    
+
     // Determine if drop should be above or below based on mouse position
     const position = mouseY < rowCenter ? 'above' : 'below';
     setDropIndicator({ itemId, position });
@@ -213,24 +217,24 @@ export const ServiceItemsTable: React.FC<ServiceItemsTableProps> = ({
   // Touch event handler for starting drag on mobile
   const handleTouchStart = (e: React.TouchEvent, itemId: number) => {
     if (!isClinicAdmin || !onDragStart) return;
-    
+
     e.preventDefault();
     e.stopPropagation();
-    
+
     const touch = e.touches[0];
     if (!touch) return;
-    
+
     touchStartYRef.current = touch.clientY;
     touchStartItemIdRef.current = itemId;
-    
+
     // Store the element being dragged for visual feedback
     const target = e.currentTarget.closest('[data-item-id]') as HTMLElement;
     if (target) {
       touchStartElementRef.current = target;
     }
-    
+
     setDragOffset({ y: 0 });
-    
+
     // Create a synthetic drag event to trigger drag start
     const syntheticEvent = {
       ...e,
@@ -238,7 +242,7 @@ export const ServiceItemsTable: React.FC<ServiceItemsTableProps> = ({
         effectAllowed: 'move',
       },
     } as unknown as React.DragEvent;
-    
+
     onDragStart(syntheticEvent, itemId);
   };
 
@@ -256,10 +260,10 @@ export const ServiceItemsTable: React.FC<ServiceItemsTableProps> = ({
               {dropIndicator?.itemId === appointmentType.id && dropIndicator.position === 'above' && (
                 <div className="h-1.5 bg-blue-600 shadow-md shadow-blue-500/30 mx-2 my-1 rounded-full" />
               )}
-              
+
               <div
                 data-item-id={appointmentType.id}
-                draggable={isClinicAdmin && !isMobile}
+                draggable={isClinicAdmin && !isMobile && !disabled}
                 onDragStart={isClinicAdmin && !isMobile && onDragStart ? (e) => onDragStart(e, appointmentType.id) : undefined}
                 onDragOver={isClinicAdmin && !isMobile ? (e) => handleDragOver(e, appointmentType.id) : undefined}
                 onDrop={isClinicAdmin && !isMobile && onDrop ? (e) => {
@@ -272,52 +276,65 @@ export const ServiceItemsTable: React.FC<ServiceItemsTableProps> = ({
                   if (onDragEnd) onDragEnd();
                 } : undefined}
                 onClick={isClinicAdmin ? () => onEdit(appointmentType) : undefined}
-                className={`bg-white border border-gray-200 rounded-lg p-4 shadow-sm transition-transform ${
-                  draggedItemId === appointmentType.id ? 'opacity-30' : ''
-                } ${isClinicAdmin ? 'hover:shadow-md transition-shadow' : ''}`}
+                className={`bg-white border border-gray-200 rounded-lg p-4 shadow-sm transition-transform ${draggedItemId === appointmentType.id ? 'opacity-30' : ''
+                  } ${isClinicAdmin ? 'hover:shadow-md transition-shadow' : ''}`}
                 style={
                   isMobile && draggedItemId === appointmentType.id && dragOffset
                     ? { transform: `translateY(${dragOffset.y}px)`, zIndex: 1000, position: 'relative' as const }
                     : undefined
                 }
               >
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    {isClinicAdmin && (
-                      <div
-                        className="text-gray-400 touch-none select-none flex items-center"
-                        onTouchStart={isMobile ? (e) => handleTouchStart(e, appointmentType.id) : undefined}
-                        style={{ touchAction: 'none' }}
-                      >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
-                        </svg>
-                      </div>
-                    )}
-                    <h3 className="font-medium text-gray-900 text-sm">
-                      {appointmentType.name || '未命名服務項目'}
-                    </h3>
-                    {appointmentType.service_type_group_id && (
-                      <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">
-                        {groupName}
-                      </span>
-                    )}
-                    {appointmentType.allow_patient_booking === false && (
-                      <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
-                        不開放預約
-                      </span>
-                    )}
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      {isClinicAdmin && (
+                        <div
+                          className="text-gray-400 touch-none select-none flex items-center"
+                          onTouchStart={isMobile && !disabled ? (e) => handleTouchStart(e, appointmentType.id) : undefined}
+                          style={{ touchAction: 'none' }}
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
+                          </svg>
+                        </div>
+                      )}
+                      <h3 className="font-medium text-gray-900 text-sm">
+                        {appointmentType.name || '未命名服務項目'}
+                      </h3>
+                      {appointmentType.service_type_group_id && (
+                        <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">
+                          {groupName}
+                        </span>
+                      )}
+                      {appointmentType.allow_patient_booking === false && (
+                        <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
+                          不開放預約
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-3 text-xs text-gray-500">
+                      <span>時長: {formatDuration(appointmentType.duration_minutes, appointmentType.scheduling_buffer_minutes)}</span>
+                      <span>•</span>
+                      <span>{practitionerCount} 位治療師</span>
+                    </div>
                   </div>
-                  <div className="flex flex-wrap gap-3 text-xs text-gray-500">
-                    <span>時長: {formatDuration(appointmentType.duration_minutes, appointmentType.scheduling_buffer_minutes)}</span>
-                    <span>•</span>
-                    <span>{practitionerCount} 位治療師</span>
-                  </div>
+                  {isClinicAdmin && (
+                    <button
+                      disabled={disabled}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDelete(appointmentType);
+                      }}
+                      className="p-2 text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50"
+                    >
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  )}
                 </div>
               </div>
-              </div>
-              
+
               {/* Drop indicator line below */}
               {dropIndicator?.itemId === appointmentType.id && dropIndicator.position === 'below' && (
                 <div className="h-1.5 bg-blue-600 shadow-md shadow-blue-500/30 mx-2 my-1 rounded-full" />
@@ -347,6 +364,11 @@ export const ServiceItemsTable: React.FC<ServiceItemsTableProps> = ({
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
               治療師
             </th>
+            {isClinicAdmin && (
+              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                操作
+              </th>
+            )}
           </tr>
         </thead>
         <tbody className="bg-white divide-y divide-gray-200">
@@ -359,15 +381,15 @@ export const ServiceItemsTable: React.FC<ServiceItemsTableProps> = ({
                 {/* Drop indicator line above */}
                 {dropIndicator?.itemId === appointmentType.id && dropIndicator.position === 'above' && (
                   <tr>
-                    <td colSpan={4} className="px-0 py-0">
+                    <td colSpan={isClinicAdmin ? 5 : 4} className="px-0 py-0">
                       <div className="h-1.5 bg-blue-600 shadow-md shadow-blue-500/30 w-full" />
                     </td>
                   </tr>
                 )}
-                
+
                 <tr
                   data-item-id={appointmentType.id}
-                  draggable={isClinicAdmin && !isMobile}
+                  draggable={isClinicAdmin && !isMobile && !disabled}
                   onDragStart={isClinicAdmin && !isMobile && onDragStart ? (e) => onDragStart(e, appointmentType.id) : undefined}
                   onDragOver={isClinicAdmin && !isMobile ? (e) => handleDragOver(e, appointmentType.id) : undefined}
                   onDrop={isClinicAdmin && !isMobile && onDrop ? (e) => {
@@ -379,67 +401,80 @@ export const ServiceItemsTable: React.FC<ServiceItemsTableProps> = ({
                     setDropIndicator(null);
                     if (onDragEnd) onDragEnd();
                   } : undefined}
-                  onClick={isClinicAdmin ? () => onEdit(appointmentType) : undefined}
-                  className={`hover:bg-gray-50 transition-colors transition-transform ${
-                    draggedItemId === appointmentType.id ? 'opacity-30' : ''
-                  } ${isClinicAdmin && !isMobile ? 'cursor-move' : ''}`}
+                  onClick={isClinicAdmin && !disabled ? () => onEdit(appointmentType) : undefined}
+                  className={`hover:bg-gray-50 transition-colors transition-transform ${draggedItemId === appointmentType.id ? 'opacity-30' : ''
+                    } ${isClinicAdmin && !isMobile ? 'cursor-move' : ''}`}
                   style={
                     isMobile && draggedItemId === appointmentType.id && dragOffset
                       ? { transform: `translateY(${dragOffset.y}px)`, zIndex: 1000, position: 'relative' as const }
                       : undefined
                   }
                 >
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="flex items-center gap-2">
-                    {isClinicAdmin && (
-                      <div className="w-6 flex-shrink-0 flex items-center">
-                        <div
-                          className="text-gray-400 touch-none select-none"
-                          onTouchStart={isMobile ? (e) => handleTouchStart(e, appointmentType.id) : undefined}
-                          style={{ touchAction: 'none' }}
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
-                          </svg>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="flex items-center gap-2">
+                      {isClinicAdmin && (
+                        <div className="w-6 flex-shrink-0 flex items-center">
+                          <div
+                            className="text-gray-400 touch-none select-none"
+                            onTouchStart={isMobile && !disabled ? (e) => handleTouchStart(e, appointmentType.id) : undefined}
+                            style={{ touchAction: 'none' }}
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
+                            </svg>
+                          </div>
                         </div>
-                      </div>
-                    )}
-                    <span className="text-sm font-medium text-gray-900">
-                      {appointmentType.name || '未命名服務項目'}
-                    </span>
-                    {appointmentType.allow_patient_booking === false && (
-                      <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
-                        不開放預約
+                      )}
+                      <span className="text-sm font-medium text-gray-900">
+                        {appointmentType.name || '未命名服務項目'}
                       </span>
-                    )}
-                  </div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  {appointmentType.service_type_group_id ? (
-                    <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">
-                      {groupName}
-                    </span>
-                  ) : (
-                    <span className="text-sm text-gray-500">未分類</span>
-                  )}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {formatDuration(appointmentType.duration_minutes, appointmentType.scheduling_buffer_minutes)}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {practitionerCount} 位
-                </td>
-              </tr>
-              
-              {/* Drop indicator line below */}
-              {dropIndicator?.itemId === appointmentType.id && dropIndicator.position === 'below' && (
-                <tr>
-                  <td colSpan={4} className="px-0 py-0">
-                    <div className="h-1.5 bg-blue-600 shadow-md shadow-blue-500/30 w-full" />
+                      {appointmentType.allow_patient_booking === false && (
+                        <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
+                          不開放預約
+                        </span>
+                      )}
+                    </div>
                   </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    {appointmentType.service_type_group_id ? (
+                      <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">
+                        {groupName}
+                      </span>
+                    ) : (
+                      <span className="text-sm text-gray-500">未分類</span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {formatDuration(appointmentType.duration_minutes, appointmentType.scheduling_buffer_minutes)}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {practitionerCount} 位
+                  </td>
+                  {isClinicAdmin && (
+                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                      <button
+                        disabled={disabled}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (onDelete) onDelete(appointmentType);
+                        }}
+                        className="text-red-600 hover:text-red-900 px-3 py-1 rounded-md hover:bg-red-50 transition-colors disabled:opacity-50"
+                      >
+                        刪除
+                      </button>
+                    </td>
+                  )}
                 </tr>
-              )}
-            </React.Fragment>
+
+                {/* Drop indicator line below */}
+                {dropIndicator?.itemId === appointmentType.id && dropIndicator.position === 'below' && (
+                  <tr>
+                    <td colSpan={isClinicAdmin ? 5 : 4} className="px-0 py-0">
+                      <div className="h-1.5 bg-blue-600 shadow-md shadow-blue-500/30 w-full" />
+                    </td>
+                  </tr>
+                )}
+              </React.Fragment>
             );
           })}
         </tbody>

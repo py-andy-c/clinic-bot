@@ -17,6 +17,7 @@ export const Z_INDEX = {
   DIALOG: 10000, // Higher than MODAL to appear above modals (e.g., confirmation dialogs)
   DROPDOWN: 50,
   TOOLTIP: 50,
+  STICKY_FOOTER: 40,
 } as const;
 
 /**

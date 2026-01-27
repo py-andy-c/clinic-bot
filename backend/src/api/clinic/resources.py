@@ -104,6 +104,25 @@ class ResourceRequirementListResponse(BaseModel):
     requirements: List[ResourceRequirementResponse]
 
 
+class ResourceBundleData(BaseModel):
+    """Data model for resource in a bundle."""
+    id: Optional[int] = None
+    name: str = Field(..., min_length=1, max_length=255)
+    description: Optional[str] = None
+
+
+class ResourceTypeBundleRequest(BaseModel):
+    """Request model for resource type bundle."""
+    name: str = Field(..., min_length=1, max_length=255)
+    resources: List[ResourceBundleData] = []
+
+
+class ResourceTypeBundleResponse(BaseModel):
+    """Response model for resource type bundle."""
+    resource_type: ResourceTypeResponse
+    resources: List[ResourceResponse]
+
+
 # ===== API Endpoints =====
 
 @router.get("/resource-types", summary="List all resource types for clinic")
@@ -842,3 +861,211 @@ async def delete_resource_requirement(
             detail="無法刪除資源需求"
         )
 
+@router.get("/resource-types/{resource_type_id}/bundle", summary="Get resource type bundle")
+async def get_resource_type_bundle(
+    resource_type_id: int,
+    current_user: UserContext = Depends(require_authenticated),
+    db: Session = Depends(get_db)
+) -> ResourceTypeBundleResponse:
+    """Get a resource type and all its resources."""
+    try:
+        clinic_id = ensure_clinic_access(current_user)
+        
+        # Get resource type
+        resource_type = db.query(ResourceType).filter(
+            ResourceType.id == resource_type_id,
+            ResourceType.clinic_id == clinic_id
+        ).first()
+        
+        if not resource_type:
+            raise HTTPException(
+                status_code=http_status.HTTP_404_NOT_FOUND,
+                detail="資源類型不存在"
+            )
+            
+        # Get resources
+        resources = db.query(Resource).filter(
+            Resource.resource_type_id == resource_type_id,
+            Resource.clinic_id == clinic_id,
+            Resource.is_deleted == False
+        ).order_by(Resource.name).all()
+        
+        return ResourceTypeBundleResponse(
+            resource_type=ResourceTypeResponse(
+                id=resource_type.id,
+                clinic_id=resource_type.clinic_id,
+                name=resource_type.name,
+                created_at=resource_type.created_at,
+                updated_at=resource_type.updated_at
+            ),
+            resources=[
+                ResourceResponse(
+                    id=r.id,
+                    resource_type_id=r.resource_type_id,
+                    clinic_id=r.clinic_id,
+                    name=r.name,
+                    description=r.description,
+                    is_deleted=r.is_deleted,
+                    created_at=r.created_at,
+                    updated_at=r.updated_at
+                )
+                for r in resources
+            ]
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Failed to get resource type bundle: {e}")
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="無法取得資源類型細節"
+        )
+
+
+def _sync_resource_type_resources(
+    db: Session,
+    clinic_id: int,
+    resource_type_id: int,
+    resources_data: List[ResourceBundleData]
+) -> None:
+    """
+    Sync all resources for a resource type in a single transaction.
+    Uses diff-based sync (Soft Delete missing).
+    """
+    incoming_ids = {r.id for r in resources_data if r.id}
+    
+    # 1. Soft delete missing resources
+
+    q = db.query(Resource).filter(
+        Resource.resource_type_id == resource_type_id,
+        Resource.clinic_id == clinic_id,
+        Resource.is_deleted == False
+    )
+    if incoming_ids:
+        q = q.filter(Resource.id.not_in(incoming_ids))
+        
+    q.update({"is_deleted": True}, synchronize_session='fetch')
+    
+    # 2. Update or create resources
+    for r_data in resources_data:
+        if r_data.id:
+            resource = db.query(Resource).filter(
+                Resource.id == r_data.id,
+                Resource.resource_type_id == resource_type_id,
+                Resource.clinic_id == clinic_id
+            ).first()
+            if resource:
+                resource.name = r_data.name
+                resource.description = r_data.description
+                resource.is_deleted = False # Ensure reactivated if it was soft-deleted
+        else:
+            resource = Resource(
+                resource_type_id=resource_type_id,
+                clinic_id=clinic_id,
+                name=r_data.name,
+                description=r_data.description
+            )
+            db.add(resource)
+
+
+@router.post("/resource-types/bundle", summary="Create resource type bundle")
+async def create_resource_type_bundle(
+    request: ResourceTypeBundleRequest,
+    current_user: UserContext = Depends(require_admin_role),
+    db: Session = Depends(get_db)
+) -> ResourceTypeBundleResponse:
+    """Create a new resource type and its resources in one transaction."""
+    try:
+        clinic_id = ensure_clinic_access(current_user)
+        
+        # Start transaction
+        with db.begin():
+            # Check if resource type with same name already exists
+            existing = db.query(ResourceType).filter(
+                ResourceType.clinic_id == clinic_id,
+                ResourceType.name == request.name
+            ).first() # creation doesn't need for_update as much but inside transaction is better
+            
+            if existing:
+                raise HTTPException(
+                    status_code=http_status.HTTP_409_CONFLICT,
+                    detail="資源類型名稱已存在"
+                )
+
+            # 1. Create Resource Type
+            resource_type = ResourceType(
+                clinic_id=clinic_id,
+                name=request.name
+            )
+            db.add(resource_type)
+            db.flush()
+            
+            # 2. Sync Resources
+            _sync_resource_type_resources(db, clinic_id, resource_type.id, request.resources)
+
+        return await get_resource_type_bundle(resource_type.id, current_user, db)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Failed to create resource type bundle: {e}")
+        db.rollback()
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="無法建立資源類型"
+        )
+
+
+@router.put("/resource-types/{resource_type_id}/bundle", summary="Update resource type bundle")
+async def update_resource_type_bundle(
+    resource_type_id: int,
+    request: ResourceTypeBundleRequest,
+    current_user: UserContext = Depends(require_admin_role),
+    db: Session = Depends(get_db)
+) -> ResourceTypeBundleResponse:
+    """Update an existing resource type and its resources in one transaction."""
+    try:
+        clinic_id = ensure_clinic_access(current_user)
+        
+        with db.begin():
+            resource_type = db.query(ResourceType).filter(
+                ResourceType.id == resource_type_id,
+                ResourceType.clinic_id == clinic_id
+            ).with_for_update().first()
+            
+            if not resource_type:
+                raise HTTPException(
+                    status_code=http_status.HTTP_404_NOT_FOUND,
+                    detail="資源類型不存在"
+                )
+                
+            # Check name conflict
+            existing = db.query(ResourceType).filter(
+                ResourceType.clinic_id == clinic_id,
+                ResourceType.name == request.name,
+                ResourceType.id != resource_type_id
+            ).first()
+            
+            if existing:
+                raise HTTPException(
+                    status_code=http_status.HTTP_409_CONFLICT,
+                    detail="資源類型名稱已存在"
+                )
+                
+            # 1. Update Resource Type
+            resource_type.name = request.name
+            
+            # 2. Sync Resources
+            _sync_resource_type_resources(db, clinic_id, resource_type.id, request.resources)
+            
+        return await get_resource_type_bundle(resource_type_id, current_user, db)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Failed to update resource type bundle: {e}")
+        db.rollback()
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="無法更新資源類型"
+        )

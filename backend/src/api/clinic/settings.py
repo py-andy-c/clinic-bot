@@ -11,13 +11,24 @@ from typing import Dict, List, Optional, Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi import status as http_status
-from pydantic import BaseModel, model_validator, field_validator
+from pydantic import BaseModel, model_validator, field_validator, Field
+from decimal import Decimal
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, delete, or_
 
 from core.database import get_db
 from auth.dependencies import require_admin_role, require_authenticated, UserContext, ensure_clinic_access
-from models import Clinic, AppointmentType, UserClinicAssociation
+from models import (
+    Clinic,
+    AppointmentType,
+    UserClinicAssociation,
+    PractitionerAppointmentTypes,
+    BillingScenario,
+    AppointmentResourceRequirement,
+    FollowUpMessage,
+    ResourceType,
+    Resource
+)
 from services import AppointmentTypeService
 from services.availability_service import AvailabilityService
 from utils.datetime_utils import taiwan_now
@@ -325,6 +336,68 @@ class ReceiptSettings(BaseModel):
     """Receipt settings for clinic."""
     custom_notes: Optional[str] = None
     show_stamp: bool = False
+
+
+class BillingScenarioBundleData(BaseModel):
+    id: Optional[int] = None
+    practitioner_id: int
+    name: str
+    amount: Decimal
+    revenue_share: Decimal
+    is_default: bool = False
+
+
+class ResourceRequirementBundleData(BaseModel):
+    resource_type_id: int
+    resource_type_name: Optional[str] = None
+    quantity: int
+
+
+class FollowUpMessageBundleData(BaseModel):
+    id: Optional[int] = None
+    timing_mode: str
+    hours_after: Optional[int] = None
+    message_template: str
+
+
+class ServiceItemBundleAssociations(BaseModel):
+    practitioner_ids: List[int] = []
+    billing_scenarios: List[BillingScenarioBundleData] = []
+    resource_requirements: List[ResourceRequirementBundleData] = []
+    follow_up_messages: List[FollowUpMessageBundleData] = []
+
+
+class ServiceItemData(BaseModel):
+    name: str = Field(..., min_length=1, max_length=255)
+    duration_minutes: int = Field(..., ge=1)
+    receipt_name: Optional[str] = None
+    allow_patient_booking: bool = True
+    allow_new_patient_booking: bool = True
+    allow_existing_patient_booking: bool = True
+    allow_patient_practitioner_selection: bool = True
+    allow_multiple_time_slot_selection: bool = False
+    description: Optional[str] = None
+    scheduling_buffer_minutes: int = 0
+    service_type_group_id: Optional[int] = None
+    display_order: int = 0
+    send_patient_confirmation: bool = True
+    send_clinic_confirmation: bool = True
+    send_reminder: bool = True
+    patient_confirmation_message: Optional[str] = None
+    clinic_confirmation_message: Optional[str] = None
+    reminder_message: Optional[str] = None
+    require_notes: bool = False
+    notes_instructions: Optional[str] = None
+
+
+class ServiceItemBundleRequest(BaseModel):
+    item: ServiceItemData
+    associations: ServiceItemBundleAssociations
+
+
+class ServiceItemBundleResponse(BaseModel):
+    item: AppointmentTypeResponse
+    associations: ServiceItemBundleAssociations
 
 
 class SettingsResponse(BaseModel):
@@ -677,102 +750,132 @@ async def update_settings(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=error_response.model_dump()
             )
+        # Get clinic object
+        clinic = db.query(Clinic).filter(Clinic.id == clinic_id).first()
+        if not clinic:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="診所不存在"
+            )
+
+        # Update flat settings sections if present (Partial Update Pattern)
+        # We merge incoming data into the existing settings dictionary
+        current_settings = dict(clinic.settings)
+        settings_sections = [
+            "clinic_info_settings", 
+            "notification_settings", 
+            "booking_restriction_settings", 
+            "chat_settings",
+            "receipt_settings"
+        ]
+        
+        settings_changed = False
+        for section in settings_sections:
+            if section in settings:
+                # Update the section in the current settings
+                # Note: We do a simple override of the section for atomic consistency
+                current_settings[section] = settings[section]
+                settings_changed = True
+        
+        if settings_changed:
+            clinic.settings = current_settings
+            db.flush()
 
         # Process appointment types: update existing, create new, soft delete removed ones
-        # Track which (name, duration) combinations we've processed
-        processed_combinations: set[tuple[str, int]] = set()
+        # Only process if appointment_types is explicitly provided in the request
+        if "appointment_types" in settings:
+            # Track which (name, duration) combinations we've processed
+            processed_combinations: set[tuple[str, int]] = set()
+            
+            # Helper function to update message customization fields
+            def update_message_fields(appointment_type: AppointmentType, incoming_data: Dict[str, Any]) -> None:
+                """Update message customization fields from incoming data if provided."""
+                if "send_patient_confirmation" in incoming_data:
+                    appointment_type.send_patient_confirmation = incoming_data.get("send_patient_confirmation", True)
+                if "send_clinic_confirmation" in incoming_data:
+                    appointment_type.send_clinic_confirmation = incoming_data.get("send_clinic_confirmation", True)
+                if "send_reminder" in incoming_data:
+                    appointment_type.send_reminder = incoming_data.get("send_reminder", True)
+                if "patient_confirmation_message" in incoming_data:
+                    message = incoming_data.get("patient_confirmation_message")
+                    if message is not None:
+                        appointment_type.patient_confirmation_message = str(message)
+                if "clinic_confirmation_message" in incoming_data:
+                    message = incoming_data.get("clinic_confirmation_message")
+                    if message is not None:
+                        appointment_type.clinic_confirmation_message = str(message)
+                if "reminder_message" in incoming_data:
+                    message = incoming_data.get("reminder_message")
+                    if message is not None:
+                        appointment_type.reminder_message = str(message)
+            
+            # First, update existing types that are matched by ID
+            for existing_type in existing_appointment_types:
+                if existing_type.id in types_being_updated:
+                    # Update the existing type with new name/duration and billing fields
+                    incoming_data = types_being_updated[existing_type.id]
+                    new_name = incoming_data.get("name")
+                    new_duration = incoming_data.get("duration_minutes")
+                    if new_name is not None and new_duration is not None:
+                        existing_type.name = new_name
+                        existing_type.duration_minutes = new_duration
+                    # Update receipt name and call helper function for other fields
+                    if "receipt_name" in incoming_data:
+                        existing_type.receipt_name = incoming_data.get("receipt_name")
+                    _process_existing_appointment_type_update(existing_type, incoming_data)
+                    processed_combinations.add((existing_type.name, existing_type.duration_minutes))
+                elif existing_type.id in incoming_by_id:
+                    # Type is being kept, but may have billing field updates
+                    incoming_data = incoming_by_id[existing_type.id]
+                    # Update receipt name and call helper function for other fields
+                    if "receipt_name" in incoming_data:
+                        existing_type.receipt_name = incoming_data.get("receipt_name")
+                    _process_existing_appointment_type_update(existing_type, incoming_data)
+                    processed_combinations.add((existing_type.name, existing_type.duration_minutes))
+                elif (existing_type.name, existing_type.duration_minutes) in incoming_by_name_duration:
+                    # Type is being kept (matched by name+duration, no ID in incoming)
+                    incoming_data = incoming_by_name_duration[(existing_type.name, existing_type.duration_minutes)]
+                    # Update grouping and ordering if provided
+                    if "service_type_group_id" in incoming_data:
+                        existing_type.service_type_group_id = incoming_data.get("service_type_group_id")
+                    if "display_order" in incoming_data:
+                        existing_type.display_order = incoming_data.get("display_order", 0)
+                    # Update notes customization fields
+                    _update_notes_fields(existing_type, incoming_data)
+                    # Update message customization fields if provided
+                    update_message_fields(existing_type, incoming_data)
+                    if existing_type.is_deleted:
+                        existing_type.is_deleted = False
+                        existing_type.deleted_at = None
+                    processed_combinations.add((existing_type.name, existing_type.duration_minutes))
+                elif existing_type in types_to_delete:
+                    # Type is being deleted - already checked for practitioners above
+                    # Soft delete it
+                    if not existing_type.is_deleted:
+                        existing_type.is_deleted = True
+                        existing_type.deleted_at = taiwan_now()
+
+            # Create new appointment types (ones not matched to existing types)
+            max_order = db.query(func.max(AppointmentType.display_order)).filter(
+                AppointmentType.clinic_id == clinic_id
+            ).scalar()
+            default_display_order = (max_order + 1) if max_order is not None else 0
+
+            for at_data in appointment_types_data:
+                if not at_data.get("name") or not at_data.get("duration_minutes"):
+                    continue
+
+                name = at_data.get("name")
+                duration = at_data.get("duration_minutes")
+                key = (name, duration)
+
+                if key in processed_combinations:
+                    continue
+
+                appointment_type = _create_new_appointment_type(db, clinic_id, at_data, default_display_order)
+                if appointment_type:
+                    processed_combinations.add(key)
         
-        # Helper function to update message customization fields
-        def update_message_fields(appointment_type: AppointmentType, incoming_data: Dict[str, Any]) -> None:
-            """Update message customization fields from incoming data if provided."""
-            if "send_patient_confirmation" in incoming_data:
-                appointment_type.send_patient_confirmation = incoming_data.get("send_patient_confirmation", True)
-            if "send_clinic_confirmation" in incoming_data:
-                appointment_type.send_clinic_confirmation = incoming_data.get("send_clinic_confirmation", True)
-            if "send_reminder" in incoming_data:
-                appointment_type.send_reminder = incoming_data.get("send_reminder", True)
-            if "patient_confirmation_message" in incoming_data:
-                message = incoming_data.get("patient_confirmation_message")
-                if message is not None:
-                    appointment_type.patient_confirmation_message = str(message)
-            if "clinic_confirmation_message" in incoming_data:
-                message = incoming_data.get("clinic_confirmation_message")
-                if message is not None:
-                    appointment_type.clinic_confirmation_message = str(message)
-            if "reminder_message" in incoming_data:
-                message = incoming_data.get("reminder_message")
-                if message is not None:
-                    appointment_type.reminder_message = str(message)
-        
-        # First, update existing types that are matched by ID
-        for existing_type in existing_appointment_types:
-            if existing_type.id in types_being_updated:
-                # Update the existing type with new name/duration and billing fields
-                incoming_data = types_being_updated[existing_type.id]
-                new_name = incoming_data.get("name")
-                new_duration = incoming_data.get("duration_minutes")
-                if new_name is not None and new_duration is not None:
-                    existing_type.name = new_name
-                    existing_type.duration_minutes = new_duration
-                # Update receipt name and call helper function for other fields
-                if "receipt_name" in incoming_data:
-                    existing_type.receipt_name = incoming_data.get("receipt_name")
-                _process_existing_appointment_type_update(existing_type, incoming_data)
-                processed_combinations.add((existing_type.name, existing_type.duration_minutes))
-            elif existing_type.id in incoming_by_id:
-                # Type is being kept, but may have billing field updates
-                incoming_data = incoming_by_id[existing_type.id]
-                # Update receipt name and call helper function for other fields
-                if "receipt_name" in incoming_data:
-                    existing_type.receipt_name = incoming_data.get("receipt_name")
-                _process_existing_appointment_type_update(existing_type, incoming_data)
-                processed_combinations.add((existing_type.name, existing_type.duration_minutes))
-            elif (existing_type.name, existing_type.duration_minutes) in incoming_by_name_duration:
-                # Type is being kept (matched by name+duration, no ID in incoming)
-                incoming_data = incoming_by_name_duration[(existing_type.name, existing_type.duration_minutes)]
-                # Update grouping and ordering if provided
-                if "service_type_group_id" in incoming_data:
-                    existing_type.service_type_group_id = incoming_data.get("service_type_group_id")
-                if "display_order" in incoming_data:
-                    existing_type.display_order = incoming_data.get("display_order", 0)
-                # Update notes customization fields
-                _update_notes_fields(existing_type, incoming_data)
-                # Update message customization fields if provided
-                update_message_fields(existing_type, incoming_data)
-                if existing_type.is_deleted:
-                    existing_type.is_deleted = False
-                    existing_type.deleted_at = None
-                processed_combinations.add((existing_type.name, existing_type.duration_minutes))
-            elif existing_type in types_to_delete:
-                # Type is being deleted - already checked for practitioners above
-                # Soft delete it
-                if not existing_type.is_deleted:
-                    existing_type.is_deleted = True
-                    existing_type.deleted_at = taiwan_now()
-
-        # Create new appointment types (ones not matched to existing types)
-        # Get max display_order for new items first
-        max_order = db.query(func.max(AppointmentType.display_order)).filter(
-            AppointmentType.clinic_id == clinic_id
-        ).scalar()
-        default_display_order = (max_order + 1) if max_order is not None else 0
-
-        for at_data in appointment_types_data:
-            if not at_data.get("name") or not at_data.get("duration_minutes"):
-                continue
-
-            name = at_data.get("name")
-            duration = at_data.get("duration_minutes")
-            key = (name, duration)
-
-            # Skip if we've already processed this combination
-            if key in processed_combinations:
-                continue
-
-            # Use helper function to create or update appointment type
-            appointment_type = _create_new_appointment_type(db, clinic_id, at_data, default_display_order)
-            if appointment_type:
-                processed_combinations.add(key)
         db.commit()
 
         return {"message": "設定更新成功"}
@@ -783,8 +886,399 @@ async def update_settings(
         logger.exception(f"Error updating clinic settings: {e}")
         db.rollback()
         raise HTTPException(
-            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+        status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法更新設定"
+        )
+
+
+@router.get("/service-items/{id}/bundle", summary="Get service item bundle")
+async def get_service_item_bundle(
+    id: int,
+    current_user: UserContext = Depends(require_authenticated),
+    db: Session = Depends(get_db)
+) -> ServiceItemBundleResponse:
+    """Get service item and all its associations."""
+    try:
+        clinic_id = ensure_clinic_access(current_user)
+        
+        # Get appointment type
+        at = db.query(AppointmentType).filter(
+            AppointmentType.id == id,
+            AppointmentType.clinic_id == clinic_id
+        ).first()
+        
+        if not at:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="服務項目不存在"
+            )
+            
+        # Get practitioner IDs
+        practitioner_ids: List[int] = [
+            pat.user_id 
+            for pat in db.query(PractitionerAppointmentTypes).filter(
+                PractitionerAppointmentTypes.appointment_type_id == id,
+                PractitionerAppointmentTypes.is_deleted == False
+            ).all()
+        ]
+        
+        # Get billing scenarios
+        billing_scenarios: List[BillingScenarioBundleData] = [
+            BillingScenarioBundleData(
+                id=bs.id,
+                practitioner_id=bs.practitioner_id,
+                name=bs.name,
+                amount=bs.amount,
+                revenue_share=bs.revenue_share,
+                is_default=bs.is_default
+            )
+            for bs in db.query(BillingScenario).filter(
+                BillingScenario.appointment_type_id == id,
+                BillingScenario.is_deleted == False
+            ).all()
+        ]
+        
+        # Get resource requirements
+        resource_requirements: List[ResourceRequirementBundleData] = []
+        
+        # Use simple join to get resource type name
+        rr_query = db.query(AppointmentResourceRequirement, ResourceType).join(
+            ResourceType, 
+            AppointmentResourceRequirement.resource_type_id == ResourceType.id
+        ).filter(
+            AppointmentResourceRequirement.appointment_type_id == id
+        ).all()
+        
+        for rr, rt in rr_query:
+            resource_requirements.append(ResourceRequirementBundleData(
+                resource_type_id=rr.resource_type_id,
+                resource_type_name=rt.name,
+                quantity=rr.quantity
+            ))
+        
+        # Get follow-up messages
+        follow_up_messages: List[FollowUpMessageBundleData] = [
+            FollowUpMessageBundleData(
+                id=fm.id,
+                timing_mode=fm.timing_mode,
+                hours_after=fm.hours_after or 0,
+                message_template=fm.message_template
+            )
+            for fm in db.query(FollowUpMessage).filter(
+                FollowUpMessage.appointment_type_id == id
+            ).all()
+        ]
+        
+        return ServiceItemBundleResponse(
+            item=AppointmentTypeResponse(
+                id=at.id,
+                clinic_id=at.clinic_id,
+                name=at.name,
+                duration_minutes=at.duration_minutes,
+                receipt_name=at.receipt_name,
+                allow_patient_booking=at.allow_patient_booking,
+                allow_new_patient_booking=at.allow_new_patient_booking,
+                allow_existing_patient_booking=at.allow_existing_patient_booking,
+                allow_patient_practitioner_selection=at.allow_patient_practitioner_selection,
+                allow_multiple_time_slot_selection=at.allow_multiple_time_slot_selection,
+                description=at.description,
+                scheduling_buffer_minutes=at.scheduling_buffer_minutes,
+                service_type_group_id=at.service_type_group_id,
+                display_order=at.display_order,
+                send_patient_confirmation=at.send_patient_confirmation,
+                send_clinic_confirmation=at.send_clinic_confirmation,
+                send_reminder=at.send_reminder,
+                patient_confirmation_message=at.patient_confirmation_message,
+                clinic_confirmation_message=at.clinic_confirmation_message,
+                reminder_message=at.reminder_message,
+                require_notes=at.require_notes,
+                notes_instructions=at.notes_instructions
+            ),
+            associations=ServiceItemBundleAssociations(
+                practitioner_ids=practitioner_ids,
+                billing_scenarios=billing_scenarios,
+                resource_requirements=resource_requirements,
+                follow_up_messages=follow_up_messages
+            )
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Error getting service item bundle: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="無法取得服務項目細節"
+        )
+
+
+def _sync_service_item_associations(
+    db: Session,
+    clinic_id: int,
+    appointment_type_id: int,
+    associations: ServiceItemBundleAssociations
+) -> None:
+    """
+    Sync all associations for a service item in a single transaction.
+    Uses Hard Sync (Replace-All) for practitioners and diff-based sync for others.
+    """
+    # 1. Practitioner Appointment Types (Hard Sync)
+    # Deactivate all current practitioner associations for this item
+    db.query(PractitionerAppointmentTypes).filter(
+        PractitionerAppointmentTypes.appointment_type_id == appointment_type_id,
+        PractitionerAppointmentTypes.is_deleted == False
+    ).update({"is_deleted": True, "deleted_at": taiwan_now()}, synchronize_session='fetch')
+    
+    # Reactivate or create new ones
+    for p_id in associations.practitioner_ids:
+        pat = db.query(PractitionerAppointmentTypes).filter(
+            PractitionerAppointmentTypes.appointment_type_id == appointment_type_id,
+            PractitionerAppointmentTypes.user_id == p_id
+        ).first()
+        
+        if pat:
+            pat.is_deleted = False
+            pat.deleted_at = None
+        else:
+            pat = PractitionerAppointmentTypes(
+                user_id=p_id,
+                appointment_type_id=appointment_type_id,
+                clinic_id=clinic_id,
+                is_deleted=False
+            )
+            db.add(pat)
+
+    # 2. Billing Scenarios (Diff Sync)
+    incoming_bs_ids = {bs.id for bs in associations.billing_scenarios if bs.id}
+    # Soft delete missing scenarios
+    q = db.query(BillingScenario).filter(
+        BillingScenario.appointment_type_id == appointment_type_id,
+        BillingScenario.is_deleted == False
+    )
+    p_ids = set(associations.practitioner_ids)
+    if incoming_bs_ids:
+        q.filter(
+            or_(
+                BillingScenario.id.not_in(incoming_bs_ids),
+                BillingScenario.practitioner_id.not_in(p_ids)
+            )
+        ).update({
+            "is_deleted": True, 
+            "deleted_at": taiwan_now(),
+            "is_default": False # Defaults should be cleaned up
+        }, synchronize_session='fetch')
+    else:
+        q.update({
+            "is_deleted": True, 
+            "deleted_at": taiwan_now(),
+            "is_default": False # Defaults should be cleaned up
+        }, synchronize_session='fetch')
+    
+    # Update or create scenarios
+    for bs_data in associations.billing_scenarios:
+        if bs_data.id:
+            bs = db.query(BillingScenario).filter(
+                BillingScenario.id == bs_data.id,
+                BillingScenario.appointment_type_id == appointment_type_id
+            ).first()
+            if bs:
+                bs.practitioner_id = bs_data.practitioner_id
+                bs.name = bs_data.name
+                bs.amount = bs_data.amount
+                bs.revenue_share = bs_data.revenue_share
+                bs.is_default = bs_data.is_default
+                bs.is_deleted = False
+                bs.deleted_at = None
+        else:
+            bs = BillingScenario(
+                clinic_id=clinic_id,
+                appointment_type_id=appointment_type_id,
+                practitioner_id=bs_data.practitioner_id,
+                name=bs_data.name,
+                amount=bs_data.amount,
+                revenue_share=bs_data.revenue_share,
+                is_default=bs_data.is_default,
+                created_at=taiwan_now(),
+                updated_at=taiwan_now()
+            )
+            db.add(bs)
+
+    # 3. Resource Requirements (Replace-All Sync)
+    db.query(AppointmentResourceRequirement).filter(
+        AppointmentResourceRequirement.appointment_type_id == appointment_type_id
+    ).delete(synchronize_session='fetch')
+    
+    for rr_data in associations.resource_requirements:
+        rr = AppointmentResourceRequirement(
+            appointment_type_id=appointment_type_id,
+            resource_type_id=rr_data.resource_type_id,
+            quantity=rr_data.quantity
+        )
+        db.add(rr)
+
+    # 4. Follow-up Messages (Diff Sync)
+    incoming_fm_ids = {fm.id for fm in associations.follow_up_messages if fm.id}
+    q_fm = db.query(FollowUpMessage).filter(
+        FollowUpMessage.appointment_type_id == appointment_type_id
+    )
+    if incoming_fm_ids:
+        q_fm = q_fm.filter(FollowUpMessage.id.not_in(incoming_fm_ids))
+        
+    q_fm.delete(synchronize_session='fetch')
+    
+    for fm_data in associations.follow_up_messages:
+        if fm_data.id:
+            fm = db.query(FollowUpMessage).filter(
+                FollowUpMessage.id == fm_data.id,
+                FollowUpMessage.appointment_type_id == appointment_type_id
+            ).first()
+            if fm:
+                fm.timing_mode = fm_data.timing_mode
+                fm.hours_after = fm_data.hours_after
+                fm.message_template = fm_data.message_template
+        else:
+            fm = FollowUpMessage(
+                clinic_id=clinic_id,
+                appointment_type_id=appointment_type_id,
+                timing_mode=fm_data.timing_mode,
+                hours_after=fm_data.hours_after,
+                message_template=fm_data.message_template
+            )
+            db.add(fm)
+
+
+@router.post("/service-items/bundle", summary="Create service item bundle")
+async def create_service_item_bundle(
+    request: ServiceItemBundleRequest,
+    current_user: UserContext = Depends(require_admin_role),
+    db: Session = Depends(get_db)
+) -> ServiceItemBundleResponse:
+    """Create a new service item and all its associations in one transaction."""
+    try:
+        clinic_id = ensure_clinic_access(current_user)
+        
+        # Use simple variable to store ID for retrieval after commit
+        new_item_id = None
+        
+        # Start transaction
+        with db.begin():
+            # 0. Check for name uniqueness with pessimistic lock
+            existing = db.query(AppointmentType).filter(
+                AppointmentType.clinic_id == clinic_id,
+                AppointmentType.name == request.item.name,
+                AppointmentType.is_deleted == False
+            ).with_for_update().first()
+            if existing:
+                raise HTTPException(status_code=400, detail="服務項目名稱已重疊")
+
+            # 1. Create Appointment Type
+            # Get max order
+            max_order = db.query(func.max(AppointmentType.display_order)).filter(
+                AppointmentType.clinic_id == clinic_id
+            ).scalar()
+            display_order = request.item.display_order or ((max_order + 1) if max_order is not None else 0)
+            
+            at = AppointmentType(
+                clinic_id=clinic_id,
+                name=request.item.name,
+                duration_minutes=request.item.duration_minutes,
+                receipt_name=request.item.receipt_name,
+                allow_new_patient_booking=request.item.allow_new_patient_booking,
+                allow_existing_patient_booking=request.item.allow_existing_patient_booking,
+                allow_patient_practitioner_selection=request.item.allow_patient_practitioner_selection,
+                allow_multiple_time_slot_selection=request.item.allow_multiple_time_slot_selection,
+                description=request.item.description,
+                scheduling_buffer_minutes=request.item.scheduling_buffer_minutes,
+                service_type_group_id=request.item.service_type_group_id,
+                display_order=display_order,
+                send_patient_confirmation=request.item.send_patient_confirmation,
+                send_clinic_confirmation=request.item.send_clinic_confirmation,
+                send_reminder=request.item.send_reminder,
+                patient_confirmation_message=request.item.patient_confirmation_message or _DEFAULT_PATIENT_CONFIRMATION_MESSAGE,
+                clinic_confirmation_message=request.item.clinic_confirmation_message or _DEFAULT_CLINIC_CONFIRMATION_MESSAGE,
+                reminder_message=request.item.reminder_message or _DEFAULT_REMINDER_MESSAGE,
+                require_notes=request.item.require_notes,
+                notes_instructions=request.item.notes_instructions
+            )
+            db.add(at)
+            db.flush() # Get ID
+            new_item_id = at.id
+            
+            # 2. Sync Associations
+            _sync_service_item_associations(db, clinic_id, at.id, request.associations)
+        
+        # Transaction committed by context manager
+        return await get_service_item_bundle(new_item_id, current_user, db)
+        
+    except Exception as e:
+        logger.exception(f"Error creating service item bundle: {e}")
+        # db.begin() handles rollback on exception automatically
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="無法建立服務項目"
+        )
+
+
+@router.put("/service-items/{id}/bundle", summary="Update service item bundle")
+async def update_service_item_bundle(
+    id: int,
+    request: ServiceItemBundleRequest,
+    current_user: UserContext = Depends(require_admin_role),
+    db: Session = Depends(get_db)
+) -> ServiceItemBundleResponse:
+    """Update an existing service item and all its associations in one transaction."""
+    try:
+        clinic_id = ensure_clinic_access(current_user)
+        
+        # Start transaction
+        with db.begin():
+            # Get appointment type with pessimistic lock
+            at = db.query(AppointmentType).filter(
+                AppointmentType.id == id,
+                AppointmentType.clinic_id == clinic_id
+            ).with_for_update().first()
+            
+            if not at:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="服務項目不存在"
+                )
+            
+            # 1. Update Appointment Type
+            at.name = request.item.name
+            at.duration_minutes = request.item.duration_minutes
+            at.receipt_name = request.item.receipt_name
+            at.allow_patient_booking = request.item.allow_patient_booking
+            at.allow_new_patient_booking = request.item.allow_new_patient_booking
+            at.allow_existing_patient_booking = request.item.allow_existing_patient_booking
+            at.allow_patient_practitioner_selection = request.item.allow_patient_practitioner_selection
+            at.allow_multiple_time_slot_selection = request.item.allow_multiple_time_slot_selection
+            at.description = request.item.description
+            at.scheduling_buffer_minutes = request.item.scheduling_buffer_minutes
+            at.service_type_group_id = request.item.service_type_group_id
+            at.display_order = request.item.display_order
+            at.send_patient_confirmation = request.item.send_patient_confirmation
+            at.send_clinic_confirmation = request.item.send_clinic_confirmation
+            at.send_reminder = request.item.send_reminder
+            at.patient_confirmation_message = request.item.patient_confirmation_message or at.patient_confirmation_message
+            at.clinic_confirmation_message = request.item.clinic_confirmation_message or at.clinic_confirmation_message
+            at.reminder_message = request.item.reminder_message or at.reminder_message
+            at.require_notes = request.item.require_notes
+            at.notes_instructions = request.item.notes_instructions
+            
+            # 2. Sync Associations
+            _sync_service_item_associations(db, clinic_id, at.id, request.associations)
+            
+        # Transaction committed by context manager
+        return await get_service_item_bundle(at.id, current_user, db)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Error updating service item bundle: {e}")
+        # db.begin() handles rollback on exception automatically
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="無法更新服務項目"
         )
 
 

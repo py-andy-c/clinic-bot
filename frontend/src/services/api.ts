@@ -21,7 +21,11 @@ import {
   PractitionerWithDetails,
   LineUserWithStatus,
   ServiceTypeGroup,
-  Practitioner
+  Practitioner,
+  ServiceItemBundleResponse,
+  ServiceItemBundleRequest,
+  ResourceTypeBundleResponse,
+  ResourceTypeBundleRequest
 } from '../types';
 import {
   validateClinicSettings,
@@ -464,7 +468,7 @@ export class ApiService {
     return validateClinicSettings(response.data);
   }
 
-  async updateClinicSettings(settings: ClinicSettings): Promise<ClinicSettings> {
+  async updateClinicSettings(settings: Partial<ClinicSettings>): Promise<ClinicSettings> {
     const response = await this.client.put('/clinic/settings', settings);
     // Note: We don't validate the response here since it's just a success message
     return response.data;
@@ -547,6 +551,66 @@ export class ApiService {
     await this.client.delete(
       `/clinic/service-items/${serviceItemId}/practitioners/${practitionerId}/billing-scenarios/${scenarioId}`
     );
+  }
+
+  // Service Item Bundle APIs
+  async getServiceItemBundle(serviceItemId: number): Promise<ServiceItemBundleResponse> {
+    const response = await this.client.get(`/clinic/service-items/${serviceItemId}/bundle`);
+    return response.data;
+  }
+
+  async createServiceItemBundle(bundle: ServiceItemBundleRequest): Promise<ServiceItemBundleResponse> {
+    const response = await this.client.post('/clinic/service-items/bundle', bundle);
+    return response.data;
+  }
+
+  async updateServiceItemBundle(serviceItemId: number, bundle: ServiceItemBundleRequest): Promise<ServiceItemBundleResponse> {
+    const response = await this.client.put(`/clinic/service-items/${serviceItemId}/bundle`, bundle);
+    return response.data;
+  }
+
+  async deleteAppointmentType(appointmentTypeId: number): Promise<void> {
+    await this.client.delete(`/clinic/appointment-types/${appointmentTypeId}`);
+  }
+
+  // Resource Type APIs
+  async getResourceTypes(): Promise<{ resource_types: ResourceType[] }> {
+    const response = await this.client.get('/clinic/resource-types');
+    return response.data;
+  }
+
+  async createResourceType(data: { name: string }): Promise<ResourceType> {
+    const response = await this.client.post('/clinic/resource-types', data);
+    return response.data;
+  }
+
+  async updateResourceType(resourceTypeId: number, data: { name: string }): Promise<ResourceType> {
+    const response = await this.client.put(`/clinic/resource-types/${resourceTypeId}`, data);
+    return response.data;
+  }
+
+  async deleteResourceType(resourceTypeId: number): Promise<void> {
+    await this.client.delete(`/clinic/resource-types/${resourceTypeId}`);
+  }
+
+  async deleteResource(resourceId: number): Promise<void> {
+    await this.client.delete(`/clinic/resources/${resourceId}`);
+  }
+
+  // Resource Type Bundle APIs
+  async getResourceTypeBundle(resourceTypeId: number): Promise<ResourceTypeBundleResponse> {
+    const response = await this.client.get(`/clinic/resource-types/${resourceTypeId}/bundle`);
+    return response.data;
+  }
+
+  async createResourceTypeBundle(bundle: ResourceTypeBundleRequest): Promise<ResourceTypeBundleResponse> {
+    const response = await this.client.post('/clinic/resource-types/bundle', bundle);
+    return response.data;
+  }
+
+  async updateResourceTypeBundle(resourceTypeId: number, bundle: ResourceTypeBundleRequest): Promise<ResourceTypeBundleResponse> {
+    const response = await this.client.put(`/clinic/resource-types/${resourceTypeId}/bundle`, bundle);
+    return response.data;
   }
 
   // Receipt/Checkout endpoints (admin-only)
@@ -1189,27 +1253,6 @@ export class ApiService {
     return response.data;
   }
 
-  // Resource Management APIs
-  async getResourceTypes(): Promise<{ resource_types: ResourceType[] }> {
-    const response = await this.client.get('/clinic/resource-types');
-    return response.data;
-  }
-
-  async createResourceType(data: { name: string }): Promise<ResourceType> {
-    const response = await this.client.post('/clinic/resource-types', data);
-    return response.data;
-  }
-
-  async updateResourceType(resourceTypeId: number, data: { name: string }): Promise<ResourceType> {
-    const response = await this.client.put(`/clinic/resource-types/${resourceTypeId}`, data);
-    return response.data;
-  }
-
-  async deleteResourceType(resourceTypeId: number): Promise<{ success: boolean; message: string }> {
-    const response = await this.client.delete(`/clinic/resource-types/${resourceTypeId}`);
-    return response.data;
-  }
-
   async getResources(resourceTypeId: number): Promise<{ resources: Resource[] }> {
     const response = await this.client.get(`/clinic/resource-types/${resourceTypeId}/resources`);
     return response.data;
@@ -1225,10 +1268,6 @@ export class ApiService {
     return response.data;
   }
 
-  async deleteResource(resourceId: number): Promise<{ success: boolean; message: string }> {
-    const response = await this.client.delete(`/clinic/resources/${resourceId}`);
-    return response.data;
-  }
 
   async getAppointmentTypesByResourceType(resourceTypeId: number): Promise<{ appointment_types: Array<{ id: number; name: string; required_quantity: number }> }> {
     const response = await this.client.get(`/clinic/resource-types/${resourceTypeId}/appointment-types`);
@@ -1435,6 +1474,7 @@ export class ApiService {
     const response = await this.client.post('/clinic/follow-up-message-preview', data);
     return response.data;
   }
+
 }
 
 export const apiService = new ApiService();

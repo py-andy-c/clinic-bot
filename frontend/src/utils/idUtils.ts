@@ -41,3 +41,17 @@ export const isTemporaryId = (id: number): boolean => {
   return isTemporaryServiceItemId(id) || isTemporaryGroupId(id);
 };
 
+let lastTempId = Date.now();
+/**
+ * Generate a new temporary ID using a timestamp
+ */
+export const generateTemporaryId = (): number => {
+  const current = Date.now();
+  if (current <= lastTempId) {
+    lastTempId += 1;
+  } else {
+    lastTempId = current;
+  }
+  return lastTempId;
+};
+

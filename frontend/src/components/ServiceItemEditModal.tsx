@@ -1,1108 +1,614 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useForm, FormProvider } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { AppointmentType, Member, BillingScenario, ServiceTypeGroup, ResourceRequirement } from '../types';
-import { preventScrollWheelChange } from '../utils/inputUtils';
-import { formatCurrency } from '../utils/currencyUtils';
-import { isTemporaryServiceItemId } from '../utils/idUtils';
-import { useModal } from '../contexts/ModalContext';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { BaseModal } from './shared/BaseModal';
-import { InfoButton, InfoModal } from './shared';
-import { useServiceItemsStore } from '../stores/serviceItemsStore';
-import { ResourceRequirementsSection } from './ResourceRequirementsSection';
+import { apiService } from '../services/api';
+import { logger } from '../utils/logger';
+import { getErrorMessage } from '../types/api';
+import { AppointmentType, Member, ServiceTypeGroup, ResourceRequirement } from '../types';
+import { LoadingSpinner } from './shared';
+import {
+  ServiceItemBundleRequest,
+  BillingScenarioBundleData,
+  ResourceRequirementBundleData,
+  FollowUpMessageBundleData
+} from '../types';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { ServiceItemBundleSchema, ServiceItemBundleFormData } from '../schemas/api';
+import { useModal } from '../contexts/ModalContext';
+import { useServiceItemBundle } from '../hooks/queries/useServiceItemBundle';
+import {
+  DEFAULT_PATIENT_CONFIRMATION_MESSAGE,
+  DEFAULT_CLINIC_CONFIRMATION_MESSAGE,
+  DEFAULT_REMINDER_MESSAGE
+} from '../constants/messageTemplates';
 import { MessageSettingsSection } from './MessageSettingsSection';
 import { FollowUpMessagesSection } from './FollowUpMessagesSection';
-import { FormField, FormInput, FormTextarea } from './forms';
-import { WarningPopover } from './shared/WarningPopover';
+import { ResourceRequirementsSection } from './ResourceRequirementsSection';
+import { generateTemporaryId } from '../utils/idUtils';
+import { useUnsavedChangesDetection } from '../hooks/useUnsavedChangesDetection';
 
-// Schema for single appointment type
-const ServiceItemFormSchema = z.object({
-  id: z.number(),
-  clinic_id: z.number(),
-  name: z.string().min(1, '項目名稱不能為空'),
-  duration_minutes: z.coerce.number().min(15, '時長至少需 15 分鐘').max(480, '時長最多 480 分鐘'),
-  receipt_name: z.string().nullable().optional(),
-  allow_patient_booking: z.boolean().optional(), // DEPRECATED: Use allow_new_patient_booking and allow_existing_patient_booking
-  allow_new_patient_booking: z.boolean().optional(),
-  allow_existing_patient_booking: z.boolean().optional(),
-  allow_patient_practitioner_selection: z.boolean().optional(),
-  allow_multiple_time_slot_selection: z.boolean().optional(),
-  description: z.string().nullable().optional(),
-  scheduling_buffer_minutes: z.coerce.number().min(0, '排程緩衝時間不能小於 0').max(60, '排程緩衝時間不能超過 60 分鐘').optional(),
-  service_type_group_id: z.number().nullable().optional(),
-  display_order: z.number().optional(),
-  // Message customization fields (for schema completeness, but validation is done separately)
-  send_patient_confirmation: z.boolean().optional(),
-  send_clinic_confirmation: z.boolean().optional(),
-  send_reminder: z.boolean().optional(),
-  patient_confirmation_message: z.string().optional(),
-  clinic_confirmation_message: z.string().optional(),
-  reminder_message: z.string().optional(),
-  // Notes customization fields
-  require_notes: z.boolean().optional(),
-  notes_instructions: z.string().nullable().optional(),
-});
-
-type ServiceItemFormData = z.infer<typeof ServiceItemFormSchema>;
 
 interface ServiceItemEditModalProps {
-  appointmentType: AppointmentType;
+  serviceItemId: number | null; // null for new
   isOpen: boolean;
-  onClose: (wasConfirmed?: boolean) => void; // wasConfirmed: true if closed after 確認編輯, false/undefined if canceled
-  onUpdate: (updatedItem: AppointmentType) => void; // Synchronous update to staging store
-  onDelete?: (appointmentType: AppointmentType) => void; // Delete handler
+  onClose: (refetch?: boolean) => void;
   members: Member[];
   isClinicAdmin: boolean;
-  availableGroups: ServiceTypeGroup[]; // Groups from staging store (includes temporary ones)
-  practitionerAssignments: number[]; // Current assignments for this item
-  billingScenarios: Record<string, BillingScenario[]>; // All billing scenarios
-  resourceRequirements: ResourceRequirement[]; // Resource requirements for this item
-  onUpdatePractitionerAssignments: (practitionerIds: number[]) => void;
-  onUpdateBillingScenarios: (key: string, scenarios: BillingScenario[]) => void;
-  onUpdateResourceRequirements: (requirements: ResourceRequirement[]) => void;
-  updateResourceRequirements: (serviceItemId: number, requirements: ResourceRequirement[]) => void; // Direct store function
+  availableGroups: ServiceTypeGroup[];
   clinicInfoAvailability?: {
-    has_address?: boolean;
-    has_phone?: boolean;
+    has_address: boolean;
+    has_phone: boolean;
   };
 }
 
+
+
 export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
-  appointmentType,
+  serviceItemId,
   isOpen,
   onClose,
-  onUpdate,
-  onDelete,
   members,
   isClinicAdmin,
   availableGroups,
-  practitionerAssignments: currentPractitionerAssignments,
-  billingScenarios: allBillingScenarios,
-  resourceRequirements: _currentResourceRequirements,
   clinicInfoAvailability,
-  onUpdatePractitionerAssignments,
-  onUpdateBillingScenarios,
-  onUpdateResourceRequirements: _onUpdateResourceRequirements,
-  updateResourceRequirements,
 }) => {
-  const {
-    loadBillingScenarios,
-    loadingScenarios,
-    billingScenarios: mainStoreBillingScenarios,
-  } = useServiceItemsStore();
-  
-  const { confirm } = useModal();
-  
-  // Get billing scenarios for current item
-  // Priority: staging store (for newly created/edited scenarios) > main store (for loaded scenarios)
-  // This ensures newly created scenarios are visible immediately
-  const getBillingScenariosForItem = (practitionerId: number) => {
-    const key = `${appointmentType.id}-${practitionerId}`;
-    // Check staging store first (for newly created scenarios not yet saved)
-    const stagingScenarios = allBillingScenarios[key];
-    // Fall back to main store (where loadBillingScenarios stores data from API)
-    const mainStoreScenarios = mainStoreBillingScenarios[key];
-    // Prefer staging if it exists (has new/edited scenarios), otherwise use main store
-    const scenarios = stagingScenarios !== undefined ? stagingScenarios : (mainStoreScenarios || []);
-    return scenarios;
-  };
-  
-  // Get assigned practitioner IDs
-  const assignedPractitionerIds = currentPractitionerAssignments;
+  const queryClient = useQueryClient();
+  const { alert } = useModal();
+  const { data: bundle, isLoading: loadingBundle } = useServiceItemBundle(serviceItemId || 0, isOpen && serviceItemId !== null);
 
-  const methods = useForm<ServiceItemFormData>({
-    resolver: zodResolver(ServiceItemFormSchema),
+  // Instance-level temp ID counter to avoid collisions across modals
+  // Removed tempIdCounter ref in favor of shared utility generateTemporaryId
+
+
+  // Removed localItem state to avoid dual-state anti-pattern
+
+
+  // Associations are now managed by RHF
+  // Removed localItem state to avoid dual-state anti-pattern
+
+  const methods = useForm<ServiceItemBundleFormData>({
+    resolver: zodResolver(ServiceItemBundleSchema),
     defaultValues: {
-      id: appointmentType.id,
-      clinic_id: appointmentType.clinic_id,
-      name: appointmentType.name || '',
-      duration_minutes: appointmentType.duration_minutes || 30,
-      receipt_name: appointmentType.receipt_name || null,
-      allow_patient_booking: appointmentType.allow_patient_booking ?? true, // DEPRECATED
-      allow_new_patient_booking: appointmentType.allow_new_patient_booking ?? true,
-      allow_existing_patient_booking: appointmentType.allow_existing_patient_booking ?? true,
-      allow_patient_practitioner_selection: appointmentType.allow_patient_practitioner_selection ?? true,
-      allow_multiple_time_slot_selection: appointmentType.allow_multiple_time_slot_selection ?? false,
-      description: appointmentType.description || null,
-      scheduling_buffer_minutes: appointmentType.scheduling_buffer_minutes || 0,
-      service_type_group_id: appointmentType.service_type_group_id || null,
-      display_order: appointmentType.display_order || 0,
-      require_notes: appointmentType.require_notes ?? false,
-      notes_instructions: appointmentType.notes_instructions || null,
-    },
-    mode: 'onBlur',
+      name: '',
+      duration_minutes: 30,
+      allow_new_patient_booking: true,
+      allow_existing_patient_booking: true,
+      allow_patient_practitioner_selection: true,
+      allow_multiple_time_slot_selection: false,
+      scheduling_buffer_minutes: 0,
+      send_patient_confirmation: true,
+      send_clinic_confirmation: true,
+      send_reminder: true,
+      patient_confirmation_message: DEFAULT_PATIENT_CONFIRMATION_MESSAGE,
+      clinic_confirmation_message: DEFAULT_CLINIC_CONFIRMATION_MESSAGE,
+      reminder_message: DEFAULT_REMINDER_MESSAGE,
+      receipt_name: '',
+      description: '',
+      require_notes: false,
+      notes_instructions: '',
+      practitioner_ids: [],
+      billing_scenarios: [],
+      resource_requirements: [],
+      follow_up_messages: [],
+    }
   });
 
-  const { watch, register, setValue, formState: { isDirty, errors }, reset, trigger, getValues } = methods;
-  
-  // Watch specific fields to avoid infinite loops from watch() returning new object references
-  const name = watch('name');
-  const duration_minutes = watch('duration_minutes');
-  const receipt_name = watch('receipt_name');
-  const allow_patient_booking = watch('allow_patient_booking'); // DEPRECATED
-  const allow_new_patient_booking = watch('allow_new_patient_booking');
-  const allow_existing_patient_booking = watch('allow_existing_patient_booking');
-  const allow_patient_practitioner_selection = watch('allow_patient_practitioner_selection');
-  const allow_multiple_time_slot_selection = watch('allow_multiple_time_slot_selection');
-  const description = watch('description');
-  const scheduling_buffer_minutes = watch('scheduling_buffer_minutes');
-  const service_type_group_id = watch('service_type_group_id');
-  const display_order = watch('display_order');
-  const require_notes = watch('require_notes');
-  const notes_instructions = watch('notes_instructions');
+  const { reset, handleSubmit, register, setValue, formState: { errors, isDirty } } = methods;
 
-  // Track previous appointmentType ID to detect when switching items
-  const previousAppointmentTypeIdRef = useRef<number | undefined>(appointmentType?.id);
-  
-  // Reset form only when appointmentType ID changes (switching items), not when fields change
   useEffect(() => {
-    const currentId = appointmentType?.id;
-    const previousId = previousAppointmentTypeIdRef.current;
-    
-    // Only reset if:
-    // 1. Modal is open
-    // 2. AppointmentType exists
-    // 3. ID actually changed (switching to different item)
-    if (isOpen && appointmentType && currentId !== previousId) {
-      reset({
-        id: appointmentType.id,
-        clinic_id: appointmentType.clinic_id,
-        name: appointmentType.name || '',
-        duration_minutes: appointmentType.duration_minutes || 30,
-        receipt_name: appointmentType.receipt_name || null,
-        allow_patient_booking: appointmentType.allow_patient_booking ?? true, // DEPRECATED
-        allow_new_patient_booking: appointmentType.allow_new_patient_booking ?? true,
-        allow_existing_patient_booking: appointmentType.allow_existing_patient_booking ?? true,
-        allow_patient_practitioner_selection: appointmentType.allow_patient_practitioner_selection ?? true,
-      allow_multiple_time_slot_selection: appointmentType.allow_multiple_time_slot_selection ?? false,
-        description: appointmentType.description || null,
-        scheduling_buffer_minutes: appointmentType.scheduling_buffer_minutes || 0,
-        service_type_group_id: appointmentType.service_type_group_id || null,
-        display_order: appointmentType.display_order || 0,
-        require_notes: appointmentType.require_notes ?? false,
-        notes_instructions: appointmentType.notes_instructions || null,
-      });
-      previousAppointmentTypeIdRef.current = currentId;
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, appointmentType?.id, reset]);
+    if (bundle) {
+      // Map resource requirements
+      const requirements = bundle.associations.resource_requirements.map((req) => ({
+        id: generateTemporaryId(), // Unique temp ID for UI key
+        appointment_type_id: bundle.item.id,
+        resource_type_id: req.resource_type_id,
+        resource_type_name: req.resource_type_name || 'Unknown',
+        quantity: req.quantity,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }));
 
-  // Load billing scenarios for ALL practitioners when modal opens
-  // Scenarios are independent of PAT assignment, so we show them regardless
-  useEffect(() => {
-    if (isOpen) {
-      // Load scenarios for all practitioners, not just assigned ones
-      members.forEach(practitioner => {
-        const key = `${appointmentType.id}-${practitioner.id}`;
-        const mainStoreScenarios = mainStoreBillingScenarios[key];
-        const isCurrentlyLoading = loadingScenarios.has(key);
-        // Only load if not in main store and not currently loading (prevent duplicate loads)
-        if (!mainStoreScenarios && !isCurrentlyLoading) {
-          loadBillingScenarios(appointmentType.id, practitioner.id);
-        }
-      });
-    }
-  }, [isOpen, appointmentType.id, loadBillingScenarios, mainStoreBillingScenarios, loadingScenarios, members]);
+      const formData: ServiceItemBundleFormData = {
+        name: bundle.item.name,
+        duration_minutes: bundle.item.duration_minutes,
+        service_type_group_id: bundle.item.service_type_group_id,
+        allow_new_patient_booking: bundle.item.allow_new_patient_booking,
+        allow_existing_patient_booking: bundle.item.allow_existing_patient_booking,
+        allow_patient_practitioner_selection: bundle.item.allow_patient_practitioner_selection,
+        allow_multiple_time_slot_selection: bundle.item.allow_multiple_time_slot_selection,
+        scheduling_buffer_minutes: bundle.item.scheduling_buffer_minutes,
+        receipt_name: bundle.item.receipt_name || '',
+        description: bundle.item.description || '',
+        require_notes: bundle.item.require_notes,
+        notes_instructions: bundle.item.notes_instructions || '',
+        send_patient_confirmation: bundle.item.send_patient_confirmation,
+        send_clinic_confirmation: bundle.item.send_clinic_confirmation,
+        send_reminder: bundle.item.send_reminder,
+        patient_confirmation_message: bundle.item.patient_confirmation_message || DEFAULT_PATIENT_CONFIRMATION_MESSAGE,
+        clinic_confirmation_message: bundle.item.clinic_confirmation_message || DEFAULT_CLINIC_CONFIRMATION_MESSAGE,
+        reminder_message: bundle.item.reminder_message || DEFAULT_REMINDER_MESSAGE,
+        practitioner_ids: bundle.associations.practitioner_ids,
+        billing_scenarios: bundle.associations.billing_scenarios,
+        resource_requirements: requirements,
+        follow_up_messages: bundle.associations.follow_up_messages,
+      };
 
-  const handleGroupChange = (groupId: number | null) => {
-    setValue('service_type_group_id', groupId, { shouldDirty: true });
+      reset(formData);
+    } else if (serviceItemId === null) {
+      const newItem: ServiceItemBundleFormData = {
+        name: '',
+        duration_minutes: 30,
+        allow_new_patient_booking: true,
+        allow_existing_patient_booking: true,
+        allow_patient_practitioner_selection: true,
+        allow_multiple_time_slot_selection: false,
+        scheduling_buffer_minutes: 0,
+        receipt_name: '',
+        description: '',
+        require_notes: false,
+        notes_instructions: '',
+        send_patient_confirmation: true,
+        send_clinic_confirmation: true,
+        send_reminder: true,
+        patient_confirmation_message: DEFAULT_PATIENT_CONFIRMATION_MESSAGE,
+        clinic_confirmation_message: DEFAULT_CLINIC_CONFIRMATION_MESSAGE,
+        reminder_message: DEFAULT_REMINDER_MESSAGE,
+        practitioner_ids: [],
+        billing_scenarios: [],
+        resource_requirements: [],
+        follow_up_messages: [],
+      };
+      reset(newItem);
+    }
+  }, [bundle, serviceItemId, reset]);
+
+  const onUpdateLocalItem = (updates: Partial<AppointmentType>) => {
+    // Removed setLocalItem
+    Object.entries(updates).forEach(([key, val]) => {
+      // Use cast to any for dynamic key assignment while satisfying RHF Path type
+      setValue(key as any, val, { shouldDirty: true, shouldValidate: true });
+    });
   };
 
-  // Info modals
-  const [showDurationModal, setShowDurationModal] = useState(false);
-  const [showBufferModal, setShowBufferModal] = useState(false);
-  const [showAllowNewPatientBookingModal, setShowAllowNewPatientBookingModal] = useState(false);
-  const [showAllowExistingPatientBookingModal, setShowAllowExistingPatientBookingModal] = useState(false);
-  const [showReceiptNameModal, setShowReceiptNameModal] = useState(false);
-  const [showBillingScenarioModal, setShowBillingScenarioModal] = useState(false);
-  const [showMultipleTimeSlotModal, setShowMultipleTimeSlotModal] = useState(false);
+  useUnsavedChangesDetection({
+    hasUnsavedChanges: () => methods.formState.isDirty,
+  });
 
-  // Billing scenario editing
-  const [editingScenario, setEditingScenario] = useState<{ practitionerId: number; scenarioId?: number } | null>(null);
-  const [scenarioForm, setScenarioForm] = useState({ name: '', amount: '', revenue_share: '', is_default: false });
-  const [scenarioErrors, setScenarioErrors] = useState<{ name?: string; amount?: string; revenue_share?: string }>({});
+  const formValues = methods.watch(); // Watch all form values for child components
+
+  // Satisfy child component requirements for AppointmentType interface
+  const appointmentTypeProxy: AppointmentType = {
+    ...formValues,
+    id: serviceItemId || 0,
+    clinic_id: 0,
+    is_deleted: false,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  } as unknown as AppointmentType; // Still needs cast as formValues contains non-AppointmentType fields
+
+  const saveMutation = useMutation({
+    mutationFn: async (data: ServiceItemBundleFormData) => {
+      const request: ServiceItemBundleRequest = {
+        item: {
+          name: data.name,
+          duration_minutes: data.duration_minutes,
+          service_type_group_id: data.service_type_group_id ?? null,
+          allow_new_patient_booking: data.allow_new_patient_booking ?? true,
+          allow_existing_patient_booking: data.allow_existing_patient_booking ?? true,
+          allow_patient_practitioner_selection: data.allow_patient_practitioner_selection ?? true,
+          allow_multiple_time_slot_selection: data.allow_multiple_time_slot_selection ?? false,
+          scheduling_buffer_minutes: data.scheduling_buffer_minutes ?? 0,
+          send_patient_confirmation: data.send_patient_confirmation ?? true,
+          send_clinic_confirmation: data.send_clinic_confirmation ?? true,
+          send_reminder: data.send_reminder ?? true,
+          patient_confirmation_message: data.patient_confirmation_message ?? null,
+          clinic_confirmation_message: data.clinic_confirmation_message ?? null,
+          reminder_message: data.reminder_message ?? null,
+          require_notes: data.require_notes ?? false,
+          notes_instructions: data.notes_instructions ?? null,
+          receipt_name: data.receipt_name ?? null,
+          description: data.description ?? null,
+        },
+        associations: {
+          practitioner_ids: data.practitioner_ids || [],
+          billing_scenarios: (data.billing_scenarios || []).map(bs => ({
+            ...(bs.id && bs.id > 0 ? { id: bs.id } : {}),
+            practitioner_id: bs.practitioner_id,
+            name: bs.name,
+            amount: bs.amount,
+            revenue_share: bs.revenue_share,
+            is_default: bs.is_default
+          })),
+          resource_requirements: (data.resource_requirements || []).map((req): ResourceRequirementBundleData => ({
+            resource_type_id: req.resource_type_id,
+            quantity: req.quantity
+          })),
+          follow_up_messages: (data.follow_up_messages || []).map((msg): FollowUpMessageBundleData => ({
+            ...(msg.id && msg.id > 0 ? { id: msg.id } : {}),
+            timing_mode: msg.timing_mode,
+            hours_after: msg.hours_after ?? null,
+            message_template: msg.message_template
+          }))
+        }
+      };
+
+      if (serviceItemId) {
+        return apiService.updateServiceItemBundle(serviceItemId, request);
+      } else {
+        return apiService.createServiceItemBundle(request);
+      }
+    },
+    onSuccess: async () => {
+      if (serviceItemId) {
+        await queryClient.invalidateQueries({ queryKey: ['settings', 'service-item', serviceItemId] });
+      }
+      await queryClient.invalidateQueries({ queryKey: ['settings', 'service-items'] });
+      onClose(true);
+    },
+    onError: async (err: any) => {
+      logger.error('Error saving bundle:', err);
+      await alert(getErrorMessage(err) || '儲存失敗', '錯誤');
+    }
+  });
+
+  const handleSave = (data: ServiceItemBundleFormData) => {
+    saveMutation.mutate(data);
+  };
+
+
+  const [editingScenario, setEditingScenario] = useState<{ practitionerId: number, scenario?: BillingScenarioBundleData } | null>(null);
+  const [scenarioForm, setScenarioForm] = useState<BillingScenarioBundleData>({
+    name: '', amount: 0, revenue_share: 0, is_default: false, practitioner_id: 0
+  });
 
   const handleAddScenario = (practitionerId: number) => {
+    setScenarioForm({ name: '', amount: 0, revenue_share: 0, is_default: false, practitioner_id: practitionerId });
     setEditingScenario({ practitionerId });
-    setScenarioForm({ name: '', amount: '', revenue_share: '', is_default: false });
-    setScenarioErrors({});
   };
 
-  const handleEditScenario = (practitionerId: number, scenario: BillingScenario) => {
-    setEditingScenario({ practitionerId, scenarioId: scenario.id });
-    const normalizedAmount = typeof scenario.amount === 'string' ? parseFloat(scenario.amount) : scenario.amount;
-    const normalizedRevenueShare = typeof scenario.revenue_share === 'string' ? parseFloat(scenario.revenue_share) : scenario.revenue_share;
-    setScenarioForm({
-      name: scenario.name,
-      amount: isNaN(normalizedAmount) ? '' : normalizedAmount.toString(),
-      revenue_share: isNaN(normalizedRevenueShare) ? '' : normalizedRevenueShare.toString(),
-      is_default: scenario.is_default,
-    });
-    setScenarioErrors({});
+  const handleEditScenario = (practitionerId: number, scenario: BillingScenarioBundleData) => {
+    setScenarioForm(scenario);
+    setEditingScenario({ practitionerId, scenario });
   };
 
   const handleConfirmScenario = () => {
     if (!editingScenario) return;
-    const { practitionerId, scenarioId } = editingScenario;
-    
-    // Clear previous errors
-    const errors: { name?: string; amount?: string; revenue_share?: string } = {};
-    
-    // Validate name
-    if (!scenarioForm.name || scenarioForm.name.trim() === '') {
-      errors.name = '方案名稱不能為空';
-    }
-    
-    // Validate amount
-    if (!scenarioForm.amount || scenarioForm.amount.trim() === '') {
-      errors.amount = '金額不能為空';
-    } else {
-      const amount = parseFloat(scenarioForm.amount);
-      if (isNaN(amount) || amount <= 0) {
-        errors.amount = '金額必須大於 0';
-      }
-    }
-    
-    // Validate revenue_share
-    if (!scenarioForm.revenue_share || scenarioForm.revenue_share.trim() === '') {
-      errors.revenue_share = '診所分潤不能為空';
-    } else {
-      const revenue_share = parseFloat(scenarioForm.revenue_share);
-      const amount = parseFloat(scenarioForm.amount);
-      if (isNaN(revenue_share) || revenue_share < 0) {
-        errors.revenue_share = '診所分潤不能小於 0';
-      } else if (!isNaN(amount) && revenue_share > amount) {
-        errors.revenue_share = '診所分潤不能大於金額';
-      }
-    }
-    
-    // If there are errors, show them and scroll to first error
-    if (Object.keys(errors).length > 0) {
-      setScenarioErrors(errors);
-      // Scroll to first error field
-      const firstErrorField = Object.keys(errors)[0];
-      const errorElement = document.querySelector(`[name="scenario_${firstErrorField}"]`);
-      if (errorElement) {
-        errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        (errorElement as HTMLElement).focus();
-      }
-      return;
-    }
-    
-    // Clear errors if validation passes
-    setScenarioErrors({});
-    
-    const amount = parseFloat(scenarioForm.amount);
-    const revenue_share = parseFloat(scenarioForm.revenue_share);
+    const currentScenarios = methods.getValues('billing_scenarios') || [];
 
-    const key = `${appointmentType.id}-${practitionerId}`;
-    // Use getBillingScenariosForItem to get current scenarios (handles both stores)
-    const currentScenarios = getBillingScenariosForItem(practitionerId);
-    
-    if (scenarioId) {
-      const updatedScenarios = currentScenarios.map((s: BillingScenario) => 
-        s.id === scenarioId 
-          ? { ...s, name: scenarioForm.name, amount, revenue_share, is_default: scenarioForm.is_default }
-          : scenarioForm.is_default ? { ...s, is_default: false } : s
-      );
-      onUpdateBillingScenarios(key, updatedScenarios);
+    if (editingScenario.scenario) {
+      const updated = currentScenarios.map(s => s === editingScenario.scenario ? scenarioForm : s);
+      setValue('billing_scenarios', updated, { shouldDirty: true });
     } else {
-      const newScenario: BillingScenario = {
-        id: -Date.now(),
-        practitioner_id: practitionerId,
-        appointment_type_id: appointmentType.id,
-        clinic_id: appointmentType.clinic_id,
-        name: scenarioForm.name,
-        amount,
-        revenue_share,
-        is_default: scenarioForm.is_default,
-      };
-      const updatedScenarios = scenarioForm.is_default
-        ? [...currentScenarios.map((s: BillingScenario) => ({ ...s, is_default: false })), newScenario]
-        : [...currentScenarios, newScenario];
-      onUpdateBillingScenarios(key, updatedScenarios);
+      setValue('billing_scenarios', [...currentScenarios, scenarioForm], { shouldDirty: true });
     }
     setEditingScenario(null);
-    setScenarioForm({ name: '', amount: '', revenue_share: '', is_default: false });
-    setScenarioErrors({});
   };
 
-  // Update staging store when form changes - use refs to prevent infinite loops
-  const lastValuesRef = useRef<string>('');
-  const isUpdatingRef = useRef(false);
-  
-  useEffect(() => {
-    // Update staging store when form values change, even if not dirty yet
-    // This ensures changes are reflected immediately in the table
-    if (!isUpdatingRef.current) {
-      const currentValues = JSON.stringify({
-        name,
-        duration_minutes,
-        receipt_name,
-        allow_patient_booking,
-        allow_new_patient_booking,
-        allow_existing_patient_booking,
-        allow_patient_practitioner_selection,
-        allow_multiple_time_slot_selection,
-        description,
-        scheduling_buffer_minutes,
-        service_type_group_id,
-        display_order,
-        require_notes,
-        notes_instructions,
-      });
-      
-      // Only update if values actually changed
-      if (currentValues !== lastValuesRef.current) {
-        isUpdatingRef.current = true;
-        lastValuesRef.current = currentValues;
-        
-        const updatedItem: AppointmentType = {
-          ...appointmentType,
-          name,
-          duration_minutes,
-          receipt_name,
-          allow_patient_booking,
-          allow_new_patient_booking,
-          allow_existing_patient_booking,
-          allow_patient_practitioner_selection,
-          allow_multiple_time_slot_selection,
-          description,
-          scheduling_buffer_minutes,
-          service_type_group_id,
-          display_order,
-          require_notes,
-          notes_instructions,
-        };
-        
-        // Use setTimeout to break the update cycle
-        setTimeout(() => {
-          onUpdate(updatedItem);
-          isUpdatingRef.current = false;
-        }, 0);
-      }
-    }
-  }, [name, duration_minutes, receipt_name, allow_patient_booking, 
-      allow_patient_practitioner_selection, description, scheduling_buffer_minutes,
-      service_type_group_id, display_order, require_notes, notes_instructions, isDirty, appointmentType, onUpdate]);
-
-  const handleCancel = () => {
-    // Reset form to original values
-    reset({
-      id: appointmentType.id,
-      clinic_id: appointmentType.clinic_id,
-      name: appointmentType.name || '',
-      duration_minutes: appointmentType.duration_minutes || 30,
-      receipt_name: appointmentType.receipt_name || null,
-      allow_patient_booking: appointmentType.allow_patient_booking ?? true, // DEPRECATED
-      allow_new_patient_booking: appointmentType.allow_new_patient_booking ?? true,
-      allow_existing_patient_booking: appointmentType.allow_existing_patient_booking ?? true,
-      allow_patient_practitioner_selection: appointmentType.allow_patient_practitioner_selection ?? true,
-      allow_multiple_time_slot_selection: appointmentType.allow_multiple_time_slot_selection ?? false,
-      description: appointmentType.description || null,
-      scheduling_buffer_minutes: appointmentType.scheduling_buffer_minutes || 0,
-      service_type_group_id: appointmentType.service_type_group_id || null,
-      display_order: appointmentType.display_order || 0,
-      require_notes: appointmentType.require_notes ?? false,
-      notes_instructions: appointmentType.notes_instructions || null,
-    });
-    onClose();
-  };
-
-  const handleDelete = async () => {
-    if (!onDelete) return;
-    
-    // Confirm deletion using custom modal
-    const confirmed = await confirm(
-      `確定要刪除「${appointmentType.name}」嗎？`,
-      '刪除服務項目'
+  if (loadingBundle && serviceItemId !== null) {
+    return (
+      <BaseModal onClose={() => onClose()} aria-label="載入中">
+        <div className="p-12 flex justify-center"><LoadingSpinner /></div>
+      </BaseModal>
     );
-    if (!confirmed) return;
-    
-    await onDelete(appointmentType);
-    onClose();
-  };
-
-  const [messageValidationErrors, setMessageValidationErrors] = useState<string[]>([]);
-
-  const handleConfirm = async () => {
-    // Validate all fields
-    const isValid = await trigger();
-    
-    if (!isValid) {
-      // Find first error field and scroll to it
-      const errorFields = Object.keys(errors);
-      if (errorFields.length > 0) {
-        const firstErrorField = errorFields[0];
-        const errorElement = document.querySelector(`[name="${firstErrorField}"]`);
-        if (errorElement) {
-          errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          (errorElement as HTMLElement).focus();
-        }
-      }
-      return;
-    }
-
-    // Validate message fields (managed outside form)
-    const messageErrors: string[] = [];
-    if (appointmentType.send_patient_confirmation && (!appointmentType.patient_confirmation_message || !appointmentType.patient_confirmation_message.trim())) {
-      messageErrors.push('病患確認訊息：當開關開啟時，訊息模板為必填');
-    }
-    if (appointmentType.send_patient_confirmation && appointmentType.patient_confirmation_message && appointmentType.patient_confirmation_message.length > 3500) {
-      messageErrors.push('病患確認訊息：訊息模板長度不能超過 3500 字元');
-    }
-    if (appointmentType.send_clinic_confirmation && (!appointmentType.clinic_confirmation_message || !appointmentType.clinic_confirmation_message.trim())) {
-      messageErrors.push('診所確認訊息：當開關開啟時，訊息模板為必填');
-    }
-    if (appointmentType.send_clinic_confirmation && appointmentType.clinic_confirmation_message && appointmentType.clinic_confirmation_message.length > 3500) {
-      messageErrors.push('診所確認訊息：訊息模板長度不能超過 3500 字元');
-    }
-    if (appointmentType.send_reminder && (!appointmentType.reminder_message || !appointmentType.reminder_message.trim())) {
-      messageErrors.push('提醒訊息：當開關開啟時，訊息模板為必填');
-    }
-    if (appointmentType.send_reminder && appointmentType.reminder_message && appointmentType.reminder_message.length > 3500) {
-      messageErrors.push('提醒訊息：訊息模板長度不能超過 3500 字元');
-    }
-
-    if (messageErrors.length > 0) {
-      setMessageValidationErrors(messageErrors);
-      // Scroll to message settings section and expand it
-      const messageSection = document.querySelector('[data-message-settings]');
-      if (messageSection) {
-        messageSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        // Try to expand the section with the first error
-        // Parse error message to find which message type has the error
-        const firstError = messageErrors[0];
-        if (firstError) {
-          let targetType: string | null = null;
-          if (firstError.includes('病患確認訊息')) {
-            targetType = 'patient_confirmation';
-          } else if (firstError.includes('診所確認訊息')) {
-            targetType = 'clinic_confirmation';
-          } else if (firstError.includes('提醒訊息')) {
-            targetType = 'reminder';
-          }
-          
-          if (targetType) {
-            const errorSection = messageSection.querySelector(`[data-message-type="${targetType}"]`);
-            if (errorSection) {
-              // Find the button to expand the section
-              const sectionButton = errorSection.querySelector('button');
-              if (sectionButton) {
-                // Check if section is collapsed by checking if content is hidden
-                const sectionContent = errorSection.querySelector('[class*="p-4"]');
-                if (!sectionContent || !sectionContent.parentElement?.classList.contains('block')) {
-                  (sectionButton as HTMLElement).click();
-                }
-              }
-            }
-          } else {
-            // Fallback: expand first section
-            const firstErrorSection = messageSection.querySelector('[data-message-type]');
-            if (firstErrorSection) {
-              const sectionButton = firstErrorSection.querySelector('button');
-              if (sectionButton) {
-                (sectionButton as HTMLElement).click();
-              }
-            }
-          }
-        }
-      }
-      return;
-    }
-
-    setMessageValidationErrors([]);
-
-    // Get current form values and update staging store
-    const currentValues = getValues();
-    const updatedItem: AppointmentType = {
-      ...appointmentType,
-      name: currentValues.name || '',
-      duration_minutes: currentValues.duration_minutes,
-      receipt_name: currentValues.receipt_name || null,
-      allow_patient_booking: currentValues.allow_patient_booking ?? true,
-      allow_patient_practitioner_selection: currentValues.allow_patient_practitioner_selection ?? true,
-      allow_multiple_time_slot_selection: currentValues.allow_multiple_time_slot_selection ?? false,
-      description: currentValues.description || null,
-      scheduling_buffer_minutes: currentValues.scheduling_buffer_minutes || 0,
-      service_type_group_id: currentValues.service_type_group_id || null,
-      display_order: currentValues.display_order || 0,
-      require_notes: currentValues.require_notes ?? false,
-      notes_instructions: currentValues.notes_instructions || null,
-      // Include message fields from appointmentType (updated by MessageSettingsSection)
-      send_patient_confirmation: appointmentType.send_patient_confirmation,
-      send_clinic_confirmation: appointmentType.send_clinic_confirmation,
-      send_reminder: appointmentType.send_reminder,
-      patient_confirmation_message: appointmentType.patient_confirmation_message,
-      clinic_confirmation_message: appointmentType.clinic_confirmation_message,
-      reminder_message: appointmentType.reminder_message,
-      // Include follow-up messages from appointmentType (updated by FollowUpMessagesSection)
-      follow_up_messages: appointmentType.follow_up_messages ?? [],
-    };
-    
-    // Update staging store with final values
-    onUpdate(updatedItem);
-    
-    // Close modal after successful validation (pass true to indicate it was confirmed)
-    onClose(true);
-  };
-
-  if (!isOpen) return null;
+  }
 
   return (
     <FormProvider {...methods}>
       <BaseModal
-        onClose={handleCancel}
-        aria-label="編輯服務項目"
-        fullScreen={true}
-        showCloseButton={false}
-        className="p-0"
+        onClose={() => onClose()}
+        aria-label={serviceItemId ? '編輯服務項目' : '新增服務項目'}
+        className="max-w-6xl"
       >
-        <div className="flex flex-col h-full overflow-y-auto">
-          {/* Header matching settings pages */}
-          <div className="bg-white border-b border-gray-200 px-4 py-4 md:px-6">
-            <div className="max-w-7xl mx-auto">
-              <div className="flex justify-between items-center mb-2 md:mb-8">
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={handleCancel}
-                    className="inline-flex items-center justify-center w-8 h-8 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full transition-colors"
-                    aria-label="返回"
-                  >
-                    <svg
-                      className="h-5 w-5"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                    </svg>
-                  </button>
-                  <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
-                    {name || '編輯服務項目'}
-                  </h1>
-                </div>
-                <div className="flex items-center gap-2">
-                  {isClinicAdmin && onDelete && !isTemporaryServiceItemId(appointmentType.id) && (
-                    <button
-                      type="button"
-                      onClick={handleDelete}
-                      className="text-red-600 hover:text-red-800 text-sm px-4 py-2 rounded border border-red-200 hover:border-red-300"
-                    >
-                      刪除項目
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={handleConfirm}
-                    className="btn-primary text-sm px-4 py-2"
-                  >
-                    確認編輯
-                  </button>
-                </div>
-              </div>
+        <form onSubmit={handleSubmit(handleSave)} className="flex flex-col h-[90vh]">
+          {/* Header */}
+          <div className="px-8 py-6 border-b border-gray-100 flex justify-between items-center bg-white rounded-t-2xl">
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900">
+                {serviceItemId ? '編輯服務項目' : '新增服務項目'}
+              </h2>
+              {serviceItemId && <p className="text-sm text-gray-500 mt-1">ID: {serviceItemId}</p>}
             </div>
+            <button type="button" onClick={() => onClose()} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
+              <svg className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
 
-          {/* Main Content Area */}
-          <main className="flex-1 bg-gray-50">
-            <div className="max-w-7xl mx-auto px-4 py-6 md:px-6">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
-                
-                {/* Left Column: Basic Info */}
-                <div className="space-y-4 md:space-y-6">
-                  <div className="bg-white md:rounded-xl md:border md:border-gray-100 md:shadow-sm p-0 md:p-6">
-                    <div className="px-4 py-4 md:px-0 md:py-0 space-y-4 md:space-y-5">
-                      <FormField name="name" label="項目名稱">
-                        <FormInput name="name" placeholder="例如：初診評估" disabled={!isClinicAdmin} />
-                      </FormField>
-
-                      <FormField name="receipt_name" label="收據項目名稱">
-                        <div className="flex items-center gap-2">
-                          <FormInput name="receipt_name" placeholder={name || '例如：初診評估'} disabled={!isClinicAdmin} />
-                          <InfoButton onClick={() => setShowReceiptNameModal(true)} />
-                        </div>
-                      </FormField>
-
-                      {isClinicAdmin && (
-                        <FormField name="service_type_group_id" label="群組">
-                          <div className="space-y-2">
-                            <select
-                              value={service_type_group_id || ''}
-                              onChange={(e) => {
-                                const value = e.target.value;
-                                if (value === '') {
-                                  handleGroupChange(null);
-                                } else {
-                                  handleGroupChange(Number(value));
-                                }
-                              }}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 transition-shadow"
-                              disabled={!isClinicAdmin}
-                            >
-                              <option value="">未分類</option>
-                              {availableGroups.map((group) => (
-                                <option key={group.id} value={group.id}>
-                                  {group.name}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                        </FormField>
-                      )}
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <FormField name="duration_minutes" label="服務時長 (分鐘)">
-                          <div className="flex items-center gap-2">
-                            <FormInput name="duration_minutes" type="number" min="15" max="480" disabled={!isClinicAdmin} onWheel={preventScrollWheelChange} />
-                            <InfoButton onClick={() => setShowDurationModal(true)} />
-                          </div>
-                        </FormField>
-                        <FormField name="scheduling_buffer_minutes" label="排程緩衝時間 (分鐘)">
-                          <div className="flex items-center gap-2">
-                            <FormInput name="scheduling_buffer_minutes" type="number" min="0" max="60" disabled={!isClinicAdmin} onWheel={preventScrollWheelChange} />
-                            <InfoButton onClick={() => setShowBufferModal(true)} />
-                          </div>
-                        </FormField>
-                      </div>
-
-                      <FormField 
-                        name="description" 
-                        label={
-                          <div className="flex items-center gap-2">
-                            <span>說明</span>
-                            {!allow_new_patient_booking && !allow_existing_patient_booking && (
-                              <WarningPopover message="此服務項目未開放病患自行預約，此設定不會生效。">
-                                <span className="text-amber-600 hover:text-amber-700 cursor-pointer">⚠️</span>
-                              </WarningPopover>
-                            )}
-                          </div>
-                        }
+          {/* Scrollable Content */}
+          <main className="flex-1 overflow-y-auto p-8 bg-gray-50/30">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              {/* Left Column: Basic Info & Restrictions */}
+              <div className="space-y-8">
+                <section className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-6 flex items-center gap-2">
+                    <span className="w-1.5 h-6 bg-blue-500 rounded-full"></span>
+                    基本資訊
+                  </h3>
+                  <div className="space-y-5">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">項目名稱 <span className="text-red-500">*</span></label>
+                      <input
+                        {...register('name', { required: '請輸入名稱' })}
+                        className={`input w-full ${errors.name ? 'border-red-500' : ''}`}
+                        placeholder="例如：復健治療、初診評估"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">服務時長 (分鐘)</label>
+                      <input
+                        type="number"
+                        {...register('duration_minutes', { valueAsNumber: true })}
+                        className="input w-full"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">所屬群組</label>
+                      <select
+                        {...register('service_type_group_id', { valueAsNumber: true })}
+                        className="input w-full"
                       >
-                        <FormTextarea name="description" placeholder="服務說明（顯示在 LINE 預約系統）" rows={4} disabled={!isClinicAdmin} className="resize-none" />
-                      </FormField>
+                        <option value="">未分類</option>
+                        {availableGroups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">收據名稱 (選填)</label>
+                      <input
+                        {...register('receipt_name')}
+                        className="input w-full"
+                        placeholder="若未填寫則顯示項目名稱"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">描述 (選填)</label>
+                      <textarea
+                        {...register('description')}
+                        className="input w-full min-h-[80px]"
+                        placeholder="此服務項目的詳細說明..."
+                      />
+                    </div>
+                  </div>
+                </section>
 
-                      {/* LIFF booking options and notes customization */}
-                      <div className="pt-4">
-                        <div className="flex flex-col gap-3">
-                          <label className="flex items-center cursor-pointer">
-                            <input type="checkbox" {...register('allow_new_patient_booking')} className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 mr-3" disabled={!isClinicAdmin} />
-                            <div className="flex flex-col">
-                              <span className="text-sm font-medium text-gray-900">新病患可自行預約</span>
-                              <span className="text-xs text-gray-500">新病患可透過 LINE 預約系統看到並選擇此服務</span>
-                            </div>
-                            <InfoButton onClick={() => setShowAllowNewPatientBookingModal(true)} />
-                          </label>
-                          <label className="flex items-center cursor-pointer">
-                            <input type="checkbox" {...register('allow_existing_patient_booking')} className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 mr-3" disabled={!isClinicAdmin} />
-                            <div className="flex flex-col">
-                              <span className="text-sm font-medium text-gray-900">舊病患可自行預約</span>
-                              <span className="text-xs text-gray-500">舊病患可透過 LINE 預約系統看到並選擇此服務</span>
-                            </div>
-                            <InfoButton onClick={() => setShowAllowExistingPatientBookingModal(true)} />
-                          </label>
-                          <label className="flex items-center cursor-pointer">
-                            <input type="checkbox" {...register('allow_patient_practitioner_selection')} className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 mr-3" disabled={!isClinicAdmin} />
-                            <div className="flex flex-col">
-                              <span className="text-sm font-medium text-gray-900">開放病患指定治療師</span>
-                              <span className="text-xs text-gray-500">病患預約時可自由選擇想看診的治療師</span>
-                            </div>
-                            {!allow_new_patient_booking && !allow_existing_patient_booking && (
-                              <WarningPopover message="此服務項目未開放病患自行預約，此設定不會生效。">
-                                <span className="ml-2 text-amber-600 hover:text-amber-700">⚠️</span>
-                              </WarningPopover>
-                            )}
-                          </label>
-                          <label className="flex items-center cursor-pointer">
-                            <input type="checkbox" {...register('allow_multiple_time_slot_selection')} className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 mr-3" disabled={!isClinicAdmin} />
-                            <div className="flex flex-col">
-                              <span className="text-sm font-medium text-gray-900">允許患者選擇多個時段</span>
-                              <span className="text-xs text-gray-500">病患預約時可選擇多個偏好時段供診所確認</span>
-                            </div>
-                            <InfoButton onClick={() => setShowMultipleTimeSlotModal(true)} />
-                            {!allow_new_patient_booking && !allow_existing_patient_booking && (
-                              <WarningPopover message="此服務項目未開放病患自行預約，此設定不會生效。">
-                                <span className="ml-2 text-amber-600 hover:text-amber-700">⚠️</span>
-                              </WarningPopover>
-                            )}
-                          </label>
-                          <FormField name="require_notes" label="">
+                <section className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-6 flex items-center gap-2">
+                    <span className="w-1.5 h-6 bg-purple-500 rounded-full"></span>
+                    預約規則
+                  </h3>
+                  <div className="space-y-4">
+                    <label className="flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        {...register('allow_new_patient_booking')}
+                        className="w-4 h-4 text-primary-600 rounded border-gray-300 mr-3"
+                      />
+                      <span className="text-gray-700">開放新病患預約</span>
+                    </label>
+                    <label className="flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        {...register('allow_existing_patient_booking')}
+                        className="w-4 h-4 text-primary-600 rounded border-gray-300 mr-3"
+                      />
+                      <span className="text-gray-700">開放現有病患預約</span>
+                    </label>
+                    <label className="flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        {...register('allow_patient_practitioner_selection')}
+                        className="w-4 h-4 text-primary-600 rounded border-gray-300 mr-3"
+                      />
+                      <span className="text-gray-700">允許病患選擇治療師</span>
+                    </label>
+                    <label className="flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        {...register('allow_multiple_time_slot_selection')}
+                        className="w-4 h-4 text-primary-600 rounded border-gray-300 mr-3"
+                      />
+                      <span className="text-gray-700">允許單次預約多個時段</span>
+                    </label>
+                  </div>
+                </section>
+
+                <section className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-6 flex items-center gap-2">
+                    <span className="w-1.5 h-6 bg-teal-500 rounded-full"></span>
+                    預約備註
+                  </h3>
+                  <div className="space-y-4">
+                    <label className="flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        {...register('require_notes')}
+                        className="w-4 h-4 text-primary-600 rounded border-gray-300 mr-3"
+                      />
+                      <span className="text-gray-700">強制病患填寫備註</span>
+                    </label>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">備註填寫說明 (選填)</label>
+                      <input
+                        {...register('notes_instructions')}
+                        className="input w-full"
+                        placeholder="例如：請簡述您的症狀..."
+                      />
+                    </div>
+                  </div>
+                </section>
+
+                <MessageSettingsSection
+                  appointmentType={appointmentTypeProxy}
+                  onUpdate={onUpdateLocalItem}
+                  disabled={!isClinicAdmin}
+                  clinicInfoAvailability={clinicInfoAvailability || {}}
+                />
+
+                <section className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                  <ResourceRequirementsSection
+                    appointmentTypeId={serviceItemId || 0}
+                    isClinicAdmin={isClinicAdmin}
+                    currentResourceRequirements={(formValues.resource_requirements || []) as unknown as ResourceRequirement[]}
+                    updateResourceRequirements={(_id, reqs) => setValue('resource_requirements', reqs as unknown as ResourceRequirementBundleData[], { shouldDirty: true })}
+                  />
+                </section>
+              </div>
+
+              {/* Right Column: Practitioners & Others */}
+              <div className="space-y-8">
+                <section className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-6 flex items-center gap-2">
+                    <span className="w-1.5 h-6 bg-indigo-500 rounded-full"></span>
+                    治療師指派
+                  </h3>
+                  <div className="space-y-4">
+                    {members.map(m => {
+                      const practitionerIds = formValues.practitioner_ids || [];
+                      const billingScenarios = formValues.billing_scenarios || [];
+                      const isAssigned = practitionerIds.includes(m.id);
+                      const scenarios = billingScenarios.filter(s => s.practitioner_id === m.id);
+
+                      return (
+                        <div key={m.id} className={`p-4 rounded-2xl border transition-all ${isAssigned ? 'bg-indigo-50 border-indigo-200' : 'bg-gray-50 border-gray-100'}`}>
+                          <div className="flex items-center justify-between mb-3">
                             <label className="flex items-center cursor-pointer">
                               <input
                                 type="checkbox"
-                                {...register('require_notes')}
-                                className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 mr-3"
-                                disabled={!isClinicAdmin}
+                                checked={isAssigned}
+                                onChange={(e) => {
+                                  if (e.target.checked) setValue('practitioner_ids', [...practitionerIds, m.id], { shouldDirty: true });
+                                  else setValue('practitioner_ids', practitionerIds.filter(id => id !== m.id), { shouldDirty: true });
+                                }}
+                                className="w-4 h-4 text-indigo-600 rounded border-gray-300 mr-3"
                               />
-                              <div className="flex flex-col">
-                                <span className="text-sm font-medium text-gray-900">要求填寫備註</span>
-                                <span className="text-xs text-gray-500">病患透過Line自行預約此服務時必須填寫備註</span>
-                              </div>
-                              {!allow_new_patient_booking && !allow_existing_patient_booking && (
-                                <WarningPopover message="此服務項目未開放病患自行預約，此設定不會生效。">
-                                  <span className="ml-2 text-amber-600 hover:text-amber-700">⚠️</span>
-                                </WarningPopover>
-                              )}
+                              <span className="font-semibold text-gray-900">{m.full_name}</span>
                             </label>
-                          </FormField>
-                        </div>
-                      </div>
-                      <FormField 
-                        name="notes_instructions" 
-                        label={
-                          <div className="flex items-center gap-2">
-                            <span>備註填寫指引</span>
-                            {!allow_new_patient_booking && !allow_existing_patient_booking && (
-                              <WarningPopover message="此服務項目未開放病患自行預約，此設定不會生效。">
-                                <span className="text-amber-600 hover:text-amber-700 cursor-pointer">⚠️</span>
-                              </WarningPopover>
+                            {isAssigned && (
+                              <button
+                                type="button"
+                                onClick={() => handleAddScenario(m.id)}
+                                className="text-xs font-medium text-indigo-600 hover:text-indigo-800"
+                              >
+                                + 新增計費方案
+                              </button>
                             )}
                           </div>
-                        }
-                      >
-                        <FormTextarea
-                          name="notes_instructions"
-                          placeholder="病患在透過Line預約，填寫備註時，將會看到此指引（若未填寫，將使用「預約設定」頁面中的「備註填寫指引」）"
-                          rows={4}
-                          disabled={!isClinicAdmin}
-                          className="resize-none"
-                        />
-                      </FormField>
-                    </div>
-                  </div>
 
-                  <div className="bg-white md:rounded-xl md:border md:border-gray-100 md:shadow-sm p-0 md:p-6">
-                    <div className="px-4 py-4 md:px-0 md:py-0 space-y-4 md:space-y-6">
-
-                      {isClinicAdmin && (
-                        <ResourceRequirementsSection
-                          appointmentTypeId={appointmentType.id}
-                          isClinicAdmin={isClinicAdmin}
-                          currentResourceRequirements={_currentResourceRequirements}
-                          updateResourceRequirements={updateResourceRequirements}
-                        />
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Right Column: Practitioners & Billing */}
-                <div className="space-y-4 md:space-y-6">
-                  {isClinicAdmin && (
-                    <MessageSettingsSection
-                      appointmentType={appointmentType}
-                      onUpdate={onUpdate}
-                      disabled={!isClinicAdmin}
-                      {...(clinicInfoAvailability !== undefined && { clinicInfoAvailability })}
-                    />
-                  )}
-                  {messageValidationErrors.length > 0 && (
-                    <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                      <div className="text-sm font-medium text-red-800 mb-2">請修正以下錯誤：</div>
-                      <ul className="list-disc list-inside space-y-1 text-sm text-red-700">
-                        {messageValidationErrors.map((error, index) => (
-                          <li key={index}>{error}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                  
-                  {isClinicAdmin && (
-                    <FollowUpMessagesSection
-                      appointmentType={appointmentType}
-                      onUpdate={onUpdate}
-                      disabled={!isClinicAdmin}
-                      {...(clinicInfoAvailability !== undefined && { clinicInfoAvailability })}
-                    />
-                  )}
-                  
-                  <div className="bg-white md:rounded-xl md:border md:border-gray-100 md:shadow-sm p-0 md:p-6">
-                      <div className="px-4 py-4 md:px-0 md:py-0">
-                        <p className="text-sm text-gray-600 mb-4">
-                          選擇提供此服務的治療師，並為每位治療師設定計費方案。
-                        </p>
-                        
-                        <div className="space-y-4 md:space-y-6">
-                        {members.map(practitioner => {
-                          const isAssigned = assignedPractitionerIds.includes(practitioner.id);
-                          const key = `${appointmentType.id}-${practitioner.id}`;
-                          const scenarios = getBillingScenariosForItem(practitioner.id);
-                          const isLoading = loadingScenarios.has(key);
-
-                          return (
-                            <div key={practitioner.id} className={`p-3 md:p-4 rounded-lg border transition-all ${isAssigned ? 'bg-blue-50/50 border-blue-200' : 'bg-gray-50 border-gray-200'}`}>
-                              <div className="flex items-center space-x-3 mb-2">
-                                <input
-                                  type="checkbox"
-                                  checked={isAssigned}
-                                  onChange={(e) => {
-                                    const shouldAssign = e.target.checked;
-                                    if (shouldAssign) {
-                                      onUpdatePractitionerAssignments([...assignedPractitionerIds, practitioner.id]);
-                                    } else {
-                                      onUpdatePractitionerAssignments(assignedPractitionerIds.filter((id: number) => id !== practitioner.id));
-                                    }
-                                    // Don't clear billing scenarios - they're independent of PAT assignment
-                                  }}
-                                  className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-                                />
-                                <span className="text-sm font-medium text-gray-900">{practitioner.full_name}</span>
-                              </div>
-                              
-                              {/* Always show billing scenarios section, regardless of assignment */}
-                              <div className="mt-3 pl-7 space-y-3">
-                                <div className="flex justify-between items-center">
-                                  <div className="flex items-center gap-2">
-                                    <label className="text-xs font-medium text-gray-700">計費方案</label>
-                                    {!isAssigned && (
-                                      <span className="text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded">
-                                        治療師尚未指派到此服務項目
-                                      </span>
-                                    )}
-                                    <InfoButton onClick={() => setShowBillingScenarioModal(true)} />
+                          {isAssigned && (
+                            <div className="space-y-2 pl-7">
+                              {scenarios.length > 0 ? scenarios.map((s, idx) => (
+                                <div key={idx} className="flex items-center justify-between bg-white/60 p-2.5 rounded-xl border border-indigo-100/50">
+                                  <div className="text-sm">
+                                    <span className="font-medium text-gray-800">{s.name}</span>
+                                    <span className="mx-2 text-gray-300">|</span>
+                                    <span className="text-gray-600">${s.amount}</span>
                                   </div>
-                                  <button 
-                                    type="button" 
-                                    onClick={() => handleAddScenario(practitioner.id)} 
-                                    className="text-xs text-blue-600 hover:text-blue-800"
-                                  >
-                                    + 新增方案
-                                  </button>
+                                  <div className="flex gap-2">
+                                    <button type="button" onClick={() => handleEditScenario(m.id, s as BillingScenarioBundleData)} className="p-1.5 hover:bg-indigo-50 rounded-lg text-indigo-600 transition-colors">
+                                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                                    </button>
+                                    <button type="button" onClick={() => setValue('billing_scenarios', (billingScenarios).filter((bs) => bs !== s), { shouldDirty: true })} className="p-1.5 hover:bg-red-50 rounded-lg text-red-500 transition-colors">
+                                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                    </button>
+                                  </div>
                                 </div>
-                                
-                                {isLoading ? (
-                                  <p className="text-xs text-gray-500">載入中...</p>
-                                ) : scenarios.length === 0 ? (
-                                  <p className="text-xs text-gray-500">尚無計費方案</p>
-                                ) : (
-                                  <div className="space-y-2">
-                                    {scenarios.map((scenario: BillingScenario) => (
-                                      <div key={scenario.id} className="flex items-center justify-between bg-white p-2 rounded border border-gray-200">
-                                        <div className="flex-1">
-                                          <div className="flex items-center space-x-2">
-                                            <span className="text-sm font-medium text-gray-900">{scenario.name}</span>
-                                            {scenario.is_default && <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">預設</span>}
-                                          </div>
-                                          <div className="text-xs text-gray-600 mt-1">
-                                            金額: {formatCurrency(scenario.amount)} | 診所分潤: {formatCurrency(scenario.revenue_share)}
-                                          </div>
-                                        </div>
-                                        <div className="flex items-center space-x-2">
-                                          <button type="button" onClick={() => handleEditScenario(practitioner.id, scenario)} className="text-xs text-blue-600 hover:text-blue-800">編輯</button>
-                                          <button type="button" onClick={() => onUpdateBillingScenarios(key, scenarios.filter((s: BillingScenario) => s.id !== scenario.id))} className="text-xs text-red-600 hover:text-red-800">刪除</button>
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
+                              )) : (
+                                <p className="text-xs text-gray-400 italic">尚無計費方案</p>
+                              )}
                             </div>
-                          );
-                        })}
+                          )}
                         </div>
-                      </div>
+                      );
+                    })}
                   </div>
-                </div>
+                </section>
+
+                <FollowUpMessagesSection
+                  appointmentType={appointmentTypeProxy}
+                  onUpdate={onUpdateLocalItem}
+                  disabled={!isClinicAdmin}
+                  clinicInfoAvailability={clinicInfoAvailability || {}}
+                />
               </div>
             </div>
           </main>
 
-          {/* Mobile Footer */}
-          <div className="md:hidden sticky bottom-0 z-10 bg-white border-t border-gray-200 px-4 py-4 shadow-sm">
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handleCancel}
-                className="btn-secondary flex-1 text-sm px-4 py-2"
-              >
+          {/* Footer */}
+          <div className="px-8 py-6 border-t border-gray-100 bg-white flex justify-between items-center rounded-b-2xl">
+            <div className="text-sm text-gray-500">
+              {isDirty && <span className="flex items-center gap-1.5 text-amber-600 font-medium">● 有未儲存的變更</span>}
+            </div>
+            <div className="flex gap-3">
+              <button type="button" onClick={() => onClose()} className="px-6 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 rounded-xl transition-colors">
                 取消
+              </button>
+              <button
+                type="submit"
+                disabled={saveMutation.isPending}
+                className="px-8 py-2.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl shadow-lg shadow-blue-200 transition-all transform active:scale-[0.98]"
+              >
+                {saveMutation.isPending ? '儲存中...' : '儲存設定'}
               </button>
             </div>
           </div>
-        </div>
-      </BaseModal>
+        </form>
 
-      {/* Billing Scenario Edit Modal */}
-      {editingScenario && (
-        <BaseModal onClose={() => {
-          setEditingScenario(null);
-          setScenarioErrors({});
-        }} aria-label="編輯計費方案">
-          <div className="p-6">
-            <h3 className="text-lg font-semibold mb-4">{editingScenario.scenarioId ? '編輯' : '新增'}計費方案</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">方案名稱</label>
-                <input
-                  name="scenario_name"
-                  type="text"
-                  value={scenarioForm.name}
-                  onChange={(e) => {
-                    setScenarioForm(prev => ({ ...prev, name: e.target.value }));
-                    if (scenarioErrors.name) {
-                      setScenarioErrors(prev => {
-                        const { name, ...rest } = prev;
-                        return rest;
-                      });
-                    }
-                  }}
-                  className={`input ${scenarioErrors.name ? 'border-red-500' : ''}`}
-                  placeholder="例如：原價、九折、會員價"
-                />
-                {scenarioErrors.name && (
-                  <p className="text-red-600 text-xs mt-1">{scenarioErrors.name}</p>
-                )}
-              </div>
-              <div className="grid grid-cols-2 gap-4">
+        {editingScenario && (
+          <BaseModal
+            onClose={() => setEditingScenario(null)}
+            aria-label="編輯計費方案"
+            className="max-w-md"
+          >
+            <div className="p-6">
+              <h3 className="text-xl font-bold text-gray-900 mb-6">計費方案設定</h3>
+              <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">金額</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">方案名稱</label>
                   <input
-                    name="scenario_amount"
+                    type="text"
+                    value={scenarioForm.name}
+                    onChange={(e) => setScenarioForm({ ...scenarioForm, name: e.target.value })}
+                    className="input w-full"
+                    placeholder="例如：原價、特惠價"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">金額</label>
+                  <input
                     type="number"
                     value={scenarioForm.amount}
-                    onChange={(e) => {
-                      setScenarioForm(prev => ({ ...prev, amount: e.target.value }));
-                      if (scenarioErrors.amount) {
-                        setScenarioErrors(prev => {
-                          const { amount, ...rest } = prev;
-                          return rest;
-                        });
-                      }
-                    }}
-                    className={`input ${scenarioErrors.amount ? 'border-red-500' : ''}`}
-                    min="0"
-                    placeholder="0"
-                    onWheel={preventScrollWheelChange}
+                    onChange={(e) => setScenarioForm({ ...scenarioForm, amount: parseInt(e.target.value) || 0 })}
+                    className="input w-full"
                   />
-                  {scenarioErrors.amount && (
-                    <p className="text-red-600 text-xs mt-1">{scenarioErrors.amount}</p>
-                  )}
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">診所分潤</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">診所分潤</label>
                   <input
-                    name="scenario_revenue_share"
                     type="number"
                     value={scenarioForm.revenue_share}
-                    onChange={(e) => {
-                      setScenarioForm(prev => ({ ...prev, revenue_share: e.target.value }));
-                      if (scenarioErrors.revenue_share) {
-                        setScenarioErrors(prev => {
-                          const { revenue_share, ...rest } = prev;
-                          return rest;
-                        });
-                      }
-                    }}
-                    className={`input ${scenarioErrors.revenue_share ? 'border-red-500' : ''}`}
-                    min="0"
-                    placeholder="0"
-                    onWheel={preventScrollWheelChange}
+                    onChange={(e) => setScenarioForm({ ...scenarioForm, revenue_share: parseInt(e.target.value) || 0 })}
+                    className="input w-full"
                   />
-                  {scenarioErrors.revenue_share && (
-                    <p className="text-red-600 text-xs mt-1">{scenarioErrors.revenue_share}</p>
-                  )}
                 </div>
+                <label className="flex items-center gap-2 cursor-pointer mt-2">
+                  <input
+                    type="checkbox"
+                    checked={scenarioForm.is_default}
+                    onChange={(e) => setScenarioForm({ ...scenarioForm, is_default: e.target.checked })}
+                    className="w-4 h-4 text-blue-600 rounded border-gray-300"
+                  />
+                  <span className="text-sm font-medium text-gray-700">設為預設方案</span>
+                </label>
               </div>
-              <label className="flex items-center">
-                <input type="checkbox" checked={scenarioForm.is_default} onChange={(e) => setScenarioForm(prev => ({ ...prev, is_default: e.target.checked }))} className="mr-2" />
-                <span className="text-sm font-medium text-gray-700">設為預設方案</span>
-              </label>
+              <div className="mt-8 flex gap-3">
+                <button type="button" onClick={() => setEditingScenario(null)} className="btn-secondary flex-1">取消</button>
+                <button type="button" onClick={handleConfirmScenario} className="btn-primary flex-1">確定</button>
+              </div>
             </div>
-            <div className="mt-6 flex justify-end space-x-3">
-              <button
-                type="button"
-                onClick={() => {
-                  setEditingScenario(null);
-                  setScenarioErrors({});
-                }}
-                className="btn-secondary"
-              >
-                取消
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmScenario}
-                className="btn-primary"
-              >
-                確認
-              </button>
-            </div>
-          </div>
-        </BaseModal>
-      )}
-
-      {/* Info Modals */}
-      <InfoModal isOpen={showDurationModal} onClose={() => setShowDurationModal(false)} title="服務時長 (分鐘)">
-        <p>此為實際服務時間長度...</p>
-      </InfoModal>
-      <InfoModal isOpen={showBufferModal} onClose={() => setShowBufferModal(false)} title="排程緩衝時間 (分鐘)">
-        <p>此為排程時額外保留的時間...</p>
-      </InfoModal>
-      <InfoModal isOpen={showReceiptNameModal} onClose={() => setShowReceiptNameModal(false)} title="收據項目名稱">
-        <p>此名稱會顯示在收據上，取代服務項目名稱...</p>
-      </InfoModal>
-      <InfoModal isOpen={showAllowNewPatientBookingModal} onClose={() => setShowAllowNewPatientBookingModal(false)} title="新病患可自行預約">
-        <div className="space-y-2">
-          <p>啟用後，新病患可透過 LINE 預約系統看到並選擇此服務項目。</p>
-          <p className="text-sm text-gray-600"><strong>新病患定義：</strong>尚未指派過治療師的病患（不論是否曾經預約過）。</p>
-          <p className="text-sm text-gray-600">系統會檢查病患是否已有治療師指派記錄，而非檢查過往預約記錄。</p>
-        </div>
-      </InfoModal>
-      <InfoModal isOpen={showAllowExistingPatientBookingModal} onClose={() => setShowAllowExistingPatientBookingModal(false)} title="舊病患可自行預約">
-        <div className="space-y-2">
-          <p>啟用後，已指派治療師的病患可透過 LINE 預約系統看到並選擇此服務項目。</p>
-          <p className="text-sm text-gray-600"><strong>舊病患定義：</strong>已指派過治療師的病患。</p>
-          <p className="text-sm text-gray-600">系統會檢查病患是否已有治療師指派記錄，而非檢查過往預約記錄。</p>
-        </div>
-      </InfoModal>
-      <InfoModal isOpen={showBillingScenarioModal} onClose={() => setShowBillingScenarioModal(false)} title="計費方案說明">
-        <p>計費方案讓您為每位治療師的每項服務設定多種定價選項...</p>
-      </InfoModal>
-      <InfoModal isOpen={showMultipleTimeSlotModal} onClose={() => setShowMultipleTimeSlotModal(false)} title="多時段選擇說明">
-        <div className="space-y-4">
-          <div>
-            <h4 className="font-medium text-gray-900 mb-2">功能概述</h4>
-            <p className="text-sm text-gray-700">
-              啟用後，病患預約時可選擇多個偏好時段（最多 10 個），系統會從病患選擇的時段中保留最早的可用時段，並將預約狀態設為「待安排」，等待診所確認最終時間。
-            </p>
-          </div>
-
-          <div>
-            <h4 className="font-medium text-gray-900 mb-2">病患體驗</h4>
-            <ul className="text-sm text-gray-700 space-y-1 ml-4">
-              <li>• 在 LINE 預約系統中看到「預約時間: 待安排」</li>
-              <li>• 預約成功後收到確認訊息，顯示「待安排」狀態</li>
-              <li>• 診所確認時間後，再次收到 LINE 通知包含確定的時間</li>
-            </ul>
-          </div>
-
-          <div>
-            <h4 className="font-medium text-gray-900 mb-2">診所工作流程</h4>
-            <ul className="text-sm text-gray-700 space-y-1 ml-4">
-              <li>• 預約出現在「待確認預約」頁面中</li>
-              <li>• 管理員或指定治療師可查看病患的所有偏好時段</li>
-              <li>• 可從病患偏好中選擇最終時間，或選擇其他可用時段</li>
-              <li>• 確認後自動發送 LINE 通知給病患並產生行事曆邀請</li>
-            </ul>
-          </div>
-
-          <div>
-            <h4 className="font-medium text-gray-900 mb-2">自動確認機制</h4>
-            <p className="text-sm text-gray-700 mb-2">
-              系統會在預約時間前自動確認最早的偏好時段，確認機制取決於診所的預約限制設定：
-            </p>
-            <ul className="text-sm text-gray-700 space-y-1 ml-4">
-              <li>• <strong>小時限制模式</strong>（預設）：在預約時間前 X 小時自動確認（預設為 24 小時）</li>
-              <li>• <strong>截止時間模式</strong>：在指定截止時間自動確認（例如前一天上午 8:00 或當天上午 8:00）</li>
-              <li>• 自動確認同樣會發送 LINE 通知和行事曆邀請</li>
-            </ul>
-          </div>
-
-        </div>
-      </InfoModal>
+          </BaseModal>
+        )}
+      </BaseModal>
     </FormProvider>
   );
 };
-

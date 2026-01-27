@@ -4,6 +4,7 @@
 - **Reviewers**: @andy
 - **Author**: Antigravity
 - **Last Updated**: 2026-01-26
+- **Implementation Status**: [x] Completed
 
 ## 1. Problem Statement
 
@@ -181,21 +182,21 @@ All complex entity modals (Service Items, Resources) will now:
 
 To minimize risk and ensure stability, the redesign will be rolled out in four phases.
 
-### Phase 1: Infrastructure & "Structural" Cleanup
+### Phase 1: Infrastructure & "Structural" Cleanup (Completed)
 -   **Backend**: Implement the new `ServiceItemBundle` and `ResourceTypeBundle` endpoints.
     -   *Detail*: Ensure the `ResourceTypeBundle` can handle updating multiple `Resource` child entities simultaneously.
 -   **Frontend**: Create the `SettingsActionFooter` (Sticky Bar) component.
 -   **Frontend**: Change "Reorder" and "Delete" actions to hit API immediately with a reload trigger.
 -   **Milestone**: Baseline architecture is ready.
 
-### Phase 2: Page-Level Standardization (Flat Pages)
+### Phase 2: Page-Level Standardization (Flat Pages) (Completed)
 -   **Target**: Appointments, Reminders, Clinic Info, Receipts.
 -   **Action**: Convert these pages to use the `SettingsActionFooter` and standard `react-hook-form` logic.
 -   **Cleanup**: Remove these sub-stores from the `SettingsContext`.
 -   **Risk Mitigation**: Keep the old store paths available during this phase to allow for side-by-side verification and easy rollback if a specific settings section breaks.
 -   **Milestone**: All simple settings are protected by the new batch-save pattern.
 
-### Phase 3: Entity Modal Consolidation (The "Heavy Lift")
+### Phase 3: Entity Modal Consolidation (The "Heavy Lift") (Completed)
 -   **Target**: Service Items and Resources.
 -   **Action**:
     -   Rewrite `ServiceItemEditModal` to handle its own associations.
@@ -203,7 +204,7 @@ To minimize risk and ensure stability, the redesign will be rolled out in four p
 -   **Cleanup**: **Delete** `ServiceItemsStagingStore.ts` and `ServiceItemsStore.ts`.
 -   **Milestone**: 80% of current technical debt is removed.
 
-### Phase 4: Full Context Migration & Final Cleanup
+### Phase 4: Full Context Migration & Final Cleanup (Completed)
 -   **Action**: Migrate any remaining settings (like Chat) to the new pattern.
 -   **Action**: Final removal of `SettingsContext` in favor of pure TanStack Query hooks.
 -   **Action**: Audit all settings endpoints and remove no-longer-needed granular update endpoints.

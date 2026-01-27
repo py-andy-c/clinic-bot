@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { ResourceType, ResourceRequirement } from '../types';
+import { generateTemporaryId } from '../utils/idUtils';
 import { apiService } from '../services/api';
 import { logger } from '../utils/logger';
 import { getErrorMessage } from '../types/api';
 import { useModal } from '../contexts/ModalContext';
-import { useServiceItemsStore } from '../stores/serviceItemsStore';
-import { isTemporaryServiceItemId } from '../utils/idUtils';
+// Removed useServiceItemsStore
+
 
 interface ResourceRequirementsSectionProps {
   appointmentTypeId: number;
@@ -17,17 +18,13 @@ interface ResourceRequirementsSectionProps {
 export const ResourceRequirementsSection: React.FC<ResourceRequirementsSectionProps> = ({
   appointmentTypeId,
   isClinicAdmin,
-  currentResourceRequirements,
+  currentResourceRequirements = [],
   updateResourceRequirements,
 }) => {
-  const { alert } = useModal();
-  const {
-    resourceRequirements: storeResourceRequirements,
-    loadingResourceRequirements,
-    loadResourceRequirements,
-    updateResourceRequirements: storeUpdateResourceRequirements,
-  } = useServiceItemsStore();
-  
+  const { alert, confirm } = useModal();
+  // Store removal: component now fully controlled by props
+
+
   const [loading, setLoading] = useState(true);
   const [resourceTypes, setResourceTypes] = useState<ResourceType[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -36,9 +33,9 @@ export const ResourceRequirementsSection: React.FC<ResourceRequirementsSectionPr
   const [editingRequirementId, setEditingRequirementId] = useState<number | null>(null);
   const [editingQuantity, setEditingQuantity] = useState<number>(1);
 
-  const requirements = currentResourceRequirements || (appointmentTypeId && storeResourceRequirements[appointmentTypeId]) || [];
-  const updateRequirements = updateResourceRequirements || storeUpdateResourceRequirements;
-  const isLoading = appointmentTypeId ? loadingResourceRequirements.has(appointmentTypeId) : false;
+  // Simplification: directly use props
+  const requirements = currentResourceRequirements;
+  const updateRequirements = updateResourceRequirements || (() => { }); // Fallback no-op to avoid crash
 
   useEffect(() => {
     loadData();
@@ -50,15 +47,8 @@ export const ResourceRequirementsSection: React.FC<ResourceRequirementsSectionPr
       // Load resource types
       const resourceTypesResponse = await apiService.getResourceTypes();
       setResourceTypes(resourceTypesResponse.resource_types);
-      
-      // Skip loading resource requirements for temporary IDs (new items)
-      if (appointmentTypeId && isTemporaryServiceItemId(appointmentTypeId)) {
-        setLoading(false);
-        return;
-      }
-      
-      // Load resource requirements from store
-      await loadResourceRequirements(appointmentTypeId);
+
+      // No more store loading here
     } catch (err) {
       logger.error('Failed to load resource requirements:', err);
       await alert(getErrorMessage(err) || '載入資源需求失敗', '錯誤');
@@ -85,7 +75,7 @@ export const ResourceRequirementsSection: React.FC<ResourceRequirementsSectionPr
 
     // Create temporary requirement (will be saved when "儲存設定" is clicked)
     const newRequirement: ResourceRequirement = {
-      id: -Date.now(), // Temporary negative ID
+      id: generateTemporaryId(), // Temporary ID using shared utility
       appointment_type_id: appointmentTypeId,
       resource_type_id: selectedResourceTypeId,
       quantity,
@@ -108,8 +98,8 @@ export const ResourceRequirementsSection: React.FC<ResourceRequirementsSectionPr
     }
 
     // Update in store (staged change, not saved yet)
-    const updated = requirements.map(r => 
-      r.id === requirementId 
+    const updated = requirements.map(r =>
+      r.id === requirementId
         ? { ...r, quantity: editingQuantity, updated_at: new Date().toISOString() }
         : r
     );
@@ -117,8 +107,9 @@ export const ResourceRequirementsSection: React.FC<ResourceRequirementsSectionPr
     setEditingRequirementId(null);
   };
 
-  const handleDeleteRequirement = (requirementId: number, resourceTypeName: string) => {
-    if (!confirm(`確定要刪除「${resourceTypeName}」的資源需求嗎？`)) {
+  const handleDeleteRequirement = async (requirementId: number, resourceTypeName: string) => {
+    const confirmed = await confirm(`確定要刪除「${resourceTypeName}」的資源需求嗎？`);
+    if (!confirmed) {
       return;
     }
 
@@ -127,7 +118,7 @@ export const ResourceRequirementsSection: React.FC<ResourceRequirementsSectionPr
     updateRequirements(appointmentTypeId, updated);
   };
 
-  if (loading || isLoading) {
+  if (loading) {
     return <div className="text-sm text-gray-500">載入中...</div>;
   }
 

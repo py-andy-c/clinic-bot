@@ -42,8 +42,12 @@ describe('LoadingSpinner', () => {
 
   it('renders full screen when fullScreen prop is true', () => {
     render(<LoadingSpinner fullScreen />);
-    const container = screen.getByRole('status').parentElement;
-    expect(container).toHaveClass('min-h-screen', 'flex', 'items-center', 'justify-center');
+    const spinner = screen.getByRole('status');
+    const innerContainer = spinner.parentElement;
+    const outerContainer = innerContainer?.parentElement;
+
+    expect(outerContainer).toHaveClass('fixed', 'inset-0', 'flex', 'items-center', 'justify-center');
+    expect(innerContainer).toHaveClass('bg-white/80', 'p-6', 'rounded-2xl');
   });
 
   it('renders screen reader text', () => {

@@ -6,7 +6,6 @@ import { AuthProvider, useAuth } from './hooks/useAuth';
 import { UnsavedChangesProvider } from './contexts/UnsavedChangesContext';
 import { ModalProvider } from './contexts/ModalContext';
 import { ModalQueueProvider } from './contexts/ModalQueueContext';
-import { SettingsProvider } from './contexts/SettingsContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import { LoadingSpinner } from './components/shared';
 import i18n from './i18n';
@@ -119,11 +118,7 @@ const AdminRoutes: React.FC = () => {
           <Route path="clinic/patients/:id" element={<PatientDetailPage />} />
           <Route path="clinic/line-users" element={<LineUsersPage />} />
           <Route path="clinic/pending-review-appointments" element={<AutoAssignedAppointmentsPage />} />
-          <Route path="clinic/settings" element={
-            <SettingsProvider>
-              <SettingsLayout />
-            </SettingsProvider>
-          }>
+          <Route path="clinic/settings" element={<SettingsLayout />}>
             <Route index element={<SettingsIndexPage />} />
             <Route path="service-items" element={<SettingsServiceItemsPage />} />
             <Route path="appointments" element={<SettingsAppointmentsPage />} />

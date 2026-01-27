@@ -603,4 +603,84 @@ export interface BillingScenario {
   is_default: boolean;
 }
 
+// Bundle types for consolidated aggregate management
+export interface BillingScenarioBundleData {
+  id?: number;
+  practitioner_id: number;
+  name: string;
+  amount: number;
+  revenue_share: number;
+  is_default: boolean;
+}
+
+export interface ResourceRequirementBundleData {
+  resource_type_id: number;
+  resource_type_name?: string;
+  quantity: number;
+}
+
+export interface FollowUpMessageBundleData {
+  id?: number;
+  timing_mode: 'hours_after' | 'specific_time';
+  hours_after?: number | null;
+  days_after?: number | null;
+  time_of_day?: string | null;
+  message_template: string;
+  is_enabled?: boolean;
+  display_order?: number;
+}
+
+export interface ServiceItemBundleAssociations {
+  practitioner_ids: number[];
+  billing_scenarios: BillingScenarioBundleData[];
+  resource_requirements: ResourceRequirementBundleData[];
+  follow_up_messages: FollowUpMessageBundleData[];
+}
+
+export interface ServiceItemBundleRequest {
+  item: {
+    name: string;
+    duration_minutes: number;
+    receipt_name?: string | null;
+    allow_new_patient_booking?: boolean;
+    allow_existing_patient_booking?: boolean;
+    allow_patient_practitioner_selection?: boolean;
+    allow_multiple_time_slot_selection?: boolean;
+    description?: string | null;
+    scheduling_buffer_minutes?: number;
+    service_type_group_id?: number | null;
+    display_order?: number;
+    send_patient_confirmation?: boolean;
+    send_clinic_confirmation?: boolean;
+    send_reminder?: boolean;
+    patient_confirmation_message?: string | null;
+    clinic_confirmation_message?: string | null;
+    reminder_message?: string | null;
+    require_notes?: boolean;
+    notes_instructions?: string | null;
+  };
+  associations: ServiceItemBundleAssociations;
+}
+
+export interface ServiceItemBundleResponse {
+  item: AppointmentType;
+  associations: ServiceItemBundleAssociations;
+}
+
+export interface ResourceBundleData {
+  id?: number;
+  name: string;
+  description?: string | null;
+}
+
+export interface ResourceTypeBundleRequest {
+  name: string;
+  resources: ResourceBundleData[];
+}
+
+export interface ResourceTypeBundleResponse {
+  resource_type: ResourceType;
+  resources: Resource[];
+}
+
 export * from './api';

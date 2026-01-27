@@ -49,7 +49,7 @@ export const useSettingsPage = <T extends Record<string, any>>(
       prevInitialDataRef.current = initialData;
       // Check if there are unsaved changes by comparing current data with original
       const hasUnsavedChanges = data && originalData && JSON.stringify(data) !== JSON.stringify(originalData);
-      
+
       // Only update from initialData if there are no unsaved changes
       if (!hasUnsavedChanges) {
         setData(initialData);

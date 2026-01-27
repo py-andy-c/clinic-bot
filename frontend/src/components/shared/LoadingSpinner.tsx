@@ -34,11 +34,16 @@ export const LoadingSpinner: React.FC<LoadingSpinnerProps> = React.memo(({
 
   if (fullScreen) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        {spinner}
+      <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-white/50 backdrop-blur-[2px] cursor-wait">
+        <div className="bg-white/80 p-6 rounded-2xl shadow-xl border border-gray-100 flex flex-col items-center gap-4">
+          {spinner}
+          {ariaLabel && <p className="text-sm font-medium text-gray-600">{ariaLabel}</p>}
+        </div>
       </div>
     );
   }
 
   return spinner;
 });
+
+LoadingSpinner.displayName = 'LoadingSpinner';

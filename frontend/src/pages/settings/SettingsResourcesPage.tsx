@@ -1,153 +1,121 @@
-import React, { useEffect } from 'react';
-import { useForm, FormProvider } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
+import React, { useState } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { LoadingSpinner } from '../../components/shared';
-import ResourcesSettings from '../../components/ResourcesSettings';
 import SettingsBackButton from '../../components/SettingsBackButton';
 import PageHeader from '../../components/PageHeader';
-import { useResourcesStore } from '../../stores/resourcesStore';
 import { useModal } from '../../contexts/ModalContext';
-import { useUnsavedChangesDetection } from '../../hooks/useUnsavedChangesDetection';
-import { useFormErrorScroll } from '../../hooks/useFormErrorScroll';
-import { ResourcesSettingsFormSchema } from '../../schemas/api';
-
-type ResourcesSettingsFormData = z.infer<typeof ResourcesSettingsFormSchema>;
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { apiService } from '../../services/api';
+import ResourceTypeEditModal from '../../components/ResourceTypeEditModal';
+import { ResourceType } from '../../types';
 
 const SettingsResourcesPage: React.FC = () => {
-  const { isClinicAdmin } = useAuth();
-  const { alert } = useModal();
-  const { onInvalid: scrollOnError } = useFormErrorScroll();
-  const { 
-    resourceTypes,
-    resourcesByType,
-    loading, 
-    saving,
-    error, 
-    loadData, 
-    saveAll,
-    hasUnsavedChanges
-  } = useResourcesStore();
+    const queryClient = useQueryClient();
+    const { isClinicAdmin } = useAuth();
+    const { alert, confirm } = useModal();
+    const [editingResourceType, setEditingResourceType] = useState<number | null>(null);
+    const [isAddingNew, setIsAddingNew] = useState(false);
 
-  const methods = useForm<ResourcesSettingsFormData>({
-    resolver: zodResolver(ResourcesSettingsFormSchema),
-    defaultValues: {
-      resourceTypes: resourceTypes.map(t => ({
-        ...t,
-        resources: resourcesByType[t.id] || []
-      }))
-    },
-    mode: 'onBlur',
-  });
+    const { data: resourceTypesData, isLoading: typesLoading } = useQuery({
+        queryKey: ['settings', 'resource-types'],
+        queryFn: () => apiService.getResourceTypes(),
+    });
 
-  const { reset, handleSubmit, formState: { isDirty } } = methods;
+    const resourceTypes = resourceTypesData?.resource_types || [];
 
-  const onInvalid = (errors: any) => {
-    scrollOnError(errors, methods, { expandType: 'resourceType' });
-  };
+    const deleteMutation = useMutation({
+        mutationFn: (id: number) => apiService.deleteResourceType(id),
+        onSuccess: async () => {
+            await queryClient.invalidateQueries({ queryKey: ['settings', 'resource-types'] });
+            alert('資源類型已刪除');
+        },
+        onError: (err: any) => {
+            alert(err.response?.data?.detail || '刪除失敗', '錯誤');
+        },
+    });
 
-  const hasInitializedRef = React.useRef(false);
+    const handleDelete = async (type: ResourceType) => {
+        const confirmed = await confirm(
+            `確定要刪除資源類型「${type.name}」嗎？\n\n此操作將刪除此類別下的所有具體資源，且無法復原。`,
+            '確認刪除'
+        );
+        if (confirmed) {
+            deleteMutation.mutate(type.id);
+        }
+    };
 
-  // Sync form with store data only on initial load
-  useEffect(() => {
-    if (!loading && resourceTypes.length > 0 && !hasInitializedRef.current) {
-      reset({
-        resourceTypes: resourceTypes.map(t => ({
-          ...t,
-          resources: resourcesByType[t.id] || []
-        }))
-      });
-      hasInitializedRef.current = true;
-    }
-  }, [loading, resourceTypes, resourcesByType, reset]);
-
-  // Setup navigation warnings for unsaved changes
-  useUnsavedChangesDetection({ hasUnsavedChanges: () => isDirty || hasUnsavedChanges() });
-
-  // Load data when component mounts
-  useEffect(() => {
-    loadData();
-    // Scroll to top
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, [loadData]);
-
-  const onFormSubmit = async (data: ResourcesSettingsFormData) => {
-    // Sync RHF state to store before saving
-    useResourcesStore.getState().syncFromRHF(data);
-    
-    const success = await saveAll();
-    if (success) {
-      alert('資源設定已成功儲存');
-      // Reset form with fresh data from store (with real IDs)
-      reset({
-        resourceTypes: useResourcesStore.getState().resourceTypes.map(t => ({
-          ...t,
-          resources: useResourcesStore.getState().resourcesByType[t.id] || []
-        }))
-      });
-    }
-  };
-
-  if (loading && !error) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <LoadingSpinner />
-      </div>
-    );
-  }
-
-  const unsaved = isDirty || hasUnsavedChanges();
-
-  return (
-    <FormProvider {...methods}>
-      <SettingsBackButton />
-      <div className="flex justify-between items-center mb-6">
-        <PageHeader title="設備資源設定" />
-        {unsaved && (
-          <button
-            type="button"
-            onClick={handleSubmit(onFormSubmit, onInvalid)}
-            disabled={saving}
-            className="btn-primary text-sm px-4 py-2"
-          >
-            {saving ? '儲存中...' : '儲存變更'}
-          </button>
-        )}
-      </div>
-
-      <div className="bg-white md:rounded-xl md:border md:border-gray-100 md:shadow-sm p-0 md:p-6">
-        <ResourcesSettings isClinicAdmin={isClinicAdmin} />
-      </div>
-
-      {/* Error Display */}
-      {error && (
-        <div className="mt-6 bg-white rounded-lg border border-red-200 shadow-sm p-4 md:p-6">
-          <div className="p-4 bg-red-50 border border-red-200 rounded-md">
-            <div className="flex">
-              <div className="flex-shrink-0">
-                <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                </svg>
-              </div>
-              <div className="ml-3">
-                <h3 className="text-sm font-medium text-red-800">錯誤</h3>
-                <div className="mt-2 text-sm text-red-700 whitespace-pre-line">
-                  {error}
-                </div>
-                <button 
-                  onClick={() => loadData()}
-                  className="mt-3 text-sm font-medium text-red-800 hover:text-red-900 underline"
-                >
-                  重試
-                </button>
-              </div>
+    if (typesLoading) {
+        return (
+            <div className="flex items-center justify-center h-64">
+                <LoadingSpinner />
             </div>
-          </div>
+        );
+    }
+
+    return (
+        <div className="pb-24">
+            <SettingsBackButton />
+            <div className="flex justify-between items-center mb-6">
+                <PageHeader title="設備資源設定" />
+                {isClinicAdmin && (
+                    <button
+                        onClick={() => setIsAddingNew(true)}
+                        className="btn-primary text-sm px-4 py-2"
+                    >
+                        + 新增類型
+                    </button>
+                )}
+            </div>
+
+            <div className="bg-white md:rounded-xl md:border md:border-gray-100 md:shadow-sm overflow-hidden">
+                <div className="divide-y divide-gray-100">
+                    {resourceTypes.length === 0 ? (
+                        <div className="text-center py-12 text-gray-500">
+                            尚未設定任何設備資源
+                        </div>
+                    ) : (
+                        resourceTypes.map((type: ResourceType) => (
+                            <div
+                                key={type.id}
+                                className="p-4 md:p-6 flex items-center justify-between hover:bg-gray-50 transition-colors"
+                            >
+                                <div>
+                                    <h3 className="text-lg font-semibold text-gray-900">{type.name}</h3>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                    <button
+                                        onClick={() => setEditingResourceType(type.id)}
+                                        className="p-2 text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
+                                    >
+                                        編輯
+                                    </button>
+                                    {isClinicAdmin && (
+                                        <button
+                                            onClick={() => handleDelete(type)}
+                                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                        >
+                                            刪除
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        ))
+                    )}
+                </div>
+            </div>
+
+            {(editingResourceType || isAddingNew) && (
+                <ResourceTypeEditModal
+                    resourceTypeId={editingResourceType}
+                    onClose={() => {
+                        setEditingResourceType(null);
+                        setIsAddingNew(false);
+                    }}
+                />
+            )}
+            {deleteMutation.isPending && <LoadingSpinner fullScreen />}
         </div>
-      )}
-    </FormProvider>
-  );
+    );
 };
 
 export default SettingsResourcesPage;

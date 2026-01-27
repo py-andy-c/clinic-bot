@@ -11,7 +11,7 @@ export const useClinicSettings = (enabled: boolean = true) => {
   const activeClinicId = user?.active_clinic_id;
 
   return useQuery({
-    queryKey: ['clinicSettings', activeClinicId],
+    queryKey: ['settings', 'clinic', activeClinicId],
     queryFn: () => apiService.getClinicSettings(),
     enabled: enabled && !authLoading && isAuthenticated && !!activeClinicId,
     staleTime: 5 * 60 * 1000, // 5 minutes (matches current cache TTL)
