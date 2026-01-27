@@ -1156,69 +1156,61 @@ def create_service_item_bundle(
     try:
         clinic_id = ensure_clinic_access(current_user)
         
-        # Use simple variable to store ID for retrieval after commit
-        new_item_id = None
-        
-        # Start transaction
-        with db.begin():
-            # 0. Check for name uniqueness with pessimistic lock
-            existing = db.query(AppointmentType).filter(
-                AppointmentType.clinic_id == clinic_id,
-                AppointmentType.name == request.item.name,
-                AppointmentType.is_deleted == False
-            ).with_for_update().first()
-            if existing:
-                raise HTTPException(status_code=400, detail="服務項目名稱已重疊")
+        # 0. Check for name uniqueness with pessimistic lock
+        existing = db.query(AppointmentType).filter(
+            AppointmentType.clinic_id == clinic_id,
+            AppointmentType.name == request.item.name,
+            AppointmentType.is_deleted == False
+        ).with_for_update().first()
+        if existing:
+            raise HTTPException(status_code=400, detail="服務項目名稱已重疊")
 
-            # 1. Create Appointment Type
-            # Get max order
-            max_order = db.query(func.max(AppointmentType.display_order)).filter(
-                AppointmentType.clinic_id == clinic_id
-            ).scalar()
-            display_order = request.item.display_order or ((max_order + 1) if max_order is not None else 0)
-            
-            at = AppointmentType(
-                clinic_id=clinic_id,
-                name=request.item.name,
-                duration_minutes=request.item.duration_minutes,
-                receipt_name=request.item.receipt_name,
-                allow_patient_booking=request.item.allow_patient_booking,
-                allow_new_patient_booking=request.item.allow_new_patient_booking,
-                allow_existing_patient_booking=request.item.allow_existing_patient_booking,
-                allow_patient_practitioner_selection=request.item.allow_patient_practitioner_selection,
-                allow_multiple_time_slot_selection=request.item.allow_multiple_time_slot_selection,
-                description=request.item.description,
-                scheduling_buffer_minutes=request.item.scheduling_buffer_minutes,
-                service_type_group_id=request.item.service_type_group_id,
-                display_order=display_order,
-                send_patient_confirmation=request.item.send_patient_confirmation,
-                send_clinic_confirmation=request.item.send_clinic_confirmation,
-                send_reminder=request.item.send_reminder,
-                patient_confirmation_message=request.item.patient_confirmation_message or _DEFAULT_PATIENT_CONFIRMATION_MESSAGE,
-                clinic_confirmation_message=request.item.clinic_confirmation_message or _DEFAULT_CLINIC_CONFIRMATION_MESSAGE,
-                reminder_message=request.item.reminder_message or _DEFAULT_REMINDER_MESSAGE,
-                require_notes=request.item.require_notes,
-                notes_instructions=request.item.notes_instructions
-            )
-            db.add(at)
-            db.flush() # Get ID
-            new_item_id = at.id
-            
-            # 2. Sync Associations
-            _sync_service_item_associations(db, clinic_id, at.id, request.associations)
+        # 1. Create Appointment Type
+        # Get max order
+        max_order = db.query(func.max(AppointmentType.display_order)).filter(
+            AppointmentType.clinic_id == clinic_id
+        ).scalar()
+        display_order = request.item.display_order or ((max_order + 1) if max_order is not None else 0)
         
-            # Fetch the result within the transaction to ensure everything worked
-            # If this fails (e.g. serialization error), the transaction rolls back
-            result = get_service_item_bundle(new_item_id, current_user, db)
-            
-        return result
+        at = AppointmentType(
+            clinic_id=clinic_id,
+            name=request.item.name,
+            duration_minutes=request.item.duration_minutes,
+            receipt_name=request.item.receipt_name,
+            allow_patient_booking=request.item.allow_patient_booking,
+            allow_new_patient_booking=request.item.allow_new_patient_booking,
+            allow_existing_patient_booking=request.item.allow_existing_patient_booking,
+            allow_patient_practitioner_selection=request.item.allow_patient_practitioner_selection,
+            allow_multiple_time_slot_selection=request.item.allow_multiple_time_slot_selection,
+            description=request.item.description,
+            scheduling_buffer_minutes=request.item.scheduling_buffer_minutes,
+            service_type_group_id=request.item.service_type_group_id,
+            display_order=display_order,
+            send_patient_confirmation=request.item.send_patient_confirmation,
+            send_clinic_confirmation=request.item.send_clinic_confirmation,
+            send_reminder=request.item.send_reminder,
+            patient_confirmation_message=request.item.patient_confirmation_message or _DEFAULT_PATIENT_CONFIRMATION_MESSAGE,
+            clinic_confirmation_message=request.item.clinic_confirmation_message or _DEFAULT_CLINIC_CONFIRMATION_MESSAGE,
+            reminder_message=request.item.reminder_message or _DEFAULT_REMINDER_MESSAGE,
+            require_notes=request.item.require_notes,
+            notes_instructions=request.item.notes_instructions
+        )
+        db.add(at)
+        db.flush()  # Get ID
+        new_item_id = at.id
+        
+        # 2. Sync Associations
+        _sync_service_item_associations(db, clinic_id, at.id, request.associations)
+        
+        db.commit()
+        return get_service_item_bundle(new_item_id, current_user, db)
         
     except HTTPException:
-        # Re-raise HTTP exceptions (like 400 Bad Request) so they aren't masked as 500
+        db.rollback()
         raise
     except Exception as e:
+        db.rollback()
         logger.exception(f"Error creating service item bundle: {e}")
-        # db.begin() handles rollback on exception automatically
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法建立服務項目"

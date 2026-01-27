@@ -978,38 +978,38 @@ async def create_resource_type_bundle(
     try:
         clinic_id = ensure_clinic_access(current_user)
         
-        # Start transaction
-        with db.begin():
-            # Check if resource type with same name already exists
-            existing = db.query(ResourceType).filter(
-                ResourceType.clinic_id == clinic_id,
-                ResourceType.name == request.name
-            ).first() # creation doesn't need for_update as much but inside transaction is better
-            
-            if existing:
-                raise HTTPException(
-                    status_code=http_status.HTTP_409_CONFLICT,
-                    detail="資源類型名稱已存在"
-                )
-
-            # 1. Create Resource Type
-            resource_type = ResourceType(
-                clinic_id=clinic_id,
-                name=request.name
+        # Check if resource type with same name already exists
+        existing = db.query(ResourceType).filter(
+            ResourceType.clinic_id == clinic_id,
+            ResourceType.name == request.name
+        ).first()
+        
+        if existing:
+            raise HTTPException(
+                status_code=http_status.HTTP_409_CONFLICT,
+                detail="資源類型名稱已存在"
             )
-            db.add(resource_type)
-            db.flush()
-            
-            # 2. Sync Resources
-            _sync_resource_type_resources(db, clinic_id, resource_type.id, request.resources)
 
+        # 1. Create Resource Type
+        resource_type = ResourceType(
+            clinic_id=clinic_id,
+            name=request.name
+        )
+        db.add(resource_type)
+        db.flush()
+        
+        # 2. Sync Resources
+        _sync_resource_type_resources(db, clinic_id, resource_type.id, request.resources)
+
+        db.commit()
         return await get_resource_type_bundle(resource_type.id, current_user, db)
         
     except HTTPException:
+        db.rollback()
         raise
     except Exception as e:
-        logger.exception(f"Failed to create resource type bundle: {e}")
         db.rollback()
+        logger.exception(f"Failed to create resource type bundle: {e}")
         raise HTTPException(
             status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法建立資源類型"
@@ -1027,44 +1027,45 @@ async def update_resource_type_bundle(
     try:
         clinic_id = ensure_clinic_access(current_user)
         
-        with db.begin():
-            resource_type = db.query(ResourceType).filter(
-                ResourceType.id == resource_type_id,
-                ResourceType.clinic_id == clinic_id
-            ).with_for_update().first()
+        resource_type = db.query(ResourceType).filter(
+            ResourceType.id == resource_type_id,
+            ResourceType.clinic_id == clinic_id
+        ).with_for_update().first()
+        
+        if not resource_type:
+            raise HTTPException(
+                status_code=http_status.HTTP_404_NOT_FOUND,
+                detail="資源類型不存在"
+            )
             
-            if not resource_type:
-                raise HTTPException(
-                    status_code=http_status.HTTP_404_NOT_FOUND,
-                    detail="資源類型不存在"
-                )
-                
-            # Check name conflict
-            existing = db.query(ResourceType).filter(
-                ResourceType.clinic_id == clinic_id,
-                ResourceType.name == request.name,
-                ResourceType.id != resource_type_id
-            ).first()
+        # Check name conflict
+        existing = db.query(ResourceType).filter(
+            ResourceType.clinic_id == clinic_id,
+            ResourceType.name == request.name,
+            ResourceType.id != resource_type_id
+        ).first()
+        
+        if existing:
+            raise HTTPException(
+                status_code=http_status.HTTP_409_CONFLICT,
+                detail="資源類型名稱已存在"
+            )
             
-            if existing:
-                raise HTTPException(
-                    status_code=http_status.HTTP_409_CONFLICT,
-                    detail="資源類型名稱已存在"
-                )
-                
-            # 1. Update Resource Type
-            resource_type.name = request.name
-            
-            # 2. Sync Resources
-            _sync_resource_type_resources(db, clinic_id, resource_type.id, request.resources)
-            
+        # 1. Update Resource Type
+        resource_type.name = request.name
+        
+        # 2. Sync Resources
+        _sync_resource_type_resources(db, clinic_id, resource_type.id, request.resources)
+        
+        db.commit()
         return await get_resource_type_bundle(resource_type_id, current_user, db)
         
     except HTTPException:
+        db.rollback()
         raise
     except Exception as e:
-        logger.exception(f"Failed to update resource type bundle: {e}")
         db.rollback()
+        logger.exception(f"Failed to update resource type bundle: {e}")
         raise HTTPException(
             status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法更新資源類型"
