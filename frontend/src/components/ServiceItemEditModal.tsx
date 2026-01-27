@@ -689,7 +689,8 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                       const scenarios = billingScenarios.filter(s => s.practitioner_id === m.id);
 
                       return (
-                        <div key={m.id} className={`p-4 rounded-xl border transition-all ${isAssigned ? 'bg-blue-50/30 border-blue-200 ring-1 ring-blue-100' : 'bg-white border-gray-200 hover:border-gray-300'}`}>
+
+                        <div key={m.id} className={`p-4 rounded-xl border transition-all ${isAssigned ? 'bg-blue-50/50 border-blue-200 ring-1 ring-blue-100' : 'bg-white border-gray-200 hover:border-gray-300'}`}>
                           <div className="flex items-center justify-between mb-3 gap-2">
                             <label className="flex items-center cursor-pointer min-w-0">
                               <input
@@ -708,7 +709,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                             <button
                               type="button"
                               onClick={() => handleAddScenario(m.id)}
-                              className={`text-xs font-medium whitespace-nowrap flex-shrink-0 px-2 py-1 rounded-lg transition-colors ${isAssigned ? 'text-indigo-600 hover:text-indigo-800 hover:bg-indigo-100' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'}`}
+                              className="text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap flex-shrink-0"
                             >
                               + 新增計費方案
                             </button>
@@ -716,24 +717,24 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
 
                           <div className="space-y-2 pl-8">
                             {scenarios.length > 0 ? scenarios.map((s, idx) => (
-                              <div key={idx} className={`flex items-center justify-between p-3 rounded-lg md:rounded-xl border shadow-sm transition-shadow ${isAssigned ? 'bg-white border-indigo-100 hover:shadow-md' : 'bg-gray-50 border-gray-300'}`}>
-                                <div className="flex items-baseline min-w-0 flex-1 mr-2">
-                                  <span className={`font-medium truncate ${isAssigned ? 'text-gray-800' : 'text-gray-600'}`} title={s.name}>{s.name}</span>
+                              <div key={idx} className="flex items-center justify-between p-3 rounded-lg border border-gray-200 bg-white shadow-sm hover:shadow-md transition-shadow">
+                                <div className="flex items-center flex-wrap gap-y-1 min-w-0 flex-1 mr-2">
+                                  <span className="font-medium text-gray-900 truncate mr-2" title={s.name}>{s.name}</span>
                                   {s.is_default && (
-                                    <span className="ml-2 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 bg-amber-50 rounded border border-amber-200 flex-shrink-0">
+                                    <span className="px-1.5 py-0.5 text-[10px] font-medium text-amber-700 bg-amber-50 rounded border border-amber-200 flex-shrink-0 mr-2">
                                       預設
                                     </span>
                                   )}
-                                  <span className="mx-2 text-gray-300 flex-shrink-0">|</span>
-                                  <span className={`font-mono flex-shrink-0 ${isAssigned ? 'text-gray-600' : 'text-gray-500'}`}>
-                                    {formatCurrency(s.amount)} / {formatCurrency(s.revenue_share)}
+                                  <span className="text-gray-300 mr-2 hidden sm:inline">|</span>
+                                  <span className="text-sm text-gray-600">
+                                    金額: {formatCurrency(s.amount)} <span className="text-gray-300 mx-1">|</span> 診所分潤: {formatCurrency(s.revenue_share)}
                                   </span>
                                 </div>
                                 <div className="flex gap-1 flex-shrink-0">
                                   <button
                                     type="button"
                                     onClick={() => handleEditScenario(m.id, s as BillingScenarioBundleData)}
-                                    className={`p-1.5 rounded-lg transition-colors ${isAssigned ? 'hover:bg-indigo-50 text-indigo-600' : 'text-gray-500 hover:bg-gray-100'}`}
+                                    className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                                     title="編輯方案"
                                   >
                                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
@@ -741,7 +742,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                                   <button
                                     type="button"
                                     onClick={() => setValue('billing_scenarios', (billingScenarios).filter((bs) => bs !== s), { shouldDirty: true })}
-                                    className="p-1.5 hover:bg-red-50 rounded-lg text-red-500 transition-colors"
+                                    className="p-1.5 text-gray-500 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                                     title="刪除方案"
                                   >
                                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
@@ -749,7 +750,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                                 </div>
                               </div>
                             )) : (
-                              <p className="text-xs text-gray-400 italic py-2">尚未設定計費方案，將使用預設價格</p>
+                              <p className="text-sm text-gray-400 italic py-1">尚未設定計費方案</p>
                             )}
                           </div>
                         </div>
