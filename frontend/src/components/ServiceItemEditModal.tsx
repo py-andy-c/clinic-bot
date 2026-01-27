@@ -243,7 +243,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
       if (serviceItemId) {
         await queryClient.invalidateQueries({ queryKey: ['settings', 'service-item', serviceItemId] });
       }
-      await queryClient.invalidateQueries({ queryKey: ['settings', 'service-items'] });
+      await queryClient.invalidateQueries({ queryKey: ['settings'] });
       onClose(true);
     },
     onError: async (err: any) => {

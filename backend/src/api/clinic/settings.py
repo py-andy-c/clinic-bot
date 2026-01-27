@@ -892,7 +892,7 @@ async def update_settings(
 
 
 @router.get("/service-items/{id}/bundle", summary="Get service item bundle")
-async def get_service_item_bundle(
+def get_service_item_bundle(
     id: int,
     current_user: UserContext = Depends(require_authenticated),
     db: Session = Depends(get_db)
@@ -1147,7 +1147,7 @@ def _sync_service_item_associations(
 
 
 @router.post("/service-items/bundle", summary="Create service item bundle")
-async def create_service_item_bundle(
+def create_service_item_bundle(
     request: ServiceItemBundleRequest,
     current_user: UserContext = Depends(require_admin_role),
     db: Session = Depends(get_db)
@@ -1182,6 +1182,7 @@ async def create_service_item_bundle(
                 name=request.item.name,
                 duration_minutes=request.item.duration_minutes,
                 receipt_name=request.item.receipt_name,
+                allow_patient_booking=request.item.allow_patient_booking,
                 allow_new_patient_booking=request.item.allow_new_patient_booking,
                 allow_existing_patient_booking=request.item.allow_existing_patient_booking,
                 allow_patient_practitioner_selection=request.item.allow_patient_practitioner_selection,
@@ -1208,7 +1209,7 @@ async def create_service_item_bundle(
         
             # Fetch the result within the transaction to ensure everything worked
             # If this fails (e.g. serialization error), the transaction rolls back
-            result = await get_service_item_bundle(new_item_id, current_user, db)
+            result = get_service_item_bundle(new_item_id, current_user, db)
             
         return result
         
@@ -1225,7 +1226,7 @@ async def create_service_item_bundle(
 
 
 @router.put("/service-items/{id}/bundle", summary="Update service item bundle")
-async def update_service_item_bundle(
+def update_service_item_bundle(
     id: int,
     request: ServiceItemBundleRequest,
     current_user: UserContext = Depends(require_admin_role),
@@ -1275,7 +1276,8 @@ async def update_service_item_bundle(
             _sync_service_item_associations(db, clinic_id, at.id, request.associations)
             
         # Transaction committed by context manager
-        return await get_service_item_bundle(at.id, current_user, db)
+        # Transaction committed by context manager
+        return get_service_item_bundle(at.id, current_user, db)
         
     except HTTPException:
         raise

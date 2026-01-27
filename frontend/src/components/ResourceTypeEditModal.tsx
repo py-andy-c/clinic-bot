@@ -104,7 +104,6 @@ const ResourceTypeEditModal: React.FC<ResourceTypeEditModalProps> = ({
         },
         onSuccess: async () => {
             await queryClient.invalidateQueries({ queryKey: ['settings', 'resource-types'] });
-            await queryClient.invalidateQueries({ queryKey: ['settings', 'resources'] });
             await alert(isEdit ? '資源類型已更新' : '資源類型已建立');
             onClose();
         },
