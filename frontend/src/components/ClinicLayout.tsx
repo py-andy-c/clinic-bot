@@ -153,7 +153,7 @@ const GlobalWarnings: React.FC = () => {
       const activeClinicId = user?.active_clinic_id;
 
       // Invalidate cache to ensure fresh data after settings changes
-      queryClient.invalidateQueries({ queryKey: ['clinicSettings', activeClinicId] });
+      queryClient.invalidateQueries({ queryKey: ['settings', 'clinic', activeClinicId] });
       queryClient.invalidateQueries({ queryKey: ['members', activeClinicId] });
 
       // Also invalidate practitioner status caches

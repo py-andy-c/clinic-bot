@@ -5,7 +5,7 @@ import { apiService } from '../services/api';
 import { logger } from '../utils/logger';
 import { getErrorMessage } from '../types/api';
 import { useModal } from '../contexts/ModalContext';
-// Removed useServiceItemsStore
+
 
 
 interface ResourceRequirementsSectionProps {
