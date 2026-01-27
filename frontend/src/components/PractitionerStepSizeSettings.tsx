@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { BaseModal } from './shared/BaseModal';
+import { preventScrollWheelChange } from '../utils/inputUtils';
+import { useNumberInput } from '../hooks/useNumberInput';
 
 interface PractitionerStepSizeSettingsProps {
     stepSizeMinutes: number | null;
@@ -16,6 +18,17 @@ const PractitionerStepSizeSettings: React.FC<PractitionerStepSizeSettingsProps> 
     onStepSizeChange,
 }) => {
     const [showInfoModal, setShowInfoModal] = useState(false);
+
+    const stepInput = useNumberInput(
+        stepSizeMinutes as any,
+        (value) => onStepSizeChange(value as any),
+        {
+            fallback: null as any, // Allow it to stay null/empty
+            parseFn: 'parseInt',
+            min: clinicDefaultStep,
+            max: 60
+        }
+    );
 
     return (
         <div className="mt-4">
@@ -71,15 +84,15 @@ const PractitionerStepSizeSettings: React.FC<PractitionerStepSizeSettingsProps> 
                     <div className="flex items-center gap-3">
                         <input
                             type="number"
-                            value={stepSizeMinutes === null ? '' : stepSizeMinutes}
-                            onChange={(e) => {
-                                const val = e.target.value === '' ? null : parseInt(e.target.value);
-                                onStepSizeChange(val);
-                            }}
+                            value={stepInput.displayValue}
+                            onChange={stepInput.onChange}
+                            onBlur={stepInput.onBlur}
+                            onWheel={preventScrollWheelChange}
                             placeholder={`預設: ${clinicDefaultStep}`}
                             className="block w-32 rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
                             min={clinicDefaultStep}
                             max={60}
+                            step="5"
                         />
                     </div>
                 </div>

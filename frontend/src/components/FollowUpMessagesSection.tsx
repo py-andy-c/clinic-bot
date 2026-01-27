@@ -8,6 +8,8 @@ import { generateTemporaryId } from '../utils/idUtils';
 import { isTemporaryServiceItemId } from '../utils/idUtils';
 import { logger } from '../utils/logger';
 import { useModal } from '../contexts/ModalContext';
+import { preventScrollWheelChange } from '../utils/inputUtils';
+import { useNumberInput } from '../hooks/useNumberInput';
 
 interface FollowUpMessagesSectionProps {
     appointmentType: AppointmentType;
@@ -65,6 +67,35 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
     } | null>(null);
     const [loadingPreview, setLoadingPreview] = useState(false);
     const [showInfoModal, setShowInfoModal] = useState(false);
+
+    // Number input hooks for hours_after and days_after
+    const hoursAfterInput = useNumberInput(
+        formData.hours_after ?? 0,
+        (value) => {
+            setFormData(prev => ({ ...prev, hours_after: value }));
+            if (formErrors.hours_after) {
+                setFormErrors(prev => {
+                    const { hours_after, ...rest } = prev;
+                    return rest;
+                });
+            }
+        },
+        { fallback: 0, parseFn: 'parseInt', min: 0 }
+    );
+
+    const daysAfterInput = useNumberInput(
+        formData.days_after ?? 0,
+        (value) => {
+            setFormData(prev => ({ ...prev, days_after: value }));
+            if (formErrors.days_after) {
+                setFormErrors(prev => {
+                    const { days_after, ...rest } = prev;
+                    return rest;
+                });
+            }
+        },
+        { fallback: 0, parseFn: 'parseInt', min: 0 }
+    );
 
     const { confirm, alert } = useModal();
 
@@ -504,17 +535,11 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
                                             <input
                                                 type="number"
                                                 min="0"
-                                                value={formData.hours_after ?? 0}
-                                                onChange={(e) => {
-                                                    const value = parseInt(e.target.value, 10);
-                                                    setFormData(prev => ({ ...prev, hours_after: isNaN(value) ? 0 : value }));
-                                                    if (formErrors.hours_after) {
-                                                        setFormErrors(prev => {
-                                                            const { hours_after, ...rest } = prev;
-                                                            return rest;
-                                                        });
-                                                    }
-                                                }}
+                                                step="1"
+                                                value={hoursAfterInput.displayValue}
+                                                onChange={hoursAfterInput.onChange}
+                                                onBlur={hoursAfterInput.onBlur}
+                                                onWheel={preventScrollWheelChange}
                                                 className={`input w-24 ${formErrors.hours_after ? 'border-red-500' : ''}`}
                                             />
                                             <span className="ml-2 text-sm text-gray-600">小時</span>
@@ -561,17 +586,11 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
                                                 <input
                                                     type="number"
                                                     min="0"
-                                                    value={formData.days_after ?? 0}
-                                                    onChange={(e) => {
-                                                        const value = parseInt(e.target.value, 10);
-                                                        setFormData(prev => ({ ...prev, days_after: isNaN(value) ? 0 : value }));
-                                                        if (formErrors.days_after) {
-                                                            setFormErrors(prev => {
-                                                                const { days_after, ...rest } = prev;
-                                                                return rest;
-                                                            });
-                                                        }
-                                                    }}
+                                                    step="1"
+                                                    value={daysAfterInput.displayValue}
+                                                    onChange={daysAfterInput.onChange}
+                                                    onBlur={daysAfterInput.onBlur}
+                                                    onWheel={preventScrollWheelChange}
                                                     className={`input w-24 ${formErrors.days_after ? 'border-red-500' : ''}`}
                                                 />
                                                 <span className="ml-2 text-sm text-gray-600">天後的</span>

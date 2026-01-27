@@ -12,9 +12,10 @@ from typing import Dict, List, Optional, Any
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi import status as http_status
 from pydantic import BaseModel, model_validator, field_validator, Field
+from datetime import time
 from decimal import Decimal
 from sqlalchemy.orm import Session
-from sqlalchemy import func, delete, or_
+from sqlalchemy import func, delete, or_, text
 
 from core.database import get_db
 from auth.dependencies import require_admin_role, require_authenticated, UserContext, ensure_clinic_access
@@ -341,10 +342,16 @@ class ReceiptSettings(BaseModel):
 class BillingScenarioBundleData(BaseModel):
     id: Optional[int] = None
     practitioner_id: int
-    name: str
-    amount: Decimal
-    revenue_share: Decimal
+    name: str = Field(..., min_length=1)
+    amount: Decimal = Field(..., ge=0)
+    revenue_share: Decimal = Field(..., ge=0)
     is_default: bool = False
+    
+    @model_validator(mode='after')
+    def validate_revenue_share(self):
+        if self.revenue_share > self.amount:
+            raise ValueError('revenue_share must be less than or equal to amount')
+        return self
 
 
 class ResourceRequirementBundleData(BaseModel):
@@ -357,7 +364,11 @@ class FollowUpMessageBundleData(BaseModel):
     id: Optional[int] = None
     timing_mode: str
     hours_after: Optional[int] = None
+    days_after: Optional[int] = None
+    time_of_day: Optional[str] = None
     message_template: str
+    is_enabled: bool = True
+    display_order: int = 0
 
 
 class ServiceItemBundleAssociations(BaseModel):
@@ -1021,6 +1032,19 @@ def _sync_service_item_associations(
     Sync all associations for a service item in a single transaction.
     Uses Hard Sync (Replace-All) for practitioners and diff-based sync for others.
     """
+    # Verification: Ensure assigned practitioners belong to this clinic
+    if associations.practitioner_ids:
+        clinic_practitioner_count = db.query(UserClinicAssociation).filter(
+            UserClinicAssociation.clinic_id == clinic_id,
+            UserClinicAssociation.user_id.in_(associations.practitioner_ids),
+            UserClinicAssociation.is_active == True
+        ).count()
+        if clinic_practitioner_count != len(associations.practitioner_ids):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="一個或多個指派的治療師不屬於此診所或已停用"
+            )
+
     # 1. Practitioner Appointment Types (Hard Sync)
     # Deactivate all current practitioner associations for this item
     db.query(PractitionerAppointmentTypes).filter(
@@ -1048,33 +1072,40 @@ def _sync_service_item_associations(
             db.add(pat)
 
     # 2. Billing Scenarios (Diff Sync)
+    # Only delete scenarios that are explicitly removed from the incoming list.
+    # Preserve scenarios for unchecked practitioners so they can be restored later.
     incoming_bs_ids = {bs.id for bs in associations.billing_scenarios if bs.id}
-    # Soft delete missing scenarios
-    q = db.query(BillingScenario).filter(
-        BillingScenario.appointment_type_id == appointment_type_id,
-        BillingScenario.is_deleted == False
-    )
-    p_ids = set(associations.practitioner_ids)
-    if incoming_bs_ids:
-        q.filter(
-            or_(
-                BillingScenario.id.not_in(incoming_bs_ids),
-                BillingScenario.practitioner_id.not_in(p_ids)
-            )
-        ).update({
-            "is_deleted": True, 
-            "deleted_at": taiwan_now(),
-            "is_default": False # Defaults should be cleaned up
-        }, synchronize_session='fetch')
-    else:
-        q.update({
-            "is_deleted": True, 
-            "deleted_at": taiwan_now(),
-            "is_default": False # Defaults should be cleaned up
-        }, synchronize_session='fetch')
     
+    # Get active practitioners in this clinic to avoid ghost data issues
+    valid_practitioner_ids = {
+        row.user_id for row in db.query(UserClinicAssociation.user_id).filter(
+            UserClinicAssociation.clinic_id == clinic_id,
+            UserClinicAssociation.is_active == True
+        ).all()
+    }
+
+    # Soft-delete candidates: 
+    # - Scenarios not in the incoming list
+    # - Scenarios for practitioners no longer in the clinic
+    scenarios_to_soft_delete = db.query(BillingScenario).filter(
+        BillingScenario.appointment_type_id == appointment_type_id,
+        BillingScenario.is_deleted == False,
+        or_(
+            BillingScenario.id.not_in(incoming_bs_ids) if incoming_bs_ids else text("TRUE"),
+            BillingScenario.practitioner_id.not_in(valid_practitioner_ids)
+        )
+    ).all()
+
+    for bs_to_delete in scenarios_to_soft_delete:
+        bs_to_delete.is_deleted = True
+        bs_to_delete.deleted_at = taiwan_now()
+        bs_to_delete.is_default = False
+
     # Update or create scenarios
     for bs_data in associations.billing_scenarios:
+        if bs_data.practitioner_id not in valid_practitioner_ids:
+            continue
+            
         if bs_data.id:
             bs = db.query(BillingScenario).filter(
                 BillingScenario.id == bs_data.id,
@@ -1088,6 +1119,7 @@ def _sync_service_item_associations(
                 bs.is_default = bs_data.is_default
                 bs.is_deleted = False
                 bs.deleted_at = None
+                bs.updated_at = taiwan_now()
         else:
             bs = BillingScenario(
                 clinic_id=clinic_id,
@@ -1134,14 +1166,33 @@ def _sync_service_item_associations(
             if fm:
                 fm.timing_mode = fm_data.timing_mode
                 fm.hours_after = fm_data.hours_after
+                fm.days_after = fm_data.days_after
+                
+                if fm_data.time_of_day:
+                    h, m = map(int, fm_data.time_of_day.split(':'))
+                    fm.time_of_day = time(h, m)
+                else:
+                    fm.time_of_day = None
+                    
                 fm.message_template = fm_data.message_template
+                fm.is_enabled = fm_data.is_enabled
+                fm.display_order = fm_data.display_order
         else:
+            fm_time = None
+            if fm_data.time_of_day:
+                h, m = map(int, fm_data.time_of_day.split(':'))
+                fm_time = time(h, m)
+                
             fm = FollowUpMessage(
                 clinic_id=clinic_id,
                 appointment_type_id=appointment_type_id,
                 timing_mode=fm_data.timing_mode,
                 hours_after=fm_data.hours_after,
-                message_template=fm_data.message_template
+                days_after=fm_data.days_after,
+                time_of_day=fm_time,
+                message_template=fm_data.message_template,
+                is_enabled=fm_data.is_enabled,
+                display_order=fm_data.display_order
             )
             db.add(fm)
 

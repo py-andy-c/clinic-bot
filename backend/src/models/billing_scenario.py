@@ -83,7 +83,7 @@ class BillingScenario(Base):
         Index('idx_billing_scenarios_deleted', 'is_deleted'),
         # Check constraints (enforced at database level)
         CheckConstraint('revenue_share <= amount', name='chk_revenue_share_le_amount'),
-        CheckConstraint('amount > 0', name='chk_amount_positive'),
+        CheckConstraint('amount >= 0', name='chk_amount_non_negative'),
         CheckConstraint('revenue_share >= 0', name='chk_revenue_share_non_negative'),
     )
 

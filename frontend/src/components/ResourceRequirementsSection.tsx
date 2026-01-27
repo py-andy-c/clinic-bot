@@ -5,6 +5,8 @@ import { apiService } from '../services/api';
 import { logger } from '../utils/logger';
 import { getErrorMessage } from '../types/api';
 import { useModal } from '../contexts/ModalContext';
+import { useNumberInput } from '../hooks/useNumberInput';
+import { preventScrollWheelChange } from '../utils/inputUtils';
 
 
 
@@ -32,6 +34,19 @@ export const ResourceRequirementsSection: React.FC<ResourceRequirementsSectionPr
   const [quantity, setQuantity] = useState<number>(1);
   const [editingRequirementId, setEditingRequirementId] = useState<number | null>(null);
   const [editingQuantity, setEditingQuantity] = useState<number>(1);
+
+  // Number input hooks for proper UX
+  const quantityInput = useNumberInput(
+    quantity,
+    setQuantity,
+    { fallback: 1, parseFn: 'parseInt', min: 1 }
+  );
+
+  const editingQuantityInput = useNumberInput(
+    editingQuantity,
+    setEditingQuantity,
+    { fallback: 1, parseFn: 'parseInt', min: 1 }
+  );
 
   // Simplification: directly use props
   const requirements = currentResourceRequirements;
@@ -156,9 +171,12 @@ export const ResourceRequirementsSection: React.FC<ResourceRequirementsSectionPr
                     <span className="text-sm text-gray-500">需要</span>
                     <input
                       type="number"
-                      value={editingQuantity}
-                      onChange={(e) => setEditingQuantity(parseInt(e.target.value) || 1)}
+                      value={editingQuantityInput.displayValue}
+                      onChange={editingQuantityInput.onChange}
+                      onBlur={editingQuantityInput.onBlur}
+                      onWheel={preventScrollWheelChange}
                       min={1}
+                      step="1"
                       className="w-20 px-2 py-1 border border-gray-300 rounded text-sm"
                       onKeyPress={(e) => {
                         if (e.key === 'Enter') {
@@ -248,9 +266,12 @@ export const ResourceRequirementsSection: React.FC<ResourceRequirementsSectionPr
                 <span className="text-sm text-gray-600">需要</span>
                 <input
                   type="number"
-                  value={quantity}
-                  onChange={(e) => setQuantity(parseInt(e.target.value) || 1)}
+                  value={quantityInput.displayValue}
+                  onChange={quantityInput.onChange}
+                  onBlur={quantityInput.onBlur}
+                  onWheel={preventScrollWheelChange}
                   min={1}
+                  step="1"
                   className="w-20 px-2 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                 />
                 <span className="text-sm text-gray-600">個</span>

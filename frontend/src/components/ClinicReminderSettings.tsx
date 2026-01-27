@@ -81,6 +81,7 @@ const ClinicReminderSettings: React.FC<ClinicReminderSettingsProps> = ({
                     type="number"
                     min="1"
                     max="72"
+                    step="1"
                     disabled={!isClinicAdmin}
                     placeholder="24"
                   />

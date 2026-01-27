@@ -336,9 +336,12 @@ export const BillingScenarioBundleSchema = z.object({
   id: z.number().optional(),
   practitioner_id: z.number(),
   name: z.string().min(1, '請輸入方案名稱'),
-  amount: z.number().min(0),
-  revenue_share: z.number().min(0).max(100),
+  amount: z.coerce.number().min(0),
+  revenue_share: z.coerce.number().min(0),
   is_default: z.boolean(),
+}).refine(data => data.amount >= data.revenue_share, {
+  message: '金額必須大於或等於分潤',
+  path: ['revenue_share'],
 });
 
 export const ResourceRequirementBundleSchema = z.object({
@@ -350,8 +353,8 @@ export const ResourceRequirementBundleSchema = z.object({
 export const FollowUpMessageBundleSchema = z.object({
   id: z.number().optional(),
   timing_mode: z.enum(['hours_after', 'specific_time']),
-  hours_after: z.number().nullable().optional(),
-  days_after: z.number().nullable().optional(),
+  hours_after: z.coerce.number().min(0).nullable().optional(),
+  days_after: z.coerce.number().min(0).nullable().optional(),
   time_of_day: z.string().regex(/^(0[0-9]|1[0-9]|2[0-3]):[0-5][0-9]$/).nullable().optional(),
   message_template: z.string().min(1, '請輸入訊息內容'),
   is_enabled: z.boolean().optional(),
@@ -360,13 +363,13 @@ export const FollowUpMessageBundleSchema = z.object({
 
 export const ServiceItemBundleSchema = z.object({
   name: z.string().min(1, '請輸入項目名稱'),
-  duration_minutes: z.number().min(1, '服務時長必須大於 0'),
+  duration_minutes: z.coerce.number().min(1, '服務時長必須大於 0'),
   service_type_group_id: z.number().nullable().optional(),
   allow_new_patient_booking: z.boolean().optional(),
   allow_existing_patient_booking: z.boolean().optional(),
   allow_patient_practitioner_selection: z.boolean().optional(),
   allow_multiple_time_slot_selection: z.boolean().optional(),
-  scheduling_buffer_minutes: z.number().min(0).optional(),
+  scheduling_buffer_minutes: z.coerce.number().min(0).optional(),
   receipt_name: z.string().optional(),
   description: z.string().optional(),
   require_notes: z.boolean().optional(),
@@ -385,7 +388,7 @@ export const ServiceItemBundleSchema = z.object({
   practitioner_ids: z.array(z.number()).optional(),
   billing_scenarios: z.array(BillingScenarioBundleSchema).optional(),
   resource_requirements: z.array(ResourceRequirementBundleSchema).optional(),
-}).passthrough();
+});
 
 export type ClinicSettings = z.infer<typeof ClinicSettingsSchema>;
 export type NotificationSettings = z.infer<typeof NotificationSettingsSchema>;

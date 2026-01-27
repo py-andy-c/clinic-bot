@@ -498,8 +498,8 @@ class BillingScenarioListResponse(BaseModel):
 
 class BillingScenarioCreateRequest(BaseModel):
     """Request model for creating a billing scenario."""
-    name: str = Field(..., max_length=255)
-    amount: Decimal = Field(..., gt=0)
+    name: str = Field(..., min_length=1, max_length=255)
+    amount: Decimal = Field(..., ge=0)
     revenue_share: Decimal = Field(..., ge=0)
     is_default: bool = Field(False)
 
@@ -507,7 +507,7 @@ class BillingScenarioCreateRequest(BaseModel):
 class BillingScenarioUpdateRequest(BaseModel):
     """Request model for updating a billing scenario."""
     name: Optional[str] = Field(None, max_length=255)
-    amount: Optional[Decimal] = Field(None, gt=0)
+    amount: Optional[Decimal] = Field(None, ge=0)
     revenue_share: Optional[Decimal] = Field(None, ge=0)
     is_default: Optional[bool] = None
 

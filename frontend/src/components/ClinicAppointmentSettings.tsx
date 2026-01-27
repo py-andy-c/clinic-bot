@@ -361,6 +361,7 @@ const ClinicAppointmentSettings: React.FC<ClinicAppointmentSettingsProps> = ({
             type="number"
             min="5"
             max="60"
+            step="5"
             disabled={!isClinicAdmin}
             className="max-w-xs"
           />

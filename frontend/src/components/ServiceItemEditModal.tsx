@@ -27,6 +27,9 @@ import { FollowUpMessagesSection } from './FollowUpMessagesSection';
 import { ResourceRequirementsSection } from './ResourceRequirementsSection';
 import { generateTemporaryId } from '../utils/idUtils';
 import { useUnsavedChangesDetection } from '../hooks/useUnsavedChangesDetection';
+import { formatCurrency } from '../utils/currencyUtils';
+import { useNumberInput } from '../hooks/useNumberInput';
+import { preventScrollWheelChange } from '../utils/inputUtils';
 
 
 interface ServiceItemEditModalProps {
@@ -177,15 +180,33 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
 
   const formValues = methods.watch(); // Watch all form values for child components
 
-  // Satisfy child component requirements for AppointmentType interface
-  const appointmentTypeProxy: AppointmentType = {
+  /**
+   * Dedicated type for the proxy object that satisfies individual section components.
+   * This allows us to pass the form state as an AppointmentType-compatible object
+   * even though it contains additional bundle-specific fields.
+   */
+  interface FormAppointmentTypeProxy extends AppointmentType {
+    practitioner_ids: any[];
+    billing_scenarios: any[];
+    resource_requirements: any[];
+    follow_up_messages: any[];
+    created_at: string;
+    updated_at: string;
+  }
+
+  const appointmentTypeProxy: FormAppointmentTypeProxy = {
     ...formValues,
     id: serviceItemId || 0,
     clinic_id: 0,
     is_deleted: false,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
-  } as unknown as AppointmentType; // Still needs cast as formValues contains non-AppointmentType fields
+    // Explicitly set these to satisfy the proxy interface and resolve type conflicts
+    resource_requirements: formValues.resource_requirements || [],
+    follow_up_messages: formValues.follow_up_messages || [],
+    practitioner_ids: formValues.practitioner_ids || [],
+    billing_scenarios: formValues.billing_scenarios || [],
+  };
 
   const saveMutation = useMutation({
     mutationFn: async (data: ServiceItemBundleFormData) => {
@@ -212,24 +233,34 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
         },
         associations: {
           practitioner_ids: data.practitioner_ids || [],
-          billing_scenarios: (data.billing_scenarios || []).map(bs => ({
-            ...(bs.id && bs.id > 0 ? { id: bs.id } : {}),
-            practitioner_id: bs.practitioner_id,
-            name: bs.name,
-            amount: bs.amount,
-            revenue_share: bs.revenue_share,
-            is_default: bs.is_default
-          })),
+          billing_scenarios: (data.billing_scenarios || []).map(bs => {
+            const scenario: BillingScenarioBundleData = {
+              practitioner_id: bs.practitioner_id,
+              name: bs.name,
+              amount: bs.amount,
+              revenue_share: bs.revenue_share,
+              is_default: bs.is_default
+            };
+            if (bs.id && bs.id > 0) scenario.id = bs.id;
+            return scenario;
+          }),
           resource_requirements: (data.resource_requirements || []).map((req): ResourceRequirementBundleData => ({
             resource_type_id: req.resource_type_id,
             quantity: req.quantity
           })),
-          follow_up_messages: (data.follow_up_messages || []).map((msg): FollowUpMessageBundleData => ({
-            ...(msg.id && msg.id > 0 ? { id: msg.id } : {}),
-            timing_mode: msg.timing_mode,
-            hours_after: msg.hours_after ?? null,
-            message_template: msg.message_template
-          }))
+          follow_up_messages: (data.follow_up_messages || []).map((msg): FollowUpMessageBundleData => {
+            const fm: FollowUpMessageBundleData = {
+              timing_mode: msg.timing_mode,
+              hours_after: msg.hours_after ?? null,
+              days_after: msg.days_after ?? null,
+              time_of_day: msg.time_of_day ?? null,
+              message_template: msg.message_template,
+              is_enabled: msg.is_enabled ?? true,
+              display_order: msg.display_order ?? 0,
+            };
+            if (msg.id && msg.id > 0) fm.id = msg.id;
+            return fm;
+          })
         }
       };
 
@@ -261,26 +292,91 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
   const [scenarioForm, setScenarioForm] = useState<BillingScenarioBundleData>({
     name: '', amount: 0, revenue_share: 0, is_default: false, practitioner_id: 0
   });
+  const [scenarioFormErrors, setScenarioFormErrors] = useState<{ name?: string; amount?: string; revenue_share?: string }>({});
+
+  // Number input hooks for amount and revenue_share
+  const amountInput = useNumberInput(
+    Math.round(scenarioForm.amount),
+    (value) => setScenarioForm(prev => ({ ...prev, amount: value })),
+    { fallback: 0, parseFn: 'parseInt', min: 0, round: true }
+  );
+
+  const revenueShareInput = useNumberInput(
+    Math.round(scenarioForm.revenue_share),
+    (value) => setScenarioForm(prev => ({ ...prev, revenue_share: value })),
+    { fallback: 0, parseFn: 'parseInt', min: 0, round: true }
+  );
 
   const handleAddScenario = (practitionerId: number) => {
     setScenarioForm({ name: '', amount: 0, revenue_share: 0, is_default: false, practitioner_id: practitionerId });
+    setScenarioFormErrors({});
     setEditingScenario({ practitionerId });
   };
 
   const handleEditScenario = (practitionerId: number, scenario: BillingScenarioBundleData) => {
     setScenarioForm(scenario);
+    setScenarioFormErrors({});
     setEditingScenario({ practitionerId, scenario });
   };
 
   const handleConfirmScenario = () => {
     if (!editingScenario) return;
+
     const currentScenarios = methods.getValues('billing_scenarios') || [];
 
+    // Validate required fields
+    const errors: { name?: string; amount?: string; revenue_share?: string } = {};
+    if (!scenarioForm.name.trim()) {
+      errors.name = '請輸入方案名稱';
+    } else {
+      // Check for duplicate name for the same practitioner
+      const duplicateExists = currentScenarios.some(s =>
+        s.practitioner_id === scenarioForm.practitioner_id &&
+        s.name.trim().toLowerCase() === scenarioForm.name.trim().toLowerCase() &&
+        // Exclude the current scenario being edited: by ID if it exists, otherwise by reference
+        (editingScenario.scenario?.id ? s.id !== editingScenario.scenario.id : s !== editingScenario.scenario)
+      );
+      if (duplicateExists) {
+        errors.name = '此治療師已有相同名稱的方案';
+      }
+    }
+    if (scenarioForm.amount < 0) {
+      errors.amount = '金額不能為負數';
+    }
+    if (scenarioForm.revenue_share < 0) {
+      errors.revenue_share = '分潤不能為負數';
+    }
+    if (scenarioForm.revenue_share > scenarioForm.amount) {
+      errors.revenue_share = '分潤不能大於金額';
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setScenarioFormErrors(errors);
+      return;
+    }
+
     if (editingScenario.scenario) {
-      const updated = currentScenarios.map(s => s === editingScenario.scenario ? scenarioForm : s);
+      let updated = currentScenarios.map(s => s === editingScenario.scenario ? scenarioForm : s);
+      // If the modified scenario is set as default, unset others for the same practitioner
+      if (scenarioForm.is_default) {
+        updated = updated.map(s =>
+          (s !== scenarioForm && s.practitioner_id === scenarioForm.practitioner_id)
+            ? { ...s, is_default: false }
+            : s
+        );
+      }
       setValue('billing_scenarios', updated, { shouldDirty: true });
     } else {
-      setValue('billing_scenarios', [...currentScenarios, scenarioForm], { shouldDirty: true });
+      let updated = [...currentScenarios, scenarioForm];
+      // If the new scenario is set as default, unset others for the same practitioner
+      if (scenarioForm.is_default) {
+        updated = updated.map(s =>
+          (s !== scenarioForm && s.practitioner_id === scenarioForm.practitioner_id)
+            ? { ...s, is_default: false }
+            : s
+        );
+      }
+      setValue('billing_scenarios', updated, { shouldDirty: true });
     }
     setEditingScenario(null);
   };
@@ -335,7 +431,9 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                       <label className="block text-sm font-medium text-gray-700 mb-1.5">服務時長 (分鐘)</label>
                       <input
                         type="number"
-                        {...register('duration_minutes', { valueAsNumber: true })}
+                        step="5"
+                        {...register('duration_minutes')}
+                        onWheel={preventScrollWheelChange}
                         className="input w-full"
                       />
                     </div>
@@ -431,6 +529,18 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                         placeholder="例如：請簡述您的症狀..."
                       />
                     </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">緩衝時間 (分鐘)</label>
+                      <input
+                        type="number"
+                        step="5"
+                        min="0"
+                        {...register('scheduling_buffer_minutes')}
+                        onWheel={preventScrollWheelChange}
+                        className="input w-full"
+                        placeholder="預約結束後的緩衝時間"
+                      />
+                    </div>
                   </div>
                 </section>
 
@@ -473,57 +583,57 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                                 type="checkbox"
                                 checked={isAssigned}
                                 onChange={(e) => {
-                                  if (e.target.checked) setValue('practitioner_ids', [...practitionerIds, m.id], { shouldDirty: true });
-                                  else setValue('practitioner_ids', practitionerIds.filter(id => id !== m.id), { shouldDirty: true });
+                                  const newIds = e.target.checked
+                                    ? [...practitionerIds, m.id]
+                                    : practitionerIds.filter(id => id !== m.id);
+                                  setValue('practitioner_ids', newIds, { shouldDirty: true });
                                 }}
                                 className="w-5 h-5 text-indigo-600 rounded border-gray-300 mr-3 flex-shrink-0"
                               />
                               <span className="font-semibold text-gray-900 truncate">{m.full_name}</span>
                             </label>
-                            {isAssigned && (
-                              <button
-                                type="button"
-                                onClick={() => handleAddScenario(m.id)}
-                                className="text-xs font-medium text-indigo-600 hover:text-indigo-800 whitespace-nowrap flex-shrink-0 px-2 py-1 hover:bg-indigo-100 rounded-lg transition-colors"
-                              >
-                                + 新增計費方案
-                              </button>
-                            )}
+                            <button
+                              type="button"
+                              onClick={() => handleAddScenario(m.id)}
+                              className={`text-xs font-medium whitespace-nowrap flex-shrink-0 px-2 py-1 rounded-lg transition-colors ${isAssigned ? 'text-indigo-600 hover:text-indigo-800 hover:bg-indigo-100' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'}`}
+                            >
+                              + 新增計費方案
+                            </button>
                           </div>
 
-                          {isAssigned && (
-                            <div className="space-y-2 pl-8">
-                              {scenarios.length > 0 ? scenarios.map((s, idx) => (
-                                <div key={idx} className="flex items-center justify-between bg-white p-3 rounded-lg md:rounded-xl border border-indigo-100 shadow-sm hover:shadow-md transition-shadow">
-                                  <div className="flex items-baseline min-w-0 flex-1 mr-2">
-                                    <span className="font-medium text-gray-800 truncate" title={s.name}>{s.name}</span>
-                                    <span className="mx-2 text-gray-300 flex-shrink-0">|</span>
-                                    <span className="text-gray-600 font-mono flex-shrink-0">${s.amount}</span>
-                                  </div>
-                                  <div className="flex gap-1 flex-shrink-0">
-                                    <button
-                                      type="button"
-                                      onClick={() => handleEditScenario(m.id, s as BillingScenarioBundleData)}
-                                      className="p-1.5 hover:bg-indigo-50 rounded-lg text-indigo-600 transition-colors"
-                                      title="編輯方案"
-                                    >
-                                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => setValue('billing_scenarios', (billingScenarios).filter((bs) => bs !== s), { shouldDirty: true })}
-                                      className="p-1.5 hover:bg-red-50 rounded-lg text-red-500 transition-colors"
-                                      title="刪除方案"
-                                    >
-                                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                    </button>
-                                  </div>
+                          <div className="space-y-2 pl-8">
+                            {scenarios.length > 0 ? scenarios.map((s, idx) => (
+                              <div key={idx} className={`flex items-center justify-between p-3 rounded-lg md:rounded-xl border shadow-sm transition-shadow ${isAssigned ? 'bg-white border-indigo-100 hover:shadow-md' : 'bg-gray-50 border-gray-300'}`}>
+                                <div className="flex items-baseline min-w-0 flex-1 mr-2">
+                                  <span className={`font-medium truncate ${isAssigned ? 'text-gray-800' : 'text-gray-600'}`} title={s.name}>{s.name}</span>
+                                  <span className="mx-2 text-gray-300 flex-shrink-0">|</span>
+                                  <span className={`font-mono flex-shrink-0 ${isAssigned ? 'text-gray-600' : 'text-gray-500'}`}>
+                                    {formatCurrency(s.amount)} / {formatCurrency(s.revenue_share)}
+                                  </span>
                                 </div>
-                              )) : (
-                                <p className="text-xs text-gray-400 italic py-2">尚未設定計費方案，將使用預設價格</p>
-                              )}
-                            </div>
-                          )}
+                                <div className="flex gap-1 flex-shrink-0">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleEditScenario(m.id, s as BillingScenarioBundleData)}
+                                    className={`p-1.5 rounded-lg transition-colors ${isAssigned ? 'hover:bg-indigo-50 text-indigo-600' : 'text-gray-500 hover:bg-gray-100'}`}
+                                    title="編輯方案"
+                                  >
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setValue('billing_scenarios', (billingScenarios).filter((bs) => bs !== s), { shouldDirty: true })}
+                                    className="p-1.5 hover:bg-red-50 rounded-lg text-red-500 transition-colors"
+                                    title="刪除方案"
+                                  >
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                  </button>
+                                </div>
+                              </div>
+                            )) : (
+                              <p className="text-xs text-gray-400 italic py-2">尚未設定計費方案，將使用預設價格</p>
+                            )}
+                          </div>
                         </div>
                       );
                     })}
@@ -570,32 +680,58 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
               <h3 className="text-xl font-bold text-gray-900 mb-6">計費方案設定</h3>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">方案名稱</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    方案名稱 <span className="text-red-500">*</span>
+                  </label>
                   <input
                     type="text"
                     value={scenarioForm.name}
-                    onChange={(e) => setScenarioForm({ ...scenarioForm, name: e.target.value })}
-                    className="input w-full"
+                    onChange={(e) => {
+                      setScenarioForm({ ...scenarioForm, name: e.target.value });
+                      if (scenarioFormErrors.name) setScenarioFormErrors(prev => { const { name, ...rest } = prev; return rest; });
+                    }}
+                    className={`input w-full ${scenarioFormErrors.name ? 'border-red-500' : ''}`}
                     placeholder="例如：原價、特惠價"
                   />
+                  {scenarioFormErrors.name && (
+                    <p className="text-xs text-red-500 mt-1">{scenarioFormErrors.name}</p>
+                  )}
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">金額</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    金額 <span className="text-red-500">*</span>
+                  </label>
                   <input
                     type="number"
-                    value={scenarioForm.amount}
-                    onChange={(e) => setScenarioForm({ ...scenarioForm, amount: parseInt(e.target.value) || 0 })}
-                    className="input w-full"
+                    step="10"
+                    min="0"
+                    value={amountInput.displayValue}
+                    onChange={amountInput.onChange}
+                    onBlur={amountInput.onBlur}
+                    onWheel={preventScrollWheelChange}
+                    className={`input w-full ${scenarioFormErrors.amount ? 'border-red-500' : ''}`}
                   />
+                  {scenarioFormErrors.amount && (
+                    <p className="text-xs text-red-500 mt-1">{scenarioFormErrors.amount}</p>
+                  )}
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">診所分潤</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    診所分潤 <span className="text-red-500">*</span>
+                  </label>
                   <input
                     type="number"
-                    value={scenarioForm.revenue_share}
-                    onChange={(e) => setScenarioForm({ ...scenarioForm, revenue_share: parseInt(e.target.value) || 0 })}
-                    className="input w-full"
+                    step="10"
+                    min="0"
+                    value={revenueShareInput.displayValue}
+                    onChange={revenueShareInput.onChange}
+                    onBlur={revenueShareInput.onBlur}
+                    onWheel={preventScrollWheelChange}
+                    className={`input w-full ${scenarioFormErrors.revenue_share ? 'border-red-500' : ''}`}
                   />
+                  {scenarioFormErrors.revenue_share && (
+                    <p className="text-xs text-red-500 mt-1">{scenarioFormErrors.revenue_share}</p>
+                  )}
                 </div>
                 <label className="flex items-center gap-2 cursor-pointer mt-2">
                   <input

@@ -483,6 +483,30 @@ class Clinic(Base):
         self.settings["clinic_info_settings"] = clinic_info
 
     @property
+    def custom_notes(self) -> Optional[str]:
+        """Get custom notes for receipts."""
+        return self.settings.get("receipt_settings", {}).get("custom_notes")
+
+    @custom_notes.setter
+    def custom_notes(self, value: Optional[str]):
+        """Set custom notes for receipts."""
+        receipt_settings = self.settings.get("receipt_settings", {})
+        receipt_settings["custom_notes"] = value
+        self.settings["receipt_settings"] = receipt_settings
+
+    @property
+    def show_stamp(self) -> bool:
+        """Get show stamp setting for receipts."""
+        return self.settings.get("receipt_settings", {}).get("show_stamp", False)
+
+    @show_stamp.setter
+    def show_stamp(self, value: bool):
+        """Set show stamp setting for receipts."""
+        receipt_settings = self.settings.get("receipt_settings", {})
+        receipt_settings["show_stamp"] = value
+        self.settings["receipt_settings"] = receipt_settings
+
+    @property
     def effective_display_name(self) -> str:
         """Get the effective display name, falling back to clinic name if not set."""
         return self.display_name if self.display_name else self.name
