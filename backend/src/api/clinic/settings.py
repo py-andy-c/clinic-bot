@@ -972,8 +972,12 @@ def get_service_item_bundle(
             FollowUpMessageBundleData(
                 id=fm.id,
                 timing_mode=fm.timing_mode,
-                hours_after=fm.hours_after or 0,
-                message_template=fm.message_template
+                hours_after=fm.hours_after,
+                days_after=fm.days_after,
+                time_of_day=fm.time_of_day.strftime("%H:%M") if fm.time_of_day else None,
+                message_template=fm.message_template,
+                is_enabled=fm.is_enabled,
+                display_order=fm.display_order
             )
             for fm in db.query(FollowUpMessage).filter(
                 FollowUpMessage.appointment_type_id == id

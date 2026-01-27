@@ -256,7 +256,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
               days_after: msg.days_after ?? null,
               time_of_day: msg.time_of_day ?? null,
               message_template: msg.message_template,
-              is_enabled: msg.is_enabled ?? true,
+              is_enabled: msg.is_enabled !== false, // Default to true if not explicitly false
               display_order: msg.display_order ?? 0,
             };
             if (msg.id && msg.id > 0) fm.id = msg.id;

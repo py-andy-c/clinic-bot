@@ -132,7 +132,10 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
         } else if (appointmentType.follow_up_messages !== undefined) {
             // Use staged messages
             setFollowUpMessages(appointmentType.follow_up_messages);
-            setExpandedMessages(new Set(appointmentType.follow_up_messages.map(m => m.id)));
+            // Only initialize expanded messages if they haven't been set yet
+            if (expandedMessages.size === 0 && appointmentType.follow_up_messages.length > 0) {
+                setExpandedMessages(new Set(appointmentType.follow_up_messages.map(m => m.id)));
+            }
         } else {
             // For new items, start with empty list
             setFollowUpMessages([]);
