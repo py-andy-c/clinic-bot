@@ -661,6 +661,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                     <span className="w-1.5 h-6 bg-indigo-500 rounded-full"></span>
                     治療師指派
                   </h3>
+                  <p className="text-sm text-gray-600 mb-4">選擇提供此服務的治療師，並為每位治療師設定計費方案。</p>
                   <div className="space-y-4">
                     {members.map(m => {
                       const practitionerIds = formValues.practitioner_ids || [];
