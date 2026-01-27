@@ -90,27 +90,6 @@ const SettingsServiceItemsPage: React.FC = () => {
     return lookup;
   }, [practitioners]);
 
-  // Memoized ID-to-index mappings for performance optimization
-  const appointmentTypeIdToIndexMap = useMemo(() => {
-    const map = new Map<number, number>();
-    if (settings?.appointment_types) {
-      settings.appointment_types.forEach((item, index) => {
-        if (item.id) map.set(item.id, index);
-      });
-    }
-    return map;
-  }, [settings?.appointment_types]);
-
-  const serviceGroupIdToIndexMap = useMemo(() => {
-    const map = new Map<number, number>();
-    if (groups) {
-      groups.forEach((group, index) => {
-        if (group.id) map.set(group.id, index);
-      });
-    }
-    return map;
-  }, [groups]);
-
   const getGroupCount = (groupId: number | null) => {
     return serviceItems.filter(at =>
       groupId === null
@@ -208,11 +187,10 @@ const SettingsServiceItemsPage: React.FC = () => {
 
       const items = [...old.appointment_types];
       
-      // Use memoized map for O(1) lookup instead of O(n) findIndex
-      const fromIndex = appointmentTypeIdToIndexMap.get(draggedId);
-      const toIndex = appointmentTypeIdToIndexMap.get(targetId);
+      const fromIndex = items.findIndex(item => item.id === draggedId);
+      const toIndex = items.findIndex(item => item.id === targetId);
 
-      if (fromIndex === undefined || toIndex === undefined) return old;
+      if (fromIndex === -1 || toIndex === -1) return old;
 
       // Move item
       const [item] = items.splice(fromIndex, 1);
@@ -255,7 +233,7 @@ const SettingsServiceItemsPage: React.FC = () => {
         queryClient.invalidateQueries({ queryKey });
       }
     }
-  }, [queryClient, activeClinicId, alert, appointmentTypeIdToIndexMap]);
+  }, [queryClient, activeClinicId, alert]);
 
   const handleSaveItemOrder = async () => {
     const queryKey = ['settings', 'clinic', activeClinicId];
@@ -336,11 +314,10 @@ const SettingsServiceItemsPage: React.FC = () => {
 
       const items = [...old.groups];
       
-      // Use memoized map for O(1) lookup instead of O(n) findIndex
-      const fromIndex = serviceGroupIdToIndexMap.get(draggedId);
-      const toIndex = serviceGroupIdToIndexMap.get(targetId);
+      const fromIndex = items.findIndex(g => g.id === draggedId);
+      const toIndex = items.findIndex(g => g.id === targetId);
 
-      if (fromIndex === undefined || toIndex === undefined) return old;
+      if (fromIndex === -1 || toIndex === -1) return old;
 
       const [item] = items.splice(fromIndex, 1);
       if (!item) return old;

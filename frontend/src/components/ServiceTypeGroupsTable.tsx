@@ -36,13 +36,38 @@ export const ServiceTypeGroupsTable: React.FC<ServiceTypeGroupsTableProps> = ({
   onDragEnd,
   addingNewGroup = false,
   onCancelAdd,
-  onDragOver: _onDragOver, // unused
 }) => {
   const isMobile = useIsMobile();
   const [editingGroupId, setEditingGroupId] = useState<number | null>(null);
   const [editingName, setEditingName] = useState('');
   const [errorMessage, setErrorMessage] = useState<string>('');
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Touch handling refs and state
+  const touchStartYRef = useRef<number | null>(null);
+  const touchStartGroupIdRef = useRef<number | null>(null);
+  const touchStartElementRef = useRef<HTMLElement | null>(null);
+  const [dragOffset, setDragOffset] = useState<{ y: number } | null>(null);
+  const onMoveRef = useRef(onMove);
+  const onDragEndRef = useRef(onDragEnd);
+  const lastSwapTimeRef = useRef<number>(0);
+
+  // Keep refs in sync with props
+  useEffect(() => {
+    onMoveRef.current = onMove;
+    onDragEndRef.current = onDragEnd;
+  }, [onMove, onDragEnd]);
+
+  // Cleanup on unmount to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      // Clean up all touch-related state
+      touchStartYRef.current = null;
+      touchStartGroupIdRef.current = null;
+      touchStartElementRef.current = null;
+      setDragOffset(null);
+    };
+  }, []);
 
   // Auto-focus input when editing starts
   useEffect(() => {
@@ -136,6 +161,93 @@ export const ServiceTypeGroupsTable: React.FC<ServiceTypeGroupsTableProps> = ({
     onMove(draggedGroupId, targetGroupId);
   };
 
+  // Touch event handler for starting drag on mobile
+  const handleTouchStart = (e: React.TouchEvent, groupId: number) => {
+    if (!isClinicAdmin || !onDragStart) return;
+
+    e.stopPropagation();
+
+    const touch = e.touches[0];
+    if (!touch) return;
+
+    touchStartYRef.current = touch.clientY;
+    touchStartGroupIdRef.current = groupId;
+
+    // Store the element being dragged for visual feedback
+    const target = e.currentTarget.closest('[data-group-id]') as HTMLElement;
+    if (target) {
+      touchStartElementRef.current = target;
+    }
+
+    setDragOffset({ y: 0 });
+
+    // Create a synthetic drag event to trigger drag start
+    const syntheticEvent = {
+      ...e,
+      dataTransfer: {
+        effectAllowed: 'move',
+        setDragImage: () => {},
+        setData: () => {}, // Mock setData to prevent crash
+      },
+    } as unknown as React.DragEvent;
+
+    onDragStart(syntheticEvent, groupId);
+  };
+
+  // Touch event handler for moving drag on mobile
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!touchStartGroupIdRef.current || !onMoveRef.current) return;
+
+    e.preventDefault();
+    const touch = e.touches[0];
+    if (!touch) return;
+
+    const currentY = touch.clientY;
+    const startY = touchStartYRef.current || 0;
+    const deltaY = currentY - startY;
+
+    setDragOffset({ y: deltaY });
+
+    // Find the element under the touch point
+    const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
+    
+    const itemElement = elementBelow?.closest('[data-group-id]') as HTMLElement;
+
+    if (itemElement) {
+      const targetGroupId = parseInt(itemElement.getAttribute('data-group-id') || '0', 10);
+      
+      // Debounce swaps to prevent thrashing (wait 150ms between swaps)
+      const now = Date.now();
+      if (now - lastSwapTimeRef.current < 150) {
+        return;
+      }
+
+      if (targetGroupId && targetGroupId !== touchStartGroupIdRef.current) {
+        onMoveRef.current(touchStartGroupIdRef.current, targetGroupId);
+        // Update start position for next movement
+        touchStartYRef.current = currentY;
+        lastSwapTimeRef.current = now;
+      }
+    }
+  };
+
+  // Touch event handler for ending drag on mobile
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (!touchStartGroupIdRef.current) return;
+
+    e.preventDefault();
+
+    // Clean up all touch-related state
+    touchStartYRef.current = null;
+    touchStartGroupIdRef.current = null;
+    touchStartElementRef.current = null;
+    setDragOffset(null);
+
+    if (onDragEndRef.current) {
+      onDragEndRef.current();
+    }
+  };
+
   const renderGroupRow = (group: ServiceTypeGroup) => {
     const isEditing = editingGroupId === group.id;
     const serviceCount = getGroupCount(group.id);
@@ -144,6 +256,7 @@ export const ServiceTypeGroupsTable: React.FC<ServiceTypeGroupsTableProps> = ({
       return (
         <React.Fragment key={group.id}>
           <div
+            data-group-id={group.id}
             draggable={isClinicAdmin && !isEditing}
             onDragStart={(e) => {
               // Hide the default drag ghost
@@ -157,16 +270,27 @@ export const ServiceTypeGroupsTable: React.FC<ServiceTypeGroupsTableProps> = ({
             onDragEnd={() => {
               if (onDragEnd) onDragEnd();
             }}
+            onTouchMove={isMobile && isClinicAdmin && !isEditing ? handleTouchMove : undefined}
+            onTouchEnd={isMobile && isClinicAdmin && !isEditing ? handleTouchEnd : undefined}
             className={`bg-white border border-gray-200 rounded-lg p-4 shadow-sm transition-all duration-200 ${draggedGroupId === group.id
               ? 'opacity-40 border-dashed border-gray-400 bg-gray-50'
               : ''
               } ${isClinicAdmin && !isEditing ? 'cursor-move' : ''}`}
+            style={
+              isMobile && draggedGroupId === group.id && dragOffset
+                ? { transform: `translateY(${dragOffset.y}px)`, zIndex: 1000, position: 'relative', pointerEvents: 'none' }
+                : {}
+            }
           >
             <div className="flex items-start justify-between">
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-1">
                   {isClinicAdmin && !isEditing && (
-                    <div className="text-gray-400 cursor-move">
+                    <div 
+                      className="text-gray-400 cursor-move touch-none select-none flex items-center"
+                      onTouchStart={isMobile ? (e) => handleTouchStart(e, group.id) : undefined}
+                      style={{ touchAction: 'none' }}
+                    >
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
                       </svg>
