@@ -463,7 +463,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1.5 flex items-center gap-2">
-                        預約緩衝時間 (分鐘)
+                        排程緩衝時間 (分鐘)
                         <InfoButton onClick={() => setShowBufferModal(true)} />
                       </label>
                       <FormInput
@@ -475,7 +475,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">所屬群組</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">群組</label>
                       <select
                         {...register('service_type_group_id', { valueAsNumber: true })}
                         className="input w-full"
@@ -486,7 +486,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1.5 flex items-center gap-2">
-                        收據名稱 (選填)
+                        收據項目名稱
                         <InfoButton onClick={() => setShowReceiptNameModal(true)} />
                       </label>
                       <input
@@ -496,11 +496,18 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">描述 (選填)</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5 flex items-center gap-2">
+                        說明
+                        {!allow_new_patient_booking && !allow_existing_patient_booking && (
+                          <WarningPopover message="此服務項目未開放病患自行預約，此設定不會生效。">
+                            <span className="text-amber-600 hover:text-amber-700 cursor-pointer">⚠️</span>
+                          </WarningPopover>
+                        )}
+                      </label>
                       <textarea
                         {...register('description')}
                         className="input w-full min-h-[80px]"
-                        placeholder="此服務項目的詳細說明..."
+                        placeholder="服務說明（顯示在 LINE 預約系統）"
                       />
                     </div>
                   </div>
@@ -518,7 +525,10 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                         {...register('allow_new_patient_booking')}
                         className="w-4 h-4 text-primary-600 rounded border-gray-300 mr-3"
                       />
-                      <span className="text-gray-700">開放新病患預約</span>
+                      <div className="flex flex-col">
+                        <span className="text-sm font-medium text-gray-900">新病患可自行預約</span>
+                        <span className="text-xs text-gray-500">新病患可透過 LINE 預約系統看到並選擇此服務</span>
+                      </div>
                       <div className="ml-2"><InfoButton onClick={() => setShowAllowNewPatientBookingModal(true)} /></div>
                     </label>
                     <label className="flex items-center cursor-pointer">
@@ -527,7 +537,10 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                         {...register('allow_existing_patient_booking')}
                         className="w-4 h-4 text-primary-600 rounded border-gray-300 mr-3"
                       />
-                      <span className="text-gray-700">開放現有病患預約</span>
+                      <div className="flex flex-col">
+                        <span className="text-sm font-medium text-gray-900">舊病患可自行預約</span>
+                        <span className="text-xs text-gray-500">舊病患可透過 LINE 預約系統看到並選擇此服務</span>
+                      </div>
                       <div className="ml-2"><InfoButton onClick={() => setShowAllowExistingPatientBookingModal(true)} /></div>
                     </label>
                     <label className="flex items-center cursor-pointer">
@@ -536,7 +549,10 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                         {...register('allow_patient_practitioner_selection')}
                         className="w-4 h-4 text-primary-600 rounded border-gray-300 mr-3"
                       />
-                      <span className="text-gray-700">允許病患選擇治療師</span>
+                      <div className="flex flex-col">
+                        <span className="text-sm font-medium text-gray-900">開放病患指定治療師</span>
+                        <span className="text-xs text-gray-500">病患預約時可自由選擇想看診的治療師</span>
+                      </div>
                       {!allow_new_patient_booking && !allow_existing_patient_booking && (
                         <div className="ml-2">
                           <WarningPopover message="此服務項目未開放病患自行預約，此設定不會生效。">
@@ -551,7 +567,10 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                         {...register('allow_multiple_time_slot_selection')}
                         className="w-4 h-4 text-primary-600 rounded border-gray-300 mr-3"
                       />
-                      <span className="text-gray-700">允許單次預約多個時段</span>
+                      <div className="flex flex-col">
+                        <span className="text-sm font-medium text-gray-900">允許患者選擇多個時段</span>
+                        <span className="text-xs text-gray-500">病患預約時可選擇多個偏好時段供診所確認</span>
+                      </div>
                       <div className="ml-2"><InfoButton onClick={() => setShowMultipleTimeSlotModal(true)} /></div>
                       {!allow_new_patient_booking && !allow_existing_patient_booking && (
                         <div className="ml-2">
@@ -576,7 +595,10 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                         {...register('require_notes')}
                         className="w-4 h-4 text-primary-600 rounded border-gray-300 mr-3"
                       />
-                      <span className="text-gray-700">強制病患填寫備註</span>
+                      <div className="flex flex-col">
+                        <span className="text-sm font-medium text-gray-900">要求填寫備註</span>
+                        <span className="text-xs text-gray-500">病患透過Line自行預約此服務時必須填寫備註</span>
+                      </div>
                       {!allow_new_patient_booking && !allow_existing_patient_booking && (
                         <div className="ml-2">
                           <WarningPopover message="此服務項目未開放病患自行預約，此設定不會生效。">
@@ -587,7 +609,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                     </label>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1.5 flex items-center gap-2">
-                        備註填寫說明 (選填)
+                        備註填寫指引
                         {!allow_new_patient_booking && !allow_existing_patient_booking && (
                           <WarningPopover message="此服務項目未開放病患自行預約，此設定不會生效。">
                             <span className="text-amber-600 hover:text-amber-700 cursor-pointer">⚠️</span>
@@ -617,10 +639,11 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                 </section>
 
                 <section className="bg-white rounded-xl md:rounded-2xl p-4 md:p-6 shadow-sm border border-gray-100">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4 md:mb-6 flex items-center gap-2">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2 flex items-center gap-2">
                     <span className="w-1.5 h-6 bg-pink-500 rounded-full"></span>
                     資源需求
                   </h3>
+                  <p className="text-sm text-gray-500 mb-4">設定此服務項目需要的資源類型和數量</p>
                   <ResourceRequirementsSection
                     appointmentTypeId={serviceItemId || 0}
                     isClinicAdmin={isClinicAdmin}
