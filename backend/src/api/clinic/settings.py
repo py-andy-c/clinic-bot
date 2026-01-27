@@ -1206,9 +1206,15 @@ async def create_service_item_bundle(
             # 2. Sync Associations
             _sync_service_item_associations(db, clinic_id, at.id, request.associations)
         
-        # Transaction committed by context manager
-        return await get_service_item_bundle(new_item_id, current_user, db)
+            # Fetch the result within the transaction to ensure everything worked
+            # If this fails (e.g. serialization error), the transaction rolls back
+            result = await get_service_item_bundle(new_item_id, current_user, db)
+            
+        return result
         
+    except HTTPException:
+        # Re-raise HTTP exceptions (like 400 Bad Request) so they aren't masked as 500
+        raise
     except Exception as e:
         logger.exception(f"Error creating service item bundle: {e}")
         # db.begin() handles rollback on exception automatically

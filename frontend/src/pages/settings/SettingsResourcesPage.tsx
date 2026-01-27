@@ -8,6 +8,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '../../services/api';
 import ResourceTypeEditModal from '../../components/ResourceTypeEditModal';
 import { ResourceType } from '../../types';
+import { getErrorMessage } from '../../types/api';
 
 const SettingsResourcesPage: React.FC = () => {
     const queryClient = useQueryClient();
@@ -27,10 +28,10 @@ const SettingsResourcesPage: React.FC = () => {
         mutationFn: (id: number) => apiService.deleteResourceType(id),
         onSuccess: async () => {
             await queryClient.invalidateQueries({ queryKey: ['settings', 'resource-types'] });
-            alert('資源類型已刪除');
+            await alert('資源類型已刪除');
         },
-        onError: (err: any) => {
-            alert(err.response?.data?.detail || '刪除失敗', '錯誤');
+        onError: async (err: any) => {
+            await alert(getErrorMessage(err) || '刪除失敗', '錯誤');
         },
     });
 

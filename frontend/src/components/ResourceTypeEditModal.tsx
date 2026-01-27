@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { BaseModal } from './shared';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { apiService } from '../services/api';
+import { getErrorMessage } from '../types/api';
 import { useModal } from '../contexts/ModalContext';
 import { logger } from '../utils/logger';
 import { useUnsavedChangesDetection } from '../hooks/useUnsavedChangesDetection';
@@ -107,9 +108,9 @@ const ResourceTypeEditModal: React.FC<ResourceTypeEditModalProps> = ({
             await alert(isEdit ? '資源類型已更新' : '資源類型已建立');
             onClose();
         },
-        onError: (err: any) => {
+        onError: async (err: any) => {
             logger.error('Error saving resource type bundle:', err);
-            alert(err.response?.data?.detail || '儲存失敗', '錯誤');
+            await alert(getErrorMessage(err) || '儲存失敗', '錯誤');
         },
     });
 
