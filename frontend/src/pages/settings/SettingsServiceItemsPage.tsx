@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useRef } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { useModal } from '../../contexts/ModalContext';
 import { apiService } from '../../services/api';
@@ -54,6 +54,10 @@ const SettingsServiceItemsPage: React.FC = () => {
   const [isComposing, setIsComposing] = useState(false);
   const [draggedItemId, setDraggedItemId] = useState<number | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+
+  // Snapshot refs for reliable rollback on drag error
+  const itemDragSnapshotRef = useRef<ClinicSettings | null>(null);
+  const groupDragSnapshotRef = useRef<ServiceTypeGroupsData | null>(null);
 
   const { isClinicAdmin, user } = useAuth();
   const activeClinicId = user?.active_clinic_id;
@@ -164,29 +168,29 @@ const SettingsServiceItemsPage: React.FC = () => {
     setEditingItem(undefined);
   };
 
-  const handleDragStart = (e: React.DragEvent, itemId: number) => {
+  const handleDragStart = useCallback((e: React.DragEvent, itemId: number) => {
+    const queryKey = ['settings', 'clinic', activeClinicId];
+    // Take a snapshot of current data for rollback if the final save fails
+    itemDragSnapshotRef.current = queryClient.getQueryData<ClinicSettings>(queryKey) || null;
+
     setDraggedItemId(itemId);
     e.dataTransfer.effectAllowed = 'move';
     // Set dummy data to prevent browser from showing default icons (like the globe icon on Mac)
     e.dataTransfer.setData('application/x-clinic-dnd', itemId.toString());
-  };
+  }, [activeClinicId, queryClient]);
 
   const handleMoveServiceItem = useCallback(async (draggedId: number, targetId: number) => {
-    // Define query key for consistency
     const queryKey = ['settings', 'clinic', activeClinicId];
 
-    // 1. Snapshot the current state for rollback
-    const previousData = queryClient.getQueryData<ClinicSettings>(queryKey);
-
-    // 2. Cancel any outgoing refetches
+    // 1. Cancel any outgoing refetches to avoid overwriting our optimistic state
     await queryClient.cancelQueries({ queryKey });
 
-    // 3. Optimistically update
+    // 2. Optimistically update local cache
     queryClient.setQueryData<ClinicSettings | undefined>(queryKey, (old) => {
       if (!old || !old.appointment_types) return old;
 
       const items = [...old.appointment_types];
-      
+
       const fromIndex = items.findIndex(item => item.id === draggedId);
       const toIndex = items.findIndex(item => item.id === targetId);
 
@@ -194,11 +198,11 @@ const SettingsServiceItemsPage: React.FC = () => {
 
       // Move item
       const [item] = items.splice(fromIndex, 1);
-      if (!item) return old; // Guard against undefined item
+      if (!item) return old;
 
       items.splice(toIndex, 0, item);
 
-      // Reassign display_order (optional but good for consistency)
+      // Reassign display_order for consistency
       const updatedItems = items.map((t, i) => ({ ...t, display_order: i }));
 
       return {
@@ -206,65 +210,47 @@ const SettingsServiceItemsPage: React.FC = () => {
         appointment_types: updatedItems
       };
     });
-
-    // 4. Save the order to the backend
-    try {
-      const freshData = queryClient.getQueryData<ClinicSettings>(queryKey);
-      if (!freshData || !freshData.appointment_types) {
-        throw new Error('No data available to save order');
-      }
-
-      const items = freshData.appointment_types;
-      const orderedPayload: AppointmentTypeOrderPayload[] = items.map((item, index) => ({
-        id: item.id,
-        display_order: index
-      }));
-
-      await apiService.bulkUpdateAppointmentTypeOrder(orderedPayload);
-
-    } catch (error) {
-      // 5. Rollback on error
-      logger.error('Error saving item order:', error);
-      await alert(getErrorMessage(error) || '儲存排序失敗', '錯誤');
-      if (previousData) {
-        queryClient.setQueryData(queryKey, previousData);
-      } else {
-        // If we don't have previous data, invalidate to refetch
-        queryClient.invalidateQueries({ queryKey });
-      }
-    }
-  }, [queryClient, activeClinicId, alert]);
+  }, [queryClient, activeClinicId]);
 
   const handleSaveItemOrder = async () => {
+    setDraggedItemId(null); // Clear drag state locally immediately
+
     const queryKey = ['settings', 'clinic', activeClinicId];
     const freshData = queryClient.getQueryData<ClinicSettings>(queryKey);
-    if (!freshData || !freshData.appointment_types) return;
-
-    // 1. Snapshot current state for rollback
-    const previousData = queryClient.getQueryData<ClinicSettings>(queryKey);
-    await queryClient.cancelQueries({ queryKey });
+    if (!freshData || !freshData.appointment_types) {
+      itemDragSnapshotRef.current = null;
+      return;
+    }
 
     const items = freshData.appointment_types;
+    // Check if anything actually changed compared to our snapshot
+    const originalItems = itemDragSnapshotRef.current?.appointment_types || [];
+    const hasChanged = items.some((item, index) => item.id !== originalItems[index]?.id);
+
+    if (!hasChanged) {
+      itemDragSnapshotRef.current = null;
+      return;
+    }
+
     const orderedPayload: AppointmentTypeOrderPayload[] = items.map((item, index) => ({
       id: item.id,
       display_order: index
     }));
-
-    setDraggedItemId(null); // Clear drag state locally
 
     try {
       await apiService.bulkUpdateAppointmentTypeOrder(orderedPayload);
     } catch (error) {
       logger.error('Error saving order:', error);
       await alert('儲存排序失敗', '錯誤');
-      
-      // 2. Rollback on error
-      if (previousData) {
-        queryClient.setQueryData(queryKey, previousData);
+
+      // Rollback to the snapshot taken at the start of the drag
+      if (itemDragSnapshotRef.current) {
+        queryClient.setQueryData(queryKey, itemDragSnapshotRef.current);
       } else {
-        // If we don't have previous data, invalidate to refetch
         queryClient.invalidateQueries({ queryKey });
       }
+    } finally {
+      itemDragSnapshotRef.current = null;
     }
   };
 
@@ -299,21 +285,24 @@ const SettingsServiceItemsPage: React.FC = () => {
     }
   };
 
+  const handleGroupDragStart = useCallback(() => {
+    const queryKey = ['settings', 'service-type-groups', activeClinicId];
+    // Take a snapshot of current data for rollback if the final save fails
+    groupDragSnapshotRef.current = queryClient.getQueryData<ServiceTypeGroupsData>(queryKey) || null;
+  }, [activeClinicId, queryClient]);
+
   const handleMoveGroup = useCallback(async (draggedId: number, targetId: number) => {
     const queryKey = ['settings', 'service-type-groups', activeClinicId];
 
-    // 1. Snapshot the current state for rollback
-    const previousData = queryClient.getQueryData<ServiceTypeGroupsData>(queryKey);
-
-    // 2. Cancel any outgoing refetches
+    // 1. Cancel any outgoing refetches
     await queryClient.cancelQueries({ queryKey });
 
-    // 3. Optimistically update
+    // 3. Optimistically update local cache
     queryClient.setQueryData<ServiceTypeGroupsData | undefined>(queryKey, (old) => {
       if (!old || !old.groups) return old;
 
       const items = [...old.groups];
-      
+
       const fromIndex = items.findIndex(g => g.id === draggedId);
       const toIndex = items.findIndex(g => g.id === targetId);
 
@@ -328,44 +317,26 @@ const SettingsServiceItemsPage: React.FC = () => {
 
       return { ...old, groups: updatedItems };
     });
-
-    // 4. Save the order to the backend
-    try {
-      const freshData = queryClient.getQueryData<ServiceTypeGroupsData>(queryKey);
-      if (!freshData || !freshData.groups) {
-        throw new Error('No group data available to save order');
-      }
-
-      const items = freshData.groups;
-      const orderedPayload: GroupOrderPayload[] = items.map((g, index) => ({
-        id: g.id,
-        display_order: index
-      }));
-
-      await apiService.bulkUpdateGroupOrder(orderedPayload);
-
-    } catch (error) {
-      // 5. Rollback on error
-      logger.error('Error saving group order:', error);
-      await alert(getErrorMessage(error) || '儲存群組排序失敗', '錯誤');
-      if (previousData) {
-        queryClient.setQueryData(queryKey, previousData);
-      } else {
-        queryClient.invalidateQueries({ queryKey });
-      }
-    }
-  }, [queryClient, activeClinicId, alert]);
+  }, [queryClient, activeClinicId]);
 
   const handleSaveGroupOrder = async () => {
     const queryKey = ['settings', 'service-type-groups', activeClinicId];
     const freshData = queryClient.getQueryData<ServiceTypeGroupsData>(queryKey);
-    if (!freshData || !freshData.groups) return;
-
-    // 1. Snapshot current state for rollback
-    const previousData = queryClient.getQueryData<ServiceTypeGroupsData>(queryKey);
-    await queryClient.cancelQueries({ queryKey });
+    if (!freshData || !freshData.groups) {
+      groupDragSnapshotRef.current = null;
+      return;
+    }
 
     const items = freshData.groups;
+    // Check if anything actually changed
+    const originalGroups = groupDragSnapshotRef.current?.groups || [];
+    const hasChanged = items.some((group, index) => group.id !== originalGroups[index]?.id);
+
+    if (!hasChanged) {
+      groupDragSnapshotRef.current = null;
+      return;
+    }
+
     const orderedPayload: GroupOrderPayload[] = items.map((g, index) => ({
       id: g.id,
       display_order: index
@@ -376,14 +347,15 @@ const SettingsServiceItemsPage: React.FC = () => {
     } catch (err) {
       logger.error('Error saving group order:', err);
       await alert('儲存群組排序失敗', '錯誤');
-      
-      // 2. Rollback on error
-      if (previousData) {
-        queryClient.setQueryData(queryKey, previousData);
+
+      // Rollback to snapshot
+      if (groupDragSnapshotRef.current) {
+        queryClient.setQueryData(queryKey, groupDragSnapshotRef.current);
       } else {
-        // If we don't have previous data, invalidate to refetch
         queryClient.invalidateQueries({ queryKey });
       }
+    } finally {
+      groupDragSnapshotRef.current = null;
     }
   };
 
@@ -475,6 +447,7 @@ const SettingsServiceItemsPage: React.FC = () => {
             onAddGroup={handleAddGroup}
             onUpdateGroup={handleUpdateGroup}
             onDeleteGroup={handleDeleteGroup}
+            onDragStart={handleGroupDragStart}
             onMoveGroup={handleMoveGroup}
             onSaveGroupOrder={handleSaveGroupOrder}
             availableGroups={groups}

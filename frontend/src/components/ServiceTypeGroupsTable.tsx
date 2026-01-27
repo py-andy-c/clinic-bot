@@ -186,8 +186,8 @@ export const ServiceTypeGroupsTable: React.FC<ServiceTypeGroupsTableProps> = ({
       ...e,
       dataTransfer: {
         effectAllowed: 'move',
-        setDragImage: () => {},
-        setData: () => {}, // Mock setData to prevent crash
+        setDragImage: () => { },
+        setData: () => { }, // Mock setData to prevent crash
       },
     } as unknown as React.DragEvent;
 
@@ -210,12 +210,12 @@ export const ServiceTypeGroupsTable: React.FC<ServiceTypeGroupsTableProps> = ({
 
     // Find the element under the touch point
     const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
-    
+
     const itemElement = elementBelow?.closest('[data-group-id]') as HTMLElement;
 
     if (itemElement) {
       const targetGroupId = parseInt(itemElement.getAttribute('data-group-id') || '0', 10);
-      
+
       // Debounce swaps to prevent thrashing (wait 150ms between swaps)
       const now = Date.now();
       if (now - lastSwapTimeRef.current < 150) {
@@ -259,10 +259,7 @@ export const ServiceTypeGroupsTable: React.FC<ServiceTypeGroupsTableProps> = ({
             data-group-id={group.id}
             draggable={isClinicAdmin && !isEditing}
             onDragStart={(e) => {
-              // Hide the default drag ghost
-              const img = new Image();
-              img.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
-              e.dataTransfer.setDragImage(img, 0, 0);
+              e.dataTransfer.setDragImage(EMPTY_DRAG_IMAGE, 0, 0);
 
               onDragStart(e, group.id);
             }}
@@ -286,7 +283,7 @@ export const ServiceTypeGroupsTable: React.FC<ServiceTypeGroupsTableProps> = ({
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-1">
                   {isClinicAdmin && !isEditing && (
-                    <div 
+                    <div
                       className="text-gray-400 cursor-move touch-none select-none flex items-center"
                       onTouchStart={isMobile ? (e) => handleTouchStart(e, group.id) : undefined}
                       style={{ touchAction: 'none' }}
@@ -379,7 +376,7 @@ export const ServiceTypeGroupsTable: React.FC<ServiceTypeGroupsTableProps> = ({
           onDragStart={(e) => {
             // Hide the default drag ghost
             e.dataTransfer.setDragImage(EMPTY_DRAG_IMAGE, 0, 0);
-            
+
             // Set custom data type to prevent browser from showing default "globe" or "link" icons
             e.dataTransfer.setData('application/x-clinic-dnd', group.id.toString());
 

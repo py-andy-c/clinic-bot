@@ -12,6 +12,7 @@ interface ServiceTypeGroupManagementProps {
   onUpdateGroup: (id: number, updates: Partial<ServiceTypeGroup>) => void;
   onDeleteGroup: (id: number) => void;
   onMoveGroup: (draggedId: number, targetId: number) => void;
+  onDragStart?: (groupId: number) => void;
   onSaveGroupOrder: () => void;
   availableGroups: ServiceTypeGroup[];
 }
@@ -24,6 +25,7 @@ export const ServiceTypeGroupManagement: React.FC<ServiceTypeGroupManagementProp
   onUpdateGroup,
   onDeleteGroup,
   onMoveGroup,
+  onDragStart,
   onSaveGroupOrder,
   availableGroups,
 }) => {
@@ -79,6 +81,10 @@ export const ServiceTypeGroupManagement: React.FC<ServiceTypeGroupManagementProp
     e.dataTransfer.effectAllowed = 'move';
     // Set dummy data to prevent browser from showing default icons (like the globe icon on Mac)
     e.dataTransfer.setData('application/x-clinic-dnd', groupId.toString());
+
+    if (onDragStart) {
+      onDragStart(groupId);
+    }
   };
 
   const handleDragEnd = () => {
