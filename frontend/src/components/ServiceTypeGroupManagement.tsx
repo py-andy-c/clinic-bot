@@ -77,6 +77,8 @@ export const ServiceTypeGroupManagement: React.FC<ServiceTypeGroupManagementProp
   const handleDragStart = (e: React.DragEvent, groupId: number) => {
     setDraggedGroupId(groupId);
     e.dataTransfer.effectAllowed = 'move';
+    // Set dummy data to prevent browser from showing default icons (like the globe icon on Mac)
+    e.dataTransfer.setData('application/x-clinic-dnd', groupId.toString());
   };
 
   const handleDragEnd = () => {

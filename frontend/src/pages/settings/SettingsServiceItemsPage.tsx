@@ -188,6 +188,8 @@ const SettingsServiceItemsPage: React.FC = () => {
   const handleDragStart = (e: React.DragEvent, itemId: number) => {
     setDraggedItemId(itemId);
     e.dataTransfer.effectAllowed = 'move';
+    // Set dummy data to prevent browser from showing default icons (like the globe icon on Mac)
+    e.dataTransfer.setData('application/x-clinic-dnd', itemId.toString());
   };
 
   const handleMoveServiceItem = useCallback(async (draggedId: number, targetId: number) => {

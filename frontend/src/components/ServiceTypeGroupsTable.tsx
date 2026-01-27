@@ -20,9 +20,12 @@ interface ServiceTypeGroupsTableProps {
   onDrop?: (e: React.DragEvent, targetItemId: number, position?: 'above' | 'below') => void;
 }
 
+// Constants
+const EMPTY_DRAG_IMAGE = new Image();
+EMPTY_DRAG_IMAGE.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+
 export const ServiceTypeGroupsTable: React.FC<ServiceTypeGroupsTableProps> = ({
   groups,
-  appointmentTypes: _appointmentTypes = [],
   getGroupCount,
   onSave,
   onDelete,
@@ -251,9 +254,10 @@ export const ServiceTypeGroupsTable: React.FC<ServiceTypeGroupsTableProps> = ({
           draggable={isClinicAdmin && !isEditing}
           onDragStart={(e) => {
             // Hide the default drag ghost
-            const img = new Image();
-            img.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
-            e.dataTransfer.setDragImage(img, 0, 0);
+            e.dataTransfer.setDragImage(EMPTY_DRAG_IMAGE, 0, 0);
+            
+            // Set custom data type to prevent browser from showing default "globe" or "link" icons
+            e.dataTransfer.setData('application/x-clinic-dnd', group.id.toString());
 
             onDragStart(e, group.id);
           }}

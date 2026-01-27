@@ -10,6 +10,10 @@ const GAP_SIZE = 3;
 const BUTTON_SIZE = 5;
 const DROP_INDICATOR_COLOR = 'blue-400';
 
+// Preload empty image for drag ghost
+const EMPTY_DRAG_IMAGE = new Image();
+EMPTY_DRAG_IMAGE.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+
 interface ServiceItemsTableProps {
   appointmentTypes: AppointmentType[];
   groups: ServiceTypeGroup[];
@@ -213,9 +217,12 @@ export const ServiceItemsTable: React.FC<ServiceItemsTableProps> = ({
               draggable={isClinicAdmin && !isMobile && !disabled}
               onDragStart={isClinicAdmin && !isMobile && onDragStart ? (e) => {
                 // Hide the default drag ghost
-                const img = new Image();
-                img.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
-                e.dataTransfer.setDragImage(img, 0, 0);
+                e.dataTransfer.setDragImage(EMPTY_DRAG_IMAGE, 0, 0);
+                
+                // Set custom data type to prevent browser from showing default "globe" or "link" icons
+                // We use a custom MIME type that is not text/plain or text/uri-list
+                e.dataTransfer.setData('application/x-clinic-dnd', appointmentType.id.toString());
+                e.dataTransfer.effectAllowed = 'move';
 
                 onDragStart(e, appointmentType.id);
               } : undefined}
@@ -333,9 +340,12 @@ export const ServiceItemsTable: React.FC<ServiceItemsTableProps> = ({
                 draggable={isClinicAdmin && !isMobile && !disabled}
                 onDragStart={isClinicAdmin && !isMobile && onDragStart ? (e) => {
                   // Hide the default drag ghost
-                  const img = new Image();
-                  img.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
-                  e.dataTransfer.setDragImage(img, 0, 0);
+                  e.dataTransfer.setDragImage(EMPTY_DRAG_IMAGE, 0, 0);
+                  
+                  // Set custom data type to prevent browser from showing default "globe" or "link" icons
+                  // We use a custom MIME type that is not text/plain or text/uri-list
+                  e.dataTransfer.setData('application/x-clinic-dnd', appointmentType.id.toString());
+                  e.dataTransfer.effectAllowed = 'move';
 
                   onDragStart(e, appointmentType.id);
                 } : undefined}
