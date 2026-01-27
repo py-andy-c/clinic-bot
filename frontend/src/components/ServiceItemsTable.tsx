@@ -98,7 +98,6 @@ export const ServiceItemsTable: React.FC<ServiceItemsTableProps> = ({
     const hoverIndex = appointmentTypes.findIndex((i: AppointmentType) => i.id === targetItemId);
 
     if (dragIndex === -1 || hoverIndex === -1) return;
-    if (dragIndex === hoverIndex) return;
 
     const hoverBoundingRect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const hoverMiddleY = (hoverBoundingRect.bottom - hoverBoundingRect.top) / 2;

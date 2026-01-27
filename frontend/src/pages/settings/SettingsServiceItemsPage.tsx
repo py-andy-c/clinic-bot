@@ -253,7 +253,7 @@ const SettingsServiceItemsPage: React.FC = () => {
         queryClient.invalidateQueries({ queryKey });
       }
     }
-  }, [queryClient, activeClinicId, alert]); // Added alert to dependencies
+  }, [queryClient, activeClinicId, alert, appointmentTypeIdToIndexMap]);
 
   const handleSaveItemOrder = async () => {
     const queryKey = ['settings', 'clinic', activeClinicId];
