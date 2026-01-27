@@ -77,7 +77,7 @@ export const errorTracking: ErrorTrackingService = {
     // When @sentry/react is installed, uncomment this:
     // import * as Sentry from '@sentry/react';
     // Sentry.captureException(error, { extra: context });
-    
+
     // For now, just log in development
     if (import.meta.env.DEV) {
       console.error('[Error Tracking] Exception:', error);
@@ -103,7 +103,7 @@ export const errorTracking: ErrorTrackingService = {
     // When @sentry/react is installed, uncomment this:
     // import * as Sentry from '@sentry/react';
     // Sentry.captureMessage(message, { level });
-    
+
     // For now, just log in development
     if (import.meta.env.DEV) {
       const logMethod = level === 'error' ? console.error : level === 'warning' ? console.warn : console.info;
@@ -126,7 +126,7 @@ export const errorTracking: ErrorTrackingService = {
     // When @sentry/react is installed, uncomment this:
     // import * as Sentry from '@sentry/react';
     // Sentry.setUser(user);
-    
+
     // For now, just log in development
     if (import.meta.env.DEV) {
       console.log('[Error Tracking] Set user:', user);
@@ -148,11 +148,54 @@ export const errorTracking: ErrorTrackingService = {
     // When @sentry/react is installed, uncomment this:
     // import * as Sentry from '@sentry/react';
     // Sentry.setUser(null);
-    
+
     // For now, just log in development
     if (import.meta.env.DEV) {
       console.log('[Error Tracking] Cleared user');
     }
   },
+};
+
+/**
+ * Safely extract human-readable error message from API error response
+ */
+export const extractErrorMessage = (err: any, fallbackMessage: string = '操作失敗'): string => {
+  if (!err) return fallbackMessage;
+
+  // Handle Axios response errors
+  if (err.response?.data) {
+    const data = err.response.data;
+
+    // Check for FastAPI "detail" field
+    if (data.detail) {
+      if (typeof data.detail === 'string') {
+        return data.detail;
+      }
+      if (typeof data.detail === 'object') {
+        // Handle nested error objects from settings validation
+        if (data.detail.message) {
+          return data.detail.message;
+        }
+        // Fallback for other objects
+        return JSON.stringify(data.detail);
+      }
+    }
+
+    // Check for common message field
+    if (data.message && typeof data.message === 'string') {
+      return data.message;
+    }
+
+    // If it's just an error string
+    if (data.error && typeof data.error === 'string') {
+      return data.error;
+    }
+  }
+
+  // Handle standard Error message
+  if (err.message) return err.message;
+
+  // Final fallback
+  return typeof err === 'string' ? err : fallbackMessage;
 };
 

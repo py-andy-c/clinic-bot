@@ -15,6 +15,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '../../services/api';
 import SettingsActionFooter from '../../components/shared/SettingsActionFooter';
 import { logger } from '../../utils/logger';
+import { extractErrorMessage } from '../../utils/errorTracking';
 
 export type ChatSettingsFormData = z.infer<typeof ChatSettingsFormSchema>;
 
@@ -54,7 +55,7 @@ const SettingsChatPage: React.FC = () => {
         },
         onError: (err: any) => {
             logger.error('Failed to save chat settings:', err);
-            alert(err.response?.data?.detail || '儲存設定失敗', '錯誤');
+            alert(extractErrorMessage(err, '儲存設定失敗'), '錯誤');
         }
     });
 

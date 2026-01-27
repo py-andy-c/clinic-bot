@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { useAuth } from '../../hooks/useAuth';
 import { useModal } from '../../contexts/ModalContext';
 import { logger } from '../../utils/logger';
+import { extractErrorMessage } from '../../utils/errorTracking';
 import { LoadingSpinner, BaseModal } from '../../components/shared';
 import ClinicAppointmentSettings from '../../components/ClinicAppointmentSettings';
 import SettingsBackButton from '../../components/SettingsBackButton';
@@ -143,7 +144,7 @@ const SettingsAppointmentsPage: React.FC = () => {
         },
         onError: (err: any) => {
             logger.error('Failed to save appointment settings:', err);
-            alert(err.response?.data?.detail || '儲存設定失敗', '錯誤');
+            alert(extractErrorMessage(err, '儲存設定失敗'), '錯誤');
         }
     });
 

@@ -6,7 +6,7 @@ import { Z_INDEX } from '../constants/app';
 interface ModalState {
   isOpen: boolean;
   title: string | undefined;
-  message: string;
+  message: any;
   type: 'alert' | 'confirm';
   onConfirm?: () => void;
   onCancel?: () => void;
@@ -14,8 +14,8 @@ interface ModalState {
 
 interface ModalContextType {
   modal: ModalState | null;
-  alert: (message: string, title?: string) => Promise<void>;
-  confirm: (message: string, title?: string) => Promise<boolean>;
+  alert: (message: any, title?: string) => Promise<void>;
+  confirm: (message: any, title?: string) => Promise<boolean>;
   closeModal: () => void;
 }
 
@@ -36,7 +36,7 @@ interface ModalProviderProps {
 export const ModalProvider: React.FC<ModalProviderProps> = ({ children }) => {
   const [modal, setModal] = useState<ModalState | null>(null);
 
-  const alert = (message: string, title?: string): Promise<void> => {
+  const alert = (message: any, title?: string): Promise<void> => {
     return new Promise((resolve) => {
       setModal({
         isOpen: true,
@@ -51,7 +51,7 @@ export const ModalProvider: React.FC<ModalProviderProps> = ({ children }) => {
     });
   };
 
-  const confirm = (message: string, title?: string): Promise<boolean> => {
+  const confirm = (message: any, title?: string): Promise<boolean> => {
     return new Promise((resolve) => {
       setModal({
         isOpen: true,
@@ -116,7 +116,11 @@ const ModalDialog: React.FC<ModalDialogProps> = ({ modal, onClose }) => {
         </h3>
       )}
 
-      <p className="text-gray-700 mb-6 whitespace-pre-line">{modal.message}</p>
+      <p className="text-gray-700 mb-6 whitespace-pre-line">
+        {typeof modal.message === 'string'
+          ? modal.message
+          : JSON.stringify(modal.message, null, 2)}
+      </p>
 
       <div className="flex justify-end space-x-3">
         {modal.type === 'confirm' && modal.onCancel && (

@@ -694,73 +694,76 @@ async def update_settings(
         }
 
         # Determine which appointment types are being deleted or updated
-        # A type is being deleted if:
-        # 1. It's not matched by ID (if incoming has ID), AND
-        # 2. It's not matched by (name, duration) combination
         types_to_delete: List[Any] = []
         types_being_updated: Dict[int, Dict[str, Any]] = {}
-        
-        for existing_type in existing_appointment_types:
-            # First try to match by ID (most reliable)
-            if existing_type.id in incoming_by_id:
-                incoming_data = incoming_by_id[existing_type.id]
-                # Check if this is an update (name or duration changed) or just keeping it
-                if (existing_type.name != incoming_data.get("name") or 
-                    existing_type.duration_minutes != incoming_data.get("duration_minutes")):
-                    types_being_updated[existing_type.id] = incoming_data
-                # Type is being kept (matched by ID), not deleted
-                continue
-            
-            # If not matched by ID, try to match by (name, duration)
-            key = (existing_type.name, existing_type.duration_minutes)
-            if key in incoming_by_name_duration:
-                # Type is being kept (matched by name+duration), not deleted
-                continue
-            
-            # Not matched by ID or name+duration - this is a deletion
-            types_to_delete.append(existing_type)
 
-        # Check for practitioner references before deletion
-        # Only check types that are actually being deleted (not updated)
-        blocked_types: List[AppointmentTypeReference] = []
-        for appointment_type in types_to_delete:
-            practitioners = AvailabilityService.get_practitioners_for_appointment_type(
-                db=db,
-                appointment_type_id=appointment_type.id,
-                clinic_id=clinic_id
-            )
-            
-            if practitioners:
-                # Get practitioner names from associations
-                practitioner_ids: List[int] = [p.id for p in practitioners]
-                associations = db.query(UserClinicAssociation).filter(
-                    UserClinicAssociation.user_id.in_(practitioner_ids),
-                    UserClinicAssociation.clinic_id == clinic_id,
-                    UserClinicAssociation.is_active == True
-                ).all()
-                association_lookup: Dict[int, UserClinicAssociation] = {a.user_id: a for a in associations}
-                practitioner_names: List[str] = []
-                for p in practitioners:
-                    association = association_lookup.get(p.id)
-                    practitioner_names.append(association.full_name if association else p.email)
-                blocked_types.append(AppointmentTypeReference(
-                    id=appointment_type.id,
-                    name=appointment_type.name,
-                    practitioners=practitioner_names,
-                    is_blocked=True
-                ))
+        # Only do this if appointment_types is provided in the request
+        if "appointment_types" in settings:
+            # Determine which appointment types are being deleted or updated
+            # A type is being deleted if:
+            # 1. It's not matched by ID (if incoming has ID), AND
+            # 2. It's not matched by (name, duration) combination
+            for existing_type in existing_appointment_types:
+                # First try to match by ID (most reliable)
+                if existing_type.id in incoming_by_id:
+                    incoming_data = incoming_by_id[existing_type.id]
+                    # Check if this is an update (name or duration changed) or just keeping it
+                    if (existing_type.name != incoming_data.get("name") or 
+                        existing_type.duration_minutes != incoming_data.get("duration_minutes")):
+                        types_being_updated[existing_type.id] = incoming_data
+                    # Type is being kept (matched by ID), not deleted
+                    continue
+                
+                # If not matched by ID, try to match by (name, duration)
+                key = (existing_type.name, existing_type.duration_minutes)
+                if key in incoming_by_name_duration:
+                    # Type is being kept (matched by name+duration), not deleted
+                    continue
+                
+                # Not matched by ID or name+duration - this is a deletion
+                types_to_delete.append(existing_type)
 
-        # If any appointment types cannot be deleted, return error
-        if blocked_types:
-            error_response = AppointmentTypeDeletionErrorResponse(
-                error="cannot_delete_appointment_types",
-                message="無法刪除某些預約類型，因為有治療師正在提供此服務或存在相關預約",
-                appointment_types=blocked_types
-            )
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=error_response.model_dump()
-            )
+            # Check for practitioner references before deletion
+            # Only check types that are actually being deleted (not updated)
+            blocked_types: List[AppointmentTypeReference] = []
+            for appointment_type in types_to_delete:
+                practitioners = AvailabilityService.get_practitioners_for_appointment_type(
+                    db=db,
+                    appointment_type_id=appointment_type.id,
+                    clinic_id=clinic_id
+                )
+                
+                if practitioners:
+                    # Get practitioner names from associations
+                    practitioner_ids: List[int] = [p.id for p in practitioners]
+                    associations = db.query(UserClinicAssociation).filter(
+                        UserClinicAssociation.user_id.in_(practitioner_ids),
+                        UserClinicAssociation.clinic_id == clinic_id,
+                        UserClinicAssociation.is_active == True
+                    ).all()
+                    association_lookup: Dict[int, UserClinicAssociation] = {a.user_id: a for a in associations}
+                    practitioner_names: List[str] = []
+                    for p in practitioners:
+                        association = association_lookup.get(p.id)
+                        practitioner_names.append(association.full_name if association else p.email)
+                    blocked_types.append(AppointmentTypeReference(
+                        id=appointment_type.id,
+                        name=appointment_type.name,
+                        practitioners=practitioner_names,
+                        is_blocked=True
+                    ))
+
+            # If any appointment types cannot be deleted, return error
+            if blocked_types:
+                error_response = AppointmentTypeDeletionErrorResponse(
+                    error="cannot_delete_appointment_types",
+                    message="無法刪除某些預約類型，因為有治療師正在提供此服務或存在相關預約",
+                    appointment_types=blocked_types
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=error_response.model_dump()
+                )
         # Get clinic object
         clinic = db.query(Clinic).filter(Clinic.id == clinic_id).first()
         if not clinic:

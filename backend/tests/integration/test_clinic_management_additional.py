@@ -316,6 +316,45 @@ class TestAppointmentTypeDeletionPrevention:
 
         app.dependency_overrides.pop(auth_deps.get_current_user, None)
 
+    def test_partial_settings_update_does_not_trigger_deletion_validation(self, client, db_session, clinic_with_admin_and_practitioner):
+        """Test that updating other settings without 'appointment_types' does not trigger deletion validation."""
+        c, admin, pract = clinic_with_admin_and_practitioner
+
+        # Create appointment type
+        at1 = AppointmentType(clinic_id=c.id, name="初診評估", duration_minutes=60)
+        db_session.add(at1)
+        db_session.commit()
+
+        # Associate practitioner with appointment type (this would normally block deletion)
+        pat = PractitionerAppointmentTypes(
+            user_id=pract.id,
+            clinic_id=c.id,
+            appointment_type_id=at1.id
+        )
+        db_session.add(pat)
+        db_session.commit()
+
+        from auth import dependencies as auth_deps
+        app.dependency_overrides[auth_deps.get_current_user] = lambda: _uc(user_id=admin.id, clinic_id=c.id, roles=["admin"])
+
+        # Attempt to update ONLY clinic_info_settings (NOT appointment_types)
+        # Previously this would trigger a 400 because appointment_types was missing and assumed empty (deletion)
+        res = client.put("/api/clinic/settings", json={
+            "clinic_info_settings": {
+                "appointment_type_instructions": "New Instructions"
+            }
+        })
+
+        assert res.status_code == 200
+        assert "設定更新成功" in res.text
+
+        # Verify appointment type still exists and is not deleted
+        db_session.refresh(at1)
+        assert at1 is not None
+        assert at1.is_deleted == False
+
+        app.dependency_overrides.pop(auth_deps.get_current_user, None)
+
     def test_deletion_prevention_with_mixed_types(self, client, db_session, clinic_with_admin_and_practitioner):
         """Test that deletion is blocked when trying to delete types that have practitioner references."""
         c, admin, pract = clinic_with_admin_and_practitioner
