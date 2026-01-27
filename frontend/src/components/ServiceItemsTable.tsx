@@ -1,19 +1,26 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { AppointmentType, ServiceTypeGroup } from '../types';
 import { useIsMobile } from '../hooks/useIsMobile';
+
+// Constants
+const DRAG_OPACITY = 0.6;
+const DRAG_BORDER_WIDTH = 4;
+const ICON_SIZE = 5;
+const GAP_SIZE = 3;
+const BUTTON_SIZE = 5;
+const DROP_INDICATOR_COLOR = 'blue-400';
 
 interface ServiceItemsTableProps {
   appointmentTypes: AppointmentType[];
   groups: ServiceTypeGroup[];
-  practitionerAssignments: Record<number, number[]>; // appointmentTypeId -> practitionerIds[]
-  onEdit: (appointmentType: AppointmentType) => void;
-  onDelete: (appointmentType: AppointmentType) => void;
+  practitionerAssignments: Record<number, number[]>;
+  onEdit: (item: AppointmentType) => void;
+  onDelete: (item: AppointmentType) => void;
   isClinicAdmin: boolean;
-  resultCountText?: string; // Optional text to display in first column header
+  resultCountText?: string;
   draggedItemId?: number | null;
   onDragStart?: (e: React.DragEvent, itemId: number) => void;
-  onDragOver?: (e: React.DragEvent) => void;
-  onDrop?: (e: React.DragEvent, targetItemId: number, position?: 'above' | 'below') => void;
+  onMove?: (draggedId: number, targetId: number) => void;
   onDragEnd?: () => void;
   disabled?: boolean;
 }
@@ -28,162 +35,50 @@ export const ServiceItemsTable: React.FC<ServiceItemsTableProps> = ({
   resultCountText,
   draggedItemId = null,
   onDragStart,
-  onDragOver,
-  onDrop,
+  onMove,
   onDragEnd,
   disabled = false,
 }) => {
   const isMobile = useIsMobile();
-  const [dropIndicator, setDropIndicator] = useState<{ itemId: number; position: 'above' | 'below' } | null>(null);
   const touchStartYRef = useRef<number | null>(null);
   const touchStartItemIdRef = useRef<number | null>(null);
   const touchStartElementRef = useRef<HTMLElement | null>(null);
   const [dragOffset, setDragOffset] = useState<{ y: number } | null>(null);
-  const onDropRef = useRef(onDrop);
+  const [dropTargetId, setDropTargetId] = useState<number | null>(null);
+  const [dropPosition, setDropPosition] = useState<'above' | 'below' | null>(null);
+  const onMoveRef = useRef(onMove);
   const onDragEndRef = useRef(onDragEnd);
 
   // Keep refs in sync with props
   useEffect(() => {
-    onDropRef.current = onDrop;
+    onMoveRef.current = onMove;
     onDragEndRef.current = onDragEnd;
-  }, [onDrop, onDragEnd]);
+  }, [onMove, onDragEnd]);
 
-  // Global touch move handler for mobile drag-and-drop
+  // Cleanup on unmount to prevent memory leaks
   useEffect(() => {
-    if (!isMobile || !isClinicAdmin) return;
-
-    const handleGlobalTouchMove = (e: TouchEvent) => {
-      if (!touchStartItemIdRef.current || !touchStartYRef.current) return;
-
-      const touch = e.touches[0];
-      if (!touch) return;
-
-      // Calculate drag offset for visual feedback
-      const offsetY = touch.clientY - touchStartYRef.current;
-      setDragOffset({ y: offsetY });
-
-      // Find the element under the touch point
-      const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
-      if (!elementBelow) {
-        setDropIndicator(null);
-        return;
-      }
-
-      // Find the closest row/card element
-      const rowElement = elementBelow.closest('[data-item-id]') as HTMLElement;
-      if (!rowElement) {
-        setDropIndicator(null);
-        return;
-      }
-
-      const targetItemId = parseInt(rowElement.dataset.itemId || '0', 10);
-      if (!targetItemId || targetItemId === touchStartItemIdRef.current) {
-        setDropIndicator(null);
-        return;
-      }
-
-      // Get the row's bounding rect
-      const rect = rowElement.getBoundingClientRect();
-      const touchY = touch.clientY;
-      const rowCenter = rect.top + rect.height / 2;
-
-      // Determine if drop should be above or below based on touch position
-      const position = touchY < rowCenter ? 'above' : 'below';
-      setDropIndicator({ itemId: targetItemId, position });
-    };
-
-    const handleGlobalTouchEnd = (e: TouchEvent) => {
-      if (!touchStartItemIdRef.current || !onDropRef.current || !isClinicAdmin) {
-        touchStartYRef.current = null;
-        touchStartItemIdRef.current = null;
-        touchStartElementRef.current = null;
-        setDragOffset(null);
-        return;
-      }
-
-      const touch = e.changedTouches[0];
-      if (!touch) {
-        touchStartYRef.current = null;
-        touchStartItemIdRef.current = null;
-        touchStartElementRef.current = null;
-        setDropIndicator(null);
-        setDragOffset(null);
-        if (onDragEndRef.current) onDragEndRef.current();
-        return;
-      }
-
-      // Find the element under the touch point
-      const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
-      if (!elementBelow) {
-        touchStartYRef.current = null;
-        touchStartItemIdRef.current = null;
-        touchStartElementRef.current = null;
-        setDropIndicator(null);
-        setDragOffset(null);
-        if (onDragEndRef.current) onDragEndRef.current();
-        return;
-      }
-
-      // Find the closest row/card element
-      const rowElement = elementBelow.closest('[data-item-id]') as HTMLElement;
-      if (!rowElement) {
-        touchStartYRef.current = null;
-        touchStartItemIdRef.current = null;
-        touchStartElementRef.current = null;
-        setDropIndicator(null);
-        setDragOffset(null);
-        if (onDragEndRef.current) onDragEndRef.current();
-        return;
-      }
-
-      const targetItemId = parseInt(rowElement.dataset.itemId || '0', 10);
-      if (targetItemId && targetItemId !== touchStartItemIdRef.current) {
-        // Get current drop indicator state - read from state directly
-        setDropIndicator((currentIndicator) => {
-          const position = currentIndicator?.itemId === targetItemId ? currentIndicator.position : undefined;
-
-          // Create a synthetic drop event
-          const syntheticEvent = {
-            preventDefault: () => { },
-          } as unknown as React.DragEvent;
-
-          if (onDropRef.current) {
-            onDropRef.current(syntheticEvent, targetItemId, position);
-          }
-
-          return null; // Clear indicator
-        });
-
-        touchStartYRef.current = null;
-        touchStartItemIdRef.current = null;
-        touchStartElementRef.current = null;
-        setDragOffset(null);
-        if (onDragEndRef.current) onDragEndRef.current();
-        return;
-      }
-
-      // No valid drop target
-      setDropIndicator(null);
-      setDragOffset(null);
+    return () => {
+      // Clean up all touch-related state
       touchStartYRef.current = null;
       touchStartItemIdRef.current = null;
       touchStartElementRef.current = null;
-      if (onDragEndRef.current) onDragEndRef.current();
+      setDragOffset(null);
     };
+  }, []);
 
-    document.addEventListener('touchmove', handleGlobalTouchMove, { passive: false });
-    document.addEventListener('touchend', handleGlobalTouchEnd);
-
-    return () => {
-      document.removeEventListener('touchmove', handleGlobalTouchMove);
-      document.removeEventListener('touchend', handleGlobalTouchEnd);
-    };
-  }, [isMobile, isClinicAdmin]);
+  // Memoized group ID-to-name mapping for O(1) lookup performance
+  const groupIdToNameMap = useMemo(() => {
+    const map = new Map<number, string>();
+    groups.forEach((group) => {
+      if (group.id) map.set(group.id, group.name);
+    });
+    return map;
+  }, [groups]);
 
   const getGroupName = (groupId: number | null | undefined): string => {
     if (!groupId) return '未分類';
-    const group = groups.find(g => g.id === groupId);
-    return group?.name || '未分類';
+    // Use memoized map for O(1) lookup instead of O(n) find
+    return groupIdToNameMap.get(groupId) || '未分類';
   };
 
   const formatDuration = (duration: number, buffer?: number): string => {
@@ -193,32 +88,45 @@ export const ServiceItemsTable: React.FC<ServiceItemsTableProps> = ({
     return `${duration} 分`;
   };
 
-  const handleDragOver = (e: React.DragEvent, itemId: number) => {
-    // Call parent's onDragOver if provided
-    if (onDragOver) {
-      onDragOver(e);
-    }
+  const handleDragOver = (e: React.DragEvent, targetItemId: number) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
 
-    // Update drop indicator based on current mouse position
-    if (!draggedItemId || draggedItemId === itemId) {
-      setDropIndicator(null);
-      return;
-    }
+    if (!draggedItemId || !onMove || draggedItemId === targetItemId) return;
 
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    const mouseY = e.clientY;
-    const rowCenter = rect.top + rect.height / 2;
+    const dragIndex = appointmentTypes.findIndex((i: AppointmentType) => i.id === draggedItemId);
+    const hoverIndex = appointmentTypes.findIndex((i: AppointmentType) => i.id === targetItemId);
 
-    // Determine if drop should be above or below based on mouse position
-    const position = mouseY < rowCenter ? 'above' : 'below';
-    setDropIndicator({ itemId, position });
+    if (dragIndex === -1 || hoverIndex === -1) return;
+    if (dragIndex === hoverIndex) return;
+
+    const hoverBoundingRect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const hoverMiddleY = (hoverBoundingRect.bottom - hoverBoundingRect.top) / 2;
+    const clientOffset = e.clientY - hoverBoundingRect.top;
+
+    // Set visual drop indicators
+    setDropTargetId(targetItemId);
+    setDropPosition(clientOffset < hoverMiddleY ? 'above' : 'below');
+
+    // Dragging downwards
+    if (dragIndex < hoverIndex && clientOffset < hoverMiddleY) return;
+
+    // Dragging upwards
+    if (dragIndex > hoverIndex && clientOffset > hoverMiddleY) return;
+
+    onMove(draggedItemId, targetItemId);
+  };
+
+  const handleDragLeave = () => {
+    // Clear drop indicators when leaving a drop target
+    setDropTargetId(null);
+    setDropPosition(null);
   };
 
   // Touch event handler for starting drag on mobile
   const handleTouchStart = (e: React.TouchEvent, itemId: number) => {
     if (!isClinicAdmin || !onDragStart) return;
 
-    e.preventDefault();
     e.stopPropagation();
 
     const touch = e.touches[0];
@@ -246,100 +154,143 @@ export const ServiceItemsTable: React.FC<ServiceItemsTableProps> = ({
     onDragStart(syntheticEvent, itemId);
   };
 
+  // Touch event handler for moving drag on mobile
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!touchStartItemIdRef.current || !onMoveRef.current) return;
+
+    e.preventDefault();
+    const touch = e.touches[0];
+    if (!touch) return;
+
+    const currentY = touch.clientY;
+    const startY = touchStartYRef.current || 0;
+    const deltaY = currentY - startY;
+
+    setDragOffset({ y: deltaY });
+
+    // Find the element under the touch point
+    const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
+    const itemElement = elementBelow?.closest('[data-item-id]') as HTMLElement;
+    
+    if (itemElement) {
+      const targetItemId = parseInt(itemElement.getAttribute('data-item-id') || '0', 10);
+      if (targetItemId && targetItemId !== touchStartItemIdRef.current) {
+        onMoveRef.current(touchStartItemIdRef.current, targetItemId);
+        // Update start position for next movement
+        touchStartYRef.current = currentY;
+      }
+    }
+  };
+
+  // Touch event handler for ending drag on mobile
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (!touchStartItemIdRef.current) return;
+
+    e.preventDefault();
+
+    // Clean up all touch-related state
+    touchStartYRef.current = null;
+    touchStartItemIdRef.current = null;
+    touchStartElementRef.current = null;
+    setDragOffset(null);
+
+    if (onDragEndRef.current) {
+      onDragEndRef.current();
+    }
+  };
+
   if (isMobile) {
     // Mobile: Card list view
     return (
       <div className="space-y-3">
-        {appointmentTypes.map((appointmentType) => {
+        {appointmentTypes.map((appointmentType: AppointmentType) => {
           const groupName = getGroupName(appointmentType.service_type_group_id);
           const practitionerCount = practitionerAssignments[appointmentType.id]?.length || 0;
 
           return (
-            <React.Fragment key={appointmentType.id}>
-              {/* Drop indicator line above */}
-              {dropIndicator?.itemId === appointmentType.id && dropIndicator.position === 'above' && (
-                <div className="h-1.5 bg-blue-600 shadow-md shadow-blue-500/30 mx-2 my-1 rounded-full" />
-              )}
+            <div
+              key={appointmentType.id}
+              data-item-id={appointmentType.id}
+              draggable={isClinicAdmin && !isMobile && !disabled}
+              onDragStart={isClinicAdmin && !isMobile && onDragStart ? (e) => {
+                // Hide the default drag ghost
+                const img = new Image();
+                img.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+                e.dataTransfer.setDragImage(img, 0, 0);
 
-              <div
-                data-item-id={appointmentType.id}
-                draggable={isClinicAdmin && !isMobile && !disabled}
-                onDragStart={isClinicAdmin && !isMobile && onDragStart ? (e) => onDragStart(e, appointmentType.id) : undefined}
-                onDragOver={isClinicAdmin && !isMobile ? (e) => handleDragOver(e, appointmentType.id) : undefined}
-                onDrop={isClinicAdmin && !isMobile && onDrop ? (e) => {
-                  const position = dropIndicator?.itemId === appointmentType.id ? dropIndicator.position : undefined;
-                  setDropIndicator(null);
-                  onDrop(e, appointmentType.id, position);
-                } : undefined}
-                onDragEnd={isClinicAdmin && !isMobile ? () => {
-                  setDropIndicator(null);
-                  if (onDragEnd) onDragEnd();
-                } : undefined}
-                onClick={isClinicAdmin ? () => onEdit(appointmentType) : undefined}
-                className={`bg-white border border-gray-200 rounded-lg p-4 shadow-sm transition-transform ${draggedItemId === appointmentType.id ? 'opacity-30' : ''
-                  } ${isClinicAdmin ? 'hover:shadow-md transition-shadow' : ''}`}
-                style={
-                  isMobile && draggedItemId === appointmentType.id && dragOffset
-                    ? { transform: `translateY(${dragOffset.y}px)`, zIndex: 1000, position: 'relative' as const }
-                    : undefined
-                }
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      {isClinicAdmin && (
-                        <div
-                          className="text-gray-400 touch-none select-none flex items-center"
-                          onTouchStart={isMobile && !disabled ? (e) => handleTouchStart(e, appointmentType.id) : undefined}
-                          style={{ touchAction: 'none' }}
-                        >
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
-                          </svg>
-                        </div>
-                      )}
-                      <h3 className="font-medium text-gray-900 text-sm">
-                        {appointmentType.name || '未命名服務項目'}
-                      </h3>
-                      {appointmentType.service_type_group_id && (
-                        <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">
-                          {groupName}
-                        </span>
-                      )}
-                      {appointmentType.allow_patient_booking === false && (
-                        <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
-                          不開放預約
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex flex-wrap gap-3 text-xs text-gray-500">
-                      <span>時長: {formatDuration(appointmentType.duration_minutes, appointmentType.scheduling_buffer_minutes)}</span>
-                      <span>•</span>
-                      <span>{practitionerCount} 位治療師</span>
-                    </div>
+                onDragStart(e, appointmentType.id);
+              } : undefined}
+              onDragOver={isClinicAdmin && !isMobile ? (e) => handleDragOver(e, appointmentType.id) : undefined}
+              onDragLeave={isClinicAdmin && !isMobile ? handleDragLeave : undefined}
+              onDragEnd={isClinicAdmin && !isMobile ? () => {
+                // Clear drop indicators
+                setDropTargetId(null);
+                setDropPosition(null);
+                if (onDragEnd) onDragEnd();
+              } : undefined}
+              onClick={isClinicAdmin ? () => onEdit(appointmentType) : undefined}
+              onTouchMove={isMobile && isClinicAdmin && !disabled ? handleTouchMove : undefined}
+              onTouchEnd={isMobile && isClinicAdmin && !disabled ? handleTouchEnd : undefined}
+              className={`bg-white border border-gray-200 rounded-lg p-4 shadow-sm transition-all duration-200 ${draggedItemId === appointmentType.id
+                ? `bg-blue-50 border-2 border-dashed border-blue-300 shadow-inner`
+                : dropTargetId === appointmentType.id
+                  ? dropPosition === 'above'
+                    ? `border-t-${DRAG_BORDER_WIDTH} border-t-${DROP_INDICATOR_COLOR}`
+                    : `border-b-${DRAG_BORDER_WIDTH} border-b-${DROP_INDICATOR_COLOR}`
+                  : 'hover:shadow-md'
+                }`}
+              style={{
+                ...(isMobile && draggedItemId === appointmentType.id && dragOffset
+                  ? { transform: `translateY(${dragOffset.y}px)`, zIndex: 1000, position: 'relative' as const }
+                  : {}),
+                ...(draggedItemId === appointmentType.id ? { opacity: DRAG_OPACITY } : {})
+              }}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    {isClinicAdmin && (
+                      <div
+                        className="text-gray-400 touch-none select-none flex items-center"
+                        onTouchStart={isMobile && !disabled ? (e) => handleTouchStart(e, appointmentType.id) : undefined}
+                        style={{ touchAction: 'none' }}
+                      >
+                        <svg className={`w-${ICON_SIZE} h-${ICON_SIZE}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
+                        </svg>
+                      </div>
+                    )}
+                    <h3 className="font-medium text-gray-900 text-sm">
+                      {appointmentType.name || '未命名服務項目'}
+                    </h3>
+                    {appointmentType.service_type_group_id && (
+                      <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">
+                        {groupName}
+                      </span>
+                    )}
                   </div>
-                  {isClinicAdmin && (
-                    <button
-                      disabled={disabled}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onDelete(appointmentType);
-                      }}
-                      className="p-2 text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50"
-                    >
-                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
-                  )}
+                  <div className={`flex flex-wrap gap-${GAP_SIZE} text-xs text-gray-500`}>
+                    <span>時長: {formatDuration(appointmentType.duration_minutes, appointmentType.scheduling_buffer_minutes)}</span>
+                    <span>•</span>
+                    <span>{practitionerCount} 位治療師</span>
+                  </div>
                 </div>
+                {isClinicAdmin && (
+                  <button
+                    disabled={disabled}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDelete(appointmentType);
+                    }}
+                    className="p-2 text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50"
+                  >
+                    <svg className={`w-${BUTTON_SIZE} h-${BUTTON_SIZE}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
+                )}
               </div>
-
-              {/* Drop indicator line below */}
-              {dropIndicator?.itemId === appointmentType.id && dropIndicator.position === 'below' && (
-                <div className="h-1.5 bg-blue-600 shadow-md shadow-blue-500/30 mx-2 my-1 rounded-full" />
-              )}
-            </React.Fragment>
+            </div>
           );
         })}
       </div>
@@ -377,104 +328,91 @@ export const ServiceItemsTable: React.FC<ServiceItemsTableProps> = ({
             const practitionerCount = practitionerAssignments[appointmentType.id]?.length || 0;
 
             return (
-              <React.Fragment key={appointmentType.id}>
-                {/* Drop indicator line above */}
-                {dropIndicator?.itemId === appointmentType.id && dropIndicator.position === 'above' && (
-                  <tr>
-                    <td colSpan={isClinicAdmin ? 5 : 4} className="px-0 py-0">
-                      <div className="h-1.5 bg-blue-600 shadow-md shadow-blue-500/30 w-full" />
-                    </td>
-                  </tr>
-                )}
+              <tr
+                key={appointmentType.id}
+                data-item-id={appointmentType.id}
+                draggable={isClinicAdmin && !isMobile && !disabled}
+                onDragStart={isClinicAdmin && !isMobile && onDragStart ? (e) => {
+                  // Hide the default drag ghost
+                  const img = new Image();
+                  img.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+                  e.dataTransfer.setDragImage(img, 0, 0);
 
-                <tr
-                  data-item-id={appointmentType.id}
-                  draggable={isClinicAdmin && !isMobile && !disabled}
-                  onDragStart={isClinicAdmin && !isMobile && onDragStart ? (e) => onDragStart(e, appointmentType.id) : undefined}
-                  onDragOver={isClinicAdmin && !isMobile ? (e) => handleDragOver(e, appointmentType.id) : undefined}
-                  onDrop={isClinicAdmin && !isMobile && onDrop ? (e) => {
-                    const position = dropIndicator?.itemId === appointmentType.id ? dropIndicator.position : undefined;
-                    setDropIndicator(null);
-                    onDrop(e, appointmentType.id, position);
-                  } : undefined}
-                  onDragEnd={isClinicAdmin && !isMobile ? () => {
-                    setDropIndicator(null);
-                    if (onDragEnd) onDragEnd();
-                  } : undefined}
-                  onClick={isClinicAdmin && !disabled ? () => onEdit(appointmentType) : undefined}
-                  className={`hover:bg-gray-50 transition-colors transition-transform ${draggedItemId === appointmentType.id ? 'opacity-30' : ''
-                    } ${isClinicAdmin && !isMobile ? 'cursor-move' : ''}`}
-                  style={
-                    isMobile && draggedItemId === appointmentType.id && dragOffset
-                      ? { transform: `translateY(${dragOffset.y}px)`, zIndex: 1000, position: 'relative' as const }
-                      : undefined
-                  }
-                >
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center gap-2">
-                      {isClinicAdmin && (
-                        <div className="w-6 flex-shrink-0 flex items-center">
-                          <div
-                            className="text-gray-400 touch-none select-none"
-                            onTouchStart={isMobile && !disabled ? (e) => handleTouchStart(e, appointmentType.id) : undefined}
-                            style={{ touchAction: 'none' }}
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
-                            </svg>
-                          </div>
+                  onDragStart(e, appointmentType.id);
+                } : undefined}
+                onDragOver={isClinicAdmin && !isMobile ? (e) => handleDragOver(e, appointmentType.id) : undefined}
+                onDragLeave={isClinicAdmin && !isMobile ? handleDragLeave : undefined}
+                onDragEnd={isClinicAdmin && !isMobile ? () => {
+                  // Clear drop indicators
+                  setDropTargetId(null);
+                  setDropPosition(null);
+                  if (onDragEnd) onDragEnd();
+                } : undefined}
+                onClick={isClinicAdmin && !disabled ? () => onEdit(appointmentType) : undefined}
+                className={`transition-all duration-200 ${draggedItemId === appointmentType.id
+                  ? 'opacity-60 bg-blue-50 ring-2 ring-blue-300 ring-inset'
+                  : dropTargetId === appointmentType.id
+                    ? dropPosition === 'above'
+                      ? 'border-t-4 border-t-blue-400'
+                      : 'border-b-4 border-b-blue-400'
+                    : 'hover:bg-gray-50'
+                  } ${isClinicAdmin && !isMobile ? 'cursor-move' : ''}`}
+              >
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <div className="flex items-center gap-2">
+                    {isClinicAdmin && (
+                      <div className="w-6 flex-shrink-0 flex items-center">
+                        <div
+                          className="text-gray-400 touch-none select-none"
+                          onTouchStart={isMobile && !disabled ? (e) => handleTouchStart(e, appointmentType.id) : undefined}
+                          style={{ touchAction: 'none' }}
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
+                          </svg>
                         </div>
-                      )}
-                      <span className="text-sm font-medium text-gray-900">
-                        {appointmentType.name || '未命名服務項目'}
-                      </span>
-                      {appointmentType.allow_patient_booking === false && (
-                        <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
-                          不開放預約
-                        </span>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {appointmentType.service_type_group_id ? (
-                      <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">
-                        {groupName}
-                      </span>
-                    ) : (
-                      <span className="text-sm text-gray-500">未分類</span>
+                      </div>
                     )}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {formatDuration(appointmentType.duration_minutes, appointmentType.scheduling_buffer_minutes)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {practitionerCount} 位
-                  </td>
-                  {isClinicAdmin && (
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <button
-                        disabled={disabled}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (onDelete) onDelete(appointmentType);
-                        }}
-                        className="text-red-600 hover:text-red-900 px-3 py-1 rounded-md hover:bg-red-50 transition-colors disabled:opacity-50"
-                      >
-                        刪除
-                      </button>
-                    </td>
+                    <span className="text-sm font-medium text-gray-900">
+                      {appointmentType.name || '未命名服務項目'}
+                    </span>
+                    {appointmentType.allow_patient_booking === false && (
+                      <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
+                        不開放預約
+                      </span>
+                    )}
+                  </div>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  {appointmentType.service_type_group_id ? (
+                    <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">
+                      {groupName}
+                    </span>
+                  ) : (
+                    <span className="text-sm text-gray-500">未分類</span>
                   )}
-                </tr>
-
-                {/* Drop indicator line below */}
-                {dropIndicator?.itemId === appointmentType.id && dropIndicator.position === 'below' && (
-                  <tr>
-                    <td colSpan={isClinicAdmin ? 5 : 4} className="px-0 py-0">
-                      <div className="h-1.5 bg-blue-600 shadow-md shadow-blue-500/30 w-full" />
-                    </td>
-                  </tr>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  {formatDuration(appointmentType.duration_minutes, appointmentType.scheduling_buffer_minutes)}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  {practitionerCount} 位
+                </td>
+                {isClinicAdmin && (
+                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                    <button
+                      disabled={disabled}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (onDelete) onDelete(appointmentType);
+                      }}
+                      className="text-red-600 hover:text-red-900 px-3 py-1 rounded-md hover:bg-red-50 transition-colors disabled:opacity-50"
+                    >
+                      刪除
+                    </button>
+                  </td>
                 )}
-              </React.Fragment>
+              </tr>
             );
           })}
         </tbody>

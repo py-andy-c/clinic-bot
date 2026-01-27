@@ -1,10 +1,11 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { useModal } from '../../contexts/ModalContext';
 import { apiService } from '../../services/api';
 import { logger } from '../../utils/logger';
 import { getErrorMessage } from '../../types/api';
-import { AppointmentType, Practitioner } from '../../types';
+import { AppointmentType, Practitioner, ServiceTypeGroup } from '../../types';
+import { ClinicSettings } from '../../schemas/api';
 import { LoadingSpinner } from '../../components/shared';
 import { SearchInput } from '../../components/shared/SearchInput';
 import { ServiceItemsTable } from '../../components/ServiceItemsTable';
@@ -19,28 +20,51 @@ import { useMembers } from '../../hooks/queries/useMembers';
 import { usePractitioners } from '../../hooks/queries/usePractitioners';
 import { useQueryClient } from '@tanstack/react-query';
 
+// Constants
+const DEBOUNCE_DELAY_MS = 400;
+const DEFAULT_DISPLAY_ORDER = 0;
+const UNGROUPED_ID = -1;
+const STROKE_WIDTH = 2;
+const TAB_PADDING_X = 6;
+const TAB_PADDING_Y = 3;
+const SELECT_WIDTH_REM = 64; // 16rem = 256px
+const GRID_GAP = 4;
+
 type TabType = 'service-items' | 'group-management';
+
+type ServiceTypeGroupsData = {
+  groups: ServiceTypeGroup[];
+};
+
+type AppointmentTypeOrderPayload = {
+  id: number;
+  display_order: number;
+};
+
+type GroupOrderPayload = {
+  id: number;
+  display_order: number;
+};
 
 const SettingsServiceItemsPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('service-items');
-  const [editingItemId, setEditingItemId] = useState<number | null | undefined>(undefined);
-  const queryClient = useQueryClient();
-  const { data: settings, isLoading: loadingSettings } = useClinicSettings();
-  const { data: groupsData, isLoading: loadingGroups } = useServiceTypeGroups();
-  const { data: members, isLoading: loadingMembers } = useMembers();
-  const { data: practitionersData, isLoading: loadingPractitioners } = usePractitioners();
-
-
-
-  const [selectedGroupId, setSelectedGroupId] = useState<number | string | null>(null);
-  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [editingItemId, setEditingItem] = useState<number | null | undefined>(undefined);
+  const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
   const [isComposing, setIsComposing] = useState(false);
   const [draggedItemId, setDraggedItemId] = useState<number | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const { isClinicAdmin } = useAuth();
+  const { isClinicAdmin, user } = useAuth();
+  const activeClinicId = user?.active_clinic_id;
   const { alert, confirm } = useModal();
-  const debouncedSearchQuery = useDebouncedSearch(searchQuery, 400, isComposing);
+  const debouncedSearchQuery = useDebouncedSearch(searchQuery, DEBOUNCE_DELAY_MS, isComposing);
+
+  const { data: settings, isLoading: loadingSettings } = useClinicSettings();
+  const { data: groupsData, isLoading: loadingGroups } = useServiceTypeGroups();
+  const { data: members, isLoading: loadingMembers } = useMembers();
+  const { data: practitionersData, isLoading: loadingPractitioners } = usePractitioners();
+  const queryClient = useQueryClient();
 
   const serviceItems = useMemo(() => settings?.appointment_types || [], [settings]);
   const groups = useMemo(() => groupsData?.groups || [], [groupsData]);
@@ -66,6 +90,27 @@ const SettingsServiceItemsPage: React.FC = () => {
     return lookup;
   }, [practitioners]);
 
+  // Memoized ID-to-index mappings for performance optimization
+  const appointmentTypeIdToIndexMap = useMemo(() => {
+    const map = new Map<number, number>();
+    if (settings?.appointment_types) {
+      settings.appointment_types.forEach((item, index) => {
+        if (item.id) map.set(item.id, index);
+      });
+    }
+    return map;
+  }, [settings?.appointment_types]);
+
+  const serviceGroupIdToIndexMap = useMemo(() => {
+    const map = new Map<number, number>();
+    if (groups) {
+      groups.forEach((group, index) => {
+        if (group.id) map.set(group.id, index);
+      });
+    }
+    return map;
+  }, [groups]);
+
   const getGroupCount = (groupId: number | null) => {
     return serviceItems.filter(at =>
       groupId === null
@@ -75,11 +120,11 @@ const SettingsServiceItemsPage: React.FC = () => {
   };
 
   const filteredItems = useMemo(() => {
-    const sortedItems = [...serviceItems].sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+    const sortedItems = [...serviceItems].sort((a, b) => (a.display_order || DEFAULT_DISPLAY_ORDER) - (b.display_order || DEFAULT_DISPLAY_ORDER));
     let filtered = sortedItems;
 
     if (selectedGroupId !== null) {
-      if (selectedGroupId === -1) {
+      if (selectedGroupId === UNGROUPED_ID) {
         filtered = filtered.filter(item => !item.service_type_group_id);
       } else {
         filtered = filtered.filter(item => item.service_type_group_id === selectedGroupId);
@@ -106,8 +151,8 @@ const SettingsServiceItemsPage: React.FC = () => {
     return filtered;
   }, [serviceItems, selectedGroupId, debouncedSearchQuery, availableGroups]);
 
-  const handleAddServiceItem = () => setEditingItemId(null);
-  const handleEditServiceItem = (item: AppointmentType) => setEditingItemId(item.id);
+  const handleAddServiceItem = () => setEditingItem(null);
+  const handleEditServiceItem = (item: AppointmentType) => setEditingItem(item.id);
 
   const handleDeleteServiceItem = async (item: AppointmentType) => {
     if (!item) return;
@@ -127,7 +172,7 @@ const SettingsServiceItemsPage: React.FC = () => {
       }
       await apiService.deleteAppointmentType(item.id);
       await queryClient.invalidateQueries({ queryKey: ['settings'] });
-    } catch (error: any) {
+    } catch (error) {
       logger.error('Error deleting appointment type:', error);
       await alert(getErrorMessage(error) || '刪除失敗，請稍後再試', '刪除失敗');
     } finally {
@@ -137,7 +182,7 @@ const SettingsServiceItemsPage: React.FC = () => {
 
   const handleCloseEditModal = async (refetch?: boolean) => {
     if (refetch) await queryClient.invalidateQueries({ queryKey: ['settings'] });
-    setEditingItemId(undefined);
+    setEditingItem(undefined);
   };
 
   const handleDragStart = (e: React.DragEvent, itemId: number) => {
@@ -145,59 +190,121 @@ const SettingsServiceItemsPage: React.FC = () => {
     e.dataTransfer.effectAllowed = 'move';
   };
 
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-  };
+  const handleMoveServiceItem = useCallback(async (draggedId: number, targetId: number) => {
+    // Define query key for consistency
+    const queryKey = ['settings', 'clinic', activeClinicId];
 
-  const handleDrop = async (e: React.DragEvent, targetItemId: number, position?: 'above' | 'below') => {
-    e.preventDefault();
-    if (!draggedItemId || draggedItemId === targetItemId) return;
+    // 1. Snapshot the current state for rollback
+    const previousData = queryClient.getQueryData<ClinicSettings>(queryKey);
 
-    const allItems = [...serviceItems];
-    const draggedIndex = allItems.findIndex(i => i.id === draggedItemId);
-    let targetIndex = allItems.findIndex(i => i.id === targetItemId);
-    if (draggedIndex === -1 || targetIndex === -1) return;
+    // 2. Cancel any outgoing refetches
+    await queryClient.cancelQueries({ queryKey });
 
-    let insertIndex = position === 'below' ? targetIndex + 1 : targetIndex;
-    const newItems = [...allItems];
-    const [removed] = newItems.splice(draggedIndex, 1);
-    if (!removed) return;
-    if (draggedIndex < insertIndex) insertIndex -= 1;
-    newItems.splice(insertIndex, 0, removed);
-    const orderedIds = newItems.map(i => i.id);
+    // 3. Optimistically update
+    queryClient.setQueryData<ClinicSettings | undefined>(queryKey, (old) => {
+      if (!old || !old.appointment_types) return old;
+
+      const items = [...old.appointment_types];
+      
+      // Use memoized map for O(1) lookup instead of O(n) findIndex
+      const fromIndex = appointmentTypeIdToIndexMap.get(draggedId);
+      const toIndex = appointmentTypeIdToIndexMap.get(targetId);
+
+      if (fromIndex === undefined || toIndex === undefined) return old;
+
+      // Move item
+      const [item] = items.splice(fromIndex, 1);
+      if (!item) return old; // Guard against undefined item
+
+      items.splice(toIndex, 0, item);
+
+      // Reassign display_order (optional but good for consistency)
+      const updatedItems = items.map((t, i) => ({ ...t, display_order: i }));
+
+      return {
+        ...old,
+        appointment_types: updatedItems
+      };
+    });
+
+    // 4. Save the order to the backend
+    try {
+      const freshData = queryClient.getQueryData<ClinicSettings>(queryKey);
+      if (!freshData || !freshData.appointment_types) {
+        throw new Error('No data available to save order');
+      }
+
+      const items = freshData.appointment_types;
+      const orderedPayload: AppointmentTypeOrderPayload[] = items.map((item, index) => ({
+        id: item.id,
+        display_order: index
+      }));
+
+      await apiService.bulkUpdateAppointmentTypeOrder(orderedPayload);
+
+    } catch (error) {
+      // 5. Rollback on error
+      logger.error('Error saving item order:', error);
+      await alert(getErrorMessage(error) || '儲存排序失敗', '錯誤');
+      if (previousData) {
+        queryClient.setQueryData(queryKey, previousData);
+      } else {
+        // If we don't have previous data, invalidate to refetch
+        queryClient.invalidateQueries({ queryKey });
+      }
+    }
+  }, [queryClient, activeClinicId, alert]); // Added alert to dependencies
+
+  const handleSaveItemOrder = async () => {
+    const queryKey = ['settings', 'clinic', activeClinicId];
+    const freshData = queryClient.getQueryData<ClinicSettings>(queryKey);
+    if (!freshData || !freshData.appointment_types) return;
+
+    // 1. Snapshot current state for rollback
+    const previousData = queryClient.getQueryData<ClinicSettings>(queryKey);
+    await queryClient.cancelQueries({ queryKey });
+
+    const items = freshData.appointment_types;
+    const orderedPayload: AppointmentTypeOrderPayload[] = items.map((item, index) => ({
+      id: item.id,
+      display_order: index
+    }));
+
+    setDraggedItemId(null); // Clear drag state locally
 
     try {
-      setIsProcessing(true);
-      await apiService.bulkUpdateAppointmentTypeOrder(
-        orderedIds.map((id, index) => ({ id, display_order: index }))
-      );
-      await queryClient.invalidateQueries({ queryKey: ['settings'] });
-    } catch (error: any) {
-      logger.error('Error reordering items:', error);
-      await alert('重新排序失敗，請稍後再試', '錯誤');
-    } finally {
-      setDraggedItemId(null);
-      setIsProcessing(false);
+      await apiService.bulkUpdateAppointmentTypeOrder(orderedPayload);
+    } catch (error) {
+      logger.error('Error saving order:', error);
+      await alert('儲存排序失敗', '錯誤');
+      
+      // 2. Rollback on error
+      if (previousData) {
+        queryClient.setQueryData(queryKey, previousData);
+      } else {
+        // If we don't have previous data, invalidate to refetch
+        queryClient.invalidateQueries({ queryKey });
+      }
     }
   };
 
-
-  const handleAddGroup = async (group: any) => {
+  const handleAddGroup = async (group: { name: string; display_order: number }) => {
     try {
-      await apiService.createServiceTypeGroup({ name: group.name, display_order: group.display_order });
+      await apiService.createServiceTypeGroup(group);
       await queryClient.invalidateQueries({ queryKey: ['settings', 'service-type-groups'] });
-    } catch (err: any) {
-      alert(err.message || '建立群組失敗', '錯誤');
+    } catch (err) {
+      const message = getErrorMessage(err) || '建立群組失敗';
+      alert(message, '錯誤');
     }
   };
 
-  const handleUpdateGroup = async (id: number, updates: any) => {
+  const handleUpdateGroup = async (id: number, updates: Partial<ServiceTypeGroup>) => {
     try {
       await apiService.updateServiceTypeGroup(id, updates);
       await queryClient.invalidateQueries({ queryKey: ['settings', 'service-type-groups'] });
-    } catch (err: any) {
-      alert(err.message || '更新群組失敗', '錯誤');
+    } catch (err) {
+      const message = getErrorMessage(err) || '更新群組失敗';
+      alert(message, '錯誤');
     }
   };
 
@@ -206,17 +313,98 @@ const SettingsServiceItemsPage: React.FC = () => {
       await apiService.deleteServiceTypeGroup(id);
       await queryClient.invalidateQueries({ queryKey: ['settings', 'service-type-groups'] });
       await queryClient.invalidateQueries({ queryKey: ['settings'] });
-    } catch (err: any) {
-      alert(err.message || '刪除群組失敗', '錯誤');
+    } catch (err) {
+      const message = getErrorMessage(err) || '刪除群組失敗';
+      alert(message, '錯誤');
     }
   };
 
-  const handleReorderGroups = async (orderedIds: number[]) => {
+  const handleMoveGroup = useCallback(async (draggedId: number, targetId: number) => {
+    const queryKey = ['settings', 'service-type-groups', activeClinicId];
+
+    // 1. Snapshot the current state for rollback
+    const previousData = queryClient.getQueryData<ServiceTypeGroupsData>(queryKey);
+
+    // 2. Cancel any outgoing refetches
+    await queryClient.cancelQueries({ queryKey });
+
+    // 3. Optimistically update
+    queryClient.setQueryData<ServiceTypeGroupsData | undefined>(queryKey, (old) => {
+      if (!old || !old.groups) return old;
+
+      const items = [...old.groups];
+      
+      // Use memoized map for O(1) lookup instead of O(n) findIndex
+      const fromIndex = serviceGroupIdToIndexMap.get(draggedId);
+      const toIndex = serviceGroupIdToIndexMap.get(targetId);
+
+      if (fromIndex === undefined || toIndex === undefined) return old;
+
+      const [item] = items.splice(fromIndex, 1);
+      if (!item) return old;
+
+      items.splice(toIndex, 0, item);
+
+      const updatedItems = items.map((g, i: number) => ({ ...g, display_order: i }));
+
+      return { ...old, groups: updatedItems };
+    });
+
+    // 4. Save the order to the backend
     try {
-      await apiService.bulkUpdateGroupOrder(orderedIds.map((id, index) => ({ id, display_order: index })));
-      await queryClient.invalidateQueries({ queryKey: ['settings', 'service-type-groups'] });
+      const freshData = queryClient.getQueryData<ServiceTypeGroupsData>(queryKey);
+      if (!freshData || !freshData.groups) {
+        throw new Error('No group data available to save order');
+      }
+
+      const items = freshData.groups;
+      const orderedPayload: GroupOrderPayload[] = items.map((g, index) => ({
+        id: g.id,
+        display_order: index
+      }));
+
+      await apiService.bulkUpdateGroupOrder(orderedPayload);
+
+    } catch (error) {
+      // 5. Rollback on error
+      logger.error('Error saving group order:', error);
+      await alert(getErrorMessage(error) || '儲存群組排序失敗', '錯誤');
+      if (previousData) {
+        queryClient.setQueryData(queryKey, previousData);
+      } else {
+        queryClient.invalidateQueries({ queryKey });
+      }
+    }
+  }, [queryClient, activeClinicId, alert]);
+
+  const handleSaveGroupOrder = async () => {
+    const queryKey = ['settings', 'service-type-groups', activeClinicId];
+    const freshData = queryClient.getQueryData<ServiceTypeGroupsData>(queryKey);
+    if (!freshData || !freshData.groups) return;
+
+    // 1. Snapshot current state for rollback
+    const previousData = queryClient.getQueryData<ServiceTypeGroupsData>(queryKey);
+    await queryClient.cancelQueries({ queryKey });
+
+    const items = freshData.groups;
+    const orderedPayload: GroupOrderPayload[] = items.map((g, index) => ({
+      id: g.id,
+      display_order: index
+    }));
+
+    try {
+      await apiService.bulkUpdateGroupOrder(orderedPayload);
     } catch (err) {
-      alert('排序群組失敗', '錯誤');
+      logger.error('Error saving group order:', err);
+      await alert('儲存群組排序失敗', '錯誤');
+      
+      // 2. Rollback on error
+      if (previousData) {
+        queryClient.setQueryData(queryKey, previousData);
+      } else {
+        // If we don't have previous data, invalidate to refetch
+        queryClient.invalidateQueries({ queryKey });
+      }
     }
   };
 
@@ -229,12 +417,12 @@ const SettingsServiceItemsPage: React.FC = () => {
   return (
     <div className="pb-20">
       <SettingsBackButton />
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+      <div className={`flex flex-col md:flex-row md:items-center justify-between gap-${GRID_GAP} mb-6`}>
         <PageHeader title="服務項目設定" />
         <div className="flex items-center gap-3">
           <button onClick={handleAddServiceItem} className="btn-primary flex items-center gap-2 whitespace-nowrap">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={STROKE_WIDTH} d="M12 4v16m8-8H4" />
             </svg>
             <span>新增服務項目</span>
           </button>
@@ -243,13 +431,13 @@ const SettingsServiceItemsPage: React.FC = () => {
 
       <div className="flex border-b border-gray-200 mb-6">
         <button
-          className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'service-items' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+          className={`px-${TAB_PADDING_X} py-${TAB_PADDING_Y} text-sm font-medium border-b-2 transition-colors ${activeTab === 'service-items' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
           onClick={() => setActiveTab('service-items')}
         >
           服務項目列表
         </button>
         <button
-          className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'group-management' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+          className={`px-${TAB_PADDING_X} py-${TAB_PADDING_Y} text-sm font-medium border-b-2 transition-colors ${activeTab === 'group-management' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
           onClick={() => setActiveTab('group-management')}
         >
           群組管理
@@ -258,7 +446,7 @@ const SettingsServiceItemsPage: React.FC = () => {
 
       {activeTab === 'service-items' ? (
         <div className="space-y-6">
-          <div className="flex flex-col md:flex-row gap-4">
+          <div className={`flex flex-col md:flex-row gap-${GRID_GAP}`}>
             <div className="flex-1">
               <SearchInput
                 value={searchQuery}
@@ -268,12 +456,12 @@ const SettingsServiceItemsPage: React.FC = () => {
                 placeholder="搜尋服務項目、群組名稱..."
               />
             </div>
-            <div className="w-full md:w-64">
+            <div className={`w-full md:w-${SELECT_WIDTH_REM}`}>
               <select
                 value={selectedGroupId || ''}
                 onChange={(e) => {
                   const val = e.target.value;
-                  setSelectedGroupId(val === '' ? null : val === '-1' ? -1 : parseInt(val, 10));
+                  setSelectedGroupId(val === '' ? null : val === '-1' ? UNGROUPED_ID : parseInt(val, 10));
                 }}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white"
               >
@@ -292,9 +480,8 @@ const SettingsServiceItemsPage: React.FC = () => {
               groups={groups}
               draggedItemId={draggedItemId}
               onDragStart={handleDragStart}
-              onDragOver={handleDragOver}
-              onDrop={handleDrop}
-              onDragEnd={() => setDraggedItemId(null)}
+              onMove={handleMoveServiceItem}
+              onDragEnd={handleSaveItemOrder}
               practitionerAssignments={practitionerAssignments}
               disabled={isProcessing}
             />
@@ -309,7 +496,8 @@ const SettingsServiceItemsPage: React.FC = () => {
             onAddGroup={handleAddGroup}
             onUpdateGroup={handleUpdateGroup}
             onDeleteGroup={handleDeleteGroup}
-            onReorderGroups={handleReorderGroups}
+            onMoveGroup={handleMoveGroup}
+            onSaveGroupOrder={handleSaveGroupOrder}
             availableGroups={groups}
           />
         </div>

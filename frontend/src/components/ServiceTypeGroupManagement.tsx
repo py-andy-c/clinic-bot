@@ -11,7 +11,8 @@ interface ServiceTypeGroupManagementProps {
   onAddGroup: (group: ServiceTypeGroup) => void;
   onUpdateGroup: (id: number, updates: Partial<ServiceTypeGroup>) => void;
   onDeleteGroup: (id: number) => void;
-  onReorderGroups: (orderedIds: number[]) => void;
+  onMoveGroup: (draggedId: number, targetId: number) => void;
+  onSaveGroupOrder: () => void;
   availableGroups: ServiceTypeGroup[];
 }
 
@@ -22,7 +23,8 @@ export const ServiceTypeGroupManagement: React.FC<ServiceTypeGroupManagementProp
   onAddGroup,
   onUpdateGroup,
   onDeleteGroup,
-  onReorderGroups,
+  onMoveGroup,
+  onSaveGroupOrder,
   availableGroups,
 }) => {
   const [addingNewGroup, setAddingNewGroup] = useState(false);
@@ -43,7 +45,7 @@ export const ServiceTypeGroupManagement: React.FC<ServiceTypeGroupManagementProp
       const maxOrder = availableGroups.length > 0
         ? Math.max(...availableGroups.map(g => g.display_order || 0))
         : -1;
-      
+
       const newGroup: ServiceTypeGroup = {
         id: -Date.now(), // Temporary ID
         clinic_id: availableGroups[0]?.clinic_id || 0,
@@ -52,7 +54,7 @@ export const ServiceTypeGroupManagement: React.FC<ServiceTypeGroupManagementProp
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
-      
+
       onAddGroup(newGroup);
       setAddingNewGroup(false);
     }
@@ -77,44 +79,8 @@ export const ServiceTypeGroupManagement: React.FC<ServiceTypeGroupManagementProp
     e.dataTransfer.effectAllowed = 'move';
   };
 
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-  };
-
-  const handleDrop = (e: React.DragEvent, targetGroupId: number, position?: 'above' | 'below') => {
-    e.preventDefault();
-    if (!draggedGroupId || draggedGroupId === targetGroupId) return;
-
-    const draggedIndex = availableGroups.findIndex(g => g.id === draggedGroupId);
-    let targetIndex = availableGroups.findIndex(g => g.id === targetGroupId);
-    if (draggedIndex === -1 || targetIndex === -1) return;
-
-    // Calculate final insertion index based on position indicator
-    // If dropping "below", insert after the target (targetIndex + 1)
-    // If dropping "above" or no position specified, insert at targetIndex
-    let insertIndex = position === 'below' ? targetIndex + 1 : targetIndex;
-
-    const newGroups = [...availableGroups];
-    const [removed] = newGroups.splice(draggedIndex, 1);
-    if (!removed) return;
-    
-    // Adjust insertion index if dragged item was before the insertion point
-    // (removing the dragged item shifts indices down by 1)
-    if (draggedIndex < insertIndex) {
-      insertIndex -= 1;
-    }
-    
-    newGroups.splice(insertIndex, 0, removed);
-
-    // Get ordered IDs
-    const orderedIds = newGroups.map(g => g.id);
-    onReorderGroups(orderedIds);
-    
-    setDraggedGroupId(null);
-  };
-
   const handleDragEnd = () => {
+    onSaveGroupOrder();
     setDraggedGroupId(null);
   };
 
@@ -142,8 +108,7 @@ export const ServiceTypeGroupManagement: React.FC<ServiceTypeGroupManagementProp
           isClinicAdmin={isClinicAdmin}
           draggedGroupId={draggedGroupId}
           onDragStart={handleDragStart}
-          onDragOver={handleDragOver}
-          onDrop={handleDrop}
+          onMove={onMoveGroup}
           onDragEnd={handleDragEnd}
           addingNewGroup={addingNewGroup}
           onCancelAdd={() => setAddingNewGroup(false)}
