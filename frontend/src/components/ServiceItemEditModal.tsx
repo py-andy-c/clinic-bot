@@ -6,7 +6,7 @@ import { apiService } from '../services/api';
 import { logger } from '../utils/logger';
 import { getErrorMessage } from '../types/api';
 import { AppointmentType, Member, ServiceTypeGroup, ResourceRequirement } from '../types';
-import { LoadingSpinner } from './shared';
+import { LoadingSpinner, InfoButton, InfoModal, WarningPopover } from './shared';
 import {
   ServiceItemBundleRequest,
   BillingScenarioBundleData,
@@ -98,7 +98,21 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
     }
   });
 
-  const { reset, handleSubmit, register, setValue, formState: { errors, isDirty } } = methods;
+  const { reset, handleSubmit, register, setValue, watch, formState: { errors, isDirty } } = methods;
+
+  // Watch values for conditional rendering and warnings
+  const allow_new_patient_booking = watch('allow_new_patient_booking');
+  const allow_existing_patient_booking = watch('allow_existing_patient_booking');
+
+  // Modal states
+  const [showDurationModal, setShowDurationModal] = useState(false);
+  const [showBufferModal, setShowBufferModal] = useState(false);
+  const [showReceiptNameModal, setShowReceiptNameModal] = useState(false);
+  const [showAllowNewPatientBookingModal, setShowAllowNewPatientBookingModal] = useState(false);
+  const [showAllowExistingPatientBookingModal, setShowAllowExistingPatientBookingModal] = useState(false);
+  const [showBillingScenarioModal, setShowBillingScenarioModal] = useState(false);
+  const [showMultipleTimeSlotModal, setShowMultipleTimeSlotModal] = useState(false);
+  const [showFollowUpInfoModal, setShowFollowUpInfoModal] = useState(false);
 
   useEffect(() => {
     if (bundle) {
@@ -133,7 +147,10 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
         clinic_confirmation_message: bundle.item.clinic_confirmation_message || DEFAULT_CLINIC_CONFIRMATION_MESSAGE,
         reminder_message: bundle.item.reminder_message || DEFAULT_REMINDER_MESSAGE,
         practitioner_ids: bundle.associations.practitioner_ids,
-        billing_scenarios: bundle.associations.billing_scenarios,
+        billing_scenarios: bundle.associations.billing_scenarios.map(s => ({
+          ...s,
+          is_default: s.is_default // Ensure is_default is preserved
+        })),
         resource_requirements: requirements,
         follow_up_messages: bundle.associations.follow_up_messages,
       };
@@ -432,12 +449,28 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">服務時長 (分鐘)</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5 flex items-center gap-2">
+                        服務時長 (分鐘)
+                        <InfoButton onClick={() => setShowDurationModal(true)} />
+                      </label>
                       <FormInput
                         type="number"
                         step="5"
                         name="duration_minutes"
                         placeholder="30"
+                        className="w-full"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5 flex items-center gap-2">
+                        預約緩衝時間 (分鐘)
+                        <InfoButton onClick={() => setShowBufferModal(true)} />
+                      </label>
+                      <FormInput
+                        type="number"
+                        step="5"
+                        name="scheduling_buffer_minutes"
+                        placeholder="0"
                         className="w-full"
                       />
                     </div>
@@ -452,7 +485,10 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                       </select>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">收據名稱 (選填)</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5 flex items-center gap-2">
+                        收據名稱 (選填)
+                        <InfoButton onClick={() => setShowReceiptNameModal(true)} />
+                      </label>
                       <input
                         {...register('receipt_name')}
                         className="input w-full"
@@ -483,6 +519,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                         className="w-4 h-4 text-primary-600 rounded border-gray-300 mr-3"
                       />
                       <span className="text-gray-700">開放新病患預約</span>
+                      <div className="ml-2"><InfoButton onClick={() => setShowAllowNewPatientBookingModal(true)} /></div>
                     </label>
                     <label className="flex items-center cursor-pointer">
                       <input
@@ -491,6 +528,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                         className="w-4 h-4 text-primary-600 rounded border-gray-300 mr-3"
                       />
                       <span className="text-gray-700">開放現有病患預約</span>
+                      <div className="ml-2"><InfoButton onClick={() => setShowAllowExistingPatientBookingModal(true)} /></div>
                     </label>
                     <label className="flex items-center cursor-pointer">
                       <input
@@ -499,6 +537,13 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                         className="w-4 h-4 text-primary-600 rounded border-gray-300 mr-3"
                       />
                       <span className="text-gray-700">允許病患選擇治療師</span>
+                      {!allow_new_patient_booking && !allow_existing_patient_booking && (
+                        <div className="ml-2">
+                          <WarningPopover message="此服務項目未開放病患自行預約，此設定不會生效。">
+                            <span className="text-amber-600 hover:text-amber-700 cursor-pointer">⚠️</span>
+                          </WarningPopover>
+                        </div>
+                      )}
                     </label>
                     <label className="flex items-center cursor-pointer">
                       <input
@@ -507,6 +552,14 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                         className="w-4 h-4 text-primary-600 rounded border-gray-300 mr-3"
                       />
                       <span className="text-gray-700">允許單次預約多個時段</span>
+                      <div className="ml-2"><InfoButton onClick={() => setShowMultipleTimeSlotModal(true)} /></div>
+                      {!allow_new_patient_booking && !allow_existing_patient_booking && (
+                        <div className="ml-2">
+                          <WarningPopover message="此服務項目未開放病患自行預約，此設定不會生效。">
+                            <span className="text-amber-600 hover:text-amber-700 cursor-pointer">⚠️</span>
+                          </WarningPopover>
+                        </div>
+                      )}
                     </label>
                   </div>
                 </section>
@@ -524,36 +577,50 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                         className="w-4 h-4 text-primary-600 rounded border-gray-300 mr-3"
                       />
                       <span className="text-gray-700">強制病患填寫備註</span>
+                      {!allow_new_patient_booking && !allow_existing_patient_booking && (
+                        <div className="ml-2">
+                          <WarningPopover message="此服務項目未開放病患自行預約，此設定不會生效。">
+                            <span className="text-amber-600 hover:text-amber-700 cursor-pointer">⚠️</span>
+                          </WarningPopover>
+                        </div>
+                      )}
                     </label>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">備註填寫說明 (選填)</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5 flex items-center gap-2">
+                        備註填寫說明 (選填)
+                        {!allow_new_patient_booking && !allow_existing_patient_booking && (
+                          <WarningPopover message="此服務項目未開放病患自行預約，此設定不會生效。">
+                            <span className="text-amber-600 hover:text-amber-700 cursor-pointer">⚠️</span>
+                          </WarningPopover>
+                        )}
+                      </label>
                       <input
                         {...register('notes_instructions')}
                         className="input w-full"
                         placeholder="例如：請簡述您的症狀..."
                       />
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">預約緩衝時間 (分鐘)</label>
-                      <FormInput
-                        type="number"
-                        step="5"
-                        name="scheduling_buffer_minutes"
-                        placeholder="0"
-                        className="w-full"
-                      />
-                    </div>
                   </div>
                 </section>
 
-                <MessageSettingsSection
-                  appointmentType={appointmentTypeProxy}
-                  onUpdate={onUpdateLocalItem}
-                  disabled={!isClinicAdmin}
-                  clinicInfoAvailability={clinicInfoAvailability || {}}
-                />
+                <section className="bg-white rounded-xl md:rounded-2xl p-4 md:p-6 shadow-sm border border-gray-100">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4 md:mb-6 flex items-center gap-2">
+                    <span className="w-1.5 h-6 bg-orange-500 rounded-full"></span>
+                    訊息設定
+                  </h3>
+                  <MessageSettingsSection
+                    appointmentType={appointmentTypeProxy}
+                    onUpdate={onUpdateLocalItem}
+                    disabled={!isClinicAdmin}
+                    clinicInfoAvailability={clinicInfoAvailability || {}}
+                  />
+                </section>
 
                 <section className="bg-white rounded-xl md:rounded-2xl p-4 md:p-6 shadow-sm border border-gray-100">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4 md:mb-6 flex items-center gap-2">
+                    <span className="w-1.5 h-6 bg-pink-500 rounded-full"></span>
+                    資源需求
+                  </h3>
                   <ResourceRequirementsSection
                     appointmentTypeId={serviceItemId || 0}
                     isClinicAdmin={isClinicAdmin}
@@ -647,12 +714,25 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                   </div>
                 </section>
 
-                <FollowUpMessagesSection
-                  appointmentType={appointmentTypeProxy}
-                  onUpdate={onUpdateLocalItem}
-                  disabled={!isClinicAdmin}
-                  clinicInfoAvailability={clinicInfoAvailability || {}}
-                />
+                <section className="bg-white rounded-xl md:rounded-2xl p-4 md:p-6 shadow-sm border border-gray-100">
+                  <div className="flex items-center justify-between mb-4 md:mb-6">
+                    <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                      <span className="w-1.5 h-6 bg-cyan-500 rounded-full"></span>
+                      追蹤訊息設定
+                    </h3>
+                    <InfoButton
+                      onClick={() => setShowFollowUpInfoModal(true)}
+                      ariaLabel="追蹤訊息設定說明"
+                      size="small"
+                    />
+                  </div>
+                  <FollowUpMessagesSection
+                    appointmentType={appointmentTypeProxy}
+                    onUpdate={onUpdateLocalItem}
+                    disabled={!isClinicAdmin}
+                    clinicInfoAvailability={clinicInfoAvailability || {}}
+                  />
+                </section>
               </div>
             </div>
           </main>
@@ -757,6 +837,94 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
             </div>
           </BaseModal>
         )}
+        {/* Info Modals */}
+        <InfoModal isOpen={showDurationModal} onClose={() => setShowDurationModal(false)} title="服務時長 (分鐘)">
+          <p>此為實際服務時間長度...</p>
+        </InfoModal>
+        <InfoModal isOpen={showBufferModal} onClose={() => setShowBufferModal(false)} title="排程緩衝時間 (分鐘)">
+          <p>此為排程時額外保留的時間...</p>
+        </InfoModal>
+        <InfoModal isOpen={showReceiptNameModal} onClose={() => setShowReceiptNameModal(false)} title="收據項目名稱">
+          <p>此名稱會顯示在收據上，取代服務項目名稱...</p>
+        </InfoModal>
+        <InfoModal isOpen={showAllowNewPatientBookingModal} onClose={() => setShowAllowNewPatientBookingModal(false)} title="新病患可自行預約">
+          <div className="space-y-2">
+            <p>啟用後，新病患可透過 LINE 預約系統看到並選擇此服務項目。</p>
+            <p className="text-sm text-gray-600"><strong>新病患定義：</strong>尚未指派過治療師的病患（不論是否曾經預約過）。</p>
+            <p className="text-sm text-gray-600">系統會檢查病患是否已有治療師指派記錄，而非檢查過往預約記錄。</p>
+          </div>
+        </InfoModal>
+        <InfoModal isOpen={showAllowExistingPatientBookingModal} onClose={() => setShowAllowExistingPatientBookingModal(false)} title="舊病患可自行預約">
+          <div className="space-y-2">
+            <p>啟用後，已指派治療師的病患可透過 LINE 預約系統看到並選擇此服務項目。</p>
+            <p className="text-sm text-gray-600"><strong>舊病患定義：</strong>已指派過治療師的病患。</p>
+            <p className="text-sm text-gray-600">系統會檢查病患是否已有治療師指派記錄，而非檢查過往預約記錄。</p>
+          </div>
+        </InfoModal>
+        <InfoModal isOpen={showBillingScenarioModal} onClose={() => setShowBillingScenarioModal(false)} title="計費方案說明">
+          <p>計費方案讓您為每位治療師的每項服務設定多種定價選項...</p>
+        </InfoModal>
+        <InfoModal isOpen={showMultipleTimeSlotModal} onClose={() => setShowMultipleTimeSlotModal(false)} title="多時段選擇說明">
+          <div className="space-y-4">
+            <div>
+              <h4 className="font-medium text-gray-900 mb-2">功能概述</h4>
+              <p className="text-sm text-gray-700">
+                啟用後，病患預約時可選擇多個偏好時段（最多 10 個），系統會從病患選擇的時段中保留最早的可用時段，並將預約狀態設為「待安排」，等待診所確認最終時間。
+              </p>
+            </div>
+
+            <div>
+              <h4 className="font-medium text-gray-900 mb-2">病患體驗</h4>
+              <ul className="text-sm text-gray-700 space-y-1 ml-4">
+                <li>• 在 LINE 預約系統中看到「預約時間: 待安排」</li>
+                <li>• 預約成功後收到確認訊息，顯示「待安排」狀態</li>
+                <li>• 診所確認時間後，再次收到 LINE 通知包含確定的時間</li>
+              </ul>
+            </div>
+
+            <div>
+              <h4 className="font-medium text-gray-900 mb-2">診所工作流程</h4>
+              <ul className="text-sm text-gray-700 space-y-1 ml-4">
+                <li>• 預約出現在「待確認預約」頁面中</li>
+                <li>• 管理員或指定治療師可查看病患的所有偏好時段</li>
+                <li>• 可從病患偏好中選擇最終時間，或選擇其他可用時段</li>
+                <li>• 確認後自動發送 LINE 通知給病患並產生行事曆邀請</li>
+              </ul>
+            </div>
+
+            <div>
+              <h4 className="font-medium text-gray-900 mb-2">自動確認機制</h4>
+              <p className="text-sm text-gray-700 mb-2">
+                系統會在預約時間前自動確認最早的偏好時段，確認機制取決於診所的預約限制設定：
+              </p>
+              <ul className="text-sm text-gray-700 space-y-1 ml-4">
+                <li>• <strong>小時限制模式</strong>（預設）：在預約時間前 X 小時自動確認（預設為 24 小時）</li>
+                <li>• <strong>截止時間模式</strong>：在指定截止時間自動確認（例如前一天上午 8:00 或當天上午 8:00）</li>
+                <li>• 自動確認同樣會發送 LINE 通知給行事曆邀請</li>
+              </ul>
+            </div>
+          </div>
+        </InfoModal>
+        <InfoModal isOpen={showFollowUpInfoModal} onClose={() => setShowFollowUpInfoModal(false)} title="追蹤訊息說明">
+          <div className="space-y-4">
+            <p>追蹤訊息功能讓您能自動發送訊息給病患，無論是為了衛教提醒、滿意度調查，或是定期回診通知。</p>
+            <div>
+              <h4 className="font-medium text-gray-900 mb-2">發送時機模式</h4>
+              <ul className="text-sm text-gray-700 space-y-1 ml-4">
+                <li>• <strong>預約結束後 X 小時</strong>：適合用於即時的衛教資訊或滿意度調查（例如：治療後 2 小時）。</li>
+                <li>• <strong>預約日期後 Y 天的特定時間</strong>：適合用於隔日的關懷或長期追蹤（例如：治療後 3 天的晚上 9 點）。</li>
+              </ul>
+            </div>
+            <div>
+              <h4 className="font-medium text-gray-900 mb-2">注意事項</h4>
+              <ul className="text-sm text-gray-700 space-y-1 ml-4">
+                <li>• 系統會自動檢查並發送符合條件的訊息。</li>
+                <li>• 您可以隨時停用特定的追蹤訊息。</li>
+                <li>• 建議使用變數（如 {'{病患姓名}'}）來讓訊息更具親和力。</li>
+              </ul>
+            </div>
+          </div>
+        </InfoModal>
       </BaseModal>
     </FormProvider>
   );

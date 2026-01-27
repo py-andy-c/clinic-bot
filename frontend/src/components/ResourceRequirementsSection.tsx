@@ -143,15 +143,6 @@ export const ResourceRequirementsSection: React.FC<ResourceRequirementsSectionPr
 
   return (
     <div>
-      <div className="mb-3">
-        <label className="block text-sm font-medium text-gray-700">
-          資源需求
-        </label>
-        <p className="text-xs text-gray-500 mt-1">
-          設定此服務項目需要的資源類型和數量
-        </p>
-      </div>
-
       {/* Requirements List */}
       {requirements.length === 0 ? (
         <p className="text-sm text-gray-500 mb-3">尚無資源需求</p>

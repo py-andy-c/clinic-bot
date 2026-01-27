@@ -3,7 +3,7 @@ import { FollowUpMessage, AppointmentType } from '../types';
 import { apiService } from '../services/api';
 import { PlaceholderHelper } from './PlaceholderHelper';
 import { BaseModal } from './shared/BaseModal';
-import { LoadingSpinner, InfoButton, InfoModal, TimeInput } from './shared';
+import { LoadingSpinner, InfoModal, TimeInput } from './shared';
 import { generateTemporaryId } from '../utils/idUtils';
 import { isTemporaryServiceItemId } from '../utils/idUtils';
 import { logger } from '../utils/logger';
@@ -462,41 +462,31 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
 
     return (
         <>
-            <div className="bg-white md:rounded-xl md:border md:border-gray-100 md:shadow-sm p-0 md:p-6">
-                <div className="px-4 py-4 md:px-0 md:py-0">
-                    <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center gap-2">
-                            <h3 className="text-lg font-semibold text-gray-900">追蹤訊息設定</h3>
-                            <InfoButton
-                                onClick={() => setShowInfoModal(true)}
-                                ariaLabel="追蹤訊息設定說明"
-                                size="small"
-                            />
-                        </div>
-                        <button
-                            type="button"
-                            onClick={handleAddMessage}
-                            disabled={disabled}
-                            className="text-sm text-blue-600 hover:text-blue-800 disabled:text-gray-400 disabled:cursor-not-allowed"
-                        >
-                            + 新增追蹤訊息
-                        </button>
-                    </div>
-
-                    {loading ? (
-                        <div className="flex justify-center py-8">
-                            <LoadingSpinner />
-                        </div>
-                    ) : followUpMessages.length === 0 ? (
-                        <div className="text-center py-8 text-gray-500 text-sm">
-                            尚無追蹤訊息，點擊「新增追蹤訊息」開始設定
-                        </div>
-                    ) : (
-                        <div className="space-y-3">
-                            {followUpMessages.map((message, index) => renderMessageItem(message, index))}
-                        </div>
-                    )}
+            <div>
+                <div className="flex justify-end mb-4">
+                    <button
+                        type="button"
+                        onClick={handleAddMessage}
+                        disabled={disabled}
+                        className="text-sm text-blue-600 hover:text-blue-800 disabled:text-gray-400 disabled:cursor-not-allowed"
+                    >
+                        + 新增追蹤訊息
+                    </button>
                 </div>
+
+                {loading ? (
+                    <div className="flex justify-center py-8">
+                        <LoadingSpinner />
+                    </div>
+                ) : followUpMessages.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500 text-sm">
+                        尚無追蹤訊息，點擊「新增追蹤訊息」開始設定
+                    </div>
+                ) : (
+                    <div className="space-y-3">
+                        {followUpMessages.map((message, index) => renderMessageItem(message, index))}
+                    </div>
+                )}
             </div>
 
             {/* Edit/Create Modal */}

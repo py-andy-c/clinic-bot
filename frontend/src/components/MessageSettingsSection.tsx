@@ -57,11 +57,11 @@ export const MessageSettingsSection: React.FC<MessageSettingsSectionProps> = ({
   const getMessageField = (type: MessageType): MessageFieldState => {
     const toggleKey = `send_${type}` as keyof AppointmentType;
     const messageKey = `${type}_message` as keyof AppointmentType;
-    
+
     // Get raw toggle value from appointmentType
     // Check both the direct property and if it exists in the object
     const rawToggle = appointmentType[toggleKey] as boolean | undefined;
-    
+
     // Default logic: only use defaults if value is actually undefined
     // For patient_confirmation on existing items, migration set it to false, but if user changed it to true, respect that
     let defaultToggle: boolean;
@@ -72,12 +72,12 @@ export const MessageSettingsSection: React.FC<MessageSettingsSectionProps> = ({
     } else {
       defaultToggle = true;
     }
-    
+
     // Use raw value if present (including false), otherwise use default
     // This ensures that if database has true, we use true, not the default
     const toggle = rawToggle !== undefined ? rawToggle : defaultToggle;
     let message = appointmentType[messageKey] as string | undefined;
-    
+
     if (!message || message.trim() === '') {
       switch (type) {
         case 'patient_confirmation':
@@ -91,7 +91,7 @@ export const MessageSettingsSection: React.FC<MessageSettingsSectionProps> = ({
           break;
       }
     }
-    
+
     return { toggle, message };
   };
 
@@ -101,15 +101,15 @@ export const MessageSettingsSection: React.FC<MessageSettingsSectionProps> = ({
 
   const updateMessageField = (type: MessageType, field: 'toggle' | 'message', value: boolean | string) => {
     const updated: AppointmentType = { ...appointmentType };
-    
+
     if (field === 'toggle') {
       (updated as any)[`send_${type}`] = value as boolean;
-      
+
       // Safety net: If toggle is turned ON and message is empty, auto-set default
       if (value === true) {
         const messageKey = `${type}_message` as keyof AppointmentType;
         const currentMessage = updated[messageKey] as string | undefined;
-        
+
         if (!currentMessage || currentMessage.trim() === '') {
           let defaultMessage = '';
           switch (type) {
@@ -129,7 +129,7 @@ export const MessageSettingsSection: React.FC<MessageSettingsSectionProps> = ({
     } else {
       (updated as any)[`${type}_message`] = value as string;
     }
-    
+
     onUpdate(updated);
   };
 
@@ -161,13 +161,13 @@ export const MessageSettingsSection: React.FC<MessageSettingsSectionProps> = ({
   const handleInsertPlaceholder = (type: MessageType, placeholder: string) => {
     const field = getMessageField(type);
     const textarea = textareaRefs.current[type];
-    
+
     if (textarea) {
       const start = textarea.selectionStart;
       const end = textarea.selectionEnd;
       const newMessage = field.message.substring(0, start) + placeholder + field.message.substring(end);
       updateMessageField(type, 'message', newMessage);
-      
+
       // Restore cursor position after placeholder
       setTimeout(() => {
         textarea.focus();
@@ -227,8 +227,8 @@ export const MessageSettingsSection: React.FC<MessageSettingsSectionProps> = ({
               </div>
             </div>
           </button>
-          <div 
-            className="flex items-center cursor-pointer ml-4" 
+          <div
+            className="flex items-center cursor-pointer ml-4"
             onClick={(e) => e.stopPropagation()}
             onMouseDown={(e) => e.stopPropagation()}
           >
@@ -285,9 +285,8 @@ export const MessageSettingsSection: React.FC<MessageSettingsSectionProps> = ({
                 onChange={(e) => updateMessageField(type, 'message', e.target.value)}
                 disabled={disabled}
                 rows={8}
-                className={`w-full px-3 py-2 border rounded-lg text-sm resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                  isOverLimit ? 'border-red-500' : isWarning ? 'border-yellow-500' : 'border-gray-300'
-                } disabled:bg-gray-100 disabled:cursor-not-allowed`}
+                className={`w-full px-3 py-2 border rounded-lg text-sm resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${isOverLimit ? 'border-red-500' : isWarning ? 'border-yellow-500' : 'border-gray-300'
+                  } disabled:bg-gray-100 disabled:cursor-not-allowed`}
                 placeholder="輸入訊息模板..."
               />
               <div className="flex items-center justify-between mt-1">
@@ -309,24 +308,19 @@ export const MessageSettingsSection: React.FC<MessageSettingsSectionProps> = ({
 
   return (
     <>
-      <div className="bg-white md:rounded-xl md:border md:border-gray-100 md:shadow-sm p-0 md:p-6" data-message-settings>
-        <div className="px-4 py-4 md:px-0 md:py-0">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">訊息設定</h3>
-          <div className="space-y-3">
-            {renderMessageSection('patient_confirmation', patientConfirmation)}
-            {renderMessageSection('clinic_confirmation', clinicConfirmation)}
-            {renderMessageSection('reminder', reminder)}
-          </div>
-        </div>
+      <div className="space-y-3" data-message-settings>
+        {renderMessageSection('patient_confirmation', patientConfirmation)}
+        {renderMessageSection('clinic_confirmation', clinicConfirmation)}
+        {renderMessageSection('reminder', reminder)}
       </div>
 
-        <MessagePreviewModal
-          isOpen={previewModal.isOpen}
-          onClose={() => setPreviewModal({ ...previewModal, isOpen: false })}
-          {...(isNewItem ? { appointmentTypeName: appointmentType.name } : { appointmentTypeId: appointmentType.id })}
-          messageType={previewModal.messageType}
-          template={previewModal.template}
-        />
+      <MessagePreviewModal
+        isOpen={previewModal.isOpen}
+        onClose={() => setPreviewModal({ ...previewModal, isOpen: false })}
+        {...(isNewItem ? { appointmentTypeName: appointmentType.name } : { appointmentTypeId: appointmentType.id })}
+        messageType={previewModal.messageType}
+        template={previewModal.template}
+      />
     </>
   );
 };
