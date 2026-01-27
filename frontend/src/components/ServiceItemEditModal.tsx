@@ -466,7 +466,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                       const scenarios = billingScenarios.filter(s => s.practitioner_id === m.id);
 
                       return (
-                        <div key={m.id} className={`p-4 rounded-xl md:rounded-2xl border transition-all ${isAssigned ? 'bg-indigo-50 border-indigo-200' : 'bg-gray-50 border-gray-100'}`}>
+                        <div key={m.id} className={`p-4 rounded-xl border transition-all ${isAssigned ? 'bg-blue-50/30 border-blue-200 ring-1 ring-blue-100' : 'bg-white border-gray-200 hover:border-gray-300'}`}>
                           <div className="flex items-center justify-between mb-3 gap-2">
                             <label className="flex items-center cursor-pointer min-w-0">
                               <input

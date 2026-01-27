@@ -71,7 +71,7 @@ const SettingsIndexPage: React.FC = () => {
           <Link
             key={card.path}
             to={`/admin/clinic/settings/${card.path}`}
-            className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md hover:border-primary-300 transition-all group"
+            className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-md hover:border-primary-200 transition-all group"
           >
             <div className="flex items-start">
               <div className="flex-shrink-0">
