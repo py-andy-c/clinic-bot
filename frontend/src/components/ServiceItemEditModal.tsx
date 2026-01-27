@@ -608,6 +608,11 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                               <div key={idx} className={`flex items-center justify-between p-3 rounded-lg md:rounded-xl border shadow-sm transition-shadow ${isAssigned ? 'bg-white border-indigo-100 hover:shadow-md' : 'bg-gray-50 border-gray-300'}`}>
                                 <div className="flex items-baseline min-w-0 flex-1 mr-2">
                                   <span className={`font-medium truncate ${isAssigned ? 'text-gray-800' : 'text-gray-600'}`} title={s.name}>{s.name}</span>
+                                  {s.is_default && (
+                                    <span className="ml-2 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 bg-amber-50 rounded border border-amber-200 flex-shrink-0">
+                                      預設
+                                    </span>
+                                  )}
                                   <span className="mx-2 text-gray-300 flex-shrink-0">|</span>
                                   <span className={`font-mono flex-shrink-0 ${isAssigned ? 'text-gray-600' : 'text-gray-500'}`}>
                                     {formatCurrency(s.amount)} / {formatCurrency(s.revenue_share)}
