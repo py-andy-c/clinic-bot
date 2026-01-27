@@ -151,6 +151,8 @@ export const ServiceItemsTable: React.FC<ServiceItemsTableProps> = ({
       ...e,
       dataTransfer: {
         effectAllowed: 'move',
+        setDragImage: () => {},
+        setData: () => {}, // Mock setData to prevent crash
       },
     } as unknown as React.DragEvent;
 
