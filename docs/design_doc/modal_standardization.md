@@ -68,10 +68,13 @@ The modal container (`BaseModal` panel) should be `flex flex-col overflow-hidden
 
 ## Sizing and Widths
 
-* **Default responsive widths** for non-fullscreen modals:
-  * `w-full mx-4 mb-4 sm:max-w-lg md:max-w-xl lg:max-w-2xl`
+* **Size variants** for non-fullscreen modals:
+  * **Small (`size="sm"`):** `sm:max-w-md md:max-w-lg` (384px, 512px) - Best for alerts, confirmations, simple actions
+  * **Medium (`size="md"`):** `sm:max-w-lg md:max-w-xl lg:max-w-xl` (512px, 688px, 688px) - Default for most use cases
+  * **Large (`size="lg"`):** `sm:max-w-xl md:max-w-2xl lg:max-w-2xl` (448px, 672px, 672px) - Best for complex forms, detailed content
 * **Fullscreen flows**: use `fullScreen` in `BaseModal` and manage layout with their own header/body/footer but keep the same principles.
 * **Constraint**: Do not set widths on inner wrappers; width is a responsibility of the modal container.
+* **Mobile margins**: Maintained at `mx-4` (16px) for optimal content space on small screens.
 
 ***
 
@@ -194,7 +197,12 @@ To ensure consistency and reduce duplication, we use a tiered component strategy
 
 ## Appendix: Tailwind Snippets
 
+### Size Variants
+* **Small modal**: `w-full mx-4 mb-4 max-h-[90dvh] min-h-0 overflow-hidden flex flex-col sm:max-w-md md:max-w-lg`
+* **Medium modal (default)**: `w-full mx-4 mb-4 max-h-[90dvh] min-h-0 overflow-hidden flex flex-col sm:max-w-lg md:max-w-xl lg:max-w-xl`
+* **Large modal**: `w-full mx-4 mb-4 max-h-[90dvh] min-h-0 overflow-hidden flex flex-col sm:max-w-xl md:max-w-2xl lg:max-w-2xl`
+
+### Modal Parts
 * Header: `px-6 py-3 border-b flex items-center`
 * Body: `px-6 py-4 flex-1 min-h-0 overflow-y-auto`
 * Footer: `px-6 py-3 border-t flex justify-end space-x-3`
-* Container (non-fullscreen): `w-full mx-4 mb-4 max-h-[90dvh] min-h-0 overflow-hidden flex flex-col sm:max-w-lg md:max-w-xl lg:max-w-2xl`

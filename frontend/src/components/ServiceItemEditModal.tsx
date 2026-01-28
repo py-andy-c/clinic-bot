@@ -469,7 +469,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
       <BaseModal
         onClose={() => onClose()}
         aria-label={serviceItemId ? '編輯服務項目' : '新增服務項目'}
-        fullScreen
+        size="lg"
         showCloseButton={false}
       >
         <form onSubmit={handleSubmit(handleSave)} className="flex flex-col h-full bg-gray-50/50">

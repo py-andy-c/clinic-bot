@@ -1683,7 +1683,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
 
   return (
     <>
-      <BaseModal onClose={handleClose} aria-label={modalTitle} fullScreen={isMobile}>
+      <BaseModal onClose={handleClose} aria-label={modalTitle} fullScreen={isMobile} size={!isMobile ? 'lg' : 'md'}>
         <ModalHeader title={modalTitle} showClose onClose={handleClose} />
         <ModalBody className={isMobile ? 'px-4' : ''}>
           {error && step !== 'form' && (

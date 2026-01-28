@@ -21,6 +21,7 @@ export interface BaseModalProps {
   fullScreen?: boolean;
   showCloseButton?: boolean; // Show X button in top-right corner (default: true)
   closeOnOverlayClick?: boolean; // Close when clicking outside modal (default: false)
+  size?: 'sm' | 'md' | 'lg'; // Size variants for different content types
 }
 
 export const BaseModal: React.FC<BaseModalProps> = React.memo(({
@@ -33,11 +34,25 @@ export const BaseModal: React.FC<BaseModalProps> = React.memo(({
   fullScreen = false,
   showCloseButton: showCloseButtonProp,
   closeOnOverlayClick = false,
+  size = 'md',
 }) => {
   const { t } = useTranslation();
   const historyPushedRef = useRef(false);
   const isHandlingBackRef = useRef(false);
   const popStateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Size variant mapping for responsive widths
+  const getSizeClasses = (size: 'sm' | 'md' | 'lg') => {
+    switch (size) {
+      case 'sm':
+        return 'sm:max-w-md md:max-w-lg'; // 384px, 512px
+      case 'lg':
+        return 'sm:max-w-xl md:max-w-2xl lg:max-w-2xl'; // 448px, 672px, 672px
+      case 'md':
+      default:
+        return 'sm:max-w-lg md:max-w-xl lg:max-w-xl'; // 512px, 688px, 688px
+    }
+  };
 
   const handleOverlayClick = (e: React.MouseEvent<HTMLDivElement>) => {
     // Only close if clicking the overlay itself, not the modal content, and if enabled
@@ -240,7 +255,7 @@ export const BaseModal: React.FC<BaseModalProps> = React.memo(({
       <div
         className={fullScreen
           ? `w-screen h-[100dvh] min-h-[100dvh] overflow-hidden relative flex flex-col ${className}`
-          : `bg-white rounded-lg w-full mx-4 mb-4 max-h-[90dvh] min-h-0 overflow-hidden relative flex flex-col sm:max-w-lg md:max-w-xl lg:max-w-2xl ${className}`
+          : `bg-white rounded-lg w-full mx-4 mb-4 max-h-[90dvh] min-h-0 overflow-hidden relative flex flex-col ${getSizeClasses(size)} ${className}`
         }
         onClick={(e) => e.stopPropagation()}
         onMouseDown={(e) => e.stopPropagation()}

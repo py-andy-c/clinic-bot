@@ -111,6 +111,7 @@ const ModalDialog: React.FC<ModalDialogProps> = ({ modal, onClose }) => {
       zIndex={Z_INDEX.DIALOG}
       aria-label={modal.title || (modal.type === 'alert' ? t('modal.alert') : t('modal.confirm'))}
       showCloseButton={false}
+      size="sm"
     >
       <ModalHeader
         title={modal.title || (modal.type === 'alert' ? t('modal.alert') : t('modal.confirm'))}
