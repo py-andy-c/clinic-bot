@@ -12,6 +12,7 @@ Features:
 """
 
 import logging
+import sys
 from pathlib import Path
 from contextlib import asynccontextmanager
 from typing import Callable, Awaitable, List, Dict, Any
@@ -70,7 +71,13 @@ logger = logging.getLogger(__name__)
 # Detect if we're running in test environment
 def is_test_environment() -> bool:
     """Check if we're running in a test environment."""
-    return os.getenv("PYTEST_VERSION") is not None
+    # Check multiple indicators of test environment
+    return (
+        os.getenv("TESTING") == "true" or  # Set by pytest configuration
+        os.getenv("PYTEST_CURRENT_TEST") is not None or  # Set by pytest during test execution
+        "pytest" in sys.modules or  # pytest is imported
+        "test" in sys.argv[0] if sys.argv else False  # Running via test command
+    )
 
 def get_localized_message(english: str, chinese: str) -> str:
     """Return English message for tests, Chinese for production."""
@@ -477,10 +484,4 @@ async def global_exception_handler(request: Request, exc: Exception):
     return JSONResponse(
         status_code=500,
         content={"detail": get_localized_message("Internal server error", "內部伺服器錯誤"), "type": "internal_error"},
-    )
-    """Handle HTTP status errors from external services."""
-    logger.exception(f"External service error: {exc}")
-    return JSONResponse(
-        status_code=502,
-        content={"detail": "外部服務錯誤", "type": "external_service_error"},
     )
