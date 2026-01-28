@@ -7,7 +7,7 @@ import { useModal } from '../../contexts/ModalContext';
 import { logger } from '../../utils/logger';
 import { extractErrorMessage } from '../../utils/errorTracking';
 import { LoadingSpinner, BaseModal } from '../../components/shared';
-import { ModalHeader, ModalBody, ModalFooter } from '../../components/shared/ModalParts';
+import { ModalHeader, ModalBody } from '../../components/shared/ModalParts';
 import ClinicAppointmentSettings from '../../components/ClinicAppointmentSettings';
 import SettingsBackButton from '../../components/SettingsBackButton';
 import PageHeader from '../../components/PageHeader';
@@ -283,15 +283,6 @@ const SettingsAppointmentsPage: React.FC = () => {
                             </ol>
                         </div>
                     </ModalBody>
-                    <ModalFooter>
-                        <button
-                            type="button"
-                            onClick={() => setShowLiffInfoModal(false)}
-                            className="btn-primary"
-                        >
-                            關閉
-                        </button>
-                    </ModalFooter>
                 </BaseModal>
             )}
         </FormProvider>

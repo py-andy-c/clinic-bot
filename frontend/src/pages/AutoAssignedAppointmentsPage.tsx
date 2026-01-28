@@ -8,7 +8,7 @@ import { LoadingSpinner, ErrorMessage } from '../components/shared';
 import { EditAppointmentModal } from '../components/calendar/EditAppointmentModal';
 import { useAutoAssignedAppointments, AutoAssignedAppointment } from '../hooks/queries';
 import { BaseModal } from '../components/shared/BaseModal';
-import { ModalHeader, ModalBody, ModalFooter } from '../components/shared/ModalParts';
+import { ModalHeader, ModalBody } from '../components/shared/ModalParts';
 import moment from 'moment-timezone';
 import { CalendarEvent } from '../utils/calendarDataAdapter';
 import { formatAppointmentDateTime, formatAppointmentTimeRange } from '../utils/calendarUtils';
@@ -731,15 +731,6 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
               </div>
             </div>
           </ModalBody>
-          <ModalFooter>
-            <button
-              type="button"
-              onClick={() => setIsInfoModalOpen(false)}
-              className="btn-secondary"
-            >
-              關閉
-            </button>
-          </ModalFooter>
         </BaseModal>
       )}
     </>

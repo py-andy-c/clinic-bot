@@ -7,7 +7,7 @@ import { LineUserWithStatus } from '../types';
 import { logger } from '../utils/logger';
 import { LoadingSpinner, ErrorMessage, SearchInput, PaginationControls } from '../components/shared';
 import { BaseModal } from '../components/shared/BaseModal';
-import { ModalHeader, ModalBody, ModalFooter } from '../components/shared/ModalParts';
+import { ModalHeader, ModalBody } from '../components/shared/ModalParts';
 import { useLineUsers } from '../hooks/queries';
 import { useHighlightRow } from '../hooks/useHighlightRow';
 import PageHeader from '../components/PageHeader';
@@ -411,15 +411,6 @@ const LineUsersPage: React.FC = () => {
                                   </div>
                                 </div>
                               </ModalBody>
-                              <ModalFooter>
-                                <button
-                                  type="button"
-                                  onClick={() => setShowAiStatusInfo(false)}
-                                  className="btn-secondary"
-                                >
-                                  關閉
-                                </button>
-                              </ModalFooter>
                             </BaseModal>
                           )}
                         </div>

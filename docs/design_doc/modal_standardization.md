@@ -189,7 +189,8 @@ To ensure consistency and reduce duplication, we use a tiered component strategy
 ## Mobile Considerations
 
 * Maintain side margins (via container `mx-4`) to avoid edge-to-edge feel.
-* Prefer footer `關閉` on info modals for better reachability.
+* **Info modals**: Use only the X button for closing (no footer) for cleaner, focused experience
+* **Form modals**: Include footer with action buttons for better reachability
 * Ensure sticky footer keeps actions visible without stealing excessive vertical space.
 
 ***
