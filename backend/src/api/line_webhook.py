@@ -72,7 +72,7 @@ async def _extract_webhook_data(
         logger.warning("LINE webhook missing destination field")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Missing destination field in webhook payload"
+            detail="LINE Webhook 資料中缺少 destination 欄位"
         )
 
     destination = payload['destination']
@@ -86,7 +86,7 @@ async def _extract_webhook_data(
         logger.warning(f"Clinic not found for destination={destination}")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Clinic not found for destination: {destination}"
+            detail=f"找不到目標診所: {destination}"
         )
 
     # Verify webhook signature
@@ -99,7 +99,7 @@ async def _extract_webhook_data(
         logger.warning(f"Invalid webhook signature for clinic_id={clinic.id}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid webhook signature"
+            detail="無效的 LINE 簽章"
         )
 
     return clinic, line_service, body_str, payload

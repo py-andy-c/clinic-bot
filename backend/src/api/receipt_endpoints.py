@@ -134,7 +134,7 @@ async def checkout_appointment(
         if request.payment_method not in valid_payment_methods:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid payment method. Must be one of: {', '.join(valid_payment_methods)}"
+                detail=f"無效的付款方式。必須是：{', '.join(valid_payment_methods)}"
             )
         
         # Convert items to dict format for service
@@ -144,21 +144,21 @@ async def checkout_appointment(
             if item.amount < 0:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Item {idx}: amount must be >= 0"
+                    detail=f"項目 {idx}: 金額必須 >= 0"
                 )
             
             # Validate revenue_share <= amount
             if item.revenue_share > item.amount:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Item {idx}: revenue_share ({item.revenue_share}) must be <= amount ({item.amount})"
+                    detail=f"項目 {idx}: 診所分潤 ({item.revenue_share}) 不能超過總額 ({item.amount})"
                 )
             
             # Validate revenue_share >= 0
             if item.revenue_share < 0:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Item {idx}: revenue_share must be >= 0"
+                    detail=f"項目 {idx}: 診所分潤必須 >= 0"
                 )
             
             # Note: quantity validation (1 <= quantity <= 999) is handled by Pydantic model
@@ -175,7 +175,7 @@ async def checkout_appointment(
                 if not item.service_item_id:
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=f"Item {idx}: service_item_id is required for service_item type"
+                        detail=f"項目 {idx}: 服務項目類型需要 service_item_id"
                     )
                 item_dict["service_item_id"] = item.service_item_id
                 if item.practitioner_id is not None:
@@ -187,14 +187,14 @@ async def checkout_appointment(
                     if not scenario:
                         raise HTTPException(
                             status_code=status.HTTP_400_BAD_REQUEST,
-                            detail=f"Item {idx}: Billing scenario {item.billing_scenario_id} not found or has been deleted"
+                            detail=f"項目 {idx}: 找不到計費方案 {item.billing_scenario_id} 或已被刪除"
                         )
                     item_dict["billing_scenario_id"] = item.billing_scenario_id
             elif item.item_type == "other":
                 if not item.item_name:
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=f"Item {idx}: item_name is required for other type"
+                        detail=f"項目 {idx}: 其他類型需要 item_name"
                     )
                 item_dict["item_name"] = item.item_name
                 if item.practitioner_id is not None:
@@ -202,7 +202,7 @@ async def checkout_appointment(
             else:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Item {idx}: Invalid item_type. Must be 'service_item' or 'other'"
+                    detail=f"項目 {idx}: 無效的項目類型。必須是 'service_item' 或 'other'"
                 )
             
             items.append(item_dict)
@@ -213,7 +213,7 @@ async def checkout_appointment(
         if not clinic:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Clinic not found"
+                detail="找不到診所"
             )
         
         validated_settings = clinic.get_validated_settings()
@@ -223,7 +223,7 @@ async def checkout_appointment(
         if current_user.user_id is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User ID not found"
+                detail="找不到使用者 ID"
             )
         
         receipt = ReceiptService.create_receipt(
@@ -300,7 +300,7 @@ async def get_appointment_receipt(
         if not appointment:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Appointment not found"
+                detail="找不到預約"
             )
         
         # Get receipt
@@ -309,14 +309,14 @@ async def get_appointment_receipt(
         if not receipt:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Receipt not found"
+                detail="找不到收據"
             )
         
         # Verify receipt belongs to clinic
         if receipt.clinic_id != clinic_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Receipt does not belong to your clinic"
+                detail="收據不屬於您的診所"
             )
         
         # Extract data from receipt_data snapshot
@@ -402,20 +402,20 @@ async def void_receipt(
         if not receipt:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Receipt not found"
+                detail="找不到收據"
             )
         
         if receipt.clinic_id != clinic_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Receipt does not belong to your clinic"
+                detail="收據不屬於您的診所"
             )
         
         # Void receipt
         if current_user.user_id is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User ID not found"
+                detail="找不到使用者 ID"
             )
         
         receipt = ReceiptService.void_receipt(
@@ -432,7 +432,7 @@ async def void_receipt(
         if not voided_by_user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found"
+                detail="找不到使用者"
             )
         
         association = db.query(UserClinicAssociation).filter(
@@ -449,7 +449,7 @@ async def void_receipt(
         if not receipt.voided_at:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Receipt voided_at is not set"
+                detail="未設定收據作廢時間"
             )
         
         return VoidReceiptResponse(
@@ -589,7 +589,7 @@ async def create_billing_scenario(
         if request.revenue_share > request.amount:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="revenue_share must be <= amount"
+                detail="診所分潤不能超過總額"
             )
         
         # Create billing scenario - no PAT required, scenarios are independent
@@ -657,7 +657,7 @@ async def update_billing_scenario(
         if not scenario:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Billing scenario not found"
+                detail="找不到計費方案"
             )
         
         # Verify scenario belongs to the specified practitioner-service combination
@@ -666,7 +666,7 @@ async def update_billing_scenario(
             scenario.clinic_id != clinic_id):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Billing scenario does not belong to this practitioner-service combination"
+                detail="計費方案不屬於此治療師與服務組合"
             )
         
         # Update billing scenario
@@ -731,7 +731,7 @@ async def delete_billing_scenario(
         if not scenario:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Billing scenario not found"
+                detail="找不到計費方案"
             )
         
         # Verify scenario belongs to the specified practitioner-service combination
@@ -740,7 +740,7 @@ async def delete_billing_scenario(
             scenario.clinic_id != clinic_id):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Billing scenario does not belong to this practitioner-service combination"
+                detail="計費方案不屬於此治療師與服務組合"
             )
         
         # Delete billing scenario (soft delete)
@@ -788,13 +788,13 @@ async def download_receipt_pdf(
         if not receipt:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Receipt not found"
+                detail="找不到收據"
             )
         
         if receipt.clinic_id != clinic_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Receipt does not belong to your clinic"
+                detail="收據不屬於您的診所"
             )
         
         # Extract data from receipt_data snapshot (immutable)
@@ -877,13 +877,13 @@ async def get_receipt_html(
         if not receipt:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Receipt not found"
+                detail="找不到收據"
             )
         
         if receipt.clinic_id != clinic_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Receipt does not belong to your clinic"
+                detail="收據不屬於您的診所"
             )
         
         # Extract data from receipt_data snapshot (immutable)

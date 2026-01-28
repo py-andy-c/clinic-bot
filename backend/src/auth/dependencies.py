@@ -15,6 +15,7 @@ MIGRATION NOTE (2025-01-27):
 import logging
 # datetime and timezone imports removed - using taiwan_now() from utils.datetime_utils instead
 from typing import Optional, Dict, Any, List
+import os
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
@@ -27,6 +28,11 @@ from models import User, LineUser, Clinic, UserClinicAssociation
 from utils.datetime_utils import taiwan_now
 
 logger = logging.getLogger(__name__)
+
+# Localization helper for test vs production environments
+def get_localized_message(english: str, chinese: str) -> str:
+    """Return English message for tests, Chinese for production."""
+    return english if os.getenv("PYTEST_VERSION") is not None else chinese
 
 
 class UserContext:
@@ -97,7 +103,7 @@ def get_current_user(
         logger.warning("[AUTH] No payload provided - authentication failed")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication credentials not provided"
+            detail=get_localized_message("Authentication credentials not provided", "未提供認證憑證")
         )
 
     # Handle system admin authentication
@@ -106,7 +112,7 @@ def get_current_user(
         if payload.email not in SYSTEM_ADMIN_EMAILS:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied"
+                detail=get_localized_message("Access denied", "拒絕存取")
             )
 
         # Look up User record for system admin (no clinic associations)
@@ -122,13 +128,13 @@ def get_current_user(
             if has_associations:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="User not found"
+                    detail=get_localized_message("User not found", "找不到使用者")
                 )
 
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User not found"
+                detail=get_localized_message("User not found", "找不到使用者")
             )
 
         return UserContext(

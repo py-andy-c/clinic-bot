@@ -10301,11 +10301,15 @@ const getStatusMessage = (status?: number): string => {
     case 401: return '請重新登入';
     case 403: return DEFAULT_ERROR_MESSAGES.PERMISSION;
     case 404: return DEFAULT_ERROR_MESSAGES.NOT_FOUND;
+    case 405: return '此操作目前不被允許';
+    case 408: return DEFAULT_ERROR_MESSAGES.TIMEOUT;
     case 409: return DEFAULT_ERROR_MESSAGES.CONFLICT;
     case 422: return DEFAULT_ERROR_MESSAGES.VALIDATION;
+    case 429: return '操作過於頻繁，請稍候再試';
     case 500: return DEFAULT_ERROR_MESSAGES.SERVER;
     case 502: return '伺服器暫時無法回應，請稍後再試';
     case 503: return '服務暫時不可用，請稍後再試';
+    case 504: return DEFAULT_ERROR_MESSAGES.TIMEOUT;
     default: return DEFAULT_ERROR_MESSAGES.UNKNOWN;
   }
 };
@@ -10315,25 +10319,25 @@ const getStatusMessage = (status?: number): string => {
  */
 const getPatternMessage = (message?: string): string | null => {
   if (!message) return null;
-  
+
   // CORS errors
-  if (message.includes('CORS') || message.includes('cross-origin') || 
-      message.includes('Access-Control-Allow-Origin') || 
-      message.includes('blocked by CORS policy')) {
+  if (message.includes('CORS') || message.includes('cross-origin') ||
+    message.includes('Access-Control-Allow-Origin') ||
+    message.includes('blocked by CORS policy')) {
     return DEFAULT_ERROR_MESSAGES.NETWORK;
   }
-  
+
   // Network errors
-  if (message.includes('Network Error') || message.includes('ERR_NETWORK') || 
-      message.includes('ERR_FAILED') || message.includes('net::ERR_FAILED')) {
+  if (message.includes('Network Error') || message.includes('ERR_NETWORK') ||
+    message.includes('ERR_FAILED') || message.includes('net::ERR_FAILED')) {
     return DEFAULT_ERROR_MESSAGES.NETWORK;
   }
-  
+
   // Timeout errors
   if (message.includes('timeout') || message.includes('TIMEOUT')) {
     return DEFAULT_ERROR_MESSAGES.TIMEOUT;
   }
-  
+
   return null;
 };
 

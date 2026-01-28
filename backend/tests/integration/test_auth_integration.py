@@ -2023,7 +2023,7 @@ class TestSystemAdminRefreshTokenFlow:
                 assert response.status_code in [401, 403]
                 # Check that the error message indicates access denied
                 detail = response.json()["detail"]
-                assert "找不到使用者" in detail or "Access denied" in detail or "Access denied" in detail.lower()
+                assert "找不到使用者" in detail or "Access denied" in detail or "Access denied" in detail.lower() or "拒絕存取" in detail
 
             finally:
                 client.app.dependency_overrides.pop(get_db, None)

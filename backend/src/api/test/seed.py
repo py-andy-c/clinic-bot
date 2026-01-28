@@ -25,7 +25,7 @@ def require_e2e_mode():
     if os.getenv("E2E_TEST_MODE") != "true":
         raise HTTPException(
             status_code=403,
-            detail="This endpoint is only available in E2E test mode"
+            detail="此端點僅在 E2E 測試模式下可用"
         )
     return True
 
@@ -36,7 +36,7 @@ def create_minimal_clinic(db: Session, user_id: int | None = None, clinic_id: in
     if clinic_id:
         clinic = db.query(Clinic).filter(Clinic.id == clinic_id).first()
         if not clinic:
-            raise HTTPException(status_code=404, detail=f"Clinic {clinic_id} not found")
+            raise HTTPException(status_code=404, detail=f"找不到診所 {clinic_id}")
     else:
         clinic = Clinic(
             name=f"Test Clinic {secrets.token_hex(4)}",
@@ -53,7 +53,7 @@ def create_minimal_clinic(db: Session, user_id: int | None = None, clinic_id: in
     if user_id:
         admin_user = db.query(User).filter(User.id == user_id).first()
         if not admin_user:
-            raise HTTPException(status_code=404, detail=f"User {user_id} not found")
+            raise HTTPException(status_code=404, detail=f"找不到使用者 {user_id}")
     else:
         admin_user = User(
             email=f"admin_{secrets.token_hex(4)}@test.com",
@@ -219,7 +219,7 @@ async def seed_scenario(
     if scenario not in SCENARIOS:
         raise HTTPException(
             status_code=400,
-            detail=f"Unknown scenario: {scenario}. Available: {list(SCENARIOS.keys())}"
+            detail=f"未知的測試情境: {scenario}。可用情境: {list(SCENARIOS.keys())}"
         )
 
     try:
@@ -263,5 +263,5 @@ async def seed_scenario(
         logger.error(f"[SEED API ERROR] Exception in scenario {scenario}: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to seed scenario {scenario}: {str(e)}"
+            detail=f"測試情境 {scenario} 建立失敗: {str(e)}"
         )

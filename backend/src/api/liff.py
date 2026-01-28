@@ -425,7 +425,7 @@ async def liff_login(
             if not validate_token_format(request.clinic_token):
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Invalid token format"
+                    detail="無效的權杖格式"
                 )
 
             clinic = db.query(Clinic).filter(
@@ -498,7 +498,7 @@ async def liff_login(
                         if not line_user:
                             raise HTTPException(
                                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                                detail="Failed to create LINE user"
+                                detail="建立 LINE 使用者失敗"
                             )
         except IntegrityError:
             # Race condition: another request created it
@@ -510,7 +510,7 @@ async def liff_login(
             if not line_user:
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail="Failed to create LINE user"
+                    detail="建立 LINE 使用者失敗"
                 )
 
         # Check if patient exists for this clinic
@@ -527,7 +527,7 @@ async def liff_login(
         if not clinic.liff_id and not clinic.liff_access_token:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Clinic missing LIFF identifier - cannot create authentication token"
+                detail="診所缺少 LIFF 識別碼 - 無法建立認證權杖"
             )
 
         # Generate JWT with LINE user context

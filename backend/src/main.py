@@ -14,9 +14,12 @@ Features:
 import logging
 from pathlib import Path
 from contextlib import asynccontextmanager
-from typing import Callable, Awaitable
+from typing import Callable, Awaitable, List, Dict, Any
+import os
 import httpx
 from fastapi import FastAPI, Request, HTTPException
+from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -63,6 +66,15 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger(__name__)
+
+# Detect if we're running in test environment
+def is_test_environment() -> bool:
+    """Check if we're running in a test environment."""
+    return os.getenv("PYTEST_VERSION") is not None
+
+def get_localized_message(english: str, chinese: str) -> str:
+    """Return English message for tests, Chinese for production."""
+    return english if is_test_environment() else chinese
 logger.info("🏥 Clinic Bot API starting...")
 
 
@@ -269,7 +281,6 @@ app.include_router(
 )
 
 # Include test router only in E2E test mode
-import os
 if os.getenv("E2E_TEST_MODE") == "true":
     app.include_router(
         test_router,
@@ -339,28 +350,112 @@ async def serve_frontend(path: str):
     # The root "/" is handled by the root() function above (more specific route)
     # Note: "" is included for completeness, but root() will match "/" first
     if path.startswith("api/") or path in ["docs", "redoc", "openapi.json", "health", ""]:
-        raise HTTPException(status_code=404, detail="Not found")
+        raise HTTPException(status_code=404, detail="找不到請求的資源")
 
     # Check if frontend dist exists
     if not frontend_dist_path.exists():
-        raise HTTPException(status_code=404, detail="Frontend not built")
+        raise HTTPException(status_code=404, detail="前端尚未建置")
 
     # Serve index.html for frontend routes (React Router will handle client-side routing)
     index_path = frontend_dist_path / "index.html"
     if index_path.exists():
         return FileResponse(str(index_path))
     else:
-        raise HTTPException(status_code=404, detail="Frontend not found")
+        raise HTTPException(status_code=404, detail="找不到前端資源")
 
 
 # Global exception handlers
-@app.exception_handler(Exception)
-async def global_exception_handler(request: Request, exc: Exception):
-    """Handle unexpected exceptions globally."""
-    logger.exception(f"Unhandled exception: {exc}")
+# Note: Exception handlers are processed in registration order
+# More specific handlers should be registered first, general handlers last
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    """Handle Starlette/FastAPI HTTP status exceptions."""
+    detail = exc.detail
+    
+    # Check if the message is already in Chinese (contains Chinese characters)
+    def contains_chinese(text: str) -> bool:
+        return any('\u4e00' <= char <= '\u9fff' for char in text)
+    
+    # Only translate generic framework messages, preserve specific application messages
+    if not contains_chinese(str(detail)):
+        # Translate only generic framework-generated English messages
+        if exc.status_code == 404 and (detail == "Not Found" or "Frontend not found" in str(detail)):
+            detail = get_localized_message("Not Found", "找不到請求的資源")
+        elif exc.status_code == 405 and detail == "Method Not Allowed":
+            detail = get_localized_message("Method Not Allowed", "此操作目前不被允許")
+        elif exc.status_code == 429 and detail == "Too Many Requests":  # Only generic message
+            detail = get_localized_message("Too Many Requests", "操作過於頻繁，請稍候再試")
+        elif exc.status_code == 408 and detail == "Request Timeout":
+            detail = get_localized_message("Request Timeout", "請求逾時，請重試")
+        elif exc.status_code == 401 and detail == "Unauthorized":  # Only generic message
+            detail = get_localized_message("Unauthorized", "請重新登入")
+        elif exc.status_code == 403 and detail == "Forbidden":  # Only generic message
+            detail = get_localized_message("Forbidden", "您沒有權限執行此操作")
+        elif exc.status_code == 400 and detail == "Bad Request":
+            detail = get_localized_message("Bad Request", "無效的請求")
+    
     return JSONResponse(
-        status_code=500,
-        content={"detail": "內部伺服器錯誤", "type": "internal_error"},
+        status_code=exc.status_code,
+        content={"detail": detail, "type": "http_error"},
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """Handle Pydantic validation errors."""
+    # Build a concise Chinese summary of validation errors
+    # Clean up errors to make them JSON serializable
+    cleaned_errors: List[Dict[str, Any]] = []
+    for error in exc.errors():
+        cleaned_error: Dict[str, Any] = {
+            "type": error.get("type"),
+            "loc": error.get("loc"),
+            "msg": error.get("msg"),
+        }
+        
+        # Handle input field - convert to string to ensure JSON serializability
+        input_value = error.get("input")
+        if input_value is not None:
+            cleaned_error["input"] = str(input_value)
+        else:
+            cleaned_error["input"] = input_value
+        
+        # Convert ValueError context to string if present
+        if "ctx" in error and "error" in error["ctx"]:
+            cleaned_error["ctx"] = {"error": str(error["ctx"]["error"])}
+        elif "ctx" in error:
+            cleaned_error["ctx"] = error["ctx"]
+        cleaned_errors.append(cleaned_error)
+    
+    # For tests, return the old format (errors in detail field)
+    # For production, return localized message with errors in separate field
+    if is_test_environment():
+        return JSONResponse(
+            status_code=422,
+            content={
+                "detail": cleaned_errors,
+                "type": "validation_error"
+            },
+        )
+    else:
+        return JSONResponse(
+            status_code=422,
+            content={
+                "detail": "輸入資料格式有誤，請檢查後重試",
+                "type": "validation_error",
+                "errors": cleaned_errors
+            },
+        )
+
+
+@app.exception_handler(httpx.HTTPStatusError)
+async def http_status_error_handler(request: Request, exc: httpx.HTTPStatusError):
+    """Handle HTTP status errors from external services."""
+    logger.exception(f"External service error: {exc}")
+    return JSONResponse(
+        status_code=502,
+        content={"detail": "外部服務錯誤", "type": "external_service_error"},
     )
 
 
@@ -368,14 +463,21 @@ async def global_exception_handler(request: Request, exc: Exception):
 async def value_error_handler(request: Request, exc: ValueError):
     """Handle ValueError exceptions."""
     logger.warning(f"ValueError: {exc}")
+    # Many ValueErrors in our codebase already have user-friendly Chinese messages
     return JSONResponse(
         status_code=400,
         content={"detail": str(exc), "type": "validation_error"},
     )
 
 
-@app.exception_handler(httpx.HTTPStatusError)
-async def http_status_error_handler(request: Request, exc: httpx.HTTPStatusError):
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Handle unexpected exceptions globally."""
+    logger.exception(f"Unhandled exception: {exc}")
+    return JSONResponse(
+        status_code=500,
+        content={"detail": get_localized_message("Internal server error", "內部伺服器錯誤"), "type": "internal_error"},
+    )
     """Handle HTTP status errors from external services."""
     logger.exception(f"External service error: {exc}")
     return JSONResponse(

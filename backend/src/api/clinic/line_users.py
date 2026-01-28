@@ -92,19 +92,19 @@ async def get_line_users(
         if has_page_params and has_offset_params:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Cannot use both page/page_size and offset/limit. Use page/page_size (preferred) or offset/limit (deprecated)."
+                detail="不支援同時使用 page/page_size 和 offset/limit。請使用 page/page_size（建議項目）或 offset/limit（舊版項目）。"
             )
         
         if has_page_params and ((page is None) != (page_size is None)):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="page and page_size must be provided together"
+                detail="必須同時提供 page 和 page_size"
             )
         
         if has_offset_params and ((offset is None) != (limit is None)):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="offset and limit must be provided together"
+                detail="必須同時提供 offset 和 limit"
             )
         
         clinic_id = ensure_clinic_access(current_user)

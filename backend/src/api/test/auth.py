@@ -36,7 +36,7 @@ def require_e2e_mode():
     if os.getenv("E2E_TEST_MODE") != "true":
         raise HTTPException(
             status_code=403,
-            detail="This endpoint is only available in E2E test mode"
+            detail="此端點僅在 E2E 測試模式下可用"
         )
     return True
 
@@ -101,7 +101,7 @@ async def test_login(
 
     if not association:
         # This shouldn't happen for properly set up test users, but handle it
-        raise HTTPException(status_code=500, detail="Test user has no active clinic association")
+        raise HTTPException(status_code=500, detail="測試使用者沒有啟用的診所關聯")
 
     user_name = association.full_name
     clinic_id = association.clinic_id

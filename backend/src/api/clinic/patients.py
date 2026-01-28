@@ -163,7 +163,7 @@ async def list_patients(
         if (page is not None) != (page_size is not None):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="page and page_size must be provided together or both omitted"
+                detail="必須同時提供 page 和 page_size，或者兩者皆不提供"
             )
         
         # Get patients using service

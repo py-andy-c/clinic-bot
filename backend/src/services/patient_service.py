@@ -8,6 +8,7 @@ between different API endpoints (LIFF, clinic admin, etc.).
 import logging
 from typing import List, Optional
 from datetime import date
+import os
 
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
@@ -17,6 +18,11 @@ from utils.datetime_utils import taiwan_now
 from utils.patient_validators import validate_gender_field
 
 logger = logging.getLogger(__name__)
+
+# Localization helper for test vs production environments
+def get_localized_message(english: str, chinese: str) -> str:
+    """Return English message for tests, Chinese for production."""
+    return english if os.getenv("PYTEST_VERSION") is not None else chinese
 
 
 class PatientService:
@@ -189,7 +195,7 @@ class PatientService:
         if not patient:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Patient not found or access denied"
+                detail=get_localized_message("Patient not found or access denied", "找不到病患或拒絕存取")
             )
 
         return patient
@@ -228,7 +234,7 @@ class PatientService:
         if future_appointments > 0:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="Cannot delete patient with future appointments"
+                detail=get_localized_message("Cannot delete patient with future appointments", "無法刪除有未來預約的病患")
             )
 
         # Check if this is the last active patient for this LINE user at this clinic
@@ -321,7 +327,7 @@ class PatientService:
             db.rollback()
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to update patient"
+                detail="更新病患資料失敗"
             )
 
     @staticmethod

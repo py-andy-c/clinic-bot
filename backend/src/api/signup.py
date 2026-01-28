@@ -627,7 +627,7 @@ async def confirm_name(
             # This shouldn't happen - association was just created
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to retrieve clinic association"
+                detail="無法取得診所關聯資訊"
             )
         
         # Create JWT token payload
@@ -753,7 +753,7 @@ async def join_clinic_as_existing_user(
         if current_user.user_id is None:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="無效的使用者上下文"
+                detail="無效的使用者資訊"
             )
         
         # Validate signup token

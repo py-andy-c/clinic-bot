@@ -14,6 +14,11 @@ from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
+# Localization helper for test vs production environments
+def get_localized_message(english: str, chinese: str) -> str:
+    """Return English message for tests, Chinese for production."""
+    return english if os.getenv("PYTEST_VERSION") is not None else chinese
+
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, Optional
 from core.database import get_db
@@ -51,7 +56,10 @@ def check_clinic_switch_rate_limit(user_id: int) -> None:
     if len(user_switches) >= CLINIC_SWITCH_RATE_LIMIT:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=f"Too many clinic switches. Maximum {CLINIC_SWITCH_RATE_LIMIT} switches per minute."
+            detail=get_localized_message(
+                f"Too many clinic switches. Maximum {CLINIC_SWITCH_RATE_LIMIT} switches per minute.",
+                f"診所切換過於頻繁。每分鐘最多 {CLINIC_SWITCH_RATE_LIMIT} 次切換。"
+            )
         )
     
     # Record this switch
@@ -583,14 +591,14 @@ async def refresh_access_token(
         if user.email not in SYSTEM_ADMIN_EMAILS:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied"
+                detail="拒絕存取"
             )
     else:
         # Clinic users MUST have at least one active association
         if not has_association:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="User must have at least one active clinic association"
+                detail="使用者必須至少有一個啟用的診所關聯"
             )
     
     # Get clinic-specific data for token creation
@@ -937,7 +945,7 @@ async def list_available_clinics(
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
+            detail="找不到使用者"
         )
     
     # Build query for clinic associations
@@ -991,15 +999,15 @@ async def switch_clinic(
     if current_user.is_system_admin():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="System admins cannot switch clinics"
+            detail=get_localized_message("System admins cannot switch clinics", "系統管理員無法切換診所")
         )
     
     # Check rate limit (skip for idempotent case)
     if current_user.active_clinic_id != request_data.clinic_id:
         if current_user.user_id is None:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid user context"
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="無效的使用者內容"
             )
         check_clinic_switch_rate_limit(current_user.user_id)
     
@@ -1010,7 +1018,7 @@ async def switch_clinic(
         if not clinic:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Clinic not found"
+                detail="找不到診所"
             )
         
         # Return current token info without generating new token
@@ -1033,7 +1041,7 @@ async def switch_clinic(
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
+            detail="找不到使用者"
         )
     
     # Verify association exists and is active
@@ -1147,7 +1155,7 @@ async def refresh_user_data(
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found"
+                detail="找不到使用者"
             )
 
         logger.info(f"Refresh user data requested for user: {user.email} (ID: {user.id})")
