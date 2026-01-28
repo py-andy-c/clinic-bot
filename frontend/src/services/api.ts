@@ -6,6 +6,7 @@ import { tokenRefreshService } from './tokenRefresh';
 import { authStorage } from '../utils/storage';
 import { decodeJwtPayload } from '../utils/jwtUtils';
 import { trackCalendarAPICall, completeCalendarAPICall } from '../utils/performanceMonitor';
+import { getErrorMessage } from '../types/api';
 import {
   Clinic,
   Member,
@@ -111,7 +112,9 @@ export class ApiService {
       async (error: AxiosError) => {
         // Only handle 401 errors (unauthorized)
         if (error.response?.status !== 401) {
-          return Promise.reject(error);
+          // For non-401 errors, apply our improved error message handling
+          const userFriendlyMessage = getErrorMessage(error);
+          return Promise.reject(new Error(userFriendlyMessage));
         }
 
         const requestUrl = error.config?.url || '';
