@@ -213,33 +213,40 @@ const ChatSettings: React.FC<ChatSettingsProps> = ({
     return () => {
       window.removeEventListener('open-chat-test', handleOpenTest);
     };
-  }, []);
+  }, []); // Removed showTestModal from dependencies to prevent event listener recreation
 
-  // Auto-close test modal when chat settings change
+  // Update reference when modal opens/closes
+  useEffect(() => {
+    if (showTestModal) {
+      // When modal opens, capture current settings as baseline
+      previousChatSettingsRef.current = { ...chatSettings };
+    }
+  }, [showTestModal, chatSettings]);
+
+  // Auto-close test modal when chat settings change (only while modal is open)
   useEffect(() => {
     // Skip on initial mount
     if (isInitialMountRef.current) {
       isInitialMountRef.current = false;
-      previousChatSettingsRef.current = { ...chatSettings };
       return;
     }
 
-    // Compare current settings with previous settings
+    // Only check for changes when modal is open
+    if (!showTestModal) {
+      return;
+    }
+
     const prevSettings = previousChatSettingsRef.current;
     if (!prevSettings) {
-      previousChatSettingsRef.current = { ...chatSettings };
       return;
     }
 
-    // Use utility function for efficient comparison with normalization
-    if (hasChatSettingsChanged(prevSettings, chatSettings) && showTestModal) {
+    // Check if settings changed while modal is open
+    if (hasChatSettingsChanged(prevSettings, chatSettings)) {
       // Close modal when settings change to force fresh session
       setShowTestModal(false);
     }
-
-    // Update ref for next comparison
-    previousChatSettingsRef.current = { ...chatSettings };
-  }, [chatSettings, showTestModal]);
+  }, [chatSettings]); // Only depend on chatSettings, not showTestModal
 
   const handleLoadTemplate = (field: keyof typeof TEMPLATES) => {
     setValue(`chat_settings.${field}`, TEMPLATES[field], { shouldDirty: true });
