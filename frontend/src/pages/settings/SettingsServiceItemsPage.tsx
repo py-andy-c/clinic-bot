@@ -16,7 +16,6 @@ import PageHeader from '../../components/PageHeader';
 import { useDebouncedSearch } from '../../utils/searchUtils';
 import { useClinicSettings } from '../../hooks/queries/useClinicSettings';
 import { useServiceTypeGroups } from '../../hooks/queries/useServiceTypeGroups';
-import { useMembers } from '../../hooks/queries/useMembers';
 import { usePractitioners } from '../../hooks/queries/usePractitioners';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -65,7 +64,6 @@ const SettingsServiceItemsPage: React.FC = () => {
 
   const { data: settings, isLoading: loadingSettings } = useClinicSettings();
   const { data: groupsData, isLoading: loadingGroups } = useServiceTypeGroups();
-  const { data: members, isLoading: loadingMembers } = useMembers();
   const { data: practitionersData, isLoading: loadingPractitioners } = usePractitioners();
   const queryClient = useQueryClient();
 
@@ -73,10 +71,6 @@ const SettingsServiceItemsPage: React.FC = () => {
   const groups = useMemo(() => groupsData?.groups || [], [groupsData]);
   const availableGroups = groups;
   const practitioners = useMemo(() => practitionersData || [], [practitionersData]);
-  const activePractitionerMembers = useMemo(() =>
-    (members || []).filter(m => m.is_active && m.roles.includes('practitioner')),
-    [members]
-  );
 
   const practitionerAssignments = useMemo(() => {
     const assignments: Record<number, number[]> = {};
@@ -362,7 +356,7 @@ const SettingsServiceItemsPage: React.FC = () => {
     }
   };
 
-  if (loadingSettings || loadingMembers || loadingGroups || loadingPractitioners) {
+  if (loadingSettings || loadingGroups || loadingPractitioners) {
     return <div className="flex items-center justify-center min-h-screen"><LoadingSpinner /></div>;
   }
 
@@ -463,7 +457,7 @@ const SettingsServiceItemsPage: React.FC = () => {
           serviceItemId={editingItemId}
           isOpen={editingItemId !== undefined}
           onClose={handleCloseEditModal}
-          members={activePractitionerMembers}
+          practitioners={practitioners}
           isClinicAdmin={isClinicAdmin}
           availableGroups={availableGroups}
           existingNames={serviceItems.map(item => item.name)}

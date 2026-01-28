@@ -8,7 +8,7 @@ import { ModalHeader, ModalBody, ModalFooter } from './shared/ModalParts';
 import { apiService } from '../services/api';
 import { logger } from '../utils/logger';
 import { getErrorMessage } from '../types/api';
-import { AppointmentType, Member, ServiceTypeGroup, ResourceRequirement } from '../types';
+import { AppointmentType, Practitioner, ServiceTypeGroup, ResourceRequirement } from '../types';
 import { LoadingSpinner, InfoButton, InfoModal, WarningPopover } from './shared';
 import {
   ServiceItemBundleRequest,
@@ -39,7 +39,7 @@ interface ServiceItemEditModalProps {
   serviceItemId: number | null; // null for new
   isOpen: boolean;
   onClose: (refetch?: boolean) => void;
-  members: Member[];
+  practitioners: Practitioner[];
   isClinicAdmin: boolean;
   availableGroups: ServiceTypeGroup[];
   existingNames?: string[];
@@ -55,7 +55,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
   serviceItemId,
   isOpen,
   onClose,
-  members,
+  practitioners,
   isClinicAdmin,
   availableGroups,
   existingNames = [],
@@ -702,7 +702,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                     </h3>
                     <p className="text-sm text-gray-600 mb-4">選擇提供此服務的治療師，並為每位治療師設定計費方案。</p>
                     <div className="space-y-4">
-                      {members.map(m => {
+                      {practitioners.map(m => {
                         const practitionerIds = formValues.practitioner_ids || [];
                         const billingScenarios = formValues.billing_scenarios || [];
                         const isAssigned = practitionerIds.includes(m.id);
