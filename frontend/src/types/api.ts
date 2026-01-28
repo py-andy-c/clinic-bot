@@ -10312,12 +10312,7 @@ export function getErrorMessage(error: ApiErrorType): string {
     return '發生未知錯誤，請稍後再試';
   }
 
-  // Handle standard Error objects
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  // Type guard for objects
+  // Type guard for objects - check for Axios error response first
   if (typeof error === 'object' && error !== null) {
     const errObj = error as Record<string, unknown>;
 
@@ -10353,6 +10348,11 @@ export function getErrorMessage(error: ApiErrorType): string {
     if ('message' in errObj && typeof errObj.message === 'string' && !errObj.message.includes('status code')) {
       return errObj.message;
     }
+  }
+
+  // Handle standard Error objects (fallback for non-HTTP errors)
+  if (error instanceof Error) {
+    return error.message;
   }
 
   // Fallback
