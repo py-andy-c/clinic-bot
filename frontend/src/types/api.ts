@@ -10279,6 +10279,62 @@ export interface ValidationErrorDetail {
 // ===== Error Types and Utilities =====
 
 /**
+ * Default error messages in Chinese
+ */
+const DEFAULT_ERROR_MESSAGES = {
+  UNKNOWN: '發生未知錯誤，請稍後再試',
+  NETWORK: '網路連線異常，請檢查網路狀況',
+  TIMEOUT: '請求逾時，請稍後再試',
+  SERVER: '伺服器錯誤，請稍後再試',
+  VALIDATION: '輸入資料有誤，請檢查後重試',
+  PERMISSION: '權限不足，無法執行此操作',
+  NOT_FOUND: '找不到相關資料',
+  CONFLICT: '資料衝突，請重新整理後重試'
+} as const;
+
+/**
+ * Get message based on HTTP status code
+ */
+const getStatusMessage = (status?: number): string => {
+  switch (status) {
+    case 400: return DEFAULT_ERROR_MESSAGES.VALIDATION;
+    case 401: return '請重新登入';
+    case 403: return DEFAULT_ERROR_MESSAGES.PERMISSION;
+    case 404: return DEFAULT_ERROR_MESSAGES.NOT_FOUND;
+    case 409: return DEFAULT_ERROR_MESSAGES.CONFLICT;
+    case 422: return DEFAULT_ERROR_MESSAGES.VALIDATION;
+    case 500: return DEFAULT_ERROR_MESSAGES.SERVER;
+    case 502: return '伺服器暫時無法回應，請稍後再試';
+    case 503: return '服務暫時不可用，請稍後再試';
+    default: return DEFAULT_ERROR_MESSAGES.UNKNOWN;
+  }
+};
+
+/**
+ * Get message based on error pattern matching
+ */
+const getPatternMessage = (message?: string): string | null => {
+  if (!message) return null;
+  
+  // Network errors
+  if (message.includes('Network Error') || message.includes('ERR_NETWORK')) {
+    return DEFAULT_ERROR_MESSAGES.NETWORK;
+  }
+  
+  // Timeout errors
+  if (message.includes('timeout') || message.includes('TIMEOUT')) {
+    return DEFAULT_ERROR_MESSAGES.TIMEOUT;
+  }
+  
+  // CORS errors
+  if (message.includes('CORS') || message.includes('cross-origin')) {
+    return DEFAULT_ERROR_MESSAGES.NETWORK;
+  }
+  
+  return null;
+};
+
+/**
  * Axios error response structure
  */
 export interface AxiosErrorResponse {
@@ -10304,12 +10360,12 @@ export type ApiErrorType = AxiosErrorResponse | Error | ApiError | string | unkn
 export function getErrorMessage(error: ApiErrorType): string {
   // Handle null/undefined
   if (!error) {
-    return '發生未知錯誤，請稍後再試';
+    return DEFAULT_ERROR_MESSAGES.UNKNOWN;
   }
 
   // Handle string errors
   if (typeof error === 'string') {
-    return '發生未知錯誤，請稍後再試';
+    return DEFAULT_ERROR_MESSAGES.UNKNOWN;
   }
 
   // Type guard for objects - check for Axios error response first
@@ -10327,7 +10383,7 @@ export function getErrorMessage(error: ApiErrorType): string {
           return (data.detail as ValidationErrorDetail[]).map(detail => detail.msg).join(', ');
         }
 
-        // Handle string detail (FastAPI style)
+        // Handle string detail (FastAPI style) - Highest priority
         if ('detail' in data && typeof data.detail === 'string') {
           return data.detail;
         }
@@ -10350,11 +10406,11 @@ export function getErrorMessage(error: ApiErrorType): string {
     }
   }
 
-  // Handle standard Error objects (fallback for non-HTTP errors)
-  if (error instanceof Error) {
-    return error.message;
-  }
+  // 3. Try pattern matching for common error types
+  const patternMessage = getPatternMessage((error as any).message);
+  if (patternMessage) return patternMessage;
 
-  // Fallback
-  return '發生未知錯誤，請稍後再試';
+  // 4. Fall back to HTTP status code mapping
+  const status = (error as any).response?.status;
+  return getStatusMessage(status);
 }
