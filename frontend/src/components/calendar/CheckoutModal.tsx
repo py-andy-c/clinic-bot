@@ -911,7 +911,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         <button
           type="button"
           onClick={handleAddItem}
-          className="btn-secondary text-sm"
+          className="btn-secondary text-sm mt-4 mb-4"
         >
           + 新增項目
         </button>
