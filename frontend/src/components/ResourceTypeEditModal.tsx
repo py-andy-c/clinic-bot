@@ -248,7 +248,12 @@ const ResourceTypeEditModal: React.FC<ResourceTypeEditModalProps> = ({
 
                                 <div className="space-y-4">
                                     <div className="flex justify-between items-center">
-                                        <h3 className="text-md font-semibold text-gray-800">具體資源清單</h3>
+                                        <h3 className="text-md font-semibold text-gray-800">
+                                            具體資源清單 
+                                            <span className="ml-2 text-sm font-normal text-gray-500">
+                                                ({fields.length} 個資源)
+                                            </span>
+                                        </h3>
                                         <button
                                             type="button"
                                             onClick={handleAddResource}

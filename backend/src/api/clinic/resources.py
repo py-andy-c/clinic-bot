@@ -95,6 +95,7 @@ class ResourceTypeResponse(BaseModel):
     id: int
     clinic_id: int
     name: str
+    resource_count: int
     created_at: datetime
     updated_at: datetime
 
@@ -194,17 +195,26 @@ async def list_resource_types(
             ResourceType.clinic_id == clinic_id
         ).order_by(ResourceType.name).all()
         
+        # Get resource counts for each resource type
+        resource_type_responses: List[ResourceTypeResponse] = []
+        for rt in resource_types:
+            resource_count = db.query(Resource).filter(
+                Resource.resource_type_id == rt.id,
+                Resource.clinic_id == clinic_id,
+                Resource.is_deleted == False
+            ).count()
+            
+            resource_type_responses.append(ResourceTypeResponse(
+                id=rt.id,
+                clinic_id=rt.clinic_id,
+                name=rt.name,
+                resource_count=resource_count,
+                created_at=rt.created_at,
+                updated_at=rt.updated_at
+            ))
+        
         return ResourceTypeListResponse(
-            resource_types=[
-                ResourceTypeResponse(
-                    id=rt.id,
-                    clinic_id=rt.clinic_id,
-                    name=rt.name,
-                    created_at=rt.created_at,
-                    updated_at=rt.updated_at
-                )
-                for rt in resource_types
-            ]
+            resource_types=resource_type_responses
         )
     except HTTPException:
         raise
@@ -250,6 +260,7 @@ async def create_resource_type(
             id=resource_type.id,
             clinic_id=resource_type.clinic_id,
             name=resource_type.name,
+            resource_count=0,  # New resource type has no resources yet
             created_at=resource_type.created_at,
             updated_at=resource_type.updated_at
         )
@@ -303,10 +314,18 @@ async def update_resource_type(
         db.commit()
         db.refresh(resource_type)
         
+        # Get current resource count for this resource type
+        resource_count = db.query(Resource).filter(
+            Resource.resource_type_id == resource_type.id,
+            Resource.clinic_id == resource_type.clinic_id,
+            Resource.is_deleted == False
+        ).count()
+        
         return ResourceTypeResponse(
             id=resource_type.id,
             clinic_id=resource_type.clinic_id,
             name=resource_type.name,
+            resource_count=resource_count,
             created_at=resource_type.created_at,
             updated_at=resource_type.updated_at
         )
@@ -958,6 +977,7 @@ async def get_resource_type_bundle(
                 id=resource_type.id,
                 clinic_id=resource_type.clinic_id,
                 name=resource_type.name,
+                resource_count=len(resources),  # Use the resources we just queried
                 created_at=resource_type.created_at,
                 updated_at=resource_type.updated_at
             ),

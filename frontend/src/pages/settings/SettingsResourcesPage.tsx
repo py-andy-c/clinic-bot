@@ -81,8 +81,9 @@ const SettingsResourcesPage: React.FC = () => {
                                 key={type.id}
                                 className="p-4 md:p-6 flex items-center justify-between hover:bg-gray-50 transition-colors"
                             >
-                                <div>
+                                <div className="flex items-center justify-between flex-1 mr-4">
                                     <h3 className="text-lg font-semibold text-gray-900">{type.name}</h3>
+                                    <span className="text-sm text-gray-500">{type.resource_count} 個資源</span>
                                 </div>
                                 <div className="flex items-center space-x-2">
                                     <button
