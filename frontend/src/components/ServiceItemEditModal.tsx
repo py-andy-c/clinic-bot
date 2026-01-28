@@ -512,7 +512,9 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1.5">群組</label>
                         <select
-                          {...register('service_type_group_id', { valueAsNumber: true })}
+                          {...register('service_type_group_id', {
+                            setValueAs: (value) => value === '' ? null : Number(value)
+                          })}
                           className="input w-full"
                         >
                           <option value="">未分類</option>
