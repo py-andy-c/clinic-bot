@@ -174,7 +174,7 @@ const SearchInputComponent = forwardRef<HTMLInputElement, SearchInputProps>(({
         }}
         onCompositionStart={handleCompositionStart}
         onCompositionEnd={handleCompositionEnd}
-        className="w-full border border-gray-300 rounded-md pl-10 pr-10 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        className="w-full h-10 border border-gray-300 rounded-md pl-10 pr-10 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
       />
       {hasValue && (
         <button

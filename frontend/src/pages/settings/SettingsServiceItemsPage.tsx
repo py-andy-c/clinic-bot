@@ -27,7 +27,6 @@ const UNGROUPED_ID = -1;
 const STROKE_WIDTH = 2;
 const TAB_PADDING_X = 6;
 const TAB_PADDING_Y = 3;
-const SELECT_WIDTH_REM = 64; // 16rem = 256px
 const GRID_GAP = 4;
 
 type TabType = 'service-items' | 'group-management';
@@ -407,14 +406,14 @@ const SettingsServiceItemsPage: React.FC = () => {
                 placeholder="搜尋服務項目、群組名稱..."
               />
             </div>
-            <div className={`w-full md:w-${SELECT_WIDTH_REM}`}>
+            <div className="w-full md:w-64">
               <select
                 value={selectedGroupId || ''}
                 onChange={(e) => {
                   const val = e.target.value;
                   setSelectedGroupId(val === '' ? null : val === '-1' ? UNGROUPED_ID : parseInt(val, 10));
                 }}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white"
+                className="w-full h-10 px-3 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">全部群組</option>
                 <option value="-1">未分類</option>
