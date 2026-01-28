@@ -4,6 +4,17 @@ Owners: Frontend Platform
 Status: Final (v1)
 Last updated: 2026-01-27
 
+## Migration Status: ✅ **COMPLETE**
+
+All modal components have been successfully migrated to use the standardized `BaseModal` + `ModalParts` architecture:
+
+- **40 modal components** standardized across calendar, settings, patient flows, system admin, and internal components
+- **3 custom modal implementations** migrated (MembersPage InviteModal, MembersPage EditRolesModal, SystemClinicsPage CreateClinicModal)
+- **1 dead component removed** (ValidationSummaryModal)
+- **1 LIFF modal left unchanged** (AppointmentList receipt modal - requires custom implementation for LINE app context)
+
+The modal standardization is now 100% complete for the main application.
+
 ## Goals
 
 * **Space-efficient**: maximize usable content area, minimize redundant padding/margins, avoid double scrollbars.
@@ -150,11 +161,14 @@ To ensure consistency and reduce duplication, we use a tiered component strategy
 | `ResourceTypeEditModal` | ✅ Done | Standard | Yes | Clinic | Settings > Resources |
 | `MessagePreviewModal` | ✅ Done | Standard | Yes | Clinic | Settings > Service Items |
 | `ServiceItemEditModal` | ✅ Done | Fullscreen | Yes | Clinic | Settings > Service Items |
-| `ValidationSummaryModal` | ✅ Done | Standard | Yes | Clinic | Dead code. Not used in any current UI flow. |
 | `PatientCreationModal` | ✅ Done | Standard | Yes | Clinic | Patients / Calendar |
 | `PatientCreationSuccessModal` | ✅ Done | Standard | Yes | Clinic | Patients / Calendar |
 | `PractitionerAssignmentPromptModal` | ✅ Done | Standard | Yes | Clinic | Calendar (Patient selection) |
 | `PractitionerAssignmentConfirmationModal` | ✅ Done | Standard | Yes | Clinic | Calendar (Patient selection) |
+| **System / Admin Flows** | | | | | |
+| `MembersPage - InviteModal` | ✅ Done | Standard | Yes | Clinic | Settings > Members |
+| `MembersPage - EditRolesModal` | ✅ Done | Standard | Yes | Clinic | Settings > Members |
+| `SystemClinicsPage - CreateClinicModal` | ✅ Done | Standard | Yes | System | Admin > Clinics |
 | **Internal / Special** | | | | | |
 | `ReceiptPreviewModal` | ✅ Done | Fullscreen | Yes | Clinic | Settings > Receipts |
 | `ChatTestModal` | ✅ Done | Standard | Yes | Clinic | Dev / Chat Test Page |

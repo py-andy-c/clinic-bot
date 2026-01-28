@@ -5,6 +5,8 @@ import { apiService } from '../services/api';
 import { Member, UserRole, MemberInviteData } from '../types';
 import { logger } from '../utils/logger';
 import { LoadingSpinner, ErrorMessage } from '../components/shared';
+import { BaseModal } from '../components/shared/BaseModal';
+import { ModalHeader, ModalBody, ModalFooter } from '../components/shared/ModalParts';
 import { useMembers } from '../hooks/queries';
 import PageHeader from '../components/PageHeader';
 import { getErrorMessage } from '../types/api';
@@ -12,11 +14,20 @@ import { getErrorMessage } from '../types/api';
 const MembersPage: React.FC = () => {
   const { isClinicAdmin, user: currentUser, isAuthenticated, refreshUserData } = useAuth();
   const { alert, confirm } = useModal();
-
+  const { data: members, isLoading: loading, error, refetch } = useMembers();
+  
   // Scroll to top when component mounts
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
+
+  // Handle error messages (React Query doesn't provide defaultErrorMessage)
+  const errorMessage = error ? '無法載入成員列表' : null;
+
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [showRoleModal, setShowRoleModal] = useState<Member | null>(null);
+  const [inviting, setInviting] = useState(false);
+  const [updatingRoles, setUpdatingRoles] = useState(false);
 
   // If not authenticated, show a message (in real app, this would redirect to login)
   if (!isAuthenticated) {
@@ -29,16 +40,6 @@ const MembersPage: React.FC = () => {
       </div>
     );
   }
-
-  const { data: members, isLoading: loading, error, refetch } = useMembers();
-
-  // Handle error messages (React Query doesn't provide defaultErrorMessage)
-  const errorMessage = error ? '無法載入成員列表' : null;
-
-  const [showInviteModal, setShowInviteModal] = useState(false);
-  const [showRoleModal, setShowRoleModal] = useState<Member | null>(null);
-  const [inviting, setInviting] = useState(false);
-  const [updatingRoles, setUpdatingRoles] = useState(false);
 
   const handleInviteMember = async (inviteData: MemberInviteData) => {
     try {
@@ -373,144 +374,135 @@ const InviteMemberModal: React.FC<InviteMemberModalProps> = ({ onClose, onInvite
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
-      <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-        <div className="fixed inset-0 transition-opacity" aria-hidden="true">
-          <div className="absolute inset-0 bg-gray-500 opacity-75" onClick={onClose}></div>
-        </div>
-
-        <div className="inline-block align-bottom bg-white rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6">
-          <div className="sm:flex sm:items-start">
-            <div className="mt-3 text-center sm:mt-0 sm:text-left w-full">
-              <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
-                邀請新成員
-              </h3>
-
-              {!signupLink ? (
-                <form onSubmit={handleSubmit} className="space-y-4">
-                  <div>
-                    <fieldset>
-                      <legend className="text-sm font-medium text-gray-700">角色權限</legend>
-                      <div className="mt-2 space-y-2">
-                        <div className="flex items-center">
-                          <input
-                            id="role-admin"
-                            name="admin"
-                            type="checkbox"
-                            checked={formData.default_roles.includes('admin')}
-                            onChange={(e) => handleRoleChange('admin', e.target.checked)}
-                            className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
-                          />
-                          <label htmlFor="role-admin" className="ml-3 text-sm text-gray-700">
-                            <span className="font-medium">管理員</span> - 可以編輯診所設定
-                          </label>
-                        </div>
-                        <div className="flex items-center">
-                          <input
-                            id="role-practitioner"
-                            name="practitioner"
-                            type="checkbox"
-                            checked={formData.default_roles.includes('practitioner')}
-                            onChange={(e) => handleRoleChange('practitioner', e.target.checked)}
-                            className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
-                          />
-                          <label htmlFor="role-practitioner" className="ml-3 text-sm text-gray-700">
-                            <span className="font-medium">治療師</span> - 可以接受預約
-                          </label>
-                        </div>
-                        <div className="mt-2 text-xs text-gray-500">
-                          <p>💡 提示：如果都不選擇，新成員將獲得唯讀存取權限，可以查看診所資料但無法進行修改。</p>
-                        </div>
-                      </div>
-                    </fieldset>
-                  </div>
-
-                  <div className="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse">
-                    <button
-                      type="submit"
-                      disabled={inviting}
-                      className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-primary-600 text-base font-medium text-white hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50"
-                    >
-                      {inviting ? '生成中...' : '生成邀請連結'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={onClose}
-                      className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 sm:mt-0 sm:w-auto sm:text-sm"
-                    >
-                      取消
-                    </button>
-                  </div>
-                </form>
-              ) : (
-                <div className="space-y-4">
-                  <div className="bg-green-50 border border-green-200 rounded-md p-4">
-                    <div className="flex">
-                      <div className="flex-shrink-0">
-                        <svg className="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                        </svg>
-                      </div>
-                      <div className="ml-3">
-                        <h3 className="text-sm font-medium text-green-800">邀請連結已生成</h3>
-                        <div className="mt-2 text-sm text-green-700">
-                          <p>請將此連結分享給新成員，他們將透過 Google 帳號完成註冊。</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      邀請連結
+    <BaseModal onClose={onClose} aria-label="邀請新成員">
+      <ModalHeader title="邀請新成員" showClose onClose={onClose} />
+      
+      <ModalBody>
+        {!signupLink ? (
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div>
+              <fieldset>
+                <legend className="text-sm font-medium text-gray-700">角色權限</legend>
+                <div className="mt-3 space-y-3">
+                  <div className="flex items-center">
+                    <input
+                      id="role-admin"
+                      name="admin"
+                      type="checkbox"
+                      checked={formData.default_roles.includes('admin')}
+                      onChange={(e) => handleRoleChange('admin', e.target.checked)}
+                      className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                    />
+                    <label htmlFor="role-admin" className="ml-3 text-sm text-gray-700">
+                      <span className="font-medium">管理員</span> - 可以編輯診所設定
                     </label>
-                    <div className="flex rounded-md border border-gray-300 shadow-sm">
-                      <input
-                        type="text"
-                        value={signupLink}
-                        readOnly
-                        className="flex-1 block w-full border-0 rounded-l-md shadow-none focus:ring-0 focus:border-0 sm:text-sm px-3 py-2 bg-white"
-                      />
-                      <button
-                        type="button"
-                        onClick={copyToClipboard}
-                        className="inline-flex items-center px-3 py-2 border-0 border-l border-gray-300 rounded-r-md bg-white text-gray-500 text-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-                        title="複製連結"
-                      >
-                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                        </svg>
-                      </button>
-                    </div>
                   </div>
-
-                  {linkExpiry && (
-                    <div className="text-sm text-gray-500">
-                      <span className="inline-flex items-center">
-                        <svg className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
-                        </svg>
-                        此連結將在 48 小時後過期
-                      </span>
-                    </div>
-                  )}
-
-                  <div className="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse">
-                    <button
-                      type="button"
-                      onClick={onClose}
-                      className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-primary-600 text-base font-medium text-white hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 sm:ml-3 sm:w-auto sm:text-sm"
-                    >
-                      關閉
-                    </button>
+                  <div className="flex items-center">
+                    <input
+                      id="role-practitioner"
+                      name="practitioner"
+                      type="checkbox"
+                      checked={formData.default_roles.includes('practitioner')}
+                      onChange={(e) => handleRoleChange('practitioner', e.target.checked)}
+                      className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                    />
+                    <label htmlFor="role-practitioner" className="ml-3 text-sm text-gray-700">
+                      <span className="font-medium">治療師</span> - 可以接受預約
+                    </label>
+                  </div>
+                  <div className="mt-3 text-xs text-gray-500">
+                    <p>💡 提示：如果都不選擇，新成員將獲得唯讀存取權限，可以查看診所資料但無法進行修改。</p>
                   </div>
                 </div>
-              )}
+              </fieldset>
             </div>
+          </form>
+        ) : (
+          <div className="space-y-6">
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+              <div className="flex">
+                <div className="flex-shrink-0">
+                  <svg className="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <div className="ml-3">
+                  <h3 className="text-sm font-medium text-green-800">邀請連結已生成</h3>
+                  <div className="mt-2 text-sm text-green-700">
+                    <p>請將此連結分享給新成員，他們將透過 Google 帳號完成註冊。</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                邀請連結
+              </label>
+              <div className="flex rounded-md border border-gray-300 shadow-sm">
+                <input
+                  type="text"
+                  value={signupLink}
+                  readOnly
+                  className="flex-1 block w-full border-0 rounded-l-md shadow-none focus:ring-0 focus:border-0 sm:text-sm px-3 py-2 bg-white"
+                />
+                <button
+                  type="button"
+                  onClick={copyToClipboard}
+                  className="inline-flex items-center px-3 py-2 border-0 border-l border-gray-300 rounded-r-md bg-white text-gray-500 text-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+                  title="複製連結"
+                >
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {linkExpiry && (
+              <div className="text-sm text-gray-500">
+                <span className="inline-flex items-center">
+                  <svg className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+                  </svg>
+                  此連結將在 48 小時後過期
+                </span>
+              </div>
+            )}
           </div>
-        </div>
-      </div>
-    </div>
+        )}
+      </ModalBody>
+
+      <ModalFooter>
+        {!signupLink ? (
+          <>
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+            >
+              取消
+            </button>
+            <button
+              type="submit"
+              disabled={inviting}
+              onClick={handleSubmit}
+              className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700 disabled:opacity-50"
+            >
+              {inviting ? '生成中...' : '生成邀請連結'}
+            </button>
+          </>
+        ) : (
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700"
+          >
+            關閉
+          </button>
+        )}
+      </ModalFooter>
+    </BaseModal>
   );
 };
 
@@ -540,80 +532,70 @@ const EditRolesModal: React.FC<EditRolesModalProps> = ({ member, onClose, onUpda
   const hasRole = (role: UserRole) => roles.includes(role);
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
-      <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-        <div className="fixed inset-0 transition-opacity" aria-hidden="true">
-          <div className="absolute inset-0 bg-gray-500 opacity-75" onClick={onClose}></div>
-        </div>
+    <BaseModal onClose={onClose} aria-label="編輯成員角色">
+      <ModalHeader title="編輯成員角色" showClose onClose={onClose} />
+      
+      <ModalBody>
+        <p className="text-sm text-gray-500 mb-6">
+          {member.full_name} ({member.email})
+        </p>
 
-        <div className="inline-block align-bottom bg-white rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6">
-          <div className="sm:flex sm:items-start">
-            <div className="mt-3 text-center sm:mt-0 sm:text-left w-full">
-              <h3 className="text-lg leading-6 font-medium text-gray-900 mb-2">
-                編輯成員角色
-              </h3>
-              <p className="text-sm text-gray-500 mb-4">
-                {member.full_name} ({member.email})
-              </p>
-
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <fieldset>
-                  <legend className="text-sm font-medium text-gray-700">角色權限</legend>
-                  <div className="mt-2 space-y-3">
-                    <div className="flex items-center">
-                      <input
-                        id="edit-role-admin"
-                        name="admin"
-                        type="checkbox"
-                        checked={hasRole('admin')}
-                        onChange={(e) => handleRoleChange('admin', e.target.checked)}
-                        className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
-                      />
-                      <label htmlFor="edit-role-admin" className="ml-3 text-sm text-gray-700">
-                        <span className="font-medium">管理員</span> - 可以編輯診所設定
-                      </label>
-                    </div>
-                    <div className="flex items-center">
-                      <input
-                        id="edit-role-practitioner"
-                        name="practitioner"
-                        type="checkbox"
-                        checked={hasRole('practitioner')}
-                        onChange={(e) => handleRoleChange('practitioner', e.target.checked)}
-                        className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
-                      />
-                      <label htmlFor="edit-role-practitioner" className="ml-3 text-sm text-gray-700">
-                        <span className="font-medium">治療師</span> - 可以接受預約
-                      </label>
-                    </div>
-                  </div>
-                  <div className="mt-2 text-xs text-gray-500">
-                    <p>💡 提示：如果都不選擇，成員將獲得唯讀存取權限，可以查看診所資料但無法進行修改。</p>
-                  </div>
-                </fieldset>
-
-                <div className="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse">
-                  <button
-                    type="submit"
-                    disabled={updating}
-                    className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-primary-600 text-base font-medium text-white hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50"
-                  >
-                    {updating ? '更新中...' : '更新角色'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={onClose}
-                    className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 sm:mt-0 sm:w-auto sm:text-sm"
-                  >
-                    取消
-                  </button>
-                </div>
-              </form>
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <fieldset>
+            <legend className="text-sm font-medium text-gray-700">角色權限</legend>
+            <div className="mt-3 space-y-3">
+              <div className="flex items-center">
+                <input
+                  id="edit-role-admin"
+                  name="admin"
+                  type="checkbox"
+                  checked={hasRole('admin')}
+                  onChange={(e) => handleRoleChange('admin', e.target.checked)}
+                  className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                />
+                <label htmlFor="edit-role-admin" className="ml-3 text-sm text-gray-700">
+                  <span className="font-medium">管理員</span> - 可以編輯診所設定
+                </label>
+              </div>
+              <div className="flex items-center">
+                <input
+                  id="edit-role-practitioner"
+                  name="practitioner"
+                  type="checkbox"
+                  checked={hasRole('practitioner')}
+                  onChange={(e) => handleRoleChange('practitioner', e.target.checked)}
+                  className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                />
+                <label htmlFor="edit-role-practitioner" className="ml-3 text-sm text-gray-700">
+                  <span className="font-medium">治療師</span> - 可以接受預約
+                </label>
+              </div>
             </div>
-          </div>
-        </div>
-      </div>
-    </div>
+            <div className="mt-3 text-xs text-gray-500">
+              <p>💡 提示：如果都不選擇，成員將獲得唯讀存取權限，可以查看診所資料但無法進行修改。</p>
+            </div>
+          </fieldset>
+        </form>
+      </ModalBody>
+
+      <ModalFooter>
+        <button
+          type="button"
+          onClick={onClose}
+          className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+        >
+          取消
+        </button>
+        <button
+          type="submit"
+          disabled={updating}
+          onClick={handleSubmit}
+          className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700 disabled:opacity-50"
+        >
+          {updating ? '更新中...' : '更新角色'}
+        </button>
+      </ModalFooter>
+    </BaseModal>
   );
 };
 
