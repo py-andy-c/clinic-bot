@@ -157,8 +157,12 @@ const ResourceTypeEditModal: React.FC<ResourceTypeEditModalProps> = ({
                 const removedResourceIds = Array.from(existingResourceIds).filter(id => !incomingResourceIds.has(id));
                 
                 if (removedResourceIds.length > 0) {
+                    // Get the names of resources being deleted
+                    const removedResources = bundle.resources.filter(r => removedResourceIds.includes(r.id));
+                    const resourceNames = removedResources.map(r => `• ${r.name}`).join('\n');
+                    
                     const confirmed = await confirm(
-                        `刪除這些資源將會自動從所有未來預約中移除相關的資源配置。\n\n確定要繼續嗎？`,
+                        `刪除以下資源：\n\n${resourceNames}\n\n這些資源將會自動從所有未來預約中移除相關的資源配置。\n\n確定要繼續嗎？`,
                         '確認刪除資源'
                     );
                     if (!confirmed) {
@@ -183,7 +187,12 @@ const ResourceTypeEditModal: React.FC<ResourceTypeEditModalProps> = ({
             }
         },
         onSuccess: async () => {
+            // Invalidate resource types list cache
             await queryClient.invalidateQueries({ queryKey: ['settings', 'resource-types'] });
+            // Invalidate specific resource type bundle cache if editing
+            if (isEdit && resourceTypeId) {
+                await queryClient.invalidateQueries({ queryKey: ['settings', 'resource-type', resourceTypeId] });
+            }
             await alert(isEdit ? '資源類型已更新' : '資源類型已建立');
             onClose();
         },
