@@ -282,6 +282,151 @@ const SettingsAppointmentsPage: React.FC = () => {
                                 <li>儲存並發布選單</li>
                             </ol>
                         </div>
+
+                        {/* LINE Official Account UI Mockup */}
+                        {settings.liff_urls && Object.keys(settings.liff_urls).length > 0 && (
+                            <div className="mt-6">
+                                <div className="text-xs text-gray-500 mb-2 text-center">LINE 官方帳號預覽</div>
+                                <div className="bg-white rounded-lg border-2 border-gray-300 shadow-xl overflow-hidden max-w-[280px] mx-auto">
+                                    {/* Header */}
+                                    <div className="bg-[#06C755] px-4 py-3 flex items-center gap-3">
+                                        <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center">
+                                            <span className="text-[#06C755] text-lg font-bold">
+                                                {settings.clinic_name?.[0] || '診'}
+                                            </span>
+                                        </div>
+                                        <div className="flex-1">
+                                            <div className="text-white font-semibold text-sm">
+                                                {settings.clinic_name || '診所名稱'}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Chat Interface */}
+                                    <div
+                                        className="p-4 min-h-[250px] flex flex-col justify-start gap-3 pt-6"
+                                        style={{ backgroundColor: '#E5E5E5' }}
+                                    >
+                                        {/* Clinic greeting message */}
+                                        <div className="flex items-start gap-2">
+                                            <div className="w-6 h-6 bg-[#06C755] rounded-full flex items-center justify-center flex-shrink-0">
+                                                <span className="text-white text-xs font-bold">
+                                                    {settings.clinic_name?.[0] || '診'}
+                                                </span>
+                                            </div>
+                                            <div className="bg-white rounded-lg px-3 py-2 shadow-sm max-w-[75%]">
+                                                <p className="text-sm text-gray-800">
+                                                    歡迎加入好友！請點擊下方選單進行預約
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Rich Menu */}
+                                    <div className="bg-white border-t-2 border-gray-200 p-2">
+                                        <div className="grid grid-cols-4 gap-1.5">
+                                            {Object.entries(settings.liff_urls).filter(([mode]) => mode !== 'home').map(([mode]) => {
+                                                const modeInfo = {
+                                                    book: { name: '預約', icon: '📅' },
+                                                    query: { name: '預約管理', icon: '🔍' },
+                                                    settings: { name: '就診人管理', icon: '👤' },
+                                                    notifications: { name: '空位提醒', icon: '🔔' },
+                                                }[mode] || { name: mode, icon: '📌' };
+
+                                                return (
+                                                    <button
+                                                        key={mode}
+                                                        type="button"
+                                                        className="bg-gray-50 border border-gray-200 rounded-lg p-1.5 text-center hover:bg-gray-100 transition-colors active:bg-gray-200 aspect-square flex flex-col items-center justify-center"
+                                                    >
+                                                        <div className="text-base mb-0.5">{modeInfo.icon}</div>
+                                                        <div className="text-[9px] font-medium text-gray-700 leading-tight">
+                                                            {modeInfo.name}
+                                                        </div>
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Second Rich Menu Example */}
+                        <div className="mt-6">
+                            <div className="text-xs text-gray-500 mb-2 text-center">另一種配置範例：預約系統主頁 + 自訂選項</div>
+                            <div className="bg-white rounded-lg border-2 border-gray-300 shadow-xl overflow-hidden max-w-[280px] mx-auto">
+                                {/* Header */}
+                                <div className="bg-[#06C755] px-4 py-3 flex items-center gap-3">
+                                    <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center">
+                                        <span className="text-[#06C755] text-lg font-bold">
+                                            {settings.clinic_name?.[0] || '診'}
+                                        </span>
+                                    </div>
+                                    <div className="flex-1">
+                                        <div className="text-white font-semibold text-sm">
+                                            {settings.clinic_name || '診所名稱'}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Chat Interface */}
+                                <div
+                                    className="p-4 min-h-[250px] flex flex-col justify-start gap-3 pt-6"
+                                    style={{ backgroundColor: '#E5E5E5' }}
+                                >
+                                    {/* Clinic greeting message */}
+                                    <div className="flex items-start gap-2">
+                                        <div className="w-6 h-6 bg-[#06C755] rounded-full flex items-center justify-center flex-shrink-0">
+                                            <span className="text-white text-xs font-bold">
+                                                {settings.clinic_name?.[0] || '診'}
+                                            </span>
+                                        </div>
+                                        <div className="bg-white rounded-lg px-3 py-2 shadow-sm max-w-[75%]">
+                                            <p className="text-sm text-gray-800">
+                                                歡迎加入好友！請點擊下方選單進行預約或其他服務
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Rich Menu */}
+                                <div className="bg-white border-t-2 border-gray-200 p-2">
+                                    <div className="grid grid-cols-3 gap-1.5">
+                                        {/* Appointment System Home */}
+                                        <button
+                                            type="button"
+                                            className="bg-gray-50 border border-gray-200 rounded-lg p-1.5 text-center hover:bg-gray-100 transition-colors active:bg-gray-200 aspect-square flex flex-col items-center justify-center"
+                                        >
+                                            <div className="text-base mb-0.5">🏠</div>
+                                            <div className="text-[9px] font-medium text-gray-700 leading-tight">
+                                                預約系統
+                                            </div>
+                                        </button>
+                                        {/* Clinic-defined item 1 */}
+                                        <button
+                                            type="button"
+                                            className="bg-gray-50 border border-gray-200 rounded-lg p-1.5 text-center hover:bg-gray-100 transition-colors active:bg-gray-200 aspect-square flex flex-col items-center justify-center"
+                                        >
+                                            <div className="text-base mb-0.5">💊</div>
+                                            <div className="text-[9px] font-medium text-gray-700 leading-tight">
+                                                其他選項1
+                                            </div>
+                                        </button>
+                                        {/* Clinic-defined item 2 */}
+                                        <button
+                                            type="button"
+                                            className="bg-gray-50 border border-gray-200 rounded-lg p-1.5 text-center hover:bg-gray-100 transition-colors active:bg-gray-200 aspect-square flex flex-col items-center justify-center"
+                                        >
+                                            <div className="text-base mb-0.5">📋</div>
+                                            <div className="text-[9px] font-medium text-gray-700 leading-tight">
+                                                其他選項2
+                                            </div>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </ModalBody>
                 </BaseModal>
             )}
