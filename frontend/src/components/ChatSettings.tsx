@@ -427,49 +427,30 @@ const ChatSettings: React.FC<ChatSettingsProps> = ({
                   >
                     <ModalHeader title="如何設定AI指引" showClose onClose={() => setShowAiGuidancePopup(false)} />
                     <ModalBody>
-                      <div className="flex items-start">
-                        <div className="flex-shrink-0">
-                          <svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                          </svg>
+                      <div className="text-sm text-gray-700 space-y-2">
+                        <div className="bg-yellow-50 border-l-4 border-yellow-400 p-3 mb-3">
+                          <p className="font-medium text-yellow-800 mb-1">⚠️ 重要提醒</p>
+                          <p className="text-yellow-700 text-xs">
+                            AI指引是進階功能，用於自訂AI的行為模式。除非您有明確的需求（例如：改變問候語風格、調整服務推廣時機），否則建議保持空白，使用系統預設值即可。
+                          </p>
                         </div>
-                        <div className="ml-3 flex-1">
-                          <div className="text-sm text-gray-700 space-y-2">
-                            <div className="bg-yellow-50 border-l-4 border-yellow-400 p-3 mb-3">
-                              <p className="font-medium text-yellow-800 mb-1">⚠️ 重要提醒</p>
-                              <p className="text-yellow-700 text-xs">
-                                AI指引是進階功能，用於自訂AI的行為模式。除非您有明確的需求（例如：改變問候語風格、調整服務推廣時機），否則建議保持空白，使用系統預設值即可。
-                              </p>
-                            </div>
 
-                            <p>
-                              AI指引可以自訂AI聊天機器人的<strong>語氣風格</strong>、<strong>問候語</strong>、<strong>服務推廣時機</strong>等行為，但<strong>無法</strong>改變安全規則（例如：禁止診斷、禁止開立處方等）。
-                            </p>
+                        <p className="font-medium">什麼是AI指引？</p>
+                        <p>AI指引是您給AI的指示，用於調整其回覆風格、專業程度和行為模式。</p>
 
-                            <p className="font-medium mt-3">適用情境：</p>
-                            <ul className="list-disc list-inside space-y-1 ml-2 text-xs">
-                              <li>需要更正式或更親切的溝通風格</li>
-                              <li>特定服務需要在特定時機主動提及</li>
-                              <li>需要調整問候語或回應格式</li>
-                              <li>針對特定關鍵字需要特殊處理流程</li>
-                              <li>診所有獨特的治療理念，需要優先於一般醫學知識</li>
-                            </ul>
+                        <p className="font-medium mt-3">範例 1：要求專業醫療風格</p>
+                        <div className="bg-gray-50 p-2 rounded text-xs font-mono mb-2">
+                          「請保持極度專業的醫療風格，用詞精準，避免使用表情符號。開頭問候語請使用：『您好，這裡是XX診所AI醫療助理，請問有什麼能為您服務的？』」
+                        </div>
 
-                            <p className="font-medium mt-3">範例 1：改變語氣風格</p>
-                            <div className="bg-gray-50 p-2 rounded text-xs font-mono mb-2">
-                              「請保持極度專業的醫療風格，用詞精準，避免使用表情符號。開頭問候語請使用：『您好，這裡是XX診所AI醫療助理，請問有什麼能為您服務的？』」
-                            </div>
+                        <p className="font-medium mt-3">範例 2：調整推廣時機</p>
+                        <div className="bg-gray-50 p-2 rounded text-xs font-mono mb-2">
+                          「當使用者提到『失眠』或『焦慮』時，請在第一或第二回合回應中主動提及我們的『神經整合物理治療』服務。」
+                        </div>
 
-                            <p className="font-medium mt-3">範例 2：調整推廣時機</p>
-                            <div className="bg-gray-50 p-2 rounded text-xs font-mono mb-2">
-                              「當使用者提到『失眠』或『焦慮』時，請在第一或第二回合回應中主動提及我們的『神經整合物理治療』服務。」
-                            </div>
-
-                            <p className="font-medium mt-3">範例 3：優先採用診所理念（取代一般醫學知識）</p>
-                            <div className="bg-gray-50 p-2 rounded text-xs font-mono">
-                              「針對非撕裂性的肌肉拉傷，不同於傳統的長時間冰敷，我們的理念是在急性期後段（約24小時後）適度使用熱敷，能有效促進血液循環，加速組織修復。請優先採用此理念回答相關問題。」
-                            </div>
-                          </div>
+                        <p className="font-medium mt-3">範例 3：優先採用診所理念（取代一般醫學知識）</p>
+                        <div className="bg-gray-50 p-2 rounded text-xs font-mono">
+                          「針對非撕裂性的肌肉拉傷，不同於傳統的長時間冰敷，我們的理念是在急性期後段（約24小時後）適度使用熱敷，能有效促進血液循環，加速組織修復。請優先採用此理念回答相關問題。」
                         </div>
                       </div>
                     </ModalBody>

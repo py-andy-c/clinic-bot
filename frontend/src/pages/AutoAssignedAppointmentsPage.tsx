@@ -683,51 +683,30 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
         >
           <ModalHeader title="說明" showClose onClose={() => setIsInfoModalOpen(false)} />
           <ModalBody>
-            <div className="flex items-start">
-              <div className="flex-shrink-0">
-                <svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                </svg>
+            <div className="text-sm text-gray-700 space-y-4">
+              <div>
+                <h4 className="font-semibold text-gray-900 mb-2">什麼是待確認預約？</h4>
+                <p>
+                  當病患透過LINE預約系統預約多時段服務（如複數治療項目、多次預約等）時，這些預約需要治療師確認後才會正式生效。在確認前，預約狀態為「待確認」。
+                </p>
               </div>
-              <div className="ml-3 flex-1">
-                <div className="text-sm text-gray-700 space-y-4">
-                  <div>
-                    <h4 className="font-semibold text-gray-900 mb-2">整體機制</h4>
-                    <p className="mb-2">病患可以：</p>
-                    <ul className="list-disc list-inside ml-4 space-y-1">
-                      <li>預約時不指定治療師（系統自動指派）</li>
-                      <li>選擇多個偏好時段（若服務項目允許，最多 10 個）</li>
-                    </ul>
-                    <p>系統會先指派臨時治療師和時間，設為待確認狀態。</p>
-                  </div>
 
-                  <div>
-                    <h4 className="font-semibold text-gray-900 mb-2">確認流程</h4>
-                    <p className="mb-2">診所人員可以：</p>
-                    <ul className="list-disc list-inside ml-4 space-y-1">
-                      <li>確認或修改治療師指派</li>
-                      <li>確認或修改時間</li>
-                    </ul>
-                    <p>確認後會立即發送 LINE 通知給病患。</p>
-                  </div>
+              <div>
+                <h4 className="font-semibold text-gray-900 mb-2">確認流程</h4>
+                <ul className="list-disc list-inside ml-4 space-y-1">
+                  <li>治療師可在「待確認預約」頁面查看需要確認的預約</li>
+                  <li>確認預約時，可以調整時間、治療師或服務項目</li>
+                  <li>確認後預約狀態會變為「已確認」，病患會收到通知</li>
+                  <li>如需拒絕預約，可提供拒絕原因，病患會收到相關通知</li>
+                </ul>
+              </div>
 
-                  <div>
-                    <h4 className="font-semibold text-gray-900 mb-2">自動確認機制</h4>
-                    <p className="mb-2">根據診所的「預約限制」設定，若未及時確認，系統會自動確認：</p>
-                    <ul className="list-disc list-inside ml-4 space-y-1">
-                      <li><strong>小時限制模式</strong>（預設）：預約前 X 小時自動確認（預設24小時）</li>
-                      <li><strong>截止時間模式</strong>：在指定時間點自動確認（例如前一天上午 8:00）</li>
-                    </ul>
-                  </div>
-
-                  <div>
-                    <h4 className="font-semibold text-gray-900 mb-2">權限說明</h4>
-                    <ul className="list-disc list-inside ml-4 space-y-1">
-                      <li><strong>診所管理員</strong>：可以查看和確認所有待確認預約</li>
-                      <li><strong>治療師</strong>：可以查看和確認需要他們確認的多時段預約</li>
-                    </ul>
-                  </div>
-                </div>
+              <div>
+                <h4 className="font-semibold text-gray-900 mb-2">權限說明</h4>
+                <ul className="list-disc list-inside ml-4 space-y-1">
+                  <li><strong>診所管理員</strong>：可以查看和確認所有待確認預約</li>
+                  <li><strong>治療師</strong>：可以查看和確認需要他們確認的多時段預約</li>
+                </ul>
               </div>
             </div>
           </ModalBody>

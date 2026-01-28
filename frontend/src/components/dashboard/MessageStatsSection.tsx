@@ -368,22 +368,9 @@ export const MessageStatsSection: React.FC<MessageStatsSectionProps> = ({
         <BaseModal onClose={() => setShowPaidMessagesModal(false)} aria-label="LINE 推播訊息說明">
           <ModalHeader title="LINE 推播訊息" showClose onClose={() => setShowPaidMessagesModal(false)} />
           <ModalBody>
-            <div className="flex items-start">
-              <div className="flex-shrink-0">
-                <svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
-                  <path
-                    fillRule="evenodd"
-                    d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-              </div>
-              <div className="ml-3 flex-1">
-                <div className="text-sm text-gray-700 space-y-2">
-                  <p>LINE 推播訊息由 LINE 平台收費，診所需自行負擔相關費用。</p>
-                  <p>若 LINE 訊息配額用盡，系統將無法發送推播訊息，但預約系統仍可正常運作。</p>
-                </div>
-              </div>
+            <div className="text-sm text-gray-700 space-y-2">
+              <p>LINE 推播訊息由 LINE 平台收費，診所需自行負擔相關費用。</p>
+              <p>若 LINE 訊息配額用盡，系統將無法發送推播訊息，但預約系統仍可正常運作。</p>
             </div>
           </ModalBody>
         </BaseModal>
@@ -394,21 +381,8 @@ export const MessageStatsSection: React.FC<MessageStatsSectionProps> = ({
         <BaseModal onClose={() => setShowAiRepliesModal(false)} aria-label="AI 回覆訊息說明">
           <ModalHeader title="AI 回覆訊息" showClose onClose={() => setShowAiRepliesModal(false)} />
           <ModalBody>
-            <div className="flex items-start">
-              <div className="flex-shrink-0">
-                <svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
-                  <path
-                    fillRule="evenodd"
-                    d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-              </div>
-              <div className="ml-3 flex-1">
-                <div className="text-sm text-gray-700 space-y-2">
-                  <p>AI 回覆訊息不會消耗 LINE 訊息配額。</p>
-                </div>
-              </div>
+            <div className="text-sm text-gray-700">
+              <p>AI 回覆訊息不會消耗 LINE 訊息配額。</p>
             </div>
           </ModalBody>
         </BaseModal>

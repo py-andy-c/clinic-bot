@@ -56,31 +56,15 @@ const PractitionerStepSizeSettings: React.FC<PractitionerStepSizeSettingsProps> 
                             >
                                 <ModalHeader title="預約起始時間間隔" showClose onClose={() => setShowInfoModal(false)} />
                                 <ModalBody>
-                                    <div className="flex items-start">
-                                        <div className="flex-shrink-0">
-                                            <svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
-                                                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                                            </svg>
-                                        </div>
-                                        <div className="ml-3 flex-1 text-left">
-                                            <div className="text-sm text-gray-700 space-y-4">
-                                                <div className="space-y-2">
-                                                    <p className="font-medium">範例說明（假設預約時長為 60 分鐘）：</p>
-                                                    <ul className="list-disc list-inside space-y-1 ml-2 text-xs">
-                                                        <li><strong>設定為 30 分鐘：</strong>病患可選擇 09:00-10:00、09:30-10:30、10:00-11:00 等時段</li>
-                                                        <li><strong>設定為 15 分鐘：</strong>病患可選擇 09:00-10:00、09:15-10:15、09:30-10:30 等更細的時段</li>
-                                                    </ul>
-                                                </div>
-                                                <p className="text-xs text-blue-600 bg-blue-50 p-2 rounded">
-                                                    <strong>特別說明：</strong>個人設定的間隔時間不能小於診所預設值 ({clinicDefaultStep} 分鐘)。
-                                                </p>
-                                                <p className="text-xs text-gray-500 pt-2 border-t border-gray-100">
-                                                    若您沒有特別設定（保持空白），系統將會使用診所預設值 ({clinicDefaultStep} 分鐘)。
-                                                </p>
-                                            </div>
-                                        </div>
+                                    <div className="text-sm text-gray-700 space-y-2">
+                                      <p><strong>預約起始時間間隔</strong>設定預約開始時間的間隔長度，影響病人可選擇的時間點數量。</p>
+                                      <p className="mb-3">較短的間隔提供更多選擇，但可能增加排程複雜度；較長的間隔簡化排程，但限制病人選擇。</p>
+                                      <p>建議根據您的服務類型和排程需求調整此設定。</p>
+                                      <p className="text-xs text-gray-500 pt-2 border-t border-gray-100">
+                                        若您沒有特別設定（保持空白），系統將會使用診所預設值 ({clinicDefaultStep} 分鐘)。
+                                      </p>
                                     </div>
-                                </ModalBody>
+                                  </ModalBody>
                             </BaseModal>
                         )}
                     </div>
