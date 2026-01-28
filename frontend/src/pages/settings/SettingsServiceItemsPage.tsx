@@ -52,6 +52,7 @@ const SettingsServiceItemsPage: React.FC = () => {
   const [isComposing, setIsComposing] = useState(false);
   const [draggedItemId, setDraggedItemId] = useState<number | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [triggerAddGroup, setTriggerAddGroup] = useState(false);
 
   // Snapshot refs for reliable rollback on drag error
   const itemDragSnapshotRef = useRef<ClinicSettings | null>(null);
@@ -133,6 +134,12 @@ const SettingsServiceItemsPage: React.FC = () => {
 
   const handleAddServiceItem = () => setEditingItem(null);
   const handleEditServiceItem = (item: AppointmentType) => setEditingItem(item.id);
+
+  const handleAddGroupFromHeader = () => {
+    // Switch to group management tab and trigger add group
+    setActiveTab('group-management');
+    setTriggerAddGroup(true);
+  };
 
   const handleDeleteServiceItem = async (item: AppointmentType) => {
     if (!item) return;
@@ -368,12 +375,21 @@ const SettingsServiceItemsPage: React.FC = () => {
       <div className={`flex flex-col md:flex-row md:items-center justify-between gap-${GRID_GAP} mb-6`}>
         <PageHeader title="服務項目設定" />
         <div className="flex items-center gap-3">
-          <button onClick={handleAddServiceItem} className="btn-primary flex items-center gap-2 whitespace-nowrap">
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={STROKE_WIDTH} d="M12 4v16m8-8H4" />
-            </svg>
-            <span>新增服務項目</span>
-          </button>
+          {activeTab === 'service-items' ? (
+            <button onClick={handleAddServiceItem} className="btn-primary flex items-center gap-2 whitespace-nowrap">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={STROKE_WIDTH} d="M12 4v16m8-8H4" />
+              </svg>
+              <span>新增服務項目</span>
+            </button>
+          ) : (
+            <button onClick={handleAddGroupFromHeader} className="btn-primary flex items-center gap-2 whitespace-nowrap">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={STROKE_WIDTH} d="M12 4v16m8-8H4" />
+              </svg>
+              <span>新增群組</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -448,6 +464,8 @@ const SettingsServiceItemsPage: React.FC = () => {
             onMoveGroup={handleMoveGroup}
             onSaveGroupOrder={handleSaveGroupOrder}
             availableGroups={groups}
+            triggerAddGroup={triggerAddGroup}
+            onTriggerAddGroupHandled={() => setTriggerAddGroup(false)}
           />
         </div>
       )}

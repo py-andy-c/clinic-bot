@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ServiceTypeGroup } from '../types';
 import { useModal } from '../contexts/ModalContext';
 import { ServiceTypeGroupsTable } from './ServiceTypeGroupsTable';
@@ -15,6 +15,8 @@ interface ServiceTypeGroupManagementProps {
   onDragStart?: (groupId: number) => void;
   onSaveGroupOrder: () => void;
   availableGroups: ServiceTypeGroup[];
+  triggerAddGroup?: boolean;
+  onTriggerAddGroupHandled?: () => void;
 }
 
 export const ServiceTypeGroupManagement: React.FC<ServiceTypeGroupManagementProps> = ({
@@ -28,15 +30,20 @@ export const ServiceTypeGroupManagement: React.FC<ServiceTypeGroupManagementProp
   onDragStart,
   onSaveGroupOrder,
   availableGroups,
+  triggerAddGroup = false,
+  onTriggerAddGroupHandled,
 }) => {
   const [addingNewGroup, setAddingNewGroup] = useState(false);
   const [draggedGroupId, setDraggedGroupId] = useState<number | null>(null);
   const { confirm } = useModal();
 
-  const handleAddGroup = () => {
-    if (!isClinicAdmin) return;
-    setAddingNewGroup(true);
-  };
+  // Handle trigger from parent component
+  useEffect(() => {
+    if (triggerAddGroup && isClinicAdmin) {
+      setAddingNewGroup(true);
+      onTriggerAddGroupHandled?.();
+    }
+  }, [triggerAddGroup, isClinicAdmin, onTriggerAddGroupHandled]);
 
   const handleSaveGroup = (group: ServiceTypeGroup | { id: number }, name: string) => {
     if (isRealId(group.id)) {
@@ -121,16 +128,6 @@ export const ServiceTypeGroupManagement: React.FC<ServiceTypeGroupManagementProp
           addingNewGroup={addingNewGroup}
           onCancelAdd={() => setAddingNewGroup(false)}
         />
-      )}
-
-      {isClinicAdmin && !addingNewGroup && (
-        <button
-          type="button"
-          onClick={handleAddGroup}
-          className="btn-secondary text-sm w-full"
-        >
-          + 新增群組
-        </button>
       )}
     </div>
   );

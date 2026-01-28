@@ -43,6 +43,8 @@ export const ServiceTypeGroupsTable: React.FC<ServiceTypeGroupsTableProps> = ({
   const [editingName, setEditingName] = useState('');
   const [errorMessage, setErrorMessage] = useState<string>('');
   const inputRef = useRef<HTMLInputElement>(null);
+  const newGroupRowRefMobile = useRef<HTMLDivElement>(null);
+  const newGroupRowRefDesktop = useRef<HTMLTableRowElement>(null);
 
   const {
     dragOffset,
@@ -70,10 +72,21 @@ export const ServiceTypeGroupsTable: React.FC<ServiceTypeGroupsTableProps> = ({
       setEditingGroupId(-1); // Use -1 to represent "new group" row
       setEditingName('');
       setErrorMessage('');
+      
+      // Auto-scroll to the new group row
+      setTimeout(() => {
+        const targetRef = isMobile ? newGroupRowRefMobile.current : newGroupRowRefDesktop.current;
+        if (targetRef) {
+          targetRef.scrollIntoView({
+            behavior: 'smooth',
+            block: 'center'
+          });
+        }
+      }, 100);
     } else if (editingGroupId === -1) {
       setEditingGroupId(null);
     }
-  }, [addingNewGroup]);
+  }, [addingNewGroup, isMobile]);
 
   const handleStartEdit = (group: ServiceTypeGroup) => {
     setEditingGroupId(group.id);
@@ -397,7 +410,10 @@ export const ServiceTypeGroupsTable: React.FC<ServiceTypeGroupsTableProps> = ({
 
     if (isMobile) {
       return (
-        <div className="bg-blue-50/50 border-2 border-dashed border-blue-200 rounded-lg p-4 shadow-sm animate-pulse-slow">
+        <div 
+          ref={newGroupRowRefMobile}
+          className="bg-blue-50/50 border-2 border-dashed border-blue-200 rounded-lg p-4 shadow-sm animate-pulse-slow"
+        >
           <div className="flex items-center gap-3">
             <input
               ref={inputRef}
@@ -437,7 +453,7 @@ export const ServiceTypeGroupsTable: React.FC<ServiceTypeGroupsTableProps> = ({
     }
 
     return (
-      <tr className="bg-blue-50/30 border-b border-blue-100">
+      <tr ref={newGroupRowRefDesktop} className="bg-blue-50/30 border-b border-blue-100">
         <td className="px-6 py-4 whitespace-nowrap">
           <div className="flex items-center gap-2">
             <div className="w-6 flex-shrink-0">
