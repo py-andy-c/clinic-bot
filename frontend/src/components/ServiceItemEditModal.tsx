@@ -97,6 +97,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
     defaultValues: {
       name: '',
       duration_minutes: 30,
+      service_type_group_id: null,
       allow_new_patient_booking: true,
       allow_existing_patient_booking: true,
       allow_patient_practitioner_selection: true,
@@ -184,6 +185,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
       const newItem: ServiceItemBundleFormData = {
         name: '',
         duration_minutes: 30,
+        service_type_group_id: null,
         allow_new_patient_booking: true,
         allow_existing_patient_booking: true,
         allow_patient_practitioner_selection: true,
@@ -513,7 +515,13 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                         <label className="block text-sm font-medium text-gray-700 mb-1.5">群組</label>
                         <select
                           {...register('service_type_group_id', {
-                            setValueAs: (value) => value === '' ? null : Number(value)
+                            setValueAs: (value) => {
+                              if (value === '' || value === null || value === undefined) {
+                                return null;
+                              }
+                              const numValue = Number(value);
+                              return isNaN(numValue) ? null : numValue;
+                            }
                           })}
                           className="input w-full"
                         >
