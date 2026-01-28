@@ -51,7 +51,7 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
     const [isNewMessage, setIsNewMessage] = useState(false);
     const [formData, setFormData] = useState<FollowUpMessageFormData>({
         timing_mode: 'hours_after',
-        hours_after: 0,
+        hours_after: undefined,
         message_template: '',
         is_enabled: true,
         display_order: 0,
@@ -164,7 +164,7 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
         setEditingMessage(null);
         setFormData({
             timing_mode: 'hours_after',
-            hours_after: 0,
+            hours_after: undefined,
             message_template: '{病患姓名}，感謝您今天的預約！\n\n希望今天的服務對您有幫助。如有任何問題或需要協助，歡迎隨時聯繫我們。\n\n期待下次為您服務！',
             is_enabled: true,
             display_order: followUpMessages.length,
@@ -365,8 +365,8 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
                             </div>
                             <div className="text-xs text-gray-500">
                                 {message.timing_mode === 'hours_after'
-                                    ? `預約結束後 ${message.hours_after ?? 0} 小時`
-                                    : `預約日期後 ${message.days_after ?? 0} 天的 ${message.time_of_day ?? '21:00'}`}
+                                    ? `預約結束後 ${message.hours_after || 0} 小時`
+                                    : `預約日期後 ${message.days_after || 0} 天的 ${message.time_of_day || '21:00'}`}
                             </div>
                         </div>
                     </button>
@@ -395,8 +395,8 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
                             <div className="mb-2">
                                 <span className="font-medium">發送時機：</span>
                                 {message.timing_mode === 'hours_after'
-                                    ? `預約結束後 ${message.hours_after ?? 0} 小時`
-                                    : `預約日期後 ${message.days_after ?? 0} 天的 ${message.time_of_day ?? '21:00'}`}
+                                    ? `預約結束後 ${message.hours_after || 0} 小時`
+                                    : `預約日期後 ${message.days_after || 0} 天的 ${message.time_of_day || '21:00'}`}
                             </div>
                         </div>
 
@@ -530,7 +530,7 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
                                                     timing_mode: 'hours_after',
                                                     days_after: undefined,
                                                     time_of_day: undefined,
-                                                    // Ensure hours_after is set to 0 if it's undefined
+                                                    // Set hours_after to 0 as default for this mode
                                                     hours_after: prev.hours_after !== undefined ? prev.hours_after : 0,
                                                 }));
                                                 setFormErrors(prev => {
@@ -559,7 +559,7 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
                                                 <p className="text-red-600 text-xs mt-1">{formErrors.hours_after}</p>
                                             )}
                                             {/* Warning for delays > 90 days (2160 hours) - per design doc recommendation */}
-                                            {(formData.hours_after ?? 0) > 2160 && (
+                                            {(formData.hours_after || 0) > 2160 && (
                                                 <p className="text-yellow-600 text-xs mt-1">
                                                     ⚠️ 警告：延遲時間超過 90 天，請確認是否正確
                                                 </p>
@@ -578,9 +578,9 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
                                                     ...prev,
                                                     timing_mode: 'specific_time',
                                                     hours_after: undefined,
-                                                    // Ensure days_after is set to 0 if it's undefined
+                                                    // Set days_after to 0 as default for this mode
                                                     days_after: prev.days_after !== undefined ? prev.days_after : 0,
-                                                    // Ensure time_of_day is set to default if it's undefined
+                                                    // Set time_of_day to default if it's undefined
                                                     time_of_day: prev.time_of_day || '21:00',
                                                 }));
                                                 setFormErrors(prev => {
@@ -610,7 +610,7 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
                                                     <p className="text-red-600 text-xs mt-1">{formErrors.days_after}</p>
                                                 )}
                                                 {/* Warning for delays > 90 days - per design doc recommendation */}
-                                                {(formData.days_after ?? 0) > 90 && (
+                                                {(formData.days_after || 0) > 90 && (
                                                     <p className="text-yellow-600 text-xs mt-1">
                                                         ⚠️ 警告：延遲時間超過 90 天，請確認是否正確
                                                     </p>

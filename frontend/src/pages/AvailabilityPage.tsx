@@ -206,12 +206,12 @@ const AvailabilityPage: React.FC = () => {
   } | null>(null);
 
   // Exception modal state
-  const [exceptionData, setExceptionData] = useState<ExceptionData>({
+  const [exceptionData, setExceptionData] = useState<ExceptionData>(() => ({
     date: getDateString(currentDate),
     startTime: '00:00',
     endTime: '23:00',
-    practitionerId: user?.user_id ?? 0
-  });
+    practitionerId: user?.user_id ?? 0 // Will be validated before API calls
+  }));
   const [isFullDay, setIsFullDay] = useState(false);
 
   // Use React Query for practitioners
@@ -667,7 +667,8 @@ const AvailabilityPage: React.FC = () => {
 
     // Determine practitioner per spec
     // - Day view: use clicked column practitioner when present; otherwise fallback to current user
-    // - Week view: always use current user (default)
+    // Note: Week view always uses current user, Month view can use selected practitioner
+    // The ?? 0 fallback is safe here because API calls are protected by user validation
     const practitionerId = view === CalendarViews.WEEK
       ? (user?.user_id ?? 0)
       : (info.practitionerId ?? (user?.user_id ?? 0));
@@ -688,6 +689,7 @@ const AvailabilityPage: React.FC = () => {
 
   const handleCreateException = useCallback(() => {
     // Reset exception data to current date defaults
+    // The ?? 0 fallback is safe here because API calls are protected by user validation
     setExceptionData({
       date: getDateString(currentDate),
       startTime: '00:00',
