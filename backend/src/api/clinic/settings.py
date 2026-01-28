@@ -656,6 +656,65 @@ async def validate_appointment_type_deletion(
         )
 
 
+@router.delete("/appointment-types/{id}", summary="Delete an appointment type")
+async def delete_appointment_type(
+    id: int,
+    current_user: UserContext = Depends(require_admin_role),
+    db: Session = Depends(get_db)
+) -> Dict[str, str]:
+    """
+    Delete an appointment type (soft delete).
+    
+    Only clinic admins can delete appointment types.
+    The appointment type must not be referenced by any practitioners.
+    """
+    try:
+        clinic_id = ensure_clinic_access(current_user)
+        
+        # 1. Check if the appointment type exists and belongs to the clinic
+        appointment_type = db.query(AppointmentType).filter(
+            AppointmentType.id == id,
+            AppointmentType.clinic_id == clinic_id,
+            AppointmentType.is_deleted == False
+        ).first()
+        
+        if not appointment_type:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="預約類型不存在"
+            )
+            
+        # 2. Check for practitioner references (blocking)
+        # Use same logic as validate_appointment_type_deletion
+        practitioners = AvailabilityService.get_practitioners_for_appointment_type(
+            db=db,
+            appointment_type_id=id,
+            clinic_id=clinic_id
+        )
+        
+        if practitioners:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="無法刪除此預約類型，因為有治療師正在提供此服務"
+            )
+            
+        # 3. Perform soft delete
+        AppointmentTypeService.soft_delete_appointment_type(db, id, clinic_id)
+        db.commit()
+        
+        return {"message": "預約類型已刪除"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Error deleting appointment type: {e}")
+        db.rollback()
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="刪除預約類型失敗"
+        )
+
+
 @router.put("/settings", summary="Update clinic settings")
 async def update_settings(
 
