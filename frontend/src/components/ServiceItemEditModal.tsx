@@ -127,7 +127,6 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
   const name = watch('name');
 
   // Modal states
-  const [showDurationModal, setShowDurationModal] = useState(false);
   const [showBufferModal, setShowBufferModal] = useState(false);
   const [showReceiptNameModal, setShowReceiptNameModal] = useState(false);
   const [showAllowNewPatientBookingModal, setShowAllowNewPatientBookingModal] = useState(false);
@@ -521,9 +520,8 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                         </select>
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1.5 flex items-center gap-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-1.5">
                           服務時長 (分鐘)
-                          <InfoButton onClick={() => setShowDurationModal(true)} />
                         </label>
                         <FormInput
                           type="number"
@@ -928,14 +926,12 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
           </BaseModal>
         )}
         {/* Info Modals */}
-        <InfoModal isOpen={showDurationModal} onClose={() => setShowDurationModal(false)} title="服務時長 (分鐘)">
-          <p>此為實際服務時間長度...</p>
-        </InfoModal>
         <InfoModal isOpen={showBufferModal} onClose={() => setShowBufferModal(false)} title="排程緩衝時間 (分鐘)">
-          <p>此為排程時額外保留的時間...</p>
+          <p><strong>服務時長</strong>是病患看到的實際服務時間，<strong>排程緩衝時間</strong>是系統排程時額外保留的準備時間。</p>
+          <p className="mt-2">總排程時間 = 服務時長 + 排程緩衝時間。</p>
         </InfoModal>
         <InfoModal isOpen={showReceiptNameModal} onClose={() => setShowReceiptNameModal(false)} title="收據項目名稱">
-          <p>此名稱會顯示在收據上，取代服務項目名稱...</p>
+          <p>此名稱會顯示在收據上，取代服務項目名稱</p>
         </InfoModal>
         <InfoModal isOpen={showAllowNewPatientBookingModal} onClose={() => setShowAllowNewPatientBookingModal(false)} title="新病患可自行預約">
           <div className="space-y-2">
