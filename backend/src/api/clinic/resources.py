@@ -5,21 +5,77 @@ Resource Management API endpoints.
 
 import logging
 import re
-from datetime import datetime
+from datetime import datetime, date as date_type
 from typing import Dict, List, Optional, Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi import status as http_status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
+from sqlalchemy import or_, and_
 
 from core.database import get_db
 from auth.dependencies import require_admin_role, require_practitioner_or_admin, require_authenticated, UserContext, ensure_clinic_access
 from models import ResourceType, Resource, AppointmentType, AppointmentResourceRequirement, AppointmentResourceAllocation, CalendarEvent, Appointment
+from utils.datetime_utils import taiwan_now
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+def _get_future_resource_allocations(db: Session, resource_id: int):
+    """
+    Get all future confirmed appointment allocations for a resource.
+    
+    Returns allocations where the appointment is:
+    - In the future (date > today OR date == today AND start_time > now)
+    - Status is 'confirmed'
+    
+    Uses Taiwan timezone for consistent comparison with database fields.
+    """
+    # Use Taiwan timezone for consistent comparison (following existing pattern)
+    taiwan_current = taiwan_now()
+    today = taiwan_current.date()
+    current_time = taiwan_current.time()
+    
+    return db.query(AppointmentResourceAllocation).join(
+        CalendarEvent, AppointmentResourceAllocation.appointment_id == CalendarEvent.id
+    ).join(
+        Appointment, CalendarEvent.id == Appointment.calendar_event_id
+    ).filter(
+        AppointmentResourceAllocation.resource_id == resource_id,
+        Appointment.status == 'confirmed',
+        # Future appointments: either future date, or today but future time
+        or_(
+            CalendarEvent.date > today,
+            and_(
+                CalendarEvent.date == today,
+                CalendarEvent.start_time > current_time
+            )
+        )
+    )
+
+
+def _unallocate_future_appointments(db: Session, resource_id: int) -> int:
+    """
+    Unallocate a resource from all future confirmed appointments.
+    
+    Returns the number of appointments affected.
+    Uses explicit transaction management for data consistency.
+    """
+    try:
+        future_allocations = _get_future_resource_allocations(db, resource_id).all()
+        
+        for allocation in future_allocations:
+            db.delete(allocation)
+            logger.info(f"Unallocated resource {resource_id} from future calendar event {allocation.appointment_id}")
+        
+        return len(future_allocations)
+    except Exception as e:
+        logger.error(f"Failed to unallocate resource {resource_id} from future appointments: {e}")
+        db.rollback()
+        raise
 
 
 # ===== Request/Response Models =====
@@ -550,7 +606,7 @@ async def delete_resource(
     current_user: UserContext = Depends(require_admin_role),
     db: Session = Depends(get_db)
 ):
-    """Soft delete a resource. Prevents deletion if resource has active allocations."""
+    """Soft delete a resource. Unallocates from all future confirmed appointments."""
     try:
         clinic_id = ensure_clinic_access(current_user)
         
@@ -571,26 +627,18 @@ async def delete_resource(
                 detail="資源已刪除"
             )
         
-        # Check if resource has active allocations
-        active_allocations = db.query(AppointmentResourceAllocation).join(
-            CalendarEvent, AppointmentResourceAllocation.appointment_id == CalendarEvent.id
-        ).join(
-            Appointment, CalendarEvent.id == Appointment.calendar_event_id
-        ).filter(
-            AppointmentResourceAllocation.resource_id == resource_id,
-            Appointment.status == 'confirmed'
-        ).first()
+        # Unallocate future appointments that will be affected
+        affected_appointments = _unallocate_future_appointments(db, resource_id)
         
-        if active_allocations:
-            raise HTTPException(
-                status_code=http_status.HTTP_409_CONFLICT,
-                detail="此資源正在使用中，無法刪除"
-            )
-        
+        # Soft delete the resource
         resource.is_deleted = True
         db.commit()
         
-        return {"success": True, "message": "資源已刪除"}
+        message = "資源已刪除"
+        if affected_appointments > 0:
+            message += f"，已從 {affected_appointments} 個未來預約中移除此資源配置"
+        
+        return {"success": True, "message": message, "affected_appointments": affected_appointments}
     except HTTPException:
         raise
     except Exception as e:
@@ -949,17 +997,22 @@ def _sync_resource_type_resources(
     """
     incoming_ids = {r.id for r in resources_data if r.id}
     
-    # 1. Soft delete missing resources
-
-    q = db.query(Resource).filter(
+    # 1. Soft delete missing resources and unallocate from future appointments
+    resources_to_delete = db.query(Resource).filter(
         Resource.resource_type_id == resource_type_id,
         Resource.clinic_id == clinic_id,
         Resource.is_deleted == False
     )
     if incoming_ids:
-        q = q.filter(Resource.id.not_in(incoming_ids))
-        
-    q.update({"is_deleted": True}, synchronize_session='fetch')
+        resources_to_delete = resources_to_delete.filter(Resource.id.not_in(incoming_ids))
+    
+    resources_to_delete_list = resources_to_delete.all()
+    
+    # For each resource being deleted, unallocate from future appointments
+    for resource in resources_to_delete_list:
+        _unallocate_future_appointments(db, resource.id)
+        # Soft delete the resource
+        resource.is_deleted = True
     
     # 2. Update or create resources
     for r_data in resources_data:
