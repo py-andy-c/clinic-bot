@@ -10316,19 +10316,22 @@ const getStatusMessage = (status?: number): string => {
 const getPatternMessage = (message?: string): string | null => {
   if (!message) return null;
   
+  // CORS errors
+  if (message.includes('CORS') || message.includes('cross-origin') || 
+      message.includes('Access-Control-Allow-Origin') || 
+      message.includes('blocked by CORS policy')) {
+    return DEFAULT_ERROR_MESSAGES.NETWORK;
+  }
+  
   // Network errors
-  if (message.includes('Network Error') || message.includes('ERR_NETWORK')) {
+  if (message.includes('Network Error') || message.includes('ERR_NETWORK') || 
+      message.includes('ERR_FAILED') || message.includes('net::ERR_FAILED')) {
     return DEFAULT_ERROR_MESSAGES.NETWORK;
   }
   
   // Timeout errors
   if (message.includes('timeout') || message.includes('TIMEOUT')) {
     return DEFAULT_ERROR_MESSAGES.TIMEOUT;
-  }
-  
-  // CORS errors
-  if (message.includes('CORS') || message.includes('cross-origin')) {
-    return DEFAULT_ERROR_MESSAGES.NETWORK;
   }
   
   return null;
