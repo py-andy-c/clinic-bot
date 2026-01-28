@@ -7,6 +7,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { CalendarEvent } from '../../utils/calendarDataAdapter';
 import { BaseModal } from './BaseModal';
+import { ModalHeader, ModalBody, ModalFooter } from '../shared/ModalParts';
 import { apiService } from '../../services/api';
 import { ClinicNotesTextarea } from '../shared/ClinicNotesTextarea';
 import { ConflictDisplay } from '../shared/ConflictDisplay';
@@ -243,16 +244,17 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
     <BaseModal
       onClose={onClose}
       aria-label={event.resource.type === 'appointment' ? '預約詳情' : '休診詳情'}
+      showCloseButton={false}
     >
-      <div className="flex items-center justify-between mb-4">
+      <ModalHeader showClose onClose={onClose}>
         {isEditingName ? (
-          <div className="flex items-center gap-1 flex-1">
+          <div className="flex items-center gap-2 w-full">
             <input
               type="text"
               value={editingName}
               onChange={(e) => setEditingName(e.target.value)}
               onKeyDown={handleKeyDown}
-              className="flex-1 px-2 py-1 text-lg font-semibold border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="flex-1 px-2 py-1 text-base font-medium border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
               autoFocus
               disabled={isSaving}
               maxLength={MAX_EVENT_NAME_LENGTH}
@@ -260,25 +262,23 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
             <button
               onClick={handleSaveName}
               disabled={isSaving}
-              className="px-2 py-1 text-sm text-white bg-blue-600 rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-2 py-1 text-xs text-white bg-primary-600 rounded hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
               title="儲存"
             >
-              {isSaving ? '...' : '✓'}
+              {isSaving ? '...' : '儲存'}
             </button>
             <button
               onClick={handleCancelEdit}
               disabled={isSaving}
-              className="px-2 py-1 text-sm text-gray-600 bg-gray-200 rounded hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-2 py-1 text-xs text-gray-600 bg-gray-200 rounded hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
               title="取消"
             >
-              ✕
+              取消
             </button>
           </div>
         ) : (
-          <div className="flex items-center gap-2 flex-1 min-w-0">
-            <h3 className="text-lg font-semibold" title={displayTitle}>
-              {displayTitle}
-            </h3>
+          <div className="flex items-center gap-2 min-w-0">
+            <h2 className="text-lg font-semibold truncate" title={displayTitle}>{displayTitle}</h2>
             <button
               onClick={handleStartEdit}
               className="px-1 py-1 text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0"
@@ -290,9 +290,10 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
             </button>
           </div>
         )}
-      </div>
-      {event.resource.type === 'appointment' ? (
-        <>
+      </ModalHeader>
+
+      <ModalBody>
+        {event.resource.type === 'appointment' ? (
           <div className="space-y-2">
             {(event.resource.event_practitioner_name || (event.resource.practitioner_name && !event.resource.is_primary)) && (
               <p>
@@ -340,7 +341,7 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
                       handleSaveClinicNotes();
                     }}
                     disabled={isSavingClinicNotes}
-                    className="px-3 py-1 text-xs text-white bg-blue-600 rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-3 py-1 text-xs text-white bg-primary-600 rounded hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {isSavingClinicNotes ? '儲存中...' : '儲存'}
                   </button>
@@ -354,77 +355,70 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
               />
             </div>
           </div>
-        </>
-      ) : (
-        <>
+        ) : (
           <div className="space-y-2">
             {(event.resource.event_practitioner_name || (event.resource.practitioner_name && !event.resource.is_primary)) && (
               <p><strong>治療師:</strong> {event.resource.event_practitioner_name || event.resource.practitioner_name}</p>
             )}
             <p><strong>時間:</strong> {formatAppointmentTime(event.start, event.end)}</p>
           </div>
-        </>
-      )}
-      <div className="flex justify-end space-x-2 mt-6">
+        )}
+      </ModalBody>
+
+      <ModalFooter>
         {event.resource.type === 'appointment' && (
           <>
             {/* Receipt View Button - Show when any receipt exists (active or voided) */}
             {event.resource.has_any_receipt && event.resource.receipt_ids && event.resource.receipt_ids.length > 0 && (
               <button
                 onClick={() => {
-                  // Show list modal if multiple receipts, otherwise show single receipt modal
                   const receiptIds = event.resource.receipt_ids || [];
                   if (receiptIds.length > 1) {
                     setShowReceiptListModal(true);
                   } else {
-                    // Single receipt: show directly
                     setSelectedReceiptId(receiptIds[0]);
                     setShowReceiptModal(true);
                   }
                 }}
-                className="btn-primary bg-purple-600 hover:bg-purple-700"
+                className="btn-primary-purple"
               >
                 檢視收據
               </button>
             )}
 
-            {/* Re-issue Receipt Button - Show when receipt is voided (previously checked out, clinic users only) */}
             {event.resource.has_any_receipt && !event.resource.has_active_receipt && isClinicUser && (
               <button
                 onClick={() => setShowCheckoutModal(true)}
-                className="btn-primary bg-orange-600 hover:bg-orange-700"
+                className="btn-primary-orange"
               >
                 重新開立收據
               </button>
             )}
 
-            {/* Checkout Button - Show when no receipts at all (never checked out, clinic users only) */}
             {!event.resource.has_any_receipt && isClinicUser && (
               <button
                 onClick={() => setShowCheckoutModal(true)}
-                className="btn-primary bg-green-600 hover:bg-green-700"
+                className="btn-primary-green"
               >
                 結帳
               </button>
             )}
 
-            {/* Duplicate Button - Always show (creates new appointment, doesn't modify existing) */}
             {onDuplicateAppointment && (
               <button
                 onClick={onDuplicateAppointment}
-                className="btn-primary bg-green-600 hover:bg-green-700"
+                className="btn-primary-green"
               >
                 複製
               </button>
             )}
 
-            {/* Edit/Delete Buttons - Hide when any receipt exists (Constraint 1) */}
             {!event.resource.has_any_receipt && (
               <>
                 {onEditAppointment && (
                   <button
                     onClick={onEditAppointment}
-                    className="btn-primary bg-blue-600 hover:bg-blue-700"
+                    className="btn-primary"
                   >
                     編輯
                   </button>
@@ -432,7 +426,7 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
                 {onDeleteAppointment && (
                   <button
                     onClick={onDeleteAppointment}
-                    className="btn-primary bg-red-600 hover:bg-red-700"
+                    className="btn-primary-red"
                   >
                     刪除
                   </button>
@@ -449,7 +443,7 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
             刪除
           </button>
         )}
-      </div>
+      </ModalFooter>
 
       {/* Checkout Modal */}
       {showCheckoutModal && event.resource.appointment_id && (

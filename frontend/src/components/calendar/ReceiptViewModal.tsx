@@ -6,8 +6,8 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
 import { BaseModal } from './BaseModal';
+import { ModalHeader, ModalBody, ModalFooter } from '../shared/ModalParts';
 import { apiService } from '../../services/api';
 import { logger } from '../../utils/logger';
 import { Z_INDEX } from '../../constants/app';
@@ -262,23 +262,25 @@ export const ReceiptViewModal: React.FC<ReceiptViewModalProps> = ({
                 </div>
             </BaseModal>
 
-            {/* Void Confirmation Dialog - Rendered in portal to ensure it's above the modal */}
-            {showVoidConfirm && createPortal(
-                <div
-                    className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center"
-                    style={{ zIndex: Z_INDEX.MODAL + 100 }}
-                    onClick={(e) => {
-                        if (e.target === e.currentTarget) {
+            {/* Void Confirmation Dialog */}
+            {showVoidConfirm && (
+                <BaseModal
+                    onClose={() => {
+                        setShowVoidConfirm(false);
+                        setVoidReason('');
+                    }}
+                    aria-label="確認作廢收據"
+                    showCloseButton={false}
+                >
+                    <ModalHeader
+                        title="確認作廢收據"
+                        showClose
+                        onClose={() => {
                             setShowVoidConfirm(false);
                             setVoidReason('');
-                        }
-                    }}
-                >
-                    <div
-                        className="bg-white rounded-lg p-6 max-w-md w-full mx-4"
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        <h4 className="text-lg font-semibold mb-4">確認作廢收據</h4>
+                        }}
+                    />
+                    <ModalBody>
                         <p className="text-sm text-gray-700 mb-4">
                             確定要作廢此收據嗎？此操作無法復原。作廢後可以重新開立新收據。
                         </p>
@@ -296,30 +298,29 @@ export const ReceiptViewModal: React.FC<ReceiptViewModalProps> = ({
                                 autoFocus
                             />
                         </div>
-                        <div className="flex justify-end space-x-2">
-                            <button
-                                onClick={() => {
-                                    setShowVoidConfirm(false);
-                                    setVoidReason('');
-                                }}
-                                className="btn-secondary"
-                                disabled={isVoiding}
-                                type="button"
-                            >
-                                取消
-                            </button>
-                            <button
-                                onClick={handleVoidReceipt}
-                                className="btn-primary bg-red-600 hover:bg-red-700 disabled:hover:bg-red-600"
-                                disabled={isVoiding || !voidReason.trim()}
-                                type="button"
-                            >
-                                {isVoiding ? '處理中...' : '確認作廢'}
-                            </button>
-                        </div>
-                    </div>
-                </div>,
-                document.body
+                    </ModalBody>
+                    <ModalFooter>
+                        <button
+                            onClick={() => {
+                                setShowVoidConfirm(false);
+                                setVoidReason('');
+                            }}
+                            className="btn-secondary"
+                            disabled={isVoiding}
+                            type="button"
+                        >
+                            取消
+                        </button>
+                        <button
+                            onClick={handleVoidReceipt}
+                            className="btn-primary-red"
+                            disabled={isVoiding || !voidReason.trim()}
+                            type="button"
+                        >
+                            {isVoiding ? '處理中...' : '確認作廢'}
+                        </button>
+                    </ModalFooter>
+                </BaseModal>
             )}
         </>
     );

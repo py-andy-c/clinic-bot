@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { BaseModal } from './BaseModal';
+import { ModalHeader, ModalBody, ModalFooter } from '../shared/ModalParts';
 import { apiService } from '../../services/api';
 import { getErrorMessage } from '../../types/api';
 import { logger } from '../../utils/logger';
@@ -64,7 +65,7 @@ const NotificationModal: React.FC<NotificationModalProps> = React.memo(({
   const handleClose = useCallback(() => {
     const justOpened = justOpenedRef.current;
     const stackTrace = new Error().stack;
-    logger.log('NotificationModal: handleClose called', { 
+    logger.log('NotificationModal: handleClose called', {
       justOpened,
       visible,
       hasPreview: !!preview,
@@ -134,7 +135,7 @@ const NotificationModal: React.FC<NotificationModalProps> = React.memo(({
   }
 
   logger.log('NotificationModal: Rendering modal', { visible, hasPreview: !!preview });
-  
+
   logger.log('NotificationModal: Rendering BaseModal', {
     visible,
     hasPreview: !!preview,
@@ -146,29 +147,18 @@ const NotificationModal: React.FC<NotificationModalProps> = React.memo(({
     <BaseModal
       onClose={handleClose}
       aria-label="傳送LINE訊息"
-      className="!p-0"
-      fullScreen={false}
-      closeOnOverlayClick={false}
+      showCloseButton={false}
     >
-      <div className="flex flex-col h-full px-6 pt-6 pb-6">
-        <div className="flex items-center mb-4 flex-shrink-0">
-          <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center mr-2">
-            <svg className="w-4 h-4 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
-              <path d="M10 2a8 8 0 100 16 8 8 0 000-16zm-3 9a1 1 0 112 0v1a1 1 0 11-2 0v-1zm5-1a1 1 0 10-2 0v1a1 1 0 102 0v-1z" />
-            </svg>
-          </div>
-          <h3 className="text-base font-semibold text-blue-800">
-            傳送LINE訊息
-          </h3>
-        </div>
+      <ModalHeader title="傳送LINE訊息" showClose onClose={handleClose} />
 
+      <ModalBody>
         {sendError && (
-          <div className="mb-4 bg-red-50 border border-red-200 rounded-md p-3 flex-shrink-0">
+          <div className="mb-4 bg-red-50 border border-red-200 rounded-md p-3">
             <p className="text-sm text-red-800">{sendError}</p>
           </div>
         )}
 
-        <div className="flex-1 overflow-y-auto space-y-4">
+        <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               編輯並傳送給病患
@@ -190,24 +180,24 @@ const NotificationModal: React.FC<NotificationModalProps> = React.memo(({
             </div>
           </div>
         </div>
+      </ModalBody>
 
-        <div className="flex justify-end space-x-2 pt-4 border-t border-gray-200 flex-shrink-0">
-          <button
-            onClick={handleSkip}
-            className="btn-secondary"
-            disabled={isSending}
-          >
-            關閉
-          </button>
-          <button
-            onClick={handleSendMessage}
-            className="btn-primary"
-            disabled={isSending || !messageContent.trim()}
-          >
-            {isSending ? <LoadingSpinner size="sm" /> : '傳送 LINE 訊息'}
-          </button>
-        </div>
-      </div>
+      <ModalFooter>
+        <button
+          onClick={handleSkip}
+          className="btn-secondary"
+          disabled={isSending}
+        >
+          關閉
+        </button>
+        <button
+          onClick={handleSendMessage}
+          className="btn-primary"
+          disabled={isSending || !messageContent.trim()}
+        >
+          {isSending ? <LoadingSpinner size="sm" /> : '傳送 LINE 訊息'}
+        </button>
+      </ModalFooter>
     </BaseModal>
   );
 });

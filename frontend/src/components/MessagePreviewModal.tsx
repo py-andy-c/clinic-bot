@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { BaseModal } from './shared/BaseModal';
+import { ModalHeader, ModalBody } from './shared/ModalParts';
 import { apiService } from '../services/api';
 import { LoadingSpinner } from './shared';
 import { MessageType } from '../constants/messageTemplates';
@@ -63,10 +64,9 @@ export const MessagePreviewModal: React.FC<MessagePreviewModalProps> = ({
     if (!isOpen) return null;
 
     return (
-        <BaseModal onClose={onClose} aria-label="訊息預覽" className="max-w-2xl">
-            <div className="p-6">
-                <h2 className="text-xl font-semibold mb-4">訊息預覽</h2>
-
+        <BaseModal onClose={onClose} aria-label="訊息預覽" className="max-w-2xl" showCloseButton={false}>
+            <ModalHeader title="訊息預覽" showClose onClose={onClose} />
+            <ModalBody>
                 {loading && (
                     <div className="flex justify-center py-8">
                         <LoadingSpinner />
@@ -81,7 +81,6 @@ export const MessagePreviewModal: React.FC<MessagePreviewModalProps> = ({
 
                 {preview && !loading && (
                     <div className="space-y-4">
-                        {/* Preview Message */}
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">
                                 預覽訊息
@@ -91,7 +90,6 @@ export const MessagePreviewModal: React.FC<MessagePreviewModalProps> = ({
                             </div>
                         </div>
 
-                        {/* Used Placeholders */}
                         {Object.keys(preview.used_placeholders).length > 0 && (
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -111,7 +109,6 @@ export const MessagePreviewModal: React.FC<MessagePreviewModalProps> = ({
                             </div>
                         )}
 
-                        {/* Completeness Warnings */}
                         {preview.completeness_warnings && preview.completeness_warnings.length > 0 && (
                             <div>
                                 <label className="block text-sm font-medium text-yellow-700 mb-2">
@@ -128,19 +125,9 @@ export const MessagePreviewModal: React.FC<MessagePreviewModalProps> = ({
                                 </div>
                             </div>
                         )}
-
-                        <div className="flex justify-end pt-4">
-                            <button
-                                type="button"
-                                onClick={onClose}
-                                className="btn-primary px-4 py-2"
-                            >
-                                關閉
-                            </button>
-                        </div>
                     </div>
                 )}
-            </div>
+            </ModalBody>
         </BaseModal>
     );
 };

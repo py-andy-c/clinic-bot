@@ -8,6 +8,7 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { flushSync } from 'react-dom';
 import { BaseModal } from './BaseModal';
+import { ModalHeader, ModalBody, ModalFooter } from '../shared/ModalParts';
 import { ServiceItemSelectionModal } from './ServiceItemSelectionModal';
 import { DateTimePicker } from './DateTimePicker';
 import { apiService } from '../../services/api';
@@ -1268,38 +1269,32 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
 
   const renderFormStepFooter = () => {
     const errorFields = Object.keys(validationErrors).filter(key => validationErrors[key]);
-    const hasErrors = errorFields.length > 0;
 
     return (
-      <div className="pt-4 border-t border-gray-200 flex-shrink-0" onMouseDown={(e) => e.stopPropagation()}>
-        {/* Validation Error Summary */}
-        {hasErrors && (
-          <div className="mb-3 px-3 py-2 bg-red-50 border border-red-200 rounded text-sm text-red-800">
-            <div className="flex items-start gap-2">
-              <span className="flex-shrink-0 text-base leading-tight">⚠️</span>
-              <div className="flex-1 leading-tight">
-                <span className="font-medium">請填寫必填欄位：</span>
-                {errorFields.map(getFieldDisplayName).join('、')}
+      <ModalFooter>
+        <div className="flex flex-col w-full">
+          {errorFields.length > 0 && (
+            <div className="mb-3 bg-red-50 border border-red-200 rounded-md p-2 flex items-center text-red-800">
+              <svg className="w-4 h-4 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+              </svg>
+              <div className="text-sm leading-tight font-medium">
+                請填寫必填欄位：{errorFields.map(getFieldDisplayName).join('、')}
               </div>
             </div>
+          )}
+          <div className="flex justify-end items-center space-x-2">
+            <ConflictWarningButton conflictInfo={singleAppointmentConflict} />
+            <button
+              onClick={handleFormSubmit}
+              disabled={isCheckingConflicts || isInitialLoading}
+              className="btn-primary"
+            >
+              {isCheckingConflicts ? '正在檢查衝突...' : '下一步'}
+            </button>
           </div>
-        )}
-
-        {/* Buttons */}
-        <div className="flex justify-end items-center space-x-2">
-          <ConflictWarningButton conflictInfo={singleAppointmentConflict} />
-          <button
-            onClick={handleFormSubmit}
-            disabled={isCheckingConflicts || isInitialLoading}
-            className={`btn-primary ${(isCheckingConflicts || isInitialLoading)
-              ? 'opacity-50 cursor-not-allowed'
-              : ''
-              }`}
-          >
-            {isCheckingConflicts ? '正在檢查衝突...' : '下一步'}
-          </button>
         </div>
-      </div>
+      </ModalFooter>
     );
   };
 
@@ -1487,7 +1482,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
   );
 
   const renderConflictResolutionStepFooter = () => (
-    <div className="flex justify-end space-x-2 pt-4 border-t border-gray-200 flex-shrink-0">
+    <ModalFooter>
       <button
         onClick={() => {
           setOccurrences([]);
@@ -1505,11 +1500,11 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
           setStep('confirm');
         }}
         disabled={occurrences.length === 0}
-        className={`btn-primary ${occurrences.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+        className="btn-primary"
       >
         下一步
       </button>
-    </div>
+    </ModalFooter>
   );
 
   const renderConfirmStepContent = () => {
@@ -1595,7 +1590,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
   };
 
   const renderConfirmStepFooter = () => (
-    <div className="flex justify-end space-x-2 pt-4 border-t border-gray-200 flex-shrink-0">
+    <ModalFooter>
       <button
         onClick={() => {
           if (hasVisitedConflictResolution) setStep('conflict-resolution');
@@ -1614,7 +1609,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
       >
         {isSaving ? '建立中...' : '確認建立'}
       </button>
-    </div>
+    </ModalFooter>
   );
 
   const handlePatientCreated = useCallback((patientId: number, patientName: string, phoneNumber: string | null, birthday: string | null) => {
@@ -1688,35 +1683,22 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
 
   return (
     <>
-      <BaseModal onClose={handleClose} aria-label={modalTitle} className="!p-0" fullScreen={isMobile}>
-        <div className={`flex flex-col h-full ${isMobile ? 'px-4 pt-4 pb-0' : 'px-6 pt-6 pb-6'}`}>
-          <div className="flex items-center mb-4 flex-shrink-0">
-            <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center mr-2">
-              <svg className="w-4 h-4 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M8 9a3 3 0 100-6 3 3 0 000 6zM8 11a6 6 0 016 6H2a6 6 0 016-6zM16 7a1 1 0 10-2 0v1h-1a1 1 0 100 2h1v1a1 1 0 102 0v-1h1a1 1 0 100-2h-1V7z" />
-              </svg>
-            </div>
-            <h3 className="text-base font-semibold text-blue-800">{modalTitle}</h3>
-          </div>
-
+      <BaseModal onClose={handleClose} aria-label={modalTitle} fullScreen={isMobile} showCloseButton={false}>
+        <ModalHeader title={modalTitle} showClose onClose={handleClose} />
+        <ModalBody className={isMobile ? 'px-4' : ''}>
           {error && step !== 'form' && (
-            <div className="mb-4 bg-red-50 border border-red-200 rounded-md p-3 flex-shrink-0">
+            <div className="mb-4 bg-red-50 border border-red-200 rounded-md p-3">
               <p className="text-sm text-red-800">{error}</p>
             </div>
           )}
 
-          <div className={`flex-1 overflow-y-auto ${isMobile ? 'px-0' : ''}`}>
-            {step === 'form' && renderFormStepContent()}
-            {step === 'conflict-resolution' && renderConflictResolutionStepContent()}
-            {step === 'confirm' && renderConfirmStepContent()}
-          </div>
-
-          <div className={`flex-shrink-0 ${isMobile ? 'px-4' : ''}`} style={isMobile ? { paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' } : undefined}>
-            {step === 'form' && renderFormStepFooter()}
-            {step === 'conflict-resolution' && renderConflictResolutionStepFooter()}
-            {step === 'confirm' && renderConfirmStepFooter()}
-          </div>
-        </div>
+          {step === 'form' && renderFormStepContent()}
+          {step === 'conflict-resolution' && renderConflictResolutionStepContent()}
+          {step === 'confirm' && renderConfirmStepContent()}
+        </ModalBody>
+        {step === 'form' && renderFormStepFooter()}
+        {step === 'conflict-resolution' && renderConflictResolutionStepFooter()}
+        {step === 'confirm' && renderConfirmStepFooter()}
       </BaseModal>
 
       {/* Service Item Selection Modal */}

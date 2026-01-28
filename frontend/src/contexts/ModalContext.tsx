@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, ReactNode, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { BaseModal } from '../components/shared/BaseModal';
+import { ModalHeader, ModalBody, ModalFooter } from '../components/shared/ModalParts';
 import { Z_INDEX } from '../constants/app';
 
 interface ModalState {
@@ -109,37 +110,37 @@ const ModalDialog: React.FC<ModalDialogProps> = ({ modal, onClose }) => {
       onClose={handleClose}
       zIndex={Z_INDEX.DIALOG}
       aria-label={modal.title || (modal.type === 'alert' ? t('modal.alert') : t('modal.confirm'))}
+      showCloseButton={false}
     >
-      {modal.title && (
-        <h3 className="text-lg font-semibold text-gray-900 mb-2">
-          {modal.title}
-        </h3>
-      )}
-
-      <p className="text-gray-700 mb-6 whitespace-pre-line">
-        {typeof modal.message === 'string'
-          ? modal.message
-          : JSON.stringify(modal.message, null, 2)}
-      </p>
-
-      <div className="flex justify-end space-x-3">
+      <ModalHeader
+        title={modal.title || (modal.type === 'alert' ? t('modal.alert') : t('modal.confirm'))}
+        showClose
+        onClose={handleClose}
+      />
+      <ModalBody>
+        <p className="text-gray-700 whitespace-pre-line">
+          {typeof modal.message === 'string'
+            ? modal.message
+            : JSON.stringify(modal.message, null, 2)}
+        </p>
+      </ModalBody>
+      <ModalFooter>
         {modal.type === 'confirm' && modal.onCancel && (
           <button
             onClick={modal.onCancel}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+            className="btn-secondary"
           >
             {t('common.cancel')}
           </button>
         )}
-
         <button
           onClick={modal.onConfirm}
-          className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          className="btn-primary"
           autoFocus
         >
           {modal.type === 'alert' ? t('common.ok') : t('common.confirm')}
         </button>
-      </div>
+      </ModalFooter>
     </BaseModal>
   );
 };

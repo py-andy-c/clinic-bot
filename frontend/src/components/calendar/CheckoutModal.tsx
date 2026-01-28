@@ -6,6 +6,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { BaseModal } from './BaseModal';
+import { ModalHeader, ModalBody, ModalFooter } from '../shared/ModalParts';
 import { ServiceItemSelectionModal } from './ServiceItemSelectionModal';
 import { apiService } from '../../services/api';
 import { getErrorMessage } from '../../types/api';
@@ -605,12 +606,12 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     <BaseModal
       onClose={onClose}
       aria-label="結帳"
+      showCloseButton={false}
     >
-      <div className="space-y-4">
-        <h3 className="text-lg font-semibold">結帳</h3>
-        
+      <ModalHeader title="結帳" showClose onClose={onClose} />
+      <ModalBody>
         {error && (
-          <div className="bg-red-50 border border-red-200 rounded-md p-3">
+          <div className="bg-red-50 border border-red-200 rounded-md p-3 mb-4">
             <p className="text-sm text-red-800">{error}</p>
           </div>
         )}
@@ -944,26 +945,26 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           </select>
         </div>
 
-        {/* Actions */}
-        <div className="flex justify-end space-x-2 mt-6">
-          <button
-            type="button"
-            onClick={onClose}
-            className="btn-secondary"
-            disabled={isLoading}
-          >
-            取消
-          </button>
-          <button
-            type="button"
-            onClick={handleCheckout}
-            className="btn-primary"
-            disabled={isLoading}
-          >
-            {isLoading ? '處理中...' : '結帳'}
-          </button>
-        </div>
-      </div>
+      </ModalBody>
+
+      <ModalFooter>
+        <button
+          type="button"
+          onClick={onClose}
+          className="btn-secondary"
+          disabled={isLoading}
+        >
+          取消
+        </button>
+        <button
+          type="button"
+          onClick={handleCheckout}
+          className="btn-primary"
+          disabled={isLoading}
+        >
+          {isLoading ? '處理中...' : '結帳'}
+        </button>
+      </ModalFooter>
 
       {/* Service Item Selection Modal */}
       <ServiceItemSelectionModal

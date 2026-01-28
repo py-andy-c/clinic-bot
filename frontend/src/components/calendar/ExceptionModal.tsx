@@ -6,6 +6,7 @@
 
 import React from 'react';
 import { BaseModal } from './BaseModal';
+import { ModalHeader, ModalBody, ModalFooter } from '../shared/ModalParts';
 import { TimeInput } from '../shared/TimeInput';
 
 export interface ExceptionData {
@@ -38,10 +39,10 @@ export const ExceptionModal: React.FC<ExceptionModalProps> = React.memo(({
     <BaseModal
       onClose={onClose}
       aria-label="新增休診時段"
+      showCloseButton={false}
     >
-        <div className="mb-4">
-          <h3 className="text-lg font-semibold">新增休診時段</h3>
-        </div>
+      <ModalHeader title="新增休診時段" showClose onClose={onClose} />
+      <ModalBody>
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -121,16 +122,21 @@ export const ExceptionModal: React.FC<ExceptionModalProps> = React.memo(({
             />
           </div>
         </div>
-        <div className="flex justify-end mt-6">
-          <button
-            onClick={() => {
-              onCreate();
-            }}
-            className="btn-primary w-full sm:w-auto"
-          >
-            儲存休診時段
-          </button>
-        </div>
+      </ModalBody>
+      <ModalFooter>
+        <button
+          onClick={onClose}
+          className="btn-secondary"
+        >
+          取消
+        </button>
+        <button
+          onClick={onCreate}
+          className="btn-primary"
+        >
+          儲存休診時段
+        </button>
+      </ModalFooter>
     </BaseModal>
   );
 });

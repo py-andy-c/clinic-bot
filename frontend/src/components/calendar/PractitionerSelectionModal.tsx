@@ -7,6 +7,7 @@
 
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { BaseModal } from '../shared/BaseModal';
+import { ModalHeader, ModalBody } from '../shared/ModalParts';
 import { useDebounce } from '../../hooks/useDebounce';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { SchedulingConflictResponse } from '../../types';
@@ -137,70 +138,60 @@ export const PractitionerSelectionModal: React.FC<PractitionerSelectionModalProp
     <BaseModal
       onClose={onClose}
       fullScreen={isMobile}
-      className={isMobile ? '!p-0' : '!p-0 max-w-md'}
       aria-label={title}
+      showCloseButton={false}
     >
-      <div className="flex flex-col h-full">
-        {/* Header */}
-        <div className="pt-6 pb-4 border-b border-gray-200 flex-shrink-0">
-          <h2 className="text-lg font-semibold text-gray-900 px-6">{title}</h2>
-        </div>
-
-        {/* Search Bar - Removed as per requirements */}
-        {/* Content will be added here if search is needed later */}
-
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto py-2">
-          {!isLoadingConflicts && filteredPractitioners.length === 0 && debouncedSearchQuery.trim() ? (
-            <div className="py-16 text-center text-gray-500 text-sm">
-              找不到符合的治療師
-            </div>
-          ) : !isLoadingConflicts && filteredPractitioners.length === 0 ? (
-            <div className="py-16 text-center text-gray-500 text-sm">
-              目前沒有可用的治療師
-            </div>
-          ) : (
-            <div className="py-2">
-              {filteredPractitioners.map((practitioner) => (
-                <button
-                  key={practitioner.id}
-                  type="button"
-                  onClick={() => handlePractitionerSelect(practitioner.id)}
-                  className={`w-full py-3.5 text-left hover:bg-gray-50 border-b border-gray-100 transition-colors px-6 ${isSelected(practitioner) ? 'bg-blue-50 border-blue-200' : ''
-                    }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-sm text-gray-900">{practitioner.full_name}</span>
-                      {isAssigned(practitioner) && (
-                        <span className="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-medium">
-                          {t('practitioner.assignedPractitioner')}
-                        </span>
-                      )}
-                      {isOriginal(practitioner) && (
-                        <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium">
-                          原
-                        </span>
-                      )}
-                      {isSelected(practitioner) && (
-                        <span className="text-xs bg-blue-600 text-white px-2 py-0.5 rounded font-medium ml-2">
-                          已選擇
-                        </span>
-                      )}
-                    </div>
-                    {/* Conflict type label */}
-                    {!isLoadingConflicts && practitionerConflicts[practitioner.id] && (
-                      <PractitionerConflictLabel
-                        conflictInfo={practitionerConflicts[practitioner.id]}
-                      />
+      <ModalHeader title={title} showClose onClose={onClose} />
+      <ModalBody className="py-2">
+        {!isLoadingConflicts && filteredPractitioners.length === 0 && debouncedSearchQuery.trim() ? (
+          <div className="py-16 text-center text-gray-500 text-sm">
+            找不到符合的治療師
+          </div>
+        ) : !isLoadingConflicts && filteredPractitioners.length === 0 ? (
+          <div className="py-16 text-center text-gray-500 text-sm">
+            目前沒有可用的治療師
+          </div>
+        ) : (
+          <div className="py-2">
+            {filteredPractitioners.map((practitioner) => (
+              <button
+                key={practitioner.id}
+                type="button"
+                onClick={() => handlePractitionerSelect(practitioner.id)}
+                className={`w-full py-3.5 text-left hover:bg-gray-50 border-b border-gray-100 transition-colors px-6 ${isSelected(practitioner) ? 'bg-blue-50 border-blue-200' : ''
+                  }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-sm text-gray-900">{practitioner.full_name}</span>
+                    {isAssigned(practitioner) && (
+                      <span className="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-medium">
+                        {t('practitioner.assignedPractitioner')}
+                      </span>
+                    )}
+                    {isOriginal(practitioner) && (
+                      <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium">
+                        原
+                      </span>
+                    )}
+                    {isSelected(practitioner) && (
+                      <span className="text-xs bg-primary-600 text-white px-2 py-0.5 rounded font-medium ml-2">
+                        已選擇
+                      </span>
                     )}
                   </div>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
+                  {/* Conflict type label */}
+                  {!isLoadingConflicts && practitionerConflicts[practitioner.id] && (
+                    <PractitionerConflictLabel
+                      conflictInfo={practitionerConflicts[practitioner.id]}
+                    />
+                  )}
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </ModalBody>
     </BaseModal>
   );
 };

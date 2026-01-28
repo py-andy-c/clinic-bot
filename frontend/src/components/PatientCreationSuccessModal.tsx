@@ -2,6 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BaseModal } from './shared/BaseModal';
 import { Button } from './shared/Button';
+import { ModalHeader, ModalBody, ModalFooter } from './shared/ModalParts';
 import { logger } from '../utils/logger';
 
 export interface PatientCreationSuccessModalProps {
@@ -60,20 +61,20 @@ export const PatientCreationSuccessModal: React.FC<PatientCreationSuccessModalPr
   if (!isOpen) return null;
 
   return (
-    <BaseModal onClose={onClose} aria-label="病患已成功建立" className="max-w-md">
-      <div className="text-center space-y-6 py-4">
-        {/* Success Icon */}
-        <div className="flex justify-center">
-          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
-            <svg className="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
+    <BaseModal onClose={onClose} aria-label="病患已成功建立" className="max-w-md" showCloseButton={false}>
+      <ModalHeader title="病患已成功建立" showClose onClose={onClose} />
+      <ModalBody>
+        <div className="text-center space-y-6 pt-2 pb-4">
+          {/* Success Icon */}
+          <div className="flex justify-center">
+            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
+              <svg className="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
           </div>
-        </div>
 
-        {/* Success Message */}
-        <div className="space-y-2">
-          <p className="text-lg font-medium text-gray-900 mb-3">病患已成功建立</p>
+          {/* Success Info */}
           <div className="text-left bg-gray-50 rounded-md p-4 space-y-2">
             <div>
               <span className="text-sm font-medium text-gray-700">姓名：</span>
@@ -93,18 +94,16 @@ export const PatientCreationSuccessModal: React.FC<PatientCreationSuccessModalPr
             )}
           </div>
         </div>
-
-        {/* Action Button */}
-        <div className="pt-4">
-          <Button
-            variant="primary"
-            onClick={handleCreateAppointment}
-            className="w-full"
-          >
-            新增預約
-          </Button>
-        </div>
-      </div>
+      </ModalBody>
+      <ModalFooter>
+        <Button
+          variant="primary"
+          onClick={handleCreateAppointment}
+          className="w-full"
+        >
+          新增預約
+        </Button>
+      </ModalFooter>
     </BaseModal>
   );
 };

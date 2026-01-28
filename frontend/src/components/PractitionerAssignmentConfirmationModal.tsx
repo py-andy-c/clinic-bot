@@ -1,5 +1,6 @@
 import React from 'react';
 import { BaseModal } from './shared/BaseModal';
+import { ModalHeader, ModalBody, ModalFooter } from './shared/ModalParts';
 import { useModalQueue } from '../contexts/ModalQueueContext';
 
 interface PractitionerAssignmentConfirmationModalProps {
@@ -45,38 +46,38 @@ export const PractitionerAssignmentConfirmationModal: React.FC<PractitionerAssig
       onClose={handleClose}
       aria-label="負責人員確認"
       closeOnOverlayClick={false}
-      showCloseButton={true}
+      showCloseButton={false}
     >
-      <div className="space-y-4">
-        <h2 className="text-lg font-semibold text-gray-900">
-          負責人員已更新
-        </h2>
-        {displayedPractitioners.length > 0 ? (
-          <div>
-            <p className="text-sm text-gray-700 mb-2">此病患的負責人員：</p>
-            <ul className="list-disc list-inside space-y-1">
-              {displayedPractitioners.map((p) => (
-                <li key={p.id} className="text-sm text-gray-900">
-                  {p.full_name}
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : (
-          <p className="text-sm text-gray-700">
-            已將此治療師設為負責人員。
-          </p>
-        )}
-        <div className="flex justify-end pt-4">
-          <button
-            onClick={handleClose}
-            className="px-4 py-2 bg-primary-600 text-white rounded-md text-sm font-medium hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-            type="button"
-          >
-            確定
-          </button>
+      <ModalHeader title="負責人員已更新" showClose onClose={handleClose} />
+      <ModalBody>
+        <div className="space-y-4">
+          {displayedPractitioners.length > 0 ? (
+            <div>
+              <p className="text-sm text-gray-700 mb-2">此病患的負責人員：</p>
+              <ul className="list-disc list-inside space-y-1">
+                {displayedPractitioners.map((p) => (
+                  <li key={p.id} className="text-sm text-gray-900">
+                    {p.full_name}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : (
+            <p className="text-sm text-gray-700">
+              已將此治療師設為負責人員。
+            </p>
+          )}
         </div>
-      </div>
+      </ModalBody>
+      <ModalFooter>
+        <button
+          onClick={handleClose}
+          className="btn-primary"
+          type="button"
+        >
+          確定
+        </button>
+      </ModalFooter>
     </BaseModal>
   );
 };

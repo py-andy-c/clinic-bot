@@ -269,8 +269,10 @@ const SettingsAppointmentsPage: React.FC = () => {
                     onClose={() => setShowLiffInfoModal(false)}
                     aria-label="預約系統連結設定說明"
                 >
-                    <div className="p-6">
-                        <h3 className="text-lg font-semibold text-gray-900 mb-4">預約系統連結設定步驟</h3>
+                    <div className="px-6 py-4 border-b">
+                        <h3 className="text-lg font-semibold text-gray-900">預約系統連結設定步驟</h3>
+                    </div>
+                    <div className="px-6 py-4">
                         <div className="text-sm text-gray-700 space-y-4">
                             <p>請將上述連結加入您的 LINE 官方帳號圖文選單，讓病患可以透過選單使用各項功能：</p>
                             <ol className="list-decimal list-inside space-y-2">
@@ -281,15 +283,15 @@ const SettingsAppointmentsPage: React.FC = () => {
                                 <li>儲存並發布選單</li>
                             </ol>
                         </div>
-                        <div className="mt-6 flex justify-end">
-                            <button
-                                type="button"
-                                onClick={() => setShowLiffInfoModal(false)}
-                                className="btn-primary"
-                            >
-                                關閉
-                            </button>
-                        </div>
+                    </div>
+                    <div className="px-6 py-4 border-t flex justify-end">
+                        <button
+                            type="button"
+                            onClick={() => setShowLiffInfoModal(false)}
+                            className="btn-primary"
+                        >
+                            關閉
+                        </button>
                     </div>
                 </BaseModal>
             )}

@@ -7,6 +7,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { BaseModal } from './BaseModal';
+import { ModalHeader, ModalBody } from '../shared/ModalParts';
 import { apiService } from '../../services/api';
 import { logger } from '../../utils/logger';
 import { formatCurrency as formatCurrencyUtil } from '../../utils/currencyUtils';
@@ -89,35 +90,36 @@ export const ReceiptListModal: React.FC<ReceiptListModalProps> = ({
 
   if (isLoading) {
     return (
-      <BaseModal onClose={onClose} aria-label="收據列表">
-        <div className="p-6 text-center">
-          <p>載入中...</p>
-        </div>
+      <BaseModal onClose={onClose} aria-label="收據列表" showCloseButton={false}>
+        <ModalHeader title="收據列表" showClose onClose={onClose} />
+        <ModalBody>
+          <div className="text-center py-8">載入中...</div>
+        </ModalBody>
       </BaseModal>
     );
   }
 
   if (error) {
     return (
-      <BaseModal onClose={onClose} aria-label="收據列表">
-        <div className="p-6">
+      <BaseModal onClose={onClose} aria-label="收據列表" showCloseButton={false}>
+        <ModalHeader title="收據列表" showClose onClose={onClose} />
+        <ModalBody>
           <div className="bg-red-50 border border-red-200 rounded-md p-3">
             <p className="text-sm text-red-800">{error}</p>
           </div>
-        </div>
+        </ModalBody>
       </BaseModal>
     );
   }
 
   return (
-    <BaseModal onClose={onClose} aria-label="收據列表">
-      <div className="space-y-4">
-        <h3 className="text-lg font-semibold">收據列表</h3>
-        <p className="text-sm text-gray-600">
+    <BaseModal onClose={onClose} aria-label="收據列表" showCloseButton={false}>
+      <ModalHeader title="收據列表" showClose onClose={onClose} />
+      <ModalBody>
+        <p className="text-sm text-gray-600 mb-3">
           此預約共有 {receipts.length} 張收據，請選擇要查看的收據：
         </p>
-
-        <div className="space-y-2 max-h-96 overflow-y-auto">
+        <div className="space-y-2">
           {receipts.map((receipt) => (
             <button
               key={receipt.receipt_id}
@@ -171,8 +173,7 @@ export const ReceiptListModal: React.FC<ReceiptListModalProps> = ({
             </button>
           ))}
         </div>
-
-      </div>
+      </ModalBody>
     </BaseModal>
   );
 };

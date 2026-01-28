@@ -7,6 +7,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { BaseModal } from './BaseModal';
+import { ModalHeader, ModalBody, ModalFooter } from '../shared/ModalParts';
 import { ServiceItemSelectionModal } from './ServiceItemSelectionModal';
 import { DateTimePicker } from './DateTimePicker';
 import { CalendarEvent } from '../../utils/calendarDataAdapter';
@@ -999,19 +1000,18 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
   };
 
   const renderFormStepFooter = () => (
-    <div className="flex justify-end items-center space-x-2 pt-4 border-t border-gray-200 flex-shrink-0">
-      <ConflictWarningButton conflictInfo={conflictInfo} />
-      <button
-        onClick={handleFormSubmit}
-        disabled={!isValid || isInitialLoading}
-        className={`btn-primary ${(!isValid || isInitialLoading)
-          ? 'opacity-50 cursor-not-allowed'
-          : ''
-          }`}
-      >
-        {formSubmitButtonText}
-      </button>
-    </div>
+    <ModalFooter>
+      <div className="flex items-center space-x-2">
+        <ConflictWarningButton conflictInfo={conflictInfo} />
+        <button
+          onClick={handleFormSubmit}
+          disabled={!isValid || isInitialLoading}
+          className="btn-primary"
+        >
+          {formSubmitButtonText}
+        </button>
+      </div>
+    </ModalFooter>
   );
 
   // Render review step content (without buttons)
@@ -1109,13 +1109,12 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
     );
   };
 
-  // Render review step footer buttons
   const renderReviewStepFooter = () => {
     const isFinalStep = !hasLineUser || (originallyAutoAssigned && !changeDetails.timeChanged);
     const reviewButtonText = isFinalStep ? saveButtonText : '下一步';
 
     return (
-      <div className="flex justify-end space-x-2 pt-4 border-t border-gray-200 flex-shrink-0">
+      <ModalFooter>
         <button
           onClick={() => {
             setStep('form');
@@ -1131,7 +1130,7 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
         >
           {reviewButtonText}
         </button>
-      </div>
+      </ModalFooter>
     );
   };
 
@@ -1154,9 +1153,8 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
     </div>
   );
 
-  // Render note step footer buttons
   const renderNoteStepFooter = () => (
-    <div className="flex justify-end space-x-2 pt-4 border-t border-gray-200 flex-shrink-0">
+    <ModalFooter>
       <button
         onClick={() => {
           setStep('form');
@@ -1173,7 +1171,7 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
       >
         {isLoadingPreview ? '產生預覽中...' : '下一步'}
       </button>
-    </div>
+    </ModalFooter>
   );
 
   // Render preview step content (without buttons)
@@ -1234,9 +1232,8 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
     </div>
   );
 
-  // Render preview step footer buttons
   const renderPreviewStepFooter = () => (
-    <div className="flex justify-end space-x-2 pt-4 border-t border-gray-200 flex-shrink-0">
+    <ModalFooter>
       <button
         onClick={() => {
           setStep('note');
@@ -1254,7 +1251,7 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
       >
         {isSaving ? '儲存中...' : saveButtonText}
       </button>
-    </div>
+    </ModalFooter>
   );
 
   const modalTitle = step === 'form' ? (isTimeConfirmation ? '確認預約時段' : '調整預約') : step === 'review' ? '確認變更' : step === 'note' ? '調整預約備註(選填)' : 'LINE訊息預覽';
@@ -1264,50 +1261,31 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
       <BaseModal
         onClose={onClose}
         aria-label={modalTitle}
-        className="!p-0"
+        showCloseButton={false}
         fullScreen={isMobile}
       >
-        <div className={`flex flex-col h-full ${isMobile ? 'px-4 pt-4 pb-0' : 'px-6 pt-6 pb-6'}`}>
-          {/* Header */}
-          <div className="flex items-center mb-4 flex-shrink-0">
-            <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center mr-2">
-              <svg className="w-4 h-4 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
-              </svg>
-            </div>
-            <h3 className="text-base font-semibold text-blue-800">
-              {modalTitle}
-            </h3>
-          </div>
+        <ModalHeader title={modalTitle} showClose onClose={onClose} />
 
-          {/* Error messages */}
-          {(error || externalErrorMessage) && (
-            <div className="mb-4 bg-red-50 border border-red-200 rounded-md p-3 flex-shrink-0">
-              <p className="text-sm text-red-800">{error || externalErrorMessage}</p>
-            </div>
-          )}
-
-          {/* Scrollable content area */}
-          <div className={`flex-1 overflow-y-auto ${isMobile ? 'px-0' : ''}`}>
-            {step === 'form' && renderFormStepContent()}
-            {step === 'review' && renderReviewStepContent()}
-            {step === 'note' && renderNoteStepContent()}
-            {step === 'preview' && renderPreviewStepContent()}
+        {/* Error messages */}
+        {(error || externalErrorMessage) && (
+          <div className="px-6 py-3 bg-red-50 border-b border-red-200 flex-shrink-0">
+            <p className="text-sm text-red-800">{error || externalErrorMessage}</p>
           </div>
+        )}
 
-          {/* Footer with buttons - always visible at bottom */}
-          <div
-            className={`flex-shrink-0 ${isMobile ? 'px-4' : ''}`}
-            style={isMobile ? {
-              paddingBottom: 'max(1rem, env(safe-area-inset-bottom))',
-            } : undefined}
-          >
-            {step === 'form' && renderFormStepFooter()}
-            {step === 'review' && renderReviewStepFooter()}
-            {step === 'note' && renderNoteStepFooter()}
-            {step === 'preview' && renderPreviewStepFooter()}
-          </div>
-        </div>
+        {/* Scrollable content area */}
+        <ModalBody>
+          {step === 'form' && renderFormStepContent()}
+          {step === 'review' && renderReviewStepContent()}
+          {step === 'note' && renderNoteStepContent()}
+          {step === 'preview' && renderPreviewStepContent()}
+        </ModalBody>
+
+        {/* Footer with buttons - always visible at bottom */}
+        {step === 'form' && renderFormStepFooter()}
+        {step === 'review' && renderReviewStepFooter()}
+        {step === 'note' && renderNoteStepFooter()}
+        {step === 'preview' && renderPreviewStepFooter()}
       </BaseModal>
 
       {/* Service Item Selection Modal */}

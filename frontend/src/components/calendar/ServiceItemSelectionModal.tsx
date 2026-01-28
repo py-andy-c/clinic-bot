@@ -7,6 +7,7 @@
 
 import React, { useState, useMemo, useCallback } from 'react';
 import { BaseModal } from '../shared/BaseModal';
+import { ModalHeader, ModalBody } from '../shared/ModalParts';
 import { SearchInput } from '../shared/SearchInput';
 import { useDebounce } from '../../hooks/useDebounce';
 import { useIsMobile } from '../../hooks/useIsMobile';
@@ -152,125 +153,56 @@ export const ServiceItemSelectionModal: React.FC<ServiceItemSelectionModalProps>
     <BaseModal
       onClose={onClose}
       fullScreen={isMobile}
-      className={isMobile ? '!p-0' : '!p-0 max-w-md'}
       aria-label={title}
+      showCloseButton={false}
     >
-      <div className="flex flex-col h-full">
-        {/* Header */}
-        <div className="px-6 pt-6 pb-4 border-b border-gray-200 flex-shrink-0">
-          <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
-        </div>
+      <ModalHeader title={title} showClose onClose={onClose} />
 
-        {/* Search Bar */}
-        <div className="px-6 py-4 border-b border-gray-200 flex-shrink-0">
-          <SearchInput
-            value={searchQuery}
-            onChange={setSearchQuery}
-            placeholder="搜尋"
-            className="w-full"
-          />
-        </div>
+      {/* Search Bar */}
+      <div className="px-6 py-4 border-b border-gray-200 flex-shrink-0">
+        <SearchInput
+          value={searchQuery}
+          onChange={setSearchQuery}
+          placeholder="搜尋"
+          className="w-full"
+        />
+      </div>
 
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto py-2">
-          {!hasAnyVisibleGroups && debouncedSearchQuery.trim() ? (
-            <div className="py-16 text-center text-gray-500 text-sm">
-              找不到符合的項目
-            </div>
-          ) : !hasAnyVisibleGroups ? (
-            <div className="py-16 text-center text-gray-500 text-sm">
-              目前沒有服務項目
-            </div>
-          ) : (
-            <div className="py-2">
-              {/* Regular groups */}
-              {sortedGroups.map(group => {
-                if (!shouldShowGroup(group.id)) return null;
+      {/* Content */}
+      <ModalBody className="py-2">
+        {!hasAnyVisibleGroups && debouncedSearchQuery.trim() ? (
+          <div className="py-16 text-center text-gray-500 text-sm">
+            找不到符合的項目
+          </div>
+        ) : !hasAnyVisibleGroups ? (
+          <div className="py-16 text-center text-gray-500 text-sm">
+            目前沒有服務項目
+          </div>
+        ) : (
+          <div className="py-2">
+            {/* Regular groups */}
+            {sortedGroups.map(group => {
+              if (!shouldShowGroup(group.id)) return null;
 
-                const items = filteredItems[group.id] ?? [];
-                const isExpanded = expandedGroups.has(group.id);
+              const items = filteredItems[group.id] ?? [];
+              const isExpanded = expandedGroups.has(group.id);
 
-                return (
-                  <div key={group.id} className="border-b border-gray-200">
-                    {/* Group Header */}
-                    <button
-                      type="button"
-                      onClick={() => toggleGroup(group.id)}
-                      className="w-full px-6 py-3.5 bg-gray-50 hover:bg-gray-100 border-b border-gray-200 flex items-center justify-between transition-colors"
-                    >
-                      <div className="flex items-center gap-2.5">
-                        <span className="text-sm font-semibold text-gray-900">{group.name}</span>
-                        <span className="text-xs text-gray-500 bg-gray-200 px-2 py-0.5 rounded-full font-medium">
-                          {items.length}項
-                        </span>
-                      </div>
-                      <svg
-                        className={`w-[18px] h-[18px] text-gray-600 transition-transform ${isExpanded ? '' : '-rotate-90'}`}
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M19 9l-7 7-7-7"
-                        />
-                      </svg>
-                    </button>
-
-                    {/* Group Items */}
-                    {isExpanded && (
-                      <div className="bg-white">
-                        {items.map(item => (
-                          <button
-                            key={item.id}
-                            type="button"
-                            onClick={() => handleItemSelect(item.id)}
-                            className="w-full px-6 py-3.5 pl-8 text-left hover:bg-gray-50 border-b border-gray-100 last:border-b-0 transition-colors"
-                          >
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-sm text-gray-900">{item.name}</span>
-                              {item.duration_minutes && (
-                                <span className="text-xs text-gray-500">
-                                  ({item.duration_minutes}分鐘)
-                                </span>
-                              )}
-                              {isOriginalSelection(item) && (
-                                <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium">
-                                  原
-                                </span>
-                              )}
-                              {practitionerAppointmentTypeIds && !practitionerAppointmentTypeIds.includes(item.id) && (
-                                <span className="text-xs text-red-600 font-medium ml-1">
-                                  ⚠️ 治療師不提供
-                                </span>
-                              )}
-                            </div>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-
-              {/* "其他" Group */}
-              {shouldShowOtherGroup && (
-                <div className="border-b border-gray-200">
+              return (
+                <div key={group.id} className="border-b border-gray-200">
+                  {/* Group Header */}
                   <button
                     type="button"
-                    onClick={() => toggleGroup('other')}
+                    onClick={() => toggleGroup(group.id)}
                     className="w-full px-6 py-3.5 bg-gray-50 hover:bg-gray-100 border-b border-gray-200 flex items-center justify-between transition-colors"
                   >
                     <div className="flex items-center gap-2.5">
-                      <span className="text-sm font-semibold text-gray-900">其他</span>
+                      <span className="text-sm font-semibold text-gray-900">{group.name}</span>
                       <span className="text-xs text-gray-500 bg-gray-200 px-2 py-0.5 rounded-full font-medium">
-                        {filteredItems['other']?.length ?? 0}項
+                        {items.length}項
                       </span>
                     </div>
                     <svg
-                      className={`w-[18px] h-[18px] text-gray-600 transition-transform ${expandedGroups.has('other') ? '' : '-rotate-90'}`}
+                      className={`w-[18px] h-[18px] text-gray-600 transition-transform ${isExpanded ? '' : '-rotate-90'}`}
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
@@ -284,9 +216,10 @@ export const ServiceItemSelectionModal: React.FC<ServiceItemSelectionModalProps>
                     </svg>
                   </button>
 
-                  {expandedGroups.has('other') && (
+                  {/* Group Items */}
+                  {isExpanded && (
                     <div className="bg-white">
-                      {(filteredItems['other'] ?? []).map(item => (
+                      {items.map(item => (
                         <button
                           key={item.id}
                           type="button"
@@ -316,24 +249,87 @@ export const ServiceItemSelectionModal: React.FC<ServiceItemSelectionModalProps>
                     </div>
                   )}
                 </div>
-              )}
+              );
+            })}
 
-              {/* Custom "其他" Option (CheckoutModal only) */}
-              {showCustomOtherOption && (
-                <div className="border-b border-gray-200">
-                  <button
-                    type="button"
-                    onClick={() => handleItemSelect(undefined)}
-                    className="w-full px-6 py-3.5 text-left hover:bg-gray-50 transition-colors"
+            {/* "其他" Group */}
+            {shouldShowOtherGroup && (
+              <div className="border-b border-gray-200">
+                <button
+                  type="button"
+                  onClick={() => toggleGroup('other')}
+                  className="w-full px-6 py-3.5 bg-gray-50 hover:bg-gray-100 border-b border-gray-200 flex items-center justify-between transition-colors"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-sm font-semibold text-gray-900">其他</span>
+                    <span className="text-xs text-gray-500 bg-gray-200 px-2 py-0.5 rounded-full font-medium">
+                      {filteredItems['other']?.length ?? 0}項
+                    </span>
+                  </div>
+                  <svg
+                    className={`w-[18px] h-[18px] text-gray-600 transition-transform ${expandedGroups.has('other') ? '' : '-rotate-90'}`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
                   >
-                    <span className="text-sm text-gray-900">其他</span>
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M19 9l-7 7-7-7"
+                    />
+                  </svg>
+                </button>
+
+                {expandedGroups.has('other') && (
+                  <div className="bg-white">
+                    {(filteredItems['other'] ?? []).map(item => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => handleItemSelect(item.id)}
+                        className="w-full px-6 py-3.5 pl-8 text-left hover:bg-gray-50 border-b border-gray-100 last:border-b-0 transition-colors"
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-sm text-gray-900">{item.name}</span>
+                          {item.duration_minutes && (
+                            <span className="text-xs text-gray-500">
+                              ({item.duration_minutes}分鐘)
+                            </span>
+                          )}
+                          {isOriginalSelection(item) && (
+                            <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium">
+                              原
+                            </span>
+                          )}
+                          {practitionerAppointmentTypeIds && !practitionerAppointmentTypeIds.includes(item.id) && (
+                            <span className="text-xs text-red-600 font-medium ml-1">
+                              ⚠️ 治療師不提供
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Custom "其他" Option (CheckoutModal only) */}
+            {showCustomOtherOption && (
+              <div className="border-b border-gray-200">
+                <button
+                  type="button"
+                  onClick={() => handleItemSelect(undefined)}
+                  className="w-full px-6 py-3.5 text-left hover:bg-gray-50 transition-colors"
+                >
+                  <span className="text-sm text-gray-900">其他</span>
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </ModalBody>
     </BaseModal>
   );
 };
