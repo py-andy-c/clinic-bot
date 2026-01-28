@@ -73,6 +73,10 @@ const SettingsServiceItemsPage: React.FC = () => {
   const groups = useMemo(() => groupsData?.groups || [], [groupsData]);
   const availableGroups = groups;
   const practitioners = useMemo(() => practitionersData || [], [practitionersData]);
+  const activePractitionerMembers = useMemo(() =>
+    (members || []).filter(m => m.is_active && m.roles.includes('practitioner')),
+    [members]
+  );
 
   const practitionerAssignments = useMemo(() => {
     const assignments: Record<number, number[]> = {};
@@ -459,7 +463,7 @@ const SettingsServiceItemsPage: React.FC = () => {
           serviceItemId={editingItemId}
           isOpen={editingItemId !== undefined}
           onClose={handleCloseEditModal}
-          members={members || []}
+          members={activePractitionerMembers}
           isClinicAdmin={isClinicAdmin}
           availableGroups={availableGroups}
           existingNames={serviceItems.map(item => item.name)}
