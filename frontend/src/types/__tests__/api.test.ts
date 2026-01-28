@@ -56,7 +56,7 @@ describe('API Types and Utilities', () => {
 
     it('should extract message from standard Error object', () => {
       const error = new Error('Network timeout');
-      expect(getErrorMessage(error)).toBe('Network timeout');
+      expect(getErrorMessage(error)).toBe('請求逾時，請稍後再試');
     });
 
     it('should extract message from ApiError interface', () => {
@@ -81,7 +81,7 @@ describe('API Types and Utilities', () => {
         message: 'Network Error'
       };
 
-      expect(getErrorMessage(error)).toBe('Network Error');
+      expect(getErrorMessage(error)).toBe('網路連線異常，請檢查網路狀況');
     });
   });
 

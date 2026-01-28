@@ -10403,15 +10403,18 @@ export function getErrorMessage(error: ApiErrorType): string {
       }
     }
 
-    // 2. Handle object with message field (e.g. from our services)
+    // 2. Try pattern matching for common error types BEFORE generic message check
+    const errorMessage = (error as any).message;
+    const patternMessage = getPatternMessage(errorMessage);
+    if (patternMessage) {
+      return patternMessage;
+    }
+
+    // 3. Handle object with message field (e.g. from our services) - AFTER pattern matching
     if ('message' in errObj && typeof errObj.message === 'string' && !errObj.message.includes('status code')) {
       return errObj.message;
     }
   }
-
-  // 3. Try pattern matching for common error types
-  const patternMessage = getPatternMessage((error as any).message);
-  if (patternMessage) return patternMessage;
 
   // 4. Fall back to HTTP status code mapping
   const status = (error as any).response?.status;

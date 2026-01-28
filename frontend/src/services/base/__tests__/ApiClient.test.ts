@@ -134,7 +134,7 @@ describe('ApiClient', () => {
       const networkError = new Error('Network Error');
       mockAxiosInstance.get.mockRejectedValue(networkError);
 
-      await expect((apiClient as any).testGet()).rejects.toThrow('Network Error');
+      await expect((apiClient as any).testGet()).rejects.toThrow('網路連線異常，請檢查網路狀況');
     });
   });
 
