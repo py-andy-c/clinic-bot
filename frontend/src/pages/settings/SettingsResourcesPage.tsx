@@ -79,13 +79,15 @@ const SettingsResourcesPage: React.FC = () => {
                         resourceTypes.map((type: ResourceType) => (
                             <div
                                 key={type.id}
-                                className="p-4 md:p-6 flex items-center justify-between hover:bg-gray-50 transition-colors"
+                                className="p-4 md:p-6 flex items-center hover:bg-gray-50 transition-colors"
                             >
-                                <div className="flex items-center justify-between flex-1 mr-4">
+                                <div className="flex-1">
                                     <h3 className="text-lg font-semibold text-gray-900">{type.name}</h3>
+                                </div>
+                                <div className="flex-1 text-center">
                                     <span className="text-sm text-gray-500">{type.resource_count} 個資源</span>
                                 </div>
-                                <div className="flex items-center space-x-2">
+                                <div className="flex items-center space-x-2 justify-end flex-1">
                                     <button
                                         onClick={() => setEditingResourceType(type.id)}
                                         className="p-2 text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
