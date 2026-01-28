@@ -560,11 +560,12 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
 
   useEffect(() => {
     // Only clear if searchInput is empty AND it was previously initialized (either by prop or by auto-fill)
-    if (selectedPatientId && !searchInput.trim() && searchInputInitializedRef.current) {
+    // AND there's no pre-selected patient (don't clear if patient was pre-selected from props)
+    if (selectedPatientId && !searchInput.trim() && searchInputInitializedRef.current && !preSelectedPatientId) {
       setSelectedPatientId(null);
       searchInputInitializedRef.current = false;
     }
-  }, [searchInput, selectedPatientId, setSelectedPatientId]);
+  }, [searchInput, selectedPatientId, setSelectedPatientId, preSelectedPatientId]);
 
   useEffect(() => {
     if (preSelectedPatientData && selectedPatient && selectedPatient.id === preSelectedPatientData.id && patients.length > 0) {
