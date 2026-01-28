@@ -288,9 +288,10 @@ export const PatientAppointmentsList: React.FC<
   const handleDuplicateAppointment = useCallback(async () => {
     if (!selectedEvent) return;
 
-    // Security check: Ensure user has permission to duplicate this appointment
-    if (!canEditEvent(selectedEvent)) {
-      await alert("您只能複製自己的預約");
+    // Security check: Ensure user can duplicate this appointment
+    // All visible appointments can be duplicated (no ownership check needed)
+    if (!canDuplicateAppointment(selectedEvent)) {
+      await alert("無法複製此預約");
       return;
     }
 
