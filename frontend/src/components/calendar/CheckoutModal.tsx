@@ -606,7 +606,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     <BaseModal
       onClose={onClose}
       aria-label="結帳"
-      showCloseButton={false}
+     
     >
       <ModalHeader title="結帳" showClose onClose={onClose} />
       <ModalBody>

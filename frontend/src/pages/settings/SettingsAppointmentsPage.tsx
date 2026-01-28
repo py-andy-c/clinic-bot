@@ -7,6 +7,7 @@ import { useModal } from '../../contexts/ModalContext';
 import { logger } from '../../utils/logger';
 import { extractErrorMessage } from '../../utils/errorTracking';
 import { LoadingSpinner, BaseModal } from '../../components/shared';
+import { ModalHeader, ModalBody, ModalFooter } from '../../components/shared/ModalParts';
 import ClinicAppointmentSettings from '../../components/ClinicAppointmentSettings';
 import SettingsBackButton from '../../components/SettingsBackButton';
 import PageHeader from '../../components/PageHeader';
@@ -269,10 +270,8 @@ const SettingsAppointmentsPage: React.FC = () => {
                     onClose={() => setShowLiffInfoModal(false)}
                     aria-label="預約系統連結設定說明"
                 >
-                    <div className="px-6 py-4 border-b">
-                        <h3 className="text-lg font-semibold text-gray-900">預約系統連結設定步驟</h3>
-                    </div>
-                    <div className="px-6 py-4">
+                    <ModalHeader title="預約系統連結設定步驟" showClose onClose={() => setShowLiffInfoModal(false)} />
+                    <ModalBody>
                         <div className="text-sm text-gray-700 space-y-4">
                             <p>請將上述連結加入您的 LINE 官方帳號圖文選單，讓病患可以透過選單使用各項功能：</p>
                             <ol className="list-decimal list-inside space-y-2">
@@ -283,8 +282,8 @@ const SettingsAppointmentsPage: React.FC = () => {
                                 <li>儲存並發布選單</li>
                             </ol>
                         </div>
-                    </div>
-                    <div className="px-6 py-4 border-t flex justify-end">
+                    </ModalBody>
+                    <ModalFooter>
                         <button
                             type="button"
                             onClick={() => setShowLiffInfoModal(false)}
@@ -292,7 +291,7 @@ const SettingsAppointmentsPage: React.FC = () => {
                         >
                             關閉
                         </button>
-                    </div>
+                    </ModalFooter>
                 </BaseModal>
             )}
         </FormProvider>

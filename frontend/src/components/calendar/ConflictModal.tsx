@@ -31,7 +31,7 @@ export const ConflictModal: React.FC<ConflictModalProps> = React.memo(({
     <BaseModal
       onClose={onClose}
       aria-label="無法建立休診時段"
-      showCloseButton={false}
+     
     >
       <ModalHeader title="無法建立休診時段" showClose onClose={onClose} />
       <ModalBody>

@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { BaseModal } from '../shared/BaseModal';
+import { ModalHeader, ModalBody } from '../shared/ModalParts';
 
 interface MonthInfo {
   year: number;
@@ -210,9 +211,8 @@ export const MessageStatsSection: React.FC<MessageStatsSectionProps> = ({
                 {paidMessagesTableData.months.map((month) => (
                   <th
                     key={`${month.year}-${month.month}`}
-                    className={`px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap ${
-                      month.is_current ? 'bg-blue-50' : ''
-                    }`}
+                    className={`px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap ${month.is_current ? 'bg-blue-50' : ''
+                      }`}
                   >
                     {month.display_name}
                   </th>
@@ -232,9 +232,8 @@ export const MessageStatsSection: React.FC<MessageStatsSectionProps> = ({
                       return (
                         <td
                           key={cellIdx}
-                          className={`px-4 py-3 text-sm text-gray-900 text-center whitespace-nowrap font-medium ${
-                            month?.is_current ? 'bg-blue-100' : ''
-                          }`}
+                          className={`px-4 py-3 text-sm text-gray-900 text-center whitespace-nowrap font-medium ${month?.is_current ? 'bg-blue-100' : ''
+                            }`}
                         >
                           {cell.count}({Math.round(cell.percentage)}%)
                         </td>
@@ -252,9 +251,8 @@ export const MessageStatsSection: React.FC<MessageStatsSectionProps> = ({
                         return (
                           <td
                             key={cellIdx}
-                            className={`px-4 py-3 text-sm text-gray-900 text-center whitespace-nowrap ${
-                              month?.is_current ? 'bg-blue-50' : ''
-                            }`}
+                            className={`px-4 py-3 text-sm text-gray-900 text-center whitespace-nowrap ${month?.is_current ? 'bg-blue-50' : ''
+                              }`}
                           >
                             {cell.count}({Math.round(cell.percentage)}%)
                           </td>
@@ -272,9 +270,8 @@ export const MessageStatsSection: React.FC<MessageStatsSectionProps> = ({
                       return (
                         <td
                           key={cellIdx}
-                          className={`px-4 py-3 text-sm text-gray-900 text-center whitespace-nowrap font-medium ${
-                            month?.is_current ? 'bg-blue-100' : ''
-                          }`}
+                          className={`px-4 py-3 text-sm text-gray-900 text-center whitespace-nowrap font-medium ${month?.is_current ? 'bg-blue-100' : ''
+                            }`}
                         >
                           {cell.count}({Math.round(cell.percentage)}%)
                         </td>
@@ -293,9 +290,8 @@ export const MessageStatsSection: React.FC<MessageStatsSectionProps> = ({
                   return (
                     <td
                       key={cellIdx}
-                      className={`px-4 py-3 text-sm text-gray-900 text-center whitespace-nowrap font-bold ${
-                        month?.is_current ? 'bg-blue-100' : ''
-                      }`}
+                      className={`px-4 py-3 text-sm text-gray-900 text-center whitespace-nowrap font-bold ${month?.is_current ? 'bg-blue-100' : ''
+                        }`}
                     >
                       {cell.count}({Math.round(cell.percentage)}%)
                     </td>
@@ -336,9 +332,8 @@ export const MessageStatsSection: React.FC<MessageStatsSectionProps> = ({
                 {aiRepliesTableData.months.map((month) => (
                   <th
                     key={`${month.year}-${month.month}`}
-                    className={`px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap ${
-                      month.is_current ? 'bg-blue-50' : ''
-                    }`}
+                    className={`px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap ${month.is_current ? 'bg-blue-50' : ''
+                      }`}
                   >
                     {month.display_name}
                   </th>
@@ -355,9 +350,8 @@ export const MessageStatsSection: React.FC<MessageStatsSectionProps> = ({
                   return (
                     <td
                       key={cellIdx}
-                      className={`px-4 py-3 text-sm text-gray-900 text-center whitespace-nowrap ${
-                        month?.is_current ? 'bg-blue-50' : ''
-                      }`}
+                      className={`px-4 py-3 text-sm text-gray-900 text-center whitespace-nowrap ${month?.is_current ? 'bg-blue-50' : ''
+                        }`}
                     >
                       {cell.count}({Math.round(cell.percentage)}%)
                     </td>
@@ -372,47 +366,51 @@ export const MessageStatsSection: React.FC<MessageStatsSectionProps> = ({
       {/* Paid Messages Info Modal */}
       {showPaidMessagesModal && (
         <BaseModal onClose={() => setShowPaidMessagesModal(false)} aria-label="LINE 推播訊息說明">
-          <div className="flex items-start">
-            <div className="flex-shrink-0">
-              <svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
-                <path
-                  fillRule="evenodd"
-                  d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
-                  clipRule="evenodd"
-                />
-              </svg>
-            </div>
-            <div className="ml-3 flex-1">
-              <h3 className="text-lg font-semibold text-gray-900 mb-3">LINE 推播訊息</h3>
-              <div className="text-sm text-gray-700 space-y-2">
-                <p>LINE 推播訊息由 LINE 平台收費，診所需自行負擔相關費用。</p>
-                <p>若 LINE 訊息配額用盡，系統將無法發送推播訊息，但預約系統仍可正常運作。</p>
+          <ModalHeader title="LINE 推播訊息" showClose onClose={() => setShowPaidMessagesModal(false)} />
+          <ModalBody>
+            <div className="flex items-start">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path
+                    fillRule="evenodd"
+                    d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              </div>
+              <div className="ml-3 flex-1">
+                <div className="text-sm text-gray-700 space-y-2">
+                  <p>LINE 推播訊息由 LINE 平台收費，診所需自行負擔相關費用。</p>
+                  <p>若 LINE 訊息配額用盡，系統將無法發送推播訊息，但預約系統仍可正常運作。</p>
+                </div>
               </div>
             </div>
-          </div>
+          </ModalBody>
         </BaseModal>
       )}
 
       {/* AI Replies Info Modal */}
       {showAiRepliesModal && (
         <BaseModal onClose={() => setShowAiRepliesModal(false)} aria-label="AI 回覆訊息說明">
-          <div className="flex items-start">
-            <div className="flex-shrink-0">
-              <svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
-                <path
-                  fillRule="evenodd"
-                  d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
-                  clipRule="evenodd"
-                />
-              </svg>
-            </div>
-            <div className="ml-3 flex-1">
-              <h3 className="text-lg font-semibold text-gray-900 mb-3">AI 回覆訊息</h3>
-              <div className="text-sm text-gray-700 space-y-2">
-                <p>AI 回覆訊息不會消耗 LINE 訊息配額。</p>
+          <ModalHeader title="AI 回覆訊息" showClose onClose={() => setShowAiRepliesModal(false)} />
+          <ModalBody>
+            <div className="flex items-start">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path
+                    fillRule="evenodd"
+                    d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              </div>
+              <div className="ml-3 flex-1">
+                <div className="text-sm text-gray-700 space-y-2">
+                  <p>AI 回覆訊息不會消耗 LINE 訊息配額。</p>
+                </div>
               </div>
             </div>
-          </div>
+          </ModalBody>
         </BaseModal>
       )}
     </div>

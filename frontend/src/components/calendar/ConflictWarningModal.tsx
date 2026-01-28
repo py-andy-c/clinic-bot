@@ -37,7 +37,7 @@ export const ConflictWarningModal: React.FC<ConflictWarningModalProps> = React.m
     <BaseModal
       onClose={onCancel}
       aria-label="建立休診時段將與現有預約衝突"
-      showCloseButton={false}
+     
     >
       <ModalHeader title="建立休診時段將與現有預約衝突" showClose onClose={onCancel} />
       <ModalBody>

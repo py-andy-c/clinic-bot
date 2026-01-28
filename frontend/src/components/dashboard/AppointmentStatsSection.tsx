@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Cell, LabelList } from 'recharts';
 import { BaseModal } from '../shared/BaseModal';
+import { ModalHeader, ModalBody } from '../shared/ModalParts';
 
 interface MonthInfo {
   year: number;
@@ -98,10 +99,10 @@ export const AppointmentStatsSection: React.FC<AppointmentStatsSectionProps> = (
   // Transform appointment type data for table
   // Use months from cancellations to ensure all months are included, even if no appointments
   const appointmentTypeTableData = useMemo(() => {
-    const typeMap = new Map<number, { 
-      name: string; 
+    const typeMap = new Map<number, {
+      name: string;
       is_deleted: boolean;
-      data: Array<{ count: number; percentage: number }> 
+      data: Array<{ count: number; percentage: number }>
     }>();
     // Use months from cancellations which always includes all months
     const months = cancellations.map((c) => c.month);
@@ -245,9 +246,8 @@ export const AppointmentStatsSection: React.FC<AppointmentStatsSectionProps> = (
                 {months.map((month) => (
                   <th
                     key={`${month.year}-${month.month}`}
-                    className={`px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap ${
-                      month.is_current ? 'bg-blue-50' : ''
-                    }`}
+                    className={`px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap ${month.is_current ? 'bg-blue-50' : ''
+                      }`}
                   >
                     {month.display_name}
                   </th>
@@ -265,9 +265,8 @@ export const AppointmentStatsSection: React.FC<AppointmentStatsSectionProps> = (
                     return (
                       <td
                         key={cellIdx}
-                        className={`px-4 py-3 text-sm text-gray-900 text-center whitespace-nowrap ${
-                          month?.is_current ? 'bg-blue-50' : ''
-                        }`}
+                        className={`px-4 py-3 text-sm text-gray-900 text-center whitespace-nowrap ${month?.is_current ? 'bg-blue-50' : ''
+                          }`}
                       >
                         {cell.count}({Math.round(cell.percentage)}%)
                       </td>
@@ -293,9 +292,8 @@ export const AppointmentStatsSection: React.FC<AppointmentStatsSectionProps> = (
                 {months.map((month) => (
                   <th
                     key={`${month.year}-${month.month}`}
-                    className={`px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap ${
-                      month.is_current ? 'bg-blue-50' : ''
-                    }`}
+                    className={`px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap ${month.is_current ? 'bg-blue-50' : ''
+                      }`}
                   >
                     {month.display_name}
                   </th>
@@ -304,13 +302,12 @@ export const AppointmentStatsSection: React.FC<AppointmentStatsSectionProps> = (
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {appointmentTypeTableData.map((row, idx) => (
-                <tr 
+                <tr
                   key={idx}
                   className={row.is_deleted ? 'opacity-60' : ''}
                 >
-                  <td className={`sticky left-0 px-4 py-3 text-sm whitespace-nowrap z-10 ${
-                    row.is_deleted ? 'bg-gray-50 text-gray-500' : 'bg-white text-gray-900'
-                  }`}>
+                  <td className={`sticky left-0 px-4 py-3 text-sm whitespace-nowrap z-10 ${row.is_deleted ? 'bg-gray-50 text-gray-500' : 'bg-white text-gray-900'
+                    }`}>
                     {row.name}{row.is_deleted && <span className="ml-2 text-xs text-gray-400">(已刪除)</span>}
                   </td>
                   {row.data.map((cell, cellIdx) => {
@@ -318,9 +315,8 @@ export const AppointmentStatsSection: React.FC<AppointmentStatsSectionProps> = (
                     return (
                       <td
                         key={cellIdx}
-                        className={`px-4 py-3 text-sm text-center whitespace-nowrap ${
-                          row.is_deleted ? 'text-gray-500' : 'text-gray-900'
-                        } ${month?.is_current ? 'bg-blue-50' : ''}`}
+                        className={`px-4 py-3 text-sm text-center whitespace-nowrap ${row.is_deleted ? 'text-gray-500' : 'text-gray-900'
+                          } ${month?.is_current ? 'bg-blue-50' : ''}`}
                       >
                         {cell.count}({Math.round(cell.percentage)}%)
                       </td>
@@ -346,9 +342,8 @@ export const AppointmentStatsSection: React.FC<AppointmentStatsSectionProps> = (
                 {months.map((month) => (
                   <th
                     key={`${month.year}-${month.month}`}
-                    className={`px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap ${
-                      month.is_current ? 'bg-blue-50' : ''
-                    }`}
+                    className={`px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap ${month.is_current ? 'bg-blue-50' : ''
+                      }`}
                   >
                     {month.display_name}
                   </th>
@@ -357,13 +352,12 @@ export const AppointmentStatsSection: React.FC<AppointmentStatsSectionProps> = (
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {practitionerTableData.map((row, idx) => (
-                <tr 
+                <tr
                   key={idx}
                   className={!row.is_active ? 'opacity-60' : ''}
                 >
-                  <td className={`sticky left-0 px-4 py-3 text-sm whitespace-nowrap z-10 ${
-                    !row.is_active ? 'bg-gray-50 text-gray-500' : 'bg-white text-gray-900'
-                  }`}>
+                  <td className={`sticky left-0 px-4 py-3 text-sm whitespace-nowrap z-10 ${!row.is_active ? 'bg-gray-50 text-gray-500' : 'bg-white text-gray-900'
+                    }`}>
                     {row.name}{!row.is_active && <span className="ml-2 text-xs text-gray-400">(已停用)</span>}
                   </td>
                   {row.data.map((cell, cellIdx) => {
@@ -371,9 +365,8 @@ export const AppointmentStatsSection: React.FC<AppointmentStatsSectionProps> = (
                     return (
                       <td
                         key={cellIdx}
-                        className={`px-4 py-3 text-sm text-center whitespace-nowrap ${
-                          !row.is_active ? 'text-gray-500' : 'text-gray-900'
-                        } ${month?.is_current ? 'bg-blue-50' : ''}`}
+                        className={`px-4 py-3 text-sm text-center whitespace-nowrap ${!row.is_active ? 'text-gray-500' : 'text-gray-900'
+                          } ${month?.is_current ? 'bg-blue-50' : ''}`}
                       >
                         {cell.count}({Math.round(cell.percentage)}%)
                       </td>
@@ -389,29 +382,31 @@ export const AppointmentStatsSection: React.FC<AppointmentStatsSectionProps> = (
       {/* Cancellation Rate Info Modal */}
       {showCancellationRateModal && (
         <BaseModal onClose={() => setShowCancellationRateModal(false)} aria-label="取消率說明">
-          <div className="flex items-start">
-            <div className="flex-shrink-0">
-              <svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
-                <path
-                  fillRule="evenodd"
-                  d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
-                  clipRule="evenodd"
-                />
-              </svg>
-            </div>
-            <div className="ml-3 flex-1">
-              <h3 className="text-lg font-semibold text-gray-900 mb-3">取消率計算方式</h3>
-              <div className="text-sm text-gray-700 space-y-2">
-                <p>取消率的計算公式如下：</p>
-                <ul className="list-disc list-inside space-y-1 ml-2">
-                  <li>診所取消率 = (診所取消數 / 總預約數) × 100%</li>
-                  <li>病患取消率 = (病患取消數 / 總預約數) × 100%</li>
-                  <li>總取消率 = (總取消數 / 總預約數) × 100%</li>
-                </ul>
-                <p className="mt-2">其中，總預約數包含所有狀態的預約（已確認、已取消等）。</p>
+          <ModalHeader title="取消率說明" showClose onClose={() => setShowCancellationRateModal(false)} />
+          <ModalBody>
+            <div className="flex items-start">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path
+                    fillRule="evenodd"
+                    d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              </div>
+              <div className="ml-3 flex-1">
+                <div className="text-sm text-gray-700 space-y-2">
+                  <p>取消率的計算公式如下：</p>
+                  <ul className="list-disc list-inside space-y-1 ml-2">
+                    <li>診所取消率 = (診所取消數 / 總預約數) × 100%</li>
+                    <li>病患取消率 = (病患取消數 / 總預約數) × 100%</li>
+                    <li>總取消率 = (總取消數 / 總預約數) × 100%</li>
+                  </ul>
+                  <p className="mt-2">其中，總預約數包含所有狀態的預約（已確認、已取消等）。</p>
+                </div>
               </div>
             </div>
-          </div>
+          </ModalBody>
         </BaseModal>
       )}
     </div>

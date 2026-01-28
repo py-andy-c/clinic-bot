@@ -1261,7 +1261,7 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
       <BaseModal
         onClose={onClose}
         aria-label={modalTitle}
-        showCloseButton={false}
+       
         fullScreen={isMobile}
       >
         <ModalHeader title={modalTitle} showClose onClose={onClose} />

@@ -4,6 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { BaseModal } from './shared/BaseModal';
+import { ModalHeader, ModalBody, ModalFooter } from './shared/ModalParts';
 import { apiService } from '../services/api';
 import { logger } from '../utils/logger';
 import { getErrorMessage } from '../types/api';
@@ -72,7 +73,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
 
   const isEdit = serviceItemId !== null;
 
-  const refinedSchema = useMemo(() => 
+  const refinedSchema = useMemo(() =>
     ServiceItemBundleSchema.superRefine((data, ctx) => {
       const currentName = data.name.trim().toLowerCase();
       const conflict = existingNames.some(name => name.toLowerCase() === currentName);
@@ -87,7 +88,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
           });
         }
       }
-    }), 
+    }),
     [existingNames, bundle?.item.name, isEdit]
   );
 
@@ -471,380 +472,378 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
         fullScreen
       >
         <form onSubmit={handleSubmit(handleSave)} className="flex flex-col h-full bg-gray-50/50">
-          {/* Header */}
-          <div className="px-4 py-4 md:px-8 md:py-6 border-b border-gray-100 flex justify-between items-center bg-white shadow-sm z-10 shrink-0">
-            <div>
-              <h2 className="text-xl md:text-2xl font-bold text-gray-900">
-                {serviceItemId ? '編輯服務項目' : '新增服務項目'}
-              </h2>
-            </div>
-          </div>
+          <ModalHeader
+            title={serviceItemId ? '編輯服務項目' : '新增服務項目'}
+            showClose
+            onClose={() => onClose()}
+          />
 
-          {/* Scrollable Content */}
-          <main className="flex-1 overflow-y-auto p-3 md:p-8">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 md:gap-8 max-w-7xl mx-auto w-full">
-              {/* Left Column: Basic Info & Restrictions */}
-              <div className="space-y-3 md:space-y-8">
-                <section className="bg-white rounded-xl md:rounded-2xl p-4 md:p-6 shadow-sm border border-gray-100">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4 md:mb-6 flex items-center gap-2">
-                    <span className="w-1.5 h-6 bg-blue-500 rounded-full"></span>
-                    基本資訊
-                  </h3>
-                  <div className="space-y-5">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">項目名稱 <span className="text-red-500">*</span></label>
-                      <input
-                        {...register('name', { required: '請輸入名稱' })}
-                        className={`input w-full ${errors.name ? 'border-red-500' : ''}`}
-                        placeholder="例如：初診評估"
-                      />
+          <ModalBody className="p-0">
+            {/* Scrollable Content inside ModalBody */}
+            <div className="p-3 md:p-8">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 md:gap-8 max-w-7xl mx-auto w-full">
+                {/* Left Column: Basic Info & Restrictions */}
+                <div className="space-y-3 md:space-y-8">
+                  <section className="bg-white rounded-xl md:rounded-2xl p-4 md:p-6 shadow-sm border border-gray-100">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4 md:mb-6 flex items-center gap-2">
+                      <span className="w-1.5 h-6 bg-blue-500 rounded-full"></span>
+                      基本資訊
+                    </h3>
+                    <div className="space-y-5">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1.5">項目名稱 <span className="text-red-500">*</span></label>
+                        <input
+                          {...register('name', { required: '請輸入名稱' })}
+                          className={`input w-full ${errors.name ? 'border-red-500' : ''}`}
+                          placeholder="例如：初診評估"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1.5 flex items-center gap-2">
+                          收據項目名稱
+                          <InfoButton onClick={() => setShowReceiptNameModal(true)} />
+                        </label>
+                        <input
+                          {...register('receipt_name')}
+                          className="input w-full"
+                          placeholder={name || '例如：初診評估'}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1.5">群組</label>
+                        <select
+                          {...register('service_type_group_id', { valueAsNumber: true })}
+                          className="input w-full"
+                        >
+                          <option value="">未分類</option>
+                          {availableGroups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1.5 flex items-center gap-2">
+                          服務時長 (分鐘)
+                          <InfoButton onClick={() => setShowDurationModal(true)} />
+                        </label>
+                        <FormInput
+                          type="number"
+                          step="5"
+                          name="duration_minutes"
+                          placeholder="30"
+                          className="w-full"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1.5 flex items-center gap-2">
+                          排程緩衝時間 (分鐘)
+                          <InfoButton onClick={() => setShowBufferModal(true)} />
+                        </label>
+                        <FormInput
+                          type="number"
+                          step="5"
+                          name="scheduling_buffer_minutes"
+                          placeholder="0"
+                          className="w-full"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1.5 flex items-center gap-2">
+                          說明
+                          {!allow_new_patient_booking && !allow_existing_patient_booking && (
+                            <WarningPopover message="此服務項目未開放病患自行預約，此設定不會生效。">
+                              <span className="text-amber-600 hover:text-amber-700 cursor-pointer">⚠️</span>
+                            </WarningPopover>
+                          )}
+                        </label>
+                        <textarea
+                          {...register('description')}
+                          className="input w-full min-h-[80px]"
+                          placeholder="服務說明（顯示在 LINE 預約系統）"
+                        />
+                      </div>
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5 flex items-center gap-2">
-                        收據項目名稱
-                        <InfoButton onClick={() => setShowReceiptNameModal(true)} />
+                  </section>
+
+                  <section className="bg-white rounded-xl md:rounded-2xl p-4 md:p-6 shadow-sm border border-gray-100">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4 md:mb-6 flex items-center gap-2">
+                      <span className="w-1.5 h-6 bg-purple-500 rounded-full"></span>
+                      預約規則
+                    </h3>
+                    <div className="space-y-4">
+                      <label className="flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          {...register('allow_new_patient_booking')}
+                          className="w-4 h-4 text-primary-600 rounded border-gray-300 mr-3"
+                        />
+                        <div className="flex flex-col">
+                          <span className="text-sm font-medium text-gray-900">新病患可自行預約</span>
+                          <span className="text-xs text-gray-500">新病患可透過 LINE 預約系統看到並選擇此服務</span>
+                        </div>
+                        <div className="ml-2"><InfoButton onClick={() => setShowAllowNewPatientBookingModal(true)} /></div>
                       </label>
-                      <input
-                        {...register('receipt_name')}
-                        className="input w-full"
-                        placeholder={name || '例如：初診評估'}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">群組</label>
-                      <select
-                        {...register('service_type_group_id', { valueAsNumber: true })}
-                        className="input w-full"
-                      >
-                        <option value="">未分類</option>
-                        {availableGroups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5 flex items-center gap-2">
-                        服務時長 (分鐘)
-                        <InfoButton onClick={() => setShowDurationModal(true)} />
+                      <label className="flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          {...register('allow_existing_patient_booking')}
+                          className="w-4 h-4 text-primary-600 rounded border-gray-300 mr-3"
+                        />
+                        <div className="flex flex-col">
+                          <span className="text-sm font-medium text-gray-900">舊病患可自行預約</span>
+                          <span className="text-xs text-gray-500">舊病患可透過 LINE 預約系統看到並選擇此服務</span>
+                        </div>
+                        <div className="ml-2"><InfoButton onClick={() => setShowAllowExistingPatientBookingModal(true)} /></div>
                       </label>
-                      <FormInput
-                        type="number"
-                        step="5"
-                        name="duration_minutes"
-                        placeholder="30"
-                        className="w-full"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5 flex items-center gap-2">
-                        排程緩衝時間 (分鐘)
-                        <InfoButton onClick={() => setShowBufferModal(true)} />
-                      </label>
-                      <FormInput
-                        type="number"
-                        step="5"
-                        name="scheduling_buffer_minutes"
-                        placeholder="0"
-                        className="w-full"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5 flex items-center gap-2">
-                        說明
+                      <label className="flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          {...register('allow_patient_practitioner_selection')}
+                          className="w-4 h-4 text-primary-600 rounded border-gray-300 mr-3"
+                        />
+                        <div className="flex flex-col">
+                          <span className="text-sm font-medium text-gray-900">開放病患指定治療師</span>
+                          <span className="text-xs text-gray-500">病患預約時可自由選擇想看診的治療師</span>
+                        </div>
                         {!allow_new_patient_booking && !allow_existing_patient_booking && (
-                          <WarningPopover message="此服務項目未開放病患自行預約，此設定不會生效。">
-                            <span className="text-amber-600 hover:text-amber-700 cursor-pointer">⚠️</span>
-                          </WarningPopover>
-                        )}
-                      </label>
-                      <textarea
-                        {...register('description')}
-                        className="input w-full min-h-[80px]"
-                        placeholder="服務說明（顯示在 LINE 預約系統）"
-                      />
-                    </div>
-                  </div>
-                </section>
-
-                <section className="bg-white rounded-xl md:rounded-2xl p-4 md:p-6 shadow-sm border border-gray-100">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4 md:mb-6 flex items-center gap-2">
-                    <span className="w-1.5 h-6 bg-purple-500 rounded-full"></span>
-                    預約規則
-                  </h3>
-                  <div className="space-y-4">
-                    <label className="flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        {...register('allow_new_patient_booking')}
-                        className="w-4 h-4 text-primary-600 rounded border-gray-300 mr-3"
-                      />
-                      <div className="flex flex-col">
-                        <span className="text-sm font-medium text-gray-900">新病患可自行預約</span>
-                        <span className="text-xs text-gray-500">新病患可透過 LINE 預約系統看到並選擇此服務</span>
-                      </div>
-                      <div className="ml-2"><InfoButton onClick={() => setShowAllowNewPatientBookingModal(true)} /></div>
-                    </label>
-                    <label className="flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        {...register('allow_existing_patient_booking')}
-                        className="w-4 h-4 text-primary-600 rounded border-gray-300 mr-3"
-                      />
-                      <div className="flex flex-col">
-                        <span className="text-sm font-medium text-gray-900">舊病患可自行預約</span>
-                        <span className="text-xs text-gray-500">舊病患可透過 LINE 預約系統看到並選擇此服務</span>
-                      </div>
-                      <div className="ml-2"><InfoButton onClick={() => setShowAllowExistingPatientBookingModal(true)} /></div>
-                    </label>
-                    <label className="flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        {...register('allow_patient_practitioner_selection')}
-                        className="w-4 h-4 text-primary-600 rounded border-gray-300 mr-3"
-                      />
-                      <div className="flex flex-col">
-                        <span className="text-sm font-medium text-gray-900">開放病患指定治療師</span>
-                        <span className="text-xs text-gray-500">病患預約時可自由選擇想看診的治療師</span>
-                      </div>
-                      {!allow_new_patient_booking && !allow_existing_patient_booking && (
-                        <div className="ml-2">
-                          <WarningPopover message="此服務項目未開放病患自行預約，此設定不會生效。">
-                            <span className="text-amber-600 hover:text-amber-700 cursor-pointer">⚠️</span>
-                          </WarningPopover>
-                        </div>
-                      )}
-                    </label>
-                    <label className="flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        {...register('allow_multiple_time_slot_selection')}
-                        className="w-4 h-4 text-primary-600 rounded border-gray-300 mr-3"
-                      />
-                      <div className="flex flex-col">
-                        <span className="text-sm font-medium text-gray-900">允許患者選擇多個時段</span>
-                        <span className="text-xs text-gray-500">病患預約時可選擇多個偏好時段供診所確認</span>
-                      </div>
-                      <div className="ml-2"><InfoButton onClick={() => setShowMultipleTimeSlotModal(true)} /></div>
-                      {!allow_new_patient_booking && !allow_existing_patient_booking && (
-                        <div className="ml-2">
-                          <WarningPopover message="此服務項目未開放病患自行預約，此設定不會生效。">
-                            <span className="text-amber-600 hover:text-amber-700 cursor-pointer">⚠️</span>
-                          </WarningPopover>
-                        </div>
-                      )}
-                    </label>
-                  </div>
-                </section>
-
-                <section className="bg-white rounded-xl md:rounded-2xl p-4 md:p-6 shadow-sm border border-gray-100">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4 md:mb-6 flex items-center gap-2">
-                    <span className="w-1.5 h-6 bg-teal-500 rounded-full"></span>
-                    預約備註
-                  </h3>
-                  <div className="space-y-4">
-                    <label className="flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        {...register('require_notes')}
-                        className="w-4 h-4 text-primary-600 rounded border-gray-300 mr-3"
-                      />
-                      <div className="flex flex-col">
-                        <span className="text-sm font-medium text-gray-900">要求填寫備註</span>
-                        <span className="text-xs text-gray-500">病患透過Line自行預約此服務時必須填寫備註</span>
-                      </div>
-                      {!allow_new_patient_booking && !allow_existing_patient_booking && (
-                        <div className="ml-2">
-                          <WarningPopover message="此服務項目未開放病患自行預約，此設定不會生效。">
-                            <span className="text-amber-600 hover:text-amber-700 cursor-pointer">⚠️</span>
-                          </WarningPopover>
-                        </div>
-                      )}
-                    </label>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5 flex items-center gap-2">
-                        備註填寫指引
-                        {!allow_new_patient_booking && !allow_existing_patient_booking && (
-                          <WarningPopover message="此服務項目未開放病患自行預約，此設定不會生效。">
-                            <span className="text-amber-600 hover:text-amber-700 cursor-pointer">⚠️</span>
-                          </WarningPopover>
-                        )}
-                      </label>
-                      <textarea
-                        {...register('notes_instructions')}
-                        className="input w-full min-h-[100px] resize-none"
-                        placeholder="病患在透過Line預約，填寫備註時，將會看到此指引（若未填寫，將使用「預約設定」頁面中的「備註填寫指引」）"
-                      />
-                    </div>
-                  </div>
-                </section>
-
-
-
-                <section className="bg-white rounded-xl md:rounded-2xl p-4 md:p-6 shadow-sm border border-gray-100">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2 flex items-center gap-2">
-                    <span className="w-1.5 h-6 bg-pink-500 rounded-full"></span>
-                    資源需求
-                  </h3>
-                  <p className="text-sm text-gray-500 mb-4">設定此服務項目需要的資源類型和數量</p>
-                  <ResourceRequirementsSection
-                    appointmentTypeId={serviceItemId || 0}
-                    isClinicAdmin={isClinicAdmin}
-                    currentResourceRequirements={(formValues.resource_requirements || []) as unknown as ResourceRequirement[]}
-                    updateResourceRequirements={(_id, reqs) => setValue('resource_requirements', reqs as unknown as ResourceRequirementBundleData[], { shouldDirty: true })}
-                  />
-                </section>
-              </div>
-
-              {/* Right Column: Practitioners & Others */}
-              <div className="space-y-3 md:space-y-8">
-                <section className="bg-white rounded-xl md:rounded-2xl p-4 md:p-6 shadow-sm border border-gray-100">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4 md:mb-6 flex items-center gap-2">
-                    <span className="w-1.5 h-6 bg-indigo-500 rounded-full"></span>
-                    治療師指派
-                  </h3>
-                  <p className="text-sm text-gray-600 mb-4">選擇提供此服務的治療師，並為每位治療師設定計費方案。</p>
-                  <div className="space-y-4">
-                    {members.map(m => {
-                      const practitionerIds = formValues.practitioner_ids || [];
-                      const billingScenarios = formValues.billing_scenarios || [];
-                      const isAssigned = practitionerIds.includes(m.id);
-                      const scenarios = billingScenarios.filter(s => s.practitioner_id === m.id);
-
-                      return (
-
-                        <div key={m.id} className={`p-4 rounded-xl border transition-all ${isAssigned ? 'bg-blue-50/50 border-blue-200 ring-1 ring-blue-100' : 'bg-white border-gray-200 hover:border-gray-300'}`}>
-                          <div className="flex items-center justify-between mb-3 gap-2">
-                            <label className="flex items-center cursor-pointer min-w-0">
-                              <input
-                                type="checkbox"
-                                checked={isAssigned}
-                                onChange={(e) => {
-                                  const newIds = e.target.checked
-                                    ? [...practitionerIds, m.id]
-                                    : practitionerIds.filter(id => id !== m.id);
-                                  setValue('practitioner_ids', newIds, { shouldDirty: true });
-                                }}
-                                className="w-5 h-5 text-indigo-600 rounded border-gray-300 mr-3 flex-shrink-0"
-                              />
-                              <span className="font-semibold text-gray-900 truncate">{m.full_name}</span>
-                            </label>
-                            <button
-                              type="button"
-                              onClick={() => handleAddScenario(m.id)}
-                              className="text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap flex-shrink-0"
-                            >
-                              + 新增計費方案
-                            </button>
+                          <div className="ml-2">
+                            <WarningPopover message="此服務項目未開放病患自行預約，此設定不會生效。">
+                              <span className="text-amber-600 hover:text-amber-700 cursor-pointer">⚠️</span>
+                            </WarningPopover>
                           </div>
+                        )}
+                      </label>
+                      <label className="flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          {...register('allow_multiple_time_slot_selection')}
+                          className="w-4 h-4 text-primary-600 rounded border-gray-300 mr-3"
+                        />
+                        <div className="flex flex-col">
+                          <span className="text-sm font-medium text-gray-900">允許患者選擇多個時段</span>
+                          <span className="text-xs text-gray-500">病患預約時可選擇多個偏好時段供診所確認</span>
+                        </div>
+                        <div className="ml-2"><InfoButton onClick={() => setShowMultipleTimeSlotModal(true)} /></div>
+                        {!allow_new_patient_booking && !allow_existing_patient_booking && (
+                          <div className="ml-2">
+                            <WarningPopover message="此服務項目未開放病患自行預約，此設定不會生效。">
+                              <span className="text-amber-600 hover:text-amber-700 cursor-pointer">⚠️</span>
+                            </WarningPopover>
+                          </div>
+                        )}
+                      </label>
+                    </div>
+                  </section>
 
-                          <div className="space-y-2 pl-8">
-                            {scenarios.length > 0 ? scenarios.map((s, idx) => (
-                              <div key={idx} className="flex items-center justify-between p-3 rounded-lg border border-gray-200 bg-white shadow-sm hover:shadow-md transition-shadow">
-                                <div className="flex items-center flex-wrap gap-y-1 min-w-0 flex-1 mr-2">
-                                  <span className="font-medium text-gray-900 truncate mr-2" title={s.name}>{s.name}</span>
-                                  {s.is_default && (
-                                    <span className="px-1.5 py-0.5 text-[10px] font-medium text-amber-700 bg-amber-50 rounded border border-amber-200 flex-shrink-0 mr-2">
-                                      預設
+                  <section className="bg-white rounded-xl md:rounded-2xl p-4 md:p-6 shadow-sm border border-gray-100">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4 md:mb-6 flex items-center gap-2">
+                      <span className="w-1.5 h-6 bg-teal-500 rounded-full"></span>
+                      預約備註
+                    </h3>
+                    <div className="space-y-4">
+                      <label className="flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          {...register('require_notes')}
+                          className="w-4 h-4 text-primary-600 rounded border-gray-300 mr-3"
+                        />
+                        <div className="flex flex-col">
+                          <span className="text-sm font-medium text-gray-900">要求填寫備註</span>
+                          <span className="text-xs text-gray-500">病患透過Line自行預約此服務時必須填寫備註</span>
+                        </div>
+                        {!allow_new_patient_booking && !allow_existing_patient_booking && (
+                          <div className="ml-2">
+                            <WarningPopover message="此服務項目未開放病患自行預約，此設定不會生效。">
+                              <span className="text-amber-600 hover:text-amber-700 cursor-pointer">⚠️</span>
+                            </WarningPopover>
+                          </div>
+                        )}
+                      </label>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1.5 flex items-center gap-2">
+                          備註填寫指引
+                          {!allow_new_patient_booking && !allow_existing_patient_booking && (
+                            <WarningPopover message="此服務項目未開放病患自行預約，此設定不會生效。">
+                              <span className="text-amber-600 hover:text-amber-700 cursor-pointer">⚠️</span>
+                            </WarningPopover>
+                          )}
+                        </label>
+                        <textarea
+                          {...register('notes_instructions')}
+                          className="input w-full min-h-[100px] resize-none"
+                          placeholder="病患在透過Line預約，填寫備註時，將會看到此指引（若未填寫，將使用「預約設定」頁面中的「備註填寫指引」）"
+                        />
+                      </div>
+                    </div>
+                  </section>
+
+
+
+                  <section className="bg-white rounded-xl md:rounded-2xl p-4 md:p-6 shadow-sm border border-gray-100">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2 flex items-center gap-2">
+                      <span className="w-1.5 h-6 bg-pink-500 rounded-full"></span>
+                      資源需求
+                    </h3>
+                    <p className="text-sm text-gray-500 mb-4">設定此服務項目需要的資源類型和數量</p>
+                    <ResourceRequirementsSection
+                      appointmentTypeId={serviceItemId || 0}
+                      isClinicAdmin={isClinicAdmin}
+                      currentResourceRequirements={(formValues.resource_requirements || []) as unknown as ResourceRequirement[]}
+                      updateResourceRequirements={(_id, reqs) => setValue('resource_requirements', reqs as unknown as ResourceRequirementBundleData[], { shouldDirty: true })}
+                    />
+                  </section>
+                </div>
+
+                {/* Right Column: Practitioners & Others */}
+                <div className="space-y-3 md:space-y-8">
+                  <section className="bg-white rounded-xl md:rounded-2xl p-4 md:p-6 shadow-sm border border-gray-100">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4 md:mb-6 flex items-center gap-2">
+                      <span className="w-1.5 h-6 bg-indigo-500 rounded-full"></span>
+                      治療師指派
+                    </h3>
+                    <p className="text-sm text-gray-600 mb-4">選擇提供此服務的治療師，並為每位治療師設定計費方案。</p>
+                    <div className="space-y-4">
+                      {members.map(m => {
+                        const practitionerIds = formValues.practitioner_ids || [];
+                        const billingScenarios = formValues.billing_scenarios || [];
+                        const isAssigned = practitionerIds.includes(m.id);
+                        const scenarios = billingScenarios.filter(s => s.practitioner_id === m.id);
+
+                        return (
+
+                          <div key={m.id} className={`p-4 rounded-xl border transition-all ${isAssigned ? 'bg-blue-50/50 border-blue-200 ring-1 ring-blue-100' : 'bg-white border-gray-200 hover:border-gray-300'}`}>
+                            <div className="flex items-center justify-between mb-3 gap-2">
+                              <label className="flex items-center cursor-pointer min-w-0">
+                                <input
+                                  type="checkbox"
+                                  checked={isAssigned}
+                                  onChange={(e) => {
+                                    const newIds = e.target.checked
+                                      ? [...practitionerIds, m.id]
+                                      : practitionerIds.filter(id => id !== m.id);
+                                    setValue('practitioner_ids', newIds, { shouldDirty: true });
+                                  }}
+                                  className="w-5 h-5 text-indigo-600 rounded border-gray-300 mr-3 flex-shrink-0"
+                                />
+                                <span className="font-semibold text-gray-900 truncate">{m.full_name}</span>
+                              </label>
+                              <button
+                                type="button"
+                                onClick={() => handleAddScenario(m.id)}
+                                className="text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap flex-shrink-0"
+                              >
+                                + 新增計費方案
+                              </button>
+                            </div>
+
+                            <div className="space-y-2 pl-8">
+                              {scenarios.length > 0 ? scenarios.map((s, idx) => (
+                                <div key={idx} className="flex items-center justify-between p-3 rounded-lg border border-gray-200 bg-white shadow-sm hover:shadow-md transition-shadow">
+                                  <div className="flex items-center flex-wrap gap-y-1 min-w-0 flex-1 mr-2">
+                                    <span className="font-medium text-gray-900 truncate mr-2" title={s.name}>{s.name}</span>
+                                    {s.is_default && (
+                                      <span className="px-1.5 py-0.5 text-[10px] font-medium text-amber-700 bg-amber-50 rounded border border-amber-200 flex-shrink-0 mr-2">
+                                        預設
+                                      </span>
+                                    )}
+                                    <span className="text-gray-300 mr-2 hidden sm:inline">|</span>
+                                    <span className="text-sm text-gray-600">
+                                      金額: {formatCurrency(s.amount)} <span className="text-gray-300 mx-1">|</span> 診所分潤: {formatCurrency(s.revenue_share)}
                                     </span>
-                                  )}
-                                  <span className="text-gray-300 mr-2 hidden sm:inline">|</span>
-                                  <span className="text-sm text-gray-600">
-                                    金額: {formatCurrency(s.amount)} <span className="text-gray-300 mx-1">|</span> 診所分潤: {formatCurrency(s.revenue_share)}
-                                  </span>
+                                  </div>
+                                  <div className="flex gap-1 flex-shrink-0">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleEditScenario(m.id, s as BillingScenarioBundleData)}
+                                      className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                      title="編輯方案"
+                                    >
+                                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setValue('billing_scenarios', (billingScenarios).filter((bs) => bs !== s), { shouldDirty: true })}
+                                      className="p-1.5 text-gray-500 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                      title="刪除方案"
+                                    >
+                                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                    </button>
+                                  </div>
                                 </div>
-                                <div className="flex gap-1 flex-shrink-0">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleEditScenario(m.id, s as BillingScenarioBundleData)}
-                                    className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                    title="編輯方案"
-                                  >
-                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => setValue('billing_scenarios', (billingScenarios).filter((bs) => bs !== s), { shouldDirty: true })}
-                                    className="p-1.5 text-gray-500 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                                    title="刪除方案"
-                                  >
-                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                  </button>
-                                </div>
-                              </div>
-                            )) : (
-                              <p className="text-sm text-gray-400 italic py-1">尚未設定計費方案</p>
-                            )}
+                              )) : (
+                                <p className="text-sm text-gray-400 italic py-1">尚未設定計費方案</p>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </section>
+                        );
+                      })}
+                    </div>
+                  </section>
 
-                <section className="bg-white rounded-xl md:rounded-2xl p-4 md:p-6 shadow-sm border border-gray-100">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4 md:mb-6 flex items-center gap-2">
-                    <span className="w-1.5 h-6 bg-orange-500 rounded-full"></span>
-                    訊息設定
-                  </h3>
-                  {isClinicAdmin && (
-                    <MessageSettingsSection
+                  <section className="bg-white rounded-xl md:rounded-2xl p-4 md:p-6 shadow-sm border border-gray-100">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4 md:mb-6 flex items-center gap-2">
+                      <span className="w-1.5 h-6 bg-orange-500 rounded-full"></span>
+                      訊息設定
+                    </h3>
+                    {isClinicAdmin && (
+                      <MessageSettingsSection
+                        appointmentType={appointmentTypeProxy}
+                        onUpdate={onUpdateLocalItem}
+                        disabled={!isClinicAdmin}
+                        {...(clinicInfoAvailability !== undefined && { clinicInfoAvailability })}
+                      />
+                    )}
+                    {messageValidationErrors.length > 0 && (
+                      <div className="bg-red-50 border border-red-200 rounded-lg p-4 mt-4">
+                        <div className="text-sm font-medium text-red-800 mb-2">請修正以下錯誤：</div>
+                        <ul className="list-disc list-inside space-y-1 text-sm text-red-700">
+                          {messageValidationErrors.map((error, index) => (
+                            <li key={index}>{error}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </section>
+
+                  <section className="bg-white rounded-xl md:rounded-2xl p-4 md:p-6 shadow-sm border border-gray-100">
+                    <div className="mb-4 md:mb-6">
+                      <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                        <span className="w-1.5 h-6 bg-cyan-500 rounded-full"></span>
+                        追蹤訊息設定
+                        <InfoButton
+                          onClick={() => setShowFollowUpInfoModal(true)}
+                          ariaLabel="追蹤訊息設定說明"
+                          size="small"
+                        />
+                      </h3>
+                    </div>
+                    <FollowUpMessagesSection
                       appointmentType={appointmentTypeProxy}
                       onUpdate={onUpdateLocalItem}
                       disabled={!isClinicAdmin}
-                      {...(clinicInfoAvailability !== undefined && { clinicInfoAvailability })}
+                      clinicInfoAvailability={clinicInfoAvailability || {}}
                     />
-                  )}
-                  {messageValidationErrors.length > 0 && (
-                    <div className="bg-red-50 border border-red-200 rounded-lg p-4 mt-4">
-                      <div className="text-sm font-medium text-red-800 mb-2">請修正以下錯誤：</div>
-                      <ul className="list-disc list-inside space-y-1 text-sm text-red-700">
-                        {messageValidationErrors.map((error, index) => (
-                          <li key={index}>{error}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </section>
-
-                <section className="bg-white rounded-xl md:rounded-2xl p-4 md:p-6 shadow-sm border border-gray-100">
-                  <div className="mb-4 md:mb-6">
-                    <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                      <span className="w-1.5 h-6 bg-cyan-500 rounded-full"></span>
-                      追蹤訊息設定
-                      <InfoButton
-                        onClick={() => setShowFollowUpInfoModal(true)}
-                        ariaLabel="追蹤訊息設定說明"
-                        size="small"
-                      />
-                    </h3>
-                  </div>
-                  <FollowUpMessagesSection
-                    appointmentType={appointmentTypeProxy}
-                    onUpdate={onUpdateLocalItem}
-                    disabled={!isClinicAdmin}
-                    clinicInfoAvailability={clinicInfoAvailability || {}}
-                  />
-                </section>
+                  </section>
+                </div>
               </div>
             </div>
-          </main>
+          </ModalBody>
 
-          {/* Footer */}
-          <div className="px-4 py-4 md:px-8 md:py-6 border-t border-gray-100 bg-white flex justify-between items-center rounded-b-none shrink-0 z-10">
-            <div className="text-sm text-gray-500">
+          <ModalFooter>
+            <div className="flex-1 text-sm text-gray-500 text-left">
               {isDirty && <span className="flex items-center gap-1.5 text-amber-600 font-medium">● 有未儲存的變更</span>}
             </div>
             <div className="flex gap-3">
-              <button type="button" onClick={() => onClose()} className="px-6 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 rounded-xl transition-colors">
+              <button type="button" onClick={() => onClose()} className="btn-secondary">
                 取消
               </button>
               <button
                 type="submit"
                 disabled={saveMutation.isPending}
-                className="px-8 py-2.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl shadow-lg shadow-blue-200 transition-all transform active:scale-[0.98]"
+                className="btn-primary min-w-[120px]"
               >
                 {saveMutation.isPending ? '儲存中...' : '儲存設定'}
               </button>
             </div>
-          </div>
+          </ModalFooter>
         </form>
 
         {editingScenario && (
@@ -853,8 +852,8 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
             aria-label="編輯計費方案"
             className="max-w-md"
           >
-            <div className="p-6">
-              <h3 className="text-xl font-bold text-gray-900 mb-6">計費方案設定</h3>
+            <ModalHeader title="計費方案設定" showClose onClose={() => setEditingScenario(null)} />
+            <ModalBody>
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">
@@ -920,11 +919,11 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                   <span className="text-sm font-medium text-gray-700">設為預設方案</span>
                 </label>
               </div>
-              <div className="mt-8 flex gap-3">
-                <button type="button" onClick={() => setEditingScenario(null)} className="btn-secondary flex-1">取消</button>
-                <button type="button" onClick={handleConfirmScenario} className="btn-primary flex-1">確定</button>
-              </div>
-            </div>
+            </ModalBody>
+            <ModalFooter>
+              <button type="button" onClick={() => setEditingScenario(null)} className="btn-secondary flex-1">取消</button>
+              <button type="button" onClick={handleConfirmScenario} className="btn-primary flex-1">確定</button>
+            </ModalFooter>
           </BaseModal>
         )}
         {/* Info Modals */}

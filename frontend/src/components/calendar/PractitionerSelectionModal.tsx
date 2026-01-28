@@ -139,7 +139,7 @@ export const PractitionerSelectionModal: React.FC<PractitionerSelectionModalProp
       onClose={onClose}
       fullScreen={isMobile}
       aria-label={title}
-      showCloseButton={false}
+     
     >
       <ModalHeader title={title} showClose onClose={onClose} />
       <ModalBody className="py-2">

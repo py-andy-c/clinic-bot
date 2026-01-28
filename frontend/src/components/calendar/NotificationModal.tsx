@@ -147,7 +147,7 @@ const NotificationModal: React.FC<NotificationModalProps> = React.memo(({
     <BaseModal
       onClose={handleClose}
       aria-label="傳送LINE訊息"
-      showCloseButton={false}
+     
     >
       <ModalHeader title="傳送LINE訊息" showClose onClose={handleClose} />
 

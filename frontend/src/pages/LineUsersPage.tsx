@@ -7,6 +7,7 @@ import { LineUserWithStatus } from '../types';
 import { logger } from '../utils/logger';
 import { LoadingSpinner, ErrorMessage, SearchInput, PaginationControls } from '../components/shared';
 import { BaseModal } from '../components/shared/BaseModal';
+import { ModalHeader, ModalBody, ModalFooter } from '../components/shared/ModalParts';
 import { useLineUsers } from '../hooks/queries';
 import { useHighlightRow } from '../hooks/useHighlightRow';
 import PageHeader from '../components/PageHeader';
@@ -20,12 +21,12 @@ const ProfilePictureWithFallback: React.FC<{
   size: 'small' | 'medium';
 }> = ({ src, alt, size }) => {
   const [imageError, setImageError] = React.useState(false);
-  
+
   // Reset error state when src changes
   React.useEffect(() => {
     setImageError(false);
   }, [src]);
-  
+
   if (!src || imageError) {
     const containerClass = size === 'small' ? 'w-6 h-6' : 'w-8 h-8';
     const iconClass = size === 'small' ? 'w-4 h-4' : 'w-5 h-5';
@@ -37,7 +38,7 @@ const ProfilePictureWithFallback: React.FC<{
       </div>
     );
   }
-  
+
   const imageClass = size === 'small' ? 'w-6 h-6' : 'w-8 h-8';
   return (
     <img
@@ -53,7 +54,7 @@ const LineUsersPage: React.FC = () => {
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
   const { alert, confirm } = useModal();
-  
+
   // If not authenticated, show a message
   if (!isAuthenticated) {
     return (
@@ -83,7 +84,7 @@ const LineUsersPage: React.FC = () => {
   const [searchInput, setSearchInput] = useState<string>('');
   const [isComposing, setIsComposing] = useState(false);
   const debouncedSearchQuery = useDebouncedSearch(searchInput, 400, isComposing);
-  
+
   // State for editing display names
   const [editingLineUserId, setEditingLineUserId] = useState<string | null>(null);
   const [editingDisplayName, setEditingDisplayName] = useState<string>('');
@@ -116,7 +117,7 @@ const LineUsersPage: React.FC = () => {
   const lineUsers = displayData?.line_users || [];
   const totalLineUsers = displayData?.total || 0;
   const totalPages = Math.ceil(totalLineUsers / pageSize);
-  
+
   // Validate currentPage doesn't exceed totalPages and reset if needed
   // This runs after we have totalPages from the API response
   useEffect(() => {
@@ -127,7 +128,7 @@ const LineUsersPage: React.FC = () => {
       setSearchParams(newSearchParams, { replace: true });
     }
   }, [currentPage, totalPages, searchParams, setSearchParams]);
-  
+
   // Use validated page for display (clamp to valid range)
   const validatedPage = Math.max(1, Math.min(currentPage, totalPages || 1));
   const [toggling, setToggling] = useState<Set<string>>(new Set());
@@ -162,22 +163,22 @@ const LineUsersPage: React.FC = () => {
       if (targetUser) {
         // Mark as handled to prevent re-running
         targetLineUserIdRef.current = lineUserIdFromQuery;
-        
+
         // Auto-expand the target user
         setExpandedUsers(prev => new Set(prev).add(lineUserIdFromQuery));
-        
+
         // Auto-fill search with display name if available and search is empty
         if (targetUser.display_name) {
           setSearchInput(targetUser.display_name);
         }
-        
+
         // Remove query parameter after handling
         const newSearchParams = new URLSearchParams(searchParams);
         newSearchParams.delete('lineUserId');
         setSearchParams(newSearchParams, { replace: true });
       }
     }
-    
+
     // Reset ref when lineUserIdFromQuery changes (new navigation)
     if (!lineUserIdFromQuery) {
       targetLineUserIdRef.current = null;
@@ -210,19 +211,19 @@ const LineUsersPage: React.FC = () => {
 
   const handleSaveDisplayName = async (lineUser: LineUserWithStatus) => {
     if (isSaving) return;
-    
+
     setIsSaving(true);
     try {
       const newDisplayName = editingDisplayName.trim() || null;
       await apiService.updateLineUserDisplayName(lineUser.line_user_id, newDisplayName);
-      
+
       // Update local state
       setEditingLineUserId(null);
       setEditingDisplayName('');
-      
+
       // Refetch to get updated data
       await refetch();
-      
+
       await alert('顯示名稱已更新');
     } catch (error) {
       logger.error('Failed to update display name:', error);
@@ -235,10 +236,10 @@ const LineUsersPage: React.FC = () => {
   const handleToggleAi = async (lineUser: LineUserWithStatus, e: React.ChangeEvent<HTMLInputElement>) => {
     e.stopPropagation(); // Prevent row click when toggling
     e.preventDefault(); // Prevent default checkbox behavior
-    
+
     const lineUserId = lineUser.line_user_id;
     const willBeDisabled = !lineUser.ai_disabled; // New state after toggle
-    
+
     // Show confirmation dialog when disabling
     if (willBeDisabled) {
       const confirmed = await confirm(
@@ -251,7 +252,7 @@ const LineUsersPage: React.FC = () => {
 
     try {
       setToggling(prev => new Set(prev).add(lineUserId));
-      
+
       if (lineUser.ai_disabled) {
         await apiService.enableAiForLineUser(lineUserId);
         await alert('AI自動回覆已啟用');
@@ -259,13 +260,13 @@ const LineUsersPage: React.FC = () => {
         await apiService.disableAiForLineUser(lineUserId);
         await alert('AI自動回覆已停用');
       }
-      
+
       await refetch(); // Refresh the list
     } catch (err: any) {
       logger.error('Toggle AI error:', err);
       const status = err?.response?.status;
       let errorMessage = getErrorMessage(err);
-      
+
       if (status === 403) {
         errorMessage = '您沒有權限執行此操作';
       } else if (status === 404) {
@@ -275,7 +276,7 @@ const LineUsersPage: React.FC = () => {
       } else if (!errorMessage) {
         errorMessage = '請稍後再試';
       }
-      
+
       await alert(`操作失敗：${errorMessage}`);
     } finally {
       setToggling(prev => {
@@ -341,7 +342,7 @@ const LineUsersPage: React.FC = () => {
               placeholder="搜尋LINE使用者名稱或病患姓名..."
             />
           </div>
-          
+
           {!loading && totalLineUsers === 0 ? (
             <div className="text-center py-12">
               <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -390,33 +391,35 @@ const LineUsersPage: React.FC = () => {
                               onClose={() => setShowAiStatusInfo(false)}
                               aria-label="AI自動回覆控制說明"
                             >
-                              <div className="flex items-start">
-                                <div className="flex-shrink-0">
-                                  <svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
-                                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                                  </svg>
-                                </div>
-                                <div className="ml-3 flex-1">
-                                  <h3 className="text-lg font-semibold text-gray-900 mb-3">AI自動回覆控制</h3>
-                                  <div className="text-sm text-gray-700 space-y-2">
-                                    <p>
-                                      您可以在此管理每個LINE使用者的AI自動回覆功能。停用後，該使用者的訊息將不會由AI處理，直到您重新啟用。
-                                    </p>
-                                    <p>
-                                      此設定與使用者自行選擇的「人工回覆」不同，此設定由管理員控制且永久有效。
-                                    </p>
+                              <ModalHeader title="AI自動回覆控制" showClose onClose={() => setShowAiStatusInfo(false)} />
+                              <ModalBody>
+                                <div className="flex items-start">
+                                  <div className="flex-shrink-0">
+                                    <svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+                                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                                    </svg>
                                   </div>
-                                  <div className="mt-4 flex justify-end">
-                                    <button
-                                      type="button"
-                                      onClick={() => setShowAiStatusInfo(false)}
-                                      className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
-                                    >
-                                      關閉
-                                    </button>
+                                  <div className="ml-3 flex-1">
+                                    <div className="text-sm text-gray-700 space-y-2">
+                                      <p>
+                                        您可以在此管理每個LINE使用者的AI自動回覆功能。停用後，該使用者的訊息將不會由AI處理，直到您重新啟用。
+                                      </p>
+                                      <p>
+                                        此設定與使用者自行選擇的「人工回覆」不同，此設定由管理員控制且永久有效。
+                                      </p>
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
+                              </ModalBody>
+                              <ModalFooter>
+                                <button
+                                  type="button"
+                                  onClick={() => setShowAiStatusInfo(false)}
+                                  className="btn-secondary"
+                                >
+                                  關閉
+                                </button>
+                              </ModalFooter>
                             </BaseModal>
                           )}
                         </div>
@@ -429,18 +432,16 @@ const LineUsersPage: React.FC = () => {
                       const isExpanded = expandedUsers.has(lineUser.line_user_id);
                       return (
                         <React.Fragment key={lineUser.line_user_id}>
-                          <tr 
+                          <tr
                             data-line-user-id={lineUser.line_user_id}
-                            className={`group hover:bg-gray-50 cursor-pointer transition-colors ${
-                              highlightedLineUserId === lineUser.line_user_id ? 'bg-blue-50' : ''
-                            }`}
+                            className={`group hover:bg-gray-50 cursor-pointer transition-colors ${highlightedLineUserId === lineUser.line_user_id ? 'bg-blue-50' : ''
+                              }`}
                             onClick={() => toggleExpand(lineUser.line_user_id)}
                           >
-                            <td className={`px-2 py-2 md:px-6 md:py-4 whitespace-nowrap sticky left-0 z-10 transition-colors ${
-                              highlightedLineUserId === lineUser.line_user_id
+                            <td className={`px-2 py-2 md:px-6 md:py-4 whitespace-nowrap sticky left-0 z-10 transition-colors ${highlightedLineUserId === lineUser.line_user_id
                                 ? 'bg-blue-50 group-hover:bg-blue-50'
                                 : 'bg-white group-hover:bg-gray-50'
-                            }`}>
+                              }`}>
                               {editingLineUserId === lineUser.line_user_id ? (
                                 <div className="flex items-center gap-1">
                                   <input

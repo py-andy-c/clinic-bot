@@ -23,7 +23,7 @@ export const CancellationPreviewModal: React.FC<CancellationPreviewModalProps> =
     <BaseModal
       onClose={onBack}
       aria-label="LINE訊息預覽"
-      showCloseButton={false}
+     
     >
       <ModalHeader title="LINE訊息預覽" showClose onClose={onBack} />
       <ModalBody>

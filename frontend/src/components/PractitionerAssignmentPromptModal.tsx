@@ -66,7 +66,7 @@ export const PractitionerAssignmentPromptModal: React.FC<PractitionerAssignmentP
       onClose={handleCancel}
       aria-label="負責人員確認"
       closeOnOverlayClick={false}
-      showCloseButton={false}
+     
     >
       <ModalHeader title="負責人員確認" showClose onClose={handleCancel} />
       <ModalBody>

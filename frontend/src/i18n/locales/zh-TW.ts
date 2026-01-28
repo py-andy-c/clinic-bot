@@ -15,6 +15,7 @@ export default {
     updating: '更新中...',
     selectLanguage: '選擇語言',
     ok: '確定',
+    close: '關閉',
     unknownError: '發生未知錯誤，請稍後再試',
   },
   errors: {

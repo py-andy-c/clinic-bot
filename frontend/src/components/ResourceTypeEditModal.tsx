@@ -188,7 +188,7 @@ const ResourceTypeEditModal: React.FC<ResourceTypeEditModalProps> = ({
     };
 
     return (
-        <BaseModal onClose={onClose} aria-label={isEdit ? '編輯資源類型' : '新增資源類型'} showCloseButton={false}>
+        <BaseModal onClose={onClose} aria-label={isEdit ? '編輯資源類型' : '新增資源類型'}>
             <FormProvider {...methods}>
                 <form onSubmit={handleSubmit(onSubmit, onInvalid)} className="w-full flex flex-col min-h-0">
                     <ModalHeader title={isEdit ? '編輯資源類型' : '新增資源類型'} showClose onClose={onClose} />

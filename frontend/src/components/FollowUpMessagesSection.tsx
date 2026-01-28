@@ -3,7 +3,8 @@ import { FollowUpMessage, AppointmentType } from '../types';
 import { apiService } from '../services/api';
 import { PlaceholderHelper } from './PlaceholderHelper';
 import { BaseModal } from './shared/BaseModal';
-import { LoadingSpinner, InfoModal, TimeInput } from './shared';
+import { ModalHeader, ModalBody, ModalFooter } from './shared/ModalParts';
+import { LoadingSpinner, TimeInput } from './shared';
 import { generateTemporaryId } from '../utils/idUtils';
 import { isTemporaryServiceItemId } from '../utils/idUtils';
 import { logger } from '../utils/logger';
@@ -500,11 +501,16 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
                     aria-label={isNewMessage ? '新增追蹤訊息' : '編輯追蹤訊息'}
                     className="max-w-2xl"
                 >
-                    <div className="p-6">
-                        <h2 className="text-xl font-semibold mb-4">
-                            {isNewMessage ? '新增追蹤訊息' : '編輯追蹤訊息'}
-                        </h2>
-
+                    <ModalHeader
+                        title={isNewMessage ? '新增追蹤訊息' : '編輯追蹤訊息'}
+                        showClose
+                        onClose={() => {
+                            setEditingMessage(null);
+                            setIsNewMessage(false);
+                            setFormErrors({});
+                        }}
+                    />
+                    <ModalBody>
                         <div className="space-y-4">
                             {/* Timing Mode Selection */}
                             <div>
@@ -708,28 +714,27 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
                                 </label>
                             </div>
                         </div>
-
-                        <div className="mt-6 flex justify-end space-x-3">
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setEditingMessage(null);
-                                    setIsNewMessage(false);
-                                    setFormErrors({});
-                                }}
-                                className="btn-secondary"
-                            >
-                                取消
-                            </button>
-                            <button
-                                type="button"
-                                onClick={handleSaveMessage}
-                                className="btn-primary"
-                            >
-                                儲存
-                            </button>
-                        </div>
-                    </div>
+                    </ModalBody>
+                    <ModalFooter>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setEditingMessage(null);
+                                setIsNewMessage(false);
+                                setFormErrors({});
+                            }}
+                            className="btn-secondary"
+                        >
+                            取消
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleSaveMessage}
+                            className="btn-primary"
+                        >
+                            儲存
+                        </button>
+                    </ModalFooter>
                 </BaseModal>
             ) : null}
 
@@ -743,9 +748,11 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
                     aria-label="訊息預覽"
                     className="max-w-2xl"
                 >
-                    <div className="p-6">
-                        <h2 className="text-xl font-semibold mb-4">訊息預覽</h2>
-
+                    <ModalHeader title="訊息預覽" showClose onClose={() => {
+                        setPreviewModal({ isOpen: false, message: null });
+                        setPreviewData(null);
+                    }} />
+                    <ModalBody>
                         {loadingPreview && (
                             <div className="flex justify-center py-8">
                                 <LoadingSpinner />
@@ -804,54 +811,60 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
                                         </div>
                                     </div>
                                 )}
-
-                                <div className="flex justify-end pt-4">
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            setPreviewModal({ isOpen: false, message: null });
-                                            setPreviewData(null);
-                                        }}
-                                        className="btn-primary px-4 py-2"
-                                    >
-                                        關閉
-                                    </button>
-                                </div>
                             </div>
                         )}
-                    </div>
+                    </ModalBody>
+                    <ModalFooter>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setPreviewModal({ isOpen: false, message: null });
+                                setPreviewData(null);
+                            }}
+                            className="btn-primary px-4 py-2"
+                        >
+                            關閉
+                        </button>
+                    </ModalFooter>
                 </BaseModal>
             )}
 
             {/* Info Modal for Follow-Up Messages Explanation */}
-            <InfoModal
-                isOpen={showInfoModal}
-                onClose={() => setShowInfoModal(false)}
-                title="追蹤訊息設定說明"
-                ariaLabel="追蹤訊息設定說明"
-            >
-                <p>
-                    <strong>什麼是追蹤訊息？</strong>
-                </p>
-                <p>
-                    追蹤訊息是在病患完成預約後，系統自動發送的 LINE 訊息。您可以設定多個追蹤訊息，每個訊息可以有不同的發送時機和內容。
-                </p>
-                <p>
-                    <strong>發送時機：</strong>
-                </p>
-                <ul className="list-disc list-inside space-y-1 ml-2">
-                    <li><strong>預約結束後 X 小時：</strong>在預約結束時間後，延遲指定小時數發送（例如：2 小時後）。X=0 表示預約結束後立即發送。</li>
-                    <li><strong>預約日期後 Y 天的特定時間：</strong>在預約日期後的第 Y 天，於指定時間發送（例如：1 天後的晚上 9 點）。Y=0 表示預約當天的指定時間。</li>
-                </ul>
-                <p>
-                    <strong>注意事項：</strong>
-                </p>
-                <ul className="list-disc list-inside space-y-1 ml-2">
-                    <li>如果預約被取消，已排程的追蹤訊息將不會發送</li>
-                    <li>如果預約時間變更，系統會自動重新排程追蹤訊息</li>
-                </ul>
-            </InfoModal>
+            {showInfoModal && (
+                <BaseModal
+                    onClose={() => setShowInfoModal(false)}
+                    aria-label="追蹤訊息設定說明"
+                >
+                    <ModalHeader title="追蹤訊息設定說明" showClose onClose={() => setShowInfoModal(false)} />
+                    <ModalBody>
+                        <div className="space-y-4">
+                            <p>
+                                <strong>什麼是追蹤訊息？</strong>
+                            </p>
+                            <p>
+                                追蹤訊息是在病患完成預約後，系統自動發送的 LINE 訊息。您可以設定多個追蹤訊息，每個訊息可以有不同的發送時機和內容。
+                            </p>
+                            <p>
+                                <strong>發送時機：</strong>
+                            </p>
+                            <ul className="list-disc list-inside space-y-1 ml-2">
+                                <li><strong>預約結束後 X 小時：</strong>在預約結束時間後，延遲指定小時數發送（例如：2 小時後）。X=0 表示預約結束後立即發送。</li>
+                                <li><strong>預約日期後 Y 天的特定時間：</strong>在預約日期後的第 Y 天，於指定時間發送（例如：1 天後的晚上 9 點）。Y=0 表示預約當天的指定時間。</li>
+                            </ul>
+                            <p>
+                                <strong>注意事項：</strong>
+                            </p>
+                            <ul className="list-disc list-inside space-y-1 ml-2">
+                                <li>如果預約被取消，已排程的追蹤訊息將不會發送</li>
+                                <li>如果預約時間變更，系統會自動重新排程追蹤訊息</li>
+                            </ul>
+                        </div>
+                    </ModalBody>
+                    <ModalFooter>
+                        <button type="button" onClick={() => setShowInfoModal(false)} className="btn-secondary">關閉</button>
+                    </ModalFooter>
+                </BaseModal>
+            )}
         </>
     );
 };
-

@@ -27,7 +27,7 @@ export const CancellationNoteModal: React.FC<CancellationNoteModalProps> = React
     <BaseModal
       onClose={onBack}
       aria-label="取消預約備註"
-      showCloseButton={false}
+     
     >
       <ModalHeader title="取消預約備註(選填)" showClose onClose={onBack} />
       <ModalBody>

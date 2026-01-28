@@ -39,7 +39,7 @@ export const ExceptionModal: React.FC<ExceptionModalProps> = React.memo(({
     <BaseModal
       onClose={onClose}
       aria-label="新增休診時段"
-      showCloseButton={false}
+     
     >
       <ModalHeader title="新增休診時段" showClose onClose={onClose} />
       <ModalBody>

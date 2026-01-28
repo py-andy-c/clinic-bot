@@ -64,7 +64,7 @@ export const MessagePreviewModal: React.FC<MessagePreviewModalProps> = ({
     if (!isOpen) return null;
 
     return (
-        <BaseModal onClose={onClose} aria-label="訊息預覽" className="max-w-2xl" showCloseButton={false}>
+        <BaseModal onClose={onClose} aria-label="訊息預覽" className="max-w-2xl">
             <ModalHeader title="訊息預覽" showClose onClose={onClose} />
             <ModalBody>
                 {loading && (

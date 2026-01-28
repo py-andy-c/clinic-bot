@@ -123,7 +123,7 @@ export const PatientCreationModal: React.FC<PatientCreationModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <BaseModal onClose={onClose} aria-label="新增病患" className="max-w-lg" showCloseButton={false}>
+    <BaseModal onClose={onClose} aria-label="新增病患" className="max-w-lg">
       <ModalHeader title="新增病患" showClose onClose={onClose} />
       <ModalBody>
         <div className="space-y-4">

@@ -15,6 +15,7 @@ export default {
     updating: 'Updating...',
     selectLanguage: 'Select Language',
     ok: 'OK',
+    close: 'Close',
     unknownError: 'An unknown error occurred. Please try again later',
   },
   status: {

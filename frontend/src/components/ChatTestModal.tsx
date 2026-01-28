@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { BaseModal } from './shared/BaseModal';
+import { ModalHeader, ModalBody, ModalFooter } from './shared/ModalParts';
 import { ChatSettings as ChatSettingsType } from '../schemas/api';
 import { apiService } from '../services/api';
 import { logger } from '../utils/logger';
@@ -186,22 +187,20 @@ export const ChatTestModal: React.FC<ChatTestModalProps> = ({
     <BaseModal
       onClose={onClose}
       fullScreen={true}
+      showCloseButton={false}
       className="flex items-center justify-center p-0 sm:p-4"
       aria-label="測試聊天機器人"
     >
-      {/* Chat Container - Full width on mobile, centered with max-width on desktop */}
       <div className="w-full h-full sm:w-full sm:max-w-3xl sm:h-[90vh] sm:max-h-[800px] flex flex-col bg-white sm:rounded-lg sm:shadow-2xl overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-white sm:rounded-t-lg">
-          <div className="flex-1">
-            <p className="text-sm text-gray-500">
-              使用當前設定（含未儲存變更）測試 • 測試模式，不影響實際病患對話 • 需點擊「儲存更變」才會套用
+        <ModalHeader title="測試聊天機器人" showClose onClose={onClose}>
+          <div className="ml-4 flex-1">
+            <p className="text-[10px] sm:text-xs text-gray-400 leading-tight">
+              使用當前設定測試 • 測試模式，不影響實際病患對話 • 需點擊「儲存更變」才會套用
             </p>
           </div>
-        </div>
+        </ModalHeader>
 
-        {/* Messages Area */}
-        <div className="flex-1 overflow-y-auto p-4 bg-gray-50">
+        <ModalBody className="flex-1 overflow-y-auto p-4 bg-gray-50">
           {messages.length === 0 ? (
             <div className="flex items-center justify-center h-full text-gray-400">
               <p className="text-sm">開始對話以測試聊天機器人</p>
@@ -245,11 +244,10 @@ export const ChatTestModal: React.FC<ChatTestModalProps> = ({
             </div>
           )}
           <div ref={messagesEndRef} />
-        </div>
+        </ModalBody>
 
-        {/* Input Area */}
-        <div className="p-4 border-t border-gray-200 bg-white sm:rounded-b-lg" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
-          <div className="flex items-end gap-2">
+        <ModalFooter className="p-4 border-t border-gray-200 bg-white" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
+          <div className="flex items-end gap-2 w-full">
             <textarea
               ref={textareaRef}
               value={inputText}
@@ -270,9 +268,8 @@ export const ChatTestModal: React.FC<ChatTestModalProps> = ({
               傳送
             </button>
           </div>
-        </div>
+        </ModalFooter>
       </div>
-      {/* End Chat Container */}
     </BaseModal>
   );
 };

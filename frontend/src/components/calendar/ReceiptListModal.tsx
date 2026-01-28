@@ -90,7 +90,7 @@ export const ReceiptListModal: React.FC<ReceiptListModalProps> = ({
 
   if (isLoading) {
     return (
-      <BaseModal onClose={onClose} aria-label="收據列表" showCloseButton={false}>
+      <BaseModal onClose={onClose} aria-label="收據列表">
         <ModalHeader title="收據列表" showClose onClose={onClose} />
         <ModalBody>
           <div className="text-center py-8">載入中...</div>
@@ -101,7 +101,7 @@ export const ReceiptListModal: React.FC<ReceiptListModalProps> = ({
 
   if (error) {
     return (
-      <BaseModal onClose={onClose} aria-label="收據列表" showCloseButton={false}>
+      <BaseModal onClose={onClose} aria-label="收據列表">
         <ModalHeader title="收據列表" showClose onClose={onClose} />
         <ModalBody>
           <div className="bg-red-50 border border-red-200 rounded-md p-3">
@@ -113,7 +113,7 @@ export const ReceiptListModal: React.FC<ReceiptListModalProps> = ({
   }
 
   return (
-    <BaseModal onClose={onClose} aria-label="收據列表" showCloseButton={false}>
+    <BaseModal onClose={onClose} aria-label="收據列表">
       <ModalHeader title="收據列表" showClose onClose={onClose} />
       <ModalBody>
         <p className="text-sm text-gray-600 mb-3">

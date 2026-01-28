@@ -270,7 +270,7 @@ export const ReceiptViewModal: React.FC<ReceiptViewModalProps> = ({
                         setVoidReason('');
                     }}
                     aria-label="確認作廢收據"
-                    showCloseButton={false}
+                   
                 >
                     <ModalHeader
                         title="確認作廢收據"

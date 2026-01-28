@@ -8,6 +8,7 @@ import { LoadingSpinner, ErrorMessage } from '../components/shared';
 import { EditAppointmentModal } from '../components/calendar/EditAppointmentModal';
 import { useAutoAssignedAppointments, AutoAssignedAppointment } from '../hooks/queries';
 import { BaseModal } from '../components/shared/BaseModal';
+import { ModalHeader, ModalBody, ModalFooter } from '../components/shared/ModalParts';
 import moment from 'moment-timezone';
 import { CalendarEvent } from '../utils/calendarDataAdapter';
 import { formatAppointmentDateTime, formatAppointmentTimeRange } from '../utils/calendarUtils';
@@ -680,63 +681,65 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
           onClose={() => setIsInfoModalOpen(false)}
           aria-label="說明"
         >
-          <div className="flex items-start">
-            <div className="flex-shrink-0">
-              <svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-              </svg>
-            </div>
-            <div className="ml-3 flex-1">
-              <h3 className="text-lg font-semibold text-gray-900 mb-3">說明</h3>
-              <div className="text-sm text-gray-700 space-y-4">
-                <div>
-                  <h4 className="font-medium text-gray-900 mb-2">整體機制</h4>
-                  <p className="mb-2">病患可以：</p>
-                  <ul className="list-disc list-inside ml-4 space-y-1">
-                    <li>預約時不指定治療師（系統自動指派）</li>
-                    <li>選擇多個偏好時段（若服務項目允許，最多 10 個）</li>
-                  </ul>
-                  <p>系統會先指派臨時治療師和時間，設為待確認狀態。</p>
-                </div>
+          <ModalHeader title="說明" showClose onClose={() => setIsInfoModalOpen(false)} />
+          <ModalBody>
+            <div className="flex items-start">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3 flex-1">
+                <div className="text-sm text-gray-700 space-y-4">
+                  <div>
+                    <h4 className="font-semibold text-gray-900 mb-2">整體機制</h4>
+                    <p className="mb-2">病患可以：</p>
+                    <ul className="list-disc list-inside ml-4 space-y-1">
+                      <li>預約時不指定治療師（系統自動指派）</li>
+                      <li>選擇多個偏好時段（若服務項目允許，最多 10 個）</li>
+                    </ul>
+                    <p>系統會先指派臨時治療師和時間，設為待確認狀態。</p>
+                  </div>
 
-                <div>
-                  <h4 className="font-medium text-gray-900 mb-2">確認流程</h4>
-                  <p className="mb-2">診所人員可以：</p>
-                  <ul className="list-disc list-inside ml-4 space-y-1">
-                    <li>確認或修改治療師指派</li>
-                    <li>確認或修改時間</li>
-                  </ul>
-                  <p>確認後會立即發送 LINE 通知給病患。</p>
-                </div>
+                  <div>
+                    <h4 className="font-semibold text-gray-900 mb-2">確認流程</h4>
+                    <p className="mb-2">診所人員可以：</p>
+                    <ul className="list-disc list-inside ml-4 space-y-1">
+                      <li>確認或修改治療師指派</li>
+                      <li>確認或修改時間</li>
+                    </ul>
+                    <p>確認後會立即發送 LINE 通知給病患。</p>
+                  </div>
 
-                <div>
-                  <h4 className="font-medium text-gray-900 mb-2">自動確認機制</h4>
-                  <p className="mb-2">根據診所的「預約限制」設定，若未及時確認，系統會自動確認：</p>
-                  <ul className="list-disc list-inside ml-4 space-y-1">
-                    <li><strong>小時限制模式</strong>（預設）：預約前 X 小時自動確認（預設24小時）</li>
-                    <li><strong>截止時間模式</strong>：在指定時間點自動確認（例如前一天上午 8:00）</li>
-                  </ul>
-                </div>
+                  <div>
+                    <h4 className="font-semibold text-gray-900 mb-2">自動確認機制</h4>
+                    <p className="mb-2">根據診所的「預約限制」設定，若未及時確認，系統會自動確認：</p>
+                    <ul className="list-disc list-inside ml-4 space-y-1">
+                      <li><strong>小時限制模式</strong>（預設）：預約前 X 小時自動確認（預設24小時）</li>
+                      <li><strong>截止時間模式</strong>：在指定時間點自動確認（例如前一天上午 8:00）</li>
+                    </ul>
+                  </div>
 
-                <div>
-                  <h4 className="font-medium text-gray-900 mb-2">權限說明</h4>
-                  <ul className="list-disc list-inside ml-4 space-y-1">
-                    <li><strong>診所管理員</strong>：可以查看和確認所有待確認預約</li>
-                    <li><strong>治療師</strong>：可以查看和確認需要他們確認的多時段預約</li>
-                  </ul>
+                  <div>
+                    <h4 className="font-semibold text-gray-900 mb-2">權限說明</h4>
+                    <ul className="list-disc list-inside ml-4 space-y-1">
+                      <li><strong>診所管理員</strong>：可以查看和確認所有待確認預約</li>
+                      <li><strong>治療師</strong>：可以查看和確認需要他們確認的多時段預約</li>
+                    </ul>
+                  </div>
                 </div>
               </div>
-              <div className="mt-4 flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => setIsInfoModalOpen(false)}
-                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
-                >
-                  關閉
-                </button>
-              </div>
             </div>
-          </div>
+          </ModalBody>
+          <ModalFooter>
+            <button
+              type="button"
+              onClick={() => setIsInfoModalOpen(false)}
+              className="btn-secondary"
+            >
+              關閉
+            </button>
+          </ModalFooter>
         </BaseModal>
       )}
     </>

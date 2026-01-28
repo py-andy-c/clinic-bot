@@ -67,7 +67,7 @@ describe('ChatTestModal', () => {
       />
     );
 
-    expect(screen.getByText('使用當前設定（含未儲存變更）測試 • 測試模式，不影響實際病患對話 • 需點擊「儲存更變」才會套用')).toBeInTheDocument();
+    expect(screen.getByText('使用當前設定測試 • 測試模式，不影響實際病患對話 • 需點擊「儲存更變」才會套用')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('輸入訊息...')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '傳送' })).toBeInTheDocument();
   });
@@ -93,7 +93,7 @@ describe('ChatTestModal', () => {
       />
     );
 
-    const closeButton = screen.getByLabelText('關閉');
+    const closeButton = screen.getByLabelText(/關閉|common\.close/);
     fireEvent.click(closeButton);
     expect(mockOnClose).toHaveBeenCalledTimes(1);
   });
@@ -195,7 +195,7 @@ describe('ChatTestModal', () => {
 
   it('should disable send button when loading', async () => {
     vi.mocked(apiService.testChatbot).mockImplementation(
-      () => new Promise(() => {}) // Never resolves
+      () => new Promise(() => { }) // Never resolves
     );
 
     render(

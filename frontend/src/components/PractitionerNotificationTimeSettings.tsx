@@ -43,7 +43,7 @@ const PractitionerNotificationTimeSettings: React.FC<PractitionerNotificationTim
         <BaseModal
           onClose={() => setIsInfoModalOpen(false)}
           aria-label="明日預約提醒時間說明"
-          showCloseButton={false}
+         
         >
           <ModalHeader title="明日預約提醒時間" showClose onClose={() => setIsInfoModalOpen(false)} />
           <ModalBody>

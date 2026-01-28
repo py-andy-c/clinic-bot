@@ -7,6 +7,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { BaseModal } from './shared/BaseModal';
+import { ModalHeader, ModalBody } from './shared/ModalParts';
 import { apiService } from '../services/api';
 import { logger } from '../utils/logger';
 
@@ -78,15 +79,17 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
   }
 
   return (
-    <BaseModal onClose={onClose} aria-label="收據預覽" fullScreen className="p-0">
-      {/* Receipt HTML in iframe */}
-      <iframe
-        srcDoc={receiptHtml || ''}
-        className="w-full h-full border-0"
-        title="收據預覽"
-        style={{ minHeight: '100vh' }}
-        sandbox="allow-same-origin"
-      />
+    <BaseModal onClose={onClose} aria-label="收據預覽" fullScreen className="flex flex-col">
+      <ModalHeader title="收據預覽" showClose onClose={onClose} />
+      <ModalBody className="p-0 flex-1 overflow-hidden">
+        {/* Receipt HTML in iframe */}
+        <iframe
+          srcDoc={receiptHtml || ''}
+          className="w-full h-full border-0"
+          title="收據預覽"
+          sandbox="allow-same-origin"
+        />
+      </ModalBody>
     </BaseModal>
   );
 };

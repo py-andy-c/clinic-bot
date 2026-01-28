@@ -154,7 +154,7 @@ export const ServiceItemSelectionModal: React.FC<ServiceItemSelectionModalProps>
       onClose={onClose}
       fullScreen={isMobile}
       aria-label={title}
-      showCloseButton={false}
+     
     >
       <ModalHeader title={title} showClose onClose={onClose} />
 

@@ -61,7 +61,7 @@ export const PatientCreationSuccessModal: React.FC<PatientCreationSuccessModalPr
   if (!isOpen) return null;
 
   return (
-    <BaseModal onClose={onClose} aria-label="病患已成功建立" className="max-w-md" showCloseButton={false}>
+    <BaseModal onClose={onClose} aria-label="病患已成功建立" className="max-w-md">
       <ModalHeader title="病患已成功建立" showClose onClose={onClose} />
       <ModalBody>
         <div className="text-center space-y-6 pt-2 pb-4">

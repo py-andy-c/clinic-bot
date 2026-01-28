@@ -244,7 +244,7 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
     <BaseModal
       onClose={onClose}
       aria-label={event.resource.type === 'appointment' ? '預約詳情' : '休診詳情'}
-      showCloseButton={false}
+     
     >
       <ModalHeader showClose onClose={onClose}>
         {isEditingName ? (

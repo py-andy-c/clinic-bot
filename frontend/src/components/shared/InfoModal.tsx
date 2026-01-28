@@ -24,7 +24,7 @@ export const InfoModal: React.FC<InfoModalProps> = ({
       onClose={onClose}
       aria-label={ariaLabel || title}
       closeOnOverlayClick={false}
-      showCloseButton={false}
+     
     >
       <ModalHeader title={title} showClose onClose={onClose} />
       <ModalBody>

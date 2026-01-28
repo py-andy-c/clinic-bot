@@ -7,6 +7,7 @@
 
 import React from 'react';
 import { BaseModal } from './shared/BaseModal';
+import { ModalHeader, ModalBody, ModalFooter } from './shared/ModalParts';
 import { useIsMobile } from '../hooks/useIsMobile';
 
 export interface ValidationError {
@@ -49,126 +50,109 @@ export const ValidationSummaryModal: React.FC<ValidationSummaryModalProps> = ({
     <BaseModal
       onClose={onClose}
       aria-label="驗證錯誤"
-      className={isMobile ? 'p-0' : 'p-6'}
+      className={isMobile ? 'max-w-full' : 'max-w-2xl'}
     >
-      <div className="flex flex-col h-full">
-        {/* Header */}
-        <div className="flex-shrink-0 px-4 py-4 md:px-6 md:py-6 border-b border-gray-200">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-gray-900">驗證錯誤</h2>
-            <button
-              onClick={onClose}
-              className="text-gray-400 hover:text-gray-600"
-              aria-label="關閉"
-            >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-          <p className="mt-2 text-sm text-gray-600">
-            請修正以下錯誤後再儲存：
+      <ModalHeader title="驗證錯誤" showClose onClose={onClose}>
+        <div className="ml-4 flex-1">
+          <p className="text-xs text-gray-500">
+            請修正以下錯誤後再儲存
           </p>
         </div>
+      </ModalHeader>
 
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto px-4 py-4 md:px-6 md:py-6">
-          <div className="space-y-6">
-            {/* Service Item Errors */}
-            {serviceItemErrors.length > 0 && (
-              <div>
-                <h3 className="text-sm font-medium text-gray-900 mb-3">服務項目：</h3>
-                <ul className="space-y-2">
-                  {serviceItemErrors.map((error, index) => (
-                    <li key={index} className="flex items-start">
-                      <div className="flex-1">
-                        <span className="text-sm font-medium text-gray-700">
-                          「{error.itemName || `項目 ${error.itemId}`}」
-                        </span>
-                        <span className="text-sm text-gray-600 ml-1">- {error.message}</span>
-                      </div>
-                      {error.onNavigate && (
-                        <button
-                          onClick={() => handleErrorClick(error)}
-                          className="ml-4 text-sm text-blue-600 hover:text-blue-800 underline"
-                        >
-                          前往修正
-                        </button>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
+      <ModalBody>
+        <div className="space-y-6">
+          {/* Service Item Errors */}
+          {serviceItemErrors.length > 0 && (
+            <div>
+              <h3 className="text-sm font-semibold text-gray-900 mb-3 border-l-4 border-red-500 pl-3">服務項目</h3>
+              <ul className="space-y-2">
+                {serviceItemErrors.map((error, index) => (
+                  <li key={index} className="flex items-start bg-red-50/50 p-2 rounded-md">
+                    <div className="flex-1">
+                      <span className="text-sm font-medium text-gray-700">
+                        「{error.itemName || `項目 ${error.itemId}`}」
+                      </span>
+                      <span className="text-sm text-gray-600 ml-1">- {error.message}</span>
+                    </div>
+                    {error.onNavigate && (
+                      <button
+                        onClick={() => handleErrorClick(error)}
+                        className="ml-4 text-sm text-blue-600 hover:text-blue-800 underline"
+                      >
+                        前往修正
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
-            {/* Group Errors */}
-            {groupErrors.length > 0 && (
-              <div>
-                <h3 className="text-sm font-medium text-gray-900 mb-3">群組：</h3>
-                <ul className="space-y-2">
-                  {groupErrors.map((error, index) => (
-                    <li key={index} className="flex items-start">
-                      <div className="flex-1">
-                        <span className="text-sm font-medium text-gray-700">
-                          「{error.itemName || `群組 ${error.itemId}`}」
-                        </span>
-                        <span className="text-sm text-gray-600 ml-1">- {error.message}</span>
-                      </div>
-                      {error.onNavigate && (
-                        <button
-                          onClick={() => handleErrorClick(error)}
-                          className="ml-4 text-sm text-blue-600 hover:text-blue-800 underline"
-                        >
-                          前往修正
-                        </button>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
+          {/* Group Errors */}
+          {groupErrors.length > 0 && (
+            <div>
+              <h3 className="text-sm font-semibold text-gray-900 mb-3 border-l-4 border-amber-500 pl-3">群組</h3>
+              <ul className="space-y-2">
+                {groupErrors.map((error, index) => (
+                  <li key={index} className="flex items-start bg-amber-50/50 p-2 rounded-md">
+                    <div className="flex-1">
+                      <span className="text-sm font-medium text-gray-700">
+                        「{error.itemName || `群組 ${error.itemId}`}」
+                      </span>
+                      <span className="text-sm text-gray-600 ml-1">- {error.message}</span>
+                    </div>
+                    {error.onNavigate && (
+                      <button
+                        onClick={() => handleErrorClick(error)}
+                        className="ml-4 text-sm text-blue-600 hover:text-blue-800 underline"
+                      >
+                        前往修正
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
-            {/* Association Errors */}
-            {associationErrors.length > 0 && (
-              <div>
-                <h3 className="text-sm font-medium text-gray-900 mb-3">關聯設定：</h3>
-                <ul className="space-y-2">
-                  {associationErrors.map((error, index) => (
-                    <li key={index} className="flex items-start">
-                      <div className="flex-1">
-                        <span className="text-sm font-medium text-gray-700">
-                          {error.itemName || `項目 ${error.itemId}`}
-                        </span>
-                        <span className="text-sm text-gray-600 ml-1">- {error.message}</span>
-                      </div>
-                      {error.onNavigate && (
-                        <button
-                          onClick={() => handleErrorClick(error)}
-                          className="ml-4 text-sm text-blue-600 hover:text-blue-800 underline"
-                        >
-                          前往修正
-                        </button>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </div>
+          {/* Association Errors */}
+          {associationErrors.length > 0 && (
+            <div>
+              <h3 className="text-sm font-semibold text-gray-900 mb-3 border-l-4 border-blue-500 pl-3">關聯設定</h3>
+              <ul className="space-y-2">
+                {associationErrors.map((error, index) => (
+                  <li key={index} className="flex items-start bg-blue-50/50 p-2 rounded-md">
+                    <div className="flex-1">
+                      <span className="text-sm font-medium text-gray-700">
+                        {error.itemName || `項目 ${error.itemId}`}
+                      </span>
+                      <span className="text-sm text-gray-600 ml-1">- {error.message}</span>
+                    </div>
+                    {error.onNavigate && (
+                      <button
+                        onClick={() => handleErrorClick(error)}
+                        className="ml-4 text-sm text-blue-600 hover:text-blue-800 underline"
+                      >
+                        前往修正
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
+      </ModalBody>
 
-        {/* Footer */}
-        <div className="flex-shrink-0 px-4 py-4 md:px-6 md:py-6 border-t border-gray-200 bg-gray-50">
-          <div className="flex justify-end">
-            <button
-              onClick={onClose}
-              className="btn-primary px-4 py-2"
-            >
-              關閉
-            </button>
-          </div>
-        </div>
-      </div>
+      <ModalFooter>
+        <button
+          onClick={onClose}
+          className="btn-primary"
+        >
+          關閉
+        </button>
+      </ModalFooter>
     </BaseModal>
   );
 };

@@ -8,6 +8,7 @@
 
 import React, { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 import { Z_INDEX } from '../../constants/app';
 
 export interface BaseModalProps {
@@ -30,9 +31,10 @@ export const BaseModal: React.FC<BaseModalProps> = React.memo(({
   'aria-labelledby': ariaLabelledBy,
   zIndex = Z_INDEX.MODAL,
   fullScreen = false,
-  showCloseButton = true,
+  showCloseButton: showCloseButtonProp,
   closeOnOverlayClick = false,
 }) => {
+  const { t } = useTranslation();
   const historyPushedRef = useRef(false);
   const isHandlingBackRef = useRef(false);
   const popStateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -74,7 +76,7 @@ export const BaseModal: React.FC<BaseModalProps> = React.memo(({
       }
 
       const currentPosition = document.body.style.position;
-      
+
       // Only restore if still fixed (might have been restored by another cleanup)
       if (currentPosition === 'fixed') {
         document.body.style.position = originalPosition || '';
@@ -91,7 +93,7 @@ export const BaseModal: React.FC<BaseModalProps> = React.memo(({
 
     // Immediate cleanup
     const immediateCleanup = restoreStyles;
-    
+
     // Fallback cleanup with delay to catch any race conditions
     // Store timeout IDs so we can clear them if needed
     timeoutIds.push(setTimeout(restoreStyles, 0));
@@ -101,7 +103,7 @@ export const BaseModal: React.FC<BaseModalProps> = React.memo(({
     return () => {
       // Immediate cleanup
       immediateCleanup();
-      
+
       // Clear all timeouts when component unmounts (for test environments)
       // This ensures timeouts don't run after test environment is torn down
       timeoutIds.forEach(id => clearTimeout(id));
@@ -170,7 +172,7 @@ export const BaseModal: React.FC<BaseModalProps> = React.memo(({
       const currentHistoryState = window.history.state as { fullScreenModal?: boolean } | null;
       const weTrackedPushingState = historyPushedRef.current;
       const isCurrentlyOnModalState = currentHistoryState?.fullScreenModal === true;
-      
+
       // Close if we tracked pushing a state and we're no longer on the modal state
       if (weTrackedPushingState && !isCurrentlyOnModalState) {
         isHandlingBackRef.current = true;
@@ -207,6 +209,15 @@ export const BaseModal: React.FC<BaseModalProps> = React.memo(({
     };
   }, [fullScreen, onClose]);
 
+  // Determine if we should show the structural close button
+  // 1. If showCloseButtonProp is explicitly false, don't show it.
+  // 2. If it's undefined/true, we hide it if children contains a ModalHeader.
+  const hasHeader = React.Children.toArray(children).some(
+    (child) => React.isValidElement(child) && (child.type as any).displayName === 'ModalHeader'
+  );
+
+  const showAbsoluteClose = showCloseButtonProp !== false && !hasHeader;
+
   return createPortal(
     <div
       className={fullScreen
@@ -236,11 +247,11 @@ export const BaseModal: React.FC<BaseModalProps> = React.memo(({
         tabIndex={-1}
       >
         {/* Close button (X) in top-right corner */}
-        {showCloseButton && onClose && (
+        {showAbsoluteClose && onClose && (
           <button
             onClick={onClose}
             className="absolute top-4 right-4 z-20 bg-white rounded-full p-1.5 shadow-md text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-            aria-label="關閉"
+            aria-label={t('common.close')}
             type="button"
           >
             <svg
