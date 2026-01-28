@@ -599,8 +599,9 @@ export class ApiService {
     await this.client.delete(`/clinic/resource-types/${resourceTypeId}`);
   }
 
-  async deleteResource(resourceId: number): Promise<void> {
-    await this.client.delete(`/clinic/resources/${resourceId}`);
+  async deleteResource(resourceId: number): Promise<{ success: boolean; message: string; affected_appointments: number }> {
+    const response = await this.client.delete(`/clinic/resources/${resourceId}`);
+    return response.data;
   }
 
   // Resource Type Bundle APIs

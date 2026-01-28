@@ -36,7 +36,7 @@ const ResourceTypeEditModal: React.FC<ResourceTypeEditModalProps> = ({
     existingNames = [],
 }) => {
     const queryClient = useQueryClient();
-    const { alert } = useModal();
+    const { alert, confirm } = useModal();
     const isEdit = !!resourceTypeId;
     const errorRef = useRef<HTMLDivElement>(null);
 
@@ -149,7 +149,24 @@ const ResourceTypeEditModal: React.FC<ResourceTypeEditModalProps> = ({
     }, [bundle, resourceTypeId, reset]);
 
     const mutation = useMutation({
-        mutationFn: (data: ResourceTypeBundleFormData) => {
+        mutationFn: async (data: ResourceTypeBundleFormData) => {
+            // Check if any existing resources are being removed and warn user
+            if (bundle && isEdit) {
+                const existingResourceIds = new Set(bundle.resources.map(r => r.id));
+                const incomingResourceIds = new Set(data.resources.map(r => r.id).filter(id => id));
+                const removedResourceIds = Array.from(existingResourceIds).filter(id => !incomingResourceIds.has(id));
+                
+                if (removedResourceIds.length > 0) {
+                    const confirmed = await confirm(
+                        `刪除這些資源將會自動從所有未來預約中移除相關的資源配置。\n\n確定要繼續嗎？`,
+                        '確認刪除資源'
+                    );
+                    if (!confirmed) {
+                        throw new Error('User cancelled deletion');
+                    }
+                }
+            }
+
             const request = {
                 name: data.name,
                 resources: data.resources.map(r => ({
@@ -171,6 +188,9 @@ const ResourceTypeEditModal: React.FC<ResourceTypeEditModalProps> = ({
             onClose();
         },
         onError: async (err: any) => {
+            if (err.message === 'User cancelled deletion') {
+                return; // Don't show error for user cancellation
+            }
             logger.error('Error saving resource type bundle:', err);
             await alert(getErrorMessage(err) || '儲存失敗', '錯誤');
         },
