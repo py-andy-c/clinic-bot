@@ -12,7 +12,7 @@ import ClinicAppointmentSettings from '../../components/ClinicAppointmentSetting
 import SettingsBackButton from '../../components/SettingsBackButton';
 import PageHeader from '../../components/PageHeader';
 import { apiService } from '../../services/api';
-import { useMembers } from '../../hooks/queries';
+import { usePractitioners } from '../../hooks/queries';
 import { useUnsavedChangesDetection } from '../../hooks/useUnsavedChangesDetection';
 import { AppointmentsSettingsFormSchema } from '../../schemas/api';
 import { useClinicSettings } from '../../hooks/queries/useClinicSettings';
@@ -24,7 +24,7 @@ export type AppointmentsSettingsFormData = z.infer<typeof AppointmentsSettingsFo
 const SettingsAppointmentsPage: React.FC = () => {
     const queryClient = useQueryClient();
     const { data: settings, isLoading: settingsLoading } = useClinicSettings();
-    const { data: membersData, isLoading: membersLoading } = useMembers();
+    const { data: practitionersData, isLoading: practitionersLoading } = usePractitioners();
     const { isClinicAdmin } = useAuth();
     const { alert } = useModal();
 
@@ -50,14 +50,12 @@ const SettingsAppointmentsPage: React.FC = () => {
     const { reset, handleSubmit, formState: { isDirty } } = methods;
 
     const resetForm = useCallback(() => {
-        if (settings && membersData) {
-            const practitioners = membersData
-                .filter(m => m.roles.includes('practitioner'))
-                .map(p => ({
-                    id: p.id,
-                    full_name: p.full_name,
-                    patient_booking_allowed: p.patient_booking_allowed ?? true,
-                }));
+        if (settings && practitionersData) {
+            const practitioners = practitionersData.map(p => ({
+                id: p.id,
+                full_name: p.full_name,
+                patient_booking_allowed: p.patient_booking_allowed ?? true,
+            }));
 
             reset({
                 clinic_info_settings: {
@@ -94,7 +92,7 @@ const SettingsAppointmentsPage: React.FC = () => {
                 practitioners,
             });
         }
-    }, [settings, membersData, reset]);
+    }, [settings, practitionersData, reset]);
 
     useEffect(() => {
         resetForm();
@@ -122,8 +120,8 @@ const SettingsAppointmentsPage: React.FC = () => {
 
             // 2. Save practitioner settings if changed
             const changedPractitioners = data.practitioners.filter(current => {
-                const member = membersData?.find(m => m.id === current.id);
-                const originalBookingAllowed = member?.patient_booking_allowed ?? true;
+                const practitioner = practitionersData?.find(p => p.id === current.id);
+                const originalBookingAllowed = practitioner?.patient_booking_allowed ?? true;
                 return current.patient_booking_allowed !== originalBookingAllowed;
             });
 
@@ -140,7 +138,7 @@ const SettingsAppointmentsPage: React.FC = () => {
         onSuccess: async (_, variables) => {
             reset(variables);
             await queryClient.invalidateQueries({ queryKey: ['settings'] });
-            await queryClient.invalidateQueries({ queryKey: ['members'] });
+            await queryClient.invalidateQueries({ queryKey: ['practitioners'] });
             alert('設定已成功儲存');
         },
         onError: (err: any) => {
@@ -157,7 +155,7 @@ const SettingsAppointmentsPage: React.FC = () => {
         resetForm();
     };
 
-    if (settingsLoading || membersLoading) {
+    if (settingsLoading || practitionersLoading) {
         return (
             <div className="flex items-center justify-center h-64">
                 <LoadingSpinner />

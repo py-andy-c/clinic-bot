@@ -98,6 +98,7 @@ export interface Practitioner {
   full_name: string;
   picture_url?: string;
   offered_types: number[];
+  patient_booking_allowed?: boolean;
 }
 
 // Practitioner details for system admin view
