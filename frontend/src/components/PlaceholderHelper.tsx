@@ -68,8 +68,9 @@ export const PlaceholderHelper: React.FC<PlaceholderHelperProps> = ({
   }, [isOpen]);
 
   const allPlaceholders = [
-    ...PLACEHOLDERS.common,
+    ...(messageType === 'recurring_clinic_confirmation' ? PLACEHOLDERS.commonRecurring : PLACEHOLDERS.common),
     ...(messageType === 'reminder' ? [] : PLACEHOLDERS.confirmation),
+    ...(messageType === 'recurring_clinic_confirmation' ? PLACEHOLDERS.recurring : []),
   ];
 
   const handleInsert = (placeholder: string) => {

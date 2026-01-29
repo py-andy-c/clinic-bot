@@ -873,23 +873,11 @@ async def create_recurring_appointments(
                         
                         # Create consolidated notification message for patient
                         if patient and patient.line_user:
-                            date_range = ""
-                            dates = sorted([appt['start_time'] for appt in created_appointments])
-                            first_date = dates[0][:10]  # Extract date part
-                            last_date = dates[-1][:10]
-                            if first_date != last_date:
-                                date_range = f"預約時間：{first_date} 至 {last_date}\n"
-                            
-                            # Format appointment times
-                            appointment_list = created_appointments[:10]
-                            from utils.datetime_utils import parse_datetime_to_taiwan as parse_dt
-                            appointment_text = "\n".join([
-                                f"• {format_datetime(parse_dt(appt['start_time']))}" 
-                                for appt in appointment_list
-                            ])
-                            
-                            if len(created_appointments) > 10:
-                                appointment_text += f"\n... 還有 {len(created_appointments) - 10} 個"
+                            # Fetch actual appointment objects for template rendering
+                            appointment_ids = [appt['appointment_id'] for appt in created_appointments]
+                            appointment_objects = db.query(Appointment).filter(
+                                Appointment.calendar_event_id.in_(appointment_ids)
+                            ).all()
                             
                             # Get practitioner name with title for external display
                             from utils.practitioner_helpers import get_practitioner_display_name_with_title
@@ -900,35 +888,50 @@ async def create_recurring_appointments(
                             else:
                                 practitioner_display_name = practitioner_name
                             
-                            message = f"{patient.full_name}，已為您建立 {len(created_appointments)} 個預約：\n\n"
-                            message += date_range
-                            message += appointment_text
-                            message += f"\n\n【{appointment_type_name}】{practitioner_display_name}"
-                            message += "\n\n期待為您服務！"
-                            
-                            # Send notification using LINE service directly
-                            line_service = LINEService(
-                                channel_secret=clinic.line_channel_secret,
-                                channel_access_token=clinic.line_channel_access_token
-                            )
-                            labels = {
-                                'recipient_type': 'patient',
-                                'event_type': 'appointment_confirmation',
-                                'trigger_source': 'clinic_triggered',
-                                'appointment_context': 'recurring_appointments'
-                            }
-                            line_service.send_text_message(
-                                patient.line_user.line_user_id,
-                                message,
-                                db=db,
-                                clinic_id=clinic_id,
-                                labels=labels
-                            )
-                            
-                            logger.info(
-                                f"Sent consolidated appointment confirmation to patient {patient.id} "
-                                f"for {len(created_appointments)} appointments"
-                            )
+                            # Use template instead of hardcoded message with error handling
+                            try:
+                                from services.message_template_service import MessageTemplateService
+                                context = MessageTemplateService.build_recurring_confirmation_context(
+                                    appointments=appointment_objects,
+                                    patient=patient,
+                                    practitioner_name=practitioner_display_name,
+                                    clinic=clinic,
+                                    appointment_type_name=appointment_type_name
+                                )
+                                
+                                template = appointment_type_obj.recurring_clinic_confirmation_message
+                                message = MessageTemplateService.render_message(template, context)
+                                
+                                # Send notification using LINE service directly
+                                line_service = LINEService(
+                                    channel_secret=clinic.line_channel_secret,
+                                    channel_access_token=clinic.line_channel_access_token
+                                )
+                                labels = {
+                                    'recipient_type': 'patient',
+                                    'event_type': 'appointment_confirmation',
+                                    'trigger_source': 'clinic_triggered',
+                                    'appointment_context': 'recurring_appointments'
+                                }
+                                line_service.send_text_message(
+                                    patient.line_user.line_user_id,
+                                    message,
+                                    db=db,
+                                    clinic_id=clinic_id,
+                                    labels=labels
+                                )
+                                
+                                logger.info(
+                                    f"Sent consolidated appointment confirmation to patient {patient.id} "
+                                    f"for {len(created_appointments)} appointments"
+                                )
+                            except Exception as e:
+                                logger.error(
+                                    f"Failed to send recurring appointment message to patient {patient.id}: {e}",
+                                    exc_info=True
+                                )
+                                # Don't fail the entire appointment creation due to message failure
+                                # Appointments are already created successfully
                         
                         # Send consolidated notification for practitioner
                         if practitioner:

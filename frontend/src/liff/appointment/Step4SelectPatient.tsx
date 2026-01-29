@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { logger } from '../../utils/logger';
 import { LoadingSpinner } from '../../components/shared';
-import { ApiErrorType, getErrorMessage } from '../../types';
+import { getErrorMessage } from '../../types';
 import { useAppointmentStore } from '../../stores/appointmentStore';
 import { PatientSummary } from '../../services/liffApi';
 import { liffApiService } from '../../services/liffApi';
@@ -88,7 +88,7 @@ const Step4SelectPatient: React.FC = () => {
           created_at: createdPatient.created_at,
         });
       }
-    } catch (err: ApiErrorType) {
+    } catch (err: any) {
       logger.error('Failed to add patient:', err);
       setError(getErrorMessage(err));
       throw err; // Re-throw so PatientForm can handle it

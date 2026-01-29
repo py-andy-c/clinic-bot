@@ -407,6 +407,7 @@ export const ServiceItemBundleSchema = z.object({
   patient_confirmation_message: z.string().max(3500, '訊息最長 3500 字元').optional(),
   clinic_confirmation_message: z.string().max(3500, '訊息最長 3500 字元').optional(),
   reminder_message: z.string().max(3500, '訊息最長 3500 字元').optional(),
+  recurring_clinic_confirmation_message: z.string().max(5000, '重複預約訊息最長 5000 字元').optional(),
 
   // Staged associations (for validation only, not part of AppointmentType strictly)
   follow_up_messages: z.array(FollowUpMessageBundleSchema).optional(),

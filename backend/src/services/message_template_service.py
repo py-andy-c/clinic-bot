@@ -6,7 +6,7 @@ Traditional Chinese placeholder names (e.g., {病患姓名}, {預約時間}).
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, date
 from typing import Dict, Any, Optional, List
 
 from models import Appointment, Patient, Clinic, AppointmentType
@@ -333,4 +333,136 @@ class MessageTemplateService:
             warnings.append("使用了 {診所電話} 但診所尚未設定電話")
         
         return warnings
+
+    @staticmethod
+    def build_recurring_confirmation_context(
+        appointments: List[Appointment],
+        patient: Patient,
+        practitioner_name: str,
+        clinic: Clinic,
+        appointment_type_name: str
+    ) -> Dict[str, Any]:
+        """
+        Build context dict for recurring confirmation messages.
+        
+        Returns dict with Traditional Chinese keys matching placeholders:
+        - {病患姓名}: Patient's full name
+        - {預約數量}: Number of appointments (e.g., "15")
+        - {日期範圍}: Date range with weekdays (single or multiple dates)
+        - {預約列表}: Numbered list of appointments
+        - {服務項目}: Appointment type name
+        - {治療師姓名}: Practitioner name with title
+        - {診所名稱}: Clinic display name
+        - {診所地址}: Clinic address (if available)
+        - {診所電話}: Clinic phone (if available)
+        
+        Args:
+            appointments: List of appointment objects
+            patient: Patient object
+            practitioner_name: Practitioner name (can be "不指定" for auto-assigned)
+            clinic: Clinic object
+            appointment_type_name: Appointment type name
+            
+        Returns:
+            Dictionary with Traditional Chinese keys for placeholder replacement
+        """
+        # Calculate appointment count
+        appointment_count = len(appointments)
+        
+        # Extract dates from appointments
+        dates = [appt.calendar_event.date for appt in appointments]
+        
+        # Build date range with weekdays
+        date_range = MessageTemplateService._build_date_range_with_weekdays(dates)
+        
+        # Build numbered appointment list
+        appointment_list = MessageTemplateService._build_numbered_appointment_list(appointments)
+        
+        # Get clinic info
+        clinic_name = clinic.effective_display_name or ""
+        clinic_address = clinic.address or ""
+        clinic_phone = clinic.phone_number or ""
+        
+        return {
+            "病患姓名": patient.full_name,
+            "預約數量": str(appointment_count),
+            "日期範圍": date_range,
+            "預約列表": appointment_list,
+            "服務項目": appointment_type_name,
+            "治療師姓名": practitioner_name,
+            "診所名稱": clinic_name,
+            "診所地址": clinic_address,
+            "診所電話": clinic_phone,
+        }
+    
+    @staticmethod
+    def _build_date_range_with_weekdays(dates: List[date]) -> str:
+        """Build date range string with Traditional Chinese weekdays."""
+        WEEKDAY_MAPPING = {
+            0: '一',  # Monday
+            1: '二',  # Tuesday
+            2: '三',  # Wednesday
+            3: '四',  # Thursday
+            4: '五',  # Friday
+            5: '六',  # Saturday
+            6: '日'   # Sunday
+        }
+        
+        def format_date_with_weekday(d: date) -> str:
+            weekday = WEEKDAY_MAPPING[d.weekday()]
+            return f"{d.strftime('%Y-%m-%d')}({weekday})"
+        
+        unique_dates = sorted(set(dates))
+        
+        if len(unique_dates) == 1:
+            # Single date
+            return format_date_with_weekday(unique_dates[0])
+        else:
+            # Multiple dates
+            first_date = unique_dates[0]
+            last_date = unique_dates[-1]
+            return f"{format_date_with_weekday(first_date)} 至 {format_date_with_weekday(last_date)}"
+    
+    @staticmethod
+    def _build_numbered_appointment_list(appointments: List[Appointment]) -> str:
+        """Build numbered list of appointments with limit."""
+        from core.message_template_constants import MAX_APPOINTMENTS_IN_LIST
+        
+        # Sort appointments by date/time
+        sorted_appointments = sorted(appointments, 
+            key=lambda a: (a.calendar_event.date, a.calendar_event.start_time))
+        
+        # Limit to MAX_APPOINTMENTS_IN_LIST
+        display_appointments = sorted_appointments[:MAX_APPOINTMENTS_IN_LIST]
+        
+        # Format each appointment
+        appointment_lines: List[str] = []
+        for i, appt in enumerate(display_appointments, 1):
+            # Format datetime with weekday
+            start_datetime = datetime.combine(
+                appt.calendar_event.date,
+                appt.calendar_event.start_time
+            )
+            formatted_datetime = MessageTemplateService._format_datetime_with_weekday(start_datetime)
+            appointment_lines.append(f"{i}. {formatted_datetime}")
+        
+        # Add overflow indicator if needed
+        if len(appointments) > MAX_APPOINTMENTS_IN_LIST:
+            remaining = len(appointments) - MAX_APPOINTMENTS_IN_LIST
+            appointment_lines.append(f"... 還有 {remaining} 個")
+        
+        return "\n".join(appointment_lines)
+    
+    @staticmethod
+    def _format_datetime_with_weekday(dt: datetime) -> str:
+        """Format datetime with Traditional Chinese weekday."""
+        WEEKDAY_MAPPING = {
+            0: '一', 1: '二', 2: '三', 3: '四', 
+            4: '五', 5: '六', 6: '日'
+        }
+        
+        weekday = WEEKDAY_MAPPING[dt.weekday()]
+        date_str = dt.strftime('%Y-%m-%d')
+        time_str = dt.strftime('%I:%M %p')
+        return f"{date_str}({weekday}) {time_str}"
 

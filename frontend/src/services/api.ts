@@ -992,7 +992,7 @@ export class ApiService {
 
   async previewAppointmentMessage(data: {
     appointment_type_id?: number;
-    message_type: 'patient_confirmation' | 'clinic_confirmation' | 'reminder';
+    message_type: 'patient_confirmation' | 'clinic_confirmation' | 'reminder' | 'recurring_clinic_confirmation';
     template: string;
     sample_patient_name?: string;
     sample_appointment_time?: string;
