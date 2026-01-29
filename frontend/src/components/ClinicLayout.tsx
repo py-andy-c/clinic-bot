@@ -175,7 +175,7 @@ const GlobalWarnings: React.FC = () => {
   }
 
   return (
-    <div className="relative z-50 bg-amber-50 border-b border-amber-200 py-3">
+    <div className="relative z-40 bg-amber-50 border-b border-amber-200 py-3">
       <div className="max-w-7xl mx-auto sm:px-6 lg:px-8">
         <div className="px-4 py-0 sm:px-0">
           <div className="max-w-4xl mx-auto">
