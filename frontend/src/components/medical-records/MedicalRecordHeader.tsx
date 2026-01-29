@@ -4,8 +4,8 @@ import type { MedicalRecordField } from '../../types';
 
 interface MedicalRecordHeaderProps {
   headerStructure: MedicalRecordField[];
-  headerValues: Record<string, any>;
-  onUpdate: (values: Record<string, any>) => Promise<void>;
+  headerValues: Record<string, string | string[] | number | boolean>;
+  onUpdate: (values: Record<string, string | string[] | number | boolean>) => Promise<void>;
   onDirtyStateChange?: (isDirty: boolean) => void;
 }
 
@@ -27,7 +27,7 @@ export const MedicalRecordHeader: React.FC<MedicalRecordHeaderProps> = ({
 
   // Reset form when headerValues change (e.g., after save)
   useEffect(() => {
-    reset(headerValues);
+    reset(headerValues, { keepDirtyValues: true });
   }, [headerValues, reset]);
 
   // Notify parent of dirty state changes
@@ -49,7 +49,7 @@ export const MedicalRecordHeader: React.FC<MedicalRecordHeaderProps> = ({
     return () => clearTimeout(timer);
   }, [watchedValues, isDirty, handleSubmit, onUpdate]);
 
-  const onSubmit = async (data: Record<string, any>) => {
+  const onSubmit = async (data: Record<string, string | string[] | number | boolean>) => {
     await onUpdate(data);
   };
 
@@ -163,7 +163,6 @@ export const MedicalRecordHeader: React.FC<MedicalRecordHeaderProps> = ({
               {...register(fieldId, {
                 required: field.required ? `${field.label}為必填欄位` : false,
               })}
-              onBlur={handleSubmit(onSubmit)}
             >
               <option value="">請選擇...</option>
               {field.options?.map((option) => (
@@ -193,7 +192,6 @@ export const MedicalRecordHeader: React.FC<MedicalRecordHeaderProps> = ({
                     {...register(fieldId, {
                       required: field.required ? `${field.label}為必填欄位` : false,
                     })}
-                    onBlur={handleSubmit(onSubmit)}
                   />
                   <span className="text-sm text-gray-700">{option}</span>
                 </label>
@@ -220,7 +218,6 @@ export const MedicalRecordHeader: React.FC<MedicalRecordHeaderProps> = ({
                     {...register(fieldId, {
                       required: field.required ? `${field.label}為必填欄位` : false,
                     })}
-                    onBlur={handleSubmit(onSubmit)}
                   />
                   <span className="text-sm text-gray-700">{option}</span>
                 </label>
