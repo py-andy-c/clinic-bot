@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { LoadingSpinner, ErrorMessage } from '../components/shared';
 import { useMedicalRecord, useUpdateMedicalRecord } from '../hooks/queries';
@@ -42,7 +42,7 @@ const MedicalRecordEditorPage: React.FC = () => {
     };
   }, [setHasUnsavedChanges]);
 
-  const handleHeaderUpdate = async (headerValues: Record<string, any>) => {
+  const handleHeaderUpdate = useCallback(async (headerValues: Record<string, any>) => {
     if (!recordIdNum) return;
 
     setIsSaving(true);
@@ -61,11 +61,11 @@ const MedicalRecordEditorPage: React.FC = () => {
     } finally {
       setIsSaving(false);
     }
-  };
+  }, [recordIdNum, updateMutation, setHasUnsavedChanges, alert]);
 
-  const handleDirtyStateChange = (isDirty: boolean) => {
+  const handleDirtyStateChange = useCallback((isDirty: boolean) => {
     setHasUnsavedChanges(isDirty);
-  };
+  }, [setHasUnsavedChanges]);
 
   if (isLoading) {
     return (
