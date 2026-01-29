@@ -60,7 +60,7 @@ The bottom portion is a single, large, free-form area inspired by **Notability**
 * **Unified Functionality**: The Canvas and "Annotatable Image" are merged into one powerful workspace.
 * **Template Backgrounds**: Admins can pre-configure a "Base Image" (e.g., a human anatomy diagram) for this workspace in the template settings.
 * **Dynamic Content**:
-  * **Drawing**: Smooth pen/brush tools for sketching.
+  * **Drawing**: Smooth pen/brush and highlighter tools for sketching.
   * **Image Injection**: Practitioners can upload and place photos (e.g., a patient's rash) anywhere in the workspace and annotate directly on them.
 * **Growth & Pagination**: Like Notability, this workspace is vertically infinite or supports adding new "Pages" to keep the document growing for long-term treatments.
 
@@ -71,12 +71,11 @@ The bottom portion is a single, large, free-form area inspired by **Notability**
 ### 4.1 Medical Record Templates (Settings)
 
 * **Field Builder**: Define the structured fields for the header.
-* **Workspace Config**: Upload a default background image (optional) and set the workspace behavior (scaling, default brush, etc.).
+* **Workspace Config**: Upload a default background image (optional) and set workspace scaling/alignment behavior.
 
 ### 4.2 Patient History (Patient Detail Page)
 
-* **Chronological Timeline**: View all past records in an easy-to-read list.
-* **Continuous View**: Option to view "Full History," which stitches multiple records together into one long scrolling document, maintaining the "Notability" feel.
+* **Chronological Timeline**: View all past records in an easy-to-read list. Clicking a record opens it for viewing/editing.
 
 ### 4.3 Drawing & Media Experience
 
@@ -94,10 +93,10 @@ The bottom portion is a single, large, free-form area inspired by **Notability**
   * Use a layered canvas approach: Base Image Layer (Template) -> Media Layer (Uploaded Photos) -> Drawing Layer (Vector data).
   * Save drawing data as vector paths to allow scaling and future editing.
 * **Storage**: Background images and user uploads stored in S3/Cloud Storage; paths and field data stored in PostgreSQL (JSON fields).
+* **Data Integrity (Template Snapshotting)**: When a record is created, the system "snapshots" the current template structure into the record. This ensures that historical records remain readable and structurally unchanged even if the original template is later modified or deleted.
 
 ### 5.2 Performance & Sync
 
-* **Background Snapshots**: Generate high-performance PNG/WebP previews of clinical workspaces for quick browsing in the patient history list.
 * **Autosave**: Robust "Draft" state and unsaved changes detection.
 
 ***
@@ -108,6 +107,7 @@ The bottom portion is a single, large, free-form area inspired by **Notability**
 * **PDF Export**: In-app viewing only.
 * **Offline Mode**: Web-based online access required.
 * **Real-time Collaboration**: One user editing a record at a time.
+* **Continuous History ("Full History" View)**: Records are viewed individually; stitching multiple records into a single continuous scroll is a future enhancement.
 
 ***
 
@@ -117,3 +117,4 @@ The bottom portion is a single, large, free-form area inspired by **Notability**
 * **Text Injection**: Add text boxes anywhere in the Clinical Workspace.
 * **OCR**: Extracting text from uploaded clinical reports.
 * **Patient Sharing**: Exporting specific sections to show patients their progress.
+* **Continuous History**: Ability to "sew" all historical records into a single continuous vertical document.
