@@ -120,7 +120,7 @@ class TestMedicalRecordAPI:
         assert data["header_structure"][0]["label"] == "Chief Complaint"
         assert data["header_values"] == {}
         assert "workspace_data" in data
-        assert data["workspace_data"]["version"] == 1
+        assert data["workspace_data"]["version"] == 2
 
     def test_list_patient_medical_records(self, db_session, test_clinic_with_patient, test_template):
         clinic, admin, admin_assoc, patient = test_clinic_with_patient
@@ -146,7 +146,7 @@ class TestMedicalRecordAPI:
             template_id=test_template.id,
             header_structure=test_template.header_fields,
             header_values={},
-            workspace_data={"version": 1, "layers": [], "canvas_height": 1000}
+            workspace_data={"version": 2, "layers": [], "canvas_width": 1000, "canvas_height": 1000}
         )
         record2 = MedicalRecord(
             patient_id=patient.id,
@@ -154,7 +154,7 @@ class TestMedicalRecordAPI:
             template_id=test_template.id,
             header_structure=test_template.header_fields,
             header_values={},
-            workspace_data={"version": 1, "layers": [], "canvas_height": 1000}
+            workspace_data={"version": 2, "layers": [], "canvas_width": 1000, "canvas_height": 1000}
         )
         db_session.add_all([record1, record2])
         db_session.commit()
@@ -190,7 +190,7 @@ class TestMedicalRecordAPI:
             template_id=test_template.id,
             header_structure=test_template.header_fields,
             header_values={"field_1": "Headache"},
-            workspace_data={"version": 1, "layers": [], "canvas_height": 1000}
+            workspace_data={"version": 2, "layers": [], "canvas_width": 1000, "canvas_height": 1000}
         )
         db_session.add(record)
         db_session.commit()
@@ -224,7 +224,7 @@ class TestMedicalRecordAPI:
             template_id=test_template.id,
             header_structure=test_template.header_fields,
             header_values={},
-            workspace_data={"version": 1, "layers": [], "canvas_height": 1000}
+            workspace_data={"version": 2, "layers": [], "canvas_width": 1000, "canvas_height": 1000}
         )
         db_session.add(record)
         db_session.commit()
@@ -232,8 +232,9 @@ class TestMedicalRecordAPI:
         update_data = {
             "header_values": {"field_1": "Fever", "field_2": 38.5},
             "workspace_data": {
-                "version": 1,
+                "version": 2,
                 "layers": [{"type": "drawing", "tool": "pen", "color": "#000", "width": 2, "points": [[10, 10], [20, 20]]}],
+                "canvas_width": 1000,
                 "canvas_height": 1500
             }
         }
@@ -245,6 +246,50 @@ class TestMedicalRecordAPI:
         assert data["header_values"]["field_2"] == 38.5
         assert len(data["workspace_data"]["layers"]) == 1
         assert data["workspace_data"]["canvas_height"] == 1500
+
+    def test_update_medical_record_concurrency_error(self, db_session, test_clinic_with_patient, test_template):
+        clinic, admin, admin_assoc, patient = test_clinic_with_patient
+        
+        # Setup authentication override
+        from auth.dependencies import get_current_user, UserContext
+        user_context = UserContext(
+            user_type="clinic_user",
+            email=admin.email,
+            roles=admin_assoc.roles,
+            active_clinic_id=clinic.id,
+            google_subject_id=admin.google_subject_id,
+            name=admin_assoc.full_name,
+            user_id=admin.id
+        )
+        app.dependency_overrides[get_current_user] = lambda: user_context
+        app.dependency_overrides[get_db] = lambda: db_session
+
+        record = MedicalRecord(
+            patient_id=patient.id,
+            clinic_id=clinic.id,
+            template_id=test_template.id,
+            header_structure=test_template.header_fields,
+            header_values={},
+            workspace_data={"version": 2, "layers": [], "canvas_width": 1000, "canvas_height": 1000},
+            version=1
+        )
+        db_session.add(record)
+        db_session.commit()
+
+        # Client A tries to update with version 1
+        update_data = {
+            "header_values": {"field_1": "Update from A"},
+            "version": 1
+        }
+        
+        # Simulate Client B updating it first in the background
+        record.version = 2
+        db_session.commit()
+
+        # Client A's update should fail
+        response = client.patch(f"/api/clinic/medical-records/{record.id}", json=update_data)
+        assert response.status_code == 409
+        assert "CONCURRENCY_ERROR" in response.json()["detail"]
 
     def test_delete_medical_record_success(self, db_session, test_clinic_with_patient, test_template):
         clinic, admin, admin_assoc, patient = test_clinic_with_patient
@@ -269,7 +314,7 @@ class TestMedicalRecordAPI:
             template_id=test_template.id,
             header_structure=test_template.header_fields,
             header_values={},
-            workspace_data={"version": 1, "layers": [], "canvas_height": 1000}
+            workspace_data={"version": 2, "layers": [], "canvas_width": 1000, "canvas_height": 1000}
         )
         db_session.add(record)
         db_session.commit()
@@ -305,7 +350,7 @@ class TestMedicalRecordAPI:
             template_id=test_template.id,
             header_structure=test_template.header_fields,
             header_values={},
-            workspace_data={"version": 1, "layers": [], "canvas_height": 1000}
+            workspace_data={"version": 2, "layers": [], "canvas_width": 1000, "canvas_height": 1000}
         )
         db_session.add(record)
         db_session.commit()
@@ -527,7 +572,7 @@ class TestMedicalRecordAPI:
             template_id=test_template.id,
             header_structure=test_template.header_fields,
             header_values={},
-            workspace_data={"version": 1, "layers": [], "canvas_height": 1000}
+            workspace_data={"version": 2, "layers": [], "canvas_width": 1000, "canvas_height": 1000}
         )
         db_session.add(record)
         db_session.commit()
@@ -574,7 +619,7 @@ class TestMedicalRecordAPI:
             template_id=test_template.id,
             header_structure=test_template.header_fields,
             header_values={},
-            workspace_data={"version": 1, "layers": [{"type": "drawing", "tool": "pen", "color": "#000", "width": 2, "points": [[10, 10]]}], "canvas_height": 1000}
+            workspace_data={"version": 2, "layers": [{"type": "drawing", "tool": "pen", "color": "#000", "width": 2, "points": [[10, 10], [20, 20]]}], "canvas_width": 1000, "canvas_height": 1000}
         )
         db_session.add(record)
         db_session.commit()
@@ -621,7 +666,7 @@ class TestMedicalRecordAPI:
             template_id=test_template.id,
             header_structure=test_template.header_fields,
             header_values={},
-            workspace_data={"version": 1, "layers": [], "canvas_height": 1000}
+            workspace_data={"version": 2, "layers": [], "canvas_width": 1000, "canvas_height": 1000}
         )
         db_session.add(record)
         db_session.commit()

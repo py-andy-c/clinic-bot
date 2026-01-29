@@ -718,7 +718,7 @@ export interface WorkspaceData {
   version: number;
   layers: (DrawingPath | MediaLayer)[];
   canvas_height: number;
-  canvas_width?: number; // Optional width for the "Growing Document" feel
+  canvas_width: number; // Mandatory for scaling consistency
   background_image_url?: string;
   viewport?: { zoom: number; scroll_top: number };
 }

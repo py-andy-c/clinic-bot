@@ -40,6 +40,7 @@ const migrateWorkspaceData = (data: WorkspaceData): WorkspaceData => {
   return {
     ...data,
     version: 2,
+    canvas_width: data.canvas_width || 1000,
     layers: migratedLayers
   };
 };
@@ -72,7 +73,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
   const [isResizing, setIsResizing] = useState(false);
   const [isRotating, setIsRotating] = useState(false);
 
-  const scale = canvasWidth / LOGICAL_WIDTH;
+  const scale = canvasWidth / (migratedInitialData.current.canvas_width || 1000);
   const canvasHeight = (migratedInitialData.current.canvas_height || 1000) * scale;
 
   // Pre-load images

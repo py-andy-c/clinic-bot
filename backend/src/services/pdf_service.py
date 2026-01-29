@@ -176,10 +176,16 @@ class PDFService:
             # Since we use width: 100% on medical-record, we can rely on CSS for some scaling,
             # but transform: scale() is more reliable for the 1000px workspace.
             
+            # Calculate scaling to fit logical width into A4 printable width (~190mm)
+            # 190mm is approx 718px at 96dpi. We use 0.72 as a safe default for 1000px logical width.
+            logical_width = record_data.get('workspace_data', {}).get('canvas_width', 1000.0)
+            target_width = 720.0
+            scale_factor = target_width / logical_width
+            
             # Render template
             html_content = template.render(
                 record_data=record_data,
-                scale_factor=0.72  # Approx 720px / 1000px to fit A4 width
+                scale_factor=scale_factor
             )
             
             # Metadata

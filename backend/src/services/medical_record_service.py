@@ -59,8 +59,9 @@ class MedicalRecordService:
             header_structure=header_structure,
             header_values={},
             workspace_data={
-                "version": 1,
+                "version": 2,
                 "layers": deepcopy(base_layers) if base_layers else [],  # Deep copy for safety
+                "canvas_width": 1000,
                 "canvas_height": 1000,  # Default height
                 "background_image_url": background_image_url
             }

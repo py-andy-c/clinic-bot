@@ -198,29 +198,39 @@
                 {% endfor %}
 
                 <svg class="drawing-svg" viewBox="0 0 1000 {{ record_data.workspace_data.canvas_height }}" xmlns="http://www.w3.org/2000/svg">
-                    <g style="isolation: isolate;">
+                    <defs>
+                        <mask id="eraser-mask">
+                            <rect x="0" y="0" width="1000" height="{{ record_data.workspace_data.canvas_height }}" fill="white" />
+                            {% for layer in record_data.workspace_data.layers %}
+                                {% if layer.type == 'drawing' and layer.tool == 'eraser' %}
+                                    {% if layer.points|length == 1 %}
+                                        <circle cx="{{ layer.points[0][0] }}" cy="{{ layer.points[0][1] }}" 
+                                                r="{{ layer.width / 4 }}" fill="black" />
+                                    {% else %}
+                                        <path d="M {{ layer.points[0][0] }} {{ layer.points[0][1] }} {% for p in layer.points[1:] %}L {{ p[0] }} {{ p[1] }} {% endfor %}"
+                                              stroke="black" stroke-width="{{ layer.width * 0.5 }}" 
+                                              stroke-linecap="round" stroke-linejoin="round" fill="none" />
+                                    {% endif %}
+                                {% endif %}
+                            {% endfor %}
+                        </mask>
+                    </defs>
+
+                    <g mask="url(#eraser-mask)">
                     {% for layer in record_data.workspace_data.layers %}
-                        {% if layer.type == 'drawing' %}
-                            <g {% if layer.tool == 'eraser' %}style="mix-blend-mode: destination-out;"{% endif %}>
+                        {% if layer.type == 'drawing' and layer.tool != 'eraser' %}
                             {% if layer.points|length == 1 %}
                                 <circle cx="{{ layer.points[0][0] }}" cy="{{ layer.points[0][1] }}" 
-                                        r="{{ (layer.width * (layer.points[0][2]|default(0.5))) / 2 }}" 
-                                        fill="{% if layer.tool == 'eraser' %}black{% else %}{{ layer.color }}{% endif %}" />
+                                        r="{{ layer.width / 4 }}" 
+                                        fill="{{ layer.color }}" />
                             {% else %}
-                                {# Group points by segments with similar pressure to use <path> for better efficiency #}
-                                {% for i in range(1, layer.points|length) %}
-                                    {% set p1 = layer.points[i-1] %}
-                                    {% set p2 = layer.points[i] %}
-                                    {% set pressure = (p1[2]|default(0.5) + p2[2]|default(0.5)) / 2 %}
-                                    
-                                    <path d="M {{ p1[0] }} {{ p1[1] }} L {{ p2[0] }} {{ p2[1] }}"
-                                          stroke="{% if layer.tool == 'eraser' %}black{% else %}{{ layer.color }}{% endif %}" 
-                                          stroke-width="{{ layer.width * pressure }}" 
-                                          stroke-linecap="round"
-                                          fill="none" />
-                                {% endfor %}
+                                <path d="M {{ layer.points[0][0] }} {{ layer.points[0][1] }} {% for p in layer.points[1:] %}L {{ p[0] }} {{ p[1] }} {% endfor %}"
+                                      stroke="{{ layer.color }}" 
+                                      stroke-width="{{ layer.width * 0.5 }}" 
+                                      stroke-linecap="round"
+                                      stroke-linejoin="round"
+                                      fill="none" />
                             {% endif %}
-                            </g>
                         {% endif %}
                     {% endfor %}
                     </g>

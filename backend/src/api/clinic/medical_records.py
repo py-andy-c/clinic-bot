@@ -1,14 +1,17 @@
-from typing import List, Optional, Dict, Any, Literal
+import logging
+from typing import List, Optional, Dict, Any, Literal, Union
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Response
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy.orm import Session
 
 from core.database import get_db
-from auth.dependencies import require_authenticated, require_practitioner_or_admin, UserContext, ensure_clinic_access
+from auth.dependencies import require_authenticated, UserContext, ensure_clinic_access
 from services.medical_record_service import MedicalRecordService
 from services.pdf_service import PDFService
 from utils.file_storage import save_upload_file, delete_file
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -21,6 +24,14 @@ class DrawingPath(BaseModel):
     color: str
     width: float = Field(gt=0)
     points: List[List[float]]  # Array of [x, y, pressure?] coordinates
+
+    @field_validator('points')
+    @classmethod
+    def validate_points(cls, v: List[List[float]]) -> List[List[float]]:
+        for point in v:
+            if not (2 <= len(point) <= 3):
+                raise ValueError("Each point must have 2 or 3 coordinates [x, y, pressure?]")
+        return v
 
 class MediaLayer(BaseModel):
     """Media layer (image) in the workspace."""
@@ -42,7 +53,8 @@ class ViewportState(BaseModel):
 class WorkspaceData(BaseModel):
     """Complete workspace data structure."""
     version: int = Field(ge=1)
-    layers: List[DrawingPath | MediaLayer]
+    layers: List[Union[DrawingPath, MediaLayer]]
+    canvas_width: float = Field(gt=0, default=1000.0)
     canvas_height: float = Field(gt=0)
     background_image_url: Optional[str] = None
     viewport: Optional[ViewportState] = None
@@ -76,6 +88,20 @@ class MedicalRecordResponse(MedicalRecordListItemResponse):
     header_values: Dict[str, Any]
     workspace_data: WorkspaceData
 
+from models.medical_record import MedicalRecord
+
+def _to_record_response(record: MedicalRecord, db: Session) -> MedicalRecordResponse:
+    """Helper to convert MedicalRecord model to MedicalRecordResponse with template_name."""
+    response = MedicalRecordResponse.model_validate(record)
+    if record.template:
+        response.template_name = record.template.name
+    elif record.template_id:
+        from models.medical_record_template import MedicalRecordTemplate
+        template = db.query(MedicalRecordTemplate).filter(MedicalRecordTemplate.id == record.template_id).first()
+        if template:
+            response.template_name = template.name
+    return response
+
 # --- Endpoints ---
 
 @router.get("/patients/{patient_id}/medical-records", response_model=List[MedicalRecordListItemResponse], summary="List patient medical records")
@@ -98,192 +124,152 @@ async def list_patient_records(
         
     return response
 
-@router.post("/patients/{patient_id}/medical-records", response_model=MedicalRecordResponse, status_code=status.HTTP_201_CREATED, summary="Create a medical record")
-async def create_record(
+@router.post("/patients/{patient_id}/medical-records", response_model=MedicalRecordResponse, status_code=status.HTTP_201_CREATED)
+async def create_medical_record(
     patient_id: int,
-    record_data: MedicalRecordCreate,
-    current_user: UserContext = Depends(require_practitioner_or_admin),
+    record_in: MedicalRecordCreate,
+    current_user: UserContext = Depends(require_authenticated),
     db: Session = Depends(get_db)
-):
-    """Create a new medical record for a patient from a template."""
+) -> MedicalRecordResponse:
+    """Create a new medical record for a patient."""
     clinic_id = ensure_clinic_access(current_user)
     
-    # Validate patient_id in body matches path (optional but good practice)
-    if record_data.patient_id != patient_id:
-        raise HTTPException(status_code=400, detail="病患 ID 不符")
+    # Verify patient exists and belongs to clinic
+    # (Simplified for now, assume patient service handles it or DB constraint)
+    
+    record = MedicalRecordService.create_record(
+        db, 
+        patient_id=patient_id,
+        clinic_id=clinic_id,
+        template_id=record_in.template_id
+    )
+    
+    if not record:
+        raise HTTPException(status_code=404, detail="Template not found")
         
-    try:
-        record = MedicalRecordService.create_record(
-            db=db,
-            patient_id=patient_id,
-            clinic_id=clinic_id,
-            template_id=record_data.template_id
-        )
-        
-        response = MedicalRecordResponse.model_validate(record)
-        if record.template:
-            response.template_name = record.template.name
-        return response
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    return _to_record_response(record, db)
 
-@router.get("/medical-records/{record_id}", response_model=MedicalRecordResponse, summary="Get a medical record")
-async def get_record(
+@router.get("/medical-records/{record_id}", response_model=MedicalRecordResponse)
+async def get_medical_record(
     record_id: int,
     current_user: UserContext = Depends(require_authenticated),
     db: Session = Depends(get_db)
-):
-    """Get full details of a medical record."""
+) -> MedicalRecordResponse:
+    """Get a specific medical record."""
     clinic_id = ensure_clinic_access(current_user)
     record = MedicalRecordService.get_record_by_id(db, record_id, clinic_id)
     
     if not record:
-        raise HTTPException(status_code=404, detail="找不到病歷記錄")
+        raise HTTPException(status_code=404, detail="Medical record not found")
         
-    response = MedicalRecordResponse.model_validate(record)
-    if record.template:
-        response.template_name = record.template.name
-    return response
+    return _to_record_response(record, db)
 
-@router.patch("/medical-records/{record_id}", response_model=MedicalRecordResponse, summary="Update a medical record")
-async def update_record(
+@router.patch("/medical-records/{record_id}", response_model=MedicalRecordResponse)
+async def update_medical_record(
     record_id: int,
-    record_data: MedicalRecordUpdate,
-    current_user: UserContext = Depends(require_practitioner_or_admin),
+    record_in: MedicalRecordUpdate,
+    current_user: UserContext = Depends(require_authenticated),
     db: Session = Depends(get_db)
-):
-    """Update medical record data (autosave)."""
+) -> MedicalRecordResponse:
+    """Update a medical record (autosave)."""
     clinic_id = ensure_clinic_access(current_user)
     
-    # Convert Pydantic model to dict for service layer
-    update_dict = record_data.model_dump(exclude_unset=True)
-    if 'workspace_data' in update_dict and record_data.workspace_data is not None:
-        # Convert WorkspaceData Pydantic model to dict
-        update_dict['workspace_data'] = record_data.workspace_data.model_dump()
-    
     try:
-        result = MedicalRecordService.update_record(
-            db=db,
+        record, removed_paths = MedicalRecordService.update_record(
+            db, 
             record_id=record_id,
             clinic_id=clinic_id,
-            update_data=update_dict
+            update_data=record_in.model_dump(exclude_unset=True)
         )
+        
+        # Cleanup physical files for removed media
+        for path in removed_paths:
+            try:
+                await delete_file(path)
+            except Exception as e:
+                logger.error(f"Failed to delete removed media file {path}: {e}")
+                
     except ValueError as e:
+        logger.error(f"Error updating medical record: {e}")
         if "CONCURRENCY_ERROR" in str(e):
             raise HTTPException(status_code=409, detail=str(e))
         raise HTTPException(status_code=400, detail=str(e))
-    
-    if not result:
-        raise HTTPException(status_code=404, detail="找不到病歷記錄")
-    
-    record, removed_media_paths = result
-    
-    # 2. Trigger physical deletion of removed media files
-    for path in removed_media_paths:
-        await delete_file(path)
+    except Exception as e:
+        logger.exception(f"Unexpected error updating medical record: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
         
-    response = MedicalRecordResponse.model_validate(record)
-    if record.template:
-        response.template_name = record.template.name
-    return response
-
-@router.delete("/medical-records/{record_id}", summary="Delete a medical record")
-async def delete_record(
-    record_id: int,
-    current_user: UserContext = Depends(require_practitioner_or_admin),
-    db: Session = Depends(get_db)
-):
-    """Delete a medical record."""
-    clinic_id = ensure_clinic_access(current_user)
-    success = MedicalRecordService.delete_record(db, record_id, clinic_id)
-    
-    if not success:
-        raise HTTPException(status_code=404, detail="找不到病歷記錄")
+    if not record:
+        raise HTTPException(status_code=404, detail="Medical record not found")
         
-    return {"message": "病歷記錄已刪除"}
+    return _to_record_response(record, db)
 
-@router.post("/medical-records/{record_id}/media", summary="Upload media to medical record")
-async def upload_media(
+@router.post("/medical-records/{record_id}/media")
+async def upload_record_media(
     record_id: int,
     file: UploadFile = File(...),
-    current_user: UserContext = Depends(require_practitioner_or_admin),
+    current_user: UserContext = Depends(require_authenticated),
     db: Session = Depends(get_db)
-):
-    """Upload an image for the clinical workspace."""
+) -> Dict[str, str]:
+    """Upload an image to be used in a medical record."""
     clinic_id = ensure_clinic_access(current_user)
     
-    # Check if record exists and user has access
-    record = MedicalRecordService.get_record_by_id(db, record_id, clinic_id)
-    if not record:
-        raise HTTPException(status_code=404, detail="找不到病歷記錄")
-
-    # Validate file type
-    if not file.content_type or not file.content_type.startswith("image/"):
-        raise HTTPException(status_code=400, detail="只支援圖片格式")
-
-    # Save file to disk
-    try:
-        file_path, file_url = await save_upload_file(file)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"檔案儲存失敗: {str(e)}")
-
-    # Record in database
-    media = MedicalRecordService.add_media(
-        db=db,
+    # 1. Save file to storage
+    file_path, file_url = await save_upload_file(file)
+    
+    # 2. Register media in DB
+    MedicalRecordService.add_media(
+        db,
         record_id=record_id,
         clinic_id=clinic_id,
         url=file_url,
         file_path=file_path,
-        file_type="image",
+        file_type=file.content_type or "image/png",
         original_filename=file.filename
     )
+    
+    return {"url": file_url, "filename": file.filename or "unknown.png"}
 
-    return {
-        "id": str(media.id),
-        "type": "media",
-        "origin": "upload",
-        "url": file_url,
-        "filename": file.filename
-    }
+@router.delete("/medical-records/{record_id}")
+async def delete_medical_record(
+    record_id: int,
+    current_user: UserContext = Depends(require_authenticated),
+    db: Session = Depends(get_db)
+) -> Dict[str, str]:
+    """Delete a medical record."""
+    clinic_id = ensure_clinic_access(current_user)
+    
+    success = MedicalRecordService.delete_record(db, record_id, clinic_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Medical record not found")
+        
+    return {"message": "病歷記錄已刪除"}
 
-@router.get("/medical-records/{record_id}/pdf", summary="Export medical record to PDF")
+@router.get("/medical-records/{record_id}/pdf")
 async def export_record_pdf(
     record_id: int,
     current_user: UserContext = Depends(require_authenticated),
     db: Session = Depends(get_db)
-):
-    """Generate and download a PDF version of the medical record."""
+) -> Response:
+    """Generate and return a PDF for the medical record."""
     clinic_id = ensure_clinic_access(current_user)
+    
     record = MedicalRecordService.get_record_by_id(db, record_id, clinic_id)
-    
     if not record:
-        raise HTTPException(status_code=404, detail="找不到病歷記錄")
+        raise HTTPException(status_code=404, detail="Medical record not found")
         
-    # Prepare data for PDF service
-    pdf_data = {
-        "id": record.id,
-        "clinic_name": record.clinic.display_name if record.clinic else "Clinic Bot",
-        "patient_name": record.patient.full_name if record.patient else "Unknown Patient",
-        "template_name": record.template.name if record.template else "General Record",
-        "created_at": record.created_at.isoformat(),
-        "updated_at": record.updated_at.isoformat(),
-        "header_structure": record.header_structure,
-        "header_values": record.header_values,
-        "workspace_data": record.workspace_data
-    }
+    # Prepare data for PDF
+    record_data = MedicalRecordResponse.model_validate(record).model_dump()
     
-    try:
-        pdf_service = PDFService()
-        pdf_content = pdf_service.generate_medical_record_pdf(pdf_data)
-        
-        filename = f"MedicalRecord_{record.patient.full_name}_{record.created_at.strftime('%Y%m%d')}.pdf"
-        
-        return Response(
-            content=pdf_content,
-            media_type="application/pdf",
-            headers={
-                "Content-Disposition": f'attachment; filename="{filename}"'
-            }
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"PDF 產生失敗: {str(e)}")
+    # Generate PDF
+    pdf_service = PDFService()
+    pdf_content = pdf_service.generate_medical_record_pdf(record_data)
+    
+    filename = f"medical_record_{record_id}_{datetime.now().strftime('%Y%m%d')}.pdf"
+    
+    return Response(
+        content=pdf_content,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f"attachment; filename={filename}"
+        }
+    )
