@@ -235,12 +235,19 @@ async def delete_medical_record(
     current_user: UserContext = Depends(require_authenticated),
     db: Session = Depends(get_db)
 ) -> Dict[str, str]:
-    """Delete a medical record."""
+    """Delete a medical record and its associated physical files."""
     clinic_id = ensure_clinic_access(current_user)
     
-    success = MedicalRecordService.delete_record(db, record_id, clinic_id)
-    if not success:
+    removed_paths = MedicalRecordService.delete_record(db, record_id, clinic_id)
+    if removed_paths is None:
         raise HTTPException(status_code=404, detail="Medical record not found")
+    
+    # Cleanup physical files
+    for path in removed_paths:
+        try:
+            await delete_file(path)
+        except Exception as e:
+            logger.error(f"Failed to delete media file {path} during record deletion: {e}")
         
     return {"message": "病歷記錄已刪除"}
 

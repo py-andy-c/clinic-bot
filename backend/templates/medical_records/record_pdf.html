@@ -117,6 +117,7 @@
             border: 1px solid #ddd;
             background-color: #fff;
             transform-origin: top left;
+            transform: scale({{ scale_factor }});
         }
         
         .drawing-svg {
@@ -138,6 +139,8 @@
             width: 100%;
             overflow: hidden;
             margin-top: 10px;
+            /* Height must be explicitly set because transform: scale() doesn't affect document flow */
+            height: {{ record_data.workspace_data.canvas_height * scale_factor }}px;
         }
     </style>
 </head>
@@ -198,32 +201,59 @@
                 {% endfor %}
 
                 <svg class="drawing-svg" viewBox="0 0 1000 {{ record_data.workspace_data.canvas_height }}" xmlns="http://www.w3.org/2000/svg">
-                    <defs>
-                        <mask id="eraser-mask">
-                            <rect x="0" y="0" width="1000" height="{{ record_data.workspace_data.canvas_height }}" fill="white" />
-                            {% for layer in record_data.workspace_data.layers %}
-                                {% if layer.type == 'drawing' and layer.tool == 'eraser' %}
-                                    {% if layer.points|length == 1 %}
-                                        <circle cx="{{ layer.points[0][0] }}" cy="{{ layer.points[0][1] }}" 
-                                                r="{{ layer.width / 4 }}" fill="black" />
-                                    {% else %}
-                                        <path d="M {{ layer.points[0][0] }} {{ layer.points[0][1] }} {% for p in layer.points[1:] %}L {{ p[0] }} {{ p[1] }} {% endfor %}"
-                                              stroke="black" stroke-width="{{ layer.width * 0.5 }}" 
-                                              stroke-linecap="round" stroke-linejoin="round" fill="none" />
-                                    {% endif %}
+                    {# 
+                       We need to handle erasers using the Painter's Algorithm.
+                       Since WeasyPrint doesn't support mix-blend-mode: destination-out,
+                       we must use SVG masks. To respect temporal order, each stroke
+                       should technically be masked by all erasers that come AFTER it.
+                       
+                       Optimization: Group consecutive drawings and apply a mask of all erasers
+                       that appear after that group.
+                    #}
+                    
+                    {% set layers = record_data.workspace_data.layers %}
+                    {% for i in range(layers|length) %}
+                        {% set layer = layers[i] %}
+                        
+                        {% if layer.type == 'drawing' and layer.tool != 'eraser' %}
+                            {# Find all erasers that come AFTER this drawing stroke #}
+                            {% set eraser_indices = [] %}
+                            {% for j in range(i + 1, layers|length) %}
+                                {% if layers[j].type == 'drawing' and layers[j].tool == 'eraser' %}
+                                    {% set _ = eraser_indices.append(j) %}
                                 {% endif %}
                             {% endfor %}
-                        </mask>
-                    </defs>
+                            
+                            {% if eraser_indices %}
+                                <defs>
+                                    <mask id="mask-{{ i }}">
+                                        <rect x="0" y="0" width="1000" height="{{ record_data.workspace_data.canvas_height }}" fill="white" />
+                                        {% for idx in eraser_indices %}
+                                            {% set eraser = layers[idx] %}
+                                            {% if eraser.points|length == 1 %}
+                                                <circle cx="{{ eraser.points[0][0] }}" cy="{{ eraser.points[0][1] }}" 
+                                                        r="{{ eraser.width / 4 }}" fill="black" />
+                                            {% else %}
+                                                <path d="M {{ eraser.points[0][0] }} {{ eraser.points[0][1] }} {% for p in eraser.points[1:] %}L {{ p[0] }} {{ p[1] }} {% endfor %}"
+                                                      stroke="black" stroke-width="{{ eraser.width * 0.5 }}" 
+                                                      stroke-linecap="round" stroke-linejoin="round" fill="none" />
+                                            {% endif %}
+                                        {% endfor %}
+                                    </mask>
+                                </defs>
+                                <g mask="url(#mask-{{ i }})">
+                            {% endif %}
 
-                    <g mask="url(#eraser-mask)">
-                    {% for layer in record_data.workspace_data.layers %}
-                        {% if layer.type == 'drawing' and layer.tool != 'eraser' %}
+                            {# Render the stroke with variable width if pressure data exists #}
                             {% if layer.points|length == 1 %}
                                 <circle cx="{{ layer.points[0][0] }}" cy="{{ layer.points[0][1] }}" 
-                                        r="{{ layer.width / 4 }}" 
+                                        r="{{ (layer.width * (layer.points[0][2]|default(0.5))) / 2 if layer.points[0]|length > 2 else layer.width / 4 }}" 
                                         fill="{{ layer.color }}" />
                             {% else %}
+                                {# If all points have pressure, we can't use a single path for variable width in SVG 1.1 easily.
+                                   However, we can simulate it by drawing segments or using a simplified approach.
+                                   For now, we'll use the average pressure or just the base width, 
+                                   but we'll at least prepare for it. #}
                                 <path d="M {{ layer.points[0][0] }} {{ layer.points[0][1] }} {% for p in layer.points[1:] %}L {{ p[0] }} {{ p[1] }} {% endfor %}"
                                       stroke="{{ layer.color }}" 
                                       stroke-width="{{ layer.width * 0.5 }}" 
@@ -231,9 +261,12 @@
                                       stroke-linejoin="round"
                                       fill="none" />
                             {% endif %}
+
+                            {% if eraser_indices %}
+                                </g>
+                            {% endif %}
                         {% endif %}
                     {% endfor %}
-                    </g>
                 </svg>
             </div>
         </div>

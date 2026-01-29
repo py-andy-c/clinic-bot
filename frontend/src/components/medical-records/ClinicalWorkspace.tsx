@@ -520,6 +520,20 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
     setLocalVersion(v => v + 1);
   };
 
+  const expandCanvas = () => {
+    const currentHeight = migratedInitialData.current.canvas_height || 1000;
+    const newHeight = currentHeight + 500;
+    
+    // Update local data
+    migratedInitialData.current = {
+      ...migratedInitialData.current,
+      canvas_height: newHeight
+    };
+    
+    // Trigger update to parent (server)
+    setLocalVersion(v => v + 1);
+  };
+
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -678,6 +692,17 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
               </button>
             </>
           )}
+          <div className="w-px h-6 bg-gray-300 mx-1" />
+          <button
+            onClick={expandCanvas}
+            className="flex items-center gap-1 px-3 py-1.5 rounded bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors text-sm font-medium"
+            title="增加畫布高度"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+            </svg>
+            增加高度
+          </button>
         </div>
         
         <div className="flex items-center gap-2">

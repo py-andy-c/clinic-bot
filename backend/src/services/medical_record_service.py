@@ -151,19 +151,34 @@ class MedicalRecordService:
         return record, removed_media_paths
 
     @staticmethod
-    def delete_record(db: Session, record_id: int, clinic_id: int) -> bool:
-        """Delete a medical record."""
+    def delete_record(db: Session, record_id: int, clinic_id: int) -> Optional[List[str]]:
+        """
+        Delete a medical record and return a list of physical file paths to be deleted.
+        Returns None if record not found.
+        """
+        # 1. Fetch record and its associated media
         record = db.query(MedicalRecord).filter(
             MedicalRecord.id == record_id,
             MedicalRecord.clinic_id == clinic_id
         ).first()
 
         if not record:
-            return False
+            return None
 
+        # 2. Get all physical file paths for media associated with this record
+        # These are practitioner-uploaded images
+        media_entries = db.query(MedicalRecordMedia).filter(
+            MedicalRecordMedia.record_id == record_id,
+            MedicalRecordMedia.clinic_id == clinic_id
+        ).all()
+        
+        removed_media_paths = [m.file_path for m in media_entries]
+
+        # 3. Delete the record (cascade will handle MedicalRecordMedia DB entries)
         db.delete(record)
         db.commit()
-        return True
+        
+        return removed_media_paths
 
     @staticmethod
     def add_media(
