@@ -221,6 +221,17 @@ For the MVP, we will use a **Custom Canvas Wrapper** using the HTML5 Canvas API 
 
 ***
 
+## Critical Technical Implementation Notes
+
+To ensure consistency with the established system architecture and data integrity:
+
+1. **Service Layer Pattern**: All business logic (DB queries, snapshotting, permission checks) MUST reside in a service class (e.g., `MedicalRecordService`). API routers should only handle request parsing, dependency injection, and response formatting.
+2. **Snapshotting Logic**: During the `POST /api/v1/patients/{patient_id}/medical-records` call, the system must perform a **deep copy** of the template's `header_fields` into the record's `header_structure`. This ensures that even if a template is edited or deleted later, the historical record remains intact.
+3. **Strict Validation**: All `JSONB` configurations (like `workspace_config` or `workspace_data`) must be validated using strict Pydantic models at the API layer to prevent schema drift or corrupted data.
+4. **Role Permissions**: Ensure that while only Admins can manage **Templates**, both Admins and Practitioners can create and manage individual **Medical Records**.
+
+***
+
 ## Implementation Roadmap
 
 ### Phase 1: Foundation (Backend & Templates)
