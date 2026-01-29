@@ -220,6 +220,8 @@ export const AppointmentTypeSchema = createValidatedSchema(
     patient_confirmation_message: z.string().max(3500, '訊息最長 3500 字元').optional(),
     clinic_confirmation_message: z.string().max(3500, '訊息最長 3500 字元').optional(),
     reminder_message: z.string().max(3500, '訊息最長 3500 字元').optional(),
+    send_recurrent_clinic_confirmation: z.boolean().optional(),
+    recurrent_clinic_confirmation_message: z.string().max(3500, '訊息最長 3500 字元').optional(),
     // Notes customization fields
     require_notes: z.boolean().optional(),
     notes_instructions: z.string().max(1000, '備註指引最長 1000 字元').nullable().optional(),
@@ -407,6 +409,8 @@ export const ServiceItemBundleSchema = z.object({
   patient_confirmation_message: z.string().max(3500, '訊息最長 3500 字元').optional(),
   clinic_confirmation_message: z.string().max(3500, '訊息最長 3500 字元').optional(),
   reminder_message: z.string().max(3500, '訊息最長 3500 字元').optional(),
+  send_recurrent_clinic_confirmation: z.boolean().optional(),
+  recurrent_clinic_confirmation_message: z.string().max(3500, '訊息最長 3500 字元').optional(),
 
   // Staged associations (for validation only, not part of AppointmentType strictly)
   follow_up_messages: z.array(FollowUpMessageBundleSchema).optional(),

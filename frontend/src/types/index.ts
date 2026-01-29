@@ -196,6 +196,8 @@ export interface AppointmentType {
   patient_confirmation_message?: string | undefined;
   clinic_confirmation_message?: string | undefined;
   reminder_message?: string | undefined;
+  send_recurrent_clinic_confirmation?: boolean | undefined;
+  recurrent_clinic_confirmation_message?: string | undefined;
   // Notes customization fields
   require_notes?: boolean | undefined;
   notes_instructions?: string | null | undefined;
@@ -658,6 +660,8 @@ export interface ServiceItemBundleRequest {
     patient_confirmation_message?: string | null;
     clinic_confirmation_message?: string | null;
     reminder_message?: string | null;
+    send_recurrent_clinic_confirmation?: boolean;
+    recurrent_clinic_confirmation_message?: string | null;
     require_notes?: boolean;
     notes_instructions?: string | null;
   };

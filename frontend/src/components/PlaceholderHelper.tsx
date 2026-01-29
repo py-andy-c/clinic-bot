@@ -26,7 +26,7 @@ export const PlaceholderHelper: React.FC<PlaceholderHelperProps> = ({
   // Update dropdown position on scroll/resize when open
   useEffect(() => {
     if (!isOpen || !buttonRef.current) return;
-    
+
     const updatePosition = () => {
       if (!buttonRef.current) return;
       const rect = buttonRef.current.getBoundingClientRect();
@@ -36,11 +36,11 @@ export const PlaceholderHelper: React.FC<PlaceholderHelperProps> = ({
         left: rect.left,
       });
     };
-    
+
     // Update position on scroll/resize
     window.addEventListener('scroll', updatePosition, true);
     window.addEventListener('resize', updatePosition);
-    
+
     return () => {
       window.removeEventListener('scroll', updatePosition, true);
       window.removeEventListener('resize', updatePosition);
@@ -50,10 +50,10 @@ export const PlaceholderHelper: React.FC<PlaceholderHelperProps> = ({
   // Close dropdown when clicking outside
   useEffect(() => {
     if (!isOpen) return;
-    
+
     const handleClickOutside = (event: MouseEvent | TouchEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node) &&
-          buttonRef.current && !buttonRef.current.contains(event.target as Node)) {
+        buttonRef.current && !buttonRef.current.contains(event.target as Node)) {
         setIsOpen(false);
       }
     };
@@ -69,7 +69,7 @@ export const PlaceholderHelper: React.FC<PlaceholderHelperProps> = ({
 
   const allPlaceholders = [
     ...PLACEHOLDERS.common,
-    ...(messageType === 'reminder' ? [] : PLACEHOLDERS.confirmation),
+    ...(messageType === 'recurrent_clinic_confirmation' ? PLACEHOLDERS.recurrent : PLACEHOLDERS.standard),
   ];
 
   const handleInsert = (placeholder: string) => {
@@ -128,24 +128,23 @@ export const PlaceholderHelper: React.FC<PlaceholderHelperProps> = ({
                   (placeholder.key === '{診所地址}' && !clinicInfoAvailability?.has_address) ||
                   (placeholder.key === '{診所電話}' && !clinicInfoAvailability?.has_phone)
                 );
-                
+
                 const unavailableTooltip = isUnavailable
                   ? placeholder.key === '{診所地址}'
                     ? '診所尚未設定地址，請至診所設定頁面設定'
                     : '診所尚未設定電話，請至診所設定頁面設定'
                   : placeholder.description;
-                
+
                 return (
                   <button
                     key={`${placeholder.key}-${index}`}
                     type="button"
                     onClick={() => !isUnavailable && handleInsert(placeholder.key)}
                     disabled={isUnavailable}
-                    className={`w-full text-left px-2 py-1.5 text-xs rounded transition-colors ${
-                      isUnavailable
+                    className={`w-full text-left px-2 py-1.5 text-xs rounded transition-colors ${isUnavailable
                         ? 'opacity-75 cursor-not-allowed'
                         : 'hover:bg-blue-50 cursor-pointer'
-                    }`}
+                      }`}
                     data-placeholder-key={placeholder.key}
                     data-placeholder-index={index}
                   >

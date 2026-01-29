@@ -22,7 +22,8 @@ import { useServiceItemBundle } from '../hooks/queries/useServiceItemBundle';
 import {
   DEFAULT_PATIENT_CONFIRMATION_MESSAGE,
   DEFAULT_CLINIC_CONFIRMATION_MESSAGE,
-  DEFAULT_REMINDER_MESSAGE
+  DEFAULT_REMINDER_MESSAGE,
+  DEFAULT_RECURRENT_CLINIC_CONFIRMATION_MESSAGE
 } from '../constants/messageTemplates';
 import { MessageSettingsSection } from './MessageSettingsSection';
 import { FollowUpMessagesSection } from './FollowUpMessagesSection';
@@ -109,6 +110,8 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
       patient_confirmation_message: DEFAULT_PATIENT_CONFIRMATION_MESSAGE,
       clinic_confirmation_message: DEFAULT_CLINIC_CONFIRMATION_MESSAGE,
       reminder_message: DEFAULT_REMINDER_MESSAGE,
+      send_recurrent_clinic_confirmation: true,
+      recurrent_clinic_confirmation_message: DEFAULT_RECURRENT_CLINIC_CONFIRMATION_MESSAGE,
       receipt_name: '',
       description: '',
       require_notes: false,
@@ -171,6 +174,8 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
         patient_confirmation_message: bundle.item.patient_confirmation_message || DEFAULT_PATIENT_CONFIRMATION_MESSAGE,
         clinic_confirmation_message: bundle.item.clinic_confirmation_message || DEFAULT_CLINIC_CONFIRMATION_MESSAGE,
         reminder_message: bundle.item.reminder_message || DEFAULT_REMINDER_MESSAGE,
+        send_recurrent_clinic_confirmation: bundle.item.send_recurrent_clinic_confirmation,
+        recurrent_clinic_confirmation_message: bundle.item.recurrent_clinic_confirmation_message || DEFAULT_RECURRENT_CLINIC_CONFIRMATION_MESSAGE,
         practitioner_ids: bundle.associations.practitioner_ids,
         billing_scenarios: bundle.associations.billing_scenarios.map(s => ({
           ...s,
@@ -201,6 +206,8 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
         patient_confirmation_message: DEFAULT_PATIENT_CONFIRMATION_MESSAGE,
         clinic_confirmation_message: DEFAULT_CLINIC_CONFIRMATION_MESSAGE,
         reminder_message: DEFAULT_REMINDER_MESSAGE,
+        send_recurrent_clinic_confirmation: true,
+        recurrent_clinic_confirmation_message: DEFAULT_RECURRENT_CLINIC_CONFIRMATION_MESSAGE,
         practitioner_ids: [],
         billing_scenarios: [],
         resource_requirements: [],
@@ -270,6 +277,8 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
           patient_confirmation_message: data.patient_confirmation_message ?? null,
           clinic_confirmation_message: data.clinic_confirmation_message ?? null,
           reminder_message: data.reminder_message ?? null,
+          send_recurrent_clinic_confirmation: data.send_recurrent_clinic_confirmation ?? true,
+          recurrent_clinic_confirmation_message: data.recurrent_clinic_confirmation_message ?? null,
           require_notes: data.require_notes ?? false,
           notes_instructions: data.notes_instructions ?? null,
           receipt_name: data.receipt_name ?? null,
@@ -328,31 +337,8 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
   });
 
   const handleSave = async (data: ServiceItemBundleFormData) => {
-    // Custom validation for message settings
-    const messageErrors: string[] = [];
-
-    if (data.send_patient_confirmation && data.patient_confirmation_message && data.patient_confirmation_message.length > 1000) {
-      messageErrors.push('病患預約成功通知：訊息模板長度不能超過 1000 字元');
-    }
-
-    if (data.send_clinic_confirmation && data.clinic_confirmation_message && data.clinic_confirmation_message.length > 1000) {
-      messageErrors.push('診所預約通知：訊息模板長度不能超過 1000 字元');
-    }
-
-    if (data.send_reminder && data.reminder_message && data.reminder_message.length > 3500) {
-      messageErrors.push('提醒訊息：訊息模板長度不能超過 3500 字元');
-    }
-
-    if (messageErrors.length > 0) {
-      setMessageValidationErrors(messageErrors);
-      // Scroll to message settings section
-      const messageSection = document.querySelector('[data-message-settings]');
-      if (messageSection) {
-        messageSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
-      return;
-    }
-
+    // Note: Message template length validation is handled by the schema (3500 chars for all message types)
+    // No custom validation needed as schema validation is sufficient
     setMessageValidationErrors([]);
 
     saveMutation.mutate(data);

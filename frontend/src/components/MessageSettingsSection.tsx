@@ -5,6 +5,7 @@ import {
   DEFAULT_PATIENT_CONFIRMATION_MESSAGE,
   DEFAULT_CLINIC_CONFIRMATION_MESSAGE,
   DEFAULT_REMINDER_MESSAGE,
+  DEFAULT_RECURRENT_CLINIC_CONFIRMATION_MESSAGE,
   MessageType,
   MESSAGE_TYPE_LABELS,
   MESSAGE_TYPE_DESCRIPTIONS,
@@ -35,7 +36,7 @@ export const MessageSettingsSection: React.FC<MessageSettingsSectionProps> = ({
   clinicInfoAvailability,
 }) => {
   const [expandedSections, setExpandedSections] = useState<Set<MessageType>>(
-    new Set(['patient_confirmation', 'clinic_confirmation', 'reminder'])
+    new Set(['patient_confirmation', 'clinic_confirmation', 'reminder', 'recurrent_clinic_confirmation'])
   );
   const [previewModal, setPreviewModal] = useState<{
     isOpen: boolean;
@@ -48,6 +49,7 @@ export const MessageSettingsSection: React.FC<MessageSettingsSectionProps> = ({
     patient_confirmation: null,
     clinic_confirmation: null,
     reminder: null,
+    recurrent_clinic_confirmation: null,
   });
 
   // Check if this is a new item (temporary ID)
@@ -89,6 +91,9 @@ export const MessageSettingsSection: React.FC<MessageSettingsSectionProps> = ({
         case 'reminder':
           message = DEFAULT_REMINDER_MESSAGE;
           break;
+        case 'recurrent_clinic_confirmation':
+          message = DEFAULT_RECURRENT_CLINIC_CONFIRMATION_MESSAGE;
+          break;
       }
     }
 
@@ -122,6 +127,9 @@ export const MessageSettingsSection: React.FC<MessageSettingsSectionProps> = ({
             case 'reminder':
               defaultMessage = DEFAULT_REMINDER_MESSAGE;
               break;
+            case 'recurrent_clinic_confirmation':
+              defaultMessage = DEFAULT_RECURRENT_CLINIC_CONFIRMATION_MESSAGE;
+              break;
           }
           (updated as any)[messageKey] = defaultMessage;
         }
@@ -144,6 +152,9 @@ export const MessageSettingsSection: React.FC<MessageSettingsSectionProps> = ({
         break;
       case 'reminder':
         defaultMessage = DEFAULT_REMINDER_MESSAGE;
+        break;
+      case 'recurrent_clinic_confirmation':
+        defaultMessage = DEFAULT_RECURRENT_CLINIC_CONFIRMATION_MESSAGE;
         break;
     }
     updateMessageField(type, 'message', defaultMessage);
@@ -312,6 +323,7 @@ export const MessageSettingsSection: React.FC<MessageSettingsSectionProps> = ({
         {renderMessageSection('patient_confirmation', patientConfirmation)}
         {renderMessageSection('clinic_confirmation', clinicConfirmation)}
         {renderMessageSection('reminder', reminder)}
+        {renderMessageSection('recurrent_clinic_confirmation', getMessageField('recurrent_clinic_confirmation'))}
       </div>
 
       <MessagePreviewModal
