@@ -208,20 +208,37 @@ class TestMiddlewareIntegration:
 
     def test_cors_headers_on_preflight_request(self):
         """Test that CORS headers are added to preflight OPTIONS requests."""
+        # Use the first origin in CORS_ORIGINS to ensure it's handled by CORSMiddleware
+        from core.constants import CORS_ORIGINS
+        test_origin = CORS_ORIGINS[0] if CORS_ORIGINS else "http://localhost:5173"
+        
         client = TestClient(app)
 
-        # Make an OPTIONS preflight request
+        # Make an OPTIONS preflight request for GET
         response = client.options("/health", headers={
-            "Origin": "http://localhost:3000",
+            "Origin": test_origin,
             "Access-Control-Request-Method": "GET",
             "Access-Control-Request-Headers": "Content-Type"
         })
 
-        # Check for CORS headers on preflight (even if status is not 200, headers should be present)
+        # Check for CORS headers on preflight
+        assert response.status_code == 200
         assert "access-control-allow-methods" in response.headers
-        assert "access-control-allow-methods" in response.headers
+        assert "GET" in response.headers["access-control-allow-methods"]
         assert "access-control-allow-headers" in response.headers
         assert "access-control-allow-credentials" in response.headers
+
+        # Make an OPTIONS preflight request for PATCH (the issue we're fixing)
+        response = client.options("/api/clinic/medical-records/1", headers={
+            "Origin": test_origin,
+            "Access-Control-Request-Method": "PATCH",
+            "Access-Control-Request-Headers": "Content-Type"
+        })
+
+        assert response.status_code == 200
+        assert "access-control-allow-methods" in response.headers
+        assert "PATCH" in response.headers["access-control-allow-methods"]
+        assert response.headers["access-control-allow-origin"] == test_origin
 
     def test_global_exception_handler_integration(self):
         """Test global exception handler through actual endpoint."""
