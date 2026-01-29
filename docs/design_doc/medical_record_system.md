@@ -152,6 +152,8 @@ type WorkspaceData = {
   layers: (DrawingPath | MediaLayer)[];
   viewport?: { zoom: number; scroll_top: number };
   canvas_height: number; // For the "Growing Document" feel
+  canvas_width?: number; // Optional width for the "Growing Document" feel
+  background_image_url?: string;
 };
 ```
 
@@ -193,11 +195,13 @@ type WorkspaceData = {
 - Strict Pydantic validation for `WorkspaceData`, `DrawingPath`, `MediaLayer`
 - Clinic isolation enforced via `ensure_clinic_access()`
 
-#### Media Upload (Deferred to Phase 4)
+#### Media Upload ✅ IMPLEMENTED
 
 * `POST /api/clinic/medical-records/{id}/media`: Upload workspace image.
-  - Will handle S3 upload and return URL
-  - Will create `MedicalRecordMedia` entry for tracking
+  - Handles S3 upload with local storage fallback.
+  - **Memory Efficiency**: Uses `upload_fileobj` streaming for S3 to avoid reading large files into memory.
+  - Creates `MedicalRecordMedia` entry for tracking.
+  - Returns URL and original filename.
 
 ***
 
@@ -220,13 +224,13 @@ type WorkspaceData = {
 - Query keys properly structured for cache management
 - Automatic cache invalidation on mutations
 
-#### Client State (Zustand) - Deferred to Phase 4
+#### Client State ✅ IMPLEMENTED
 
-* **`WorkspaceStore`**: Will be managed via Zustand for canvas state.
-  * **Sync Logic** (Phase 4):
-    * Debounced PATCH requests (5s) for autosave using `useUpdateMedicalRecord`.
+* **`ClinicalWorkspace` State**: Managed via React `useState` and `useCallback` for canvas rendering performance.
+  * **Sync Logic**:
+    * Debounced PATCH requests (3s) for autosave using `useUpdateMedicalRecord`.
     * **Sync Status Indicator**: UI feedback showing "Saving..." or "All changes saved".
-    * **Session Safety**: Implement `beforeunload` to prevent data loss if the user closes the tab during a sync.
+    * **Session Safety**: Integrated with `UnsavedChangesContext` to prevent data loss.
 
 ### Component Architecture
 
@@ -263,26 +267,20 @@ type WorkspaceData = {
   - Displays units where applicable
   - Location: `frontend/src/components/medical-records/MedicalRecordHeader.tsx`
 
-#### Phase 4 Components (To Be Implemented)
+#### Phase 4 Components ✅ IMPLEMENTED
 
 * **`ClinicalWorkspace`**: The drawing engine.
   * **`Toolbox`**: Pen, Highlighter, Eraser, Image Upload, Undo/Redo.
-  * **`CanvasLayer`**: The actual `<canvas>` or drawing surface.
-  * **`MediaOverlay`**: Renders injected images as draggable/resizable elements (future) or static background layers (MVP).
+  * **`CanvasLayer`**: Custom HTML5 Canvas implementation for vector drawing.
+  * **`MediaOverlay`**: Renders uploaded images and template background layers.
 
-### Implementation Details: The Canvas (Phase 4)
-
-For the MVP, we will use a **Custom Canvas Wrapper** using the HTML5 Canvas API to ensure maximum performance on tablets.
-
-* **Data Format** ✅: Strict Pydantic schemas already defined:
-  - `DrawingPath`: `{ type: 'drawing', tool: 'pen'|'eraser'|'highlighter', color: string, width: number, points: [[x,y,pressure?]...] }`
-  - `MediaLayer`: `{ type: 'media', id: string, origin: 'template'|'upload', url: string, x, y, width, height, rotation }`
-  - `WorkspaceData`: `{ version: 1, layers: (DrawingPath|MediaLayer)[], canvas_height: number, viewport?: {...} }`
-
-* **Autosave**: Debounced PATCH requests to the backend every 5 seconds if changes are detected.
-  - Use `useUpdateMedicalRecord` mutation
-  - Show sync status indicator ("Saving..." / "All changes saved")
-  - Implement `beforeunload` handler to prevent data loss
+* **Implementation Details: The Canvas (Phase 4)** ✅:
+  - Custom Canvas Wrapper using the HTML5 Canvas API.
+  - **Responsive Width**: Canvas width adjusts dynamically to the container size, respecting the template's max width.
+  - **Undo/Redo**: Full support for undoing and redoing drawing/media operations.
+  - **Data Format**: Strict Pydantic schemas already defined.
+  - **Autosave**: Debounced PATCH requests to the backend every 3 seconds if changes are detected.
+  - **Image Caching**: Pre-loading images to prevent flickering during canvas re-renders.
 
 ***
 
@@ -346,10 +344,11 @@ To ensure consistency with the established system architecture and data integrit
   - Template selection with field count display
   - React Query hooks: `useMedicalRecords` with proper cache invalidation
 
-**Deferred to Phase 4**:
-- Clinical Workspace with canvas drawing tools
-- Media upload endpoint (`POST /api/clinic/medical-records/{id}/media`)
+**Completed in Phase 4**:
+- Clinical Workspace with canvas drawing tools (Pen, Highlighter, Eraser)
+- Media upload endpoint (`POST /api/clinic/medical-records/{id}/media`) with S3 support
 - Image injection and annotation features
+- Undo/Redo and Template protection logic
 
 ### Phase 3: The Structured Header ✅ COMPLETED
 
@@ -386,42 +385,43 @@ To ensure consistency with the established system architecture and data integrit
 - All field types render correctly with appropriate input controls
 - Dirty state properly tracked and communicated to parent component
 
-### Phase 4: The Clinical Workspace (MVP Canvas)
+### Phase 4: The Clinical Workspace (MVP Canvas) ✅ COMPLETED
 
-* \[ ] Implement Medical Record Editor page with routing.
-* \[ ] Implement `CanvasLayer` with pen, highlighter, and eraser tools.
-* \[ ] Support for Template Background Image (base_layers rendering).
-* \[ ] Image upload injection into the workspace.
-* \[ ] Vector data serialization to JSON (already validated by Pydantic schemas).
-* \[ ] Autosave with debouncing and sync status indicator.
-* \[ ] `beforeunload` handler to prevent data loss.
+* \[x] Implement Medical Record Editor page with routing.
+* \[x] Implement `CanvasLayer` with pen, highlighter, and eraser tools.
+* \[x] Support for Template Background Image (base_layers rendering).
+* \[x] Image upload injection into the workspace.
+* \[x] Vector data serialization to JSON.
+* \[x] Autosave with 3s debouncing and sync status indicator.
+* \[x] S3 integration with local fallback for media storage.
+* \[x] Undo/Redo functionality for canvas operations.
+* \[x] Template protection logic (preventing deletion of base layers).
 
 **Technical Notes**:
 - Use HTML5 Canvas API for drawing
-- Store paths as `DrawingPath` objects (already defined in API schemas)
-- Media layers as `MediaLayer` objects (already defined in API schemas)
-- Implement point simplification (Ramer-Douglas-Peucker) for large drawings
-- Client-side image compression before upload
+- Hybrid storage utility (`file_storage.py`) supports S3 and local storage
+- Debounced autosave (3s) to `PATCH /api/clinic/medical-records/{id}`
+- Image caching to prevent canvas flickering during re-renders
 
-### Phase 5: Polishing & Optimization
+### Phase 5: Polishing & Optimization (Partially Complete)
 
+* \[x] Undo/Redo functionality for canvas operations.
 * \[ ] Tablet optimization (Touch events, Apple Pencil support).
 * \[ ] Pressure sensitivity for variable-width strokes.
 * \[ ] UI/UX polish for medical record history list.
-* \[ ] Undo/Redo functionality for canvas operations.
 * \[ ] Export to PDF functionality.
 * \[ ] Orphaned media cleanup job (S3 assets no longer referenced).
 
-### Future Enhancements (Post-MVP)
+### Future Enhancements & Deferred Tasks
 
-* **Soft Deletion for Records**: Implement `deleted_at` timestamp for audit trails instead of hard deletion.
-* **Workspace Version Migration**: Add logic to upgrade older workspace_data versions on-the-fly when schema changes.
-* **Large Payload Optimization**: 
-  - Monitor workspace_data JSONB size
-  - Consider JSON compression for payloads exceeding several megabytes
-  - Move binary data to S3/OSS if needed, storing only URLs in JSON
-* **Audit Trails**: Track all changes to medical records for compliance.
-* **Advanced Export**: Export records to PDF with proper formatting.
+The following items were identified during development but deferred to ensure a stable MVP:
+
+1.  **Tablet & Pencil Optimization**: While the canvas works on touch devices, specialized support for Apple Pencil (pressure, tilt) and palm rejection is deferred.
+2.  **Advanced PDF Export**: Native PDF generation with proper branding and layout for clinical records.
+3.  **Point Simplification**: Implementation of Ramer-Douglas-Peucker for optimizing very large drawing payloads.
+4.  **Image Compression**: Client-side pre-compression of images before upload to S3.
+5.  **Soft Deletion for Records**: Moving from hard deletion to `deleted_at` audit trails.
+6.  **Workspace Version Migration**: Logic to upgrade `workspace_data` if the JSON schema changes in future versions.
 
 - **Canvas Serialization**: For very long records, the vector JSON might grow large. We will implement **point-simplification algorithms** (e.g., Ramer-Douglas-Peucker) on the client side before saving.
 - **Pressure Sensitivity**: To achieve a "Premium" feel, the drawing engine will capture and store pressure data from Apple Pencil/Tablets to allow for variable-width strokes.

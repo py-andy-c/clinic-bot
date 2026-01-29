@@ -282,6 +282,57 @@ class TestMedicalRecordAPI:
         deleted_record = db_session.query(MedicalRecord).filter(MedicalRecord.id == record.id).first()
         assert deleted_record is None
 
+    def test_upload_media_success(self, db_session, test_clinic_with_patient, test_template):
+        clinic, admin, admin_assoc, patient = test_clinic_with_patient
+        
+        # Setup authentication override
+        from auth.dependencies import get_current_user, UserContext
+        user_context = UserContext(
+            user_type="clinic_user",
+            email=admin.email,
+            roles=admin_assoc.roles,
+            active_clinic_id=clinic.id,
+            google_subject_id=admin.google_subject_id,
+            name=admin_assoc.full_name,
+            user_id=admin.id
+        )
+        app.dependency_overrides[get_current_user] = lambda: user_context
+        app.dependency_overrides[get_db] = lambda: db_session
+
+        record = MedicalRecord(
+            patient_id=patient.id,
+            clinic_id=clinic.id,
+            template_id=test_template.id,
+            header_structure=test_template.header_fields,
+            header_values={},
+            workspace_data={"version": 1, "layers": [], "canvas_height": 1000}
+        )
+        db_session.add(record)
+        db_session.commit()
+
+        # Create a dummy image file
+        import io
+        file_content = b"fake image content"
+        file = ("test.png", io.BytesIO(file_content), "image/png")
+
+        response = client.post(
+            f"/api/clinic/medical-records/{record.id}/media",
+            files={"file": file}
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "url" in data
+        assert data["filename"] == "test.png"
+        assert "/static/uploads/" in data["url"]
+
+        # Verify media record created in DB
+        from models.medical_record_media import MedicalRecordMedia
+        media = db_session.query(MedicalRecordMedia).filter(MedicalRecordMedia.record_id == record.id).first()
+        assert media is not None
+        assert media.original_filename == "test.png"
+        assert media.s3_key == data["url"]
+
     def test_practitioner_can_create_record(self, db_session, test_clinic_with_patient, test_template):
         clinic, admin, admin_assoc, patient = test_clinic_with_patient
         
@@ -425,20 +476,22 @@ class TestMedicalRecordAPI:
         assert data["workspace_data"]["layers"][0]["type"] == "media"
         assert data["workspace_data"]["layers"][0]["id"] == "base_layer_1"
         assert data["workspace_data"]["layers"][0]["origin"] == "template"
+        assert data["workspace_data"]["background_image_url"] == "https://example.com/anatomy.png"
         
-        # Modify the template's base_layers
+        # Modify the template's base_layers and backgroundImageUrl
         template_with_layers.workspace_config = {
             "backgroundImageUrl": "https://example.com/new_image.png",
             "base_layers": []  # Remove base layers
         }
         db_session.commit()
         
-        # Fetch the record and verify it still has the original base_layers
+        # Fetch the record and verify it still has the original base_layers and backgroundImageUrl
         response = client.get(f"/api/clinic/medical-records/{data['id']}")
         assert response.status_code == 200
         fetched_data = response.json()
         assert len(fetched_data["workspace_data"]["layers"]) == 1  # Still has original layer
         assert fetched_data["workspace_data"]["layers"][0]["id"] == "base_layer_1"
+        assert fetched_data["workspace_data"]["background_image_url"] == "https://example.com/anatomy.png"
 
     def test_cannot_access_other_clinic_records(self, db_session, test_clinic_with_patient, test_template):
         """Test that users cannot access records from other clinics."""

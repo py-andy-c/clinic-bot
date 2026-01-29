@@ -13,6 +13,7 @@ class MedicalRecordMedia(Base):
     record_id: Mapped[int] = mapped_column(ForeignKey("medical_records.id", ondelete="CASCADE"), index=True)
     s3_key: Mapped[str] = mapped_column(String(512), unique=True)
     file_type: Mapped[str] = mapped_column(String(50))
+    original_filename: Mapped[str] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=text("now()"))
 
     # Relationships

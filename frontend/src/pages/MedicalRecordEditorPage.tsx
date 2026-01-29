@@ -8,6 +8,8 @@ import { useModal } from '../contexts/ModalContext';
 import { useUnsavedChanges } from '../contexts/UnsavedChangesContext';
 import PageHeader from '../components/PageHeader';
 import { MedicalRecordHeader } from '../components/medical-records/MedicalRecordHeader';
+import { ClinicalWorkspace } from '../components/medical-records/ClinicalWorkspace';
+import type { WorkspaceData } from '../types';
 
 const MedicalRecordEditorPage: React.FC = () => {
   const { patientId, recordId } = useParams<{ patientId: string; recordId: string }>();
@@ -66,6 +68,27 @@ const MedicalRecordEditorPage: React.FC = () => {
   const handleDirtyStateChange = useCallback((isDirty: boolean) => {
     setHasUnsavedChanges(isDirty);
   }, [setHasUnsavedChanges]);
+
+  const handleWorkspaceUpdate = useCallback(async (workspaceData: WorkspaceData) => {
+    if (!recordIdNum) return;
+
+    setIsSaving(true);
+    setHasUnsavedChanges(false);
+    try {
+      await updateMutation.mutateAsync({
+        recordId: recordIdNum,
+        data: { workspace_data: workspaceData },
+      });
+      setLastSaved(new Date());
+    } catch (err) {
+      logger.error('Update medical record workspace error:', err);
+      const errorMessage = getErrorMessage(err);
+      await alert(errorMessage || '更新病歷工作區失敗');
+      throw err;
+    } finally {
+      setIsSaving(false);
+    }
+  }, [recordIdNum, updateMutation, setHasUnsavedChanges, alert]);
 
   if (isLoading) {
     return (
@@ -126,24 +149,14 @@ const MedicalRecordEditorPage: React.FC = () => {
         />
 
         {/* Clinical Workspace Section - Phase 4 */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-semibold mb-4">臨床工作區</h2>
-          <div className="text-center py-12 text-gray-500">
-            <svg
-              className="w-16 h-16 mx-auto mb-4 text-gray-300"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={1.5}
-                d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
-              />
-            </svg>
-            <p className="text-sm">繪圖工作區功能即將推出（Phase 4）</p>
-          </div>
+        <div className="space-y-4">
+          <h2 className="text-xl font-semibold">臨床工作區</h2>
+          <ClinicalWorkspace
+            recordId={record.id}
+            initialData={record.workspace_data}
+            onUpdate={handleWorkspaceUpdate}
+            isSaving={isSaving}
+          />
         </div>
       </div>
     </div>

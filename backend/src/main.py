@@ -311,6 +311,14 @@ if frontend_dist_path.exists():
 else:
     logger.warning(f"⚠️  Frontend dist directory not found at {frontend_dist_path}")
 
+# Mount uploads directory for medical records media
+uploads_path = Path("uploads")
+if not uploads_path.exists():
+    uploads_path.mkdir(exist_ok=True)
+
+app.mount("/static/uploads", StaticFiles(directory="uploads"), name="uploads")
+logger.info(f"✅ Uploads directory mounted at /static/uploads")
+
 
 @app.get(
     "/",

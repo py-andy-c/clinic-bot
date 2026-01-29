@@ -76,6 +76,9 @@ instance/
 # Scrapy stuff:
 .scrapy
 
+# Uploads
+backend/uploads/
+
 # Sphinx documentation
 docs/_build/
 

@@ -3,6 +3,7 @@ from copy import deepcopy
 from sqlalchemy.orm import Session
 from models.medical_record import MedicalRecord
 from models.medical_record_template import MedicalRecordTemplate
+from models.medical_record_media import MedicalRecordMedia
 from utils.datetime_utils import taiwan_now
 import logging
 
@@ -43,11 +44,12 @@ class MedicalRecordService:
         # Snapshot the header fields (deep copy to prevent shared state)
         header_structure = deepcopy(template.header_fields)
 
-        # Snapshot the base_layers from workspace_config
+        # Snapshot the base_layers and backgroundImageUrl from workspace_config
         # These are the admin-configured background diagrams that should be preserved
         workspace_config = template.workspace_config or {}
         base_layers_raw = workspace_config.get('base_layers', [])
         base_layers: List[Dict[str, Any]] = cast(List[Dict[str, Any]], base_layers_raw if base_layers_raw else [])
+        background_image_url = workspace_config.get('backgroundImageUrl')
 
         # Create the record with snapshotted base_layers (deep copy for nested structures)
         new_record = MedicalRecord(
@@ -59,7 +61,8 @@ class MedicalRecordService:
             workspace_data={
                 "version": 1,
                 "layers": deepcopy(base_layers) if base_layers else [],  # Deep copy for safety
-                "canvas_height": 1000  # Default height
+                "canvas_height": 1000,  # Default height
+                "background_image_url": background_image_url
             }
         )
 
@@ -121,3 +124,33 @@ class MedicalRecordService:
         db.delete(record)
         db.commit()
         return True
+
+    @staticmethod
+    def add_media(
+        db: Session,
+        record_id: int,
+        clinic_id: int,
+        url: str,
+        file_type: str,
+        original_filename: Optional[str] = None
+    ) -> MedicalRecordMedia:
+        """Add a media reference to a medical record."""
+        # Verify record exists and belongs to clinic
+        record = db.query(MedicalRecord).filter(
+            MedicalRecord.id == record_id,
+            MedicalRecord.clinic_id == clinic_id
+        ).first()
+        
+        if not record:
+            raise ValueError("找不到病歷記錄")
+            
+        media = MedicalRecordMedia(
+            record_id=record_id,
+            s3_key=url,  # We use s3_key to store the URL/path
+            file_type=file_type,
+            original_filename=original_filename
+        )
+        db.add(media)
+        db.commit()
+        db.refresh(media)
+        return media

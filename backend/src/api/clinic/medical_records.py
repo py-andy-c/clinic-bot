@@ -1,12 +1,13 @@
 from typing import List, Optional, Dict, Any, Literal
 from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.orm import Session
 
 from core.database import get_db
 from auth.dependencies import require_authenticated, require_practitioner_or_admin, UserContext, ensure_clinic_access
 from services.medical_record_service import MedicalRecordService
+from utils.file_storage import save_upload_file
 
 router = APIRouter()
 
@@ -42,6 +43,7 @@ class WorkspaceData(BaseModel):
     version: int = Field(ge=1)
     layers: List[DrawingPath | MediaLayer]
     canvas_height: float = Field(gt=0)
+    background_image_url: Optional[str] = None
     viewport: Optional[ViewportState] = None
 
 # --- Record Schemas ---
@@ -186,3 +188,46 @@ async def delete_record(
         raise HTTPException(status_code=404, detail="找不到病歷記錄")
         
     return {"message": "病歷記錄已刪除"}
+
+@router.post("/medical-records/{record_id}/media", summary="Upload media to medical record")
+async def upload_media(
+    record_id: int,
+    file: UploadFile = File(...),
+    current_user: UserContext = Depends(require_practitioner_or_admin),
+    db: Session = Depends(get_db)
+):
+    """Upload an image for the clinical workspace."""
+    clinic_id = ensure_clinic_access(current_user)
+    
+    # Check if record exists and user has access
+    record = MedicalRecordService.get_record_by_id(db, record_id, clinic_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="找不到病歷記錄")
+
+    # Validate file type
+    if not file.content_type or not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="只支援圖片格式")
+
+    # Save file to disk
+    try:
+        _, file_url = await save_upload_file(file)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"檔案儲存失敗: {str(e)}")
+
+    # Record in database
+    media = MedicalRecordService.add_media(
+        db=db,
+        record_id=record_id,
+        clinic_id=clinic_id,
+        url=file_url,
+        file_type="image",
+        original_filename=file.filename
+    )
+
+    return {
+        "id": str(media.id),
+        "type": "media",
+        "origin": "upload",
+        "url": file_url,
+        "filename": file.filename
+    }

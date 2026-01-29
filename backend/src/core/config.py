@@ -79,3 +79,11 @@ LIFF_ID = os.getenv("LIFF_ID", "")  # LINE LIFF ID for availability notification
 # Defaults to 'development' if not set (for local development)
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
 
+# S3 Configuration
+S3_BUCKET = os.getenv("S3_BUCKET", "")
+S3_REGION = os.getenv("S3_REGION", "ap-southeast-1")
+S3_ACCESS_KEY = os.getenv("S3_ACCESS_KEY", "")
+S3_SECRET_KEY = os.getenv("S3_SECRET_KEY", "")
+S3_ENDPOINT_URL = os.getenv("S3_ENDPOINT_URL", None)  # Useful for MinIO or localstack
+S3_CUSTOM_DOMAIN = os.getenv("S3_CUSTOM_DOMAIN", None)  # CloudFront or custom domain
+

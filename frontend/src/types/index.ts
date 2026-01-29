@@ -692,6 +692,37 @@ export interface ResourceTypeBundleResponse {
 export * from './api';
 
 // Medical Record types
+export type DrawingTool = 'pen' | 'eraser' | 'highlighter';
+
+export interface DrawingPath {
+  type: 'drawing';
+  tool: DrawingTool;
+  color: string;
+  width: number;
+  points: [number, number, number?][]; // Array of [x, y, pressure?] coordinates
+}
+
+export interface MediaLayer {
+  type: 'media';
+  id: string; // Unique ID for this media instance
+  origin: 'template' | 'upload'; // Distinguish between admin-set and practitioner-uploaded
+  url: string; // S3 URL
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  rotation: number;
+}
+
+export interface WorkspaceData {
+  version: number;
+  layers: (DrawingPath | MediaLayer)[];
+  canvas_height: number;
+  canvas_width?: number; // Optional width for the "Growing Document" feel
+  background_image_url?: string;
+  viewport?: { zoom: number; scroll_top: number };
+}
+
 export interface MedicalRecordField {
   id: string;
   label: string;
@@ -709,7 +740,7 @@ export interface MedicalRecordTemplate {
   header_fields: MedicalRecordField[];
   workspace_config: {
     backgroundImageUrl?: string | undefined;
-    base_layers?: any[] | undefined;
+    base_layers?: MediaLayer[] | undefined;
   };
   is_active: boolean;
   created_at: string;
@@ -728,10 +759,5 @@ export interface MedicalRecordListItem {
 export interface MedicalRecord extends MedicalRecordListItem {
   header_structure: MedicalRecordField[];
   header_values: Record<string, any>;
-  workspace_data: {
-    version: number;
-    layers: any[];
-    canvas_height: number;
-    viewport?: { zoom: number; scroll_top: number };
-  };
+  workspace_data: WorkspaceData;
 }
