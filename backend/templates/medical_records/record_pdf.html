@@ -202,35 +202,37 @@
 
                 <svg class="drawing-svg" viewBox="0 0 1000 {{ record_data.workspace_data.canvas_height }}" xmlns="http://www.w3.org/2000/svg">
                     {# 
-                       We need to handle erasers using the Painter's Algorithm.
-                       Since WeasyPrint doesn't support mix-blend-mode: destination-out,
-                       we must use SVG masks. To respect temporal order, each stroke
-                       should technically be masked by all erasers that come AFTER it.
-                       
-                       Optimization: Group consecutive drawings and apply a mask of all erasers
-                       that appear after that group.
+                       Optimization: Instead of one mask per stroke, we group strokes 
+                       that are affected by the same set of FUTURE erasers.
+                       We iterate through the layers and build "masked groups".
                     #}
                     
                     {% set layers = record_data.workspace_data.layers %}
+                    {% set eraser_indices = [] %}
+                    {% for j in range(layers|length) %}
+                        {% if layers[j].type == 'drawing' and layers[j].tool == 'eraser' %}
+                            {% set _ = eraser_indices.append(j) %}
+                        {% endif %}
+                    {% endfor %}
+
                     {% for i in range(layers|length) %}
                         {% set layer = layers[i] %}
                         
                         {% if layer.type == 'drawing' and layer.tool != 'eraser' %}
                             {# Find all erasers that come AFTER this drawing stroke #}
-                            {% set eraser_indices = [] %}
-                            {% for j in range(i + 1, layers|length) %}
-                                {% if layers[j].type == 'drawing' and layers[j].tool == 'eraser' %}
-                                    {% set _ = eraser_indices.append(j) %}
+                            {% set future_erasers = [] %}
+                            {% for e_idx in eraser_indices %}
+                                {% if e_idx > i %}
+                                    {% set _ = future_erasers.append(layers[e_idx]) %}
                                 {% endif %}
                             {% endfor %}
                             
-                            {% if eraser_indices %}
+                            {% if future_erasers %}
                                 <defs>
                                     <mask id="mask-{{ i }}">
                                         <rect x="0" y="0" width="1000" height="{{ record_data.workspace_data.canvas_height }}" fill="white" />
-                                        {% for idx in eraser_indices %}
-                                            {% set eraser = layers[idx] %}
-                                            {# Calculate average pressure for the eraser to better reflect visual scale #}
+                                        {% for eraser in future_erasers %}
+                                            {# Calculate average pressure for the eraser #}
                                             {% set avg_pressure = 0 %}
                                             {% if eraser.points|length > 0 %}
                                                 {% set total_p = 0 %}
@@ -256,33 +258,45 @@
                                 <g mask="url(#mask-{{ i }})">
                             {% endif %}
 
-                            {# Render the stroke with variable width if pressure data exists #}
+                            {# Render the stroke with simulated variable width #}
                             {% if layer.points|length == 1 %}
                                 <circle cx="{{ layer.points[0][0] }}" cy="{{ layer.points[0][1] }}" 
                                         r="{{ (layer.width * (layer.points[0][2]|default(0.5))) / 2 if layer.points[0]|length > 2 else layer.width / 4 }}" 
                                         fill="{{ layer.color }}" />
                             {% else %}
-                                {# Calculate average pressure for the path to better reflect visual scale #}
-                                {% set avg_p = 0 %}
-                                {% if layer.points|length > 0 %}
+                                {# For paths, we simulate variable width by rendering segments with different stroke-widths
+                                   if the pressure variation is significant, otherwise use average pressure. #}
+                                {% set p0 = layer.points[0][2]|default(0.5) %}
+                                {% set p_end = layer.points[-1][2]|default(0.5) %}
+                                
+                                {# Check if pressure varies significantly (> 0.2) #}
+                                {% if (p0 - p_end)|abs > 0.2 and layer.points|length > 3 %}
+                                    {# Draw in segments to simulate pressure variation #}
+                                    {% for seg_idx in range(layer.points|length - 1) %}
+                                        {% set p1 = layer.points[seg_idx] %}
+                                        {% set p2 = layer.points[seg_idx + 1] %}
+                                        {% set seg_pressure = (p1[2]|default(0.5) + p2[2]|default(0.5)) / 2 %}
+                                        <line x1="{{ p1[0] }}" y1="{{ p1[1] }}" x2="{{ p2[0] }}" y2="{{ p2[1] }}"
+                                              stroke="{{ layer.color }}" stroke-width="{{ layer.width * seg_pressure }}"
+                                              stroke-linecap="round" />
+                                    {% endfor %}
+                                {% else %}
+                                    {# Calculate average pressure for the whole path #}
                                     {% set total_p = 0 %}
                                     {% for p in layer.points %}
                                         {% set total_p = total_p + p[2]|default(0.5) %}
                                     {% endfor %}
                                     {% set avg_p = total_p / layer.points|length %}
-                                {% else %}
-                                    {% set avg_p = 0.5 %}
+                                    <path d="M {{ layer.points[0][0] }} {{ layer.points[0][1] }} {% for p in layer.points[1:] %}L {{ p[0] }} {{ p[1] }} {% endfor %}"
+                                          stroke="{{ layer.color }}" 
+                                          stroke-width="{{ layer.width * avg_p }}" 
+                                          stroke-linecap="round"
+                                          stroke-linejoin="round"
+                                          fill="none" />
                                 {% endif %}
-
-                                <path d="M {{ layer.points[0][0] }} {{ layer.points[0][1] }} {% for p in layer.points[1:] %}L {{ p[0] }} {{ p[1] }} {% endfor %}"
-                                      stroke="{{ layer.color }}" 
-                                      stroke-width="{{ layer.width * avg_p }}" 
-                                      stroke-linecap="round"
-                                      stroke-linejoin="round"
-                                      fill="none" />
                             {% endif %}
 
-                            {% if eraser_indices %}
+                            {% if future_erasers %}
                                 </g>
                             {% endif %}
                         {% endif %}

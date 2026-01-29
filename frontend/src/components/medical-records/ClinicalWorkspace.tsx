@@ -50,7 +50,6 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
   initialData,
   initialVersion,
   onUpdate,
-  isSaving = false,
 }) => {
   const migratedInitialData = useRef(migrateWorkspaceData(initialData));
 
@@ -68,6 +67,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
   const [isUploading, setIsUploading] = useState(false);
   const [localVersion, setLocalVersion] = useState(0); // For debouncing
   const [serverVersion, setServerVersion] = useState(initialVersion);
+  const [syncStatus, setSyncStatus] = useState<'saved' | 'saving' | 'error' | 'offline'>('saved');
   const [selectedLayerId, setSelectedLayerId] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState<{ x: number; y: number } | null>(null);
   const [isResizing, setIsResizing] = useState(false);
@@ -75,6 +75,18 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
 
   const scale = canvasWidth / (migratedInitialData.current.canvas_width || 1000);
   const canvasHeight = (migratedInitialData.current.canvas_height || 1000) * scale;
+
+  // Track network status
+  useEffect(() => {
+    const handleOnline = () => setSyncStatus(prev => prev === 'offline' ? 'saved' : prev);
+    const handleOffline = () => setSyncStatus('offline');
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   // Pre-load images
   useEffect(() => {
@@ -469,11 +481,13 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
   useEffect(() => {
     if (localVersion === 0) return;
 
+    setSyncStatus('saving');
     const timer = setTimeout(() => {
       onUpdate({
         ...initialData,
         layers,
       }, serverVersion);
+      setSyncStatus('saved');
     }, 3000); // 3 seconds debounce
 
     return () => clearTimeout(timer);
@@ -718,14 +732,30 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
         </div>
         
         <div className="flex items-center gap-2">
-          {isSaving && (
+          {syncStatus === 'saving' && (
             <div className="flex items-center gap-1 text-xs text-blue-600">
               <div className="w-2 h-2 bg-blue-600 rounded-full animate-pulse" />
               儲存中...
             </div>
           )}
+          {syncStatus === 'saved' && localVersion > 0 && (
+            <div className="flex items-center gap-1 text-xs text-green-600">
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+              </svg>
+              已儲存
+            </div>
+          )}
+          {syncStatus === 'offline' && (
+            <div className="flex items-center gap-1 text-xs text-amber-600">
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 5.636a9 9 0 010 12.728m0 0l-2.829-2.829m2.829 2.829L21 21M15.536 8.464a5 5 0 010 7.072m0 0l-2.829-2.829m-4.243 4.243a9 9 0 01-12.728 0m0 0l2.829-2.829m-2.829 2.829L3 21M8.464 8.464a5 5 0 017.072 0" />
+              </svg>
+              離線中 - 待連線
+            </div>
+          )}
           <span className="text-xs text-gray-400">
-            {initialData.canvas_height}px
+            {migratedInitialData.current.canvas_height}px
           </span>
         </div>
       </div>

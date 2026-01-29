@@ -245,7 +245,6 @@ const MedicalRecordEditorPage: React.FC = () => {
             initialData={record.workspace_data}
             initialVersion={record.version}
             onUpdate={handleWorkspaceUpdate}
-            isSaving={isSaving}
           />
         </div>
       </div>

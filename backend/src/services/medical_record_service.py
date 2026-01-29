@@ -106,30 +106,12 @@ class MedicalRecordService:
             raise ValueError("CONCURRENCY_ERROR: Record has been modified by another user.")
 
         # 3. Detect removed media for cleanup
-        # We NO LONGER perform immediate physical file cleanup on update_record
-        # to prevent broken links when a user performs an "Undo" operation.
+        # We NO LONGER delete MedicalRecordMedia entries in update_record.
+        # This prevents storage leaks because delete_record relies on these entries
+        # to find physical files for cleanup. It also supports Undo/Redo by
+        # ensuring the files remain available.
         # Physical files are only deleted when the record is deleted.
-        # We only remove the DB references here to keep the MedicalRecordMedia table clean.
-        if "workspace_data" in update_data:
-            old_workspace = record.workspace_data or {}
-            new_workspace = update_data["workspace_data"]
-            
-            old_layers = old_workspace.get("layers", [])
-            new_layers = new_workspace.get("layers", [])
-            
-            # Find media layers that were in old but not in new
-            old_media_urls = {l["url"] for l in old_layers if l.get("type") == "media" and l.get("origin") == "upload"}
-            new_media_urls = {l["url"] for l in new_layers if l.get("type") == "media" and l.get("origin") == "upload"}
-            
-            removed_urls = old_media_urls - new_media_urls
-            
-            if removed_urls:
-                # Remove the MedicalRecordMedia DB entries but DON'T return file paths for physical deletion
-                db.query(MedicalRecordMedia).filter(
-                    MedicalRecordMedia.record_id == record_id,
-                    MedicalRecordMedia.clinic_id == clinic_id,
-                    MedicalRecordMedia.url.in_(removed_urls)
-                ).delete(synchronize_session=False)
+        # No DB operations needed here for media lifecycle.
 
         # 4. Update fields
         if "header_values" in update_data:
