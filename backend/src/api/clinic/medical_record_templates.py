@@ -1,4 +1,4 @@
-from typing import List, Dict, Any, Optional
+from typing import List, Optional
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field, ConfigDict
@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from core.database import get_db
 from auth.dependencies import require_admin_role, require_authenticated, UserContext, ensure_clinic_access
-from models import MedicalRecordTemplate
+from services import MedicalRecordTemplateService
 
 
 router = APIRouter()
@@ -22,10 +22,28 @@ class HeaderField(BaseModel):
     options: Optional[List[str]] = None
     unit: Optional[str] = None
 
+class MediaLayer(BaseModel):
+    id: str  # Unique ID for this media instance
+    type: str = "media"
+    origin: str  # 'template' | 'upload'
+    url: str  # S3 URL
+    x: float
+    y: float
+    width: float
+    height: float
+    rotation: float
+
+class WorkspaceConfig(BaseModel):
+    # Array of "Base Layers" pre-configured by the admin (anatomy diagrams, etc.)
+    base_layers: list[MediaLayer] = []
+    backgroundImageUrl: Optional[str] = None
+    canvas_width: Optional[int] = None
+    allow_practitioner_uploads: bool = True
+
 class MedicalRecordTemplateBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     header_fields: list[HeaderField] = []
-    workspace_config: Dict[str, Any] = Field(default_factory=dict)
+    workspace_config: WorkspaceConfig = Field(default_factory=WorkspaceConfig)
     is_active: bool = True
 
 class MedicalRecordTemplateCreate(MedicalRecordTemplateBase):
@@ -34,7 +52,7 @@ class MedicalRecordTemplateCreate(MedicalRecordTemplateBase):
 class MedicalRecordTemplateUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=255)
     header_fields: Optional[List[HeaderField]] = None
-    workspace_config: Optional[Dict[str, Any]] = None
+    workspace_config: Optional[WorkspaceConfig] = None
     is_active: Optional[bool] = None
 
 class MedicalRecordTemplateResponse(MedicalRecordTemplateBase):
@@ -58,15 +76,7 @@ async def list_templates(
     By default, only active templates are returned.
     """
     clinic_id = ensure_clinic_access(current_user)
-    query = db.query(MedicalRecordTemplate).filter(
-        MedicalRecordTemplate.clinic_id == clinic_id
-    )
-    
-    if not include_inactive:
-        query = query.filter(MedicalRecordTemplate.is_active == True)
-        
-    templates = query.order_by(MedicalRecordTemplate.created_at.desc()).all()
-    return templates
+    return MedicalRecordTemplateService.list_templates(db, clinic_id, include_inactive)
 
 @router.post("/medical-record-templates", response_model=MedicalRecordTemplateResponse, status_code=status.HTTP_201_CREATED, summary="Create a medical record template")
 async def create_template(
@@ -77,18 +87,14 @@ async def create_template(
     """Create a new medical record template. Only admins can create templates."""
     clinic_id = ensure_clinic_access(current_user)
     
-    new_template = MedicalRecordTemplate(
+    return MedicalRecordTemplateService.create_template(
+        db=db,
         clinic_id=clinic_id,
         name=template_data.name,
         header_fields=[f.model_dump() for f in template_data.header_fields],
-        workspace_config=template_data.workspace_config,
+        workspace_config=template_data.workspace_config.model_dump(),
         is_active=template_data.is_active
     )
-    
-    db.add(new_template)
-    db.commit()
-    db.refresh(new_template)
-    return new_template
 
 @router.get("/medical-record-templates/{template_id}", response_model=MedicalRecordTemplateResponse, summary="Get a medical record template")
 async def get_template(
@@ -98,10 +104,7 @@ async def get_template(
 ):
     """Get a specific medical record template by ID."""
     clinic_id = ensure_clinic_access(current_user)
-    template = db.query(MedicalRecordTemplate).filter(
-        MedicalRecordTemplate.id == template_id,
-        MedicalRecordTemplate.clinic_id == clinic_id
-    ).first()
+    template = MedicalRecordTemplateService.get_template_by_id(db, template_id, clinic_id)
     
     if not template:
         raise HTTPException(status_code=404, detail="找不到範本")
@@ -117,24 +120,15 @@ async def update_template(
 ):
     """Update an existing medical record template. Only admins can update templates."""
     clinic_id = ensure_clinic_access(current_user)
-    template = db.query(MedicalRecordTemplate).filter(
-        MedicalRecordTemplate.id == template_id,
-        MedicalRecordTemplate.clinic_id == clinic_id
-    ).first()
-    
-    if not template:
-        raise HTTPException(status_code=404, detail="找不到範本")
     
     update_dict = template_data.model_dump(exclude_unset=True)
-    if "header_fields" in update_dict:
-        update_dict["header_fields"] = [f.model_dump() for f in template_data.header_fields] if template_data.header_fields else []
-        
-    for key, value in update_dict.items():
-        setattr(template, key, value)
+    if "header_fields" in update_dict and template_data.header_fields is not None:
+        update_dict["header_fields"] = [f.model_dump() for f in template_data.header_fields]
     
-    db.commit()
-    db.refresh(template)
-    return template
+    if "workspace_config" in update_dict and template_data.workspace_config is not None:
+        update_dict["workspace_config"] = template_data.workspace_config.model_dump()
+        
+    return MedicalRecordTemplateService.update_template(db, template_id, clinic_id, update_dict)
 
 @router.delete("/medical-record-templates/{template_id}", summary="Delete a medical record template")
 async def delete_template(
@@ -147,15 +141,5 @@ async def delete_template(
     Only admins can delete templates.
     """
     clinic_id = ensure_clinic_access(current_user)
-    template = db.query(MedicalRecordTemplate).filter(
-        MedicalRecordTemplate.id == template_id,
-        MedicalRecordTemplate.clinic_id == clinic_id
-    ).first()
-    
-    if not template:
-        raise HTTPException(status_code=404, detail="找不到範本")
-    
-    # Soft delete
-    template.is_active = False
-    db.commit()
+    MedicalRecordTemplateService.soft_delete_template(db, template_id, clinic_id)
     return {"message": "範本已停用 (虛擬刪除)"}
