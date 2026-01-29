@@ -692,7 +692,7 @@ export interface ResourceTypeBundleResponse {
 export * from './api';
 
 // Medical Record types
-export type DrawingTool = 'pen' | 'eraser' | 'highlighter';
+export type DrawingTool = 'pen' | 'eraser' | 'highlighter' | 'select';
 
 export interface DrawingPath {
   type: 'drawing';

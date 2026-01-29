@@ -344,11 +344,15 @@ To ensure consistency with the established system architecture and data integrit
   - Template selection with field count display
   - React Query hooks: `useMedicalRecords` with proper cache invalidation
 
-**Completed in Phase 4**:
-- Clinical Workspace with canvas drawing tools (Pen, Highlighter, Eraser)
-- Media upload endpoint (`POST /api/clinic/medical-records/{id}/media`) with S3 support
-- Image injection and annotation features
-- Undo/Redo and Template protection logic
+#### Media Interaction & UX Improvements ✅ COMPLETED
+* **Dual-Canvas Architecture**: Background/Media layers are separated from Drawing layers. The eraser only affects the drawing layer, preserving templates and uploaded images.
+* **Logical Coordinate System**: All vector and media coordinates are stored in a fixed 1000-unit system and scaled to the display width, ensuring consistency across devices.
+* **Interactive Media Layers**: Uploaded images can be selected, moved, resized, and rotated via on-canvas handles.
+* **Optimized Sync**: Uses a `version` counter for debounced autosave instead of expensive deep-comparisons.
+
+#### Backend Consistency ✅ COMPLETED
+* `MedicalRecordMedia` schema updated to include `clinic_id` for better isolation and cleanup.
+* Field `s3_key` renamed to `file_path` to better reflect hybrid storage usage.
 
 ### Phase 3: The Structured Header ✅ COMPLETED
 

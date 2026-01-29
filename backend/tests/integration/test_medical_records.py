@@ -331,7 +331,8 @@ class TestMedicalRecordAPI:
         media = db_session.query(MedicalRecordMedia).filter(MedicalRecordMedia.record_id == record.id).first()
         assert media is not None
         assert media.original_filename == "test.png"
-        assert media.s3_key == data["url"]
+        assert media.file_path == data["url"]
+        assert media.clinic_id == clinic.id
 
     def test_practitioner_can_create_record(self, db_session, test_clinic_with_patient, test_template):
         clinic, admin, admin_assoc, patient = test_clinic_with_patient

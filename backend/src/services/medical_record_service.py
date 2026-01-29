@@ -146,7 +146,8 @@ class MedicalRecordService:
             
         media = MedicalRecordMedia(
             record_id=record_id,
-            s3_key=url,  # We use s3_key to store the URL/path
+            clinic_id=clinic_id,
+            file_path=url,
             file_type=file_type,
             original_filename=original_filename
         )

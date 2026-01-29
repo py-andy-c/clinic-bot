@@ -13,7 +13,10 @@ const TOOL_CONFIG = {
   pen: { color: '#000000', width: 2 },
   highlighter: { color: 'rgba(255, 255, 0, 0.3)', width: 20 },
   eraser: { color: '#ffffff', width: 20 },
+  select: { color: '#3b82f6', width: 1 },
 };
+
+const LOGICAL_WIDTH = 1000;
 
 export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
   recordId,
@@ -21,7 +24,8 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
   onUpdate,
   isSaving = false,
 }) => {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const backgroundCanvasRef = useRef<HTMLCanvasElement>(null);
+  const drawingCanvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [currentTool, setCurrentTool] = useState<DrawingTool>('pen');
@@ -32,6 +36,14 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
   const [currentPath, setCurrentPath] = useState<DrawingPath | null>(null);
   const [images, setImages] = useState<Record<string, HTMLImageElement>>({});
   const [isUploading, setIsUploading] = useState(false);
+  const [version, setVersion] = useState(0);
+  const [selectedLayerId, setSelectedLayerId] = useState<string | null>(null);
+  const [dragOffset, setDragOffset] = useState<{ x: number; y: number } | null>(null);
+  const [isResizing, setIsResizing] = useState(false);
+  const [isRotating, setIsRotating] = useState(false);
+
+  const scale = canvasWidth / LOGICAL_WIDTH;
+  const canvasHeight = (initialData.canvas_height || 1000) * scale;
 
   // Pre-load images
   useEffect(() => {
@@ -86,9 +98,14 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
   }, [initialData.layers, isDrawing]);
 
   const drawLayer = useCallback((ctx: CanvasRenderingContext2D, layer: DrawingPath | MediaLayer) => {
+    ctx.save();
+    // Use logical coordinates for all drawing operations
     if (layer.type === 'drawing') {
       const firstPoint = layer.points[0];
-      if (layer.points.length < 2 || !firstPoint) return;
+      if (layer.points.length < 2 || !firstPoint) {
+        ctx.restore();
+        return;
+      }
       
       ctx.beginPath();
       ctx.strokeStyle = layer.color;
@@ -113,50 +130,103 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
     } else if (layer.type === 'media') {
       const img = images[layer.url];
       if (img) {
-        ctx.save();
         ctx.globalCompositeOperation = 'source-over';
         ctx.translate(layer.x + layer.width / 2, layer.y + layer.height / 2);
         ctx.rotate((layer.rotation * Math.PI) / 180);
         ctx.drawImage(img, -layer.width / 2, -layer.height / 2, layer.width, layer.height);
-        ctx.restore();
       }
     }
+    ctx.restore();
   }, [images]);
 
   const renderCanvas = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    const bgCanvas = backgroundCanvasRef.current;
+    const drawCanvas = drawingCanvasRef.current;
+    if (!bgCanvas || !drawCanvas) return;
 
-    // Clear canvas
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.globalCompositeOperation = 'source-over';
+    const bgCtx = bgCanvas.getContext('2d');
+    const drawCtx = drawCanvas.getContext('2d');
+    if (!bgCtx || !drawCtx) return;
 
-    // Draw background image if exists
+    // Clear both canvases
+    bgCtx.clearRect(0, 0, bgCanvas.width, bgCanvas.height);
+    drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+
+    // Apply scaling to both
+    bgCtx.save();
+    bgCtx.scale(scale, scale);
+    drawCtx.save();
+    drawCtx.scale(scale, scale);
+
+    // 1. Draw to Background Canvas (Images + Template Background)
     if (initialData.background_image_url) {
       const bgImg = images[initialData.background_image_url];
       if (bgImg) {
-        // Draw centered or scaled? Let's assume centered at 0,0 or covering top area
-        ctx.drawImage(bgImg, 0, 0);
+        // Draw background image scaled to fill logical width
+        bgCtx.drawImage(bgImg, 0, 0, LOGICAL_WIDTH, (LOGICAL_WIDTH / bgImg.width) * bgImg.height);
       }
     }
 
-    // Draw all layers
-    layers.forEach(layer => drawLayer(ctx, layer));
+    layers.forEach(layer => {
+      if (layer.type === 'media') {
+        drawLayer(bgCtx, layer);
+        
+        // Draw selection box if selected
+        if (layer.id === selectedLayerId) {
+          bgCtx.save();
+          bgCtx.strokeStyle = TOOL_CONFIG.select.color;
+          bgCtx.lineWidth = 2 / scale;
+          bgCtx.strokeRect(layer.x - 2, layer.y - 2, layer.width + 4, layer.height + 4);
+          
+          // Draw resize handle (bottom-right)
+          bgCtx.fillStyle = TOOL_CONFIG.select.color;
+          const handleSize = 8 / scale;
+          bgCtx.fillRect(
+            layer.x + layer.width - handleSize / 2, 
+            layer.y + layer.height - handleSize / 2, 
+            handleSize, 
+            handleSize
+          );
 
-    // Draw current path if drawing
+          // Draw rotation handle (top-center)
+          bgCtx.beginPath();
+          bgCtx.arc(
+            layer.x + layer.width / 2,
+            layer.y - 20 / scale,
+            5 / scale,
+            0,
+            Math.PI * 2
+          );
+          bgCtx.fill();
+          
+          // Draw line to rotation handle
+          bgCtx.beginPath();
+          bgCtx.moveTo(layer.x + layer.width / 2, layer.y);
+          bgCtx.lineTo(layer.x + layer.width / 2, layer.y - 20 / scale);
+          bgCtx.stroke();
+          
+          bgCtx.restore();
+        }
+      } else {
+        drawLayer(drawCtx, layer);
+      }
+    });
+
+    // 2. Draw current path if drawing (always on drawing canvas)
     if (currentPath) {
-      drawLayer(ctx, currentPath);
+      drawLayer(drawCtx, currentPath);
     }
-  }, [layers, currentPath, drawLayer]);
+
+    bgCtx.restore();
+    drawCtx.restore();
+  }, [layers, currentPath, drawLayer, scale, initialData.background_image_url, images]);
 
   useEffect(() => {
     renderCanvas();
   }, [renderCanvas]);
 
   const handleMouseDown = (e: React.MouseEvent | React.TouchEvent) => {
-    const canvas = canvasRef.current;
+    const canvas = drawingCanvasRef.current;
     if (!canvas) return;
 
     const rect = canvas.getBoundingClientRect();
@@ -172,20 +242,71 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
       y = e.clientY - rect.top;
     }
 
+    // Convert to logical coordinates
+    const logicalX = x / scale;
+    const logicalY = y / scale;
+
+    if (currentTool === 'select') {
+      // If a layer is already selected, check for resize handle first
+      if (selectedLayerId) {
+        const selectedLayer = layers.find(l => l.type === 'media' && l.id === selectedLayerId) as MediaLayer | undefined;
+        if (selectedLayer) {
+          const handleSize = 12 / scale; // Larger hit area for handle
+          
+          // Resize handle (bottom-right)
+          const hx = selectedLayer.x + selectedLayer.width;
+          const hy = selectedLayer.y + selectedLayer.height;
+          if (
+            logicalX >= hx - handleSize && logicalX <= hx + handleSize &&
+            logicalY >= hy - handleSize && logicalY <= hy + handleSize
+          ) {
+            setIsResizing(true);
+            return;
+          }
+
+          // Rotation handle (top-center)
+          const rx = selectedLayer.x + selectedLayer.width / 2;
+          const ry = selectedLayer.y - 20 / scale;
+          if (
+            logicalX >= rx - handleSize && logicalX <= rx + handleSize &&
+            logicalY >= ry - handleSize && logicalY <= ry + handleSize
+          ) {
+            setIsRotating(true);
+            return;
+          }
+        }
+      }
+
+      // Hit detection for media layers (top to bottom)
+      const clickedMedia = [...layers].reverse().find(l => 
+        l.type === 'media' && 
+        logicalX >= l.x && logicalX <= l.x + l.width &&
+        logicalY >= l.y && logicalY <= l.y + l.height
+      ) as MediaLayer | undefined;
+
+      if (clickedMedia) {
+        setSelectedLayerId(clickedMedia.id);
+        setDragOffset({ x: logicalX - clickedMedia.x, y: logicalY - clickedMedia.y });
+        setIsResizing(false);
+      } else {
+        setSelectedLayerId(null);
+        setIsResizing(false);
+      }
+      return;
+    }
+
     setIsDrawing(true);
     setCurrentPath({
       type: 'drawing',
       tool: currentTool,
       color: TOOL_CONFIG[currentTool].color,
       width: TOOL_CONFIG[currentTool].width,
-      points: [[x, y]],
+      points: [[logicalX, logicalY]],
     });
   };
 
   const handleMouseMove = (e: React.MouseEvent | React.TouchEvent) => {
-    if (!isDrawing || !currentPath) return;
-
-    const canvas = canvasRef.current;
+    const canvas = drawingCanvasRef.current;
     if (!canvas) return;
 
     const rect = canvas.getBoundingClientRect();
@@ -201,13 +322,78 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
       y = e.clientY - rect.top;
     }
 
+    // Convert to logical coordinates
+    const logicalX = x / scale;
+    const logicalY = y / scale;
+
+    if (currentTool === 'select' && selectedLayerId) {
+       if (isResizing) {
+         const newLayers = layers.map(l => {
+           if (l.type === 'media' && l.id === selectedLayerId) {
+             return { 
+               ...l, 
+               width: Math.max(20, logicalX - l.x),
+               height: Math.max(20, logicalY - l.y)
+             };
+           }
+           return l;
+         });
+         setLayers(newLayers);
+         return;
+       }
+
+       if (isRotating) {
+         const selectedLayer = layers.find(l => l.type === 'media' && l.id === selectedLayerId) as MediaLayer | undefined;
+         if (selectedLayer) {
+           const centerX = selectedLayer.x + selectedLayer.width / 2;
+           const centerY = selectedLayer.y + selectedLayer.height / 2;
+           // Calculate angle in degrees
+           const angle = Math.atan2(logicalY - centerY, logicalX - centerX) * (180 / Math.PI);
+           // Add 90 degrees because the handle is at the top (0 degrees is to the right)
+           const rotation = (angle + 90) % 360;
+
+           const newLayers = layers.map(l => {
+             if (l.type === 'media' && l.id === selectedLayerId) {
+               return { ...l, rotation };
+             }
+             return l;
+           });
+           setLayers(newLayers);
+         }
+         return;
+       }
+
+       if (dragOffset) {
+        const newLayers = layers.map(l => {
+          if (l.type === 'media' && l.id === selectedLayerId) {
+            return { ...l, x: logicalX - dragOffset.x, y: logicalY - dragOffset.y };
+          }
+          return l;
+        });
+        setLayers(newLayers);
+        return;
+      }
+    }
+
+    if (!isDrawing || !currentPath) return;
+
     setCurrentPath({
       ...currentPath,
-      points: [...currentPath.points, [x, y]],
+      points: [...currentPath.points, [logicalX, logicalY]],
     });
   };
 
   const handleMouseUp = () => {
+    if (currentTool === 'select') {
+      if (dragOffset || isResizing || isRotating) {
+        setDragOffset(null);
+        setIsResizing(false);
+        setIsRotating(false);
+        setVersion(v => v + 1);
+      }
+      return;
+    }
+
     if (!isDrawing || !currentPath) return;
 
     setIsDrawing(false);
@@ -215,14 +401,12 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
     setLayers(newLayers);
     setCurrentPath(null);
     setRedoStack([]); // Clear redo stack on new action
-
-    // Update will be handled by the useEffect below
+    setVersion(v => v + 1);
   };
 
   // Debounced update to parent
   useEffect(() => {
-    // Only update if layers have changed from initialData
-    if (JSON.stringify(layers) === JSON.stringify(initialData.layers)) return;
+    if (version === 0) return;
 
     const timer = setTimeout(() => {
       onUpdate({
@@ -232,16 +416,13 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
     }, 3000); // 3 seconds debounce
 
     return () => clearTimeout(timer);
-  }, [layers, initialData, onUpdate]);
+  }, [version, layers, initialData, onUpdate]);
 
   const clearCanvas = () => {
     if (window.confirm('確定要清除所有繪圖與上傳的圖片嗎？（背景範本將會保留）')) {
       const baseLayers = layers.filter(l => l.type === 'media' && l.origin === 'template');
       setLayers(baseLayers);
-      onUpdate({
-        ...initialData,
-        layers: baseLayers,
-      });
+      setVersion(v => v + 1);
     }
   };
 
@@ -263,6 +444,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
     
     setRedoStack(prev => [...prev, layers]);
     setLayers(newLayers);
+    setVersion(v => v + 1);
   };
 
   const redo = () => {
@@ -273,6 +455,20 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
 
     setRedoStack(prev => prev.slice(0, -1));
     setLayers(nextLayers);
+    setVersion(v => v + 1);
+  };
+
+  const deleteSelectedLayer = () => {
+    if (!selectedLayerId) return;
+    const layerToDelete = layers.find(l => l.type === 'media' && l.id === selectedLayerId) as MediaLayer | undefined;
+    if (layerToDelete?.origin === 'template') {
+      alert('無法刪除範本圖片');
+      return;
+    }
+    
+    setLayers(layers.filter(l => !(l.type === 'media' && l.id === selectedLayerId)));
+    setSelectedLayerId(null);
+    setVersion(v => v + 1);
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -364,6 +560,15 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
             </svg>
           </button>
+          <button
+            onClick={() => setCurrentTool('select')}
+            className={`p-2 rounded ${currentTool === 'select' ? 'bg-blue-100 text-blue-600' : 'hover:bg-gray-200'}`}
+            title="選擇/移動"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5" />
+            </svg>
+          </button>
           <div className="w-px h-6 bg-gray-300 mx-1" />
           <button
             onClick={() => fileInputRef.current?.click()}
@@ -413,6 +618,20 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
             </svg>
           </button>
+          {selectedLayerId && (
+            <>
+              <div className="w-px h-6 bg-gray-300 mx-1" />
+              <button
+                onClick={deleteSelectedLayer}
+                className="p-2 rounded hover:bg-red-50 text-red-600"
+                title="刪除所選圖片"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </button>
+            </>
+          )}
         </div>
         
         <div className="flex items-center gap-2">
@@ -433,19 +652,32 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
         className="relative overflow-auto bg-gray-100"
         style={{ height: '600px' }}
       >
-        <canvas
-          ref={canvasRef}
-          width={canvasWidth}
-          height={initialData.canvas_height || 1000}
-          onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
-          onMouseLeave={handleMouseUp}
-          onTouchStart={handleMouseDown}
-          onTouchMove={handleMouseMove}
-          onTouchEnd={handleMouseUp}
-          className="bg-white mx-auto shadow-sm cursor-crosshair touch-none"
-        />
+        <div 
+          className="mx-auto shadow-sm bg-white relative"
+          style={{ width: `${canvasWidth}px`, height: `${canvasHeight}px` }}
+        >
+          {/* Background Canvas (Images, Template Background) */}
+          <canvas
+            ref={backgroundCanvasRef}
+            width={canvasWidth}
+            height={canvasHeight}
+            className="absolute top-0 left-0 pointer-events-none"
+          />
+          {/* Drawing Canvas (Pen, Highlighter, Eraser) */}
+          <canvas
+            ref={drawingCanvasRef}
+            width={canvasWidth}
+            height={canvasHeight}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
+            onTouchStart={handleMouseDown}
+            onTouchMove={handleMouseMove}
+            onTouchEnd={handleMouseUp}
+            className="absolute top-0 left-0 cursor-crosshair touch-none"
+          />
+        </div>
       </div>
     </div>
   );

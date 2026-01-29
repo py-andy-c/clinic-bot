@@ -65,15 +65,18 @@ def upgrade() -> None:
         op.create_table('medical_record_media',
         sa.Column('id', sa.Integer(), nullable=False),
         sa.Column('record_id', sa.Integer(), nullable=False),
-        sa.Column('s3_key', sa.String(length=512), nullable=False),
+        sa.Column('clinic_id', sa.Integer(), nullable=False),
+        sa.Column('file_path', sa.String(length=512), nullable=False),
         sa.Column('file_type', sa.String(length=50), nullable=False),
+        sa.Column('original_filename', sa.String(length=255), nullable=True),
         sa.Column('created_at', sa.TIMESTAMP(timezone=True), server_default=sa.text('now()'), nullable=False),
         sa.ForeignKeyConstraint(['record_id'], ['medical_records.id'], ondelete='CASCADE'),
         sa.PrimaryKeyConstraint('id'),
-        sa.UniqueConstraint('s3_key')
+        sa.UniqueConstraint('file_path')
         )
         op.create_index(op.f('ix_medical_record_media_id'), 'medical_record_media', ['id'], unique=False)
         op.create_index(op.f('ix_medical_record_media_record_id'), 'medical_record_media', ['record_id'], unique=False)
+        op.create_index(op.f('ix_medical_record_media_clinic_id'), 'medical_record_media', ['clinic_id'], unique=False)
 
 
 def downgrade() -> None:
