@@ -330,7 +330,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
 
     bgCtx.restore();
     drawCtx.restore();
-  }, [layers, currentPath, drawLayer, scale, initialData.background_image_url, images]);
+  }, [layers, currentPath, drawLayer, scale, initialData.background_image_url, images, canvasHeight]);
 
   useEffect(() => {
     renderCanvas();
