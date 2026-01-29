@@ -689,4 +689,94 @@ export interface ResourceTypeBundleResponse {
   resources: Resource[];
 }
 
+// Medical Record types
+export interface MedicalRecordTemplate {
+  id: number;
+  clinic_id: number;
+  name: string;
+  header_fields: any[]; // List of structured header fields
+  workspace_config: {
+    base_layers?: Array<{
+      id: string;
+      url: string;
+      name: string;
+      type: 'image' | 'drawing';
+    }>;
+  };
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MedicalRecordMedia {
+  id: number;
+  record_id: number;
+  s3_key: string;
+  file_type: string;
+  created_at: string;
+}
+
+export interface MedicalRecord {
+  id: number;
+  patient_id: number;
+  clinic_id: number;
+  template_id: number;
+  header_structure: any[];
+  header_values: Record<string, any>;
+  workspace_data: {
+    drawing_layers?: Array<{
+      id: string;
+      paths: Array<{
+        points: Array<{ x: number; y: number; p?: number }>;
+        color: string;
+        width: number;
+        tool: 'pen' | 'highlighter';
+      }>;
+    }>;
+    media_layers?: Array<{
+      id: string; // medical_record_media.id
+      x: number;
+      y: number;
+      scale: number;
+      rotation: number;
+    }>;
+  };
+  created_at: string;
+  updated_at: string;
+  media: MedicalRecordMedia[];
+}
+
+export interface MedicalRecordListItem {
+  id: number;
+  patient_id: number;
+  template_id: number;
+  template_name: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// Medical Record Request types
+export interface MedicalRecordTemplateCreateData {
+  name: string;
+  header_fields?: any[];
+  workspace_config?: any;
+}
+
+export interface MedicalRecordTemplateUpdateData {
+  name?: string;
+  header_fields?: any[];
+  workspace_config?: any;
+  is_active?: boolean;
+}
+
+export interface MedicalRecordCreateData {
+  patient_id: number;
+  template_id: number;
+}
+
+export interface MedicalRecordUpdateData {
+  header_values?: Record<string, any>;
+  workspace_data?: any;
+}
+
 export * from './api';

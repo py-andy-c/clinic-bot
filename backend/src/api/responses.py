@@ -517,3 +517,59 @@ class BatchSchedulingConflictResponse(BaseModel):
     unavailable_resource_ids: Optional[List[int]] = None
     default_availability: DefaultAvailabilityInfo
     is_type_mismatch: bool = False  # True if practitioner does not offer this appointment type
+
+
+# Medical Record Response Models
+class MedicalRecordTemplateResponse(BaseModel):
+    """Response model for medical record template."""
+    id: int
+    clinic_id: int
+    name: str
+    header_fields: List[Dict[str, Any]]
+    workspace_config: Dict[str, Any]
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class MedicalRecordTemplateListResponse(BaseModel):
+    """Response model for listing medical record templates."""
+    templates: List[MedicalRecordTemplateResponse]
+
+
+class MedicalRecordMediaResponse(BaseModel):
+    """Response model for medical record media."""
+    id: int
+    record_id: int
+    s3_key: str
+    file_type: str
+    created_at: datetime
+
+
+class MedicalRecordResponse(BaseModel):
+    """Response model for medical record."""
+    id: int
+    patient_id: int
+    clinic_id: int
+    template_id: int
+    header_structure: List[Dict[str, Any]]
+    header_values: Dict[str, Any]
+    workspace_data: Dict[str, Any]
+    created_at: datetime
+    updated_at: datetime
+    media: List[MedicalRecordMediaResponse]
+
+
+class MedicalRecordListItem(BaseModel):
+    """Simplified medical record for lists."""
+    id: int
+    patient_id: int
+    template_id: int
+    template_name: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class MedicalRecordListResponse(BaseModel):
+    """Response model for listing medical records for a patient."""
+    records: List[MedicalRecordListItem]

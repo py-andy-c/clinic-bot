@@ -45,7 +45,14 @@ import {
   ResourceType,
   Resource,
   ResourceRequirement,
-  ResourceAvailabilityResponse
+  ResourceAvailabilityResponse,
+  MedicalRecordTemplate,
+  MedicalRecordTemplateCreateData,
+  MedicalRecordTemplateUpdateData,
+  MedicalRecord,
+  MedicalRecordCreateData,
+  MedicalRecordUpdateData,
+  MedicalRecordListItem
 } from '../types';
 
 /**
@@ -1483,6 +1490,56 @@ export class ApiService {
   }> {
     const response = await this.client.post('/clinic/follow-up-message-preview', data);
     return response.data;
+  }
+
+  // Medical Record Templates
+  async getMedicalRecordTemplates(activeOnly: boolean = true): Promise<{ templates: MedicalRecordTemplate[] }> {
+    const response = await this.client.get('/clinic/medical-record-templates', { params: { active_only: activeOnly } });
+    return response.data;
+  }
+
+  async getMedicalRecordTemplate(templateId: number): Promise<MedicalRecordTemplate> {
+    const response = await this.client.get(`/clinic/medical-record-templates/${templateId}`);
+    return response.data;
+  }
+
+  async createMedicalRecordTemplate(data: MedicalRecordTemplateCreateData): Promise<MedicalRecordTemplate> {
+    const response = await this.client.post('/clinic/medical-record-templates', data);
+    return response.data;
+  }
+
+  async updateMedicalRecordTemplate(templateId: number, data: MedicalRecordTemplateUpdateData): Promise<MedicalRecordTemplate> {
+    const response = await this.client.patch(`/clinic/medical-record-templates/${templateId}`, data);
+    return response.data;
+  }
+
+  async deleteMedicalRecordTemplate(templateId: number): Promise<void> {
+    await this.client.delete(`/clinic/medical-record-templates/${templateId}`);
+  }
+
+  // Medical Records
+  async getPatientMedicalRecords(patientId: number): Promise<{ records: MedicalRecordListItem[] }> {
+    const response = await this.client.get(`/clinic/patients/${patientId}/medical-records`);
+    return response.data;
+  }
+
+  async getMedicalRecord(recordId: number): Promise<MedicalRecord> {
+    const response = await this.client.get(`/clinic/medical-records/${recordId}`);
+    return response.data;
+  }
+
+  async createMedicalRecord(data: MedicalRecordCreateData): Promise<MedicalRecord> {
+    const response = await this.client.post('/clinic/medical-records', data);
+    return response.data;
+  }
+
+  async updateMedicalRecord(recordId: number, data: MedicalRecordUpdateData): Promise<MedicalRecord> {
+    const response = await this.client.patch(`/clinic/medical-records/${recordId}`, data);
+    return response.data;
+  }
+
+  async deleteMedicalRecord(recordId: number): Promise<void> {
+    await this.client.delete(`/clinic/medical-records/${recordId}`);
   }
 
 }
