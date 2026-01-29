@@ -106,8 +106,10 @@ class MedicalRecordService:
             raise ValueError("CONCURRENCY_ERROR: Record has been modified by another user.")
 
         # 3. Detect removed media for cleanup
-        # We only care if workspace_data is being updated
-        removed_media_paths: List[str] = []
+        # We NO LONGER perform immediate physical file cleanup on update_record
+        # to prevent broken links when a user performs an "Undo" operation.
+        # Physical files are only deleted when the record is deleted.
+        # We only remove the DB references here to keep the MedicalRecordMedia table clean.
         if "workspace_data" in update_data:
             old_workspace = record.workspace_data or {}
             new_workspace = update_data["workspace_data"]
@@ -122,16 +124,12 @@ class MedicalRecordService:
             removed_urls = old_media_urls - new_media_urls
             
             if removed_urls:
-                # Find the corresponding MedicalRecordMedia entries to get the file_path (s3_key)
-                media_entries = db.query(MedicalRecordMedia).filter(
+                # Remove the MedicalRecordMedia DB entries but DON'T return file paths for physical deletion
+                db.query(MedicalRecordMedia).filter(
                     MedicalRecordMedia.record_id == record_id,
                     MedicalRecordMedia.clinic_id == clinic_id,
                     MedicalRecordMedia.url.in_(removed_urls)
-                ).all()
-                
-                for media in media_entries:
-                    removed_media_paths.append(media.file_path)
-                    db.delete(media)
+                ).delete(synchronize_session=False)
 
         # 4. Update fields
         if "header_values" in update_data:
@@ -146,9 +144,8 @@ class MedicalRecordService:
         db.commit()
         db.refresh(record)
         
-        # Attach removed paths to the record object temporarily so the API layer can see them
-        # or just return them. Let's return a tuple.
-        return record, removed_media_paths
+        # Return record and empty list (no physical deletion on update)
+        return record, []
 
     @staticmethod
     def delete_record(db: Session, record_id: int, clinic_id: int) -> Optional[List[str]]:

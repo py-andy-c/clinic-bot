@@ -230,12 +230,24 @@
                                         <rect x="0" y="0" width="1000" height="{{ record_data.workspace_data.canvas_height }}" fill="white" />
                                         {% for idx in eraser_indices %}
                                             {% set eraser = layers[idx] %}
+                                            {# Calculate average pressure for the eraser to better reflect visual scale #}
+                                            {% set avg_pressure = 0 %}
+                                            {% if eraser.points|length > 0 %}
+                                                {% set total_p = 0 %}
+                                                {% for p in eraser.points %}
+                                                    {% set total_p = total_p + p[2]|default(0.5) %}
+                                                {% endfor %}
+                                                {% set avg_pressure = total_p / eraser.points|length %}
+                                            {% else %}
+                                                {% set avg_pressure = 0.5 %}
+                                            {% endif %}
+
                                             {% if eraser.points|length == 1 %}
                                                 <circle cx="{{ eraser.points[0][0] }}" cy="{{ eraser.points[0][1] }}" 
-                                                        r="{{ eraser.width / 4 }}" fill="black" />
+                                                        r="{{ (eraser.width * avg_pressure) / 2 }}" fill="black" />
                                             {% else %}
                                                 <path d="M {{ eraser.points[0][0] }} {{ eraser.points[0][1] }} {% for p in eraser.points[1:] %}L {{ p[0] }} {{ p[1] }} {% endfor %}"
-                                                      stroke="black" stroke-width="{{ eraser.width * 0.5 }}" 
+                                                      stroke="black" stroke-width="{{ eraser.width * avg_pressure }}" 
                                                       stroke-linecap="round" stroke-linejoin="round" fill="none" />
                                             {% endif %}
                                         {% endfor %}
@@ -250,13 +262,21 @@
                                         r="{{ (layer.width * (layer.points[0][2]|default(0.5))) / 2 if layer.points[0]|length > 2 else layer.width / 4 }}" 
                                         fill="{{ layer.color }}" />
                             {% else %}
-                                {# If all points have pressure, we can't use a single path for variable width in SVG 1.1 easily.
-                                   However, we can simulate it by drawing segments or using a simplified approach.
-                                   For now, we'll use the average pressure or just the base width, 
-                                   but we'll at least prepare for it. #}
+                                {# Calculate average pressure for the path to better reflect visual scale #}
+                                {% set avg_p = 0 %}
+                                {% if layer.points|length > 0 %}
+                                    {% set total_p = 0 %}
+                                    {% for p in layer.points %}
+                                        {% set total_p = total_p + p[2]|default(0.5) %}
+                                    {% endfor %}
+                                    {% set avg_p = total_p / layer.points|length %}
+                                {% else %}
+                                    {% set avg_p = 0.5 %}
+                                {% endif %}
+
                                 <path d="M {{ layer.points[0][0] }} {{ layer.points[0][1] }} {% for p in layer.points[1:] %}L {{ p[0] }} {{ p[1] }} {% endfor %}"
                                       stroke="{{ layer.color }}" 
-                                      stroke-width="{{ layer.width * 0.5 }}" 
+                                      stroke-width="{{ layer.width * avg_p }}" 
                                       stroke-linecap="round"
                                       stroke-linejoin="round"
                                       fill="none" />

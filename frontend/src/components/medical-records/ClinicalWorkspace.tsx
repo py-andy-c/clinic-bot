@@ -417,6 +417,18 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
 
     if (!isDrawing || !currentPath) return;
 
+    // Auto-expand canvas if drawing near the bottom (within 100px)
+    const currentHeight = migratedInitialData.current.canvas_height || 1000;
+    if (logicalY > currentHeight - 100) {
+      const newHeight = currentHeight + 500;
+      migratedInitialData.current = {
+        ...migratedInitialData.current,
+        canvas_height: newHeight
+      };
+      // We don't trigger localVersion here to avoid excessive server updates
+      // The update will happen naturally when handlePointerUp is called
+    }
+
     setCurrentPath({
       ...currentPath,
       points: [...currentPath.points, [logicalX, logicalY, pressure]],
