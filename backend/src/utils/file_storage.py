@@ -50,6 +50,37 @@ async def save_local_file(upload_file: UploadFile) -> Tuple[str, str]:
     url = f"{API_BASE_URL}/static/{UPLOAD_DIR}/{s3_key}"
     return s3_key, url
 
+async def delete_file(file_path: str):
+    """
+    Deletes a file from storage. Handles both S3 and local storage.
+    """
+    # Use local storage if S3 is not configured
+    if not S3_BUCKET or not S3_ACCESS_KEY or not S3_SECRET_KEY:
+        # For local files, file_path is just the filename in UPLOAD_DIR
+        local_path = os.path.join(UPLOAD_DIR, file_path)
+        if os.path.exists(local_path):
+            try:
+                os.remove(local_path)
+            except Exception as e:
+                # Log but don't fail if delete fails
+                print(f"Failed to delete local file {local_path}: {e}")
+        return
+
+    # Delete from S3
+    try:
+        session = aioboto3.Session()
+        async with session.client(  # type: ignore
+            's3',
+            region_name=S3_REGION,
+            aws_access_key_id=S3_ACCESS_KEY,
+            aws_secret_access_key=S3_SECRET_KEY,
+            endpoint_url=S3_ENDPOINT_URL
+        ) as s3_client:  # type: ignore
+            s3 = cast(S3Client, s3_client)
+            await s3.delete_object(Bucket=S3_BUCKET, Key=file_path)
+    except Exception as e:
+        print(f"Failed to delete S3 object {file_path}: {e}")
+
 async def save_s3_file(upload_file: UploadFile) -> Tuple[str, str]:
     """
     Saves a file to AWS S3 using aioboto3.

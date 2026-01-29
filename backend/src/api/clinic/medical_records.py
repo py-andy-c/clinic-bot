@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from core.database import get_db
 from auth.dependencies import require_authenticated, require_practitioner_or_admin, UserContext, ensure_clinic_access
 from services.medical_record_service import MedicalRecordService
-from utils.file_storage import save_upload_file
+from utils.file_storage import save_upload_file, delete_file
 
 router = APIRouter()
 
@@ -58,6 +58,7 @@ class MedicalRecordCreate(MedicalRecordBase):
 class MedicalRecordUpdate(BaseModel):
     header_values: Optional[Dict[str, Any]] = None
     workspace_data: Optional[WorkspaceData] = None
+    version: Optional[int] = None
 
 class MedicalRecordListItemResponse(BaseModel):
     id: int
@@ -159,15 +160,26 @@ async def update_record(
         # Convert WorkspaceData Pydantic model to dict
         update_dict['workspace_data'] = record_data.workspace_data.model_dump()
     
-    record = MedicalRecordService.update_record(
-        db=db,
-        record_id=record_id,
-        clinic_id=clinic_id,
-        update_data=update_dict
-    )
+    try:
+        result = MedicalRecordService.update_record(
+            db=db,
+            record_id=record_id,
+            clinic_id=clinic_id,
+            update_data=update_dict
+        )
+    except ValueError as e:
+        if "CONCURRENCY_ERROR" in str(e):
+            raise HTTPException(status_code=409, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e))
     
-    if not record:
+    if not result:
         raise HTTPException(status_code=404, detail="找不到病歷記錄")
+    
+    record, removed_media_paths = result
+    
+    # 2. Trigger physical deletion of removed media files
+    for path in removed_media_paths:
+        await delete_file(path)
         
     response = MedicalRecordResponse.model_validate(record)
     if record.template:
@@ -210,7 +222,7 @@ async def upload_media(
 
     # Save file to disk
     try:
-        _, file_url = await save_upload_file(file)
+        file_path, file_url = await save_upload_file(file)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"檔案儲存失敗: {str(e)}")
 
@@ -220,6 +232,7 @@ async def upload_media(
         record_id=record_id,
         clinic_id=clinic_id,
         url=file_url,
+        file_path=file_path,
         file_type="image",
         original_filename=file.filename
     )

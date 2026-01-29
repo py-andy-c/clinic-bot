@@ -760,4 +760,5 @@ export interface MedicalRecord extends MedicalRecordListItem {
   header_structure: MedicalRecordField[];
   header_values: Record<string, any>;
   workspace_data: WorkspaceData;
+  version: number;
 }

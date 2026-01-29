@@ -9,21 +9,45 @@ import { useUnsavedChanges } from '../contexts/UnsavedChangesContext';
 import PageHeader from '../components/PageHeader';
 import { MedicalRecordHeader } from '../components/medical-records/MedicalRecordHeader';
 import { ClinicalWorkspace } from '../components/medical-records/ClinicalWorkspace';
+import { SyncStatus, SyncStatusType } from '../components/medical-records/SyncStatus';
 import type { WorkspaceData } from '../types';
 
 const MedicalRecordEditorPage: React.FC = () => {
   const { patientId, recordId } = useParams<{ patientId: string; recordId: string }>();
   const navigate = useNavigate();
   const { alert } = useModal();
-  const { setHasUnsavedChanges } = useUnsavedChanges();
+  const { hasUnsavedChanges, setHasUnsavedChanges } = useUnsavedChanges();
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
 
   const recordIdNum = recordId ? parseInt(recordId, 10) : undefined;
   const patientIdNum = patientId ? parseInt(patientId, 10) : undefined;
 
   const { data: record, isLoading, error, refetch } = useMedicalRecord(recordIdNum);
   const updateMutation = useUpdateMedicalRecord();
+
+  // Handle online/offline status
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  // Determine current sync status
+  const getSyncStatus = (): SyncStatusType => {
+    if (!isOnline) return 'offline';
+    if (isSaving) return 'saving';
+    if (hasUnsavedChanges) return 'dirty';
+    return 'saved';
+  };
 
   // Initialize lastSaved with record.updated_at when record loads
   useEffect(() => {
@@ -45,31 +69,41 @@ const MedicalRecordEditorPage: React.FC = () => {
   }, [setHasUnsavedChanges]);
 
   const handleHeaderUpdate = useCallback(async (headerValues: Record<string, any>) => {
-    if (!recordIdNum) return;
+    if (!recordIdNum || !record) return;
 
     setIsSaving(true);
     setHasUnsavedChanges(false); // Clear unsaved changes flag during save
     try {
       await updateMutation.mutateAsync({
         recordId: recordIdNum,
-        data: { header_values: headerValues },
+        data: { 
+          header_values: headerValues,
+          version: record.version
+        },
       });
       setLastSaved(new Date());
+      // Refetch to get updated version from server
+      refetch();
     } catch (err) {
       logger.error('Update medical record header error:', err);
       const errorMessage = getErrorMessage(err);
-      await alert(errorMessage || '更新病歷記錄失敗');
+      if (errorMessage?.includes('CONCURRENCY_ERROR')) {
+        await alert('此病歷已被其他使用者更新，請重新載入頁面以獲取最新版本。');
+        refetch();
+      } else {
+        await alert(errorMessage || '更新病歷記錄失敗');
+      }
       throw err;
     } finally {
       setIsSaving(false);
     }
-  }, [recordIdNum, updateMutation, setHasUnsavedChanges, alert]);
+  }, [recordIdNum, record, updateMutation, setHasUnsavedChanges, alert, refetch]);
 
   const handleDirtyStateChange = useCallback((isDirty: boolean) => {
     setHasUnsavedChanges(isDirty);
   }, [setHasUnsavedChanges]);
 
-  const handleWorkspaceUpdate = useCallback(async (workspaceData: WorkspaceData) => {
+  const handleWorkspaceUpdate = useCallback(async (workspaceData: WorkspaceData, version: number) => {
     if (!recordIdNum) return;
 
     setIsSaving(true);
@@ -77,18 +111,28 @@ const MedicalRecordEditorPage: React.FC = () => {
     try {
       await updateMutation.mutateAsync({
         recordId: recordIdNum,
-        data: { workspace_data: workspaceData },
+        data: { 
+          workspace_data: workspaceData,
+          version: version
+        },
       });
       setLastSaved(new Date());
+      // Refetch to get updated version from server
+      refetch();
     } catch (err) {
       logger.error('Update medical record workspace error:', err);
       const errorMessage = getErrorMessage(err);
-      await alert(errorMessage || '更新病歷工作區失敗');
+      if (errorMessage?.includes('CONCURRENCY_ERROR')) {
+        await alert('此病歷已被其他使用者更新，請重新載入頁面以獲取最新版本。');
+        refetch();
+      } else {
+        await alert(errorMessage || '更新病歷工作區失敗');
+      }
       throw err;
     } finally {
       setIsSaving(false);
     }
-  }, [recordIdNum, updateMutation, setHasUnsavedChanges, alert]);
+  }, [recordIdNum, updateMutation, setHasUnsavedChanges, alert, refetch]);
 
   if (isLoading) {
     return (
@@ -120,24 +164,27 @@ const MedicalRecordEditorPage: React.FC = () => {
         </button>
       </div>
 
-      <PageHeader title={record.template_name || '病歷記錄'} />
-
-      <div className="mb-4 text-sm text-gray-600 space-y-1">
-        <div>記錄 ID: #{record.id}</div>
-        <div>建立時間: {new Date(record.created_at).toLocaleString('zh-TW')}</div>
-        {lastSaved && (
-          <div className="text-green-600">
-            最後儲存: {lastSaved.toLocaleTimeString('zh-TW')}
-          </div>
-        )}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+        <PageHeader title={record.template_name || '病歷記錄'} />
+        <SyncStatus status={getSyncStatus()} lastSaved={lastSaved} />
       </div>
 
-      {isSaving && (
-        <div className="mb-4 bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-center gap-2">
-          <LoadingSpinner size="sm" />
-          <span className="text-sm text-blue-800">儲存中...</span>
+      <div className="mb-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="bg-gray-50 p-3 rounded-lg border border-gray-100">
+          <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">記錄 ID</div>
+          <div className="font-mono text-sm font-semibold text-gray-700">#{record.id}</div>
         </div>
-      )}
+        <div className="bg-gray-50 p-3 rounded-lg border border-gray-100">
+          <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">建立時間</div>
+          <div className="text-sm font-semibold text-gray-700">{new Date(record.created_at).toLocaleString('zh-TW')}</div>
+        </div>
+        <div className="bg-gray-50 p-3 rounded-lg border border-gray-100">
+          <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">最後更新</div>
+          <div className="text-sm font-semibold text-gray-700">
+            {record.updated_at ? new Date(record.updated_at).toLocaleString('zh-TW') : '無'}
+          </div>
+        </div>
+      </div>
 
       <div className="space-y-6">
         {/* Structured Header Section */}
@@ -154,6 +201,7 @@ const MedicalRecordEditorPage: React.FC = () => {
           <ClinicalWorkspace
             recordId={record.id}
             initialData={record.workspace_data}
+            initialVersion={record.version}
             onUpdate={handleWorkspaceUpdate}
             isSaving={isSaving}
           />

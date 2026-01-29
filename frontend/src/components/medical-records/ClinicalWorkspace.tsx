@@ -5,7 +5,8 @@ import { logger } from '../../utils/logger';
 interface ClinicalWorkspaceProps {
   recordId: number;
   initialData: WorkspaceData;
-  onUpdate: (data: WorkspaceData) => void;
+  initialVersion: number;
+  onUpdate: (data: WorkspaceData, version: number) => void;
   isSaving?: boolean;
 }
 
@@ -21,6 +22,7 @@ const LOGICAL_WIDTH = 1000;
 export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
   recordId,
   initialData,
+  initialVersion,
   onUpdate,
   isSaving = false,
 }) => {
@@ -36,7 +38,8 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
   const [currentPath, setCurrentPath] = useState<DrawingPath | null>(null);
   const [images, setImages] = useState<Record<string, HTMLImageElement>>({});
   const [isUploading, setIsUploading] = useState(false);
-  const [version, setVersion] = useState(0);
+  const [localVersion, setLocalVersion] = useState(0); // For debouncing
+  const [serverVersion, setServerVersion] = useState(initialVersion);
   const [selectedLayerId, setSelectedLayerId] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState<{ x: number; y: number } | null>(null);
   const [isResizing, setIsResizing] = useState(false);
@@ -94,8 +97,9 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
   useEffect(() => {
     if (!isDrawing) {
       setLayers(initialData.layers || []);
+      setServerVersion(initialVersion);
     }
-  }, [initialData.layers, isDrawing]);
+  }, [initialData.layers, initialVersion, isDrawing]);
 
   const drawLayer = useCallback((ctx: CanvasRenderingContext2D, layer: DrawingPath | MediaLayer) => {
     ctx.save();
@@ -389,7 +393,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
         setDragOffset(null);
         setIsResizing(false);
         setIsRotating(false);
-        setVersion(v => v + 1);
+        setLocalVersion(v => v + 1);
       }
       return;
     }
@@ -397,32 +401,40 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
     if (!isDrawing || !currentPath) return;
 
     setIsDrawing(false);
-    const newLayers = [...layers, currentPath];
+    
+    // Simplify path before saving to reduce data size
+    const simplifiedPoints = simplifyPath(currentPath.points, 0.5);
+    const simplifiedPath: DrawingPath = {
+      ...currentPath,
+      points: simplifiedPoints,
+    };
+    
+    const newLayers = [...layers, simplifiedPath];
     setLayers(newLayers);
     setCurrentPath(null);
     setRedoStack([]); // Clear redo stack on new action
-    setVersion(v => v + 1);
+    setLocalVersion(v => v + 1);
   };
 
   // Debounced update to parent
   useEffect(() => {
-    if (version === 0) return;
+    if (localVersion === 0) return;
 
     const timer = setTimeout(() => {
       onUpdate({
         ...initialData,
         layers,
-      });
+      }, serverVersion);
     }, 3000); // 3 seconds debounce
 
     return () => clearTimeout(timer);
-  }, [version, layers, initialData, onUpdate]);
+  }, [localVersion, layers, initialData, onUpdate, serverVersion]);
 
   const clearCanvas = () => {
     if (window.confirm('確定要清除所有繪圖與上傳的圖片嗎？（背景範本將會保留）')) {
       const baseLayers = layers.filter(l => l.type === 'media' && l.origin === 'template');
       setLayers(baseLayers);
-      setVersion(v => v + 1);
+      setLocalVersion(v => v + 1);
     }
   };
 
@@ -444,7 +456,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
     
     setRedoStack(prev => [...prev, layers]);
     setLayers(newLayers);
-    setVersion(v => v + 1);
+    setLocalVersion(v => v + 1);
   };
 
   const redo = () => {
@@ -455,7 +467,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
 
     setRedoStack(prev => prev.slice(0, -1));
     setLayers(nextLayers);
-    setVersion(v => v + 1);
+    setLocalVersion(v => v + 1);
   };
 
   const deleteSelectedLayer = () => {
@@ -468,7 +480,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
     
     setLayers(layers.filter(l => !(l.type === 'media' && l.id === selectedLayerId)));
     setSelectedLayerId(null);
-    setVersion(v => v + 1);
+    setLocalVersion(v => v + 1);
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -514,10 +526,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
 
       const newLayers = [...layers, newMediaLayer];
       setLayers(newLayers);
-      onUpdate({
-        ...initialData,
-        layers: newLayers,
-      });
+      setLocalVersion(v => v + 1);
     } catch (err) {
       logger.error('Upload error:', err);
       alert('圖片上傳失敗');
@@ -682,3 +691,65 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
     </div>
   );
 };
+
+/**
+ * Ramer-Douglas-Peucker algorithm for path simplification
+ */
+function simplifyPath(points: [number, number, number?][], epsilon = 1): [number, number, number?][] {
+  if (points.length <= 2) return points;
+
+  const sqTolerance = epsilon * epsilon;
+
+  function getSqSegDist(p: [number, number, number?], p1: [number, number, number?], p2: [number, number, number?]) {
+    let x = p1[0];
+    let y = p1[1];
+    let dx = p2[0] - x;
+    let dy = p2[1] - y;
+
+    if (dx !== 0 || dy !== 0) {
+      const t = ((p[0] - x) * dx + (p[1] - y) * dy) / (dx * dx + dy * dy);
+      if (t > 1) {
+        x = p2[0];
+        y = p2[1];
+      } else if (t > 0) {
+        x += dx * t;
+        y += dy * t;
+      }
+    }
+
+    dx = p[0] - x;
+    dy = p[1] - y;
+    return dx * dx + dy * dy;
+  }
+
+  function simplifyRecursive(
+    points: [number, number, number?][],
+    first: number,
+    last: number,
+    sqTolerance: number,
+    simplified: [number, number, number?][]
+  ) {
+    let maxSqDist = sqTolerance;
+    let index = -1;
+
+    for (let i = first + 1; i < last; i++) {
+      const sqDist = getSqSegDist(points[i]!, points[first]!, points[last]!);
+      if (sqDist > maxSqDist) {
+        index = i;
+        maxSqDist = sqDist;
+      }
+    }
+
+    if (index !== -1) {
+      simplifyRecursive(points, first, index, sqTolerance, simplified);
+      simplified.push(points[index]!);
+      simplifyRecursive(points, index, last, sqTolerance, simplified);
+    }
+  }
+
+  const simplified: [number, number, number?][] = [points[0]!];
+  simplifyRecursive(points, 0, points.length - 1, sqTolerance, simplified);
+  simplified.push(points[points.length - 1]!);
+
+  return simplified;
+}

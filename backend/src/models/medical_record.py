@@ -27,6 +27,7 @@ class MedicalRecord(Base):
     
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=text("now()"))
     updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=text("now()"))
+    version: Mapped[int] = mapped_column(default=1, nullable=False)
 
     # Relationships
     patient = relationship("Patient")

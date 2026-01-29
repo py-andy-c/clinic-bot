@@ -675,6 +675,7 @@ export class ApiService {
   async updateMedicalRecord(recordId: number, data: {
     header_values?: Record<string, any>;
     workspace_data?: Record<string, any>;
+    version?: number;
   }): Promise<MedicalRecord> {
     const response = await this.client.patch(`/clinic/medical-records/${recordId}`, data);
     return response.data;
