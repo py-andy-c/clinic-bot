@@ -22,6 +22,8 @@ from api.clinic.practitioners import router as practitioners_router
 from api.clinic.appointments import router as appointments_router
 from api.clinic.resources import router as resources_router
 from api.clinic.previews import router as previews_router
+from api.clinic.medical_record_templates import router as medical_record_templates_router
+from api.clinic.medical_records import router as medical_records_router
 
 __all__ = [
     'router',
@@ -38,5 +40,7 @@ __all__ = [
     'appointments_router',
     'resources_router',
     'previews_router',
+    'medical_record_templates_router',
+    'medical_records_router',
 ]
 

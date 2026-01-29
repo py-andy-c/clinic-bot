@@ -17,7 +17,9 @@ import { PatientInfoSection } from '../components/patient/PatientInfoSection';
 import { PatientNotesSection } from '../components/patient/PatientNotesSection';
 import { PatientAssignedPractitionersSection } from '../components/patient/PatientAssignedPractitionersSection';
 import { PatientAppointmentsList } from '../components/patient/PatientAppointmentsList';
+import { PatientMedicalRecordsSection } from '../components/patient/PatientMedicalRecordsSection';
 import { CreateAppointmentModal } from '../components/calendar/CreateAppointmentModal';
+import { CreateMedicalRecordModal } from '../components/patient/CreateMedicalRecordModal';
 
 const PatientDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -30,6 +32,7 @@ const PatientDetailPage: React.FC = () => {
   const [isEditingNotes, setIsEditingNotes] = useState(false);
   const [isEditingPractitioners, setIsEditingPractitioners] = useState(false);
   const [isAppointmentModalOpen, setIsAppointmentModalOpen] = useState(false);
+  const [isMedicalRecordModalOpen, setIsMedicalRecordModalOpen] = useState(false);
   const appointmentsListRefetchRef = useRef<(() => Promise<void>) | null>(null);
 
   const patientId = id ? parseInt(id, 10) : undefined;
@@ -171,6 +174,12 @@ const PatientDetailPage: React.FC = () => {
           practitioners={practitioners}
         />
 
+        <PatientMedicalRecordsSection
+          patientId={patient.id}
+          canEdit={canEdit}
+          onCreateRecord={() => setIsMedicalRecordModalOpen(true)}
+        />
+
         <PatientAppointmentsList
           patientId={patient.id}
           practitioners={practitioners}
@@ -227,6 +236,17 @@ const PatientDetailPage: React.FC = () => {
             if (appointmentsListRefetchRef.current) {
               await appointmentsListRefetchRef.current();
             }
+          }}
+        />
+      )}
+
+      {/* Create Medical Record Modal */}
+      {isMedicalRecordModalOpen && patientId !== undefined && (
+        <CreateMedicalRecordModal
+          patientId={patientId}
+          onClose={() => setIsMedicalRecordModalOpen(false)}
+          onSuccess={() => {
+            // Modal will close automatically, records list will refetch via React Query
           }}
         />
       )}

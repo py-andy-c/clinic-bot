@@ -20,3 +20,12 @@ export { usePractitionerStatus } from './usePractitionerStatus';
 export { useBatchPractitionerStatus } from './useBatchPractitionerStatus';
 export { useClinicDetails, type ClinicDetailsData } from './useClinicDetails';
 export { usePractitionerConflicts, useBatchPractitionerConflicts, useResourceConflicts } from './usePractitionerConflicts';
+export { useMedicalRecordTemplates, useMedicalRecordTemplateMutations } from './useMedicalRecordTemplates';
+export {
+    usePatientMedicalRecords,
+    useMedicalRecord,
+    useCreateMedicalRecord,
+    useUpdateMedicalRecord,
+    useDeleteMedicalRecord,
+    medicalRecordKeys
+} from './useMedicalRecords';

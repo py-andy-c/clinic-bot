@@ -715,3 +715,23 @@ export interface MedicalRecordTemplate {
   created_at: string;
   updated_at: string;
 }
+
+export interface MedicalRecordListItem {
+  id: number;
+  patient_id: number;
+  template_id: number | null;
+  template_name?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MedicalRecord extends MedicalRecordListItem {
+  header_structure: MedicalRecordField[];
+  header_values: Record<string, any>;
+  workspace_data: {
+    version: number;
+    layers: any[];
+    canvas_height: number;
+    viewport?: { zoom: number; scroll_top: number };
+  };
+}

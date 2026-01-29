@@ -38,6 +38,7 @@ from api.clinic.appointments import router as appointments_router
 from api.clinic.resources import router as resources_router
 from api.clinic.previews import router as previews_router
 from api.clinic.medical_record_templates import router as medical_record_templates_router
+from api.clinic.medical_records import router as medical_records_router
 
 
 router.include_router(service_groups_router, tags=["service-groups"])
@@ -53,6 +54,7 @@ router.include_router(appointments_router, tags=["appointments"])
 router.include_router(resources_router, tags=["resources"])
 router.include_router(previews_router, tags=["previews"])
 router.include_router(medical_record_templates_router, tags=["medical-record-templates"])
+router.include_router(medical_records_router, tags=["medical-records"])
 
 
 
