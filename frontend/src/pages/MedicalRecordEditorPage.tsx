@@ -22,6 +22,9 @@ const MedicalRecordEditorPage: React.FC = () => {
   const [isDownloading, setIsDownloading] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [pendingHeaderValues, setPendingHeaderValues] = useState<Record<string, string | string[] | number | boolean> | null>(null);
+  const [pendingWorkspaceData, setPendingWorkspaceData] = useState<WorkspaceData | null>(null);
+  const [lastUpdateType, setLastUpdateType] = useState<'toggle' | 'text'>('text');
 
   const recordIdNum = recordId ? parseInt(recordId, 10) : undefined;
   const patientIdNum = patientId ? parseInt(patientId, 10) : undefined;
@@ -70,71 +73,64 @@ const MedicalRecordEditorPage: React.FC = () => {
     };
   }, [setHasUnsavedChanges]);
 
-  const handleHeaderUpdate = useCallback(async (headerValues: Record<string, any>) => {
-    if (!recordIdNum || !record) return;
+  // Consolidated autosave effect
+  useEffect(() => {
+    if (!pendingHeaderValues && !pendingWorkspaceData) return;
 
-    setIsSaving(true);
-    setHasUnsavedChanges(false); // Clear unsaved changes flag during save
-    try {
-      await updateMutation.mutateAsync({
-        recordId: recordIdNum,
-        data: { 
-          header_values: headerValues,
-          version: record.version
-        },
-      });
-      setLastSaved(new Date());
-      // Refetch to get updated version from server
-      refetch();
-    } catch (err) {
-      logger.error('Update medical record header error:', err);
-      const errorMessage = getErrorMessage(err);
-      if (errorMessage?.includes('CONCURRENCY_ERROR')) {
-        await alert('此病歷已被其他使用者更新，請重新載入頁面以獲取最新版本。');
+    const delay = lastUpdateType === 'toggle' ? 500 : 3000;
+
+    const timer = setTimeout(async () => {
+      if (!recordIdNum || !record) return;
+
+      setIsSaving(true);
+      const headerToSave = pendingHeaderValues || record.header_values;
+      const workspaceToSave = pendingWorkspaceData || record.workspace_data;
+
+      try {
+        await updateMutation.mutateAsync({
+          recordId: recordIdNum,
+          data: {
+            header_values: headerToSave,
+            workspace_data: workspaceToSave,
+            version: record.version,
+          },
+        });
+        setLastSaved(new Date());
+        setPendingHeaderValues(null);
+        setPendingWorkspaceData(null);
+        setHasUnsavedChanges(false);
         refetch();
-      } else {
-        await alert(errorMessage || '更新病歷記錄失敗');
+      } catch (err) {
+        logger.error('Consolidated autosave error:', err);
+        const errorMessage = getErrorMessage(err);
+        if (errorMessage?.includes('CONCURRENCY_ERROR')) {
+          // For autosave, we just refetch and let the user know if their change failed
+          // instead of a blocking alert.
+          refetch();
+        }
+      } finally {
+        setIsSaving(false);
       }
-      throw err;
-    } finally {
-      setIsSaving(false);
-    }
-  }, [recordIdNum, record, updateMutation, setHasUnsavedChanges, alert, refetch]);
+    }, delay);
 
-  const handleDirtyStateChange = useCallback((isDirty: boolean) => {
-    setHasUnsavedChanges(isDirty);
+    return () => clearTimeout(timer);
+  }, [pendingHeaderValues, pendingWorkspaceData, recordIdNum, record, updateMutation, refetch, setHasUnsavedChanges, lastUpdateType]);
+
+  const handleHeaderUpdate = useCallback(async (headerValues: Record<string, string | string[] | number | boolean>, isToggle: boolean = false) => {
+    setPendingHeaderValues(headerValues);
+    setLastUpdateType(isToggle ? 'toggle' : 'text');
+    setHasUnsavedChanges(true);
   }, [setHasUnsavedChanges]);
 
-  const handleWorkspaceUpdate = useCallback(async (workspaceData: WorkspaceData, version: number) => {
-    if (!recordIdNum) return;
+  const handleDirtyStateChange = useCallback((isDirty: boolean) => {
+    setHasUnsavedChanges(isDirty || !!pendingHeaderValues || !!pendingWorkspaceData);
+  }, [pendingHeaderValues, pendingWorkspaceData, setHasUnsavedChanges]);
 
-    setIsSaving(true);
-    setHasUnsavedChanges(false);
-    try {
-      await updateMutation.mutateAsync({
-        recordId: recordIdNum,
-        data: { 
-          workspace_data: workspaceData,
-          version: version
-        },
-      });
-      setLastSaved(new Date());
-      // Refetch to get updated version from server
-      refetch();
-    } catch (err) {
-      logger.error('Update medical record workspace error:', err);
-      const errorMessage = getErrorMessage(err);
-      if (errorMessage?.includes('CONCURRENCY_ERROR')) {
-        await alert('此病歷已被其他使用者更新，請重新載入頁面以獲取最新版本。');
-        refetch();
-      } else {
-        await alert(errorMessage || '更新病歷工作區失敗');
-      }
-      throw err;
-    } finally {
-      setIsSaving(false);
-    }
-  }, [recordIdNum, updateMutation, setHasUnsavedChanges, alert, refetch]);
+  const handleWorkspaceUpdate = useCallback(async (workspaceData: WorkspaceData) => {
+    setPendingWorkspaceData(workspaceData);
+    setLastUpdateType('text'); // Workspace changes (drawing) use text-like long debounce
+    setHasUnsavedChanges(true);
+  }, [setHasUnsavedChanges]);
 
   const handleDownloadPdf = async () => {
     if (!recordIdNum) return;

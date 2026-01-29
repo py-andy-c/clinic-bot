@@ -5,7 +5,7 @@ import type { MedicalRecordField } from '../../types';
 interface MedicalRecordHeaderProps {
   headerStructure: MedicalRecordField[];
   headerValues: Record<string, string | string[] | number | boolean>;
-  onUpdate: (values: Record<string, string | string[] | number | boolean>) => Promise<void>;
+  onUpdate: (values: Record<string, string | string[] | number | boolean>, isToggle?: boolean) => Promise<void>;
   onDirtyStateChange?: (isDirty: boolean) => void;
 }
 
@@ -37,17 +37,20 @@ export const MedicalRecordHeader: React.FC<MedicalRecordHeaderProps> = ({
     }
   }, [isDirty, onDirtyStateChange]);
 
-  // Auto-save on blur or after 3 seconds of inactivity
+  // Auto-save on blur or after inactivity
   const watchedValues = watch();
   useEffect(() => {
     if (!isDirty) return;
 
-    const timer = setTimeout(() => {
-      handleSubmit(onUpdate)();
-    }, 3000);
+    // Determine if the current change is a toggle field
+    const isToggleField = headerStructure.some(f => 
+      ['select', 'checkbox', 'radio'].includes(f.type) && 
+      JSON.stringify(watchedValues[f.id]) !== JSON.stringify(headerValues[f.id])
+    );
 
-    return () => clearTimeout(timer);
-  }, [watchedValues, isDirty, handleSubmit, onUpdate]);
+    // Call onUpdate immediately; parent handles debouncing
+    onUpdate(watchedValues, isToggleField);
+  }, [watchedValues, isDirty, onUpdate, headerStructure, headerValues]);
 
   const onSubmit = async (data: Record<string, string | string[] | number | boolean>) => {
     await onUpdate(data);

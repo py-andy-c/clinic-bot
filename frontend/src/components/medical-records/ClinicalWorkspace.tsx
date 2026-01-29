@@ -6,7 +6,7 @@ interface ClinicalWorkspaceProps {
   recordId: number;
   initialData: WorkspaceData;
   initialVersion: number;
-  onUpdate: (data: WorkspaceData, version: number) => void;
+  onUpdate: (data: WorkspaceData) => void;
   isSaving?: boolean;
 }
 
@@ -63,6 +63,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
   const [redoStack, setRedoStack] = useState<(DrawingPath | MediaLayer)[][]>([]);
   const [canvasWidth, setCanvasWidth] = useState(800);
   const [currentPath, setCurrentPath] = useState<DrawingPath | null>(null);
+  const [pendingUpdate, setPendingUpdate] = useState<WorkspaceData | null>(null);
   const [images, setImages] = useState<Record<string, HTMLImageElement>>({});
   const [isUploading, setIsUploading] = useState(false);
   const [localVersion, setLocalVersion] = useState(0); // For debouncing
@@ -137,11 +138,58 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
   useEffect(() => {
     if (!isDrawing) {
       const migrated = migrateWorkspaceData(initialData);
-      setLayers(migrated.layers || []);
-      setServerVersion(initialVersion);
-      migratedInitialData.current = migrated;
+      
+      // If we have local changes that haven't been saved yet (pendingUpdate),
+      // we don't want to overwrite them with stale server data.
+      // We only overwrite if:
+      // 1. The server version is strictly greater than our local tracking of the server version.
+      // 2. We don't have pending local changes (or we choose to merge them).
+      if (initialVersion > serverVersion) {
+        // Clear pending update if the server version has caught up
+        setPendingUpdate(null);
+        
+        if (!pendingUpdate) {
+          setLayers(migrated.layers || []);
+          setServerVersion(initialVersion);
+          migratedInitialData.current = migrated;
+        } else {
+          // If we have pending changes, we keep them but update the server version reference
+          setServerVersion(initialVersion);
+          migratedInitialData.current = migrated;
+        }
+      } else if (initialVersion === serverVersion) {
+        // Just sync the ref without triggering a re-render if versions match
+        migratedInitialData.current = migrated;
+      }
     }
-  }, [initialData, initialVersion, isDrawing]);
+  }, [initialData, initialVersion, isDrawing, serverVersion, pendingUpdate]);
+
+  const saveWorkspace = useCallback(() => {
+    const workspaceData: WorkspaceData = {
+      ...migratedInitialData.current,
+      layers,
+      canvas_height: migratedInitialData.current.canvas_height || initialData.canvas_height || 1000,
+      version: 2,
+    };
+    setPendingUpdate(workspaceData);
+    onUpdate(workspaceData);
+  }, [layers, onUpdate, initialData.canvas_height]);
+
+  // Use the saveWorkspace in place of direct onUpdate calls
+  useEffect(() => {
+    if (localVersion > 0) {
+      saveWorkspace();
+    }
+  }, [localVersion, saveWorkspace]);
+
+  // Handle local data updates for visual sync
+  useEffect(() => {
+    if (pendingUpdate) {
+      setSyncStatus('saving');
+    } else {
+      setSyncStatus('saved');
+    }
+  }, [pendingUpdate]);
 
   const drawLayer = useCallback((ctx: CanvasRenderingContext2D, layer: DrawingPath | MediaLayer) => {
     ctx.save();
@@ -476,22 +524,6 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
     setRedoStack([]); // Clear redo stack on new action
     setLocalVersion(v => v + 1);
   };
-
-  // Debounced update to parent
-  useEffect(() => {
-    if (localVersion === 0) return;
-
-    setSyncStatus('saving');
-    const timer = setTimeout(() => {
-      onUpdate({
-        ...initialData,
-        layers,
-      }, serverVersion);
-      setSyncStatus('saved');
-    }, 3000); // 3 seconds debounce
-
-    return () => clearTimeout(timer);
-  }, [localVersion, layers, initialData, onUpdate, serverVersion]);
 
   const clearCanvas = () => {
     if (window.confirm('確定要清除所有繪圖與上傳的圖片嗎？（背景範本將會保留）')) {
