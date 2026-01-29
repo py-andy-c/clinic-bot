@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import type { MedicalRecordField } from '../../types';
 
@@ -25,9 +25,12 @@ export const MedicalRecordHeader: React.FC<MedicalRecordHeaderProps> = ({
     defaultValues: headerValues,
   });
 
+  const lastReportedValuesRef = useRef<string>(JSON.stringify(headerValues));
+
   // Reset form when headerValues change (e.g., after save)
   useEffect(() => {
     reset(headerValues, { keepDirtyValues: true });
+    lastReportedValuesRef.current = JSON.stringify(headerValues);
   }, [headerValues, reset]);
 
   // Notify parent of dirty state changes
@@ -41,6 +44,11 @@ export const MedicalRecordHeader: React.FC<MedicalRecordHeaderProps> = ({
   const watchedValues = watch();
   useEffect(() => {
     if (!isDirty) return;
+
+    const currentValuesJson = JSON.stringify(watchedValues);
+    if (currentValuesJson === lastReportedValuesRef.current) return;
+
+    lastReportedValuesRef.current = currentValuesJson;
 
     // Determine if the current change is a toggle field
     const isToggleField = headerStructure.some(f => 

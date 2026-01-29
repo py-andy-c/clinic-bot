@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useForm, FormProvider } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -217,13 +217,13 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
     }
   }, [bundle, serviceItemId, reset]);
 
-  const onUpdateLocalItem = (updates: Partial<AppointmentType>) => {
+  const onUpdateLocalItem = useCallback((updates: Partial<AppointmentType>) => {
     // Removed setLocalItem
     Object.entries(updates).forEach(([key, val]) => {
       // Use cast to any for dynamic key assignment while satisfying RHF Path type
       setValue(key as any, val, { shouldDirty: true, shouldValidate: true });
     });
-  };
+  }, [setValue]);
 
   useUnsavedChangesDetection({
     hasUnsavedChanges: () => methods.formState.isDirty,
@@ -245,7 +245,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
     updated_at: string;
   }
 
-  const appointmentTypeProxy: FormAppointmentTypeProxy = {
+  const appointmentTypeProxy: FormAppointmentTypeProxy = useMemo(() => ({
     ...formValues,
     id: serviceItemId || 0,
     clinic_id: 0,
@@ -257,7 +257,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
     follow_up_messages: formValues.follow_up_messages || [],
     practitioner_ids: formValues.practitioner_ids || [],
     billing_scenarios: formValues.billing_scenarios || [],
-  };
+  }), [formValues, serviceItemId]);
 
   const saveMutation = useMutation({
     mutationFn: async (data: ServiceItemBundleFormData) => {
