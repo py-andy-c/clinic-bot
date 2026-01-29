@@ -18,7 +18,40 @@ logger = logging.getLogger(__name__)
 
 class MessageTemplateService:
     """Service for rendering message templates with placeholders."""
+
+    # Available placeholders for standard appointment messages
+    STANDARD_PLACEHOLDERS = [
+        "病患姓名", "服務項目", "預約時間", "預約結束時間", "預約日期", "預約時段",
+        "治療師姓名", "診所名稱", "診所地址", "診所電話", "病患備註"
+    ]
+
+    # Available placeholders for consolidated recurrent appointment messages
+    RECURRENT_PLACEHOLDERS = [
+        "病患姓名", "服務項目", "預約數量", "預約日期範圍", "預約時段列表",
+        "治療師姓名", "診所名稱", "診所地址", "診所電話"
+    ]
     
+    @staticmethod
+    def validate_template(template: str, available_placeholders: List[str]) -> List[str]:
+        """
+        Validate that all placeholders in the template are known.
+        
+        Args:
+            template: The message template to validate.
+            available_placeholders: List of allowed placeholder names (without braces).
+            
+        Returns:
+            List of error messages for unknown placeholders found.
+        """
+        import re
+        # Find all content between curly braces
+        placeholders = re.findall(r'\{(.*?)\}', template)
+        errors: List[str] = []
+        for p in placeholders:
+            if p not in available_placeholders:
+                errors.append(f"不明的變數: {{{p}}}")
+        return errors
+
     @staticmethod
     def render_message(
         template: str,
@@ -145,6 +178,42 @@ class MessageTemplateService:
         }
     
     @staticmethod
+    def build_recurrent_confirmation_context(
+        patient: Patient,
+        appointment_type_name: str,
+        practitioner_display_name: str,
+        clinic: Clinic,
+        appointment_count: int,
+        date_range_text: str,
+        appointment_list_text: str
+    ) -> Dict[str, Any]:
+        """
+        Build context dict for consolidated recurrent confirmation messages.
+
+        Returns dict with Traditional Chinese keys matching placeholders:
+        - {病患姓名}: Patient's full name
+        - {服務項目}: Appointment type name
+        - {預約數量}: Total number of appointments
+        - {預約日期範圍}: Formatted date range (e.g., "12/25 (三) 至 12/28 (六)")
+        - {預約時段列表}: Numbered list of appointments
+        - {治療師姓名}: Practitioner name with title (or "不指定")
+        - {診所名稱}: Clinic display name
+        - {診所地址}: Clinic address
+        - {診所電話}: Clinic phone
+        """
+        return {
+            "病患姓名": patient.full_name,
+            "服務項目": appointment_type_name,
+            "預約數量": str(appointment_count),
+            "預約日期範圍": date_range_text,
+            "預約時段列表": appointment_list_text,
+            "治療師姓名": practitioner_display_name,
+            "診所名稱": clinic.effective_display_name or "",
+            "診所地址": clinic.address or "",
+            "診所電話": clinic.phone_number or "",
+        }
+
+    @staticmethod
     def build_reminder_context(
         appointment: Appointment,
         patient: Patient,
@@ -153,15 +222,15 @@ class MessageTemplateService:
     ) -> Dict[str, Any]:
         """
         Build context dict for reminder messages.
-        
+
         Uses same placeholders as confirmation messages.
-        
+
         Args:
             appointment: Appointment object
             patient: Patient object
             practitioner_name: Practitioner name (can be "不指定" for auto-assigned)
             clinic: Clinic object
-            
+
         Returns:
             Dictionary with Traditional Chinese keys for placeholder replacement
         """
@@ -270,6 +339,25 @@ class MessageTemplateService:
         clinic_address = clinic.address or ""
         clinic_phone = clinic.phone_number or ""
         
+        # Recurrent appointment sample data
+        sample_count = 3
+        # Format sample range: tomorrow to 2 days after tomorrow
+        next_day_2 = sample_appointment_time + timedelta(days=2)
+        
+        # sample range text
+        start_fmt = format_datetime(sample_appointment_time)
+        end_fmt = format_datetime(next_day_2)
+        # Extract just date and weekday: "12/25 (三)"
+        start_range = start_fmt[:start_fmt.rfind(' ')]
+        end_range = end_fmt[:end_fmt.rfind(' ')]
+        sample_date_range = f"{start_range} 至 {end_range}"
+        
+        # sample list text
+        sample_list = "\n".join([
+            f"{i+1}. {format_datetime(sample_appointment_time + timedelta(days=i))}"
+            for i in range(sample_count)
+        ])
+
         return {
             "病患姓名": sample_patient_name,
             "服務項目": appointment_type_name,
@@ -282,6 +370,9 @@ class MessageTemplateService:
             "診所地址": clinic_address,
             "診所電話": clinic_phone,
             "病患備註": "",  # Empty for preview
+            "預約數量": str(sample_count),
+            "預約日期範圍": sample_date_range,
+            "預約時段列表": sample_list,
         }
     
     @staticmethod

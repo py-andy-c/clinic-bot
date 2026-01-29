@@ -25,3 +25,13 @@ DEFAULT_REMINDER_MESSAGE = """提醒您，您預約的【{服務項目}】預計
 
 請準時前往診所，期待為您服務！"""
 
+# Recurrent clinic-triggered confirmation message
+DEFAULT_RECURRENT_CLINIC_CONFIRMATION_MESSAGE = """{病患姓名}，已為您建立 {預約數量} 個預約：
+
+{預約日期範圍}
+{預約時段列表}
+
+【{服務項目}】{治療師姓名}
+
+期待為您服務！"""
+

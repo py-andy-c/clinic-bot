@@ -61,9 +61,11 @@ class AppointmentTypeResponse(BaseModel):
     send_patient_confirmation: bool = True
     send_clinic_confirmation: bool = True
     send_reminder: bool = True
+    send_recurrent_clinic_confirmation: bool = True
     patient_confirmation_message: str
     clinic_confirmation_message: str
     reminder_message: str
+    recurrent_clinic_confirmation_message: str
     # Notes customization fields
     require_notes: bool = False
     notes_instructions: Optional[str] = None

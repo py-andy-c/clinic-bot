@@ -9,6 +9,8 @@ from utils.datetime_utils import format_datetime
 
 if TYPE_CHECKING:
     from models.user_clinic_association import UserClinicAssociation
+    from models.patient import Patient
+    from models.appointment_type import AppointmentType
 
 logger = logging.getLogger(__name__)
 
@@ -1074,6 +1076,148 @@ class NotificationService:
             
         except Exception as e:
             logger.exception(f"Failed to send immediate auto-assigned notification: {e}")
+            return False
+
+    @staticmethod
+    def send_recurrent_appointment_confirmation(
+        db: Session,
+        patient: 'Patient',
+        clinic: Clinic,
+        appointment_type: 'AppointmentType',
+        appointment_count: int,
+        date_range_text: str,
+        appointment_list_text: str,
+        practitioner_display_name: str,
+        appointment_type_name: str
+    ) -> bool:
+        """
+        Send a consolidated confirmation message to patient for recurring appointments.
+
+        Args:
+            db: Database session
+            patient: Patient object
+            clinic: Clinic object
+            appointment_type: AppointmentType object with templates
+            appointment_count: Number of appointments created
+            date_range_text: Formatted date range string
+            appointment_list_text: Formatted list of appointments
+            practitioner_display_name: Practitioner name with title
+            appointment_type_name: Name of the appointment type
+
+        Returns:
+            True if notification sent successfully, False otherwise
+        """
+        try:
+            if not patient.line_user:
+                logger.info(f"Patient {patient.id} has no LINE user, skipping notification")
+                return False
+
+            if not getattr(appointment_type, 'send_recurrent_clinic_confirmation', True):
+                logger.info(f"Recurrent confirmation disabled for appointment type {appointment_type.id}, skipping")
+                return False
+
+            template = getattr(appointment_type, 'recurrent_clinic_confirmation_message', "")
+            if not template:
+                from core.message_template_constants import DEFAULT_RECURRENT_CLINIC_CONFIRMATION_MESSAGE
+                template = DEFAULT_RECURRENT_CLINIC_CONFIRMATION_MESSAGE
+            
+            from services.message_template_service import MessageTemplateService
+            context = MessageTemplateService.build_recurrent_confirmation_context(
+                patient=patient,
+                appointment_type_name=appointment_type_name,
+                practitioner_display_name=practitioner_display_name,
+                clinic=clinic,
+                appointment_count=appointment_count,
+                date_range_text=date_range_text,
+                appointment_list_text=appointment_list_text
+            )
+            message = MessageTemplateService.render_message(template, context)
+
+            line_service = NotificationService._get_line_service(clinic)
+            labels = {
+                'recipient_type': 'patient',
+                'event_type': 'recurrent_appointment_confirmation',
+                'trigger_source': 'clinic_triggered',
+                'appointment_context': 'recurrent_appointment'
+            }
+            line_service.send_text_message(
+                patient.line_user.line_user_id, 
+                message,
+                db=db,
+                clinic_id=clinic.id,
+                labels=labels
+            )
+
+            logger.info(f"Sent recurrent appointment confirmation to patient {patient.id} ({patient.full_name})")
+            return True
+
+        except Exception as e:
+            logger.exception(f"Failed to send recurrent appointment confirmation: {e}")
+            return False
+
+    @staticmethod
+    def send_recurrent_appointment_unified_notification(
+        db: Session,
+        clinic: Clinic,
+        patient_name: str,
+        appointment_count: int,
+        date_range_text: str,
+        appointment_list_text: str,
+        practitioner_display_name: str,
+        appointment_type_name: str,
+        practitioner: Optional[User] = None,
+        include_practitioner: bool = True,
+        include_admins: bool = False
+    ) -> bool:
+        """
+        Send a consolidated notification to practitioners and admins about recurring appointments.
+
+        Args:
+            db: Database session
+            clinic: Clinic object
+            patient_name: Name of the patient
+            appointment_count: Number of appointments created
+            date_range_text: Formatted date range string
+            appointment_list_text: Formatted list of appointments
+            practitioner_display_name: Practitioner name with title
+            appointment_type_name: Name of the appointment type
+            practitioner: Assigned practitioner object
+            include_practitioner: Whether to notify practitioner
+            include_admins: Whether to notify admins
+
+        Returns:
+            True if at least one notification sent successfully, False otherwise
+        """
+        try:
+            # Build message
+            message = f"📅 批次預約通知\n\n"
+            message += f"治療師：{practitioner_display_name}\n"
+            message += f"病患：{patient_name}\n"
+            message += f"數量：{appointment_count} 個\n"
+            message += f"類型：{appointment_type_name}\n\n"
+            message += f"{date_range_text}\n"
+            message += f"時段列表：\n{appointment_list_text}"
+            
+            # Use same logic for recipients as unified notification
+            recipients = NotificationService._collect_notification_recipients(
+                db, clinic, practitioner, None, None, include_practitioner, include_admins
+            )
+
+            labels = {
+                'recipient_type': 'mixed',
+                'event_type': 'recurrent_appointment_notification',
+                'trigger_source': 'clinic_triggered',
+                'appointment_context': 'recurrent_appointment'
+            }
+            
+            success_count = NotificationService._send_notification_to_recipients(
+                db, clinic, message, recipients, labels
+            )
+            
+            return success_count > 0
+
+        except Exception as e:
+            logger.exception(f"Failed to send recurrent appointment unified notification: {e}")
             return False
 
     @staticmethod

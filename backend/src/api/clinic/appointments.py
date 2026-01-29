@@ -13,7 +13,7 @@ from pydantic import BaseModel, model_validator, field_validator
 from sqlalchemy.orm import Session, joinedload
 
 from core.database import get_db
-from core.constants import MAX_EVENT_NAME_LENGTH
+from core.constants import MAX_EVENT_NAME_LENGTH, RECURRENT_APPOINTMENT_NOTIF_MAX_ITEMS
 from auth.dependencies import require_authenticated, require_practitioner_or_admin, require_admin_role, UserContext, ensure_clinic_access
 from models import User, Clinic, AppointmentType, CalendarEvent, Appointment, Patient, ResourceType, Resource, AppointmentResourceRequirement, AppointmentResourceAllocation, UserClinicAssociation
 from services import AppointmentService, AppointmentTypeService
@@ -21,8 +21,14 @@ from services.availability_service import AvailabilityService
 from services.notification_service import NotificationService
 from services.receipt_service import ReceiptService
 from services.resource_service import ResourceService
-from utils.datetime_utils import datetime_validator, parse_date_string, parse_datetime_to_taiwan, TAIWAN_TZ
-from utils.practitioner_helpers import get_practitioner_display_name_for_appointment
+from services.line_service import LINEService
+from utils.datetime_utils import datetime_validator, parse_date_string, parse_datetime_to_taiwan, TAIWAN_TZ, format_datetime
+parse_dt = parse_datetime_to_taiwan
+from utils.practitioner_helpers import (
+    get_practitioner_display_name_for_appointment, 
+    get_practitioner_display_name_with_title,
+    get_practitioner_name_for_notification
+)
 from api.responses import (
     AppointmentListItem,
     AppointmentConflictDetail, ExceptionConflictDetail, DefaultAvailabilityInfo,
@@ -734,7 +740,6 @@ async def create_recurring_appointments(
         
         for occ in request.occurrences:
             try:
-                from utils.datetime_utils import parse_datetime_to_taiwan as parse_dt
                 start_time = parse_dt(occ.start_time)
                 
                 # Create appointment using existing service
@@ -803,9 +808,7 @@ async def create_recurring_appointments(
                     ).first()
                     
                     if appointment:
-                        from services.notification_service import NotificationService
-                        from utils.practitioner_helpers import get_practitioner_name_for_notification
-                        from models.user_clinic_association import UserClinicAssociation
+                        
                         
                         clinic = db.query(Clinic).get(clinic_id)
                         if not clinic:
@@ -851,10 +854,7 @@ async def create_recurring_appointments(
                     clinic = db.query(Clinic).get(clinic_id)
                     
                     if clinic and clinic.line_channel_secret and clinic.line_channel_access_token:
-                        from services.line_service import LINEService
-                        from utils.practitioner_helpers import get_practitioner_name_for_notification
-                        from utils.datetime_utils import format_datetime
-                        from models.user_clinic_association import UserClinicAssociation
+                        
                         
                         practitioner = db.query(User).get(request.practitioner_id)
                         practitioner_name = get_practitioner_name_for_notification(
@@ -871,112 +871,83 @@ async def create_recurring_appointments(
                         )
                         appointment_type_name = appointment_type_obj.name if appointment_type_obj else "預約"
                         
-                        # Create consolidated notification message for patient
-                        if patient and patient.line_user:
-                            date_range = ""
-                            dates = sorted([appt['start_time'] for appt in created_appointments])
-                            first_date = dates[0][:10]  # Extract date part
-                            last_date = dates[-1][:10]
-                            if first_date != last_date:
-                                date_range = f"預約時間：{first_date} 至 {last_date}\n"
-                            
-                            # Format appointment times
-                            appointment_list = created_appointments[:10]
-                            from utils.datetime_utils import parse_datetime_to_taiwan as parse_dt
-                            appointment_text = "\n".join([
-                                f"• {format_datetime(parse_dt(appt['start_time']))}" 
-                                for appt in appointment_list
-                            ])
-                            
-                            if len(created_appointments) > 10:
-                                appointment_text += f"\n... 還有 {len(created_appointments) - 10} 個"
-                            
-                            # Get practitioner name with title for external display
-                            from utils.practitioner_helpers import get_practitioner_display_name_with_title
-                            if practitioner:
-                                practitioner_display_name = get_practitioner_display_name_with_title(
-                                    db, practitioner.id, clinic_id
-                                )
-                            else:
-                                practitioner_display_name = practitioner_name
-                            
-                            message = f"{patient.full_name}，已為您建立 {len(created_appointments)} 個預約：\n\n"
-                            message += date_range
-                            message += appointment_text
-                            message += f"\n\n【{appointment_type_name}】{practitioner_display_name}"
-                            message += "\n\n期待為您服務！"
-                            
-                            # Send notification using LINE service directly
-                            line_service = LINEService(
-                                channel_secret=clinic.line_channel_secret,
-                                channel_access_token=clinic.line_channel_access_token
+                        # Render consolidated notifications
+                        
+                        # 1. Resolve practitioner display name
+                        practitioner_display_name: str = ""
+                        if practitioner:
+                            practitioner_display_name = get_practitioner_display_name_with_title(
+                                db, practitioner.id, clinic_id
                             )
-                            labels = {
-                                'recipient_type': 'patient',
-                                'event_type': 'appointment_confirmation',
-                                'trigger_source': 'clinic_triggered',
-                                'appointment_context': 'recurring_appointments'
-                            }
-                            line_service.send_text_message(
-                                patient.line_user.line_user_id,
-                                message,
+                        else:
+                            practitioner_display_name = str(practitioner_name)
+                            
+                        # 2. Dates and range logic
+                        dates = sorted([parse_dt(appt['start_time']) for appt in created_appointments])
+                        first_dt = dates[0]
+                        last_dt = dates[-1]
+                        
+                        start_fmt = format_datetime(first_dt)
+                        start_range = start_fmt[:start_fmt.rfind(' ')]
+                        
+                        if first_dt.date() == last_dt.date():
+                            date_range_text = f"預約時間：{start_range}"
+                        else:
+                            last_fmt = format_datetime(last_dt)
+                            last_range = last_fmt[:last_fmt.rfind(' ')]
+                            date_range_text = f"預約時間：{start_range} 至 {last_range}"
+                            
+                        # 3. Appointment list logic
+                        display_count = min(len(created_appointments), RECURRENT_APPOINTMENT_NOTIF_MAX_ITEMS)
+                        appointment_list = created_appointments[:display_count]
+                        
+                        # Numbered list for patient
+                        patient_list_text = "\n".join([
+                            f"{i+1}. {format_datetime(parse_dt(appt['start_time']))}" 
+                            for i, appt in enumerate(appointment_list)
+                        ])
+                        
+                        # Bullet points for practitioner
+                        practitioner_list_text = "\n".join([
+                            f"• {format_datetime(parse_dt(appt['start_time']))}" 
+                            for appt in appointment_list
+                        ])
+                        
+                        if len(created_appointments) > RECURRENT_APPOINTMENT_NOTIF_MAX_ITEMS:
+                            more_text = f"\n... 還有 {len(created_appointments) - RECURRENT_APPOINTMENT_NOTIF_MAX_ITEMS} 個"
+                            patient_list_text += more_text
+                            practitioner_list_text += more_text
+                            
+                        # 4. Notify patient
+                        if patient and patient.line_user and appointment_type_obj:
+                            NotificationService.send_recurrent_appointment_confirmation(
                                 db=db,
-                                clinic_id=clinic_id,
-                                labels=labels
+                                patient=patient,
+                                clinic=clinic,
+                                appointment_type=appointment_type_obj,
+                                appointment_count=len(created_appointments),
+                                date_range_text=date_range_text,
+                                appointment_list_text=patient_list_text,
+                                practitioner_display_name=practitioner_display_name,
+                                appointment_type_name=appointment_type_name
                             )
                             
-                            logger.info(
-                                f"Sent consolidated appointment confirmation to patient {patient.id} "
-                                f"for {len(created_appointments)} appointments"
+                        # 5. Notify practitioner
+                        if practitioner:
+                            NotificationService.send_recurrent_appointment_unified_notification(
+                                db=db,
+                                clinic=clinic,
+                                patient_name=patient.full_name if patient else "未知病患",
+                                appointment_count=len(created_appointments),
+                                date_range_text=date_range_text,
+                                appointment_list_text=practitioner_list_text,
+                                practitioner_display_name=practitioner_display_name,
+                                appointment_type_name=appointment_type_name,
+                                practitioner=practitioner,
+                                include_practitioner=True,
+                                include_admins=False
                             )
                         
-                        # Send consolidated notification for practitioner
-                        if practitioner:
-                            association = db.query(UserClinicAssociation).filter(
-                                UserClinicAssociation.user_id == practitioner.id,
-                                UserClinicAssociation.clinic_id == clinic_id,
-                                UserClinicAssociation.is_active == True
-                            ).first()
-                            
-                            if association and association.line_user_id:
-                                # Format appointment times for practitioner
-                                appointment_list = created_appointments[:10]
-                                from utils.datetime_utils import parse_datetime_to_taiwan as parse_dt
-                                appointment_text = "\n".join([
-                                    f"• {format_datetime(parse_dt(appt['start_time']))}" 
-                                    for appt in appointment_list
-                                ])
-                                
-                                if len(created_appointments) > 10:
-                                    appointment_text += f"\n... 還有 {len(created_appointments) - 10} 個"
-                                
-                                practitioner_message = f"📅 新預約通知（{len(created_appointments)} 個）\n\n"
-                                practitioner_message += f"病患：{patient.full_name if patient else '未知'}\n"
-                                practitioner_message += f"類型：{appointment_type_name}\n\n"
-                                practitioner_message += appointment_text
-                                
-                                line_service = LINEService(
-                                    channel_secret=clinic.line_channel_secret,
-                                    channel_access_token=clinic.line_channel_access_token
-                                )
-                                labels = {
-                                    'recipient_type': 'practitioner',
-                                    'event_type': 'new_appointment_notification',
-                                    'trigger_source': 'clinic_triggered',
-                                    'appointment_context': 'recurring_appointments'
-                                }
-                                line_service.send_text_message(
-                                    association.line_user_id,
-                                    practitioner_message,
-                                    db=db,
-                                    clinic_id=clinic_id,
-                                    labels=labels
-                                )
-                                
-                                logger.info(
-                                    f"Sent consolidated appointment notification to practitioner {practitioner.id} "
-                                    f"for {len(created_appointments)} appointments"
-                                )
                 except Exception as e:
                     logger.exception(f"Failed to send consolidated notification: {e}")
                     # Don't fail the request if notification fails

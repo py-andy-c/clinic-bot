@@ -83,3 +83,6 @@ DASHBOARD_PAST_MONTHS_COUNT = 3  # Number of past months to display (in addition
 # Temporary IDs are generated using Date.now() (large timestamps > 1000000000000)
 # Real IDs from the backend are small integers, so we use this threshold to distinguish them
 TEMPORARY_ID_THRESHOLD = 1000000000000
+
+# Recurrent appointment notification settings
+RECURRENT_APPOINTMENT_NOTIF_MAX_ITEMS = 100

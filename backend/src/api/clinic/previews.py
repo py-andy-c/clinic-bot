@@ -47,7 +47,7 @@ class CancellationPreviewRequest(BaseModel):
 class MessagePreviewRequest(BaseModel):
     """Request model for appointment message preview."""
     appointment_type_id: Optional[int] = Field(None, description="Appointment type ID (optional for new items)")
-    message_type: Literal["patient_confirmation", "clinic_confirmation", "reminder"] = Field(..., description="Message type")
+    message_type: Literal["patient_confirmation", "clinic_confirmation", "reminder", "recurrent_clinic_confirmation"] = Field(..., description="Message type")
     template: str = Field(..., description="Template to preview")
     appointment_type_name: Optional[str] = Field(None, description="Appointment type name (required if appointment_type_id is not provided)")
 

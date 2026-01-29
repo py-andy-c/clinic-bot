@@ -847,9 +847,11 @@ async def list_appointment_types(
                     send_patient_confirmation=at.send_patient_confirmation,
                     send_clinic_confirmation=at.send_clinic_confirmation,
                     send_reminder=at.send_reminder,
+                    send_recurrent_clinic_confirmation=at.send_recurrent_clinic_confirmation,
                     patient_confirmation_message=at.patient_confirmation_message,
                     clinic_confirmation_message=at.clinic_confirmation_message,
                     reminder_message=at.reminder_message,
+                    recurrent_clinic_confirmation_message=at.recurrent_clinic_confirmation_message,
                     require_notes=at.require_notes,
                     notes_instructions=at.notes_instructions
                 ) for at in appointment_types

@@ -47,10 +47,13 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-# Module-level constants for helper functions
-_DEFAULT_PATIENT_CONFIRMATION_MESSAGE = "預約成功通知：\n\n親愛的{{patient_name}}，\n\n您的{{appointment_type}}預約已成功確認。\n\n預約資訊：\n日期：{{date}}\n時間：{{time}}\n地點：{{clinic_name}}\n\n如有任何問題，請隨時聯繫我們。"
-_DEFAULT_CLINIC_CONFIRMATION_MESSAGE = "新預約通知：\n\n{{patient_name}}預約了{{appointment_type}}\n\n預約資訊：\n日期：{{date}}\n時間：{{time}}\n\n請確認預約。"
-_DEFAULT_REMINDER_MESSAGE = "預約提醒：\n\n親愛的{{patient_name}}，\n\n提醒您明天的{{appointment_type}}預約。\n\n預約資訊：\n日期：{{date}}\n時間：{{time}}\n地點：{{clinic_name}}\n\n如需取消或修改，請提前聯繫我們。"
+# Module-level constants for helper functions (synced with core.message_template_constants)
+from core.message_template_constants import (
+    DEFAULT_PATIENT_CONFIRMATION_MESSAGE as _DEFAULT_PATIENT_CONFIRMATION_MESSAGE,
+    DEFAULT_CLINIC_CONFIRMATION_MESSAGE as _DEFAULT_CLINIC_CONFIRMATION_MESSAGE,
+    DEFAULT_REMINDER_MESSAGE as _DEFAULT_REMINDER_MESSAGE,
+    DEFAULT_RECURRENT_CLINIC_CONFIRMATION_MESSAGE as _DEFAULT_RECURRENT_CLINIC_CONFIRMATION_MESSAGE
+)
 
 
 def _get_message_or_default(raw_message: str | None, default_message: str, toggle_on: bool) -> str:
@@ -80,6 +83,9 @@ def _update_message_fields(appointment_type: AppointmentType, data: Dict[str, An
         appointment_type.send_clinic_confirmation = data.get("send_clinic_confirmation", True)
     if "send_reminder" in data:
         appointment_type.send_reminder = data.get("send_reminder", True)
+    if "send_recurrent_clinic_confirmation" in data:
+        appointment_type.send_recurrent_clinic_confirmation = data.get("send_recurrent_clinic_confirmation", True)
+    
     if "patient_confirmation_message" in data:
         appointment_type.patient_confirmation_message = _get_message_or_default(
             data.get("patient_confirmation_message"),
@@ -97,6 +103,12 @@ def _update_message_fields(appointment_type: AppointmentType, data: Dict[str, An
             data.get("reminder_message"),
             _DEFAULT_REMINDER_MESSAGE,
             data.get("send_reminder", True)
+        )
+    if "recurrent_clinic_confirmation_message" in data:
+        appointment_type.recurrent_clinic_confirmation_message = _get_message_or_default(
+            data.get("recurrent_clinic_confirmation_message"),
+            _DEFAULT_RECURRENT_CLINIC_CONFIRMATION_MESSAGE,
+            data.get("send_recurrent_clinic_confirmation", True)
         )
 
 
@@ -394,11 +406,42 @@ class ServiceItemData(BaseModel):
     send_patient_confirmation: bool = True
     send_clinic_confirmation: bool = True
     send_reminder: bool = True
+    send_recurrent_clinic_confirmation: bool = True
     patient_confirmation_message: Optional[str] = None
     clinic_confirmation_message: Optional[str] = None
     reminder_message: Optional[str] = None
+    recurrent_clinic_confirmation_message: Optional[str] = None
     require_notes: bool = False
     notes_instructions: Optional[str] = None
+
+    @model_validator(mode='after')
+    def validate_templates(self) -> 'ServiceItemData':
+        """Validate placeholders in message templates."""
+        # Standard templates
+        from services.message_template_service import MessageTemplateService
+        
+        for field, template in [
+            ("patient_confirmation_message", self.patient_confirmation_message),
+            ("clinic_confirmation_message", self.clinic_confirmation_message),
+            ("reminder_message", self.reminder_message)
+        ]:
+            if template:
+                errors = MessageTemplateService.validate_template(
+                    template, MessageTemplateService.STANDARD_PLACEHOLDERS
+                )
+                if errors:
+                    raise ValueError(f"{field}: {', '.join(errors)}")
+        
+        # Recurrent template
+        if self.recurrent_clinic_confirmation_message:
+            errors = MessageTemplateService.validate_template(
+                self.recurrent_clinic_confirmation_message, 
+                MessageTemplateService.RECURRENT_PLACEHOLDERS
+            )
+            if errors:
+                raise ValueError(f"recurrent_clinic_confirmation_message: {', '.join(errors)}")
+                
+        return self
 
 
 class ServiceItemBundleRequest(BaseModel):
@@ -477,6 +520,8 @@ async def get_settings(
                 patient_confirmation_message=at.patient_confirmation_message,
                 clinic_confirmation_message=at.clinic_confirmation_message,
                 reminder_message=at.reminder_message,
+                send_recurrent_clinic_confirmation=at.send_recurrent_clinic_confirmation,
+                recurrent_clinic_confirmation_message=at.recurrent_clinic_confirmation_message,
                 require_notes=at.require_notes,
                 notes_instructions=at.notes_instructions
             )
@@ -1068,6 +1113,8 @@ def get_service_item_bundle(
                 patient_confirmation_message=at.patient_confirmation_message,
                 clinic_confirmation_message=at.clinic_confirmation_message,
                 reminder_message=at.reminder_message,
+                send_recurrent_clinic_confirmation=at.send_recurrent_clinic_confirmation,
+                recurrent_clinic_confirmation_message=at.recurrent_clinic_confirmation_message,
                 require_notes=at.require_notes,
                 notes_instructions=at.notes_instructions
             ),
@@ -1312,6 +1359,8 @@ def create_service_item_bundle(
             patient_confirmation_message=request.item.patient_confirmation_message or _DEFAULT_PATIENT_CONFIRMATION_MESSAGE,
             clinic_confirmation_message=request.item.clinic_confirmation_message or _DEFAULT_CLINIC_CONFIRMATION_MESSAGE,
             reminder_message=request.item.reminder_message or _DEFAULT_REMINDER_MESSAGE,
+            send_recurrent_clinic_confirmation=request.item.send_recurrent_clinic_confirmation,
+            recurrent_clinic_confirmation_message=request.item.recurrent_clinic_confirmation_message or _DEFAULT_RECURRENT_CLINIC_CONFIRMATION_MESSAGE,
             require_notes=request.item.require_notes,
             notes_instructions=request.item.notes_instructions
         )
@@ -1393,6 +1442,8 @@ def update_service_item_bundle(
         at.patient_confirmation_message = request.item.patient_confirmation_message or at.patient_confirmation_message
         at.clinic_confirmation_message = request.item.clinic_confirmation_message or at.clinic_confirmation_message
         at.reminder_message = request.item.reminder_message or at.reminder_message
+        at.send_recurrent_clinic_confirmation = request.item.send_recurrent_clinic_confirmation
+        at.recurrent_clinic_confirmation_message = request.item.recurrent_clinic_confirmation_message or at.recurrent_clinic_confirmation_message
         at.require_notes = request.item.require_notes
         at.notes_instructions = request.item.notes_instructions
         

@@ -32,6 +32,12 @@ def _get_default_reminder_message() -> str:
     return DEFAULT_REMINDER_MESSAGE
 
 
+def _get_default_recurrent_clinic_confirmation_message() -> str:
+    """Get default recurrent clinic confirmation message."""
+    from core.message_template_constants import DEFAULT_RECURRENT_CLINIC_CONFIRMATION_MESSAGE
+    return DEFAULT_RECURRENT_CLINIC_CONFIRMATION_MESSAGE
+
+
 class AppointmentType(Base):
     """
     Appointment type entity representing a service or treatment offered by a clinic.
@@ -109,6 +115,12 @@ class AppointmentType(Base):
     
     reminder_message: Mapped[str] = mapped_column(Text, nullable=False, default=_get_default_reminder_message)
     """Message template for reminder. Always populated with text."""
+
+    send_recurrent_clinic_confirmation: Mapped[bool] = mapped_column(default=True)
+    """Whether to send consolidated confirmation message when clinic creates multiple recurring appointments. Default: true."""
+
+    recurrent_clinic_confirmation_message: Mapped[str] = mapped_column(Text, nullable=False, default=_get_default_recurrent_clinic_confirmation_message)
+    """Message template for consolidated clinic-triggered recurring confirmation. Always populated with text."""
 
     # Notes customization fields
     require_notes: Mapped[bool] = mapped_column(default=False)
