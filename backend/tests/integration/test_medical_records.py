@@ -493,3 +493,101 @@ class TestMedicalRecordAPI:
 
         response = client.get(f"/api/clinic/medical-records/{record.id}")
         assert response.status_code == 404
+
+    def test_update_header_values_only(self, db_session, test_clinic_with_patient, test_template):
+        """Test updating only header_values without touching workspace_data."""
+        clinic, admin, admin_assoc, patient = test_clinic_with_patient
+        
+        # Setup authentication override
+        from auth.dependencies import get_current_user, UserContext
+        user_context = UserContext(
+            user_type="clinic_user",
+            email=admin.email,
+            roles=admin_assoc.roles,
+            active_clinic_id=clinic.id,
+            google_subject_id=admin.google_subject_id,
+            name=admin_assoc.full_name,
+            user_id=admin.id
+        )
+        app.dependency_overrides[get_current_user] = lambda: user_context
+        app.dependency_overrides[get_db] = lambda: db_session
+
+        # Create a record
+        record = MedicalRecord(
+            patient_id=patient.id,
+            clinic_id=clinic.id,
+            template_id=test_template.id,
+            header_structure=test_template.header_fields,
+            header_values={},
+            workspace_data={"version": 1, "layers": [{"type": "drawing", "tool": "pen", "color": "#000", "width": 2, "points": [[10, 10]]}], "canvas_height": 1000}
+        )
+        db_session.add(record)
+        db_session.commit()
+
+        # Update only header_values
+        update_data = {
+            "header_values": {"field_1": "Updated Chief Complaint", "field_2": 37.5}
+        }
+
+        response = client.patch(f"/api/clinic/medical-records/{record.id}", json=update_data)
+        assert response.status_code == 200
+        data = response.json()
+        
+        # Verify header_values updated
+        assert data["header_values"]["field_1"] == "Updated Chief Complaint"
+        assert data["header_values"]["field_2"] == 37.5
+        
+        # Verify workspace_data unchanged
+        assert len(data["workspace_data"]["layers"]) == 1
+        assert data["workspace_data"]["layers"][0]["type"] == "drawing"
+
+    def test_field_validation_in_header(self, db_session, test_clinic_with_patient, test_template):
+        """Test that header field types are properly validated."""
+        clinic, admin, admin_assoc, patient = test_clinic_with_patient
+        
+        # Setup authentication override
+        from auth.dependencies import get_current_user, UserContext
+        user_context = UserContext(
+            user_type="clinic_user",
+            email=admin.email,
+            roles=admin_assoc.roles,
+            active_clinic_id=clinic.id,
+            google_subject_id=admin.google_subject_id,
+            name=admin_assoc.full_name,
+            user_id=admin.id
+        )
+        app.dependency_overrides[get_current_user] = lambda: user_context
+        app.dependency_overrides[get_db] = lambda: db_session
+
+        # Create a record
+        record = MedicalRecord(
+            patient_id=patient.id,
+            clinic_id=clinic.id,
+            template_id=test_template.id,
+            header_structure=test_template.header_fields,
+            header_values={},
+            workspace_data={"version": 1, "layers": [], "canvas_height": 1000}
+        )
+        db_session.add(record)
+        db_session.commit()
+
+        # Update with various field types including arrays for checkboxes
+        update_data = {
+            "header_values": {
+                "field_1": "Text value",  # text field
+                "field_2": 38.5,  # number field
+                "checkbox_field": ["Option 1", "Option 2"],  # checkbox array
+            }
+        }
+
+        response = client.patch(f"/api/clinic/medical-records/{record.id}", json=update_data)
+        assert response.status_code == 200
+        data = response.json()
+        
+        # Verify types are preserved
+        assert isinstance(data["header_values"]["field_1"], str)
+        assert isinstance(data["header_values"]["field_2"], (int, float))
+        # Verify checkbox array is preserved
+        assert isinstance(data["header_values"]["checkbox_field"], list)
+        assert len(data["header_values"]["checkbox_field"]) == 2
+        assert "Option 1" in data["header_values"]["checkbox_field"]

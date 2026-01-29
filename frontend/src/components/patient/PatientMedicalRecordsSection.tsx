@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import moment from 'moment-timezone';
 import { usePatientMedicalRecords, useDeleteMedicalRecord } from '../../hooks/queries';
 import { LoadingSpinner } from '../shared';
@@ -23,6 +24,7 @@ export const PatientMedicalRecordsSection: React.FC<PatientMedicalRecordsSection
   canEdit,
   onCreateRecord,
 }) => {
+  const navigate = useNavigate();
   const { alert, confirm } = useModal();
   const { data: records, isLoading, error, refetch } = usePatientMedicalRecords(patientId);
   const deleteMutation = useDeleteMedicalRecord();
@@ -46,9 +48,7 @@ export const PatientMedicalRecordsSection: React.FC<PatientMedicalRecordsSection
   };
 
   const handleViewRecord = (recordId: number) => {
-    // TODO: Navigate to medical record editor page when Phase 4 is implemented
-    logger.info('View medical record:', recordId);
-    alert('病歷編輯功能即將推出');
+    navigate(`/admin/clinic/patients/${patientId}/medical-records/${recordId}`);
   };
 
   if (isLoading) {

@@ -234,7 +234,7 @@ type WorkspaceData = {
 
 * **`PatientMedicalRecordsSection`**: Displays list of medical records in Patient Detail Page.
   - Shows template name, creation date, last updated date
-  - View button (placeholder for Phase 4)
+  - View button navigates to Medical Record Editor
   - Delete button with confirmation
   - Empty state with helpful messaging
   - Location: `frontend/src/components/patient/PatientMedicalRecordsSection.tsx`
@@ -246,19 +246,26 @@ type WorkspaceData = {
   - Helpful message when no templates exist
   - Location: `frontend/src/components/patient/CreateMedicalRecordModal.tsx`
 
-#### Phase 3 & 4 Components (To Be Implemented)
+#### Phase 3 Components ✅ IMPLEMENTED
 
-* **`MedicalRecordEditor`** (Container - Phase 4):
+* **`MedicalRecordEditorPage`**: Main editor page for medical records.
   - Route: `/admin/clinic/patients/:patientId/medical-records/:recordId`
-  - Will contain both structured header and clinical workspace
+  - Displays record metadata (ID, creation time, last saved)
+  - Contains structured header and workspace sections
+  - Shows save status indicator
+  - Location: `frontend/src/pages/MedicalRecordEditorPage.tsx`
 
-* **`RecordHeader`** (Phase 3): Renders the dynamic form based on `header_fields`.
-  - Uses React Hook Form for state management
-  - Supports all field types: text, textarea, number, date, select, checkbox, radio
-  - Field validation based on `required` flag
+* **`MedicalRecordHeader`**: Generic form renderer for structured header fields.
+  - Renders all field types: text, textarea, number, date, select, checkbox, radio
+  - React Hook Form integration for state management
+  - Auto-save on blur and after 3 seconds of inactivity
+  - Field validation with error messages
   - Displays units where applicable
+  - Location: `frontend/src/components/medical-records/MedicalRecordHeader.tsx`
 
-* **`ClinicalWorkspace`** (Phase 4): The drawing engine.
+#### Phase 4 Components (To Be Implemented)
+
+* **`ClinicalWorkspace`**: The drawing engine.
   * **`Toolbox`**: Pen, Highlighter, Eraser, Image Upload, Undo/Redo.
   * **`CanvasLayer`**: The actual `<canvas>` or drawing surface.
   * **`MediaOverlay`**: Renders injected images as draggable/resizable elements (future) or static background layers (MVP).
@@ -340,20 +347,44 @@ To ensure consistency with the established system architecture and data integrit
   - React Query hooks: `useMedicalRecords` with proper cache invalidation
 
 **Deferred to Phase 4**:
-- Medical Record Editor page (routing: `/admin/clinic/patients/:patientId/medical-records/:recordId`)
-- Currently "View" button shows alert: "病歷編輯功能即將推出"
+- Clinical Workspace with canvas drawing tools
+- Media upload endpoint (`POST /api/clinic/medical-records/{id}/media`)
+- Image injection and annotation features
 
-### Phase 3: The Structured Header
+### Phase 3: The Structured Header ✅ COMPLETED
 
-* \[ ] Generic form renderer for `header_fields` using `react-hook-form`.
-* \[ ] Support for Text, Textarea, Number, Date, Select, Checkbox, and Radio fields.
-* \[ ] Field validation based on `required` flag.
-* \[ ] Display field units (e.g., "°C", "mmHg") where applicable.
+* \[x] Generic form renderer for `header_fields` using `react-hook-form`.
+  - Component: `MedicalRecordHeader.tsx`
+  - Supports all field types: text, textarea, number, date, select, checkbox, radio
+  - Field validation based on `required` flag
+  - Displays field units (e.g., "°C", "mmHg") where applicable
+  - Checkbox arrays properly handled (React Hook Form creates arrays automatically)
+* \[x] Medical Record Editor page with routing.
+  - Page: `MedicalRecordEditorPage.tsx`
+  - Route: `/admin/clinic/patients/:patientId/medical-records/:recordId`
+  - Integrated with Patient Detail page navigation
+  - Initializes "Last Saved" indicator with `record.updated_at` on load
+* \[x] Autosave functionality.
+  - Debounced updates (3 seconds) to reduce API calls
+  - Save on blur for immediate feedback
+  - Uses `useUpdateMedicalRecord` mutation with proper cache invalidation
+* \[x] Unsaved changes warning.
+  - Integrated with `UnsavedChangesContext` to warn users before navigation
+  - Tracks dirty state from React Hook Form
+  - Clears warning after successful save
+  - Cleans up on component unmount
+* \[x] Backend tests for header value updates.
+  - Test updating header_values independently of workspace_data
+  - Test field type preservation (string, number, arrays)
+  - Test checkbox array handling (multiple selections)
+  - 14 total integration tests (11 from Phase 2 + 3 new)
 
-**Technical Notes**:
-- Form state should be managed with React Hook Form
-- Autosave functionality using `useUpdateMedicalRecord` mutation
-- Debounced updates (5 seconds) to reduce API calls
+**Technical Implementation**:
+- Form state managed with React Hook Form
+- Auto-save on blur and after 3 seconds of inactivity
+- Proper error handling with modal alerts (consistent with existing patterns)
+- All field types render correctly with appropriate input controls
+- Dirty state properly tracked and communicated to parent component
 
 ### Phase 4: The Clinical Workspace (MVP Canvas)
 
