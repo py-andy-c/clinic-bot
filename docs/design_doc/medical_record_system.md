@@ -49,7 +49,7 @@ To ensure historical data integrity:
 | `clinic_id` | Integer (FK) | Tied to Clinic |
 | `name` | String | Template name (e.g., "First Visit", "Acupuncture") |
 | `header_fields` | JSONB | Array of field definitions: `{id, type, label, options[]}` |
-| `workspace_config` | JSONB | `{background_image_url}` |
+| `workspace_config` | JSONB | `{base_layers: MediaLayer[]}` (The "Base Layers" pre-configured by admin) |
 | `is_active` | Boolean | Soft delete / toggle |
 
 #### `MedicalRecord`
