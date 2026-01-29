@@ -31,8 +31,8 @@ Clinic admins define the "schema" of clinical notes.
 
 To ensure historical data integrity:
 
-* **Snapshotting**: When a medical record is created, the system copies the template's `header_fields` structure into the record itself.
-* **Integrity**: If a template is later edited or deleted by an admin, existing records remain unaffected and continue to display the fields and data they were created with.
+* **Snapshotting**: When a medical record is created, the system copies both the template's `header_fields` AND its `base_layers` (background diagrams) into the record itself.
+* **Integrity**: If a template is later edited or deleted by an admin, existing records remain unaffected. They rely exclusively on their internal snapshot for both structured data and workspace diagrams.
 * **Template Deletion**: Admins can soft-delete templates. Deleted templates will no longer appear in the "Create Record" menu but will remain in the database to support existing historical records.
 
 ***
@@ -131,7 +131,7 @@ type DrawingPath = {
   tool: 'pen' | 'eraser' | 'highlighter';
   color: string;
   width: number;
-  points: [number, number][]; // Array of [x, y] coordinates
+  points: [number, number, number?][]; // Array of [x, y, pressure?] coordinates
 };
 
 type MediaLayer = {
@@ -193,7 +193,11 @@ type WorkspaceData = {
 
 #### Client State (Zustand)
 
-* `useWorkspaceStore`: Manages the active canvas state (tool selection, color, zoom, undo/redo stack).
+* **`WorkspaceStore`**: Managed via Zustand.
+  * **Sync Logic**:
+    * Debounced PATCH requests (5s) for autosave.
+    * **Sync Status Indicator**: UI feedback showing "Saving..." or "All changes saved".
+    * **Session Safety**: Implement `beforeunload` to prevent data loss if the user closes the tab during a sync.
 
 ### Component Architecture
 
@@ -245,8 +249,7 @@ For the MVP, we will use a **Custom Canvas Wrapper** using the HTML5 Canvas API 
 * \[ ] Tablet optimization (Touch events, Apple Pencil support).
 * \[ ] UI/UX polish for medical record history list.
 
-***
-
-## Performance Considerations
-
-* **Image Compression**: Use client-side compression (e.g., `browser-image-compression`) before uploading workspace media.
+- **Canvas Serialization**: For very long records, the vector JSON might grow large. We will implement **point-simplification algorithms** (e.g., Ramer-Douglas-Peucker) on the client side before saving.
+- **Pressure Sensitivity**: To achieve a "Premium" feel, the drawing engine will capture and store pressure data from Apple Pencil/Tablets to allow for variable-width strokes.
+- **Image Compression**: Use client-side compression (e.g., `browser-image-compression`) before uploading workspace media.
+- **Orphaned Media**: (Future) Implement a background cleanup job to identify and remove S3 assets that are no longer referenced in any `MedicalRecord`.
