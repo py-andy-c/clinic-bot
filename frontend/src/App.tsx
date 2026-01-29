@@ -23,7 +23,6 @@ const PatientsPage = lazy(() => import('./pages/PatientsPage'));
 const PatientDetailPage = lazy(() => import('./pages/PatientDetailPage'));
 const LineUsersPage = lazy(() => import('./pages/LineUsersPage'));
 const AutoAssignedAppointmentsPage = lazy(() => import('./pages/AutoAssignedAppointmentsPage'));
-const MedicalRecordWorkspacePage = lazy(() => import('./pages/MedicalRecordWorkspacePage'));
 const SettingsLayout = lazy(() => import('./components/SettingsLayout'));
 const SettingsIndexPage = lazy(() => import('./pages/settings/SettingsIndexPage'));
 const SettingsServiceItemsPage = lazy(() => import('./pages/settings/SettingsServiceItemsPage'));
@@ -33,7 +32,6 @@ const SettingsRemindersPage = lazy(() => import('./pages/settings/SettingsRemind
 const SettingsChatPage = lazy(() => import('./pages/settings/SettingsChatPage'));
 const SettingsReceiptsPage = lazy(() => import('./pages/settings/SettingsReceiptsPage'));
 const SettingsResourcesPage = lazy(() => import('./pages/settings/SettingsResourcesPage'));
-const SettingsMedicalRecordsPage = lazy(() => import('./pages/settings/SettingsMedicalRecordsPage'));
 // const AvailabilityPage = lazy(() => import('./pages/AvailabilityPage'));
 import AvailabilityPage from './pages/AvailabilityPage';
 const DashboardLayout = lazy(() => import('./components/DashboardLayout'));
@@ -120,7 +118,6 @@ const AdminRoutes: React.FC = () => {
           <Route path="clinic/patients/:id" element={<PatientDetailPage />} />
           <Route path="clinic/line-users" element={<LineUsersPage />} />
           <Route path="clinic/pending-review-appointments" element={<AutoAssignedAppointmentsPage />} />
-          <Route path="clinic/medical-records/:id" element={<MedicalRecordWorkspacePage />} />
           <Route path="clinic/settings" element={<SettingsLayout />}>
             <Route index element={<SettingsIndexPage />} />
             <Route path="service-items" element={<SettingsServiceItemsPage />} />
@@ -130,7 +127,6 @@ const AdminRoutes: React.FC = () => {
             <Route path="chat" element={<SettingsChatPage />} />
             <Route path="receipts" element={<SettingsReceiptsPage />} />
             <Route path="resources" element={<SettingsResourcesPage />} />
-            <Route path="medical-records" element={<SettingsMedicalRecordsPage />} />
           </Route>
           <Route path="clinic/dashboard" element={<DashboardLayout />}>
             <Route index element={<DashboardIndexPage />} />

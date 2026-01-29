@@ -28,9 +28,6 @@ from .service_type_group import ServiceTypeGroup
 from .follow_up_message import FollowUpMessage
 from .scheduled_line_message import ScheduledLineMessage
 from .patient_practitioner_assignment import PatientPractitionerAssignment
-from .medical_record_template import MedicalRecordTemplate
-from .medical_record import MedicalRecord
-from .medical_record_media import MedicalRecordMedia
 
 __all__ = [
     "Clinic",
@@ -61,7 +58,4 @@ __all__ = [
     "FollowUpMessage",
     "ScheduledLineMessage",
     "PatientPractitionerAssignment",
-    "MedicalRecordTemplate",
-    "MedicalRecord",
-    "MedicalRecordMedia",
 ]

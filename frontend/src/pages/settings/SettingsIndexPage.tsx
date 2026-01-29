@@ -55,13 +55,6 @@ const settingCards: SettingCard[] = [
     description: '管理診所的設備和資源（治療室、設備等）',
     adminOnly: true,
   },
-  {
-    name: '病歷模板',
-    path: 'medical-records',
-    icon: '📝',
-    description: '設定病歷模板的欄位與底圖',
-    adminOnly: true,
-  },
 ];
 
 const SettingsIndexPage: React.FC = () => {

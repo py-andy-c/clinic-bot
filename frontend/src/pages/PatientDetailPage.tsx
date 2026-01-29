@@ -17,7 +17,6 @@ import { PatientInfoSection } from '../components/patient/PatientInfoSection';
 import { PatientNotesSection } from '../components/patient/PatientNotesSection';
 import { PatientAssignedPractitionersSection } from '../components/patient/PatientAssignedPractitionersSection';
 import { PatientAppointmentsList } from '../components/patient/PatientAppointmentsList';
-import { PatientMedicalRecordsSection } from '../components/patient/PatientMedicalRecordsSection';
 import { CreateAppointmentModal } from '../components/calendar/CreateAppointmentModal';
 
 const PatientDetailPage: React.FC = () => {
@@ -171,8 +170,6 @@ const PatientDetailPage: React.FC = () => {
           canEdit={canEdit}
           practitioners={practitioners}
         />
-
-        <PatientMedicalRecordsSection patientId={patient.id} />
 
         <PatientAppointmentsList
           patientId={patient.id}
