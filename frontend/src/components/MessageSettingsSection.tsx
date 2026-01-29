@@ -322,8 +322,8 @@ export const MessageSettingsSection: React.FC<MessageSettingsSectionProps> = ({
       <div className="space-y-3" data-message-settings>
         {renderMessageSection('patient_confirmation', patientConfirmation)}
         {renderMessageSection('clinic_confirmation', clinicConfirmation)}
-        {renderMessageSection('reminder', reminder)}
         {renderMessageSection('recurrent_clinic_confirmation', getMessageField('recurrent_clinic_confirmation'))}
+        {renderMessageSection('reminder', reminder)}
       </div>
 
       <MessagePreviewModal
