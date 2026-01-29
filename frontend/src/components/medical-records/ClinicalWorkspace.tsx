@@ -60,6 +60,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
   const [currentTool, setCurrentTool] = useState<DrawingTool>('pen');
   const [isDrawing, setIsDrawing] = useState(false);
   const [layers, setLayers] = useState<(DrawingPath | MediaLayer)[]>(migratedInitialData.current.layers || []);
+  const [rawCanvasHeight, setRawCanvasHeight] = useState(migratedInitialData.current.canvas_height || 1000);
   const [redoStack, setRedoStack] = useState<(DrawingPath | MediaLayer)[][]>([]);
   const [canvasWidth, setCanvasWidth] = useState(800);
   const [currentPath, setCurrentPath] = useState<DrawingPath | null>(null);
@@ -75,8 +76,8 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
   const [isRotating, setIsRotating] = useState(false);
 
   const scale = canvasWidth / (migratedInitialData.current.canvas_width || 1000);
-  const canvasHeight = (migratedInitialData.current.canvas_height || 1000) * scale;
-
+  const canvasHeight = rawCanvasHeight * scale;
+  
   // Track network status
   useEffect(() => {
     const handleOnline = () => setSyncStatus(prev => prev === 'offline' ? 'saved' : prev);
@@ -150,6 +151,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
         
         if (!pendingUpdate) {
           setLayers(migrated.layers || []);
+          setRawCanvasHeight(migrated.canvas_height || 1000);
           setServerVersion(initialVersion);
           migratedInitialData.current = migrated;
         } else {
@@ -159,6 +161,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
         }
       } else if (initialVersion === serverVersion) {
         // Just sync the ref without triggering a re-render if versions match
+        // We DON'T update rawCanvasHeight here because we want to keep local draft changes
         migratedInitialData.current = migrated;
       }
     }
@@ -168,12 +171,12 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
     const workspaceData: WorkspaceData = {
       ...migratedInitialData.current,
       layers,
-      canvas_height: migratedInitialData.current.canvas_height || initialData.canvas_height || 1000,
+      canvas_height: rawCanvasHeight,
       version: 2,
     };
     setPendingUpdate(workspaceData);
     onUpdate(workspaceData);
-  }, [layers, onUpdate, initialData.canvas_height]);
+  }, [layers, rawCanvasHeight, onUpdate]);
 
   // Use the saveWorkspace in place of direct onUpdate calls
   useEffect(() => {
@@ -478,13 +481,10 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
     if (!isDrawing || !currentPath) return;
 
     // Auto-expand canvas if drawing near the bottom (within 100px)
-    const currentHeight = migratedInitialData.current.canvas_height || 1000;
+    const currentHeight = rawCanvasHeight;
     if (logicalY > currentHeight - 100) {
       const newHeight = currentHeight + 500;
-      migratedInitialData.current = {
-        ...migratedInitialData.current,
-        canvas_height: newHeight
-      };
+      setRawCanvasHeight(newHeight);
       // We don't trigger localVersion here to avoid excessive server updates
       // The update will happen naturally when handlePointerUp is called
     }
@@ -579,14 +579,10 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
   };
 
   const expandCanvas = () => {
-    const currentHeight = migratedInitialData.current.canvas_height || 1000;
+    const currentHeight = rawCanvasHeight;
     const newHeight = currentHeight + 500;
     
-    // Update local data
-    migratedInitialData.current = {
-      ...migratedInitialData.current,
-      canvas_height: newHeight
-    };
+    setRawCanvasHeight(newHeight);
     
     // Trigger update to parent (server)
     setLocalVersion(v => v + 1);
@@ -787,7 +783,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
             </div>
           )}
           <span className="text-xs text-gray-400">
-            {migratedInitialData.current.canvas_height}px
+            {rawCanvasHeight}px
           </span>
         </div>
       </div>
