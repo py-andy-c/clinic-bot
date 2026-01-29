@@ -22,8 +22,7 @@ import { useServiceItemBundle } from '../hooks/queries/useServiceItemBundle';
 import {
   DEFAULT_PATIENT_CONFIRMATION_MESSAGE,
   DEFAULT_CLINIC_CONFIRMATION_MESSAGE,
-  DEFAULT_REMINDER_MESSAGE,
-  DEFAULT_RECURRING_CLINIC_CONFIRMATION_MESSAGE
+  DEFAULT_REMINDER_MESSAGE
 } from '../constants/messageTemplates';
 import { MessageSettingsSection } from './MessageSettingsSection';
 import { FollowUpMessagesSection } from './FollowUpMessagesSection';
@@ -110,7 +109,6 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
       patient_confirmation_message: DEFAULT_PATIENT_CONFIRMATION_MESSAGE,
       clinic_confirmation_message: DEFAULT_CLINIC_CONFIRMATION_MESSAGE,
       reminder_message: DEFAULT_REMINDER_MESSAGE,
-      recurring_clinic_confirmation_message: DEFAULT_RECURRING_CLINIC_CONFIRMATION_MESSAGE,
       receipt_name: '',
       description: '',
       require_notes: false,
@@ -173,7 +171,6 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
         patient_confirmation_message: bundle.item.patient_confirmation_message || DEFAULT_PATIENT_CONFIRMATION_MESSAGE,
         clinic_confirmation_message: bundle.item.clinic_confirmation_message || DEFAULT_CLINIC_CONFIRMATION_MESSAGE,
         reminder_message: bundle.item.reminder_message || DEFAULT_REMINDER_MESSAGE,
-        recurring_clinic_confirmation_message: bundle.item.recurring_clinic_confirmation_message || DEFAULT_RECURRING_CLINIC_CONFIRMATION_MESSAGE,
         practitioner_ids: bundle.associations.practitioner_ids,
         billing_scenarios: bundle.associations.billing_scenarios.map(s => ({
           ...s,
@@ -204,7 +201,6 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
         patient_confirmation_message: DEFAULT_PATIENT_CONFIRMATION_MESSAGE,
         clinic_confirmation_message: DEFAULT_CLINIC_CONFIRMATION_MESSAGE,
         reminder_message: DEFAULT_REMINDER_MESSAGE,
-        recurring_clinic_confirmation_message: DEFAULT_RECURRING_CLINIC_CONFIRMATION_MESSAGE,
         practitioner_ids: [],
         billing_scenarios: [],
         resource_requirements: [],
@@ -274,7 +270,6 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
           patient_confirmation_message: data.patient_confirmation_message ?? null,
           clinic_confirmation_message: data.clinic_confirmation_message ?? null,
           reminder_message: data.reminder_message ?? null,
-          recurring_clinic_confirmation_message: data.recurring_clinic_confirmation_message ?? null,
           require_notes: data.require_notes ?? false,
           notes_instructions: data.notes_instructions ?? null,
           receipt_name: data.receipt_name ?? null,
@@ -342,10 +337,6 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
 
     if (data.send_clinic_confirmation && data.clinic_confirmation_message && data.clinic_confirmation_message.length > 1000) {
       messageErrors.push('診所預約通知：訊息模板長度不能超過 1000 字元');
-    }
-
-    if (data.recurring_clinic_confirmation_message && data.recurring_clinic_confirmation_message.length > 5000) {
-      messageErrors.push('重複預約確認訊息：訊息模板長度不能超過 5000 字元');
     }
 
     if (data.send_reminder && data.reminder_message && data.reminder_message.length > 3500) {

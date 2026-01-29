@@ -407,21 +407,18 @@ export interface paths {
   };
   "/api/clinic/pending-review-appointments": {
     /**
-     * List appointments requiring review
-     * @description List all upcoming appointments that require clinic review.
+     * List auto-assigned appointments (admin only)
+     * @description List all upcoming auto-assigned appointments that are still hidden from practitioners.
      *
-     * Includes both:
-     * - Auto-assigned appointments (practitioner not yet assigned)
-     * - Multiple time slot appointments (time not yet confirmed)
+     * Only clinic admins can view this list. Appointments are sorted by date.
+     * After admin reassigns an appointment, it will no longer appear in this list.
      *
-     * Clinic admins can view all pending appointments.
-     * Practitioners can view time confirmation appointments where they are the assigned practitioner.
-     * Appointments are sorted by date.
-     * After review/confirmation, appointments will no longer appear in this list.
-     *
-     * Note: Only future appointments are returned as defensive programming.
+     * Note: Only future appointments are returned. In theory, there shouldn't be any past
+     * auto-assigned appointments since the system automatically assigns them when the
+     * recency limit (minimum_booking_hours_ahead) is reached. However, we filter them out
+     * as defensive programming in case of edge cases (e.g., cron job failures, timezone issues).
      */
-    get: operations["list_pending_review_appointments_api_clinic_pending_review_appointments_get"];
+    get: operations["list_auto_assigned_appointments_api_clinic_pending_review_appointments_get"];
   };
   "/api/clinic/dashboard/metrics": {
     /**
@@ -612,35 +609,6 @@ export interface paths {
      */
     post: operations["validate_appointment_type_deletion_api_clinic_appointment_types_validate_deletion_post"];
   };
-  "/api/clinic/appointment-types/{id}": {
-    /**
-     * Delete an appointment type
-     * @description Delete an appointment type (soft delete).
-     *
-     * Only clinic admins can delete appointment types.
-     * The appointment type must not be referenced by any practitioners.
-     */
-    delete: operations["delete_appointment_type_api_clinic_appointment_types__id__delete"];
-  };
-  "/api/clinic/service-items/{id}/bundle": {
-    /**
-     * Get service item bundle
-     * @description Get service item and all its associations.
-     */
-    get: operations["get_service_item_bundle_api_clinic_service_items__id__bundle_get"];
-    /**
-     * Update service item bundle
-     * @description Update an existing service item and all its associations in one transaction.
-     */
-    put: operations["update_service_item_bundle_api_clinic_service_items__id__bundle_put"];
-  };
-  "/api/clinic/service-items/bundle": {
-    /**
-     * Create service item bundle
-     * @description Create a new service item and all its associations in one transaction.
-     */
-    post: operations["create_service_item_bundle_api_clinic_service_items_bundle_post"];
-  };
   "/api/clinic/regenerate-liff-token": {
     /**
      * Regenerate LIFF access token
@@ -738,6 +706,22 @@ export interface paths {
      */
     get: operations["get_available_slots_api_clinic_practitioners__user_id__availability_slots_get"];
   };
+  "/api/clinic/practitioners/{user_id}/availability/conflicts": {
+    /**
+     * Check scheduling conflicts for a specific time
+     * @description Check for scheduling conflicts at a specific time.
+     *
+     * Returns conflict information in priority order:
+     * 1. Past appointment (highest priority)
+     * 2. Appointment conflicts
+     * 3. Availability exception conflicts (medium priority)
+     * 4. Outside default availability (lowest priority)
+     *
+     * Used by frontend to show conflict warnings when scheduling appointments
+     * outside normal availability (override mode).
+     */
+    get: operations["check_scheduling_conflicts_api_clinic_practitioners__user_id__availability_conflicts_get"];
+  };
   "/api/clinic/practitioners/{user_id}/availability/slots/batch": {
     /**
      * Get available time slots for multiple dates
@@ -787,25 +771,6 @@ export interface paths {
      * - For availability exceptions: "休診"
      */
     put: operations["update_calendar_event_name_api_clinic_calendar_events__calendar_event_id__event_name_put"];
-  };
-  "/api/clinic/practitioners/availability/conflicts/batch": {
-    /**
-     * Check Batch Scheduling Conflicts
-     * @description Check scheduling conflicts for multiple practitioners at once.
-     *
-     * This endpoint optimizes conflict checking by batching database queries
-     * and processing conflicts in-memory, reducing API calls from N to ~2 total.
-     *
-     * Returns conflict information for each practitioner in priority order:
-     * 1. Appointment conflicts
-     * 2. Availability exception conflicts
-     * 3. Outside default availability
-     * 4. Resource conflicts
-     *
-     * Used by the practitioner selection modal to efficiently check conflicts
-     * for multiple practitioners when date/time is selected.
-     */
-    post: operations["check_batch_scheduling_conflicts_api_clinic_practitioners_availability_conflicts_batch_post"];
   };
   "/api/clinic/practitioners": {
     /**
@@ -875,19 +840,6 @@ export interface paths {
      *     HTTPException: If validation fails or practitioners don't exist
      */
     post: operations["get_batch_practitioner_status_api_clinic_practitioners_status_batch_post"];
-  };
-  "/api/clinic/appointments/check-resource-conflicts": {
-    /**
-     * Check Resource Conflicts
-     * @description Check resource conflicts for an appointment time slot.
-     *
-     * This endpoint focuses solely on resource availability conflicts,
-     * excluding practitioner-specific conflicts. Used by the appointment
-     * modal to show resource conflicts independently of practitioner selection.
-     *
-     * Returns resource conflict information only.
-     */
-    get: operations["check_resource_conflicts_api_clinic_appointments_check_resource_conflicts_get"];
   };
   "/api/clinic/appointments/resource-availability": {
     /**
@@ -1025,7 +977,7 @@ export interface paths {
     put: operations["update_resource_api_clinic_resources__resource_id__put"];
     /**
      * Delete a resource (soft delete)
-     * @description Soft delete a resource. Unallocates from all future confirmed appointments.
+     * @description Soft delete a resource. Prevents deletion if resource has active allocations.
      */
     delete: operations["delete_resource_api_clinic_resources__resource_id__delete"];
   };
@@ -1059,25 +1011,6 @@ export interface paths {
      * @description Delete a resource requirement.
      */
     delete: operations["delete_resource_requirement_api_clinic_appointment_types__appointment_type_id__resource_requirements__requirement_id__delete"];
-  };
-  "/api/clinic/resource-types/{resource_type_id}/bundle": {
-    /**
-     * Get resource type bundle
-     * @description Get a resource type and all its resources.
-     */
-    get: operations["get_resource_type_bundle_api_clinic_resource_types__resource_type_id__bundle_get"];
-    /**
-     * Update resource type bundle
-     * @description Update an existing resource type and its resources in one transaction.
-     */
-    put: operations["update_resource_type_bundle_api_clinic_resource_types__resource_type_id__bundle_put"];
-  };
-  "/api/clinic/resource-types/bundle": {
-    /**
-     * Create resource type bundle
-     * @description Create a new resource type and its resources in one transaction.
-     */
-    post: operations["create_resource_type_bundle_api_clinic_resource_types_bundle_post"];
   };
   "/api/clinic/reminder-preview": {
     /**
@@ -1195,12 +1128,7 @@ export interface paths {
   "/api/liff/appointment-types": {
     /**
      * List Appointment Types
-     * @description List appointment types available for booking at the clinic.
-     *
-     * Filters appointment types based on patient status:
-     * - No patient_id: Shows appointment types available for new patients
-     * - With patient_id: Shows appointment types based on whether the patient has practitioner assignments
-     *
+     * @description List all appointment types available at the clinic.
      * Clinic context comes from LIFF token for proper isolation.
      */
     get: operations["list_appointment_types_api_liff_appointment_types_get"];
@@ -1529,14 +1457,13 @@ export interface components {
       appointment_type_id: number;
       /** Practitioner Id */
       practitioner_id?: number | null;
-      /** Start Time */
-      start_time?: string | null;
+      /**
+       * Start Time
+       * Format: date-time
+       */
+      start_time: string;
       /** Notes */
       notes?: string | null;
-      /** Selected Time Slots */
-      selected_time_slots?: string[] | null;
-      /** Allow Multiple Time Slot Selection */
-      allow_multiple_time_slot_selection?: boolean | null;
     };
     /**
      * AppointmentEditPreviewRequest
@@ -1567,8 +1494,6 @@ export interface components {
       notification_note?: string | null;
       /** Selected Resource Ids */
       selected_resource_ids?: number[] | null;
-      /** Confirm Time Selection */
-      confirm_time_selection?: boolean | null;
     };
     /**
      * AppointmentListItem
@@ -1642,13 +1567,6 @@ export interface components {
        * @default []
        */
       receipt_ids?: number[];
-      /**
-       * Pending Time Confirmation
-       * @default false
-       */
-      pending_time_confirmation?: boolean;
-      /** Alternative Time Slots */
-      alternative_time_slots?: string[] | null;
     };
     /**
      * AppointmentListResponse
@@ -1707,8 +1625,8 @@ export interface components {
        * @description List of dicts with 'id' and 'display_order'
        */
       service_orders: {
-          [key: string]: unknown;
-        }[];
+        [key: string]: unknown;
+      }[];
     };
     /**
      * AppointmentTypeDeletionValidationRequest
@@ -1749,25 +1667,10 @@ export interface components {
        */
       allow_patient_booking?: boolean;
       /**
-       * Allow New Patient Booking
-       * @default true
-       */
-      allow_new_patient_booking?: boolean;
-      /**
-       * Allow Existing Patient Booking
-       * @default true
-       */
-      allow_existing_patient_booking?: boolean;
-      /**
        * Allow Patient Practitioner Selection
        * @default true
        */
       allow_patient_practitioner_selection?: boolean;
-      /**
-       * Allow Multiple Time Slot Selection
-       * @default false
-       */
-      allow_multiple_time_slot_selection?: boolean;
       /** Description */
       description?: string | null;
       /**
@@ -1824,7 +1727,7 @@ export interface components {
     };
     /**
      * AutoAssignedAppointmentItem
-     * @description Response model for appointments requiring review (auto-assigned or pending time confirmation).
+     * @description Response model for auto-assigned appointment item.
      */
     AutoAssignedAppointmentItem: {
       /** Appointment Id */
@@ -1851,13 +1754,6 @@ export interface components {
       notes?: string | null;
       /** Originally Auto Assigned */
       originally_auto_assigned: boolean;
-      /**
-       * Pending Time Confirmation
-       * @default false
-       */
-      pending_time_confirmation?: boolean;
-      /** Alternative Time Slots */
-      alternative_time_slots?: string[] | null;
       /**
        * Resource Names
        * @default []
@@ -1888,11 +1784,27 @@ export interface components {
       start_time?: string | null;
       /** End Time */
       end_time?: string | null;
+    };
+    /**
+     * AvailabilityExceptionResponse
+     * @description Response model for availability exceptions.
+     */
+    AvailabilityExceptionResponse: {
+      /** Calendar Event Id */
+      calendar_event_id: number;
+      /** Exception Id */
+      exception_id: number;
+      /** Date */
+      date: string;
+      /** Start Time */
+      start_time: string | null;
+      /** End Time */
+      end_time: string | null;
       /**
-       * Force
-       * @default false
+       * Created At
+       * Format: date-time
        */
-      force?: boolean;
+      created_at: string;
     };
     /**
      * AvailabilityNotificationCreateRequest
@@ -1937,8 +1849,8 @@ export interface components {
       practitioner_name: string | null;
       /** Time Windows */
       time_windows: {
-          [key: string]: string;
-        }[];
+        [key: string]: string;
+      }[];
       /**
        * Created At
        * Format: date-time
@@ -2072,46 +1984,6 @@ export interface components {
       results: components["schemas"]["BatchCalendarDayResponse"][];
     };
     /**
-     * BatchConflictCheckRequest
-     * @description Request model for batch conflict checking.
-     */
-    BatchConflictCheckRequest: {
-      /**
-       * Practitioners
-       * @default []
-       */
-      practitioners?: components["schemas"]["BatchPractitionerConfig"][];
-      /** Date */
-      date: string;
-      /** Start Time */
-      start_time: string;
-      /** Appointment Type Id */
-      appointment_type_id: number;
-      /** Selected Resource Ids */
-      selected_resource_ids?: number[] | null;
-    };
-    /**
-     * BatchConflictCheckResponse
-     * @description Response model for batch conflict checking.
-     */
-    BatchConflictCheckResponse: {
-      /**
-       * Results
-       * @default []
-       */
-      results?: components["schemas"]["BatchSchedulingConflictResponse"][];
-    };
-    /**
-     * BatchPractitionerConfig
-     * @description Configuration for a practitioner in batch conflict checking.
-     */
-    BatchPractitionerConfig: {
-      /** User Id */
-      user_id: number;
-      /** Exclude Calendar Event Id */
-      exclude_calendar_event_id?: number | null;
-    };
-    /**
      * BatchPractitionerStatusItemResponse
      * @description Response model for a single practitioner's status.
      */
@@ -2160,72 +2032,6 @@ export interface components {
     BatchResourceCalendarResponse: {
       /** Results */
       results: components["schemas"]["ResourceCalendarDayResponse"][];
-    };
-    /**
-     * BatchSchedulingConflictResponse
-     * @description Response model for batch scheduling conflict detection.
-     */
-    BatchSchedulingConflictResponse: {
-      /** Practitioner Id */
-      practitioner_id: number;
-      /** Has Conflict */
-      has_conflict: boolean;
-      /** Conflict Type */
-      conflict_type?: string | null;
-      appointment_conflict?: components["schemas"]["AppointmentConflictDetail"] | null;
-      /** Appointment Conflicts */
-      appointment_conflicts?: components["schemas"]["AppointmentConflictDetail"][] | null;
-      exception_conflict?: components["schemas"]["ExceptionConflictDetail"] | null;
-      /** Exception Conflicts */
-      exception_conflicts?: components["schemas"]["ExceptionConflictDetail"][] | null;
-      /** Selection Insufficient Warnings */
-      selection_insufficient_warnings?: components["schemas"]["SelectionInsufficientWarning"][] | null;
-      /** Resource Conflict Warnings */
-      resource_conflict_warnings?: components["schemas"]["ResourceConflictWarning"][] | null;
-      /** Unavailable Resource Ids */
-      unavailable_resource_ids?: number[] | null;
-      default_availability: components["schemas"]["DefaultAvailabilityInfo"];
-      /**
-       * Is Type Mismatch
-       * @default false
-       */
-      is_type_mismatch?: boolean;
-    };
-    /** BillingScenarioBundleData */
-    "BillingScenarioBundleData-Input": {
-      /** Id */
-      id?: number | null;
-      /** Practitioner Id */
-      practitioner_id: number;
-      /** Name */
-      name: string;
-      /** Amount */
-      amount: number | string;
-      /** Revenue Share */
-      revenue_share: number | string;
-      /**
-       * Is Default
-       * @default false
-       */
-      is_default?: boolean;
-    };
-    /** BillingScenarioBundleData */
-    "BillingScenarioBundleData-Output": {
-      /** Id */
-      id?: number | null;
-      /** Practitioner Id */
-      practitioner_id: number;
-      /** Name */
-      name: string;
-      /** Amount */
-      amount: string;
-      /** Revenue Share */
-      revenue_share: string;
-      /**
-       * Is Default
-       * @default false
-       */
-      is_default?: boolean;
     };
     /**
      * BillingScenarioCreateRequest
@@ -2458,8 +2264,6 @@ export interface components {
       appointment_type_id: number;
       /** Occurrences */
       occurrences: string[];
-      /** Selected Resource Ids */
-      selected_resource_ids?: number[] | null;
     };
     /**
      * CheckoutItemRequest
@@ -2719,8 +2523,8 @@ export interface components {
       max_future_appointments?: number | null;
       /** Assigned Practitioners */
       assigned_practitioners?: {
-          [key: string]: unknown;
-        }[] | null;
+        [key: string]: unknown;
+      }[] | null;
       /** Line User Id */
       line_user_id: string | null;
       /** Line User Display Name */
@@ -2813,8 +2617,6 @@ export interface components {
     ConflictDetail: {
       /** Calendar Event Id */
       calendar_event_id: number;
-      /** Date */
-      date: string;
       /** Start Time */
       start_time: string;
       /** End Time */
@@ -2826,44 +2628,15 @@ export interface components {
     };
     /**
      * ConflictWarningResponse
-     * @description Response model for conflict warning or successful creation with warnings.
+     * @description Response model for conflict warning.
      */
     ConflictWarningResponse: {
       /** Success */
       success: boolean;
       /** Message */
       message: string;
-      /**
-       * Warning
-       * @default false
-       */
-      warning?: boolean;
       /** Conflicts */
-      conflicts?: components["schemas"]["ConflictDetail"][] | null;
-      /** Calendar Event Id */
-      calendar_event_id?: number | null;
-      /** Exception Id */
-      exception_id?: number | null;
-      /** Date */
-      date?: string | null;
-      /** Start Time */
-      start_time?: string | null;
-      /** End Time */
-      end_time?: string | null;
-      /** Created At */
-      created_at?: string | null;
-    };
-    /**
-     * ConflictingAppointmentInfo
-     * @description Basic info about a conflicting appointment.
-     */
-    ConflictingAppointmentInfo: {
-      /** Practitioner Name */
-      practitioner_name: string;
-      /** Start Time */
-      start_time: string;
-      /** End Time */
-      end_time: string;
+      conflicts: components["schemas"]["ConflictDetail"][];
     };
     /**
      * DefaultAvailabilityInfo
@@ -2965,31 +2738,6 @@ export interface components {
       end_time: string;
       /** Reason */
       reason?: string | null;
-    };
-    /** FollowUpMessageBundleData */
-    FollowUpMessageBundleData: {
-      /** Id */
-      id?: number | null;
-      /** Timing Mode */
-      timing_mode: string;
-      /** Hours After */
-      hours_after?: number | null;
-      /** Days After */
-      days_after?: number | null;
-      /** Time Of Day */
-      time_of_day?: string | null;
-      /** Message Template */
-      message_template: string;
-      /**
-       * Is Enabled
-       * @default true
-       */
-      is_enabled?: boolean;
-      /**
-       * Display Order
-       * @default 0
-       */
-      display_order?: number;
     };
     /**
      * FollowUpMessageCreateRequest
@@ -3338,7 +3086,7 @@ export interface components {
        * @description Message type
        * @enum {string}
        */
-      message_type: "patient_confirmation" | "clinic_confirmation" | "reminder" | "recurring_clinic_confirmation";
+      message_type: "patient_confirmation" | "clinic_confirmation" | "reminder";
       /**
        * Template
        * @description Template to preview
@@ -3478,14 +3226,14 @@ export interface components {
       reminder_hours_before?: number;
       /**
        * Reminder Timing Mode
-       * @default hours_before
+       * @default "hours_before"
        */
       reminder_timing_mode?: string;
       /**
        * Reminder Previous Day Time
-       * @default 21:00
+       * @default "21:00"
        */
-      reminder_previous_day_time?: string | null;
+      reminder_previous_day_time?: string;
     };
     /**
      * OccurrenceRequest
@@ -3580,8 +3328,8 @@ export interface components {
       max_future_appointments?: number | null;
       /** Assigned Practitioners */
       assigned_practitioners?: {
-          [key: string]: unknown;
-        }[] | null;
+        [key: string]: unknown;
+      }[] | null;
     };
     /**
      * PatientUpdateRequest
@@ -3624,8 +3372,6 @@ export interface components {
       id: number;
       /** Full Name */
       full_name: string;
-      /** Offered Types */
-      offered_types: number[];
     };
     /**
      * PractitionerResponse
@@ -3882,9 +3628,7 @@ export interface components {
       /** New Practitioner Id */
       new_practitioner_id?: number | null;
       /** New Start Time */
-      new_start_time?: string | null;
-      /** Selected Time Slots */
-      selected_time_slots?: string[] | null;
+      new_start_time: string;
       /** New Notes */
       new_notes?: string | null;
     };
@@ -3903,31 +3647,16 @@ export interface components {
     ResourceAvailabilityResponse: {
       /** Requirements */
       requirements: {
-          [key: string]: unknown;
-        }[];
+        [key: string]: unknown;
+      }[];
       /** Suggested Allocation */
       suggested_allocation: {
-          [key: string]: unknown;
-        }[];
-      /**
-       * Conflicts
-       * @default []
-       */
-      conflicts?: {
-          [key: string]: unknown;
-        }[];
-    };
-    /**
-     * ResourceBundleData
-     * @description Data model for resource in a bundle.
-     */
-    ResourceBundleData: {
-      /** Id */
-      id?: number | null;
-      /** Name */
-      name: string;
-      /** Description */
-      description?: string | null;
+        [key: string]: unknown;
+      }[];
+      /** Conflicts */
+      conflicts: {
+        [key: string]: unknown;
+      }[];
     };
     /**
      * ResourceCalendarDayResponse
@@ -3942,15 +3671,20 @@ export interface components {
       events: components["schemas"]["CalendarEventResponse"][];
     };
     /**
-     * ResourceConflictWarning
-     * @description Warning for specific resource conflict.
+     * ResourceConflictDetail
+     * @description Detail model for resource conflict.
      */
-    ResourceConflictWarning: {
-      /** Resource Name */
-      resource_name: string;
+    ResourceConflictDetail: {
+      /** Resource Type Id */
+      resource_type_id: number;
       /** Resource Type Name */
       resource_type_name: string;
-      conflicting_appointment: components["schemas"]["ConflictingAppointmentInfo"];
+      /** Required Quantity */
+      required_quantity: number;
+      /** Total Resources */
+      total_resources: number;
+      /** Allocated Count */
+      allocated_count: number;
     };
     /**
      * ResourceCreateRequest
@@ -3969,15 +3703,6 @@ export interface components {
     ResourceListResponse: {
       /** Resources */
       resources: components["schemas"]["api__clinic__resources__ResourceResponse"][];
-    };
-    /** ResourceRequirementBundleData */
-    ResourceRequirementBundleData: {
-      /** Resource Type Id */
-      resource_type_id: number;
-      /** Resource Type Name */
-      resource_type_name?: string | null;
-      /** Quantity */
-      quantity: number;
     };
     /**
      * ResourceRequirementCreateRequest
@@ -4032,28 +3757,6 @@ export interface components {
       quantity: number;
     };
     /**
-     * ResourceTypeBundleRequest
-     * @description Request model for resource type bundle.
-     */
-    ResourceTypeBundleRequest: {
-      /** Name */
-      name: string;
-      /**
-       * Resources
-       * @default []
-       */
-      resources?: components["schemas"]["ResourceBundleData"][];
-    };
-    /**
-     * ResourceTypeBundleResponse
-     * @description Response model for resource type bundle.
-     */
-    ResourceTypeBundleResponse: {
-      resource_type: components["schemas"]["ResourceTypeResponse"];
-      /** Resources */
-      resources: components["schemas"]["api__clinic__resources__ResourceResponse"][];
-    };
-    /**
      * ResourceTypeCreateRequest
      * @description Request model for creating a resource type.
      */
@@ -4080,8 +3783,6 @@ export interface components {
       clinic_id: number;
       /** Name */
       name: string;
-      /** Resource Count */
-      resource_count: number;
       /**
        * Created At
        * Format: date-time
@@ -4112,32 +3813,16 @@ export interface components {
       description?: string | null;
     };
     /**
-     * SchedulingConflictResponse
-     * @description Response model for scheduling conflict detection.
+     * ConflictingAppointmentInfo
+     * @description Basic info about a conflicting appointment.
      */
-    SchedulingConflictResponse: {
-      /** Has Conflict */
-      has_conflict: boolean;
-      /** Conflict Type */
-      conflict_type?: string | null;
-      appointment_conflict?: components["schemas"]["AppointmentConflictDetail"] | null;
-      /** Appointment Conflicts */
-      appointment_conflicts?: components["schemas"]["AppointmentConflictDetail"][] | null;
-      exception_conflict?: components["schemas"]["ExceptionConflictDetail"] | null;
-      /** Exception Conflicts */
-      exception_conflicts?: components["schemas"]["ExceptionConflictDetail"][] | null;
-      /** Selection Insufficient Warnings */
-      selection_insufficient_warnings?: components["schemas"]["SelectionInsufficientWarning"][] | null;
-      /** Resource Conflict Warnings */
-      resource_conflict_warnings?: components["schemas"]["ResourceConflictWarning"][] | null;
-      /** Unavailable Resource Ids */
-      unavailable_resource_ids?: number[] | null;
-      default_availability: components["schemas"]["DefaultAvailabilityInfo"];
-      /**
-       * Is Type Mismatch
-       * @default false
-       */
-      is_type_mismatch?: boolean;
+    ConflictingAppointmentInfo: {
+      /** Practitioner Name */
+      practitioner_name: string;
+      /** Start Time */
+      start_time: string;
+      /** End Time */
+      end_time: string;
     };
     /**
      * SelectionInsufficientWarning
@@ -4151,137 +3836,38 @@ export interface components {
       /** Selected Quantity */
       selected_quantity: number;
     };
-    /** ServiceItemBundleAssociations */
-    "ServiceItemBundleAssociations-Input": {
-      /**
-       * Practitioner Ids
-       * @default []
-       */
-      practitioner_ids?: number[];
-      /**
-       * Billing Scenarios
-       * @default []
-       */
-      billing_scenarios?: components["schemas"]["BillingScenarioBundleData-Input"][];
-      /**
-       * Resource Requirements
-       * @default []
-       */
-      resource_requirements?: components["schemas"]["ResourceRequirementBundleData"][];
-      /**
-       * Follow Up Messages
-       * @default []
-       */
-      follow_up_messages?: components["schemas"]["FollowUpMessageBundleData"][];
+    /**
+     * ResourceConflictWarning
+     * @description Warning for specific resource conflict.
+     */
+    ResourceConflictWarning: {
+      /** Resource Name */
+      resource_name: string;
+      /** Resource Type Name */
+      resource_type_name: string;
+      conflicting_appointment: components["schemas"]["ConflictingAppointmentInfo"];
     };
-    /** ServiceItemBundleAssociations */
-    "ServiceItemBundleAssociations-Output": {
-      /**
-       * Practitioner Ids
-       * @default []
-       */
-      practitioner_ids?: number[];
-      /**
-       * Billing Scenarios
-       * @default []
-       */
-      billing_scenarios?: components["schemas"]["BillingScenarioBundleData-Output"][];
-      /**
-       * Resource Requirements
-       * @default []
-       */
-      resource_requirements?: components["schemas"]["ResourceRequirementBundleData"][];
-      /**
-       * Follow Up Messages
-       * @default []
-       */
-      follow_up_messages?: components["schemas"]["FollowUpMessageBundleData"][];
-    };
-    /** ServiceItemBundleRequest */
-    ServiceItemBundleRequest: {
-      item: components["schemas"]["ServiceItemData"];
-      associations: components["schemas"]["ServiceItemBundleAssociations-Input"];
-    };
-    /** ServiceItemBundleResponse */
-    ServiceItemBundleResponse: {
-      item: components["schemas"]["AppointmentTypeResponse"];
-      associations: components["schemas"]["ServiceItemBundleAssociations-Output"];
-    };
-    /** ServiceItemData */
-    ServiceItemData: {
-      /** Name */
-      name: string;
-      /** Duration Minutes */
-      duration_minutes: number;
-      /** Receipt Name */
-      receipt_name?: string | null;
-      /**
-       * Allow Patient Booking
-       * @default true
-       */
-      allow_patient_booking?: boolean;
-      /**
-       * Allow New Patient Booking
-       * @default true
-       */
-      allow_new_patient_booking?: boolean;
-      /**
-       * Allow Existing Patient Booking
-       * @default true
-       */
-      allow_existing_patient_booking?: boolean;
-      /**
-       * Allow Patient Practitioner Selection
-       * @default true
-       */
-      allow_patient_practitioner_selection?: boolean;
-      /**
-       * Allow Multiple Time Slot Selection
-       * @default false
-       */
-      allow_multiple_time_slot_selection?: boolean;
-      /** Description */
-      description?: string | null;
-      /**
-       * Scheduling Buffer Minutes
-       * @default 0
-       */
-      scheduling_buffer_minutes?: number;
-      /** Service Type Group Id */
-      service_type_group_id?: number | null;
-      /**
-       * Display Order
-       * @default 0
-       */
-      display_order?: number;
-      /**
-       * Send Patient Confirmation
-       * @default true
-       */
-      send_patient_confirmation?: boolean;
-      /**
-       * Send Clinic Confirmation
-       * @default true
-       */
-      send_clinic_confirmation?: boolean;
-      /**
-       * Send Reminder
-       * @default true
-       */
-      send_reminder?: boolean;
-      /** Patient Confirmation Message */
-      patient_confirmation_message?: string | null;
-      /** Clinic Confirmation Message */
-      clinic_confirmation_message?: string | null;
-      /** Reminder Message */
-      reminder_message?: string | null;
-      /**
-       * Require Notes
-       * @default false
-       */
-      require_notes?: boolean;
-      /** Notes Instructions */
-      notes_instructions?: string | null;
+    /**
+     * SchedulingConflictResponse
+     * @description Response model for scheduling conflict detection.
+     */
+    SchedulingConflictResponse: {
+      /** Has Conflict */
+      has_conflict: boolean;
+      /** Conflict Type */
+      conflict_type?: string | null;
+      appointment_conflict?: components["schemas"]["AppointmentConflictDetail"] | null;
+      appointment_conflicts?: components["schemas"]["AppointmentConflictDetail"][] | null;
+      exception_conflict?: components["schemas"]["ExceptionConflictDetail"] | null;
+      exception_conflicts?: components["schemas"]["ExceptionConflictDetail"][] | null;
+      /** Selection Insufficient Warnings */
+      selection_insufficient_warnings?: components["schemas"]["SelectionInsufficientWarning"][] | null;
+      /** Resource Conflict Warnings */
+      resource_conflict_warnings?: components["schemas"]["ResourceConflictWarning"][] | null;
+      /** Unavailable Resource Ids */
+      unavailable_resource_ids?: number[] | null;
+      default_availability: components["schemas"]["DefaultAvailabilityInfo"];
+      is_type_mismatch?: boolean;
     };
     /**
      * ServiceTypeGroupBulkOrderRequest
@@ -4293,8 +3879,8 @@ export interface components {
        * @description List of dicts with 'id' and 'display_order'
        */
       group_orders: {
-          [key: string]: unknown;
-        }[];
+        [key: string]: unknown;
+      }[];
     };
     /**
      * ServiceTypeGroupCreateRequest
@@ -6350,21 +5936,18 @@ export interface operations {
     };
   };
   /**
-   * List appointments requiring review
-   * @description List all upcoming appointments that require clinic review.
+   * List auto-assigned appointments (admin only)
+   * @description List all upcoming auto-assigned appointments that are still hidden from practitioners.
    *
-   * Includes both:
-   * - Auto-assigned appointments (practitioner not yet assigned)
-   * - Multiple time slot appointments (time not yet confirmed)
+   * Only clinic admins can view this list. Appointments are sorted by date.
+   * After admin reassigns an appointment, it will no longer appear in this list.
    *
-   * Clinic admins can view all pending appointments.
-   * Practitioners can view time confirmation appointments where they are the assigned practitioner.
-   * Appointments are sorted by date.
-   * After review/confirmation, appointments will no longer appear in this list.
-   *
-   * Note: Only future appointments are returned as defensive programming.
+   * Note: Only future appointments are returned. In theory, there shouldn't be any past
+   * auto-assigned appointments since the system automatically assigns them when the
+   * recency limit (minimum_booking_hours_ahead) is reached. However, we filter them out
+   * as defensive programming in case of edge cases (e.g., cron job failures, timezone issues).
    */
-  list_pending_review_appointments_api_clinic_pending_review_appointments_get: {
+  list_auto_assigned_appointments_api_clinic_pending_review_appointments_get: {
     responses: {
       /** @description Successful Response */
       200: {
@@ -7269,180 +6852,6 @@ export interface operations {
     };
   };
   /**
-   * Delete an appointment type
-   * @description Delete an appointment type (soft delete).
-   *
-   * Only clinic admins can delete appointment types.
-   * The appointment type must not be referenced by any practitioners.
-   */
-  delete_appointment_type_api_clinic_appointment_types__id__delete: {
-    parameters: {
-      path: {
-        id: number;
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      200: {
-        content: {
-          "application/json": {
-            [key: string]: string;
-          };
-        };
-      };
-      /** @description Unauthorized */
-      401: {
-        content: never;
-      };
-      /** @description Forbidden */
-      403: {
-        content: never;
-      };
-      /** @description Resource not found */
-      404: {
-        content: never;
-      };
-      /** @description Validation Error */
-      422: {
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        content: never;
-      };
-    };
-  };
-  /**
-   * Get service item bundle
-   * @description Get service item and all its associations.
-   */
-  get_service_item_bundle_api_clinic_service_items__id__bundle_get: {
-    parameters: {
-      path: {
-        id: number;
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      200: {
-        content: {
-          "application/json": components["schemas"]["ServiceItemBundleResponse"];
-        };
-      };
-      /** @description Unauthorized */
-      401: {
-        content: never;
-      };
-      /** @description Forbidden */
-      403: {
-        content: never;
-      };
-      /** @description Resource not found */
-      404: {
-        content: never;
-      };
-      /** @description Validation Error */
-      422: {
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        content: never;
-      };
-    };
-  };
-  /**
-   * Update service item bundle
-   * @description Update an existing service item and all its associations in one transaction.
-   */
-  update_service_item_bundle_api_clinic_service_items__id__bundle_put: {
-    parameters: {
-      path: {
-        id: number;
-      };
-    };
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["ServiceItemBundleRequest"];
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      200: {
-        content: {
-          "application/json": components["schemas"]["ServiceItemBundleResponse"];
-        };
-      };
-      /** @description Unauthorized */
-      401: {
-        content: never;
-      };
-      /** @description Forbidden */
-      403: {
-        content: never;
-      };
-      /** @description Resource not found */
-      404: {
-        content: never;
-      };
-      /** @description Validation Error */
-      422: {
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        content: never;
-      };
-    };
-  };
-  /**
-   * Create service item bundle
-   * @description Create a new service item and all its associations in one transaction.
-   */
-  create_service_item_bundle_api_clinic_service_items_bundle_post: {
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["ServiceItemBundleRequest"];
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      200: {
-        content: {
-          "application/json": components["schemas"]["ServiceItemBundleResponse"];
-        };
-      };
-      /** @description Unauthorized */
-      401: {
-        content: never;
-      };
-      /** @description Forbidden */
-      403: {
-        content: never;
-      };
-      /** @description Resource not found */
-      404: {
-        content: never;
-      };
-      /** @description Validation Error */
-      422: {
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        content: never;
-      };
-    };
-  };
-  /**
    * Regenerate LIFF access token
    * @description Regenerate LIFF access token for current clinic.
    *
@@ -7832,6 +7241,66 @@ export interface operations {
     };
   };
   /**
+   * Check scheduling conflicts for a specific time
+   * @description Check for scheduling conflicts at a specific time.
+   *
+   * Returns conflict information in priority order:
+   * 1. Past appointment (highest priority)
+   * 2. Appointment conflicts
+   * 3. Availability exception conflicts (medium priority)
+   * 4. Outside default availability (lowest priority)
+   *
+   * Used by frontend to show conflict warnings when scheduling appointments
+   * outside normal availability (override mode).
+   */
+  check_scheduling_conflicts_api_clinic_practitioners__user_id__availability_conflicts_get: {
+    parameters: {
+      query: {
+        /** @description Date in YYYY-MM-DD format */
+        date: string;
+        /** @description Start time in HH:MM format */
+        start_time: string;
+        /** @description Appointment type ID */
+        appointment_type_id: number;
+        /** @description Calendar event ID to exclude from conflict checking (for appointment editing) */
+        exclude_calendar_event_id?: number | null;
+      };
+      path: {
+        user_id: number;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["SchedulingConflictResponse"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        content: never;
+      };
+      /** @description Forbidden */
+      403: {
+        content: never;
+      };
+      /** @description Resource not found */
+      404: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        content: never;
+      };
+    };
+  };
+  /**
    * Get available time slots for multiple dates
    * @description Get available time slots for multiple dates in a single request.
    *
@@ -7906,9 +7375,9 @@ export interface operations {
     };
     responses: {
       /** @description Successful Response */
-      200: {
+      201: {
         content: {
-          "application/json": unknown;
+          "application/json": components["schemas"]["AvailabilityExceptionResponse"] | components["schemas"]["ConflictWarningResponse"];
         };
       };
       /** @description Unauthorized */
@@ -8007,59 +7476,6 @@ export interface operations {
           "application/json": {
             [key: string]: unknown;
           };
-        };
-      };
-      /** @description Unauthorized */
-      401: {
-        content: never;
-      };
-      /** @description Forbidden */
-      403: {
-        content: never;
-      };
-      /** @description Resource not found */
-      404: {
-        content: never;
-      };
-      /** @description Validation Error */
-      422: {
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        content: never;
-      };
-    };
-  };
-  /**
-   * Check Batch Scheduling Conflicts
-   * @description Check scheduling conflicts for multiple practitioners at once.
-   *
-   * This endpoint optimizes conflict checking by batching database queries
-   * and processing conflicts in-memory, reducing API calls from N to ~2 total.
-   *
-   * Returns conflict information for each practitioner in priority order:
-   * 1. Appointment conflicts
-   * 2. Availability exception conflicts
-   * 3. Outside default availability
-   * 4. Resource conflicts
-   *
-   * Used by the practitioner selection modal to efficiently check conflicts
-   * for multiple practitioners when date/time is selected.
-   */
-  check_batch_scheduling_conflicts_api_clinic_practitioners_availability_conflicts_batch_post: {
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["BatchConflictCheckRequest"];
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      200: {
-        content: {
-          "application/json": components["schemas"]["BatchConflictCheckResponse"];
         };
       };
       /** @description Unauthorized */
@@ -8346,62 +7762,6 @@ export interface operations {
       200: {
         content: {
           "application/json": components["schemas"]["BatchPractitionerStatusResponse"];
-        };
-      };
-      /** @description Unauthorized */
-      401: {
-        content: never;
-      };
-      /** @description Forbidden */
-      403: {
-        content: never;
-      };
-      /** @description Resource not found */
-      404: {
-        content: never;
-      };
-      /** @description Validation Error */
-      422: {
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        content: never;
-      };
-    };
-  };
-  /**
-   * Check Resource Conflicts
-   * @description Check resource conflicts for an appointment time slot.
-   *
-   * This endpoint focuses solely on resource availability conflicts,
-   * excluding practitioner-specific conflicts. Used by the appointment
-   * modal to show resource conflicts independently of practitioner selection.
-   *
-   * Returns resource conflict information only.
-   */
-  check_resource_conflicts_api_clinic_appointments_check_resource_conflicts_get: {
-    parameters: {
-      query: {
-        /** @description Appointment type ID */
-        appointment_type_id: number;
-        /** @description Start time in ISO datetime format */
-        start_time: string;
-        /** @description End time in ISO datetime format */
-        end_time: string;
-        /** @description Comma-separated list of selected resource IDs */
-        selected_resource_ids?: string | null;
-        /** @description Calendar event ID to exclude from conflict checking */
-        exclude_calendar_event_id?: number | null;
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      200: {
-        content: {
-          "application/json": components["schemas"]["SchedulingConflictResponse"];
         };
       };
       /** @description Unauthorized */
@@ -9185,7 +8545,7 @@ export interface operations {
   };
   /**
    * Delete a resource (soft delete)
-   * @description Soft delete a resource. Unallocates from all future confirmed appointments.
+   * @description Soft delete a resource. Prevents deletion if resource has active allocations.
    */
   delete_resource_api_clinic_resources__resource_id__delete: {
     parameters: {
@@ -9417,134 +8777,6 @@ export interface operations {
       200: {
         content: {
           "application/json": unknown;
-        };
-      };
-      /** @description Unauthorized */
-      401: {
-        content: never;
-      };
-      /** @description Forbidden */
-      403: {
-        content: never;
-      };
-      /** @description Resource not found */
-      404: {
-        content: never;
-      };
-      /** @description Validation Error */
-      422: {
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        content: never;
-      };
-    };
-  };
-  /**
-   * Get resource type bundle
-   * @description Get a resource type and all its resources.
-   */
-  get_resource_type_bundle_api_clinic_resource_types__resource_type_id__bundle_get: {
-    parameters: {
-      path: {
-        resource_type_id: number;
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      200: {
-        content: {
-          "application/json": components["schemas"]["ResourceTypeBundleResponse"];
-        };
-      };
-      /** @description Unauthorized */
-      401: {
-        content: never;
-      };
-      /** @description Forbidden */
-      403: {
-        content: never;
-      };
-      /** @description Resource not found */
-      404: {
-        content: never;
-      };
-      /** @description Validation Error */
-      422: {
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        content: never;
-      };
-    };
-  };
-  /**
-   * Update resource type bundle
-   * @description Update an existing resource type and its resources in one transaction.
-   */
-  update_resource_type_bundle_api_clinic_resource_types__resource_type_id__bundle_put: {
-    parameters: {
-      path: {
-        resource_type_id: number;
-      };
-    };
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["ResourceTypeBundleRequest"];
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      200: {
-        content: {
-          "application/json": components["schemas"]["ResourceTypeBundleResponse"];
-        };
-      };
-      /** @description Unauthorized */
-      401: {
-        content: never;
-      };
-      /** @description Forbidden */
-      403: {
-        content: never;
-      };
-      /** @description Resource not found */
-      404: {
-        content: never;
-      };
-      /** @description Validation Error */
-      422: {
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        content: never;
-      };
-    };
-  };
-  /**
-   * Create resource type bundle
-   * @description Create a new resource type and its resources in one transaction.
-   */
-  create_resource_type_bundle_api_clinic_resource_types_bundle_post: {
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["ResourceTypeBundleRequest"];
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      200: {
-        content: {
-          "application/json": components["schemas"]["ResourceTypeBundleResponse"];
         };
       };
       /** @description Unauthorized */
@@ -9950,31 +9182,15 @@ export interface operations {
   };
   /**
    * List Appointment Types
-   * @description List appointment types available for booking at the clinic.
-   *
-   * Filters appointment types based on patient status:
-   * - No patient_id: Shows appointment types available for new patients
-   * - With patient_id: Shows appointment types based on whether the patient has practitioner assignments
-   *
+   * @description List all appointment types available at the clinic.
    * Clinic context comes from LIFF token for proper isolation.
    */
   list_appointment_types_api_liff_appointment_types_get: {
-    parameters: {
-      query?: {
-        patient_id?: number | null;
-      };
-    };
     responses: {
       /** @description Successful Response */
       200: {
         content: {
           "application/json": components["schemas"]["AppointmentTypeListResponse"];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
         };
       };
     };
@@ -11035,71 +10251,176 @@ export interface operations {
   };
 }
 
-// Re-export commonly used types for backward compatibility
+// ===== Type Aliases for Generated Types =====
+// These aliases make the generated types easier to import and use
+
 export type SchedulingConflictResponse = components["schemas"]["SchedulingConflictResponse"];
-export type ApiErrorType = components["schemas"]["HTTPValidationError"];
-export type AxiosErrorResponse = {
+
+// ===== Error Types =====
+
+/**
+ * API error interface
+ */
+export interface ApiError {
+  message: string;
+  status?: number;
+  code?: string;
+}
+
+/**
+ * Validation error detail
+ */
+export interface ValidationErrorDetail {
+  msg: string;
+  type: string;
+  loc?: string[];
+}
+
+// ===== Error Types and Utilities =====
+
+/**
+ * Default error messages in Chinese
+ */
+const DEFAULT_ERROR_MESSAGES = {
+  UNKNOWN: '發生未知錯誤，請稍後再試',
+  NETWORK: '網路連線異常，請檢查網路狀況',
+  TIMEOUT: '請求逾時，請稍後再試',
+  SERVER: '伺服器錯誤，請稍後再試',
+  VALIDATION: '輸入資料有誤，請檢查後重試',
+  PERMISSION: '權限不足，無法執行此操作',
+  NOT_FOUND: '找不到相關資料',
+  CONFLICT: '資料衝突，請重新整理後重試'
+} as const;
+
+/**
+ * Get message based on HTTP status code
+ */
+const getStatusMessage = (status?: number): string => {
+  switch (status) {
+    case 400: return DEFAULT_ERROR_MESSAGES.VALIDATION;
+    case 401: return '請重新登入';
+    case 403: return DEFAULT_ERROR_MESSAGES.PERMISSION;
+    case 404: return DEFAULT_ERROR_MESSAGES.NOT_FOUND;
+    case 405: return '此操作目前不被允許';
+    case 408: return DEFAULT_ERROR_MESSAGES.TIMEOUT;
+    case 409: return DEFAULT_ERROR_MESSAGES.CONFLICT;
+    case 422: return DEFAULT_ERROR_MESSAGES.VALIDATION;
+    case 429: return '操作過於頻繁，請稍候再試';
+    case 500: return DEFAULT_ERROR_MESSAGES.SERVER;
+    case 502: return '伺服器暫時無法回應，請稍後再試';
+    case 503: return '服務暫時不可用，請稍後再試';
+    case 504: return DEFAULT_ERROR_MESSAGES.TIMEOUT;
+    default: return DEFAULT_ERROR_MESSAGES.UNKNOWN;
+  }
+};
+
+/**
+ * Get message based on error pattern matching
+ */
+const getPatternMessage = (message?: string): string | null => {
+  if (!message) return null;
+
+  // CORS errors
+  if (message.includes('CORS') || message.includes('cross-origin') ||
+    message.includes('Access-Control-Allow-Origin') ||
+    message.includes('blocked by CORS policy')) {
+    return DEFAULT_ERROR_MESSAGES.NETWORK;
+  }
+
+  // Network errors
+  if (message.includes('Network Error') || message.includes('ERR_NETWORK') ||
+    message.includes('ERR_FAILED') || message.includes('net::ERR_FAILED')) {
+    return DEFAULT_ERROR_MESSAGES.NETWORK;
+  }
+
+  // Timeout errors
+  if (message.includes('timeout') || message.includes('TIMEOUT')) {
+    return DEFAULT_ERROR_MESSAGES.TIMEOUT;
+  }
+
+  return null;
+};
+
+/**
+ * Axios error response structure
+ */
+export interface AxiosErrorResponse {
   response?: {
-    status?: number;
     data?: {
-      detail?: string;
+      detail?: string | ValidationErrorDetail[];
       message?: string;
       error?: string;
     };
+    status?: number;
   };
   message?: string;
-};
+}
 
-// Error handling utility function
-export function getErrorMessage(error: any, fallback: string = '發生未知錯誤，請稍後再試'): string {
-  // Handle Axios validation errors (array format)
-  if (error?.response?.data?.detail && Array.isArray(error.response.data.detail)) {
-    return error.response.data.detail.map((err: any) => err.msg || err.message || '驗證錯誤').join(', ');
+/**
+ * API error type union
+ */
+export type ApiErrorType = AxiosErrorResponse | Error | ApiError | string | unknown | null | undefined;
+
+/**
+ * Extract error message from various error types
+ */
+export function getErrorMessage(error: ApiErrorType): string {
+  // Handle null/undefined
+  if (!error) {
+    return DEFAULT_ERROR_MESSAGES.UNKNOWN;
   }
 
-  // Handle Axios validation errors (string format)
-  if (error?.response?.data?.detail && typeof error.response.data.detail === 'string') {
-    return error.response.data.detail;
+  // Handle string errors
+  if (typeof error === 'string') {
+    return DEFAULT_ERROR_MESSAGES.UNKNOWN;
   }
 
-  // Handle Axios errors with message field
-  if (error?.response?.data?.message) {
-    return error.response.data.message;
-  }
+  // Type guard for objects - check for Axios error response first
+  if (typeof error === 'object' && error !== null) {
+    const errObj = error as Record<string, unknown>;
 
-  // Handle Axios errors with error field
-  if (error?.response?.data?.error) {
-    return error.response.data.error;
-  }
+    // 1. Handle Axios error response (most specific)
+    if ('response' in errObj && errObj.response && typeof errObj.response === 'object') {
+      const response = errObj.response as Record<string, unknown>;
+      if ('data' in response && response.data && typeof response.data === 'object') {
+        const data = response.data as Record<string, unknown>;
 
-  // Handle ApiError interface (has message property)
-  if (error?.message && typeof error === 'object' && !error.response && 'status' in error) {
-    return error.message;
-  }
+        // Handle array of validation errors (Pydantic style)
+        if ('detail' in data && Array.isArray(data.detail)) {
+          return (data.detail as ValidationErrorDetail[]).map(detail => detail.msg).join(', ');
+        }
 
-  // Handle standard Error objects with specific message translations
-  if (error instanceof Error) {
-    if (error.message === 'Network timeout') {
-      return '請求逾時，請稍後再試';
+        // Handle string detail (FastAPI style) - Highest priority
+        if ('detail' in data && typeof data.detail === 'string') {
+          return data.detail;
+        }
+
+        // Handle message field
+        if ('message' in data && typeof data.message === 'string') {
+          return data.message;
+        }
+
+        // Handle error field
+        if ('error' in data && typeof data.error === 'string') {
+          return data.error;
+        }
+      }
     }
-    if (error.message === 'Network Error') {
-      return '網路連線異常，請檢查網路狀況';
+
+    // 2. Try pattern matching for common error types BEFORE generic message check
+    const errorMessage = (error as any).message;
+    const patternMessage = getPatternMessage(errorMessage);
+    if (patternMessage) {
+      return patternMessage;
     }
-    return error.message;
-  }
 
-  // Handle ApiError interface (fallback for detail property)
-  if (error?.detail) {
-    return error.detail;
-  }
-
-  // Handle network errors (objects with message but no response)
-  if (error && typeof error === 'object' && error.message && !error.response) {
-    if (error.message === 'Network Error') {
-      return '網路連線異常，請檢查網路狀況';
+    // 3. Handle object with message field (e.g. from our services) - AFTER pattern matching
+    if ('message' in errObj && typeof errObj.message === 'string' && !errObj.message.includes('status code')) {
+      return errObj.message;
     }
-    return '網路連線異常，請檢查網路狀況';
   }
 
-  return fallback;
+  // 4. Fall back to HTTP status code mapping
+  const status = (error as any).response?.status;
+  return getStatusMessage(status);
 }

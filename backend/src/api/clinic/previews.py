@@ -47,7 +47,7 @@ class CancellationPreviewRequest(BaseModel):
 class MessagePreviewRequest(BaseModel):
     """Request model for appointment message preview."""
     appointment_type_id: Optional[int] = Field(None, description="Appointment type ID (optional for new items)")
-    message_type: Literal["patient_confirmation", "clinic_confirmation", "reminder", "recurring_clinic_confirmation"] = Field(..., description="Message type")
+    message_type: Literal["patient_confirmation", "clinic_confirmation", "reminder"] = Field(..., description="Message type")
     template: str = Field(..., description="Template to preview")
     appointment_type_name: Optional[str] = Field(None, description="Appointment type name (required if appointment_type_id is not provided)")
 
@@ -187,12 +187,11 @@ async def preview_appointment_message(
                 detail="診所不存在"
             )
         
-        # Validate template length - higher limit for recurring messages
-        max_length = 5000 if request.message_type == "recurring_clinic_confirmation" else 3500
-        if len(request.template) > max_length:
+        # Validate template length
+        if len(request.template) > 3500:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"訊息模板長度超過限制（最多 {max_length} 字元）"
+                detail="訊息模板長度超過限制"
             )
         
         template = request.template
@@ -218,62 +217,23 @@ async def preview_appointment_message(
             appointment_type_name = request.appointment_type_name or "服務項目"
         
         # Build preview context using actual data
-        if request.message_type == "recurring_clinic_confirmation":
-            # For recurring messages, use a simplified preview approach
-            # Since this is just for preview, we'll build a basic context manually
-            from utils.practitioner_helpers import get_practitioner_display_name_with_title
-            from utils.datetime_utils import taiwan_now
-            from datetime import timedelta
-            
-            # Get practitioner name
-            practitioner_name = "不指定"
-            if current_user and hasattr(current_user, 'user_id') and current_user.user_id:
-                from models.user_clinic_association import UserClinicAssociation
-                association = db.query(UserClinicAssociation).filter(
-                    UserClinicAssociation.user_id == current_user.user_id,
-                    UserClinicAssociation.clinic_id == clinic_id,
-                    UserClinicAssociation.is_active == True
-                ).first()
-                if association:
-                    practitioner_name = get_practitioner_display_name_with_title(
-                        db, current_user.user_id, clinic_id
-                    )
-            
-            # Build a simple recurring context manually for preview
-            base_date = taiwan_now().date() + timedelta(days=1)
-            date_range = f"{base_date.strftime('%Y-%m-%d')}(二) 至 {(base_date + timedelta(days=14)).strftime('%Y-%m-%d')}(二)"
-            appointment_list = f"1. {base_date.strftime('%Y-%m-%d')}(二) 2:30 PM\n2. {(base_date + timedelta(days=7)).strftime('%Y-%m-%d')}(二) 2:30 PM\n3. {(base_date + timedelta(days=14)).strftime('%Y-%m-%d')}(二) 2:30 PM"
-            
-            context = {
-                "病患姓名": "王小明",
-                "預約數量": "3",
-                "日期範圍": date_range,
-                "預約列表": appointment_list,
-                "服務項目": appointment_type_name,
-                "治療師姓名": practitioner_name,
-                "診所名稱": clinic.effective_display_name or "",
-                "診所地址": clinic.address or "",
-                "診所電話": clinic.phone_number or "",
-            }
+        if appointment_type:
+            # Use existing appointment type
+            context = MessageTemplateService.build_preview_context(
+                appointment_type=appointment_type,
+                current_user=current_user,
+                clinic=clinic,
+                db=db
+            )
         else:
-            # For regular messages, use existing logic
-            if appointment_type:
-                # Use existing appointment type
-                context = MessageTemplateService.build_preview_context(
-                    appointment_type=appointment_type,
-                    current_user=current_user,
-                    clinic=clinic,
-                    db=db
-                )
-            else:
-                # For new items, build context with provided name
-                context = MessageTemplateService.build_preview_context(
-                    appointment_type=None,
-                    current_user=current_user,
-                    clinic=clinic,
-                    db=db,
-                    sample_appointment_type_name=appointment_type_name
-                )
+            # For new items, build context with provided name
+            context = MessageTemplateService.build_preview_context(
+                appointment_type=None,
+                current_user=current_user,
+                clinic=clinic,
+                db=db,
+                sample_appointment_type_name=appointment_type_name
+            )
         
         # Render message
         preview_message = MessageTemplateService.render_message(template, context)

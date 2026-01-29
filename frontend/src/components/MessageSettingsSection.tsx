@@ -5,7 +5,6 @@ import {
   DEFAULT_PATIENT_CONFIRMATION_MESSAGE,
   DEFAULT_CLINIC_CONFIRMATION_MESSAGE,
   DEFAULT_REMINDER_MESSAGE,
-  DEFAULT_RECURRING_CLINIC_CONFIRMATION_MESSAGE,
   MessageType,
   MESSAGE_TYPE_LABELS,
   MESSAGE_TYPE_DESCRIPTIONS,
@@ -36,7 +35,7 @@ export const MessageSettingsSection: React.FC<MessageSettingsSectionProps> = ({
   clinicInfoAvailability,
 }) => {
   const [expandedSections, setExpandedSections] = useState<Set<MessageType>>(
-    new Set(['patient_confirmation', 'clinic_confirmation', 'recurring_clinic_confirmation', 'reminder'])
+    new Set(['patient_confirmation', 'clinic_confirmation', 'reminder'])
   );
   const [previewModal, setPreviewModal] = useState<{
     isOpen: boolean;
@@ -49,7 +48,6 @@ export const MessageSettingsSection: React.FC<MessageSettingsSectionProps> = ({
     patient_confirmation: null,
     clinic_confirmation: null,
     reminder: null,
-    recurring_clinic_confirmation: null,
   });
 
   // Check if this is a new item (temporary ID)
@@ -91,9 +89,6 @@ export const MessageSettingsSection: React.FC<MessageSettingsSectionProps> = ({
         case 'reminder':
           message = DEFAULT_REMINDER_MESSAGE;
           break;
-        case 'recurring_clinic_confirmation':
-          message = DEFAULT_RECURRING_CLINIC_CONFIRMATION_MESSAGE;
-          break;
       }
     }
 
@@ -103,7 +98,6 @@ export const MessageSettingsSection: React.FC<MessageSettingsSectionProps> = ({
   const patientConfirmation = getMessageField('patient_confirmation');
   const clinicConfirmation = getMessageField('clinic_confirmation');
   const reminder = getMessageField('reminder');
-  const recurringClinicConfirmation = getMessageField('recurring_clinic_confirmation');
 
   const updateMessageField = (type: MessageType, field: 'toggle' | 'message', value: boolean | string) => {
     const updated: AppointmentType = { ...appointmentType };
@@ -128,9 +122,6 @@ export const MessageSettingsSection: React.FC<MessageSettingsSectionProps> = ({
             case 'reminder':
               defaultMessage = DEFAULT_REMINDER_MESSAGE;
               break;
-            case 'recurring_clinic_confirmation':
-              defaultMessage = DEFAULT_RECURRING_CLINIC_CONFIRMATION_MESSAGE;
-              break;
           }
           (updated as any)[messageKey] = defaultMessage;
         }
@@ -153,9 +144,6 @@ export const MessageSettingsSection: React.FC<MessageSettingsSectionProps> = ({
         break;
       case 'reminder':
         defaultMessage = DEFAULT_REMINDER_MESSAGE;
-        break;
-      case 'recurring_clinic_confirmation':
-        defaultMessage = DEFAULT_RECURRING_CLINIC_CONFIRMATION_MESSAGE;
         break;
     }
     updateMessageField(type, 'message', defaultMessage);
@@ -204,10 +192,8 @@ export const MessageSettingsSection: React.FC<MessageSettingsSectionProps> = ({
   const renderMessageSection = (type: MessageType, field: MessageFieldState) => {
     const isExpanded = expandedSections.has(type);
     const charCount = field.message.length;
-    // Use higher limit for recurring messages (5000 vs 3500)
-    const charLimit = type === 'recurring_clinic_confirmation' ? 5000 : 3500;
-    const isOverLimit = charCount > charLimit;
-    const isWarning = charCount > (charLimit - 500); // Warning at 500 chars before limit
+    const isOverLimit = charCount > 3500;
+    const isWarning = charCount > 3000;
 
     return (
       <div key={type} className="border border-gray-200 rounded-lg overflow-hidden" data-message-type={type}>
@@ -310,7 +296,7 @@ export const MessageSettingsSection: React.FC<MessageSettingsSectionProps> = ({
                   )}
                 </div>
                 <div className={`text-xs ${isOverLimit ? 'text-red-600' : isWarning ? 'text-yellow-600' : 'text-gray-500'}`}>
-                  {charCount} / {charLimit} {isOverLimit && '(超過限制)'}
+                  {charCount} / 3500 {isOverLimit && '(超過限制)'}
                 </div>
               </div>
             </div>
@@ -325,7 +311,6 @@ export const MessageSettingsSection: React.FC<MessageSettingsSectionProps> = ({
       <div className="space-y-3" data-message-settings>
         {renderMessageSection('patient_confirmation', patientConfirmation)}
         {renderMessageSection('clinic_confirmation', clinicConfirmation)}
-        {renderMessageSection('recurring_clinic_confirmation', recurringClinicConfirmation)}
         {renderMessageSection('reminder', reminder)}
       </div>
 
