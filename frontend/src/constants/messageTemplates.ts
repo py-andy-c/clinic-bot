@@ -23,7 +23,6 @@ export const DEFAULT_RECURRENT_CLINIC_CONFIRMATION_MESSAGE = `{病患姓名}，�
 
 【{服務項目}】{治療師姓名}
 預約數量：{預約數量} 次
-日期範圍：{預約日期範圍}
 
 詳細清單：
 {預約時段列表}
@@ -49,7 +48,6 @@ export const PLACEHOLDERS = {
   ],
   recurrent: [
     { key: '{預約數量}', label: '預約數量', description: '總預約次數' },
-    { key: '{預約日期範圍}', label: '日期範圍', description: '第一筆到最後一筆預約的日期範圍' },
     { key: '{預約時段列表}', label: '預約清單', description: '所有預約時段的詳細清單' },
   ],
 } as const;

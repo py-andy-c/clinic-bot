@@ -28,7 +28,6 @@ Enable clinics to customize the consolidated LINE notification sent to patients 
    * Support preview functionality with appropriate sample data.
 5. **Placeholders**:
    * `{預約數量}`: Total number of appointments.
-   * `{預約日期範圍}`: The "預約時間：..." line.
    * `{預約時段列表}`: The numbered list of appointments.
 
 ## Technical Design
@@ -49,7 +48,6 @@ Update `backend/src/core/message_template_constants.py`:
 ```python
 DEFAULT_RECURRENT_CLINIC_CONFIRMATION_MESSAGE = """{病患姓名}，已為您建立 {預約數量} 個預約：
 
-{預約日期範圍}
 {預約時段列表}
 
 【{服務項目}】{治療師姓名}
@@ -96,7 +94,6 @@ The following placeholders will be available for the recurrent appointment notif
 | :--- | :--- | :--- | :--- |
 | **`{病患姓名}`** | Common | Patient's full name | 王小明 |
 | **`{預約數量}`** | Recurrent-only | Total number of successfully created appointments | 12 |
-| **`{預約日期範圍}`** | Recurrent-only | Formatted date range including weekdays | `12/25 (三) 至 12/28 (六)` |
 | **`{預約時段列表}`** | Recurrent-only | Numbered list of dates and times (up to 100) | 1. 12/25 (三) 14:00... |
 | **`{服務項目}`** | Common | Name of the appointment type | 初診評估 |
 | **`{治療師姓名}`** | Common | Practitioner's name with title | 李醫師 |
@@ -106,9 +103,6 @@ The following placeholders will be available for the recurrent appointment notif
 
 ### Internal Variable Logic for Recurrent Notifications
 
-* **`{預約日期範圍}`**:
-  * If all appointments are on the same day: `預約時間：MM/DD (週)`
-  * If multi-day: `預約時間：MM/DD (週) 至 MM/DD (週)`
 * **`{預約時段列表}`**:
   * Each item formatted as: `N. MM/DD (週) HH:mm`
   * Limit increased to **100** occurrences.
@@ -121,10 +115,9 @@ To avoid confusion, the following table calls out placeholders that are **unavai
 | :--- | :--- | :--- | :--- |
 | `{預約時間}` | ✅ | ❌ | Recurrent has multiple times; use `{預約時段列表}`. |
 | `{預約結束時間}` | ✅ | ❌ | Recurrent has multiple end times. |
-| `{預約日期}` | ✅ | ❌ | Recurrent covers a range; use `{預約日期範圍}`. |
+| `{預約日期}` | ✅ | ❌ | Recurrent covers multiple dates; use `{預約時段列表}`. |
 | `{預約時段}` | ✅ | ❌ | Recurrent has multiple slots. |
 | `{預約數量}` | ❌ | ✅ | Only relevant when multiple appointments are created. |
-| `{預約日期範圍}` | ❌ | ✅ | Only relevant for recurring sets. |
 | `{預約時段列表}` | ❌ | ✅ | Only relevant for recurring sets. |
 
 ## Refined Backend Implementation Logic
@@ -132,5 +125,4 @@ To avoid confusion, the following table calls out placeholders that are **unavai
 1. **Trigger Determination**:
    * When creating recurring appointments, if `count == 1`, use the standard `clinic_confirmation_message` template and its associated placeholders (including `{預約時間}`).
    * If `count > 1`, use the new `recurrent_clinic_confirmation_message` template and its specific placeholder set.
-2. **Date Range String**: Use the `utils.datetime_utils` to extract weekdays for both the beginning and end of the set to construct the `{預約日期範圍}`.
-3. **List Truncation**: Strictly allow up to 100 items. If more exist (though UI usually limits this), append `... 還有 X 個`.
+2. **List Truncation**: Strictly allow up to 100 items. If more exist (though UI usually limits this), append `... 還有 X 個`.

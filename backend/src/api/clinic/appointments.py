@@ -882,20 +882,7 @@ async def create_recurring_appointments(
                         else:
                             practitioner_display_name = str(practitioner_name)
                             
-                        # 2. Dates and range logic
-                        dates = sorted([parse_dt(appt['start_time']) for appt in created_appointments])
-                        first_dt = dates[0]
-                        last_dt = dates[-1]
-                        
-                        start_fmt = format_datetime(first_dt)
-                        start_range = start_fmt[:start_fmt.rfind(' ')]
-                        
-                        if first_dt.date() == last_dt.date():
-                            date_range_text = f"預約時間：{start_range}"
-                        else:
-                            last_fmt = format_datetime(last_dt)
-                            last_range = last_fmt[:last_fmt.rfind(' ')]
-                            date_range_text = f"預約時間：{start_range} 至 {last_range}"
+                        # 2. No date range logic needed - removed {預約日期範圍} placeholder
                             
                         # 3. Appointment list logic
                         display_count = min(len(created_appointments), RECURRENT_APPOINTMENT_NOTIF_MAX_ITEMS)
@@ -926,7 +913,6 @@ async def create_recurring_appointments(
                                 clinic=clinic,
                                 appointment_type=appointment_type_obj,
                                 appointment_count=len(created_appointments),
-                                date_range_text=date_range_text,
                                 appointment_list_text=patient_list_text,
                                 practitioner_display_name=practitioner_display_name,
                                 appointment_type_name=appointment_type_name
@@ -939,7 +925,6 @@ async def create_recurring_appointments(
                                 clinic=clinic,
                                 patient_name=patient.full_name if patient else "未知病患",
                                 appointment_count=len(created_appointments),
-                                date_range_text=date_range_text,
                                 appointment_list_text=practitioner_list_text,
                                 practitioner_display_name=practitioner_display_name,
                                 appointment_type_name=appointment_type_name,

@@ -17,7 +17,6 @@ def test_build_recurrent_confirmation_context():
     appointment_type_name = "回診"
     practitioner_display_name = "李醫師"
     appointment_count = 5
-    date_range_text = "預約時間：01/01 (四) 至 01/29 (四)"
     appointment_list_text = "1. 01/01 (四) 14:00\n2. 01/08 (四) 14:00..."
     
     context = MessageTemplateService.build_recurrent_confirmation_context(
@@ -26,24 +25,21 @@ def test_build_recurrent_confirmation_context():
         practitioner_display_name=practitioner_display_name,
         clinic=clinic,
         appointment_count=appointment_count,
-        date_range_text=date_range_text,
         appointment_list_text=appointment_list_text
     )
     
     assert context["病患姓名"] == "王小明"
     assert context["預約數量"] == "5"
-    assert context["預約日期範圍"] == date_range_text
     assert context["預約時段列表"] == appointment_list_text
     assert context["服務項目"] == "回診"
     assert context["治療師姓名"] == "李醫師"
     assert context["診所名稱"] == "範例診所"
 
 def test_render_recurrent_message():
-    template = "{病患姓名}，已為您建立 {預約數量} 個預約：\n\n{預約日期範圍}\n{預約時段列表}\n\n【{服務項目}】{治療師姓名}"
+    template = "{病患姓名}，已為您建立 {預約數量} 個預約：\n\n{預約時段列表}\n\n【{服務項目}】{治療師姓名}"
     context = {
         "病患姓名": "張三",
         "預約數量": "3",
-        "預約日期範圍": "預約時間：02/01 (一) 至 02/03 (三)",
         "預約時段列表": "1. 02/01 (一) 10:00\n2. 02/02 (二) 10:00\n3. 02/03 (三) 10:00",
         "服務項目": "物理治療",
         "治療師姓名": "陳老師"

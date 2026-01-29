@@ -1085,7 +1085,6 @@ class NotificationService:
         clinic: Clinic,
         appointment_type: 'AppointmentType',
         appointment_count: int,
-        date_range_text: str,
         appointment_list_text: str,
         practitioner_display_name: str,
         appointment_type_name: str
@@ -1099,7 +1098,6 @@ class NotificationService:
             clinic: Clinic object
             appointment_type: AppointmentType object with templates
             appointment_count: Number of appointments created
-            date_range_text: Formatted date range string
             appointment_list_text: Formatted list of appointments
             practitioner_display_name: Practitioner name with title
             appointment_type_name: Name of the appointment type
@@ -1128,7 +1126,6 @@ class NotificationService:
                 practitioner_display_name=practitioner_display_name,
                 clinic=clinic,
                 appointment_count=appointment_count,
-                date_range_text=date_range_text,
                 appointment_list_text=appointment_list_text
             )
             message = MessageTemplateService.render_message(template, context)
@@ -1161,7 +1158,6 @@ class NotificationService:
         clinic: Clinic,
         patient_name: str,
         appointment_count: int,
-        date_range_text: str,
         appointment_list_text: str,
         practitioner_display_name: str,
         appointment_type_name: str,
@@ -1177,7 +1173,6 @@ class NotificationService:
             clinic: Clinic object
             patient_name: Name of the patient
             appointment_count: Number of appointments created
-            date_range_text: Formatted date range string
             appointment_list_text: Formatted list of appointments
             practitioner_display_name: Practitioner name with title
             appointment_type_name: Name of the appointment type
@@ -1195,7 +1190,6 @@ class NotificationService:
             message += f"病患：{patient_name}\n"
             message += f"數量：{appointment_count} 個\n"
             message += f"類型：{appointment_type_name}\n\n"
-            message += f"{date_range_text}\n"
             message += f"時段列表：\n{appointment_list_text}"
             
             # Use same logic for recipients as unified notification

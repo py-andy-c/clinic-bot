@@ -21,7 +21,6 @@ depends_on: Union[str, Sequence[str], None] = None
 # Default message (must match constant in core/message_template_constants.py)
 DEFAULT_RECURRENT_CLINIC_CONFIRMATION_MESSAGE = """{病患姓名}，已為您建立 {預約數量} 個預約：
 
-{預約日期範圍}
 {預約時段列表}
 
 【{服務項目}】{治療師姓名}

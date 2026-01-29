@@ -217,23 +217,79 @@ async def preview_appointment_message(
             appointment_type_name = request.appointment_type_name or "服務項目"
         
         # Build preview context using actual data
-        if appointment_type:
-            # Use existing appointment type
-            context = MessageTemplateService.build_preview_context(
-                appointment_type=appointment_type,
-                current_user=current_user,
+        if request.message_type == "recurrent_clinic_confirmation":
+            # For recurrent messages, use the same context building as actual notifications
+            # Create sample data that matches the real notification structure
+            from models import Patient
+            from unittest.mock import MagicMock
+            
+            # Create mock patient with sample data
+            mock_patient = MagicMock(spec=Patient)
+            mock_patient.full_name = "王小明"
+            
+            # Sample appointment count and list
+            sample_count = 3
+            sample_list = "\n".join([
+                "1. 01/30 (五) 14:30",
+                "2. 01/31 (六) 14:30", 
+                "3. 02/01 (日) 14:30"
+            ])
+            
+            # Get practitioner display name (same logic as build_preview_context)
+            from models.user_clinic_association import UserClinicAssociation
+            from utils.practitioner_helpers import get_practitioner_display_name_with_title
+            
+            practitioner_name = "不指定"
+            if current_user and hasattr(current_user, 'user_id') and current_user.user_id:
+                association = db.query(UserClinicAssociation).filter(
+                    UserClinicAssociation.user_id == current_user.user_id,
+                    UserClinicAssociation.clinic_id == clinic.id,
+                    UserClinicAssociation.is_active == True
+                ).first()
+                if association:
+                    practitioner_name = get_practitioner_display_name_with_title(
+                        db, current_user.user_id, clinic.id
+                    )
+            
+            # If no practitioner from current user, try first available practitioner
+            if practitioner_name == "不指定":
+                first_association = db.query(UserClinicAssociation).filter(
+                    UserClinicAssociation.clinic_id == clinic.id,
+                    UserClinicAssociation.is_active == True
+                ).first()
+                if first_association and first_association.user_id:
+                    practitioner_name = get_practitioner_display_name_with_title(
+                        db, first_association.user_id, clinic.id
+                    )
+            
+            # Use the same context building method as actual notifications
+            context = MessageTemplateService.build_recurrent_confirmation_context(
+                patient=mock_patient,
+                appointment_type_name=appointment_type_name,
+                practitioner_display_name=practitioner_name,
                 clinic=clinic,
-                db=db
+                appointment_count=sample_count,
+                appointment_list_text=sample_list
             )
         else:
-            # For new items, build context with provided name
-            context = MessageTemplateService.build_preview_context(
-                appointment_type=None,
-                current_user=current_user,
-                clinic=clinic,
-                db=db,
-                sample_appointment_type_name=appointment_type_name
-            )
+            # For other message types, use existing preview context
+            if appointment_type:
+                # Use existing appointment type
+                context = MessageTemplateService.build_preview_context(
+                    appointment_type=appointment_type,
+                    current_user=current_user,
+                    clinic=clinic,
+                    db=db
+                )
+            else:
+                # For new items, build context with provided name
+                context = MessageTemplateService.build_preview_context(
+                    appointment_type=None,
+                    current_user=current_user,
+                    clinic=clinic,
+                    db=db,
+                    sample_appointment_type_name=appointment_type_name
+                )
         
         # Render message
         preview_message = MessageTemplateService.render_message(template, context)
