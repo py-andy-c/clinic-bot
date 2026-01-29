@@ -19,6 +19,31 @@ const TOOL_CONFIG = {
 
 const LOGICAL_WIDTH = 1000;
 
+const migrateWorkspaceData = (data: WorkspaceData): WorkspaceData => {
+  if (!data || data.version >= 2) return data;
+
+  const migratedLayers = (data.layers || []).map(layer => {
+    if (layer.type === 'drawing') {
+      return {
+        ...layer,
+        points: layer.points.map(p => {
+          if (p.length === 2) {
+            return [p[0], p[1], 0.5] as [number, number, number?];
+          }
+          return p as [number, number, number?];
+        })
+      };
+    }
+    return layer;
+  });
+
+  return {
+    ...data,
+    version: 2,
+    layers: migratedLayers
+  };
+};
+
 export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
   recordId,
   initialData,
@@ -26,13 +51,15 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
   onUpdate,
   isSaving = false,
 }) => {
+  const migratedInitialData = useRef(migrateWorkspaceData(initialData));
+
   const backgroundCanvasRef = useRef<HTMLCanvasElement>(null);
   const drawingCanvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [currentTool, setCurrentTool] = useState<DrawingTool>('pen');
   const [isDrawing, setIsDrawing] = useState(false);
-  const [layers, setLayers] = useState<(DrawingPath | MediaLayer)[]>(initialData.layers || []);
+  const [layers, setLayers] = useState<(DrawingPath | MediaLayer)[]>(migratedInitialData.current.layers || []);
   const [redoStack, setRedoStack] = useState<(DrawingPath | MediaLayer)[][]>([]);
   const [canvasWidth, setCanvasWidth] = useState(800);
   const [currentPath, setCurrentPath] = useState<DrawingPath | null>(null);
@@ -46,19 +73,19 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
   const [isRotating, setIsRotating] = useState(false);
 
   const scale = canvasWidth / LOGICAL_WIDTH;
-  const canvasHeight = (initialData.canvas_height || 1000) * scale;
+  const canvasHeight = (migratedInitialData.current.canvas_height || 1000) * scale;
 
   // Pre-load images
   useEffect(() => {
     // Background image
-    if (initialData.background_image_url && !images[initialData.background_image_url]) {
+    if (migratedInitialData.current.background_image_url && !images[migratedInitialData.current.background_image_url]) {
       const img = new Image();
-      img.src = initialData.background_image_url;
+      img.src = migratedInitialData.current.background_image_url;
       img.onload = () => {
-        setImages(prev => ({ ...prev, [initialData.background_image_url!]: img }));
+        setImages(prev => ({ ...prev, [migratedInitialData.current.background_image_url!]: img }));
       };
       img.onerror = () => {
-        logger.error(`Failed to load background image: ${initialData.background_image_url}`);
+        logger.error(`Failed to load background image: ${migratedInitialData.current.background_image_url}`);
       };
     }
 
@@ -75,7 +102,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
         };
       }
     });
-  }, [layers, initialData.background_image_url]); // Removed images from dependency array to avoid infinite loops
+  }, [layers, migratedInitialData.current.background_image_url]); // Removed images from dependency array to avoid infinite loops
 
   // Handle window resize for responsive canvas
   useEffect(() => {
@@ -83,7 +110,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
       if (containerRef.current) {
         // Use the container width but capped at 1000px or initialData.canvas_width if provided
         const containerWidth = containerRef.current.clientWidth;
-        const targetWidth = Math.min(containerWidth - 32, initialData.canvas_width || 1000);
+        const targetWidth = Math.min(containerWidth - 32, migratedInitialData.current.canvas_width || 1000);
         setCanvasWidth(Math.max(400, targetWidth));
       }
     };
@@ -91,29 +118,29 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
     updateWidth();
     window.addEventListener('resize', updateWidth);
     return () => window.removeEventListener('resize', updateWidth);
-  }, [initialData.canvas_width]);
+  }, [migratedInitialData.current.canvas_width]);
 
   // Sync layers when initialData changes (but only if we are not currently drawing)
   useEffect(() => {
     if (!isDrawing) {
-      setLayers(initialData.layers || []);
+      const migrated = migrateWorkspaceData(initialData);
+      setLayers(migrated.layers || []);
       setServerVersion(initialVersion);
+      migratedInitialData.current = migrated;
     }
-  }, [initialData.layers, initialVersion, isDrawing]);
+  }, [initialData, initialVersion, isDrawing]);
 
   const drawLayer = useCallback((ctx: CanvasRenderingContext2D, layer: DrawingPath | MediaLayer) => {
     ctx.save();
     // Use logical coordinates for all drawing operations
     if (layer.type === 'drawing') {
       const firstPoint = layer.points[0];
-      if (layer.points.length < 2 || !firstPoint) {
+      if (layer.points.length < 1 || !firstPoint) {
         ctx.restore();
         return;
       }
       
-      ctx.beginPath();
       ctx.strokeStyle = layer.color;
-      ctx.lineWidth = layer.width;
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
       
@@ -123,14 +150,33 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
         ctx.globalCompositeOperation = 'source-over';
       }
 
-      ctx.moveTo(firstPoint[0], firstPoint[1]);
-      for (let i = 1; i < layer.points.length; i++) {
-        const point = layer.points[i];
-        if (point) {
-          ctx.lineTo(point[0], point[1]);
-        }
+      // If only one point, draw a dot
+      if (layer.points.length === 1) {
+        const [x, y, pressure = 0.5] = firstPoint;
+        ctx.beginPath();
+        ctx.fillStyle = layer.color;
+        ctx.arc(x, y, (layer.width * pressure) / 2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+        return;
       }
-      ctx.stroke();
+
+      // Draw path with variable width based on pressure
+      for (let i = 1; i < layer.points.length; i++) {
+        const prevPoint = layer.points[i - 1]!;
+        const currPoint = layer.points[i]!;
+        const [x1, y1, p1 = 0.5] = prevPoint;
+        const [x2, y2, p2 = 0.5] = currPoint;
+
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        
+        // Dynamic line width based on pressure
+        // We use the average pressure of the two points for the segment
+        ctx.lineWidth = layer.width * ((p1 + p2) / 2);
+        ctx.stroke();
+      }
     } else if (layer.type === 'media') {
       const img = images[layer.url];
       if (img) {
@@ -229,26 +275,23 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
     renderCanvas();
   }, [renderCanvas]);
 
-  const handleMouseDown = (e: React.MouseEvent | React.TouchEvent) => {
+  const handlePointerDown = (e: React.PointerEvent) => {
     const canvas = drawingCanvasRef.current;
     if (!canvas) return;
 
-    const rect = canvas.getBoundingClientRect();
-    let x, y;
-    
-    if ('touches' in e) {
-      const touch = e.touches[0];
-      if (!touch) return;
-      x = touch.clientX - rect.left;
-      y = touch.clientY - rect.top;
-    } else {
-      x = e.clientX - rect.left;
-      y = e.clientY - rect.top;
+    // Prevent scrolling when drawing on touch devices
+    if (currentTool !== 'select') {
+      (e.target as HTMLElement).setPointerCapture(e.pointerId);
     }
+
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
 
     // Convert to logical coordinates
     const logicalX = x / scale;
     const logicalY = y / scale;
+    const pressure = e.pressure || 0.5;
 
     if (currentTool === 'select') {
       // If a layer is already selected, check for resize handle first
@@ -305,30 +348,22 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
       tool: currentTool,
       color: TOOL_CONFIG[currentTool].color,
       width: TOOL_CONFIG[currentTool].width,
-      points: [[logicalX, logicalY]],
+      points: [[logicalX, logicalY, pressure]],
     });
   };
 
-  const handleMouseMove = (e: React.MouseEvent | React.TouchEvent) => {
+  const handlePointerMove = (e: React.PointerEvent) => {
     const canvas = drawingCanvasRef.current;
     if (!canvas) return;
 
     const rect = canvas.getBoundingClientRect();
-    let x, y;
-
-    if ('touches' in e) {
-      const touch = e.touches[0];
-      if (!touch) return;
-      x = touch.clientX - rect.left;
-      y = touch.clientY - rect.top;
-    } else {
-      x = e.clientX - rect.left;
-      y = e.clientY - rect.top;
-    }
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
 
     // Convert to logical coordinates
     const logicalX = x / scale;
     const logicalY = y / scale;
+    const pressure = e.pressure || 0.5;
 
     if (currentTool === 'select' && selectedLayerId) {
        if (isResizing) {
@@ -383,11 +418,11 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
 
     setCurrentPath({
       ...currentPath,
-      points: [...currentPath.points, [logicalX, logicalY]],
+      points: [...currentPath.points, [logicalX, logicalY, pressure]],
     });
   };
 
-  const handleMouseUp = () => {
+  const handlePointerUp = (e: React.PointerEvent) => {
     if (currentTool === 'select') {
       if (dragOffset || isResizing || isRotating) {
         setDragOffset(null);
@@ -401,6 +436,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
     if (!isDrawing || !currentPath) return;
 
     setIsDrawing(false);
+    (e.target as HTMLElement).releasePointerCapture(e.pointerId);
     
     // Simplify path before saving to reduce data size
     const simplifiedPoints = simplifyPath(currentPath.points, 0.5);
@@ -677,13 +713,11 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
             ref={drawingCanvasRef}
             width={canvasWidth}
             height={canvasHeight}
-            onMouseDown={handleMouseDown}
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
-            onMouseLeave={handleMouseUp}
-            onTouchStart={handleMouseDown}
-            onTouchMove={handleMouseMove}
-            onTouchEnd={handleMouseUp}
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            onPointerLeave={handlePointerUp}
+            onPointerCancel={handlePointerUp}
             className="absolute top-0 left-0 cursor-crosshair touch-none"
           />
         </div>

@@ -142,6 +142,69 @@ class PDFService:
             logger.exception(f"Error generating PDF receipt: {e}")
             raise
     
+    def generate_medical_record_pdf(
+        self,
+        record_data: Dict[str, Any]
+    ) -> bytes:
+        """
+        Generate PDF medical record from record_data.
+        
+        Args:
+            record_data: Dictionary containing:
+                - id: Record ID
+                - clinic_name: Clinic display name
+                - patient_name: Patient full name
+                - template_name: Name of the template used
+                - created_at: ISO datetime string
+                - updated_at: ISO datetime string
+                - header_structure: List of field definitions
+                - header_values: Dictionary of field values
+                - workspace_data: WorkspaceData dictionary (layers, etc.)
+            
+        Returns:
+            PDF file content as bytes
+        """
+        try:
+            # Load template
+            template = self.env.get_template('medical_records/record_pdf.html')
+            
+            # Calculate scaling: A4 is ~210mm. Minus 10mm margins on both sides = 190mm.
+            # 190mm is roughly 718px at 96dpi.
+            # However, WeasyPrint handles @page margins. We just need to fit 1000px logical width.
+            # Let's use a scale factor that ensures it fits nicely on the page.
+            # We'll pass it to the template for CSS transform.
+            # Since we use width: 100% on medical-record, we can rely on CSS for some scaling,
+            # but transform: scale() is more reliable for the 1000px workspace.
+            
+            # Render template
+            html_content = template.render(
+                record_data=record_data,
+                scale_factor=0.72  # Approx 720px / 1000px to fit A4 width
+            )
+            
+            # Metadata
+            metadata = {
+                'title': f"病歷記錄 - {record_data.get('patient_name', '')} - {record_data.get('created_at', '')[:10]}",
+                'author': record_data.get('clinic_name', ''),
+                'creator': 'Clinic Bot',
+                'producer': 'WeasyPrint',
+            }
+            
+            # Generate PDF
+            pdf_bytes = HTML(
+                string=html_content,
+                base_url=str(self.base_dir)
+            ).write_pdf(metadata=metadata)  # type: ignore
+            
+            if pdf_bytes is None:
+                raise Exception("PDF generation returned None")
+                
+            return pdf_bytes
+            
+        except Exception as e:
+            logger.exception(f"Error generating PDF medical record: {e}")
+            raise
+
     def generate_receipt_html(
         self,
         receipt_data: Dict[str, Any],

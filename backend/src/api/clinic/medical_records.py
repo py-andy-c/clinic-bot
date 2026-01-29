@@ -1,12 +1,13 @@
 from typing import List, Optional, Dict, Any, Literal
 from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Response
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.orm import Session
 
 from core.database import get_db
 from auth.dependencies import require_authenticated, require_practitioner_or_admin, UserContext, ensure_clinic_access
 from services.medical_record_service import MedicalRecordService
+from services.pdf_service import PDFService
 from utils.file_storage import save_upload_file, delete_file
 
 router = APIRouter()
@@ -244,3 +245,45 @@ async def upload_media(
         "url": file_url,
         "filename": file.filename
     }
+
+@router.get("/medical-records/{record_id}/pdf", summary="Export medical record to PDF")
+async def export_record_pdf(
+    record_id: int,
+    current_user: UserContext = Depends(require_authenticated),
+    db: Session = Depends(get_db)
+):
+    """Generate and download a PDF version of the medical record."""
+    clinic_id = ensure_clinic_access(current_user)
+    record = MedicalRecordService.get_record_by_id(db, record_id, clinic_id)
+    
+    if not record:
+        raise HTTPException(status_code=404, detail="找不到病歷記錄")
+        
+    # Prepare data for PDF service
+    pdf_data = {
+        "id": record.id,
+        "clinic_name": record.clinic.display_name if record.clinic else "Clinic Bot",
+        "patient_name": record.patient.full_name if record.patient else "Unknown Patient",
+        "template_name": record.template.name if record.template else "General Record",
+        "created_at": record.created_at.isoformat(),
+        "updated_at": record.updated_at.isoformat(),
+        "header_structure": record.header_structure,
+        "header_values": record.header_values,
+        "workspace_data": record.workspace_data
+    }
+    
+    try:
+        pdf_service = PDFService()
+        pdf_content = pdf_service.generate_medical_record_pdf(pdf_data)
+        
+        filename = f"MedicalRecord_{record.patient.full_name}_{record.created_at.strftime('%Y%m%d')}.pdf"
+        
+        return Response(
+            content=pdf_content,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"'
+            }
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"PDF 產生失敗: {str(e)}")

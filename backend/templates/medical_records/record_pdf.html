@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ record_data.clinic_name }} - 病歷記錄</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 10mm;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'NotoSansTC', 'Microsoft JhengHei', Arial, sans-serif;
+            background-color: white;
+            padding: 5px;
+            font-size: 10pt;
+            line-height: 1.4;
+            color: #333;
+        }
+        
+        @font-face {
+            font-family: 'NotoSansTC';
+            src: url('fonts/NotoSansTC-Regular.otf') format('truetype');
+        }
+        
+        .medical-record {
+            background-color: white;
+            max-width: 100%;
+            padding: 20px;
+            margin: 0 auto;
+            border: 1px solid #eee;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #333;
+            padding-bottom: 10px;
+        }
+        
+        .clinic-name {
+            font-size: 18pt;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .record-title {
+            font-size: 14pt;
+            color: #666;
+            letter-spacing: 2px;
+        }
+        
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 20px;
+            padding: 10px;
+            background-color: #f9f9f9;
+            border-radius: 4px;
+        }
+        
+        .info-item {
+            display: flex;
+            margin-bottom: 5px;
+        }
+        
+        .info-label {
+            font-weight: bold;
+            width: 80px;
+            color: #555;
+        }
+        
+        .section-title {
+            font-size: 12pt;
+            font-weight: bold;
+            background-color: #eee;
+            padding: 5px 10px;
+            margin: 20px 0 10px 0;
+            border-left: 4px solid #333;
+        }
+        
+        .header-fields {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+        
+        .field-item {
+            margin-bottom: 10px;
+        }
+        
+        .field-label {
+            font-weight: bold;
+            display: block;
+            margin-bottom: 3px;
+            color: #555;
+        }
+        
+        .field-value {
+            padding: 5px;
+            border-bottom: 1px solid #ccc;
+            min-height: 25px;
+        }
+        
+        .workspace-container {
+            position: relative;
+            width: 1000px; /* Logical width */
+            margin: 0 auto;
+            border: 1px solid #ddd;
+            background-color: #fff;
+            transform-origin: top left;
+        }
+        
+        .drawing-svg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+        
+        .media-image {
+            position: absolute;
+            display: block;
+        }
+
+        /* Scale container for A4 */
+        .workspace-scaler {
+            width: 100%;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="medical-record">
+        <div class="header">
+            <div class="clinic-name">{{ record_data.clinic_name }}</div>
+            <div class="record-title">病歷記錄 - {{ record_data.template_name }}</div>
+        </div>
+        
+        <div class="info-grid">
+            <div class="info-item">
+                <span class="info-label">病患姓名</span>
+                <span class="info-value">{{ record_data.patient_name }}</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">記錄日期</span>
+                <span class="info-value">{{ record_data.created_at|format_datetime_full }}</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">病歷編號</span>
+                <span class="info-value">#{{ record_data.id }}</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">最後更新</span>
+                <span class="info-value">{{ record_data.updated_at|format_datetime_full }}</span>
+            </div>
+        </div>
+
+        {% if record_data.header_values %}
+        <div class="section-title">基本評估</div>
+        <div class="header-fields">
+            {% for field in record_data.header_structure %}
+            <div class="field-item">
+                <span class="field-label">{{ field.label }}</span>
+                <div class="field-value">
+                    {{ record_data.header_values[field.id]|default('') }}
+                    {% if field.unit %}{{ field.unit }}{% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <div class="section-title">臨床繪圖與備註</div>
+        <div class="workspace-scaler">
+            <div class="workspace-container" style="height: {{ record_data.workspace_data.canvas_height }}px;">
+                {% if record_data.workspace_data.background_image_url %}
+                <img src="{{ record_data.workspace_data.background_image_url }}" 
+                     style="position: absolute; top: 0; left: 0; width: 1000px; height: auto; z-index: 0;">
+                {% endif %}
+
+                {% for layer in record_data.workspace_data.layers %}
+                    {% if layer.type == 'media' %}
+                    <img src="{{ layer.url }}" class="media-image" 
+                         style="left: {{ layer.x }}px; top: {{ layer.y }}px; width: {{ layer.width }}px; height: {{ layer.height }}px; transform: rotate({{ layer.rotation }}deg); z-index: 1;">
+                    {% endif %}
+                {% endfor %}
+
+                <svg class="drawing-svg" viewBox="0 0 1000 {{ record_data.workspace_data.canvas_height }}" xmlns="http://www.w3.org/2000/svg">
+                    <g style="isolation: isolate;">
+                    {% for layer in record_data.workspace_data.layers %}
+                        {% if layer.type == 'drawing' %}
+                            <g {% if layer.tool == 'eraser' %}style="mix-blend-mode: destination-out;"{% endif %}>
+                            {% if layer.points|length == 1 %}
+                                <circle cx="{{ layer.points[0][0] }}" cy="{{ layer.points[0][1] }}" 
+                                        r="{{ (layer.width * (layer.points[0][2]|default(0.5))) / 2 }}" 
+                                        fill="{% if layer.tool == 'eraser' %}black{% else %}{{ layer.color }}{% endif %}" />
+                            {% else %}
+                                {# Group points by segments with similar pressure to use <path> for better efficiency #}
+                                {% for i in range(1, layer.points|length) %}
+                                    {% set p1 = layer.points[i-1] %}
+                                    {% set p2 = layer.points[i] %}
+                                    {% set pressure = (p1[2]|default(0.5) + p2[2]|default(0.5)) / 2 %}
+                                    
+                                    <path d="M {{ p1[0] }} {{ p1[1] }} L {{ p2[0] }} {{ p2[1] }}"
+                                          stroke="{% if layer.tool == 'eraser' %}black{% else %}{{ layer.color }}{% endif %}" 
+                                          stroke-width="{{ layer.width * pressure }}" 
+                                          stroke-linecap="round"
+                                          fill="none" />
+                                {% endfor %}
+                            {% endif %}
+                            </g>
+                        {% endif %}
+                    {% endfor %}
+                    </g>
+                </svg>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

@@ -761,6 +761,13 @@ export class ApiService {
     return response.data;
   }
 
+  async downloadMedicalRecordPDF(recordId: number): Promise<Blob> {
+    const response = await this.client.get(`/medical-records/${recordId}/pdf`, {
+      responseType: 'blob',
+    });
+    return response.data;
+  }
+
   async getReceiptHtml(receiptId: number): Promise<string> {
     const response = await this.client.get(`/receipts/${receiptId}/html`, {
       responseType: 'text',
