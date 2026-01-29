@@ -19,13 +19,11 @@ export const DEFAULT_REMINDER_MESSAGE = `提醒您，您預約的【{服務項�
 
 請準時前往診所，期待為您服務！`;
 
-export const DEFAULT_RECURRENT_CLINIC_CONFIRMATION_MESSAGE = `{病患姓名}，您的預約已建立：
+export const DEFAULT_RECURRENT_CLINIC_CONFIRMATION_MESSAGE = `{病患姓名}，已為您建立 {預約數量} 個預約：
+
+{預約時段列表}
 
 【{服務項目}】{治療師姓名}
-預約數量：{預約數量} 次
-
-詳細清單：
-{預約時段列表}
 
 期待為您服務！`;
 
