@@ -3,13 +3,13 @@ import { apiService } from '../../services/api';
 import { useAuth } from '../useAuth';
 import { MedicalRecordTemplate } from '../../types';
 
-export const useMedicalRecordTemplates = (enabled: boolean = true) => {
+export const useMedicalRecordTemplates = (enabled: boolean = true, includeInactive: boolean = false) => {
     const { user, isAuthenticated, isLoading: authLoading } = useAuth();
     const activeClinicId = user?.active_clinic_id;
 
     return useQuery({
-        queryKey: ['medical-record-templates', activeClinicId],
-        queryFn: () => apiService.listMedicalRecordTemplates(),
+        queryKey: ['medical-record-templates', activeClinicId, includeInactive],
+        queryFn: () => apiService.listMedicalRecordTemplates(includeInactive),
         enabled: enabled && !authLoading && isAuthenticated && !!activeClinicId,
     });
 };

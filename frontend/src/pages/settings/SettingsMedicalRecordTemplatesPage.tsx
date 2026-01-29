@@ -25,7 +25,7 @@ const templateSchema = z.object({
     header_fields: z.array(fieldSchema),
     workspace_config: z.object({
         backgroundImageUrl: z.string().optional(),
-        defaultLayers: z.array(z.any()).optional(),
+        base_layers: z.array(z.any()).optional(),
     }),
 });
 
@@ -43,23 +43,26 @@ interface TemplateFormValues {
     }[];
     workspace_config: {
         backgroundImageUrl?: string | undefined;
-        defaultLayers?: any[] | undefined;
+        base_layers?: any[] | undefined;
     };
 }
 
 // --- Components ---
 
 const SettingsMedicalRecordTemplatesPage: React.FC = () => {
-    const { data: templates, isLoading } = useMedicalRecordTemplates();
+    const [showInactive, setShowInactive] = useState(false);
+    const { data: templates, isLoading } = useMedicalRecordTemplates(true, showInactive);
     const { createMutation, updateMutation, deleteMutation } = useMedicalRecordTemplateMutations();
 
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingTemplate, setEditingTemplate] = useState<MedicalRecordTemplate | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
 
-    const filteredTemplates = templates?.filter(t =>
-        t.name.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    const filteredTemplates = templates?.filter(t => {
+        const matchesSearch = t.name.toLowerCase().includes(searchQuery.toLowerCase());
+        const matchesStatus = showInactive || t.is_active;
+        return matchesSearch && matchesStatus;
+    });
 
     const handleCreate = () => {
         setEditingTemplate(null);
@@ -93,13 +96,24 @@ const SettingsMedicalRecordTemplatesPage: React.FC = () => {
                 </Button>
             </div>
 
-            {/* Search */}
-            <div className="max-w-md">
-                <SearchInput
-                    value={searchQuery}
-                    onChange={setSearchQuery}
-                    placeholder="搜尋範本名稱..."
-                />
+            {/* Search and Filters */}
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                <div className="max-w-md flex-1">
+                    <SearchInput
+                        value={searchQuery}
+                        onChange={setSearchQuery}
+                        placeholder="搜尋範本名稱..."
+                    />
+                </div>
+                <label className="flex items-center gap-2 cursor-pointer p-2 rounded-lg hover:bg-white/50 transition-colors">
+                    <input
+                        type="checkbox"
+                        checked={showInactive}
+                        onChange={(e) => setShowInactive(e.target.checked)}
+                        className="w-4 h-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                    />
+                    <span className="text-sm font-medium text-gray-600">顯示已停用範本</span>
+                </label>
             </div>
 
             {/* Template List */}
@@ -199,7 +213,7 @@ const TemplateFormModal: React.FC<TemplateFormModalProps> = ({ onClose, initialD
             })),
             workspace_config: {
                 backgroundImageUrl: initialData.workspace_config.backgroundImageUrl || '',
-                defaultLayers: initialData.workspace_config.defaultLayers || [],
+                base_layers: initialData.workspace_config.base_layers || [],
             },
         } : {
             name: '',
@@ -207,7 +221,7 @@ const TemplateFormModal: React.FC<TemplateFormModalProps> = ({ onClose, initialD
             header_fields: [],
             workspace_config: {
                 backgroundImageUrl: '',
-                defaultLayers: [],
+                base_layers: [],
             },
         },
     });
@@ -380,13 +394,37 @@ const TemplateFormModal: React.FC<TemplateFormModalProps> = ({ onClose, initialD
                                     {/* Options for types that need them */}
                                     {['select', 'checkbox', 'radio'].includes(watch(`header_fields.${index}.type`)) && (
                                         <div className="mt-4 pt-4 border-t border-gray-50 space-y-2">
-                                            <label className="text-[10px] uppercase tracking-wider font-bold text-gray-400 ml-1">選項 (逗號分隔)</label>
-                                            <input
-                                                placeholder="選項 A, 選項 B, 選項 C"
-                                                className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:ring-2 focus:ring-primary-500 outline-none"
+                                            <div className="flex items-center justify-between">
+                                                <label className="text-[10px] uppercase tracking-wider font-bold text-gray-400 ml-1">選項 (每行一個)</label>
+                                                <span className="text-[10px] text-gray-400">支援包含逗號的文字</span>
+                                            </div>
+                                            <textarea
+                                                placeholder={`選項 A\n選項 B\n選項 C`}
+                                                rows={3}
+                                                className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:ring-2 focus:ring-primary-500 outline-none resize-none"
                                                 {...register(`header_fields.${index}.options`, {
-                                                    setValueAs: (v) => typeof v === 'string' ? v.split(',').map((s: string) => s.trim()).filter(Boolean) : v
+                                                    setValueAs: (v) => {
+                                                        if (Array.isArray(v)) return v;
+                                                        if (typeof v !== 'string') return [];
+                                                        // Handle both comma-separated (legacy) and newline-separated
+                                                        const delimiter = v.includes('\n') ? '\n' : ',';
+                                                        return v.split(delimiter).map((s: string) => s.trim()).filter(Boolean);
+                                                    },
+                                                    // When displaying, we want to show it as newline-separated if it's already an array
+                                                    // but react-hook-form value for textarea should be a string.
                                                 })}
+                                                // Map the array value back to string for display in textarea
+                                                value={Array.isArray(watch(`header_fields.${index}.options`))
+                                                    ? (watch(`header_fields.${index}.options`) as string[]).join('\n')
+                                                    : watch(`header_fields.${index}.options`)}
+                                                onChange={(e) => {
+                                                    // Manual update to bypass default register behavior if needed, 
+                                                    // but let's try the simple way first.
+                                                    control._fields[`header_fields.${index}.options` as any] &&
+                                                        control.register(`header_fields.${index}.options` as any).onChange({
+                                                            target: { name: `header_fields.${index}.options`, value: e.target.value }
+                                                        } as any);
+                                                }}
                                             />
                                         </div>
                                     )}

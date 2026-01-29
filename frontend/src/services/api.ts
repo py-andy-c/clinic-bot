@@ -625,8 +625,10 @@ export class ApiService {
   }
 
   // Medical Record Template APIs
-  async listMedicalRecordTemplates(): Promise<MedicalRecordTemplate[]> {
-    const response = await this.client.get('/clinic/medical-record-templates');
+  async listMedicalRecordTemplates(includeInactive: boolean = false): Promise<MedicalRecordTemplate[]> {
+    const response = await this.client.get('/clinic/medical-record-templates', {
+      params: { include_inactive: includeInactive }
+    });
     return response.data;
   }
 

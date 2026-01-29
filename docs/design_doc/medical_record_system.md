@@ -116,6 +116,7 @@ Settings and pre-filled content for the Clinical Workspace.
 type WorkspaceConfig = {
   // Array of "Base Layers" pre-configured by the admin (anatomy diagrams, etc.)
   base_layers: MediaLayer[];
+  backgroundImageUrl?: string; // Optional static background
   canvas_width?: number; // Fixed or responsive behavior
   allow_practitioner_uploads: boolean; // Default true
 };
@@ -167,9 +168,11 @@ type WorkspaceData = {
 
 #### Templates
 
-* `GET /api/v1/clinics/{clinic_id}/medical-record-templates`: List templates.
-* `POST /api/v1/clinics/{clinic_id}/medical-record-templates`: Create template.
-* `PUT /api/v1/clinics/{clinic_id}/medical-record-templates/{id}`: Update template.
+* `GET /api/v1/clinic/medical-record-templates`: List templates.
+* `POST /api/v1/clinic/medical-record-templates`: Create template.
+* `GET /api/v1/clinic/medical-record-templates/{id}`: Get template.
+* `PUT /api/v1/clinic/medical-record-templates/{id}`: Update template.
+* `DELETE /api/v1/clinic/medical-record-templates/{id}`: Deactivate (soft-delete) template.
 
 #### Records
 

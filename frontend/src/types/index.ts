@@ -709,7 +709,7 @@ export interface MedicalRecordTemplate {
   header_fields: MedicalRecordField[];
   workspace_config: {
     backgroundImageUrl?: string | undefined;
-    defaultLayers?: any[] | undefined;
+    base_layers?: any[] | undefined;
   };
   is_active: boolean;
   created_at: string;
