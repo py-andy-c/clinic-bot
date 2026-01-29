@@ -690,3 +690,28 @@ export interface ResourceTypeBundleResponse {
 }
 
 export * from './api';
+
+// Medical Record types
+export interface MedicalRecordField {
+  id: string;
+  label: string;
+  type: 'text' | 'textarea' | 'number' | 'date' | 'select' | 'checkbox' | 'radio';
+  placeholder?: string | undefined;
+  unit?: string | undefined;
+  options?: string[] | undefined; // For 'select', 'checkbox', and 'radio' types
+  required: boolean;
+}
+
+export interface MedicalRecordTemplate {
+  id: number;
+  clinic_id: number;
+  name: string;
+  header_fields: MedicalRecordField[];
+  workspace_config: {
+    backgroundImageUrl?: string | undefined;
+    defaultLayers?: any[] | undefined;
+  };
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}

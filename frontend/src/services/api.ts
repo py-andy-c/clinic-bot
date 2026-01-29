@@ -26,7 +26,8 @@ import {
   ServiceItemBundleResponse,
   ServiceItemBundleRequest,
   ResourceTypeBundleResponse,
-  ResourceTypeBundleRequest
+  ResourceTypeBundleRequest,
+  MedicalRecordTemplate
 } from '../types';
 import {
   validateClinicSettings,
@@ -621,6 +622,31 @@ export class ApiService {
     const config = signal ? { signal } : {};
     const response = await this.client.put(`/clinic/resource-types/${resourceTypeId}/bundle`, bundle, config);
     return response.data;
+  }
+
+  // Medical Record Template APIs
+  async listMedicalRecordTemplates(): Promise<MedicalRecordTemplate[]> {
+    const response = await this.client.get('/clinic/medical-record-templates');
+    return response.data;
+  }
+
+  async getMedicalRecordTemplate(templateId: number): Promise<MedicalRecordTemplate> {
+    const response = await this.client.get(`/clinic/medical-record-templates/${templateId}`);
+    return response.data;
+  }
+
+  async createMedicalRecordTemplate(data: Partial<MedicalRecordTemplate>): Promise<MedicalRecordTemplate> {
+    const response = await this.client.post('/clinic/medical-record-templates', data);
+    return response.data;
+  }
+
+  async updateMedicalRecordTemplate(templateId: number, data: Partial<MedicalRecordTemplate>): Promise<MedicalRecordTemplate> {
+    const response = await this.client.put(`/clinic/medical-record-templates/${templateId}`, data);
+    return response.data;
+  }
+
+  async deleteMedicalRecordTemplate(templateId: number): Promise<void> {
+    await this.client.delete(`/clinic/medical-record-templates/${templateId}`);
   }
 
   // Receipt/Checkout endpoints (admin-only)

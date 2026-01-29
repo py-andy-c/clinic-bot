@@ -48,6 +48,9 @@ from models.appointment_resource_requirement import AppointmentResourceRequireme
 from models.appointment_resource_allocation import AppointmentResourceAllocation
 from models.follow_up_message import FollowUpMessage
 from models.scheduled_line_message import ScheduledLineMessage
+from models.medical_record_template import MedicalRecordTemplate
+from models.medical_record import MedicalRecord
+from models.medical_record_media import MedicalRecordMedia
 
 
 # Test database URL resolution with enhanced logging and safety guards
@@ -165,6 +168,9 @@ def setup_test_database(db_engine):
     with db_engine.connect() as conn:
         # Drop any leftover tables from previous implementations first
         conn.execute(text("DROP TABLE IF EXISTS practitioner_line_link_tokens CASCADE"))
+        conn.execute(text("DROP TABLE IF EXISTS medical_record_media CASCADE"))
+        conn.execute(text("DROP TABLE IF EXISTS medical_records CASCADE"))
+        conn.execute(text("DROP TABLE IF EXISTS medical_record_templates CASCADE"))
         conn.execute(text("DROP TABLE IF EXISTS alembic_version CASCADE"))
         # Drop migration lock table to prevent conflicts from previous test runs
         conn.execute(text("DROP TABLE IF EXISTS migration_lock CASCADE"))

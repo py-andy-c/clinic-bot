@@ -4,6 +4,7 @@ export { NameWarning } from './NameWarning';
 export { DateInput } from './DateInput';
 export { BaseModal } from './BaseModal';
 export type { BaseModalProps } from './BaseModal';
+export { ModalHeader, ModalBody, ModalFooter } from './ModalParts';
 export { Button } from './Button';
 export type { ButtonProps } from './Button';
 export { SearchInput } from './SearchInput';
