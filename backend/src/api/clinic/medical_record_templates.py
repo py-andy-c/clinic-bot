@@ -1,3 +1,4 @@
+from enum import Enum
 from typing import List, Optional
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -11,11 +12,26 @@ from services import MedicalRecordTemplateService
 
 router = APIRouter()
 
+# --- Enums ---
+
+class FieldType(str, Enum):
+    TEXT = "text"
+    TEXTAREA = "textarea"
+    SELECT = "select"
+    CHECKBOX = "checkbox"
+    RADIO = "radio"
+    NUMBER = "number"
+    DATE = "date"
+
+class MediaLayerOrigin(str, Enum):
+    TEMPLATE = "template"
+    UPLOAD = "upload"
+
 # --- Schemas ---
 
 class HeaderField(BaseModel):
     id: str
-    type: str  # 'text' | 'textarea' | 'select' | 'checkbox' | 'radio' | 'number' | 'date'
+    type: FieldType
     label: str
     placeholder: Optional[str] = None
     required: bool = False
@@ -25,7 +41,7 @@ class HeaderField(BaseModel):
 class MediaLayer(BaseModel):
     id: str  # Unique ID for this media instance
     type: str = "media"
-    origin: str  # 'template' | 'upload'
+    origin: MediaLayerOrigin
     url: str  # S3 URL
     x: float
     y: float
