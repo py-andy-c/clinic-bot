@@ -7,8 +7,6 @@ interface SyncStatusProps {
 }
 
 export const SyncStatus: React.FC<SyncStatusProps> = ({ status }) => {
-  if (status === 'none') return null;
-
   const getStatusConfig = () => {
     switch (status) {
       case 'saving':
@@ -18,7 +16,6 @@ export const SyncStatus: React.FC<SyncStatusProps> = ({ status }) => {
           className: 'text-blue-600',
         };
       case 'saved':
-      default:
         return {
           icon: (
             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -28,15 +25,24 @@ export const SyncStatus: React.FC<SyncStatusProps> = ({ status }) => {
           text: '已儲存',
           className: 'text-green-600',
         };
+      case 'none':
+      default:
+        return {
+          icon: null,
+          text: '',
+          className: 'opacity-0',
+        };
     }
   };
 
   const config = getStatusConfig();
 
   return (
-    <div className={`flex items-center gap-1 text-xs font-medium transition-all duration-300 ${config.className}`}>
-      {config.icon}
-      <span>{config.text}</span>
+    <div className={`flex items-center gap-1.5 text-xs font-medium transition-all duration-300 ${config.className} w-[80px] h-5`}>
+      <div className="w-3 h-3 flex items-center justify-center flex-shrink-0">
+        {config.icon}
+      </div>
+      <span className="whitespace-nowrap">{config.text}</span>
     </div>
   );
 };

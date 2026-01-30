@@ -2,12 +2,14 @@ import React, { useRef, useEffect, useState, useCallback } from 'react';
 import type { WorkspaceData, DrawingPath, MediaLayer, DrawingTool } from '../../types';
 import { logger } from '../../utils/logger';
 
+import { SyncStatus, SyncStatusType } from './SyncStatus';
+
 interface ClinicalWorkspaceProps {
   recordId: number;
   initialData: WorkspaceData;
   initialVersion: number;
   onUpdate: (data: WorkspaceData) => void;
-  isSaving?: boolean;
+  syncStatus?: SyncStatusType;
 }
 
 const TOOL_CONFIG = {
@@ -50,6 +52,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
   initialData,
   initialVersion,
   onUpdate,
+  syncStatus,
 }) => {
   const migratedInitialData = useRef(migrateWorkspaceData(initialData));
 
@@ -760,8 +763,11 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
           </button>
         </div>
         
-        <div className="flex items-center gap-2 text-xs text-gray-400">
-          <span>{rawCanvasHeight}px</span>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 text-xs text-gray-400">
+            <span>{rawCanvasHeight}px</span>
+          </div>
+          <SyncStatus status={syncStatus || 'none'} />
         </div>
       </div>
 

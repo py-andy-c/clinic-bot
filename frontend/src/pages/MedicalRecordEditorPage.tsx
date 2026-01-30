@@ -258,6 +258,7 @@ const MedicalRecordEditorPage: React.FC = () => {
             initialData={record.workspace_data}
             initialVersion={record.version}
             onUpdate={handleWorkspaceUpdate}
+            syncStatus={getSyncStatus()}
           />
         </div>
       </div>
