@@ -709,6 +709,18 @@ export class ApiService {
     return response.data;
   }
 
+  async uploadMedicalRecordMedia(recordId: number, file: File): Promise<{ id: string; url: string; filename: string }> {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await this.client.post(`/clinic/medical-records/${recordId}/media`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  }
+
   async deleteMedicalRecord(recordId: number): Promise<void> {
     await this.client.delete(`/clinic/medical-records/${recordId}`);
   }

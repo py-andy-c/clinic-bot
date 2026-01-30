@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import type { WorkspaceData, DrawingPath, MediaLayer, DrawingTool } from '../../types';
 import { logger } from '../../utils/logger';
-import { authStorage } from '../../utils/storage';
+import { apiService } from '../../services/api';
 import { config } from '../../config/env';
 
 import { SyncStatus, SyncStatusType } from './SyncStatus';
@@ -140,7 +140,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
 
     // Check background image height
     if (migratedInitialData.current.background_image_url) {
-      const bgImg = images[migratedInitialData.current.background_image_url];
+      const bgImg = images['background'];
       if (bgImg) {
         maxBottom = Math.max(maxBottom, (LOGICAL_WIDTH / bgImg.width) * bgImg.height);
       }
@@ -184,11 +184,12 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
   // Pre-load images
   useEffect(() => {
     // Background image
-    if (migratedInitialData.current.background_image_url && !images[migratedInitialData.current.background_image_url]) {
+    if (migratedInitialData.current.background_image_url && !images['background']) {
       const img = new Image();
+      img.crossOrigin = "anonymous";
       img.src = migratedInitialData.current.background_image_url;
       img.onload = () => {
-        setImages(prev => ({ ...prev, [migratedInitialData.current.background_image_url!]: img }));
+        setImages(prev => ({ ...prev, 'background': img }));
       };
       img.onerror = () => {
         logger.error(`Failed to load background image: ${migratedInitialData.current.background_image_url}`);
@@ -197,18 +198,21 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
 
     const mediaLayers = layers.filter(l => l.type === 'media') as MediaLayer[];
     mediaLayers.forEach(layer => {
-      if (!images[layer.url]) {
+      if (!images[layer.id]) {
         const img = new Image();
+        img.crossOrigin = "anonymous";
         img.src = layer.url;
         img.onload = () => {
-          setImages(prev => ({ ...prev, [layer.url]: img }));
+          setImages(prev => ({ ...prev, [layer.id]: img }));
         };
         img.onerror = () => {
           logger.error(`Failed to load image: ${layer.url}`);
         };
       }
     });
-  }, [layers, migratedInitialData.current.background_image_url]); // Removed images from dependency array to avoid infinite loops
+  }, [layers, migratedInitialData.current.background_image_url]); // We exclude 'images' from dependencies because we use persistent layer IDs as keys. 
+                                                                // Including 'images' would cause an infinite loop as setImages triggers a re-render.
+                                                                // By checking !images[layer.id], we ensure each image is only loaded once.
 
   // Handle window resize for responsive canvas
   useEffect(() => {
@@ -351,7 +355,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
         ctx.stroke();
       }
     } else if (layer.type === 'media') {
-      const img = images[layer.url];
+      const img = images[layer.id];
       if (img) {
         ctx.globalCompositeOperation = 'source-over';
         ctx.translate(layer.x + layer.width / 2, layer.y + layer.height / 2);
@@ -383,7 +387,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
 
     // 1. Draw to Background Canvas (Images + Template Background)
     if (initialData.background_image_url) {
-      const bgImg = images[initialData.background_image_url];
+      const bgImg = images['background'];
       if (bgImg) {
         // Draw background image scaled to fill logical width
         bgCtx.drawImage(bgImg, 0, 0, LOGICAL_WIDTH, (LOGICAL_WIDTH / bgImg.width) * bgImg.height);
@@ -697,26 +701,16 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
       return;
     }
 
+    const MAX_FILE_SIZE = config.maxUploadSizeMb * 1024 * 1024;
+    if (file.size > MAX_FILE_SIZE) {
+      alert(`檔案太大了 (上限 ${config.maxUploadSizeMb}MB)`);
+      return;
+    }
+
     setIsUploading(true);
-    const formData = new FormData();
-    formData.append('file', file);
 
     try {
-      const token = authStorage.getAccessToken();
-      const response = await fetch(`${config.apiBaseUrl}/clinic/medical-records/${recordId}/media`, {
-        method: 'POST',
-        headers: {
-          'Authorization': token ? `Bearer ${token}` : '',
-          'ngrok-skip-browser-warning': 'true',
-        },
-        body: formData,
-      });
-
-      if (!response.ok) {
-        throw new Error('上傳失敗');
-      }
-
-      const data = await response.json();
+      const data = await apiService.uploadMedicalRecordMedia(recordId, file);
 
       // Add new media layer at the center of the current viewport
       const scrollTop = containerRef.current?.scrollTop || 0;

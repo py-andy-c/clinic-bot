@@ -87,3 +87,9 @@ S3_SECRET_KEY = os.getenv("S3_SECRET_KEY", "")
 S3_ENDPOINT_URL = os.getenv("S3_ENDPOINT_URL", None)  # Useful for MinIO or localstack
 S3_CUSTOM_DOMAIN = os.getenv("S3_CUSTOM_DOMAIN", None)  # CloudFront or custom domain
 
+# S3 URL Extraction Whitelist
+S3_ALLOWED_DOMAINS = [d.strip() for d in os.getenv("S3_ALLOWED_DOMAINS", "localhost, 127.0.0.1, clinic-bot, amazonaws.com").split(",") if d.strip()]
+
+# Upload Limits
+MAX_UPLOAD_SIZE_MB = int(os.getenv("MAX_UPLOAD_SIZE_MB", "10"))
+

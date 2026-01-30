@@ -21,4 +21,5 @@ function getEnv<K extends keyof ImportMetaEnv>(
 export const config = {
   apiBaseUrl: getEnv('VITE_API_BASE_URL', '/api'),
   liffId: getEnv('VITE_LIFF_ID'),
+  maxUploadSizeMb: 10, // Default 10MB
 } as const;

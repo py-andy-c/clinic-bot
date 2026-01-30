@@ -12,7 +12,8 @@ from core.config import (
     S3_ACCESS_KEY, 
     S3_SECRET_KEY, 
     S3_ENDPOINT_URL,
-    S3_CUSTOM_DOMAIN
+    S3_CUSTOM_DOMAIN,
+    MAX_UPLOAD_SIZE_MB
 )
 
 # Local storage configuration
@@ -75,11 +76,42 @@ async def delete_file(file_path: str):
             aws_access_key_id=S3_ACCESS_KEY,
             aws_secret_access_key=S3_SECRET_KEY,
             endpoint_url=S3_ENDPOINT_URL
-        ) as s3_client:  # type: ignore
+        ) as s3_client: # type: ignore
             s3 = cast(S3Client, s3_client)
             await s3.delete_object(Bucket=S3_BUCKET, Key=file_path)
     except Exception as e:
         print(f"Failed to delete S3 object {file_path}: {e}")
+
+async def generate_presigned_url(s3_key: str, expiration: int = 3600) -> str:
+    """
+    Generates a pre-signed URL for an S3 object.
+    If S3 is not configured, returns the local static URL.
+    """
+    if not S3_BUCKET or not S3_ACCESS_KEY or not S3_SECRET_KEY:
+        return f"{API_BASE_URL}/static/{UPLOAD_DIR}/{s3_key}"
+
+    try:
+        session = aioboto3.Session()
+        async with session.client(  # type: ignore
+            's3',
+            region_name=S3_REGION,
+            aws_access_key_id=S3_ACCESS_KEY,
+            aws_secret_access_key=S3_SECRET_KEY,
+            endpoint_url=S3_ENDPOINT_URL
+        ) as s3_client: # type: ignore
+            s3 = cast(S3Client, s3_client)
+            url = await s3.generate_presigned_url(
+                'get_object',
+                Params={'Bucket': S3_BUCKET, 'Key': s3_key},
+                ExpiresIn=expiration
+            )
+            return url
+    except Exception as e:
+        print(f"Failed to generate pre-signed URL for {s3_key}: {e}")
+        # Fallback to public URL format if signing fails
+        if S3_CUSTOM_DOMAIN:
+            return f"https://{S3_CUSTOM_DOMAIN}/{s3_key}"
+        return f"https://{S3_BUCKET}.s3.{S3_REGION}.amazonaws.com/{s3_key}"
 
 async def save_s3_file(upload_file: UploadFile) -> Tuple[str, str]:
     """
@@ -96,22 +128,23 @@ async def save_s3_file(upload_file: UploadFile) -> Tuple[str, str]:
         aws_access_key_id=S3_ACCESS_KEY,
         aws_secret_access_key=S3_SECRET_KEY,
         endpoint_url=S3_ENDPOINT_URL
-    ) as s3_client:  # type: ignore
+    ) as s3_client: # type: ignore
         s3 = cast(S3Client, s3_client)
         # Reset file pointer
         await upload_file.seek(0)
         
-        # Use upload_fileobj for streaming to S3, which is more memory-efficient
-        # than reading the entire file into memory with put_object.
-        # We wrap the upload_file.file (which is a SpooledTemporaryFile) 
-        # to ensure it's treated correctly by aioboto3.
-        await s3.upload_fileobj(
-            upload_file.file,
-            S3_BUCKET,
-            s3_key,
-            ExtraArgs={
-                'ContentType': upload_file.content_type or 'application/octet-stream'
-            }
+        # Use put_object instead of upload_fileobj to avoid asyncio.wait coroutine issues in Python 3.12
+        # To avoid reading the entire file into memory, we can pass the file object directly
+        # but UploadFile.file is a synchronous file object, and put_object expects bytes or a file-like object.
+        # If we pass upload_file.file, boto3 will do synchronous I/O.
+        # For small files (up to MAX_UPLOAD_SIZE_MB), reading into memory is acceptable.
+        # The limit is enforced at the API layer.
+        content = await upload_file.read()
+        await s3.put_object(
+            Bucket=S3_BUCKET,
+            Key=s3_key,
+            Body=content,
+            ContentType=upload_file.content_type or 'application/octet-stream'
         )
 
     # Construct the URL

@@ -24,6 +24,7 @@ const MedicalRecordEditorPage: React.FC = () => {
   const [pendingHeaderValues, setPendingHeaderValues] = useState<Record<string, string | string[] | number | boolean> | null>(null);
   const [pendingWorkspaceData, setPendingWorkspaceData] = useState<WorkspaceData | null>(null);
   const [lastUpdateType, setLastUpdateType] = useState<'toggle' | 'text'>('text');
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   // Refs for background saving access without closure issues
   const pendingHeaderValuesRef = useRef<Record<string, string | string[] | number | boolean> | null>(null);
@@ -59,11 +60,13 @@ const MedicalRecordEditorPage: React.FC = () => {
         if (recordIdNum && recordRef.current && currentVersion !== undefined) {
           // Trigger a background save with keepalive
           // We don't await this because the page is closing
-          apiService.updateMedicalRecord(recordIdNum, {
-            header_values: headerToSave,
-            workspace_data: workspaceToSave,
+          const updateData: Parameters<typeof apiService.updateMedicalRecord>[1] = {
             version: currentVersion,
-          } as any, { keepalive: true }).catch(err => {
+          };
+          if (headerToSave) updateData.header_values = headerToSave;
+          if (workspaceToSave) updateData.workspace_data = workspaceToSave as unknown as Record<string, unknown>;
+
+          apiService.updateMedicalRecord(recordIdNum, updateData, { keepalive: true }).catch(err => {
             logger.error('Background save failed:', err);
           });
         }
@@ -76,6 +79,7 @@ const MedicalRecordEditorPage: React.FC = () => {
 
   // Determine current sync status
   const getSyncStatus = (): SyncStatusType => {
+    if (saveError) return 'error';
     if (isSaving) return 'saving';
     if (hasUnsavedChanges) return 'saving'; // Debouncing/Pending state
     if (lastSaved) return 'saved';
@@ -123,12 +127,20 @@ const MedicalRecordEditorPage: React.FC = () => {
       setPendingHeaderValues(null);
       setPendingWorkspaceData(null);
       setHasUnsavedChanges(false);
+      setSaveError(null);
       await refetch();
     } catch (err) {
       logger.error('Manual/Flush save error:', err);
       const errorMessage = getErrorMessage(err);
+      
       if (errorMessage?.includes('CONCURRENCY_ERROR')) {
         refetch();
+      } else {
+        // DO NOT clear pending changes here anymore.
+        // Instead, keep them so the user can fix the issue and retry.
+        setSaveError(errorMessage || '伺服器錯誤');
+        // We still consider it as having unsaved changes
+        setHasUnsavedChanges(true);
       }
     } finally {
       setIsSaving(false);
@@ -143,6 +155,7 @@ const MedicalRecordEditorPage: React.FC = () => {
   // Consolidated autosave effect
   useEffect(() => {
     if (!pendingHeaderValues && !pendingWorkspaceData) return;
+    if (saveError) return; // Pause autosave if there is an error
 
     const delay = lastUpdateType === 'toggle' ? 500 : 3000;
 
@@ -151,7 +164,7 @@ const MedicalRecordEditorPage: React.FC = () => {
     }, delay);
 
     return () => clearTimeout(timer);
-  }, [pendingHeaderValues, pendingWorkspaceData, lastUpdateType, performSave]);
+  }, [pendingHeaderValues, pendingWorkspaceData, lastUpdateType, performSave, saveError]);
 
   const handleHeaderUpdate = useCallback(async (headerValues: Record<string, string | string[] | number | boolean>, isToggle: boolean = false) => {
     if (!record) return;
@@ -165,6 +178,7 @@ const MedicalRecordEditorPage: React.FC = () => {
     setPendingHeaderValues(headerValues);
     setLastUpdateType(isToggle ? 'toggle' : 'text');
     setHasUnsavedChanges(true);
+    setSaveError(null); // Clear error when user makes new changes
   }, [record, pendingHeaderValues, setHasUnsavedChanges]);
 
   const handleDirtyStateChange = useCallback((isDirty: boolean) => {
@@ -183,6 +197,7 @@ const MedicalRecordEditorPage: React.FC = () => {
     setPendingWorkspaceData(workspaceData);
     setLastUpdateType('text'); // Workspace changes (drawing) use text-like long debounce
     setHasUnsavedChanges(true);
+    setSaveError(null); // Clear error when user makes new changes
   }, [record, pendingWorkspaceData, setHasUnsavedChanges]);
 
   const handleBack = async () => {
@@ -263,7 +278,11 @@ const MedicalRecordEditorPage: React.FC = () => {
             )}
             下載 PDF
           </button>
-          <SyncStatus status={getSyncStatus()} />
+          <SyncStatus 
+             status={getSyncStatus()} 
+             errorMessage={saveError}
+             onRetry={performSave}
+           />
         </div>
       </div>
 
