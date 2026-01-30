@@ -21,7 +21,6 @@ const MedicalRecordEditorPage: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [pendingHeaderValues, setPendingHeaderValues] = useState<Record<string, string | string[] | number | boolean> | null>(null);
   const [pendingWorkspaceData, setPendingWorkspaceData] = useState<WorkspaceData | null>(null);
   const [lastUpdateType, setLastUpdateType] = useState<'toggle' | 'text'>('text');
@@ -32,10 +31,10 @@ const MedicalRecordEditorPage: React.FC = () => {
   const { data: record, isLoading, error, refetch } = useMedicalRecord(recordIdNum);
   const updateMutation = useUpdateMedicalRecord();
 
-  // Handle online/offline status
+  // Handle online/offline status - we don't need isOnline state anymore
   useEffect(() => {
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
+    const handleOnline = () => {};
+    const handleOffline = () => {};
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
@@ -48,10 +47,10 @@ const MedicalRecordEditorPage: React.FC = () => {
 
   // Determine current sync status
   const getSyncStatus = (): SyncStatusType => {
-    if (!isOnline) return 'offline';
     if (isSaving) return 'saving';
-    if (hasUnsavedChanges) return 'dirty';
-    return 'saved';
+    if (hasUnsavedChanges) return 'saving'; // Debouncing/Pending state
+    if (lastSaved) return 'saved';
+    return 'none';
   };
 
   // Initialize lastSaved with record.updated_at when record loads
@@ -205,7 +204,7 @@ const MedicalRecordEditorPage: React.FC = () => {
             )}
             下載 PDF
           </button>
-          <SyncStatus status={getSyncStatus()} lastSaved={lastSaved} />
+          <SyncStatus status={getSyncStatus()} />
         </div>
       </div>
 

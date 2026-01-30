@@ -70,7 +70,6 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
   const [localVersion, setLocalVersion] = useState(0); // Counter for user actions
   const [serverVersion, setServerVersion] = useState(initialVersion);
   const lastUpdateVersionRef = useRef<number>(0); // Track what we last sent to parent
-  const [syncStatus, setSyncStatus] = useState<'saved' | 'saving' | 'error' | 'offline'>('saved');
   const [selectedLayerId, setSelectedLayerId] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState<{ x: number; y: number } | null>(null);
   const [isResizing, setIsResizing] = useState(false);
@@ -79,10 +78,10 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
   const scale = canvasWidth / (migratedInitialData.current.canvas_width || 1000);
   const canvasHeight = rawCanvasHeight * scale;
   
-  // Track network status
+  // Track network status - we don't need syncStatus state anymore
   useEffect(() => {
-    const handleOnline = () => setSyncStatus(prev => prev === 'offline' ? 'saved' : prev);
-    const handleOffline = () => setSyncStatus('offline');
+    const handleOnline = () => {};
+    const handleOffline = () => {};
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
     return () => {
@@ -190,15 +189,10 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
     }
   }, [localVersion, saveWorkspace]);
 
-  // Handle local data updates for visual sync
+  // Handle local data updates for visual sync - internal status is no longer needed
+  // as it is handled at the page level.
   useEffect(() => {
-    // We are "saving" if we have a pending update that hasn't been acknowledged by the server yet.
-    // The server acknowledges by incrementing initialVersion.
-    if (pendingUpdate) {
-      setSyncStatus('saving');
-    } else {
-      setSyncStatus('saved');
-    }
+    // This effect is kept for potential future local side effects when pendingUpdate changes
   }, [pendingUpdate]);
 
   const drawLayer = useCallback((ctx: CanvasRenderingContext2D, layer: DrawingPath | MediaLayer) => {
@@ -766,32 +760,8 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
           </button>
         </div>
         
-        <div className="flex items-center gap-2">
-          {syncStatus === 'saving' && (
-            <div className="flex items-center gap-1 text-xs text-blue-600">
-              <div className="w-2 h-2 bg-blue-600 rounded-full animate-pulse" />
-              儲存中...
-            </div>
-          )}
-          {syncStatus === 'saved' && localVersion > 0 && (
-            <div className="flex items-center gap-1 text-xs text-green-600">
-              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-              </svg>
-              已儲存
-            </div>
-          )}
-          {syncStatus === 'offline' && (
-            <div className="flex items-center gap-1 text-xs text-amber-600">
-              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 5.636a9 9 0 010 12.728m0 0l-2.829-2.829m2.829 2.829L21 21M15.536 8.464a5 5 0 010 7.072m0 0l-2.829-2.829m-4.243 4.243a9 9 0 01-12.728 0m0 0l2.829-2.829m-2.829 2.829L3 21M8.464 8.464a5 5 0 017.072 0" />
-              </svg>
-              離線中 - 待連線
-            </div>
-          )}
-          <span className="text-xs text-gray-400">
-            {rawCanvasHeight}px
-          </span>
+        <div className="flex items-center gap-2 text-xs text-gray-400">
+          <span>{rawCanvasHeight}px</span>
         </div>
       </div>
 
