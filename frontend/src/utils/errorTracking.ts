@@ -42,9 +42,6 @@ export const errorTracking: ErrorTrackingService = {
    */
   init: () => {
     if (!isSentryAvailable()) {
-      if (import.meta.env.DEV) {
-        console.log('[Error Tracking] Sentry not configured. Using console logging.');
-      }
       return;
     }
 
