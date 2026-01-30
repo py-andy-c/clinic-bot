@@ -23,19 +23,40 @@ const TOOL_CONFIG = {
 
 const LOGICAL_WIDTH = 1000;
 
+const calculateBoundingBox = (points: [number, number, number?][]) => {
+  if (points.length === 0) return { minX: 0, maxX: 0, minY: 0, maxY: 0 };
+  const firstPoint = points[0]!;
+  let minX = firstPoint[0];
+  let maxX = firstPoint[0];
+  let minY = firstPoint[1];
+  let maxY = firstPoint[1];
+
+  for (let i = 1; i < points.length; i++) {
+    const point = points[i]!;
+    const [x, y] = point;
+    minX = Math.min(minX, x);
+    maxX = Math.max(maxX, x);
+    minY = Math.min(minY, y);
+    maxY = Math.max(maxY, y);
+  }
+  return { minX, maxX, minY, maxY };
+};
+
 const migrateWorkspaceData = (data: WorkspaceData): WorkspaceData => {
   if (!data || data.version >= 2) return data;
 
   const migratedLayers = (data.layers || []).map(layer => {
     if (layer.type === 'drawing') {
+      const points = layer.points.map(p => {
+        if (p.length === 2) {
+          return [p[0], p[1], 0.5] as [number, number, number?];
+        }
+        return p as [number, number, number?];
+      });
       return {
         ...layer,
-        points: layer.points.map(p => {
-          if (p.length === 2) {
-            return [p[0], p[1], 0.5] as [number, number, number?];
-          }
-          return p as [number, number, number?];
-        })
+        points,
+        boundingBox: layer.boundingBox || calculateBoundingBox(points)
       };
     }
     return layer;
@@ -79,6 +100,70 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
   const [dragOffset, setDragOffset] = useState<{ x: number; y: number } | null>(null);
   const [isResizing, setIsResizing] = useState(false);
   const [isRotating, setIsRotating] = useState(false);
+
+  const COMFORT_BUFFER = 600; // Extra space at the bottom for writing
+  const MIN_CANVAS_HEIGHT = 1000;
+
+  const calculateContentBottom = useCallback(() => {
+    let maxBottom = 0;
+
+    // Check all layers
+    layers.forEach(layer => {
+      if (layer.type === 'media') {
+        maxBottom = Math.max(maxBottom, layer.y + layer.height);
+      } else if (layer.type === 'drawing') {
+        // Exclude eraser tool from height calculation to allow shrinking when content is erased
+        if (layer.tool !== 'eraser') {
+          if (layer.boundingBox) {
+            maxBottom = Math.max(maxBottom, layer.boundingBox.maxY);
+          } else {
+            // Fallback for legacy data without boundingBox
+            layer.points.forEach(point => {
+              maxBottom = Math.max(maxBottom, point[1]);
+            });
+          }
+        }
+      }
+    });
+
+    // Check current active path
+    if (currentPath && currentPath.tool !== 'eraser') {
+      if (currentPath.boundingBox) {
+        maxBottom = Math.max(maxBottom, currentPath.boundingBox.maxY);
+      } else {
+        currentPath.points.forEach(point => {
+          maxBottom = Math.max(maxBottom, point[1]);
+        });
+      }
+    }
+
+    // Check background image height
+    if (migratedInitialData.current.background_image_url) {
+      const bgImg = images[migratedInitialData.current.background_image_url];
+      if (bgImg) {
+        maxBottom = Math.max(maxBottom, (LOGICAL_WIDTH / bgImg.width) * bgImg.height);
+      }
+    }
+
+    return maxBottom;
+  }, [layers, currentPath, images]);
+
+  // Reactive height adjustment with debouncing
+  useEffect(() => {
+    const contentBottom = calculateContentBottom();
+    const targetHeight = Math.max(MIN_CANVAS_HEIGHT, contentBottom + COMFORT_BUFFER);
+    
+    // Only update if the difference is significant to avoid jitter
+    if (Math.abs(rawCanvasHeight - targetHeight) > 10) {
+      const timer = setTimeout(() => {
+        setRawCanvasHeight(targetHeight);
+        // Increment local version to trigger persistence when height changes
+        setLocalVersion(v => v + 1);
+      }, 500); // 500ms debounce to avoid constant re-renders during drawing
+      return () => clearTimeout(timer);
+    }
+    return;
+  }, [layers, currentPath, calculateContentBottom, rawCanvasHeight]);
 
   const scale = canvasWidth / (migratedInitialData.current.canvas_width || 1000);
   const canvasHeight = rawCanvasHeight * scale;
@@ -421,6 +506,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
       color: TOOL_CONFIG[currentTool].color,
       width: TOOL_CONFIG[currentTool].width,
       points: [[logicalX, logicalY, pressure]],
+      boundingBox: { minX: logicalX, maxX: logicalX, minY: logicalY, maxY: logicalY },
     });
   };
 
@@ -488,18 +574,17 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
 
     if (!isDrawing || !currentPath) return;
 
-    // Auto-expand canvas if drawing near the bottom (within 100px)
-    const currentHeight = rawCanvasHeight;
-    if (logicalY > currentHeight - 100) {
-      const newHeight = currentHeight + 500;
-      setRawCanvasHeight(newHeight);
-      // We don't trigger localVersion here to avoid excessive server updates
-      // The update will happen naturally when handlePointerUp is called
-    }
+    const newBoundingBox = currentPath.boundingBox ? {
+      minX: Math.min(currentPath.boundingBox.minX, logicalX),
+      maxX: Math.max(currentPath.boundingBox.maxX, logicalX),
+      minY: Math.min(currentPath.boundingBox.minY, logicalY),
+      maxY: Math.max(currentPath.boundingBox.maxY, logicalY),
+    } : { minX: logicalX, maxX: logicalX, minY: logicalY, maxY: logicalY };
 
     setCurrentPath({
       ...currentPath,
       points: [...currentPath.points, [logicalX, logicalY, pressure]],
+      boundingBox: newBoundingBox,
     });
   };
 
@@ -524,6 +609,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
     const simplifiedPath: DrawingPath = {
       ...currentPath,
       points: simplifiedPoints,
+      boundingBox: calculateBoundingBox(simplifiedPoints),
     };
     
     const newLayers = [...layers, simplifiedPath];
@@ -583,16 +669,6 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
     
     setLayers(layers.filter(l => !(l.type === 'media' && l.id === selectedLayerId)));
     setSelectedLayerId(null);
-    setLocalVersion(v => v + 1);
-  };
-
-  const expandCanvas = () => {
-    const currentHeight = rawCanvasHeight;
-    const newHeight = currentHeight + 500;
-    
-    setRawCanvasHeight(newHeight);
-    
-    // Trigger update to parent (server)
     setLocalVersion(v => v + 1);
   };
 
@@ -757,34 +833,19 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
               </button>
             </>
           )}
-          <div className="w-px h-6 bg-gray-300 mx-1" />
-          <button
-            onClick={expandCanvas}
-            className="flex items-center gap-1 px-3 py-1.5 rounded bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors text-sm font-medium"
-            title="增加畫布高度"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-            </svg>
-            增加高度
-          </button>
         </div>
         
         <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 text-xs text-gray-400">
-            <span>{rawCanvasHeight}px</span>
-          </div>
           <SyncStatus status={syncStatus || 'none'} />
         </div>
       </div>
 
       <div 
         ref={containerRef}
-        className="relative overflow-auto bg-gray-100"
-        style={{ height: '600px' }}
+        className="relative bg-gray-100 p-4 min-h-[600px]"
       >
         <div 
-          className="mx-auto shadow-sm bg-white relative"
+          className="mx-auto shadow-lg bg-white relative"
           style={{ width: `${canvasWidth}px`, height: `${canvasHeight}px` }}
         >
           {/* Background Canvas (Images, Template Background) */}
