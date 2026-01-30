@@ -102,8 +102,8 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
   const [isRotating, setIsRotating] = useState(false);
   const [showToolbar, setShowToolbar] = useState(false);
 
-  const COMFORT_BUFFER = 600; // Extra space at the bottom for writing
-  const MIN_CANVAS_HEIGHT = 1000;
+  const COMFORT_BUFFER = 300; // Extra space at the bottom for writing
+  const MIN_CANVAS_HEIGHT = 800;
 
   const calculateContentBottom = useCallback(() => {
     let maxBottom = 0;
@@ -750,7 +750,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
     <div className="relative bg-white rounded-lg shadow min-h-screen">
       <div
         ref={containerRef}
-        className="relative bg-gray-100 p-4 pb-32"
+        className="relative bg-gray-100 p-4 pb-20"
       >
         <div
           className="mx-auto shadow-lg bg-white relative"
