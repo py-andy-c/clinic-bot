@@ -67,8 +67,9 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
   const [pendingUpdate, setPendingUpdate] = useState<WorkspaceData | null>(null);
   const [images, setImages] = useState<Record<string, HTMLImageElement>>({});
   const [isUploading, setIsUploading] = useState(false);
-  const [localVersion, setLocalVersion] = useState(0); // For debouncing
+  const [localVersion, setLocalVersion] = useState(0); // Counter for user actions
   const [serverVersion, setServerVersion] = useState(initialVersion);
+  const lastUpdateVersionRef = useRef<number>(0); // Track what we last sent to parent
   const [syncStatus, setSyncStatus] = useState<'saved' | 'saving' | 'error' | 'offline'>('saved');
   const [selectedLayerId, setSelectedLayerId] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState<{ x: number; y: number } | null>(null);
@@ -140,43 +141,47 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
     if (!isDrawing) {
       const migrated = migrateWorkspaceData(initialData);
       
-      // If we have local changes that haven't been saved yet (pendingUpdate),
-      // we don't want to overwrite them with stale server data.
-      // We only overwrite if:
-      // 1. The server version is strictly greater than our local tracking of the server version.
-      // 2. We don't have pending local changes (or we choose to merge them).
+      // If the server version is strictly greater than our local tracking of the server version,
+      // it means a save was successful or another client updated the record.
       if (initialVersion > serverVersion) {
-        // Clear pending update if the server version has caught up
+        // Clear pending update since the server version has caught up (or passed us)
         setPendingUpdate(null);
         
-        if (!pendingUpdate) {
+        // Only overwrite local layers if we don't have pending local changes
+        // or if we explicitly want to sync with the latest server state.
+        if (localVersion <= lastUpdateVersionRef.current) {
           setLayers(migrated.layers || []);
           setRawCanvasHeight(migrated.canvas_height || 1000);
-          setServerVersion(initialVersion);
-          migratedInitialData.current = migrated;
-        } else {
-          // If we have pending changes, we keep them but update the server version reference
-          setServerVersion(initialVersion);
-          migratedInitialData.current = migrated;
         }
+        
+        setServerVersion(initialVersion);
+        migratedInitialData.current = migrated;
       } else if (initialVersion === serverVersion) {
         // Just sync the ref without triggering a re-render if versions match
-        // We DON'T update rawCanvasHeight here because we want to keep local draft changes
         migratedInitialData.current = migrated;
       }
     }
-  }, [initialData, initialVersion, isDrawing, serverVersion, pendingUpdate]);
+  }, [initialData, initialVersion, isDrawing, serverVersion, localVersion]);
 
   const saveWorkspace = useCallback(() => {
+    // ONLY send if our local version has actually increased since the last update we sent.
+    // This prevents the infinite loop where a server-sync triggers a local state change
+    // which in turn triggers a new save request.
+    if (localVersion <= lastUpdateVersionRef.current) {
+      return;
+    }
+
     const workspaceData: WorkspaceData = {
       ...migratedInitialData.current,
       layers,
       canvas_height: rawCanvasHeight,
       version: 2,
     };
+    
+    lastUpdateVersionRef.current = localVersion;
     setPendingUpdate(workspaceData);
     onUpdate(workspaceData);
-  }, [layers, rawCanvasHeight, onUpdate]);
+  }, [layers, rawCanvasHeight, onUpdate, localVersion]);
 
   // Use the saveWorkspace in place of direct onUpdate calls
   useEffect(() => {
@@ -187,6 +192,8 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
 
   // Handle local data updates for visual sync
   useEffect(() => {
+    // We are "saving" if we have a pending update that hasn't been acknowledged by the server yet.
+    // The server acknowledges by incrementing initialVersion.
     if (pendingUpdate) {
       setSyncStatus('saving');
     } else {

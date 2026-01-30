@@ -99,6 +99,8 @@ const MedicalRecordEditorPage: React.FC = () => {
         setPendingHeaderValues(null);
         setPendingWorkspaceData(null);
         setHasUnsavedChanges(false);
+        // After a successful save, we MUST refetch to get the new version number
+        // from the server, which will then be passed down to children to clear their "Saving" state.
         refetch();
       } catch (err) {
         logger.error('Consolidated autosave error:', err);

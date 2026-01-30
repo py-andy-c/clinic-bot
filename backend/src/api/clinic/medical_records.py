@@ -78,6 +78,7 @@ class MedicalRecordListItemResponse(BaseModel):
     patient_id: int
     template_id: Optional[int]
     template_name: Optional[str] = None
+    version: int
     created_at: datetime
     updated_at: datetime
 
