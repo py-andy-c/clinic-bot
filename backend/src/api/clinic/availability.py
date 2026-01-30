@@ -277,7 +277,7 @@ def _format_time_string(time_str: str) -> str:
 
 def _check_time_overlap(start1: time, end1: time, start2: time, end2: time) -> bool:
     """Check if two time intervals overlap."""
-    return start1 < end2 and start2 < end1
+    return AvailabilityService.check_time_overlap(start1, end1, start2, end2)
 
 
 def _get_event_title(event: CalendarEvent, appointment: Optional[Appointment] = None) -> str:

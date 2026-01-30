@@ -59,38 +59,79 @@ class TestTimeOverlap:
 
     def test_no_overlap(self):
         """Test non-overlapping time ranges."""
-        assert not AvailabilityService._check_time_overlap(
+        assert not AvailabilityService.check_time_overlap(
             time(9, 0), time(10, 0),
             time(11, 0), time(12, 0)
         )
 
     def test_overlap_partial(self):
         """Test partially overlapping time ranges."""
-        assert AvailabilityService._check_time_overlap(
+        assert AvailabilityService.check_time_overlap(
             time(9, 0), time(11, 0),
             time(10, 0), time(12, 0)
         )
 
     def test_overlap_complete_containment(self):
         """Test when one range completely contains another."""
-        assert AvailabilityService._check_time_overlap(
+        assert AvailabilityService.check_time_overlap(
             time(9, 0), time(12, 0),
             time(10, 0), time(11, 0)
         )
 
     def test_overlap_adjacent_touching(self):
         """Test adjacent time ranges that touch."""
-        assert not AvailabilityService._check_time_overlap(
+        assert not AvailabilityService.check_time_overlap(
             time(9, 0), time(10, 0),
             time(10, 0), time(11, 0)
         )
 
     def test_overlap_same_start(self):
         """Test overlapping ranges with same start time."""
-        assert AvailabilityService._check_time_overlap(
+        assert AvailabilityService.check_time_overlap(
             time(9, 0), time(11, 0),
             time(9, 0), time(10, 0)
         )
+
+
+class TestEventOverlapping:
+    """Test the event overlap detection logic including all-day events."""
+
+    def test_timed_event_overlap(self):
+        """Test timed event overlap with timed slot."""
+        # Overlapping
+        event = Mock(spec=['start_time', 'end_time'])
+        event.start_time = time(10, 0)
+        event.end_time = time(11, 0)
+        assert AvailabilityService._is_event_overlapping(event, time(10, 30), time(11, 30))
+        assert AvailabilityService._is_event_overlapping(event, time(9, 30), time(10, 30))
+        assert AvailabilityService._is_event_overlapping(event, time(10, 15), time(10, 45))
+
+        # Not overlapping
+        assert not AvailabilityService._is_event_overlapping(event, time(11, 0), time(12, 0))
+        assert not AvailabilityService._is_event_overlapping(event, time(9, 0), time(10, 0))
+
+    def test_all_day_event_overlap(self):
+        """Test all-day event (NULL times) always overlaps with any timed slot."""
+        event = Mock(spec=['start_time', 'end_time'])
+        event.start_time = None
+        event.end_time = None
+
+        assert AvailabilityService._is_event_overlapping(event, time(9, 0), time(10, 0))
+        assert AvailabilityService._is_event_overlapping(event, time(0, 0), time(0, 15))
+        assert AvailabilityService._is_event_overlapping(event, time(23, 45), time(23, 59))
+
+    def test_partial_all_day_event_is_handled_as_conflict(self):
+        """Test defensive handling for malformed events (only one time is None)."""
+        # If one is None, we now return True (treating it as an all-day conflict for safety)
+        event_start_none = Mock(spec=['start_time', 'end_time'])
+        event_start_none.start_time = None
+        event_start_none.end_time = time(10, 0)
+        assert AvailabilityService._is_event_overlapping(event_start_none, time(9, 0), time(10, 0))
+
+        event_end_none = Mock(spec=['start_time', 'end_time'])
+        event_end_none.start_time = time(10, 0)
+        event_end_none.end_time = None
+        assert AvailabilityService._is_event_overlapping(event_end_none, time(10, 0), time(11, 0))
 
 
 class TestBookingRestrictionFiltering:

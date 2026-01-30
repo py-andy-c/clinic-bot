@@ -157,7 +157,10 @@ def setup_test_database(db_engine):
     that creates all tables from scratch. This allows us to use the simplified
     approach of just running all migrations from scratch.
     """
-    alembic_cfg = Config("alembic.ini")
+    # Use absolute path for alembic.ini to ensure it's found regardless of where pytest is run from
+    project_root = Path(__file__).parent.parent
+    alembic_cfg = Config(str(project_root / "alembic.ini"))
+    alembic_cfg.set_main_option("script_location", str(project_root / "alembic"))
     alembic_cfg.set_main_option("sqlalchemy.url", TEST_DATABASE_URL)
 
     # Drop all tables to start fresh (including alembic_version if it exists)

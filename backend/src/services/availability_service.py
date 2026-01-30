@@ -557,7 +557,7 @@ class AvailabilityService:
             
             # If we have an excluded event, explicitly add its start time as a candidate slot
             # with the CURRENT duration (in case duration changed for the appointment type)
-            if excluded_event_start_time:
+            if excluded_event_start_time is not None:
                 # Calculate end time based on current duration_minutes
                 end_minutes = (excluded_event_start_time.hour * 60 + excluded_event_start_time.minute + duration_minutes)
                 # Handle overflow past midnight
@@ -844,11 +844,7 @@ class AvailabilityService:
         """
         # Check if slot overlaps with any event (exception or appointment)
         for event in events:
-            if (event.start_time and event.end_time and
-                AvailabilityService._check_time_overlap(
-                    start_time, end_time,
-                    event.start_time, event.end_time
-                )):
+            if AvailabilityService._is_event_overlapping(event, start_time, end_time):
                 return True
         
         return False
@@ -980,30 +976,59 @@ class AvailabilityService:
                 }
             }
         """
-        if not practitioner_ids:
+        # Call the batch version with a single date
+        batch_results = AvailabilityService.fetch_practitioner_schedule_data_batch(
+            db, practitioner_ids, [date], clinic_id, exclude_calendar_event_id
+        )
+        return batch_results.get(date, {p_id: {'default_intervals': [], 'events': []} for p_id in practitioner_ids})
+
+    @staticmethod
+    def fetch_practitioner_schedule_data_batch(
+        db: Session,
+        practitioner_ids: List[int],
+        dates: List[date_type],
+        clinic_id: int,
+        exclude_calendar_event_id: int | None = None
+    ) -> Dict[date_type, Dict[int, Dict[str, Any]]]:
+        """
+        Fetch schedule data for one or more practitioners across multiple dates.
+        
+        Returns:
+            Dict mapping date to (practitioner_id mapping to schedule data):
+            {
+                date: {
+                    practitioner_id: {
+                        'default_intervals': List[PractitionerAvailability],
+                        'events': List[CalendarEvent]
+                    }
+                }
+            }
+        """
+        if not practitioner_ids or not dates:
             return {}
+            
+        # 1. Batch fetch default intervals for all days of week present in dates
+        days_of_week = sorted(list(set(d.weekday() for d in dates)))
         
-        day_of_week = date.weekday()
+        # intervals_by_day[day_of_week][practitioner_id] = [intervals]
+        intervals_by_day: Dict[int, Dict[int, List[PractitionerAvailability]]] = {d: {} for d in days_of_week}
         
-        # Batch fetch default intervals (1 query)
-        default_intervals_map: Dict[int, List[PractitionerAvailability]] = {}
-        default_intervals = db.query(PractitionerAvailability).filter(
+        all_intervals = db.query(PractitionerAvailability).filter(
             PractitionerAvailability.user_id.in_(practitioner_ids),
             PractitionerAvailability.clinic_id == clinic_id,
-            PractitionerAvailability.day_of_week == day_of_week
+            PractitionerAvailability.day_of_week.in_(days_of_week)
         ).order_by(PractitionerAvailability.user_id, PractitionerAvailability.start_time).all()
         
-        for interval in default_intervals:
-            if interval.user_id not in default_intervals_map:
-                default_intervals_map[interval.user_id] = []
-            default_intervals_map[interval.user_id].append(interval)
-
-        # Batch fetch all calendar events (exceptions and confirmed appointments) in a single query
-        # Exclude the specified calendar_event_id if provided (for appointment editing)
+        for interval in all_intervals:
+            if interval.user_id not in intervals_by_day[interval.day_of_week]:
+                intervals_by_day[interval.day_of_week][interval.user_id] = []
+            intervals_by_day[interval.day_of_week][interval.user_id].append(interval)
+            
+        # 2. Batch fetch all calendar events for all dates
         event_filter = and_(
             CalendarEvent.user_id.in_(practitioner_ids),
             CalendarEvent.clinic_id == clinic_id,
-            CalendarEvent.date == date,
+            CalendarEvent.date.in_(dates),
             or_(
                 CalendarEvent.event_type == 'availability_exception',
                 and_(
@@ -1015,30 +1040,31 @@ class AvailabilityService:
         
         if exclude_calendar_event_id is not None:
             event_filter = and_(event_filter, CalendarEvent.id != exclude_calendar_event_id)
-        
+            
         events = db.query(CalendarEvent).outerjoin(
             Appointment, CalendarEvent.id == Appointment.calendar_event_id
         ).filter(event_filter).all()
         
-        # Group events by practitioner_id
-        events_map: Dict[int, List[CalendarEvent]] = {}
+        # events_by_date[date][practitioner_id] = [events]
+        events_by_date: Dict[date_type, Dict[int, List[CalendarEvent]]] = {d: {} for d in dates}
         for event in events:
-            if event.user_id not in events_map:
-                events_map[event.user_id] = []
-            events_map[event.user_id].append(event)
-        
-        # Combine into result dict
-        result: Dict[int, Dict[str, Any]] = {}
-        for practitioner_id in practitioner_ids:
-            result[practitioner_id] = {
-                'default_intervals': default_intervals_map.get(practitioner_id, []),
-                'events': events_map.get(practitioner_id, [])
-            }
-        
+            if event.user_id not in events_by_date[event.date]:
+                events_by_date[event.date][event.user_id] = []
+            events_by_date[event.date][event.user_id].append(event)
+            
+        # 3. Assemble results
+        result: Dict[date_type, Dict[int, Dict[str, Any]]] = {}
+        for d in dates:
+            result[d] = {}
+            for p_id in practitioner_ids:
+                result[d][p_id] = {
+                    'default_intervals': intervals_by_day[d.weekday()].get(p_id, []),
+                    'events': events_by_date[d].get(p_id, [])
+                }
         return result
 
     @staticmethod
-    def _check_time_overlap(
+    def check_time_overlap(
         start1: time,
         end1: time,
         start2: time,
@@ -1046,6 +1072,27 @@ class AvailabilityService:
     ) -> bool:
         """Check if two time intervals overlap."""
         return start1 < end2 and start2 < end1
+
+    @staticmethod
+    def _is_event_overlapping(
+        event: CalendarEvent,
+        start_time: time,
+        end_time: time
+    ) -> bool:
+        """
+        Check if a calendar event overlaps with a given time slot.
+        
+        Handles both all-day events (NULL times) and timed events.
+        """
+        # All-day events (start_time or end_time are None) always conflict with any slot
+        if event.start_time is None or event.end_time is None:
+            return True
+            
+        # Otherwise check for overlap
+        return AvailabilityService.check_time_overlap(
+            start_time, end_time,
+            event.start_time, event.end_time
+        )
 
     @staticmethod
     def _filter_slots_by_booking_restrictions(
@@ -1205,7 +1252,7 @@ class AvailabilityService:
                 continue
 
         for appt in confirmed_appointments:
-            if not appt.start_time or not appt.end_time:
+            if appt.start_time is None or appt.end_time is None:
                 continue
                 
             appt_start_min = appt.start_time.hour * 60 + appt.start_time.minute
@@ -1296,8 +1343,10 @@ class AvailabilityService:
 
 
     @staticmethod
-    def _format_time(time_obj: time) -> str:
+    def _format_time(time_obj: time | None) -> str:
         """Format time object to HH:MM string."""
+        if time_obj is None:
+            return "全天"
         return time_obj.strftime('%H:%M')
 
     @staticmethod
@@ -1403,101 +1452,101 @@ class AvailabilityService:
         
         Shared method for batch availability fetching. Validates dates and
         fetches availability for all dates in a single operation.
-        
-        Args:
-            db: Database session
-            practitioner_id: Practitioner user ID
-            dates: List of date strings in YYYY-MM-DD format
-            appointment_type_id: Appointment type ID
-            clinic_id: Clinic ID
-            exclude_calendar_event_id: Optional calendar event ID to exclude from conflict checking
-            
-        Returns:
-            List of dictionaries, one per date, with:
-            - date: str (YYYY-MM-DD)
-            - slots: List[Dict] with start_time and end_time
-            
-        Raises:
-            HTTPException: If validation fails
         """
-        # Validate dates
+        # 1. Validation and Setup (Fetch once)
         validated_dates = AvailabilityService.validate_batch_dates(dates)
-        
-        # Verify practitioner exists, is active, belongs to clinic, and offers appointment type
-        AvailabilityService.validate_practitioner_for_clinic(
-            db, practitioner_id, clinic_id
-        )
+        practitioner = AvailabilityService.validate_practitioner_for_clinic(db, practitioner_id, clinic_id)
         
         if not AvailabilityService.validate_practitioner_offers_appointment_type(
             db, practitioner_id, appointment_type_id, clinic_id
         ):
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="找不到治療師"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="找不到治療師")
         
-        # Verify appointment type exists and belongs to clinic
         appointment_type = AppointmentTypeService.get_appointment_type_by_id(db, appointment_type_id)
         if appointment_type.clinic_id != clinic_id:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="找不到預約類型"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="找不到預約類型")
         
-        # Filter dates by booking window only if restrictions are applied
+        clinic = db.query(Clinic).filter(Clinic.id == clinic_id, Clinic.is_active == True).first()
+        if not clinic:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="診所不存在或已停用")
+
+        # 2. Filter dates by booking window
         if apply_booking_restrictions:
-            valid_dates = AvailabilityService._filter_dates_by_booking_window(
-                db, clinic_id, validated_dates
-            )
+            valid_dates_str = AvailabilityService._filter_dates_by_booking_window(db, clinic_id, validated_dates)
         else:
-            # For clinic admin endpoints, don't filter dates by booking window
-            valid_dates = validated_dates
+            valid_dates_str = validated_dates
         
-        # Fetch availability for all valid dates
+        if not valid_dates_str:
+            return [{'date': d, 'slots': []} for d in validated_dates]
+
+        # Convert to date objects for internal methods that expect date_type
+        from utils.datetime_utils import parse_date_string
+        valid_dates = [parse_date_string(d) for d in valid_dates_str]
+
+        # 3. Batch Fetch All Required Data (N+1 Fix)
+        schedule_data_batch = AvailabilityService.fetch_practitioner_schedule_data_batch(
+            db, [practitioner_id], valid_dates, clinic_id, exclude_calendar_event_id
+        )
+        
+        # Get settings once
+        practitioner_settings = SettingsService.get_practitioner_settings(db, practitioner_id, clinic_id)
+        compact_enabled = bool(practitioner_settings and practitioner_settings.compact_schedule_enabled)
+        
+        total_duration = appointment_type.duration_minutes + (appointment_type.scheduling_buffer_minutes or 0)
+        
+        # 4. Calculate Availability for each date
         results: List[Dict[str, Any]] = []
         
-        for date_str in valid_dates:
+        # Map of all requested dates to ensure we return something for every input date
+        results_map: Dict[str, List[Dict[str, Any]]] = {d: [] for d in validated_dates}
+        
+        for d in valid_dates:
+            date_str = d.strftime('%Y-%m-%d')
             try:
-                slots_data = AvailabilityService.get_available_slots_for_practitioner(
-                    db=db,
-                    practitioner_id=practitioner_id,
-                    date=date_str,
-                    appointment_type_id=appointment_type_id,
-                    clinic_id=clinic_id,
-                    exclude_calendar_event_id=exclude_calendar_event_id,
+                # Get this date's schedule data
+                day_schedule_data: Dict[int, Dict[str, Any]] = schedule_data_batch.get(d, {})
+                
+                # Calculate slots
+                slots = AvailabilityService._calculate_available_slots(
+                    db, d, [practitioner], total_duration, 
+                    clinic, clinic_id, exclude_calendar_event_id, 
+                    schedule_data=day_schedule_data,
                     apply_booking_restrictions=apply_booking_restrictions,
-                    for_patient_display=for_patient_display
+                    for_patient_display=for_patient_display,
+                    appointment_type_id=appointment_type_id
                 )
                 
-                results.append({
-                    'date': date_str,
-                    'slots': slots_data
-                })
-            except HTTPException as e:
-                # If it's a booking window validation error (400), skip this date
-                # This is a defensive check - dates should already be filtered, but handle gracefully
-                if e.status_code == status.HTTP_400_BAD_REQUEST:
-                    # Check if it's a date validation error (booking window or past date)
-                    # Status code 400 with date-related validation indicates booking window issue
-                    logger.debug(f"Skipping date {date_str} due to validation error: {e.detail}")
-                    results.append({
-                        'date': date_str,
-                        'slots': []
-                    })
-                else:
-                    # Re-raise other HTTP exceptions (404, 500, etc.)
-                    raise
+                # Apply compact schedule recommendations
+                if compact_enabled:
+                    practitioner_data: Dict[str, Any] = day_schedule_data.get(practitioner_id, {})
+                    events: List[CalendarEvent] = practitioner_data.get('events', [])
+                    confirmed_appointments: List[CalendarEvent] = [
+                        event for event in events 
+                        if event.event_type == 'appointment' and event.appointment and event.appointment.status == 'confirmed'
+                    ]
+                    
+                    recommended_slots = AvailabilityService._calculate_compact_schedule_recommendations(
+                        confirmed_appointments, 
+                        slots,
+                        practitioner_data.get('default_intervals', []),
+                        events
+                    )
+                    for slot in slots:
+                        slot['is_recommended'] = slot['start_time'] in recommended_slots
+                
+                results_map[date_str] = slots
+                
             except Exception as e:
-                # Log error but continue with other dates
-                logger.warning(
-                    f"Error fetching availability for date {date_str}: {e}"
-                )
-                # Return empty slots for this date
-                results.append({
-                    'date': date_str,
-                    'slots': []
-                })
+                logger.warning(f"Error fetching availability for date {date_str}: {e}")
+                results_map[date_str] = []
         
+        # Assemble final results in original order
+        for date_str in validated_dates:
+            results.append({
+                'date': date_str,
+                'slots': results_map.get(date_str, [])
+            })
+            
         return results
 
     @staticmethod
@@ -1651,12 +1700,8 @@ class AvailabilityService:
         
         # 1. Check for appointment conflicts
         for event in events:
-            if (event.start_time and event.end_time and
-                event.event_type == 'appointment' and
-                AvailabilityService._check_time_overlap(
-                    start_time, end_time,
-                    event.start_time, event.end_time
-                )):
+            # Check for conflict using shared helper
+            if AvailabilityService._is_event_overlapping(event, start_time, end_time) and event.event_type == 'appointment':
                 # Get appointment details
                 appointment = db.query(Appointment).filter(
                     Appointment.calendar_event_id == event.id,
@@ -1683,12 +1728,8 @@ class AvailabilityService:
         
         # 2. Check for availability exception conflicts
         for event in events:
-            if (event.start_time and event.end_time and
-                event.event_type == 'availability_exception' and
-                AvailabilityService._check_time_overlap(
-                    start_time, end_time,
-                    event.start_time, event.end_time
-                )):
+            # Check for conflict using shared helper
+            if AvailabilityService._is_event_overlapping(event, start_time, end_time) and event.event_type == 'availability_exception':
                 # Get exception reason if available (use custom_event_name as reason)
                 reason = event.custom_event_name if event.custom_event_name else None
                 
@@ -1810,12 +1851,8 @@ class AvailabilityService:
 
         # 1. Check for appointment conflicts
         for event in events:
-            if (event.start_time and event.end_time and
-                event.event_type == 'appointment' and
-                AvailabilityService._check_time_overlap(
-                    start_time, end_time,
-                    event.start_time, event.end_time
-                )):
+            # Check for conflict using shared helper
+            if AvailabilityService._is_event_overlapping(event, start_time, end_time) and event.event_type == 'appointment':
                 # Get appointment details
                 appointment = db.query(Appointment).filter(
                     Appointment.calendar_event_id == event.id,
@@ -1840,12 +1877,8 @@ class AvailabilityService:
 
         # 2. Check for availability exception conflicts
         for event in events:
-            if (event.start_time and event.end_time and
-                event.event_type == 'availability_exception' and
-                AvailabilityService._check_time_overlap(
-                    start_time, end_time,
-                    event.start_time, event.end_time
-                )):
+            # Check for conflict using shared helper
+            if AvailabilityService._is_event_overlapping(event, start_time, end_time) and event.event_type == 'availability_exception':
                 # Get exception reason if available (use custom_event_name as reason)
                 reason = event.custom_event_name if event.custom_event_name else None
 
