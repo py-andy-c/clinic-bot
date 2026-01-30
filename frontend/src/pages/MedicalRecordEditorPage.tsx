@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { LoadingSpinner, ErrorMessage } from '../components/shared';
 import { useMedicalRecord, useUpdateMedicalRecord } from '../hooks/queries';
@@ -11,13 +11,13 @@ import PageHeader from '../components/PageHeader';
 import { MedicalRecordHeader } from '../components/medical-records/MedicalRecordHeader';
 import { ClinicalWorkspace } from '../components/medical-records/ClinicalWorkspace';
 import { SyncStatus, SyncStatusType } from '../components/medical-records/SyncStatus';
-import type { WorkspaceData } from '../types';
+import type { WorkspaceData, MedicalRecord } from '../types';
 
 const MedicalRecordEditorPage: React.FC = () => {
   const { patientId, recordId } = useParams<{ patientId: string; recordId: string }>();
   const navigate = useNavigate();
   const { alert } = useModal();
-  const { hasUnsavedChanges, setHasUnsavedChanges } = useUnsavedChanges();
+  const { hasUnsavedChanges, setHasUnsavedChanges, onSaveRef } = useUnsavedChanges();
   const [isSaving, setIsSaving] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
@@ -25,25 +25,54 @@ const MedicalRecordEditorPage: React.FC = () => {
   const [pendingWorkspaceData, setPendingWorkspaceData] = useState<WorkspaceData | null>(null);
   const [lastUpdateType, setLastUpdateType] = useState<'toggle' | 'text'>('text');
 
+  // Refs for background saving access without closure issues
+  const pendingHeaderValuesRef = useRef<Record<string, string | string[] | number | boolean> | null>(null);
+  const pendingWorkspaceDataRef = useRef<WorkspaceData | null>(null);
+  const recordRef = useRef<MedicalRecord | null>(null);
+
+  useEffect(() => {
+    pendingHeaderValuesRef.current = pendingHeaderValues;
+  }, [pendingHeaderValues]);
+
+  useEffect(() => {
+    pendingWorkspaceDataRef.current = pendingWorkspaceData;
+  }, [pendingWorkspaceData]);
+
   const recordIdNum = recordId ? parseInt(recordId, 10) : undefined;
   const patientIdNum = patientId ? parseInt(patientId, 10) : undefined;
 
   const { data: record, isLoading, error, refetch } = useMedicalRecord(recordIdNum);
   const updateMutation = useUpdateMedicalRecord();
 
-  // Handle online/offline status - we don't need isOnline state anymore
   useEffect(() => {
-    const handleOnline = () => {};
-    const handleOffline = () => {};
+    recordRef.current = record || null;
+  }, [record]);
 
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
+  // Handle external navigation (refresh/tab close)
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (hasUnsavedChanges) {
+        const headerToSave = pendingHeaderValuesRef.current || recordRef.current?.header_values;
+        const workspaceToSave = pendingWorkspaceDataRef.current || recordRef.current?.workspace_data;
+        const currentVersion = recordRef.current?.version;
 
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
+        if (recordIdNum && recordRef.current && currentVersion !== undefined) {
+          // Trigger a background save with keepalive
+          // We don't await this because the page is closing
+          apiService.updateMedicalRecord(recordIdNum, {
+            header_values: headerToSave,
+            workspace_data: workspaceToSave,
+            version: currentVersion,
+          } as any, { keepalive: true }).catch(err => {
+            logger.error('Background save failed:', err);
+          });
+        }
+      }
     };
-  }, []);
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [hasUnsavedChanges, recordIdNum]);
 
   // Determine current sync status
   const getSyncStatus = (): SyncStatusType => {
@@ -69,8 +98,47 @@ const MedicalRecordEditorPage: React.FC = () => {
   useEffect(() => {
     return () => {
       setHasUnsavedChanges(false);
+      onSaveRef.current = null;
     };
-  }, [setHasUnsavedChanges]);
+  }, [setHasUnsavedChanges, onSaveRef]);
+
+  const performSave = useCallback(async () => {
+    if (!recordIdNum || !recordRef.current || recordRef.current.version === undefined) return;
+    if (!pendingHeaderValuesRef.current && !pendingWorkspaceDataRef.current) return;
+
+    setIsSaving(true);
+    const headerToSave = pendingHeaderValuesRef.current || recordRef.current.header_values;
+    const workspaceToSave = pendingWorkspaceDataRef.current || recordRef.current.workspace_data;
+
+    try {
+      await updateMutation.mutateAsync({
+        recordId: recordIdNum,
+        data: {
+          header_values: headerToSave,
+          workspace_data: workspaceToSave,
+          version: recordRef.current.version,
+        },
+      });
+      setLastSaved(new Date());
+      setPendingHeaderValues(null);
+      setPendingWorkspaceData(null);
+      setHasUnsavedChanges(false);
+      await refetch();
+    } catch (err) {
+      logger.error('Manual/Flush save error:', err);
+      const errorMessage = getErrorMessage(err);
+      if (errorMessage?.includes('CONCURRENCY_ERROR')) {
+        refetch();
+      }
+    } finally {
+      setIsSaving(false);
+    }
+  }, [recordIdNum, updateMutation, refetch, setHasUnsavedChanges]);
+
+  // Register flush function for internal navigation
+  useEffect(() => {
+    onSaveRef.current = performSave;
+  }, [performSave, onSaveRef]);
 
   // Consolidated autosave effect
   useEffect(() => {
@@ -79,43 +147,11 @@ const MedicalRecordEditorPage: React.FC = () => {
     const delay = lastUpdateType === 'toggle' ? 500 : 3000;
 
     const timer = setTimeout(async () => {
-      if (!recordIdNum || !record) return;
-
-      setIsSaving(true);
-      const headerToSave = pendingHeaderValues || record.header_values;
-      const workspaceToSave = pendingWorkspaceData || record.workspace_data;
-
-      try {
-        await updateMutation.mutateAsync({
-          recordId: recordIdNum,
-          data: {
-            header_values: headerToSave,
-            workspace_data: workspaceToSave,
-            version: record.version,
-          },
-        });
-        setLastSaved(new Date());
-        setPendingHeaderValues(null);
-        setPendingWorkspaceData(null);
-        setHasUnsavedChanges(false);
-        // After a successful save, we MUST refetch to get the new version number
-        // from the server, which will then be passed down to children to clear their "Saving" state.
-        refetch();
-      } catch (err) {
-        logger.error('Consolidated autosave error:', err);
-        const errorMessage = getErrorMessage(err);
-        if (errorMessage?.includes('CONCURRENCY_ERROR')) {
-          // For autosave, we just refetch and let the user know if their change failed
-          // instead of a blocking alert.
-          refetch();
-        }
-      } finally {
-        setIsSaving(false);
-      }
+      await performSave();
     }, delay);
 
     return () => clearTimeout(timer);
-  }, [pendingHeaderValues, pendingWorkspaceData, recordIdNum, record, updateMutation, refetch, setHasUnsavedChanges, lastUpdateType]);
+  }, [pendingHeaderValues, pendingWorkspaceData, lastUpdateType, performSave]);
 
   const handleHeaderUpdate = useCallback(async (headerValues: Record<string, string | string[] | number | boolean>, isToggle: boolean = false) => {
     if (!record) return;
@@ -148,6 +184,13 @@ const MedicalRecordEditorPage: React.FC = () => {
     setLastUpdateType('text'); // Workspace changes (drawing) use text-like long debounce
     setHasUnsavedChanges(true);
   }, [record, pendingWorkspaceData, setHasUnsavedChanges]);
+
+  const handleBack = async () => {
+    if (hasUnsavedChanges) {
+      await performSave();
+    }
+    navigate(`/admin/clinic/patients/${patientIdNum}`);
+  };
 
   const handleDownloadPdf = async () => {
     if (!recordIdNum) return;
@@ -195,7 +238,7 @@ const MedicalRecordEditorPage: React.FC = () => {
     <div className="max-w-4xl mx-auto">
       <div className="mb-4">
         <button
-          onClick={() => navigate(`/admin/clinic/patients/${patientIdNum}`)}
+          onClick={handleBack}
           className="text-blue-600 hover:text-blue-800 font-medium mb-2"
         >
           ← 返回病患詳情

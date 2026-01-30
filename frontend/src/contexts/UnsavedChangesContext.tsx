@@ -1,8 +1,9 @@
-import React, { createContext, useContext, useState, ReactNode, useMemo, useCallback } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useMemo, useCallback, useRef } from 'react';
 
 interface UnsavedChangesContextType {
   hasUnsavedChanges: boolean;
   setHasUnsavedChanges: (hasChanges: boolean) => void;
+  onSaveRef: React.MutableRefObject<(() => Promise<void>) | null>;
 }
 
 const UnsavedChangesContext = createContext<UnsavedChangesContextType | undefined>(undefined);
@@ -21,6 +22,7 @@ interface UnsavedChangesProviderProps {
 
 export const UnsavedChangesProvider: React.FC<UnsavedChangesProviderProps> = ({ children }) => {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const onSaveRef = useRef<(() => Promise<void>) | null>(null);
 
   const updateHasUnsavedChanges = useCallback((hasChanges: boolean) => {
     setHasUnsavedChanges(hasChanges);
@@ -28,7 +30,8 @@ export const UnsavedChangesProvider: React.FC<UnsavedChangesProviderProps> = ({ 
 
   const value = useMemo(() => ({
     hasUnsavedChanges,
-    setHasUnsavedChanges: updateHasUnsavedChanges
+    setHasUnsavedChanges: updateHasUnsavedChanges,
+    onSaveRef
   }), [hasUnsavedChanges, updateHasUnsavedChanges]);
 
   return (

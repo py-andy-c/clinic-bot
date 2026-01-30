@@ -676,7 +676,35 @@ export class ApiService {
     header_values?: Record<string, any>;
     workspace_data?: Record<string, any>;
     version?: number;
-  }): Promise<MedicalRecord> {
+  }, options?: { keepalive?: boolean }): Promise<MedicalRecord> {
+    if (options?.keepalive) {
+      const token = authStorage.getAccessToken();
+      const url = `${config.apiBaseUrl}/clinic/medical-records/${recordId}`;
+      const body = JSON.stringify(data);
+
+      // Browser keepalive has a 64KB limit.
+      // If payload is too large, we must fall back to a normal fetch (which might be cancelled)
+      // or simply log a warning.
+      const isTooLarge = body.length > 64000;
+      
+      // Use native fetch for keepalive support as axios doesn't support it
+      const response = await fetch(url, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : '',
+          'ngrok-skip-browser-warning': 'true',
+        },
+        body,
+        keepalive: !isTooLarge,
+      });
+
+      if (!response.ok) {
+        throw new Error(`Background save failed: ${response.statusText}`);
+      }
+      return await response.json();
+    }
+
     const response = await this.client.patch(`/clinic/medical-records/${recordId}`, data);
     return response.data;
   }

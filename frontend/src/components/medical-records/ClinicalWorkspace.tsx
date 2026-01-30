@@ -1,6 +1,8 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import type { WorkspaceData, DrawingPath, MediaLayer, DrawingTool } from '../../types';
 import { logger } from '../../utils/logger';
+import { authStorage } from '../../utils/storage';
+import { config } from '../../config/env';
 
 import { SyncStatus, SyncStatusType } from './SyncStatus';
 
@@ -146,11 +148,13 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
       // If the server version is strictly greater than our local tracking of the server version,
       // it means a save was successful or another client updated the record.
       if (initialVersion > serverVersion) {
-        // Clear pending update since the server version has caught up (or passed us)
+        // If we were waiting for an update and this incoming version matches what we expected
+        // (or passed it), we can clear the pending update and local changes flag.
         setPendingUpdate(null);
         
         // Only overwrite local layers if we don't have pending local changes
-        // or if we explicitly want to sync with the latest server state.
+        // that hasn't been acknowledged by the server yet.
+        // We use initialVersion to ensure the server has caught up to our local state.
         if (localVersion <= lastUpdateVersionRef.current) {
           setLayers(migrated.layers || []);
           setRawCanvasHeight(migrated.canvas_height || 1000);
@@ -606,11 +610,14 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
     formData.append('file', file);
 
     try {
-      const response = await fetch(`/api/clinic/medical-records/${recordId}/media`, {
+      const token = authStorage.getAccessToken();
+      const response = await fetch(`${config.apiBaseUrl}/clinic/medical-records/${recordId}/media`, {
         method: 'POST',
+        headers: {
+          'Authorization': token ? `Bearer ${token}` : '',
+          'ngrok-skip-browser-warning': 'true',
+        },
         body: formData,
-        // Authentication header should be handled by a global interceptor or passed here
-        // For simplicity in this demo, we assume the session cookie is used
       });
 
       if (!response.ok) {

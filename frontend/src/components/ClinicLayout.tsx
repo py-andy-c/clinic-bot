@@ -251,7 +251,7 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const { hasUnsavedChanges } = useUnsavedChanges();
+  const { hasUnsavedChanges, onSaveRef } = useUnsavedChanges();
   const { confirm } = useModal();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [openDropdowns, setOpenDropdowns] = useState<string[]>([]);
@@ -259,6 +259,13 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
   const mobileMenuRef = useRef<HTMLDivElement>(null);
 
   const handleLogout = async () => {
+    if (hasUnsavedChanges && onSaveRef.current) {
+      try {
+        await onSaveRef.current();
+      } catch (error) {
+        logger.error('Silent save failed during logout:', error);
+      }
+    }
     try {
       await logout();
     } catch (error) {
@@ -267,15 +274,32 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
   };
 
   const handleNavigation = useCallback(async (href: string) => {
-    if (hasUnsavedChanges && (location.pathname === '/admin/profile' || location.pathname.startsWith('/admin/clinic/settings'))) {
-      const confirmed = await confirm('您有未儲存的變更，確定要離開嗎？', '確認離開');
-      if (!confirmed) {
-        return;
+    if (hasUnsavedChanges) {
+      if (onSaveRef.current) {
+        // Silent save for medical record editor (seamless experience)
+        try {
+          await onSaveRef.current();
+        } catch (error) {
+          logger.error('Silent save failed during navigation:', error);
+          const errorMessage = error instanceof Error ? error.message : '儲存失敗';
+          
+          if (errorMessage.includes('CONCURRENCY_ERROR')) {
+            await confirm('資料已被他人修改，請重新整理頁面以獲取最新內容。', '儲存衝突');
+          } else {
+            await confirm(`儲存失敗：${errorMessage}。請稍後再試。`, '儲存錯誤');
+          }
+          return; // Abort navigation
+        }
+      } else if (location.pathname === '/admin/profile' || location.pathname.startsWith('/admin/clinic/settings')) {
+        const confirmed = await confirm('您有未儲存的變更，確定要離開嗎？', '確認離開');
+        if (!confirmed) {
+          return;
+        }
       }
     }
     navigate(href);
     setOpenDropdowns([]);
-  }, [hasUnsavedChanges, location.pathname, navigate, confirm]);
+  }, [hasUnsavedChanges, location.pathname, navigate, confirm, onSaveRef]);
 
   const navigationGroups = useMemo(() => [
     {
