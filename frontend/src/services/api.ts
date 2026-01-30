@@ -110,6 +110,11 @@ export class ApiService {
     this.client.interceptors.response.use(
       (response) => response,
       async (error: AxiosError) => {
+        // Handle canceled requests first - preserve the original CanceledError
+        if (axios.isCancel(error)) {
+          return Promise.reject(error);
+        }
+
         // Only handle 401 errors (unauthorized)
         if (error.response?.status !== 401) {
           // For non-401 errors, apply our improved error message handling
