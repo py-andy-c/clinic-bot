@@ -118,20 +118,36 @@ const MedicalRecordEditorPage: React.FC = () => {
   }, [pendingHeaderValues, pendingWorkspaceData, recordIdNum, record, updateMutation, refetch, setHasUnsavedChanges, lastUpdateType]);
 
   const handleHeaderUpdate = useCallback(async (headerValues: Record<string, string | string[] | number | boolean>, isToggle: boolean = false) => {
+    if (!record) return;
+
+    // Deep equality check to avoid unnecessary saves on focus/blur
+    const currentValues = pendingHeaderValues || record.header_values;
+    if (JSON.stringify(headerValues) === JSON.stringify(currentValues)) {
+      return;
+    }
+
     setPendingHeaderValues(headerValues);
     setLastUpdateType(isToggle ? 'toggle' : 'text');
     setHasUnsavedChanges(true);
-  }, [setHasUnsavedChanges]);
+  }, [record, pendingHeaderValues, setHasUnsavedChanges]);
 
   const handleDirtyStateChange = useCallback((isDirty: boolean) => {
     setHasUnsavedChanges(isDirty || !!pendingHeaderValues || !!pendingWorkspaceData);
   }, [pendingHeaderValues, pendingWorkspaceData, setHasUnsavedChanges]);
 
   const handleWorkspaceUpdate = useCallback(async (workspaceData: WorkspaceData) => {
+    if (!record) return;
+
+    // Deep equality check to avoid unnecessary saves
+    const currentData = pendingWorkspaceData || record.workspace_data;
+    if (JSON.stringify(workspaceData) === JSON.stringify(currentData)) {
+      return;
+    }
+
     setPendingWorkspaceData(workspaceData);
     setLastUpdateType('text'); // Workspace changes (drawing) use text-like long debounce
     setHasUnsavedChanges(true);
-  }, [setHasUnsavedChanges]);
+  }, [record, pendingWorkspaceData, setHasUnsavedChanges]);
 
   const handleDownloadPdf = async () => {
     if (!recordIdNum) return;
