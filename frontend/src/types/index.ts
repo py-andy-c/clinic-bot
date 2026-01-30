@@ -700,6 +700,7 @@ export interface DrawingPath {
   color: string;
   width: number;
   points: [number, number, number?][]; // Array of [x, y, pressure?] coordinates
+  boundingBox?: { minY: number; maxY: number; minX: number; maxX: number; };
 }
 
 export interface MediaLayer {
