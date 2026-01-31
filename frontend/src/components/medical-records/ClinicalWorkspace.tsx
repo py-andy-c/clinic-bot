@@ -44,8 +44,8 @@ const getDistanceToSegment = (px: number, py: number, x1: number, y1: number, x2
 };
 
 // Helper component for loading images
-const UrlImage = ({ layer, isSelected, onSelect, onChange }: { 
-  layer: MediaLayer; 
+const UrlImage = ({ layer, isSelected, onSelect, onChange }: {
+  layer: MediaLayer;
   isSelected: boolean;
   onSelect: () => void;
   onChange: (newAttrs: Partial<MediaLayer>) => void;
@@ -103,11 +103,11 @@ const UrlImage = ({ layer, isSelected, onSelect, onChange }: {
           if (!node) return;
           const scaleX = node.scaleX();
           const scaleY = node.scaleY();
-          
+
           // Reset scale and update width/height
           node.scaleX(1);
           node.scaleY(1);
-          
+
           onChange({
             x: node.x(),
             y: node.y(),
@@ -167,7 +167,7 @@ const SelectableLine = ({ layer, isSelected, onSelect, onChange, calculateBoundi
     node.x(0);
     node.y(0);
 
-    onChange({ 
+    onChange({
       points: newPoints,
       boundingBox: calculateBoundingBox(newPoints)
     });
@@ -176,11 +176,11 @@ const SelectableLine = ({ layer, isSelected, onSelect, onChange, calculateBoundi
   const handleTransformEnd = () => {
     const node = shapeRef.current;
     if (!node) return;
-    
+
     const transform = node.getTransform();
     const scaleX = node.scaleX();
     const scaleY = node.scaleY();
-    
+
     const newPoints = layer.points.map(p => {
       const transformed = transform.point({ x: p[0], y: p[1] });
       return [transformed.x, transformed.y, p[2]] as [number, number, number?];
@@ -462,28 +462,28 @@ const SelectableShape = ({ layer, isSelected, onSelect, onChange }: {
   return (
     <>
       {layer.tool === 'arrow' ? (
-        <Arrow 
-          {...baseProps} 
-          ref={shapeRef as React.Ref<Konva.Arrow>} 
-          points={[0, 0, layer.width, layer.height]} 
+        <Arrow
+          {...baseProps}
+          ref={shapeRef as React.Ref<Konva.Arrow>}
+          points={[0, 0, layer.width, layer.height]}
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}
         />
       ) : layer.tool === 'rectangle' ? (
-        <Rect 
-          {...baseProps} 
-          ref={shapeRef as React.Ref<Konva.Rect>} 
-          width={layer.width} 
-          height={layer.height} 
+        <Rect
+          {...baseProps}
+          ref={shapeRef as React.Ref<Konva.Rect>}
+          width={layer.width}
+          height={layer.height}
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}
         />
       ) : (
-        <Ellipse 
-          {...baseProps} 
-          ref={shapeRef as React.Ref<Konva.Ellipse>} 
-          width={layer.width} 
-          height={layer.height} 
+        <Ellipse
+          {...baseProps}
+          ref={shapeRef as React.Ref<Konva.Ellipse>}
+          width={layer.width}
+          height={layer.height}
           radiusX={layer.width / 2}
           radiusY={layer.height / 2}
           onMouseEnter={handleMouseEnter}
@@ -511,10 +511,10 @@ const SelectableShape = ({ layer, isSelected, onSelect, onChange }: {
 const BackgroundImage = ({ url, width }: { url: string; width: number }) => {
   const [image] = useImage(url, 'anonymous');
   if (!image) return null;
-  
+
   // Calculate height to maintain aspect ratio based on canvas width
   const height = (width / image.width) * image.height;
-  
+
   return (
     <KonvaImage
       image={image}
@@ -531,11 +531,22 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
   onUpdate,
   syncStatus,
 }) => {
-  const [layers, setLayers] = useState<(DrawingPath | MediaLayer | TextLayer | ShapeLayer)[]>(initialData.layers || []);
+  const [layers, setLayers] = useState<(DrawingPath | MediaLayer | TextLayer | ShapeLayer)[]>(() => {
+    const rawLayers = initialData.layers || [];
+    const seenIds = new Set<string>();
+    return rawLayers.map((layer, i) => {
+      let id = layer.id;
+      if (!id || seenIds.has(id)) {
+        id = `${layer.type || 'layer'}-${Date.now()}-${i}-${Math.random().toString(36).slice(2, 7)}`;
+      }
+      seenIds.add(id);
+      return { ...layer, id };
+    });
+  });
   const [currentTool, setCurrentTool] = useState<DrawingTool>('pen');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [canvasHeight, setCanvasHeight] = useState(initialData.canvas_height || MIN_CANVAS_HEIGHT);
-  
+
   // Ref for the current drawing path
   const isDrawing = useRef(false);
   const currentPointsRef = useRef<number[]>([]);
@@ -543,7 +554,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
   const lastPointerPosRef = useRef<{ x: number, y: number } | null>(null);
   const deletedLayerIdsRef = useRef<Set<number | string>>(new Set());
   const lastPenTimeRef = useRef<number>(0);
-  
+
   const stageRef = useRef<Konva.Stage>(null);
   const activeLineRef = useRef<Konva.Line>(null);
   const activeRectRef = useRef<Konva.Rect>(null);
@@ -560,10 +571,10 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
 
   useEffect(() => { layersRef.current = layers; }, [layers]);
   useEffect(() => { selectedIdRef.current = selectedId; }, [selectedId]);
-  
+
   // Scaling factor for logical to visual container
   const baseScale = CONTAINER_WIDTH / CANVAS_WIDTH;
-  
+
   // Get stage cursor based on tool
   const getStageCursor = () => {
     if (isPanning) return 'grabbing';
@@ -590,7 +601,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
 
   // Combined scale for rendering
   const scale = baseScale * stageScale;
-  
+
   // History for Undo/Redo
   const [history, setHistory] = useState<(DrawingPath | MediaLayer | TextLayer | ShapeLayer)[][]>([initialData.layers || []]);
   const [historyStep, setHistoryStep] = useState(0);
@@ -616,8 +627,8 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
       // Don't trigger shortcuts if user is typing in an input or textarea
       const target = e.target as HTMLElement;
       if (
-        target.tagName === 'INPUT' || 
-        target.tagName === 'TEXTAREA' || 
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
         target.isContentEditable
       ) {
         // Special case: Escape to blur textarea
@@ -680,12 +691,12 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'v') {
         if (clipboardRef.current) {
           const newLayer = JSON.parse(JSON.stringify(clipboardRef.current));
-          newLayer.id = `${newLayer.type}-${Date.now()}`;
+          newLayer.id = `${newLayer.type}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
           // Offset the pasted item slightly
           newLayer.x = (newLayer.x || 0) + 20;
           newLayer.y = (newLayer.y || 0) + 20;
           if (newLayer.type === 'drawing') {
-             newLayer.points = newLayer.points.map((p: [number, number, number?]) => [p[0] + 20, p[1] + 20, p[2]]);
+            newLayer.points = newLayer.points.map((p: [number, number, number?]) => [p[0] + 20, p[1] + 20, p[2]]);
             if (newLayer.boundingBox) {
               newLayer.boundingBox.minX += 20;
               newLayer.boundingBox.maxX += 20;
@@ -693,8 +704,9 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
               newLayer.boundingBox.maxY += 20;
             }
           }
-          updateLayers([...layersRef.current, newLayer]);
-          setSelectedId(newLayer.id);
+          const finalNewLayer = newLayer;
+          setLayers(prev => [...prev, finalNewLayer]);
+          setSelectedId(finalNewLayer.id);
           e.preventDefault();
         }
       }
@@ -709,13 +721,13 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
         const nudgeAmount = e.shiftKey ? 10 : 1;
         const dx = e.key === 'ArrowLeft' ? -nudgeAmount : e.key === 'ArrowRight' ? nudgeAmount : 0;
         const dy = e.key === 'ArrowUp' ? -nudgeAmount : e.key === 'ArrowDown' ? nudgeAmount : 0;
-        
+
         const newLayers = layersRef.current.map(l => {
           if (l.id === selectedIdRef.current) {
             if (l.type === 'drawing') {
               const newPoints = l.points.map(p => [p[0] + dx, p[1] + dy, p[2]] as [number, number, number?]);
-              return { 
-                ...l, 
+              return {
+                ...l,
                 points: newPoints,
                 boundingBox: calculateBoundingBox(newPoints)
               };
@@ -777,35 +789,41 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
       setCanvasHeight(prev => {
         const next = y + padding + 500;
         if (next > prev) {
-            return next;
+          return next;
         }
         return prev;
       });
     }
   }, [canvasHeight]);
 
-  const updateLayers = useCallback((newLayers: (DrawingPath | MediaLayer | TextLayer | ShapeLayer)[]) => {
+  const updateLayers = useCallback((newLayersOrUpdater: (DrawingPath | MediaLayer | TextLayer | ShapeLayer)[] | ((prev: (DrawingPath | MediaLayer | TextLayer | ShapeLayer)[]) => (DrawingPath | MediaLayer | TextLayer | ShapeLayer)[])) => {
     // Add to history and limit size to prevent memory leaks (max 50 steps)
     const MAX_HISTORY = 50;
-    let newHistory = history.slice(0, historyStep + 1);
-    newHistory.push(newLayers);
-    
-    if (newHistory.length > MAX_HISTORY) {
-      newHistory = newHistory.slice(newHistory.length - MAX_HISTORY);
-    }
-    
-    setHistory(newHistory);
-    setHistoryStep(newHistory.length - 1);
-    
-    setLayers(newLayers);
-    setLocalVersion(v => v + 1);
-  }, [history, historyStep]);
+
+    setLayers(prevLayers => {
+      const nextLayers = typeof newLayersOrUpdater === 'function' ? newLayersOrUpdater(prevLayers) : newLayersOrUpdater;
+
+      setHistory(prevHistory => {
+        let newHistory = prevHistory.slice(0, historyStep + 1);
+        newHistory.push(nextLayers);
+        if (newHistory.length > MAX_HISTORY) {
+          newHistory = newHistory.slice(newHistory.length - MAX_HISTORY);
+        }
+        return newHistory;
+      });
+
+      setHistoryStep(prev => Math.min(prev + 1, MAX_HISTORY - 1));
+      setLocalVersion(v => v + 1);
+
+      return nextLayers;
+    });
+  }, [historyStep]);
 
   // Zoom logic
   const handleWheel = (e: Konva.KonvaEventObject<WheelEvent>) => {
     // Zoom only if Ctrl/Cmd is pressed
     if (!e.evt.ctrlKey && !e.evt.metaKey) return;
-    
+
     e.evt.preventDefault();
     const stage = stageRef.current;
     if (!stage) return;
@@ -834,9 +852,9 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
   const handleMouseDown = (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
     // Basic palm rejection: ignore touch if a pen was recently used (within 500ms)
     // We use a safe check for pointerType as it might not exist on all event types
-    const pointerType = (e.evt as unknown as PointerEvent).pointerType || 
-                        ((e.evt as unknown as TouchEvent).touches ? 'touch' : 'mouse');
-    
+    const pointerType = (e.evt as unknown as PointerEvent).pointerType ||
+      ((e.evt as unknown as TouchEvent).touches ? 'touch' : 'mouse');
+
     if (pointerType === 'pen') {
       lastPenTimeRef.current = Date.now();
     } else if (pointerType === 'touch') {
@@ -874,7 +892,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
 
       const newText: TextLayer = {
         type: 'text',
-        id: `text-${Date.now()}`,
+        id: `text-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
         text: '點擊編輯',
         x: pos.x,
         y: pos.y,
@@ -883,7 +901,8 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
         rotation: 0,
       };
 
-      updateLayers([...layers, newText]);
+      // Better to call updateLayers to ensure history consistency
+      updateLayers(prev => [...prev, newText]);
       setCurrentTool('select');
       setSelectedId(newText.id);
       return;
@@ -894,11 +913,11 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
 
     isDrawing.current = true;
     deletedLayerIdsRef.current.clear();
-    
+
     // Use relative pointer position to account for stage scaling
     const pos = stage.getRelativePointerPosition();
     if (!pos) return;
-    
+
     startPosRef.current = { x: pos.x, y: pos.y };
 
     if (currentTool === 'rectangle' || currentTool === 'circle' || currentTool === 'arrow') {
@@ -924,7 +943,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
 
     const pressure = (e.evt as unknown as PointerEvent).pressure || 0.5;
     currentPointsRef.current = [pos.x, pos.y, pressure];
-    
+
     // Imperatively update the active line
     if (activeLineRef.current) {
       activeLineRef.current.points([pos.x, pos.y]);
@@ -935,7 +954,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
 
   const handleMouseMove = (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
     if (!isDrawing.current) return;
-    
+
     const stage = stageRef.current;
     if (!stage) return;
 
@@ -945,28 +964,28 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
         const dx = pos.x - lastPointerPosRef.current.x;
         const dy = pos.y - lastPointerPosRef.current.y;
         lastPointerPosRef.current = pos;
-        
-        setStagePos(prev => ({ 
-          x: prev.x + dx, 
-          y: prev.y + dy 
+
+        setStagePos(prev => ({
+          x: prev.x + dx,
+          y: prev.y + dy
         }));
       }
       return;
     }
-    
+
     const pos = stage.getRelativePointerPosition();
     if (!pos) return;
 
     if (currentTool === 'rectangle' && activeRectRef.current && startPosRef.current) {
       let width = pos.x - startPosRef.current.x;
       let height = pos.y - startPosRef.current.y;
-      
+
       if (e.evt.shiftKey) {
         const size = Math.max(Math.abs(width), Math.abs(height));
         width = width > 0 ? size : -size;
         height = height > 0 ? size : -size;
       }
-      
+
       activeRectRef.current.width(width);
       activeRectRef.current.height(height);
       stage.batchDraw();
@@ -976,18 +995,18 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
     if (currentTool === 'circle' && activeEllipseRef.current && startPosRef.current) {
       let width = pos.x - startPosRef.current.x;
       let height = pos.y - startPosRef.current.y;
-      
+
       if (e.evt.shiftKey) {
         const size = Math.max(Math.abs(width), Math.abs(height));
         width = width > 0 ? size : -size;
         height = height > 0 ? size : -size;
       }
-      
+
       activeEllipseRef.current.x(startPosRef.current.x + width / 2);
       activeEllipseRef.current.y(startPosRef.current.y + height / 2);
       activeEllipseRef.current.radiusX(Math.abs(width) / 2);
       activeEllipseRef.current.radiusY(Math.abs(height) / 2);
-      
+
       stage.batchDraw();
       return;
     }
@@ -995,7 +1014,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
     if (currentTool === 'arrow' && activeArrowRef.current && startPosRef.current) {
       let endX = pos.x;
       let endY = pos.y;
-      
+
       if (e.evt.shiftKey) {
         const dx = pos.x - startPosRef.current.x;
         const dy = pos.y - startPosRef.current.y;
@@ -1005,7 +1024,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
         endX = startPosRef.current.x + Math.cos(snappedAngle) * dist;
         endY = startPosRef.current.y + Math.sin(snappedAngle) * dist;
       }
-      
+
       activeArrowRef.current.points([startPosRef.current.x, startPosRef.current.y, endX, endY]);
       stage.batchDraw();
       return;
@@ -1018,11 +1037,11 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
     }
 
     if (currentTool === 'eraser') {
-       // Stroke-based eraser: find all lines that intersect with current pointer
-       const hitRadius = TOOL_CONFIG.eraser.width / 2;
-       let hasHit = false;
-       
-       layers.forEach((layer) => {
+      // Stroke-based eraser: find all lines that intersect with current pointer
+      const hitRadius = TOOL_CONFIG.eraser.width / 2;
+      let hasHit = false;
+
+      layers.forEach((layer) => {
         if (layer.type !== 'drawing') return;
         const drawing = layer as DrawingPath;
         // Skip highlighter/pen check if we're erasing
@@ -1056,7 +1075,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
         if (isHit) {
           deletedLayerIdsRef.current.add(drawing.id);
           hasHit = true;
-          
+
           // Imperatively hide the node for performance
           const node = stage.findOne('#' + drawing.id);
           if (node) {
@@ -1066,19 +1085,19 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
       });
 
       if (hasHit) {
-         stage.batchDraw();
-       }
-       return;
+        stage.batchDraw();
+      }
+      return;
     }
-    
+
     const pressure = (e.evt as unknown as PointerEvent).pressure || 0.5;
     currentPointsRef.current.push(pos.x, pos.y, pressure);
-    
+
     // Live canvas extension for smoother infinite vertical growth
     if (pos.y > canvasHeight - 200) {
       ensureHeight(pos.y);
     }
-    
+
     // Imperative update - NO React state change here
     if (activeLineRef.current) {
       // For Konva.Line preview, we only use x,y pairs
@@ -1105,16 +1124,15 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
     }
 
     if (currentTool === 'hand') return;
-    
+
     if (currentTool === 'eraser') {
       if (deletedLayerIdsRef.current.size > 0) {
-        const newLayers = layers.filter(layer => {
+        updateLayers(prev => prev.filter(layer => {
           if (layer.type === 'drawing') {
             return !deletedLayerIdsRef.current.has((layer as DrawingPath).id);
           }
           return true;
-        });
-        updateLayers(newLayers);
+        }));
       }
       return;
     }
@@ -1125,11 +1143,11 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
 
     if (currentTool === 'rectangle' || currentTool === 'circle' || currentTool === 'arrow') {
       let newShape: ShapeLayer | null = null;
-      
+
       if (currentTool === 'rectangle') {
         let width = pos.x - startPosRef.current.x;
         let height = pos.y - startPosRef.current.y;
-        
+
         if (e.evt.shiftKey) {
           const size = Math.max(Math.abs(width), Math.abs(height));
           width = width > 0 ? size : -size;
@@ -1142,7 +1160,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
         }
         newShape = {
           type: 'shape',
-          id: `shape-${Date.now()}`,
+          id: `shape-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
           tool: 'rectangle',
           x: width > 0 ? startPosRef.current.x : startPosRef.current.x + width,
           y: height > 0 ? startPosRef.current.y : startPosRef.current.y + height,
@@ -1156,7 +1174,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
       } else if (currentTool === 'circle') {
         let width = pos.x - startPosRef.current.x;
         let height = pos.y - startPosRef.current.y;
-        
+
         if (e.evt.shiftKey) {
           const size = Math.max(Math.abs(width), Math.abs(height));
           width = width > 0 ? size : -size;
@@ -1169,7 +1187,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
         }
         newShape = {
           type: 'shape',
-          id: `shape-${Date.now()}`,
+          id: `shape-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
           tool: 'circle',
           x: startPosRef.current.x + width / 2,
           y: startPosRef.current.y + height / 2,
@@ -1183,7 +1201,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
       } else if (currentTool === 'arrow') {
         let endX = pos.x;
         let endY = pos.y;
-        
+
         if (e.evt.shiftKey) {
           const dx = pos.x - startPosRef.current.x;
           const dy = pos.y - startPosRef.current.y;
@@ -1196,14 +1214,14 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
 
         const dx = endX - startPosRef.current.x;
         const dy = endY - startPosRef.current.y;
-        
+
         if (Math.abs(dx) < 5 && Math.abs(dy) < 5) {
           if (activeArrowRef.current) activeArrowRef.current.visible(false);
           return;
         }
         newShape = {
           type: 'shape',
-          id: `shape-${Date.now()}`,
+          id: `shape-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
           tool: 'arrow',
           x: startPosRef.current.x,
           y: startPosRef.current.y,
@@ -1218,7 +1236,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
 
       if (newShape) {
         ensureHeight(newShape.y + newShape.height);
-        updateLayers([...layers, newShape]);
+        updateLayers(prev => [...prev, newShape!]);
         setCurrentTool('select');
         setSelectedId(newShape.id);
       }
@@ -1240,7 +1258,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
         if (y > maxY) maxY = y;
       }
     }
-    
+
     if (maxY !== -Infinity) {
       ensureHeight(maxY);
     }
@@ -1256,10 +1274,9 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
         boundingBox: minX !== Infinity ? { minX, maxX, minY, maxY } : undefined,
       };
 
-      const newLayers = [...layers, newPath];
-      updateLayers(newLayers);
+      updateLayers(prev => [...prev, newPath]);
     }
-    
+
     // Clear and hide active line
     currentPointsRef.current = [];
     if (activeLineRef.current) {
@@ -1307,9 +1324,9 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
     const prevStep = historyStep - 1;
     const prevLayers = history[prevStep];
     if (prevLayers) {
-        setLayers(prevLayers);
-        setHistoryStep(prevStep);
-        setLocalVersion(v => v + 1);
+      setLayers(prevLayers);
+      setHistoryStep(prevStep);
+      setLocalVersion(v => v + 1);
     }
   }, [historyStep, history]);
 
@@ -1318,9 +1335,9 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
     const nextStep = historyStep + 1;
     const nextLayers = history[nextStep];
     if (nextLayers) {
-        setLayers(nextLayers);
-        setHistoryStep(nextStep);
-        setLocalVersion(v => v + 1);
+      setLayers(nextLayers);
+      setHistoryStep(nextStep);
+      setLocalVersion(v => v + 1);
     }
   }, [historyStep, history]);
 
@@ -1343,7 +1360,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
         initialQuality: 0.8,
         fileType: 'image/webp' as const,
       };
-      
+
       const compressedFile = await imageCompression(file, compressionOptions);
       const dimensions = await new Promise<{ width: number; height: number }>((resolve, reject) => {
         const img = new Image();
@@ -1356,7 +1373,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
       });
 
       const data = await apiService.uploadMedicalRecordMedia(recordId, compressedFile as File);
-      
+
       const maxWidth = 400;
       let width = dimensions.width;
       let height = dimensions.height;
@@ -1373,17 +1390,17 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
       if (stageRef.current) {
         const container = stageRef.current.container();
         const rect = container.getBoundingClientRect();
-        
+
         // viewport center in document coordinates
         const viewportCenterY = window.scrollY + window.innerHeight / 2;
-        
+
         // canvas top in document coordinates
         const canvasTop = rect.top + window.scrollY;
-        
+
         // target Y is viewport center relative to canvas top, minus half image height
         // Convert visual pixels to logical units by dividing by scale
         targetY = Math.max(20, (viewportCenterY - canvasTop) / scale - height / 2);
-        
+
         // target X is horizontal center of canvas minus half image width
         targetX = Math.max(0, (CANVAS_WIDTH - width) / 2);
       }
@@ -1401,10 +1418,10 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
       };
 
       ensureHeight(newMedia.y + newMedia.height);
-      updateLayers([...layers, newMedia]);
+      updateLayers(prev => [...prev, newMedia]);
       setCurrentTool('select');
       setSelectedId(data.id);
-      
+
     } catch (err) {
       logger.error('Upload error:', err);
       alert('圖片上傳失敗');
@@ -1416,40 +1433,42 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
 
   const deleteSelected = useCallback(() => {
     if (!selectedId) return;
-    const newLayers = layers.filter(l => l.id !== selectedId);
-    updateLayers(newLayers);
+    updateLayers(prev => prev.filter(l => l.id !== selectedId));
     setSelectedId(null);
-  }, [selectedId, layers, updateLayers]);
-  
-  const moveLayer = (direction: 'up' | 'down' | 'front' | 'back') => {
-      if (!selectedId) return;
-      const index = layers.findIndex(l => l.id === selectedId);
-      if (index === -1) return;
-      
-      const newLayers = [...layers];
-      const current = newLayers[index];
-      if (!current) return;
+  }, [selectedId, updateLayers]);
 
-      if (direction === 'up' && index < layers.length - 1) {
-          const target = newLayers[index + 1];
-          if (target) {
-            newLayers[index] = target;
-            newLayers[index + 1] = current;
-          }
+  const moveLayer = (direction: 'up' | 'down' | 'front' | 'back') => {
+    if (!selectedId) return;
+
+    updateLayers(prev => {
+      const index = prev.findIndex(l => l.id === selectedId);
+      if (index === -1) return prev;
+
+      const newLayers = [...prev];
+      const current = newLayers[index];
+      if (!current) return prev;
+
+      if (direction === 'up' && index < newLayers.length - 1) {
+        const target = newLayers[index + 1];
+        if (target) {
+          newLayers[index] = target;
+          newLayers[index + 1] = current;
+        }
       } else if (direction === 'down' && index > 0) {
-          const target = newLayers[index - 1];
-          if (target) {
-            newLayers[index] = target;
-            newLayers[index - 1] = current;
-          }
+        const target = newLayers[index - 1];
+        if (target) {
+          newLayers[index] = target;
+          newLayers[index - 1] = current;
+        }
       } else if (direction === 'front') {
-          newLayers.splice(index, 1);
-          newLayers.push(current);
+        newLayers.splice(index, 1);
+        newLayers.push(current);
       } else if (direction === 'back') {
-          newLayers.splice(index, 1);
-          newLayers.unshift(current);
+        newLayers.splice(index, 1);
+        newLayers.unshift(current);
       }
-      updateLayers(newLayers);
+      return newLayers;
+    });
   };
 
   const [zoomLevel, setZoomLevel] = useState(100);
@@ -1459,317 +1478,317 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
 
   return (
     <div className="relative w-full bg-gray-200 min-h-full">
-       {/* Toolbar */}
+      {/* Toolbar */}
       <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-white rounded-full shadow-2xl px-6 py-3 flex items-center gap-4 z-20 border border-gray-200">
-         <div className="flex items-center gap-2">
-            <ToolButton 
-                active={currentTool === 'select'} 
-                onClick={() => setCurrentTool('select')} 
-                icon={<CursorIcon />} 
-                label="選取 (V)"
-            />
-             <div className="w-px h-6 bg-gray-300 mx-1" />
-            <ToolButton 
-                active={currentTool === 'pen'} 
-                onClick={() => { setCurrentTool('pen'); setSelectedId(null); }} 
-                icon={<PenIcon />} 
-                label="畫筆 (P)"
-            />
-            <ToolButton 
-                active={currentTool === 'highlighter'} 
-                onClick={() => { setCurrentTool('highlighter'); setSelectedId(null); }} 
-                icon={<HighlighterIcon />} 
-                label="螢光筆"
-            />
-            <ToolButton 
-                    active={currentTool === 'eraser'} 
-                    onClick={() => { setCurrentTool('eraser'); setSelectedId(null); }} 
-                    icon={<EraserIcon />} 
-                    label="橡皮擦 (E)"
-                />
-                <div className="w-px h-6 bg-gray-300 mx-1" />
-                <ToolButton 
-                    active={currentTool === 'rectangle'} 
-                    onClick={() => { setCurrentTool('rectangle'); setSelectedId(null); }} 
-                    icon={<SquareIcon />} 
-                    label="矩形 (R)"
-                />
-                <ToolButton 
-                    active={currentTool === 'circle'} 
-                    onClick={() => { setCurrentTool('circle'); setSelectedId(null); }} 
-                    icon={<CircleIcon />} 
-                    label="圓形 (O)"
-                />
-                <ToolButton 
-                    active={currentTool === 'arrow'} 
-                    onClick={() => { setCurrentTool('arrow'); setSelectedId(null); }} 
-                    icon={<ArrowIcon />} 
-                    label="箭頭"
-                />
-                <div className="w-px h-6 bg-gray-300 mx-1" />
-                <ToolButton 
-                    active={currentTool === 'text'} 
-                    onClick={() => { setCurrentTool('text'); setSelectedId(null); }} 
-                    icon={<TextIcon />} 
-                    label="文字 (T)"
-                />
-                <ToolButton 
-                    active={currentTool === 'hand'} 
-                    onClick={() => { setCurrentTool('hand'); setSelectedId(null); }} 
-                    icon={<HandIcon />} 
-                    label="平移 (H)"
-                />
-                <div className="w-px h-6 bg-gray-300 mx-1" />
-                <ToolButton 
-                    onClick={() => fileInputRef.current?.click()} 
-                    icon={<ImageIcon />} 
-                    label="圖片上傳 (I)"
-                    disabled={isUploading}
-                />
-            <input 
-                ref={fileInputRef} 
-                type="file" 
-                id="canvas-image-upload"
-                aria-label="圖片隱藏輸入"
-                hidden 
-                accept="image/*" 
-                onChange={handleImageUpload} 
-            />
-         </div>
-         
-         <div className="w-px h-6 bg-gray-300 mx-1" />
-         
-         <div className="flex items-center gap-2">
-             <button onClick={undo} disabled={historyStep === 0} title="還原 (Cmd+Z)" className="p-2 hover:bg-gray-100 rounded-full disabled:opacity-30">
-                 <UndoIcon />
-             </button>
-             <button onClick={redo} disabled={historyStep === history.length - 1} title="重做 (Cmd+Shift+Z)" className="p-2 hover:bg-gray-100 rounded-full disabled:opacity-30">
-                 <RedoIcon />
-             </button>
-         </div>
+        <div className="flex items-center gap-2">
+          <ToolButton
+            active={currentTool === 'select'}
+            onClick={() => setCurrentTool('select')}
+            icon={<CursorIcon />}
+            label="選取 (V)"
+          />
+          <div className="w-px h-6 bg-gray-300 mx-1" />
+          <ToolButton
+            active={currentTool === 'pen'}
+            onClick={() => { setCurrentTool('pen'); setSelectedId(null); }}
+            icon={<PenIcon />}
+            label="畫筆 (P)"
+          />
+          <ToolButton
+            active={currentTool === 'highlighter'}
+            onClick={() => { setCurrentTool('highlighter'); setSelectedId(null); }}
+            icon={<HighlighterIcon />}
+            label="螢光筆"
+          />
+          <ToolButton
+            active={currentTool === 'eraser'}
+            onClick={() => { setCurrentTool('eraser'); setSelectedId(null); }}
+            icon={<EraserIcon />}
+            label="橡皮擦 (E)"
+          />
+          <div className="w-px h-6 bg-gray-300 mx-1" />
+          <ToolButton
+            active={currentTool === 'rectangle'}
+            onClick={() => { setCurrentTool('rectangle'); setSelectedId(null); }}
+            icon={<SquareIcon />}
+            label="矩形 (R)"
+          />
+          <ToolButton
+            active={currentTool === 'circle'}
+            onClick={() => { setCurrentTool('circle'); setSelectedId(null); }}
+            icon={<CircleIcon />}
+            label="圓形 (O)"
+          />
+          <ToolButton
+            active={currentTool === 'arrow'}
+            onClick={() => { setCurrentTool('arrow'); setSelectedId(null); }}
+            icon={<ArrowIcon />}
+            label="箭頭"
+          />
+          <div className="w-px h-6 bg-gray-300 mx-1" />
+          <ToolButton
+            active={currentTool === 'text'}
+            onClick={() => { setCurrentTool('text'); setSelectedId(null); }}
+            icon={<TextIcon />}
+            label="文字 (T)"
+          />
+          <ToolButton
+            active={currentTool === 'hand'}
+            onClick={() => { setCurrentTool('hand'); setSelectedId(null); }}
+            icon={<HandIcon />}
+            label="平移 (H)"
+          />
+          <div className="w-px h-6 bg-gray-300 mx-1" />
+          <ToolButton
+            onClick={() => fileInputRef.current?.click()}
+            icon={<ImageIcon />}
+            label="圖片上傳 (I)"
+            disabled={isUploading}
+          />
+          <input
+            ref={fileInputRef}
+            type="file"
+            id="canvas-image-upload"
+            aria-label="圖片隱藏輸入"
+            hidden
+            accept="image/*"
+            onChange={handleImageUpload}
+          />
+        </div>
 
-         <div className="w-px h-6 bg-gray-300 mx-1" />
-         
-         <div className="flex items-center gap-2">
-            <button 
-              onClick={() => {
-                const newScale = Math.max(0.2, stageScale / 1.1);
-                setStageScale(newScale);
-              }}
-              className="p-1 hover:bg-gray-100 rounded"
-            >
-              -
-            </button>
-            <span className="text-xs font-mono w-10 text-center">{zoomLevel}%</span>
-            <button 
-              onClick={() => {
-                const newScale = Math.min(5, stageScale * 1.1);
-                setStageScale(newScale);
-              }}
-              className="p-1 hover:bg-gray-100 rounded"
-            >
-              +
-            </button>
-         </div>
+        <div className="w-px h-6 bg-gray-300 mx-1" />
 
-         <div className="w-px h-6 bg-gray-300 mx-1" />
-         <SyncStatus status={syncStatus || 'none'} />
+        <div className="flex items-center gap-2">
+          <button onClick={undo} disabled={historyStep === 0} title="還原 (Cmd+Z)" className="p-2 hover:bg-gray-100 rounded-full disabled:opacity-30">
+            <UndoIcon />
+          </button>
+          <button onClick={redo} disabled={historyStep === history.length - 1} title="重做 (Cmd+Shift+Z)" className="p-2 hover:bg-gray-100 rounded-full disabled:opacity-30">
+            <RedoIcon />
+          </button>
+        </div>
+
+        <div className="w-px h-6 bg-gray-300 mx-1" />
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              const newScale = Math.max(0.2, stageScale / 1.1);
+              setStageScale(newScale);
+            }}
+            className="p-1 hover:bg-gray-100 rounded"
+          >
+            -
+          </button>
+          <span className="text-xs font-mono w-10 text-center">{zoomLevel}%</span>
+          <button
+            onClick={() => {
+              const newScale = Math.min(5, stageScale * 1.1);
+              setStageScale(newScale);
+            }}
+            className="p-1 hover:bg-gray-100 rounded"
+          >
+            +
+          </button>
+        </div>
+
+        <div className="w-px h-6 bg-gray-300 mx-1" />
+        <SyncStatus status={syncStatus || 'none'} />
       </div>
-      
+
       {/* Context Menu */}
       {selectedId && (
-          <div className="fixed top-6 left-1/2 transform -translate-x-1/2 bg-white rounded-lg shadow-lg px-4 py-2 flex items-center gap-3 z-20 animate-fade-in border border-gray-200">
-              <span className="text-sm font-medium text-gray-600 mr-2">
-                已選取 {
-                  layers.find(l => (l.id === selectedId))?.type === 'media' ? '圖片' : 
-                  layers.find(l => (l.id === selectedId))?.type === 'text' ? '文字' : 
+        <div className="fixed top-6 left-1/2 transform -translate-x-1/2 bg-white rounded-lg shadow-lg px-4 py-2 flex items-center gap-3 z-20 animate-fade-in border border-gray-200">
+          <span className="text-sm font-medium text-gray-600 mr-2">
+            已選取 {
+              layers.find(l => (l.id === selectedId))?.type === 'media' ? '圖片' :
+                layers.find(l => (l.id === selectedId))?.type === 'text' ? '文字' :
                   layers.find(l => (l.id === selectedId))?.type === 'shape' ? '圖形' : '筆跡'
-                }
-              </span>
-              <div className="flex items-center gap-1">
-                <ContextButton onClick={() => moveLayer('front')} label="最上層" />
-                <ContextButton onClick={() => moveLayer('up')} label="上移" />
-                <ContextButton onClick={() => moveLayer('down')} label="下移" />
-                <ContextButton onClick={() => moveLayer('back')} label="最下層" />
-              </div>
-              <div className="w-px h-4 bg-gray-300 mx-1" />
-              <button onClick={deleteSelected} className="text-red-500 hover:text-red-700 text-sm font-medium px-2 py-1 rounded hover:bg-red-50 transition-colors">刪除</button>
+            }
+          </span>
+          <div className="flex items-center gap-1">
+            <ContextButton onClick={() => moveLayer('front')} label="最上層" />
+            <ContextButton onClick={() => moveLayer('up')} label="上移" />
+            <ContextButton onClick={() => moveLayer('down')} label="下移" />
+            <ContextButton onClick={() => moveLayer('back')} label="最下層" />
           </div>
+          <div className="w-px h-4 bg-gray-300 mx-1" />
+          <button onClick={deleteSelected} className="text-red-500 hover:text-red-700 text-sm font-medium px-2 py-1 rounded hover:bg-red-50 transition-colors">刪除</button>
+        </div>
       )}
 
       {/* Scrollable Container */}
-      <div 
+      <div
         className="relative touch-none py-12 overflow-x-auto"
       >
         {/* Paper Surface */}
-        <div 
-            className="bg-white mx-auto shadow-xl relative"
-            style={{ 
-                width: CONTAINER_WIDTH, 
-                minHeight: canvasHeight * scale,
-                cursor: getStageCursor()
-            }}
+        <div
+          className="bg-white mx-auto shadow-xl relative"
+          style={{
+            width: CONTAINER_WIDTH,
+            minHeight: canvasHeight * scale,
+            cursor: getStageCursor()
+          }}
         >
-            <Stage
-              ref={stageRef}
-              width={CONTAINER_WIDTH}
-              height={canvasHeight * scale}
-              scaleX={scale}
-              scaleY={scale}
-              x={stagePos.x}
-              y={stagePos.y}
-              onWheel={handleWheel}
-              onMouseDown={handleMouseDown}
-              onMouseMove={handleMouseMove}
-              onMouseUp={handleMouseUp}
-              onTouchStart={handleMouseDown}
-              onTouchMove={handleMouseMove}
-              onTouchEnd={handleMouseUp}
-            >
-              {/* Background Template Layer - Static */}
-              <Layer name="background" listening={false}>
-                 {initialData.background_image_url && (
-                     <BackgroundImage url={initialData.background_image_url} width={CANVAS_WIDTH} />
-                 )}
-              </Layer>
-    
-              {/* Unified Content Layer - Dynamic Interleaved Z-Ordering */}
-              <Layer name="content">
-                {layers.map((layer, i) => {
-                  if (layer.type === 'media') {
-                    const mediaLayer = layer as MediaLayer;
-                    return (
-                      <UrlImage
-                        key={mediaLayer.id}
-                        layer={mediaLayer}
-                        isSelected={mediaLayer.id === selectedId}
-                        onSelect={() => {
-                            if (currentTool === 'select') {
-                                setSelectedId(mediaLayer.id);
-                            }
-                        }}
-                        onChange={(newAttrs) => {
-                          const newLayers = [...layers];
-                          newLayers[i] = { ...mediaLayer, ...newAttrs } as MediaLayer;
-                          updateLayers(newLayers);
-                          if (newAttrs.y || newAttrs.height) {
-                             ensureHeight((newAttrs.y || mediaLayer.y) + (newAttrs.height || mediaLayer.height));
+          <Stage
+            ref={stageRef}
+            width={CONTAINER_WIDTH}
+            height={canvasHeight * scale}
+            scaleX={scale}
+            scaleY={scale}
+            x={stagePos.x}
+            y={stagePos.y}
+            onWheel={handleWheel}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onTouchStart={handleMouseDown}
+            onTouchMove={handleMouseMove}
+            onTouchEnd={handleMouseUp}
+          >
+            {/* Background Template Layer - Static */}
+            <Layer name="background" listening={false}>
+              {initialData.background_image_url && (
+                <BackgroundImage url={initialData.background_image_url} width={CANVAS_WIDTH} />
+              )}
+            </Layer>
+
+            {/* Unified Content Layer - Dynamic Interleaved Z-Ordering */}
+            <Layer name="content">
+              {layers.map((layer, i) => {
+                if (layer.type === 'media') {
+                  const mediaLayer = layer as MediaLayer;
+                  return (
+                    <UrlImage
+                      key={mediaLayer.id}
+                      layer={mediaLayer}
+                      isSelected={mediaLayer.id === selectedId}
+                      onSelect={() => {
+                        if (currentTool === 'select') {
+                          setSelectedId(mediaLayer.id);
+                        }
+                      }}
+                      onChange={(newAttrs) => {
+                        const newLayers = [...layers];
+                        newLayers[i] = { ...mediaLayer, ...newAttrs } as MediaLayer;
+                        updateLayers(newLayers);
+                        if (newAttrs.y || newAttrs.height) {
+                          ensureHeight((newAttrs.y || mediaLayer.y) + (newAttrs.height || mediaLayer.height));
+                        }
+                      }}
+                    />
+                  );
+                } else if (layer.type === 'drawing') {
+                  const drawing = layer as DrawingPath;
+                  return (
+                    <SelectableLine
+                      key={drawing.id}
+                      layer={drawing}
+                      isSelected={drawing.id === selectedId}
+                      calculateBoundingBox={calculateBoundingBox}
+                      onSelect={() => {
+                        if (currentTool === 'select') {
+                          setSelectedId(drawing.id);
+                        }
+                      }}
+                      onChange={(newAttrs) => {
+                        const newLayers = [...layers];
+                        newLayers[i] = { ...drawing, ...newAttrs } as DrawingPath;
+                        updateLayers(newLayers);
+                        if (newAttrs.points) {
+                          const d = newLayers[i] as DrawingPath;
+                          if (d.boundingBox) {
+                            ensureHeight(d.boundingBox.maxY);
                           }
-                        }}
-                      />
-                    );
-                  } else if (layer.type === 'drawing') {
-                    const drawing = layer as DrawingPath;
-                    return (
-                      <SelectableLine
-                        key={drawing.id}
-                        layer={drawing}
-                        isSelected={drawing.id === selectedId}
-                        calculateBoundingBox={calculateBoundingBox}
-                        onSelect={() => {
-                            if (currentTool === 'select') {
-                                setSelectedId(drawing.id);
-                            }
-                        }}
-                        onChange={(newAttrs) => {
-                          const newLayers = [...layers];
-                          newLayers[i] = { ...drawing, ...newAttrs } as DrawingPath;
-                          updateLayers(newLayers);
-                          if (newAttrs.points) {
-                            const d = newLayers[i] as DrawingPath;
-                            if (d.boundingBox) {
-                               ensureHeight(d.boundingBox.maxY);
-                            }
-                          }
-                        }}
-                      />
-                    );
-                  } else if (layer.type === 'text') {
-                    const textLayer = layer as TextLayer;
-                    return (
-                      <SelectableText
-                        key={textLayer.id}
-                        layer={textLayer}
-                        isSelected={textLayer.id === selectedId}
-                        onSelect={() => {
-                          if (currentTool === 'select') {
-                            setSelectedId(textLayer.id);
-                          }
-                        }}
-                        onChange={(newAttrs) => {
-                          const newLayers = [...layers];
-                          newLayers[i] = { ...textLayer, ...newAttrs } as TextLayer;
-                          updateLayers(newLayers);
-                          if (newAttrs.y || newAttrs.fontSize) {
-                            ensureHeight((newAttrs.y || textLayer.y) + (newAttrs.fontSize || textLayer.fontSize) * 2);
-                          }
-                        }}
-                      />
-                    );
-                  } else if (layer.type === 'shape') {
-                    const shapeLayer = layer as ShapeLayer;
-                    return (
-                      <SelectableShape
-                        key={shapeLayer.id}
-                        layer={shapeLayer}
-                        isSelected={shapeLayer.id === selectedId}
-                        onSelect={() => {
-                          if (currentTool === 'select') {
-                            setSelectedId(shapeLayer.id);
-                          }
-                        }}
-                        onChange={(newAttrs) => {
-                          const newLayers = [...layers];
-                          newLayers[i] = { ...shapeLayer, ...newAttrs } as ShapeLayer;
-                          updateLayers(newLayers);
-                          if (newAttrs.y || newAttrs.height) {
-                            ensureHeight((newAttrs.y || shapeLayer.y) + (newAttrs.height || shapeLayer.height));
-                          }
-                        }}
-                      />
-                    );
-                  }
-                  return null;
-                })}
-                
-                {/* Active Previews */}
-                <Line
-                   ref={activeLineRef}
-                   points={[]}
-                   stroke={TOOL_CONFIG[currentTool === 'highlighter' ? 'highlighter' : 'pen'].color}
-                   strokeWidth={TOOL_CONFIG[currentTool === 'highlighter' ? 'highlighter' : 'pen'].width}
-                   tension={0.5}
-                   lineCap="round"
-                   lineJoin="round"
-                   visible={false}
-                   perfectDrawEnabled={false}
-                   globalCompositeOperation={
-                     currentTool === 'highlighter' ? 'multiply' : 'source-over'
-                   }
-                 />
-                <Rect
-                  ref={activeRectRef}
-                  stroke={TOOL_CONFIG.rectangle.color}
-                  strokeWidth={TOOL_CONFIG.rectangle.width}
-                  visible={false}
-                />
-                <Ellipse
-                  ref={activeEllipseRef}
-                  radiusX={0}
-                  radiusY={0}
-                  stroke={TOOL_CONFIG.circle.color}
-                  strokeWidth={TOOL_CONFIG.circle.width}
-                  visible={false}
-                />
-                <Arrow
-                  ref={activeArrowRef}
-                  points={[0, 0, 0, 0]}
-                  stroke={TOOL_CONFIG.arrow.color}
-                  strokeWidth={TOOL_CONFIG.arrow.width}
-                  visible={false}
-                />
-              </Layer>
-            </Stage>
+                        }
+                      }}
+                    />
+                  );
+                } else if (layer.type === 'text') {
+                  const textLayer = layer as TextLayer;
+                  return (
+                    <SelectableText
+                      key={textLayer.id}
+                      layer={textLayer}
+                      isSelected={textLayer.id === selectedId}
+                      onSelect={() => {
+                        if (currentTool === 'select') {
+                          setSelectedId(textLayer.id);
+                        }
+                      }}
+                      onChange={(newAttrs) => {
+                        const newLayers = [...layers];
+                        newLayers[i] = { ...textLayer, ...newAttrs } as TextLayer;
+                        updateLayers(newLayers);
+                        if (newAttrs.y || newAttrs.fontSize) {
+                          ensureHeight((newAttrs.y || textLayer.y) + (newAttrs.fontSize || textLayer.fontSize) * 2);
+                        }
+                      }}
+                    />
+                  );
+                } else if (layer.type === 'shape') {
+                  const shapeLayer = layer as ShapeLayer;
+                  return (
+                    <SelectableShape
+                      key={shapeLayer.id}
+                      layer={shapeLayer}
+                      isSelected={shapeLayer.id === selectedId}
+                      onSelect={() => {
+                        if (currentTool === 'select') {
+                          setSelectedId(shapeLayer.id);
+                        }
+                      }}
+                      onChange={(newAttrs) => {
+                        const newLayers = [...layers];
+                        newLayers[i] = { ...shapeLayer, ...newAttrs } as ShapeLayer;
+                        updateLayers(newLayers);
+                        if (newAttrs.y || newAttrs.height) {
+                          ensureHeight((newAttrs.y || shapeLayer.y) + (newAttrs.height || shapeLayer.height));
+                        }
+                      }}
+                    />
+                  );
+                }
+                return null;
+              })}
+
+              {/* Active Previews */}
+              <Line
+                ref={activeLineRef}
+                points={[]}
+                stroke={TOOL_CONFIG[currentTool === 'highlighter' ? 'highlighter' : 'pen'].color}
+                strokeWidth={TOOL_CONFIG[currentTool === 'highlighter' ? 'highlighter' : 'pen'].width}
+                tension={0.5}
+                lineCap="round"
+                lineJoin="round"
+                visible={false}
+                perfectDrawEnabled={false}
+                globalCompositeOperation={
+                  currentTool === 'highlighter' ? 'multiply' : 'source-over'
+                }
+              />
+              <Rect
+                ref={activeRectRef}
+                stroke={TOOL_CONFIG.rectangle.color}
+                strokeWidth={TOOL_CONFIG.rectangle.width}
+                visible={false}
+              />
+              <Ellipse
+                ref={activeEllipseRef}
+                radiusX={0}
+                radiusY={0}
+                stroke={TOOL_CONFIG.circle.color}
+                strokeWidth={TOOL_CONFIG.circle.width}
+                visible={false}
+              />
+              <Arrow
+                ref={activeArrowRef}
+                points={[0, 0, 0, 0]}
+                stroke={TOOL_CONFIG.arrow.color}
+                strokeWidth={TOOL_CONFIG.arrow.width}
+                visible={false}
+              />
+            </Layer>
+          </Stage>
         </div>
       </div>
     </div>
@@ -1813,32 +1832,31 @@ const ArrowIcon = () => (
 );
 
 interface ToolButtonProps {
-    active?: boolean;
-    onClick: () => void;
-    icon: React.ReactNode;
-    label: string;
-    disabled?: boolean;
+  active?: boolean;
+  onClick: () => void;
+  icon: React.ReactNode;
+  label: string;
+  disabled?: boolean;
 }
 
 const ToolButton = ({ active, onClick, icon, label, disabled }: ToolButtonProps) => (
-    <button
-        onClick={onClick}
-        disabled={disabled}
-        title={label}
-        aria-label={label}
-        className={`p-3 rounded-xl transition-all duration-200 flex items-center justify-center ${
-            active 
-            ? 'bg-blue-100 text-blue-600 shadow-inner' 
-            : 'hover:bg-gray-100 text-gray-600'
-        } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
-    >
-        {icon}
-    </button>
+  <button
+    onClick={onClick}
+    disabled={disabled}
+    title={label}
+    aria-label={label}
+    className={`p-3 rounded-xl transition-all duration-200 flex items-center justify-center ${active
+      ? 'bg-blue-100 text-blue-600 shadow-inner'
+      : 'hover:bg-gray-100 text-gray-600'
+      } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+  >
+    {icon}
+  </button>
 );
 
 const ContextButton = ({ onClick, label }: { onClick: () => void; label: string }) => (
-  <button 
-    onClick={onClick} 
+  <button
+    onClick={onClick}
     className="text-gray-600 hover:text-black hover:bg-gray-100 px-2 py-1 rounded text-sm transition-colors"
   >
     {label}
@@ -1847,23 +1865,23 @@ const ContextButton = ({ onClick, label }: { onClick: () => void; label: string 
 
 // Icons
 const CursorIcon = () => (
-    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5" /></svg>
+  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5" /></svg>
 );
 const PenIcon = () => (
-    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
 );
 const HighlighterIcon = () => (
-    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
 );
 const EraserIcon = () => (
-    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
 );
 const ImageIcon = () => (
-    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
 );
 const UndoIcon = () => (
-    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
 );
 const RedoIcon = () => (
-    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 10H11a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6" /></svg>
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 10H11a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6" /></svg>
 );
