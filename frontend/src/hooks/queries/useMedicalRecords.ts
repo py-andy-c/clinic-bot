@@ -44,7 +44,10 @@ export const useUpdateMedicalRecord = () => {
         mutationFn: ({ recordId, data }: { recordId: number; data: Parameters<typeof apiService.updateMedicalRecord>[1] }) =>
             apiService.updateMedicalRecord(recordId, data),
         onSuccess: (data) => {
-            queryClient.invalidateQueries({ queryKey: medicalRecordKeys.detail(data.id) });
+            // Update the detail cache immediately to avoid flickers and redundant refetches
+            queryClient.setQueryData(medicalRecordKeys.detail(data.id), data);
+            
+            // Still invalidate lists to ensure they are updated in the background
             queryClient.invalidateQueries({ queryKey: medicalRecordKeys.list(data.patient_id) });
         },
     });

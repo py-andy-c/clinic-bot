@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useRef, useEffect, useLayoutEffect, useState, useCallback } from 'react';
 import imageCompression from 'browser-image-compression';
 import type { WorkspaceData, DrawingPath, MediaLayer, DrawingTool } from '../../types';
 import { logger } from '../../utils/logger';
@@ -92,19 +92,26 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
   const [canvasWidth, setCanvasWidth] = useState(800);
   const [currentPath, setCurrentPath] = useState<DrawingPath | null>(null);
   const [pendingUpdate, setPendingUpdate] = useState<WorkspaceData | null>(null);
-  const [images, setImages] = useState<Record<string, HTMLImageElement>>({});
+  const imagesRef = useRef<Record<string, HTMLImageElement>>({});
+  const [imagesLoaded, setImagesLoaded] = useState(0); // Trigger re-render when images load
   const [isUploading, setIsUploading] = useState(false);
   const [localVersion, setLocalVersion] = useState(0); // Counter for user actions
   const [serverVersion, setServerVersion] = useState(initialVersion);
   const lastUpdateVersionRef = useRef<number>(0); // Track what we last sent to parent
+  const acknowledgedLocalVersionRef = useRef<number>(0); // Track the last local version acknowledged by server
   const [selectedLayerId, setSelectedLayerId] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState<{ x: number; y: number } | null>(null);
   const [isResizing, setIsResizing] = useState(false);
   const [isRotating, setIsRotating] = useState(false);
   const [showToolbar, setShowToolbar] = useState(false);
 
+  // Buffer canvas for flicker-free resizing
+  const bufferCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const isBufferValidRef = useRef<boolean>(false);
+
   const COMFORT_BUFFER = 300; // Extra space at the bottom for writing
   const MIN_CANVAS_HEIGHT = 800;
+  const HEIGHT_CHUNK_SIZE = 500; // Resize in 500px steps to reduce flicker frequency
 
   const calculateContentBottom = useCallback(() => {
     let maxBottom = 0;
@@ -141,27 +148,57 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
 
     // Check background image height
     if (migratedInitialData.current.background_image_url) {
-      const bgImg = images['background'];
+      const bgImg = imagesRef.current['background'];
       if (bgImg) {
         maxBottom = Math.max(maxBottom, (LOGICAL_WIDTH / bgImg.width) * bgImg.height);
       }
     }
 
     return maxBottom;
-  }, [layers, currentPath, images]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [layers, currentPath, imagesLoaded]);
 
-  // Reactive height adjustment with debouncing
+  // Reactive height adjustment with debouncing and chunking
   useEffect(() => {
     const contentBottom = calculateContentBottom();
-    const targetHeight = Math.max(MIN_CANVAS_HEIGHT, contentBottom + COMFORT_BUFFER);
+    const neededHeight = contentBottom + COMFORT_BUFFER;
+    
+    // Chunked height: Always round up to the next HEIGHT_CHUNK_SIZE
+    // This reduces the number of times the physical canvas element is resized
+    const targetHeight = Math.max(
+      MIN_CANVAS_HEIGHT, 
+      Math.ceil(neededHeight / HEIGHT_CHUNK_SIZE) * HEIGHT_CHUNK_SIZE
+    );
 
     // Only update if the difference is significant to avoid jitter
-    if (Math.abs(rawCanvasHeight - targetHeight) > 10) {
+    if (Math.abs(rawCanvasHeight - targetHeight) > 1) {
       const timer = setTimeout(() => {
+        // Capture current canvas content to buffer before resizing
+        const bgCanvas = backgroundCanvasRef.current;
+        const drCanvas = drawingCanvasRef.current;
+        
+        if (bgCanvas && drCanvas) {
+          // Create or resize buffer canvas
+          if (!bufferCanvasRef.current) {
+            bufferCanvasRef.current = document.createElement('canvas');
+          }
+          const buffer = bufferCanvasRef.current;
+          buffer.width = bgCanvas.width;
+          buffer.height = bgCanvas.height;
+          const bCtx = buffer.getContext('2d');
+          
+          if (bCtx) {
+            // Store current view
+            bCtx.drawImage(bgCanvas, 0, 0);
+            bCtx.drawImage(drCanvas, 0, 0);
+            isBufferValidRef.current = true;
+          }
+        }
+
         setRawCanvasHeight(targetHeight);
         // Increment local version to trigger persistence when height changes
         setLocalVersion(v => v + 1);
-      }, 500); // 500ms debounce to avoid constant re-renders during drawing
+      }, 300); // Reduced from 500ms to 300ms for better responsiveness
       return () => clearTimeout(timer);
     }
     return;
@@ -184,53 +221,74 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
   }, []);
 
   // Pre-load images
+  const mediaUrlsFingerprint = layers
+    .filter(l => l.type === 'media')
+    .map(l => (l as MediaLayer).url)
+    .join('|');
+
   useEffect(() => {
     // Background image
-    if (migratedInitialData.current.background_image_url && !images['background']) {
-      const img = new Image();
-      img.crossOrigin = "anonymous";
-      img.src = migratedInitialData.current.background_image_url;
-      img.onload = () => {
-        setImages(prev => ({ ...prev, 'background': img }));
-      };
-      img.onerror = () => {
-        logger.error(`Failed to load background image: ${migratedInitialData.current.background_image_url}`);
-      };
+    const bgUrl = initialData.background_image_url;
+    if (bgUrl) {
+      const existingImg = imagesRef.current['background'];
+      const urlChanged = existingImg && existingImg.src !== bgUrl;
+
+      if (!existingImg || urlChanged) {
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        img.src = bgUrl;
+        img.onload = () => {
+          imagesRef.current['background'] = img;
+          setImagesLoaded(v => v + 1);
+        };
+        img.onerror = () => {
+          logger.error(`Failed to load background image: ${bgUrl}`);
+        };
+      }
     }
 
-    const mediaLayers = layers.filter(l => l.type === 'media') as MediaLayer[];
-    mediaLayers.forEach(layer => {
-      if (!images[layer.id]) {
+    // Media layers
+    layers.forEach(layer => {
+      if (layer.type !== 'media') return;
+      
+      const existingImg = imagesRef.current[layer.id];
+      const urlChanged = existingImg && existingImg.src !== layer.url;
+
+      if (!existingImg || urlChanged) {
         const img = new Image();
         img.crossOrigin = "anonymous";
         img.src = layer.url;
         img.onload = () => {
-          setImages(prev => ({ ...prev, [layer.id]: img }));
+          imagesRef.current[layer.id] = img;
+          setImagesLoaded(v => v + 1);
         };
         img.onerror = () => {
           logger.error(`Failed to load image: ${layer.url}`);
         };
       }
     });
-  }, [layers, migratedInitialData.current.background_image_url]); // We exclude 'images' from dependencies because we use persistent layer IDs as keys. 
-                                                                // Including 'images' would cause an infinite loop as setImages triggers a re-render.
-                                                                // By checking !images[layer.id], we ensure each image is only loaded once.
+  }, [mediaUrlsFingerprint, initialData.background_image_url]); // Re-run if any media URL changes or background URL changes
 
   // Handle window resize for responsive canvas
   useEffect(() => {
     const updateWidth = () => {
       if (containerRef.current) {
+        const oldWidth = canvasWidth;
         // Use the container width but capped at 1000px or initialData.canvas_width if provided
         const containerWidth = containerRef.current.clientWidth;
         const targetWidth = Math.min(containerWidth - 32, migratedInitialData.current.canvas_width || 1000);
-        setCanvasWidth(Math.max(400, targetWidth));
+        const newWidth = Math.max(400, targetWidth);
+        
+        if (Math.abs(oldWidth - newWidth) > 1) {
+          setCanvasWidth(newWidth);
+        }
       }
     };
 
     updateWidth();
     window.addEventListener('resize', updateWidth);
     return () => window.removeEventListener('resize', updateWidth);
-  }, [migratedInitialData.current.canvas_width]);
+  }, [migratedInitialData.current.canvas_width, canvasWidth]);
 
   // Handle scroll for toolbar visibility
   useEffect(() => {
@@ -247,24 +305,86 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
     return () => window.removeEventListener('scroll', handleScroll, { capture: true });
   }, []);
 
+  useEffect(() => {
+    return () => { };
+  }, []);
+
   // Sync layers when initialData changes (but only if we are not currently drawing)
   useEffect(() => {
     if (!isDrawing) {
       const migrated = migrateWorkspaceData(initialData);
+      
+      // Update our acknowledgment ref if the server returned a local version
+      if (migrated.local_version !== undefined) {
+        acknowledgedLocalVersionRef.current = Math.max(
+          acknowledgedLocalVersionRef.current,
+          migrated.local_version
+        );
+      }
 
       // If the server version is strictly greater than our local tracking of the server version,
       // it means a save was successful or another client updated the record.
       if (initialVersion > serverVersion) {
         // If we were waiting for an update and this incoming version matches what we expected
-        // (or passed it), we can clear the pending update and local changes flag.
+        // (or passed it), we can clear the pending update.
         setPendingUpdate(null);
 
-        // Only overwrite local layers if we don't have pending local changes
-        // that hasn't been acknowledged by the server yet.
-        // We use initialVersion to ensure the server has caught up to our local state.
-        if (localVersion <= lastUpdateVersionRef.current) {
-          setLayers(migrated.layers || []);
-          setRawCanvasHeight(migrated.canvas_height || 1000);
+        // CRITICAL: Only overwrite local layers if the server has acknowledged 
+        // our latest local changes. This prevents the race condition where 
+        // an older server response (from an earlier save) overwrites newer local state.
+        if (localVersion <= acknowledgedLocalVersionRef.current) {
+          // Optimization: Only update state if data actually changed to avoid unnecessary re-renders
+          const newLayers = migrated.layers || [];
+          const newHeight = migrated.canvas_height || 1000;
+          
+          // Fast path for layer comparison to avoid expensive JSON.stringify on every sync
+          let layersChanged = newLayers.length !== layers.length;
+          
+          if (!layersChanged) {
+            // Compare layers one by one. Drawing layers can be large, so we check
+            // basic properties first before falling back to JSON.stringify for points.
+            for (let i = 0; i < newLayers.length; i++) {
+               const nl = newLayers[i];
+               const ol = layers[i];
+               
+               if (!nl || !ol || nl.type !== ol.type) {
+                 layersChanged = true;
+                 break;
+               }
+              
+              if (nl.type === 'media') {
+                const nm = nl as MediaLayer;
+                const om = ol as MediaLayer;
+                if (nm.id !== om.id || nm.url !== om.url || nm.x !== om.x || nm.y !== om.y || 
+                    nm.width !== om.width || nm.height !== om.height || nm.rotation !== om.rotation) {
+                  layersChanged = true;
+                  break;
+                }
+              } else {
+                const nd = nl as DrawingPath;
+                const od = ol as DrawingPath;
+                if (nd.tool !== od.tool || nd.color !== od.color || nd.width !== od.width || 
+                    nd.points.length !== od.points.length) {
+                  layersChanged = true;
+                  break;
+                }
+                // Only stringify points if lengths are equal but we need to be absolutely sure.
+                // In most cases, points length change is enough, but we want to be correct.
+                if (JSON.stringify(nd.points) !== JSON.stringify(od.points)) {
+                  layersChanged = true;
+                  break;
+                }
+              }
+            }
+          }
+          
+          if (layersChanged) {
+            setLayers(newLayers);
+          }
+          
+          if (Math.abs(newHeight - rawCanvasHeight) > 1) {
+            setRawCanvasHeight(newHeight);
+          }
         }
 
         setServerVersion(initialVersion);
@@ -274,12 +394,10 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
         migratedInitialData.current = migrated;
       }
     }
-  }, [initialData, initialVersion, isDrawing, serverVersion, localVersion]);
+  }, [initialData, initialVersion, isDrawing, serverVersion, localVersion, layers, rawCanvasHeight]);
 
   const saveWorkspace = useCallback(() => {
     // ONLY send if our local version has actually increased since the last update we sent.
-    // This prevents the infinite loop where a server-sync triggers a local state change
-    // which in turn triggers a new save request.
     if (localVersion <= lastUpdateVersionRef.current) {
       return;
     }
@@ -289,6 +407,8 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
       layers,
       canvas_height: rawCanvasHeight,
       version: 2,
+      // Pass our current local version as metadata so we can track acknowledgment
+      local_version: localVersion,
     };
 
     lastUpdateVersionRef.current = localVersion;
@@ -357,7 +477,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
         ctx.stroke();
       }
     } else if (layer.type === 'media') {
-      const img = images[layer.id];
+      const img = imagesRef.current[layer.id];
       if (img) {
         ctx.globalCompositeOperation = 'source-over';
         ctx.translate(layer.x + layer.width / 2, layer.y + layer.height / 2);
@@ -366,14 +486,19 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
       }
     }
     ctx.restore();
-  }, [images]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [imagesLoaded]);
 
   const renderBackground = useCallback(() => {
     const bgCanvas = backgroundCanvasRef.current;
-    if (!bgCanvas) return;
+    if (!bgCanvas) {
+      return;
+    }
 
     const bgCtx = bgCanvas.getContext('2d');
     if (!bgCtx) return;
+
+    let bgImageDrawn = false;
 
     // Clear background canvas
     bgCtx.clearRect(0, 0, bgCanvas.width, bgCanvas.height);
@@ -383,16 +508,20 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
 
     // 1. Draw Template Background
     if (initialData.background_image_url) {
-      const bgImg = images['background'];
+      const bgImg = imagesRef.current['background'];
       if (bgImg) {
         bgCtx.drawImage(bgImg, 0, 0, LOGICAL_WIDTH, (LOGICAL_WIDTH / bgImg.width) * bgImg.height);
+        bgImageDrawn = true;
       }
     }
 
     // 2. Draw Media Layers
     layers.forEach(layer => {
       if (layer.type === 'media') {
-        drawLayer(bgCtx, layer);
+        const img = imagesRef.current[layer.id];
+        if (img) {
+          drawLayer(bgCtx, layer);
+        }
 
         // Draw selection box if selected
         if (layer.id === selectedLayerId) {
@@ -434,7 +563,16 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
     });
 
     bgCtx.restore();
-  }, [layers, drawLayer, scale, initialData.background_image_url, images, selectedLayerId, dpr]);
+    // Draw placeholder if background image exists but failed to load
+    if (initialData.background_image_url && !bgImageDrawn) {
+      bgCtx.fillStyle = '#f3f4f6';
+      bgCtx.fillRect(0, 0, LOGICAL_WIDTH, 1000);
+      bgCtx.fillStyle = '#9ca3af';
+      bgCtx.font = '14px Inter';
+      bgCtx.fillText('Loading background...', 20, 40);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [layers, drawLayer, scale, initialData.background_image_url, selectedLayerId, dpr, imagesLoaded]);
 
   const renderDrawing = useCallback(() => {
     const drawCanvas = drawingCanvasRef.current;
@@ -462,13 +600,19 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
     }
 
     drawCtx.restore();
+    // Removed frequent renderDrawing complete log to reduce noise
   }, [layers, currentPath, drawLayer, scale, dpr]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     renderBackground();
+    
+    // Explicitly invalidate buffer after render is complete
+    if (isBufferValidRef.current) {
+      isBufferValidRef.current = false;
+    }
   }, [renderBackground]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     renderDrawing();
   }, [renderDrawing]);
 

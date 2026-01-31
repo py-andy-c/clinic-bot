@@ -128,7 +128,7 @@ const MedicalRecordEditorPage: React.FC = () => {
       setPendingWorkspaceData(null);
       setHasUnsavedChanges(false);
       setSaveError(null);
-      await refetch();
+      // No need to manual refetch() as the mutation onSuccess now updates the query cache
     } catch (err) {
       logger.error('Manual/Flush save error:', err);
       const errorMessage = getErrorMessage(err);

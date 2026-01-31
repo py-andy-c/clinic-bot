@@ -722,6 +722,7 @@ export interface WorkspaceData {
   canvas_width: number; // Mandatory for scaling consistency
   background_image_url?: string;
   viewport?: { zoom: number; scroll_top: number };
+  local_version?: number; // Internal tracking for sync acknowledgment
 }
 
 export interface MedicalRecordField {

@@ -60,6 +60,9 @@ class WorkspaceData(BaseModel):
     canvas_height: float = Field(gt=0)
     background_image_url: Optional[str] = None
     viewport: Optional[ViewportState] = None
+    local_version: Optional[int] = Field(default=None, description="Internal tracking for sync acknowledgment")
+
+    model_config = ConfigDict(extra='allow')
 
 # --- Record Schemas ---
 
