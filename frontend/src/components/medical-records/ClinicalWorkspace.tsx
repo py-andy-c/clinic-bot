@@ -217,6 +217,8 @@ const SelectableLine = ({ layer, isSelected, onSelect, onChange, calculateBoundi
       <Line
         id={layer.id}
         ref={shapeRef}
+        x={0}
+        y={0}
         points={layer.points.flatMap(p => [p[0], p[1]])}
         stroke={layer.color}
         strokeWidth={layer.width}
@@ -278,8 +280,8 @@ const SelectableText = ({ layer, isSelected, onSelect, onChange }: {
     const stageBox = stage.container().getBoundingClientRect();
 
     const areaPosition = {
-      x: stageBox.left + textPosition.x,
-      y: stageBox.top + textPosition.y,
+      x: stageBox.left + window.scrollX + textPosition.x,
+      y: stageBox.top + window.scrollY + textPosition.y,
     };
 
     const textarea = document.createElement('textarea');
@@ -550,6 +552,14 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isSpacePressed, setIsSpacePressed] = useState(false);
+  const clipboardRef = useRef<DrawingPath | MediaLayer | TextLayer | ShapeLayer | null>(null);
+
+  // Refs for keyboard shortcuts to avoid frequent re-registration
+  const layersRef = useRef(layers);
+  const selectedIdRef = useRef(selectedId);
+
+  useEffect(() => { layersRef.current = layers; }, [layers]);
+  useEffect(() => { selectedIdRef.current = selectedId; }, [selectedId]);
   
   // Scaling factor for logical to visual container
   const baseScale = CONTAINER_WIDTH / CANVAS_WIDTH;
@@ -603,9 +613,120 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't trigger shortcuts if user is typing in an input or textarea
+      const target = e.target as HTMLElement;
+      if (
+        target.tagName === 'INPUT' || 
+        target.tagName === 'TEXTAREA' || 
+        target.isContentEditable
+      ) {
+        // Special case: Escape to blur textarea
+        if (e.key === 'Escape') {
+          target.blur();
+        }
+        return;
+      }
+
       // Spacebar panning
-      if (e.code === 'Space' && !isSpacePressed && document.activeElement?.tagName !== 'TEXTAREA' && document.activeElement?.tagName !== 'INPUT') {
+      if (e.code === 'Space' && !isSpacePressed) {
         setIsSpacePressed(true);
+        e.preventDefault();
+      }
+
+      // Tool Switching
+      if (e.key.toLowerCase() === 'v') setCurrentTool('select');
+      if (e.key.toLowerCase() === 'p') { setCurrentTool('pen'); setSelectedId(null); }
+      if (e.key.toLowerCase() === 'h') { setCurrentTool('hand'); setSelectedId(null); }
+      if (e.key.toLowerCase() === 'e') { setCurrentTool('eraser'); setSelectedId(null); }
+      if (e.key.toLowerCase() === 'r') { setCurrentTool('rectangle'); setSelectedId(null); }
+      if (e.key.toLowerCase() === 'o') { setCurrentTool('circle'); setSelectedId(null); }
+      if (e.key.toLowerCase() === 't') { setCurrentTool('text'); setSelectedId(null); }
+      if (e.key.toLowerCase() === 'i') fileInputRef.current?.click();
+
+      // Undo/Redo (Cmd/Ctrl + Z / Shift+Z)
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
+        if (e.shiftKey) {
+          redo();
+        } else {
+          undo();
+        }
+        e.preventDefault();
+      }
+
+      // Delete
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (selectedIdRef.current) {
+          deleteSelected();
+          e.preventDefault();
+        }
+      }
+
+      // Escape to clear selection
+      if (e.key === 'Escape') {
+        setSelectedId(null);
+      }
+
+      // Copy/Paste (Cmd/Ctrl + C / V)
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'c') {
+        if (selectedIdRef.current) {
+          const selectedLayer = layersRef.current.find(l => l.id === selectedIdRef.current);
+          if (selectedLayer) {
+            clipboardRef.current = JSON.parse(JSON.stringify(selectedLayer));
+            e.preventDefault();
+          }
+        }
+      }
+
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'v') {
+        if (clipboardRef.current) {
+          const newLayer = JSON.parse(JSON.stringify(clipboardRef.current));
+          newLayer.id = `${newLayer.type}-${Date.now()}`;
+          // Offset the pasted item slightly
+          newLayer.x = (newLayer.x || 0) + 20;
+          newLayer.y = (newLayer.y || 0) + 20;
+          if (newLayer.type === 'drawing') {
+             newLayer.points = newLayer.points.map((p: [number, number, number?]) => [p[0] + 20, p[1] + 20, p[2]]);
+            if (newLayer.boundingBox) {
+              newLayer.boundingBox.minX += 20;
+              newLayer.boundingBox.maxX += 20;
+              newLayer.boundingBox.minY += 20;
+              newLayer.boundingBox.maxY += 20;
+            }
+          }
+          updateLayers([...layersRef.current, newLayer]);
+          setSelectedId(newLayer.id);
+          e.preventDefault();
+        }
+      }
+
+      // Select All (Cmd/Ctrl + A)
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'a') {
+        e.preventDefault();
+      }
+
+      // Nudge (Arrow Keys)
+      if (selectedIdRef.current && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+        const nudgeAmount = e.shiftKey ? 10 : 1;
+        const dx = e.key === 'ArrowLeft' ? -nudgeAmount : e.key === 'ArrowRight' ? nudgeAmount : 0;
+        const dy = e.key === 'ArrowUp' ? -nudgeAmount : e.key === 'ArrowDown' ? nudgeAmount : 0;
+        
+        const newLayers = layersRef.current.map(l => {
+          if (l.id === selectedIdRef.current) {
+            if (l.type === 'drawing') {
+              const newPoints = l.points.map(p => [p[0] + dx, p[1] + dy, p[2]] as [number, number, number?]);
+              return { 
+                ...l, 
+                points: newPoints,
+                boundingBox: calculateBoundingBox(newPoints)
+              };
+            } else {
+              return { ...l, x: (l.x || 0) + dx, y: (l.y || 0) + dy };
+            }
+          }
+          return l;
+        });
+        updateLayers(newLayers);
+        e.preventDefault();
       }
     };
     const handleKeyUp = (e: KeyboardEvent) => {
@@ -620,7 +741,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [isSpacePressed]);
+  }, [isSpacePressed, selectedId, layers, historyStep, history]); // Add dependencies needed for handlers
 
   // Save functionality
   const saveWorkspace = useCallback(() => {
@@ -663,7 +784,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
     }
   }, [canvasHeight]);
 
-  const updateLayers = (newLayers: (DrawingPath | MediaLayer | TextLayer | ShapeLayer)[]) => {
+  const updateLayers = useCallback((newLayers: (DrawingPath | MediaLayer | TextLayer | ShapeLayer)[]) => {
     // Add to history and limit size to prevent memory leaks (max 50 steps)
     const MAX_HISTORY = 50;
     let newHistory = history.slice(0, historyStep + 1);
@@ -678,7 +799,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
     
     setLayers(newLayers);
     setLocalVersion(v => v + 1);
-  };
+  }, [history, historyStep]);
 
   // Zoom logic
   const handleWheel = (e: Konva.KonvaEventObject<WheelEvent>) => {
@@ -853,17 +974,19 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
     }
 
     if (currentTool === 'circle' && activeEllipseRef.current && startPosRef.current) {
-      const dx = pos.x - startPosRef.current.x;
-      const dy = pos.y - startPosRef.current.y;
+      let width = pos.x - startPosRef.current.x;
+      let height = pos.y - startPosRef.current.y;
       
       if (e.evt.shiftKey) {
-        const radius = Math.max(Math.abs(dx), Math.abs(dy));
-        activeEllipseRef.current.radiusX(radius);
-        activeEllipseRef.current.radiusY(radius);
-      } else {
-        activeEllipseRef.current.radiusX(Math.abs(dx));
-        activeEllipseRef.current.radiusY(Math.abs(dy));
+        const size = Math.max(Math.abs(width), Math.abs(height));
+        width = width > 0 ? size : -size;
+        height = height > 0 ? size : -size;
       }
+      
+      activeEllipseRef.current.x(startPosRef.current.x + width / 2);
+      activeEllipseRef.current.y(startPosRef.current.y + height / 2);
+      activeEllipseRef.current.radiusX(Math.abs(width) / 2);
+      activeEllipseRef.current.radiusY(Math.abs(height) / 2);
       
       stage.batchDraw();
       return;
@@ -1031,20 +1154,16 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
         };
         if (activeRectRef.current) activeRectRef.current.visible(false);
       } else if (currentTool === 'circle') {
-        const dx = pos.x - startPosRef.current.x;
-        const dy = pos.y - startPosRef.current.y;
+        let width = pos.x - startPosRef.current.x;
+        let height = pos.y - startPosRef.current.y;
         
-        let width, height;
         if (e.evt.shiftKey) {
-          const radius = Math.max(Math.abs(dx), Math.abs(dy));
-          width = radius * 2;
-          height = radius * 2;
-        } else {
-          width = Math.abs(dx) * 2;
-          height = Math.abs(dy) * 2;
+          const size = Math.max(Math.abs(width), Math.abs(height));
+          width = width > 0 ? size : -size;
+          height = height > 0 ? size : -size;
         }
 
-        if (width < 5 && height < 5) {
+        if (Math.abs(width) < 5 && Math.abs(height) < 5) {
           if (activeEllipseRef.current) activeEllipseRef.current.visible(false);
           return;
         }
@@ -1052,10 +1171,10 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
           type: 'shape',
           id: `shape-${Date.now()}`,
           tool: 'circle',
-          x: startPosRef.current.x,
-          y: startPosRef.current.y,
-          width: width,
-          height: height,
+          x: startPosRef.current.x + width / 2,
+          y: startPosRef.current.y + height / 2,
+          width: Math.abs(width),
+          height: Math.abs(height),
           rotation: 0,
           stroke: TOOL_CONFIG.circle.color,
           strokeWidth: TOOL_CONFIG.circle.width,
@@ -1183,7 +1302,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
     return tuples;
   };
 
-  const undo = () => {
+  const undo = useCallback(() => {
     if (historyStep === 0) return;
     const prevStep = historyStep - 1;
     const prevLayers = history[prevStep];
@@ -1192,9 +1311,9 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
         setHistoryStep(prevStep);
         setLocalVersion(v => v + 1);
     }
-  };
+  }, [historyStep, history]);
 
-  const redo = () => {
+  const redo = useCallback(() => {
     if (historyStep === history.length - 1) return;
     const nextStep = historyStep + 1;
     const nextLayers = history[nextStep];
@@ -1203,7 +1322,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
         setHistoryStep(nextStep);
         setLocalVersion(v => v + 1);
     }
-  };
+  }, [historyStep, history]);
 
   // Image Upload
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1295,12 +1414,12 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
     }
   };
 
-  const deleteSelected = () => {
+  const deleteSelected = useCallback(() => {
     if (!selectedId) return;
     const newLayers = layers.filter(l => l.id !== selectedId);
     updateLayers(newLayers);
     setSelectedId(null);
-  };
+  }, [selectedId, layers, updateLayers]);
   
   const moveLayer = (direction: 'up' | 'down' | 'front' | 'back') => {
       if (!selectedId) return;
@@ -1347,14 +1466,14 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
                 active={currentTool === 'select'} 
                 onClick={() => setCurrentTool('select')} 
                 icon={<CursorIcon />} 
-                label="選取"
+                label="選取 (V)"
             />
              <div className="w-px h-6 bg-gray-300 mx-1" />
             <ToolButton 
                 active={currentTool === 'pen'} 
                 onClick={() => { setCurrentTool('pen'); setSelectedId(null); }} 
                 icon={<PenIcon />} 
-                label="畫筆"
+                label="畫筆 (P)"
             />
             <ToolButton 
                 active={currentTool === 'highlighter'} 
@@ -1366,20 +1485,20 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
                     active={currentTool === 'eraser'} 
                     onClick={() => { setCurrentTool('eraser'); setSelectedId(null); }} 
                     icon={<EraserIcon />} 
-                    label="橡皮擦"
+                    label="橡皮擦 (E)"
                 />
                 <div className="w-px h-6 bg-gray-300 mx-1" />
                 <ToolButton 
                     active={currentTool === 'rectangle'} 
                     onClick={() => { setCurrentTool('rectangle'); setSelectedId(null); }} 
                     icon={<SquareIcon />} 
-                    label="矩形"
+                    label="矩形 (R)"
                 />
                 <ToolButton 
                     active={currentTool === 'circle'} 
                     onClick={() => { setCurrentTool('circle'); setSelectedId(null); }} 
                     icon={<CircleIcon />} 
-                    label="圓形"
+                    label="圓形 (O)"
                 />
                 <ToolButton 
                     active={currentTool === 'arrow'} 
@@ -1392,24 +1511,26 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
                     active={currentTool === 'text'} 
                     onClick={() => { setCurrentTool('text'); setSelectedId(null); }} 
                     icon={<TextIcon />} 
-                    label="文字"
+                    label="文字 (T)"
                 />
                 <ToolButton 
                     active={currentTool === 'hand'} 
                     onClick={() => { setCurrentTool('hand'); setSelectedId(null); }} 
                     icon={<HandIcon />} 
-                    label="平移"
+                    label="平移 (H)"
                 />
                 <div className="w-px h-6 bg-gray-300 mx-1" />
                 <ToolButton 
                     onClick={() => fileInputRef.current?.click()} 
                     icon={<ImageIcon />} 
-                    label="圖片"
+                    label="圖片上傳 (I)"
                     disabled={isUploading}
                 />
             <input 
                 ref={fileInputRef} 
                 type="file" 
+                id="canvas-image-upload"
+                aria-label="圖片隱藏輸入"
                 hidden 
                 accept="image/*" 
                 onChange={handleImageUpload} 
@@ -1419,10 +1540,10 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
          <div className="w-px h-6 bg-gray-300 mx-1" />
          
          <div className="flex items-center gap-2">
-             <button onClick={undo} disabled={historyStep === 0} className="p-2 hover:bg-gray-100 rounded-full disabled:opacity-30">
+             <button onClick={undo} disabled={historyStep === 0} title="還原 (Cmd+Z)" className="p-2 hover:bg-gray-100 rounded-full disabled:opacity-30">
                  <UndoIcon />
              </button>
-             <button onClick={redo} disabled={historyStep === history.length - 1} className="p-2 hover:bg-gray-100 rounded-full disabled:opacity-30">
+             <button onClick={redo} disabled={historyStep === history.length - 1} title="重做 (Cmd+Shift+Z)" className="p-2 hover:bg-gray-100 rounded-full disabled:opacity-30">
                  <RedoIcon />
              </button>
          </div>
@@ -1704,6 +1825,7 @@ const ToolButton = ({ active, onClick, icon, label, disabled }: ToolButtonProps)
         onClick={onClick}
         disabled={disabled}
         title={label}
+        aria-label={label}
         className={`p-3 rounded-xl transition-all duration-200 flex items-center justify-center ${
             active 
             ? 'bg-blue-100 text-blue-600 shadow-inner' 

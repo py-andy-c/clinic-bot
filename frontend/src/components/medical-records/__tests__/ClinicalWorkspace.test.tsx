@@ -98,7 +98,7 @@ describe('ClinicalWorkspace', () => {
         onUpdate={mockOnUpdate}
       />
     );
-    expect(screen.getByTitle('畫筆')).toBeDefined();
+    expect(screen.getByLabelText(/畫筆/i)).toBeDefined();
   });
 
   it('compresses image before upload', async () => {
@@ -113,7 +113,7 @@ describe('ClinicalWorkspace', () => {
       />
     );
 
-    const input = screen.getByTitle('圖片').nextElementSibling as HTMLInputElement;
+    const input = screen.getByLabelText(/圖片隱藏輸入/i) as HTMLInputElement;
     fireEvent.change(input, { target: { files: [mockFile] } });
 
     await waitFor(() => {
@@ -145,7 +145,7 @@ describe('ClinicalWorkspace', () => {
       />
     );
 
-    const input = screen.getByTitle('圖片').nextElementSibling as HTMLInputElement;
+    const input = screen.getByLabelText(/圖片隱藏輸入/i) as HTMLInputElement;
     fireEvent.change(input, { target: { files: [mockFile] } });
 
     await waitFor(() => {
