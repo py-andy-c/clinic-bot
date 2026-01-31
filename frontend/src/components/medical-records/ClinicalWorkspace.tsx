@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { Stage, Layer, Line, Image as KonvaImage, Transformer, Text as KonvaText, Rect, Arrow, Ellipse } from 'react-konva';
+import { Stage, Layer, Group, Line, Image as KonvaImage, Transformer, Text as KonvaText, Rect, Arrow, Ellipse } from 'react-konva';
 import Konva from 'konva';
 import useImage from 'use-image';
 import imageCompression from 'browser-image-compression';
@@ -7,6 +7,22 @@ import type { WorkspaceData, DrawingPath, MediaLayer, TextLayer, ShapeLayer, Dra
 import { logger } from '../../utils/logger';
 import { apiService } from '../../services/api';
 import { SyncStatus, SyncStatusType } from './SyncStatus';
+
+// Polyfill for Konva.Stage to get relative pointer position
+// This handles scale and offsets for logical coordinate mapping
+Konva.Stage.prototype.getRelativePointerPosition = function (this: Konva.Stage) {
+  const pointer = this.getPointerPosition();
+  if (!pointer) return null;
+  const transform = this.getAbsoluteTransform().copy();
+  transform.invert();
+  return transform.point(pointer);
+};
+
+declare module 'konva' {
+  interface Stage {
+    getRelativePointerPosition(): { x: number; y: number } | null;
+  }
+}
 
 interface ClinicalWorkspaceProps {
   recordId: number;
@@ -26,17 +42,22 @@ const TOOL_CONFIG = {
 };
 
 const CANVAS_WIDTH = 1000; // Logical width for coordinates
-const CONTAINER_WIDTH = 850; // Visual container width
+const CONTAINER_WIDTH = 850; // Visual "paper" width
+const STAGE_WIDTH = 896; // Visual "extended" area width (The visible desk)
+const STAGE_BUFFER = 40; // Extra pixels for handles
+const GUTTER_UNITS = 27; // logical units for 23px at 0.85 scale ((896-850)/2 / 0.85)
 const MIN_CANVAS_HEIGHT = 1100;
 const WORKSPACE_VERSION = 2;
+const SCALE = CONTAINER_WIDTH / CANVAS_WIDTH;
 
 
 // Helper component for loading images
-const UrlImage = ({ layer, isSelected, onSelect, onChange }: {
+const UrlImage = ({ layer, isSelected, onSelect, onChange, dragLimits }: {
   layer: MediaLayer;
   isSelected: boolean;
   onSelect: () => void;
   onChange: (newAttrs: Partial<MediaLayer>) => void;
+  dragLimits: { minX: number; maxX: number; minY: number; maxY: number };
 }) => {
   const [image] = useImage(layer.url, 'anonymous');
   const shapeRef = useRef<Konva.Image>(null);
@@ -77,6 +98,13 @@ const UrlImage = ({ layer, isSelected, onSelect, onChange }: {
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
         onDragStart={() => setIsMoving(true)}
+        onDragMove={(e) => {
+          const node = e.target;
+          const x = Math.max(dragLimits.minX, Math.min(dragLimits.maxX - node.width() * node.scaleX(), node.x()));
+          const y = Math.max(dragLimits.minY, Math.min(dragLimits.maxY - node.height() * node.scaleY(), node.y()));
+          node.x(x);
+          node.y(y);
+        }}
         onDragEnd={(e) => {
           setIsMoving(false);
           onChange({
@@ -85,6 +113,25 @@ const UrlImage = ({ layer, isSelected, onSelect, onChange }: {
           });
         }}
         onTransformStart={() => setIsMoving(true)}
+        onTransform={(e) => {
+          const node = e.target;
+          const scaleX = node.scaleX();
+          const scaleY = node.scaleY();
+          const width = node.width() * scaleX;
+          const height = node.height() * scaleY;
+
+          // Clamp position
+          if (node.x() < dragLimits.minX) node.x(dragLimits.minX);
+          if (node.y() < dragLimits.minY) node.y(dragLimits.minY);
+          if (node.x() + width > dragLimits.maxX) {
+            const newScaleX = (dragLimits.maxX - node.x()) / node.width();
+            node.scaleX(newScaleX);
+          }
+          if (node.y() + height > dragLimits.maxY) {
+            const newScaleY = (dragLimits.maxY - node.y()) / node.height();
+            node.scaleY(newScaleY);
+          }
+        }}
         onTransformEnd={() => {
           setIsMoving(false);
           const node = shapeRef.current;
@@ -113,7 +160,7 @@ const UrlImage = ({ layer, isSelected, onSelect, onChange }: {
           anchorSize={8}
           padding={5}
           boundBoxFunc={(_oldBox, newBox) => {
-            // Limit resize
+            // Limit resize minimums
             if (newBox.width < 5 || newBox.height < 5) {
               return _oldBox;
             }
@@ -126,12 +173,13 @@ const UrlImage = ({ layer, isSelected, onSelect, onChange }: {
 };
 
 // Selectable Drawing Component
-const SelectableLine = ({ layer, isSelected, onSelect, onChange, calculateBoundingBox }: {
+const SelectableLine = ({ layer, isSelected, onSelect, onChange, calculateBoundingBox, dragLimits }: {
   layer: DrawingPath;
   isSelected: boolean;
   onSelect: () => void;
   onChange: (newAttrs: Partial<DrawingPath>) => void;
   calculateBoundingBox: (points: [number, number, number?][]) => { minX: number; maxX: number; minY: number; maxY: number } | undefined;
+  dragLimits: { minX: number; maxX: number; minY: number; maxY: number };
 }) => {
   const shapeRef = useRef<Konva.Line>(null);
   const trRef = useRef<Konva.Transformer>(null);
@@ -221,7 +269,22 @@ const SelectableLine = ({ layer, isSelected, onSelect, onChange, calculateBoundi
         globalCompositeOperation={
           layer.tool === 'highlighter' ? 'multiply' : 'source-over'
         }
+        onDragMove={(e) => {
+          const node = e.target;
+          const bbox = layer.boundingBox || { minX: 0, maxX: 0, minY: 0, maxY: 0 };
+
+          const x = Math.max(dragLimits.minX - bbox.minX, Math.min(dragLimits.maxX - bbox.maxX, node.x()));
+          const y = Math.max(dragLimits.minY - bbox.minY, Math.min(dragLimits.maxY - bbox.maxY, node.y()));
+          node.x(x);
+          node.y(y);
+        }}
         onDragEnd={handleDragEnd}
+        onTransform={(e) => {
+          const node = e.target as Konva.Line;
+          // For simplicity, we just clamp the node's position during transform
+          if (node.x() < dragLimits.minX) node.x(dragLimits.minX);
+          if (node.y() < dragLimits.minY) node.y(dragLimits.minY);
+        }}
         onTransformEnd={handleTransformEnd}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
@@ -240,12 +303,13 @@ const SelectableLine = ({ layer, isSelected, onSelect, onChange, calculateBoundi
 };
 
 // Selectable Text Component
-const SelectableText = ({ layer, isSelected, onSelect, onChange, onDelete }: {
+const SelectableText = ({ layer, isSelected, onSelect, onChange, onDelete, dragLimits }: {
   layer: TextLayer;
   isSelected: boolean;
   onSelect: () => void;
   onChange: (newAttrs: Partial<TextLayer>) => void;
   onDelete: () => void;
+  dragLimits: { minX: number; maxX: number; minY: number; maxY: number };
 }) => {
   const shapeRef = useRef<Konva.Text>(null);
   const trRef = useRef<Konva.Transformer>(null);
@@ -253,15 +317,20 @@ const SelectableText = ({ layer, isSelected, onSelect, onChange, onDelete }: {
 
   useEffect(() => {
     return () => {
-      if (textareaRef.current && textareaRef.current.parentNode === document.body) {
-        document.body.removeChild(textareaRef.current);
+      if (textareaRef.current) {
+        try {
+          textareaRef.current.remove();
+        } catch (e) {
+          // Element might already be removed
+        }
+        textareaRef.current = null;
       }
     };
   }, []);
 
   useEffect(() => {
     if (layer.text === '' && isSelected) {
-       handleDblClick();
+      handleDblClick();
     }
   }, [layer.text, isSelected]);
 
@@ -323,17 +392,17 @@ const SelectableText = ({ layer, isSelected, onSelect, onChange, onDelete }: {
     } else {
       textarea.style.width = textNode.width() * stage.scaleX() + 'px';
     }
-    
+
     // Auto-grow logic
     const updateSize = () => {
       textarea.style.height = 'auto';
       textarea.style.height = textarea.scrollHeight + 'px';
 
       if (isAutoWidth) {
-         // For horizontal auto-grow
-         textarea.style.width = '0px'; // Collapse to measure
-         const newWidth = Math.max(textarea.scrollWidth, 50); 
-         textarea.style.width = newWidth + 'px';
+        // For horizontal auto-grow
+        textarea.style.width = '0px'; // Collapse to measure
+        const newWidth = Math.max(textarea.scrollWidth, 50);
+        textarea.style.width = newWidth + 'px';
       }
 
       // Update Konva node in real-time
@@ -356,16 +425,16 @@ const SelectableText = ({ layer, isSelected, onSelect, onChange, onDelete }: {
         textNode.text(initialValue);
         textNode.getLayer()?.batchDraw();
         if (trRef.current) trRef.current.forceUpdate();
-        
+
         if (initialValue === '') {
-           onDelete();
+          onDelete();
         }
         textarea.blur();
       }
     });
 
     textarea.addEventListener('input', () => {
-        updateSize();
+      updateSize();
     });
 
     textarea.addEventListener('blur', () => {
@@ -375,8 +444,16 @@ const SelectableText = ({ layer, isSelected, onSelect, onChange, onDelete }: {
       } else {
         onChange({ text: newVal });
       }
-      if (textarea.parentNode === document.body) {
-        document.body.removeChild(textarea);
+
+      if (textarea.parentNode) {
+        try {
+          textarea.remove();
+        } catch (e) {
+          // Element might already be removed
+        }
+      }
+      if (textareaRef.current === textarea) {
+        textareaRef.current = null;
       }
     });
   };
@@ -411,33 +488,49 @@ const SelectableText = ({ layer, isSelected, onSelect, onChange, onDelete }: {
         onDblTap={handleDblClick}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
+        onDragMove={(e) => {
+          const node = e.target;
+          const x = Math.max(dragLimits.minX, Math.min(dragLimits.maxX - node.width(), node.x()));
+          const y = Math.max(dragLimits.minY, Math.min(dragLimits.maxY - node.height(), node.y()));
+          node.x(x);
+          node.y(y);
+        }}
         onDragEnd={(e) => {
           onChange({
             x: e.target.x(),
             y: e.target.y(),
           });
         }}
-        onTransform={() => {
-            // We use onTransform to override the default scaling behavior
-            const node = shapeRef.current;
-            if (!node) return;
-            
-            // Instead of scaling, we want to change the width
-            // Calculate new width based on scaleX
-            const scaleX = node.scaleX();
-            
-            // Reset scale
-            node.scaleX(1);
-            node.scaleY(1);
-            
-            // Update width
-            const newWidth = Math.max(30, node.width() * scaleX);
-            node.width(newWidth);
+        onTransform={(_e) => {
+          // We use onTransform to override the default scaling behavior
+          const node = shapeRef.current;
+          if (!node) return;
+
+          // Instead of scaling, we want to change the width
+          // Calculate new width based on scaleX
+          const scaleX = node.scaleX();
+
+          // Reset scale
+          node.scaleX(1);
+          node.scaleY(1);
+
+          // Update width
+          let newWidth = Math.max(30, node.width() * scaleX);
+
+          // Clamp width to boundaries
+          if (node.x() + newWidth > dragLimits.maxX) {
+            newWidth = dragLimits.maxX - node.x();
+          }
+          node.width(newWidth);
+
+          // Clamp position
+          if (node.x() < dragLimits.minX) node.x(dragLimits.minX);
+          if (node.y() < dragLimits.minY) node.y(dragLimits.minY);
         }}
         onTransformEnd={() => {
           const node = shapeRef.current;
           if (!node) return;
-          
+
           // Ensure scale is 1
           node.scaleX(1);
           node.scaleY(1);
@@ -469,11 +562,12 @@ const SelectableText = ({ layer, isSelected, onSelect, onChange, onDelete }: {
 };
 
 // Selectable Shape Component
-const SelectableShape = ({ layer, isSelected, onSelect, onChange }: {
+const SelectableShape = ({ layer, isSelected, onSelect, onChange, dragLimits }: {
   layer: ShapeLayer;
   isSelected: boolean;
   onSelect: () => void;
   onChange: (newAttrs: Partial<ShapeLayer>) => void;
+  dragLimits: { minX: number; maxX: number; minY: number; maxY: number };
 }) => {
   const shapeRef = useRef<Konva.Shape>(null);
   const trRef = useRef<Konva.Transformer>(null);
@@ -497,11 +591,37 @@ const SelectableShape = ({ layer, isSelected, onSelect, onChange }: {
     draggable: isSelected,
     onClick: onSelect,
     onTap: onSelect,
+    onDragMove: (e: Konva.KonvaEventObject<DragEvent>) => {
+      const node = e.target;
+      const x = Math.max(dragLimits.minX, Math.min(dragLimits.maxX - node.width() * node.scaleX(), node.x()));
+      const y = Math.max(dragLimits.minY, Math.min(dragLimits.maxY - node.height() * node.scaleY(), node.y()));
+      node.x(x);
+      node.y(y);
+    },
     onDragEnd: (e: Konva.KonvaEventObject<DragEvent>) => {
       onChange({
         x: e.target.x(),
         y: e.target.y(),
       });
+    },
+    onTransform: (e: Konva.KonvaEventObject<Event>) => {
+      const node = e.target;
+      const scaleX = node.scaleX();
+      const scaleY = node.scaleY();
+      const width = node.width() * scaleX;
+      const height = node.height() * scaleY;
+
+      // Clamp position
+      if (node.x() < dragLimits.minX) node.x(dragLimits.minX);
+      if (node.y() < dragLimits.minY) node.y(dragLimits.minY);
+
+      // Clamp size
+      if (node.x() + width > dragLimits.maxX) {
+        node.scaleX((dragLimits.maxX - node.x()) / node.width());
+      }
+      if (node.y() + height > dragLimits.maxY) {
+        node.scaleY((dragLimits.maxY - node.y()) / node.height());
+      }
     },
     onTransformEnd: () => {
       const node = shapeRef.current;
@@ -641,6 +761,98 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
   const onUpdateRef = useRef(onUpdate);
   const initialDataRef = useRef(initialData);
 
+  const dragLimits = {
+    minX: -GUTTER_UNITS,
+    maxX: CANVAS_WIDTH + GUTTER_UNITS,
+    minY: 0,
+    maxY: canvasHeight
+  };
+
+  // Internal helper to render individual layers - NOT a component to prevent unmounting on re-render
+  const renderLayer = (layer: DrawingPath | MediaLayer | TextLayer | ShapeLayer, index: number) => {
+    if (layer.type === 'media') {
+      const mediaLayer = layer as MediaLayer;
+      return (
+        <UrlImage
+          key={mediaLayer.id}
+          layer={mediaLayer}
+          isSelected={mediaLayer.id === selectedId}
+          onSelect={() => currentTool === 'select' && setSelectedId(mediaLayer.id)}
+          onChange={(newAttrs) => {
+            const newLayers = [...layers];
+            newLayers[index] = { ...mediaLayer, ...newAttrs } as MediaLayer;
+            updateLayers(newLayers);
+            if (newAttrs.y || newAttrs.height) {
+              ensureHeight((newAttrs.y || mediaLayer.y) + (newAttrs.height || mediaLayer.height));
+            }
+          }}
+          dragLimits={dragLimits}
+        />
+      );
+    } else if (layer.type === 'drawing') {
+      const drawing = layer as DrawingPath;
+      return (
+        <SelectableLine
+          key={drawing.id}
+          layer={drawing}
+          isSelected={drawing.id === selectedId}
+          calculateBoundingBox={calculateBoundingBox}
+          onSelect={() => currentTool === 'select' && setSelectedId(drawing.id)}
+          onChange={(newAttrs) => {
+            const newLayers = [...layers];
+            newLayers[index] = { ...drawing, ...newAttrs } as DrawingPath;
+            updateLayers(newLayers);
+            if (newAttrs.points) {
+              const d = newLayers[index] as DrawingPath;
+              if (d.boundingBox) ensureHeight(d.boundingBox.maxY);
+            }
+          }}
+          dragLimits={dragLimits}
+        />
+      );
+    } else if (layer.type === 'text') {
+      const textLayer = layer as TextLayer;
+      return (
+        <SelectableText
+          key={textLayer.id}
+          layer={textLayer}
+          isSelected={textLayer.id === selectedId}
+          onSelect={() => currentTool === 'select' && setSelectedId(textLayer.id)}
+          onChange={(newAttrs) => {
+            const newLayers = [...layers];
+            newLayers[index] = { ...textLayer, ...newAttrs } as TextLayer;
+            updateLayers(newLayers);
+            if (newAttrs.y || newAttrs.fontSize) {
+              ensureHeight((newAttrs.y || textLayer.y) + (newAttrs.fontSize || textLayer.fontSize) * 2);
+            }
+          }}
+          onDelete={() => deleteSelected()}
+          dragLimits={dragLimits}
+        />
+      );
+    } else if (layer.type === 'shape') {
+      const shapeLayer = layer as ShapeLayer;
+      return (
+        <SelectableShape
+          key={shapeLayer.id}
+          layer={shapeLayer}
+          isSelected={shapeLayer.id === selectedId}
+          onSelect={() => currentTool === 'select' && setSelectedId(shapeLayer.id)}
+          onChange={(newAttrs) => {
+            const newLayers = [...layers];
+            newLayers[index] = { ...shapeLayer, ...newAttrs } as ShapeLayer;
+            updateLayers(newLayers);
+            if (newAttrs.y || newAttrs.height) {
+              ensureHeight((newAttrs.y || shapeLayer.y) + (newAttrs.height || shapeLayer.height));
+            }
+          }}
+          dragLimits={dragLimits}
+        />
+      );
+    }
+    return null;
+  };
+
   // Keep refs in sync
   useEffect(() => {
     onUpdateRef.current = onUpdate;
@@ -669,15 +881,13 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
     if (selectedId) {
       const layer = layers.find(l => l.id === selectedId);
       if (layer && layer.type === 'text') {
-        updateLayers(prev => prev.map(l => 
+        updateLayers(prev => prev.map(l =>
           l.id === selectedId ? { ...l, fontSize: size } : l
         ));
       }
     }
   };
 
-  // Scaling factor for logical to visual container
-  const baseScale = CONTAINER_WIDTH / CANVAS_WIDTH;
 
   // Get stage cursor based on tool
   const getStageCursor = () => {
@@ -700,7 +910,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
   const stagePos = { x: 0, y: 0 };
 
   // Combined scale for rendering - fixed to fit container width
-  const scale = baseScale;
+  const scale = SCALE;
 
   // History for Undo/Redo
   const [history, setHistory] = useState<(DrawingPath | MediaLayer | TextLayer | ShapeLayer)[][]>([initialData.layers || []]);
@@ -1423,8 +1633,8 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
         {(currentTool === 'text' || (selectedId && layers.find(l => l.id === selectedId)?.type === 'text')) && (
           <div className="flex items-center gap-1 ml-1 px-2 py-1 bg-gray-100 rounded-md">
             <span className="text-xs text-gray-500">Aa</span>
-            <select 
-              value={currentFontSize} 
+            <select
+              value={currentFontSize}
               onChange={(e) => handleFontSizeChange(Number(e.target.value))}
               className="bg-transparent text-sm font-medium focus:outline-none cursor-pointer"
             >
@@ -1481,21 +1691,37 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
       )}
 
       {/* Main Document View */}
-      <div className="relative pt-12 pb-32 px-4 flex justify-center">
+      <div className="relative pt-12 pb-32 px-4 flex justify-center bg-gray-100 min-h-screen">
         <div
-          className="bg-white shadow-2xl relative"
+          className="relative overflow-visible"
           style={{
-            width: CONTAINER_WIDTH,
+            width: STAGE_WIDTH,
             minHeight: canvasHeight * scale,
             cursor: getStageCursor(),
           }}
         >
+          {/* Visual Paper Shadow - positioned to match the logical 0-1000 area */}
+          <div
+            className="absolute bg-white shadow-xl"
+            style={{
+              left: GUTTER_UNITS * scale,
+              width: CANVAS_WIDTH * scale,
+              top: 0,
+              bottom: 0,
+              pointerEvents: 'none',
+              zIndex: 0
+            }}
+          />
+
           <Stage
             ref={stageRef}
-            width={CONTAINER_WIDTH}
+            width={STAGE_WIDTH + STAGE_BUFFER * 2}
             height={canvasHeight * scale}
             scaleX={scale}
             scaleY={scale}
+            offsetX={-GUTTER_UNITS - (STAGE_BUFFER / scale)}
+            style={{ marginLeft: -STAGE_BUFFER }}
+            className="relative z-10"
             onWheel={handleWheel}
             onMouseDown={handleMouseDown}
             onMouseMove={handleMouseMove}
@@ -1505,91 +1731,42 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
             onTouchEnd={handleMouseUp}
           >
             <Layer name="background" listening={false}>
+              {/* Paper Background */}
+              <Rect
+                x={0}
+                y={0}
+                width={CANVAS_WIDTH}
+                height={canvasHeight}
+                fill="white"
+              />
               {initialData.background_image_url && (
                 <BackgroundImage url={initialData.background_image_url} width={CANVAS_WIDTH} />
               )}
             </Layer>
             <Layer name="content">
-              {layers.map((layer, i) => {
-                if (layer.type === 'media') {
-                  const mediaLayer = layer as MediaLayer;
-                  return (
-                    <UrlImage
-                      key={mediaLayer.id}
-                      layer={mediaLayer}
-                      isSelected={mediaLayer.id === selectedId}
-                      onSelect={() => currentTool === 'select' && setSelectedId(mediaLayer.id)}
-                      onChange={(newAttrs) => {
-                        const newLayers = [...layers];
-                        newLayers[i] = { ...mediaLayer, ...newAttrs } as MediaLayer;
-                        updateLayers(newLayers);
-                        if (newAttrs.y || newAttrs.height) {
-                          ensureHeight((newAttrs.y || mediaLayer.y) + (newAttrs.height || mediaLayer.height));
-                        }
-                      }}
-                    />
-                  );
-                } else if (layer.type === 'drawing') {
-                  const drawing = layer as DrawingPath;
-                  return (
-                    <SelectableLine
-                      key={drawing.id}
-                      layer={drawing}
-                      isSelected={drawing.id === selectedId}
-                      calculateBoundingBox={calculateBoundingBox}
-                      onSelect={() => currentTool === 'select' && setSelectedId(drawing.id)}
-                      onChange={(newAttrs) => {
-                        const newLayers = [...layers];
-                        newLayers[i] = { ...drawing, ...newAttrs } as DrawingPath;
-                        updateLayers(newLayers);
-                        if (newAttrs.points) {
-                          const d = newLayers[i] as DrawingPath;
-                          if (d.boundingBox) ensureHeight(d.boundingBox.maxY);
-                        }
-                      }}
-                    />
-                  );
-                } else if (layer.type === 'text') {
-                  const textLayer = layer as TextLayer;
-                  return (
-                    <SelectableText
-                      key={textLayer.id}
-                      layer={textLayer}
-                      isSelected={textLayer.id === selectedId}
-                      onSelect={() => currentTool === 'select' && setSelectedId(textLayer.id)}
-                      onChange={(newAttrs) => {
-                        const newLayers = [...layers];
-                        newLayers[i] = { ...textLayer, ...newAttrs } as TextLayer;
-                        updateLayers(newLayers);
-                        if (newAttrs.y || newAttrs.fontSize) {
-                          ensureHeight((newAttrs.y || textLayer.y) + (newAttrs.fontSize || textLayer.fontSize) * 2);
-                        }
-                      }}
-                      onDelete={() => deleteSelected()}
-                    />
-                  );
-                } else if (layer.type === 'shape') {
-                  const shapeLayer = layer as ShapeLayer;
-                  return (
-                    <SelectableShape
-                      key={shapeLayer.id}
-                      layer={shapeLayer}
-                      isSelected={shapeLayer.id === selectedId}
-                      onSelect={() => currentTool === 'select' && setSelectedId(shapeLayer.id)}
-                      onChange={(newAttrs) => {
-                        const newLayers = [...layers];
-                        newLayers[i] = { ...shapeLayer, ...newAttrs } as ShapeLayer;
-                        updateLayers(newLayers);
-                        if (newAttrs.y || newAttrs.height) {
-                          ensureHeight((newAttrs.y || shapeLayer.y) + (newAttrs.height || shapeLayer.height));
-                        }
-                      }}
-                    />
-                  );
-                }
-                return null;
-              })}
+              {/* Group for non-selected items, clipped to the white page area */}
+              <Group
+                id="clipped-content"
+                clipX={0}
+                clipY={0}
+                clipWidth={CANVAS_WIDTH}
+                clipHeight={canvasHeight}
+              >
+                {layers.map((layer, i) => {
+                  if (layer.id === selectedId) return null;
+                  return renderLayer(layer, i);
+                })}
+              </Group>
 
+              {/* Render selected item outside the clipped group so it's visible in gutters */}
+              {selectedId && (() => {
+                const index = layers.findIndex(l => l.id === selectedId);
+                const selectedLayer = layers[index];
+                if (!selectedLayer) return null;
+                return renderLayer(selectedLayer, index);
+              })()}
+
+              {/* Interaction Overlays */}
               <Line
                 ref={activeLineRef}
                 points={[]}
