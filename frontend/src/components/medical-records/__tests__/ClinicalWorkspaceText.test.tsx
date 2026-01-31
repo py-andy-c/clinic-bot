@@ -167,8 +167,8 @@ describe('ClinicalWorkspace Text Tool', () => {
     const lastCall = mockOnUpdate.mock.calls[mockOnUpdate.mock.calls.length - 1][0];
     const textLayer = lastCall.layers.find((l: { type: string; width?: number }) => l.type === 'text');
     
-    // width = min(1000 * 2/3, 1000 - 900) = min(666.66, 100) = 100
-    expect(textLayer.width).toBe(100);
+    // width = min(1000 * 2/3, 1027 - 900) = min(666.66, 127) = 127
+    expect(textLayer.width).toBe(127);
   });
 
   it('updates Konva text node in real-time while typing', async () => {

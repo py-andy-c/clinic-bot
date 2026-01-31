@@ -50,6 +50,76 @@ const MIN_CANVAS_HEIGHT = 1100;
 const WORKSPACE_VERSION = 2;
 const SCALE = CONTAINER_WIDTH / CANVAS_WIDTH;
 
+/**
+ * Shared logic for clamping transformations (resizing) to canvas boundaries.
+ * This handles resetting scale to 1 and adjusting width/height manually.
+ */
+const handleTransformClamping = (
+  node: Konva.Node,
+  dragLimits: { minX: number; maxX: number; minY: number; maxY: number },
+  options: {
+    isCenter?: boolean;
+    onlyWidth?: boolean;
+    minWidth?: number;
+    minHeight?: number;
+  } = {}
+) => {
+  const { isCenter = false, onlyWidth = false, minWidth = 5, minHeight = 5 } = options;
+  const scaleX = node.scaleX();
+  const scaleY = node.scaleY();
+
+  // Reset scale immediately to keep logic simple and consistent
+  node.setAttrs({
+    scaleX: 1,
+    scaleY: 1,
+  });
+
+  let newWidth = Math.max(minWidth, node.width() * scaleX);
+  let newHeight = Math.max(minHeight, (node.height() ?? 0) * scaleY);
+  let newX = node.x();
+  let newY = node.y();
+
+  const halfWidth = isCenter ? newWidth / 2 : 0;
+  const halfHeight = isCenter ? newHeight / 2 : 0;
+
+  // Left boundary
+  const left = isCenter ? newX - halfWidth : newX;
+  if (left < dragLimits.minX) {
+    const diff = dragLimits.minX - left;
+    newX = isCenter ? dragLimits.minX + halfWidth : dragLimits.minX;
+    newWidth = Math.max(minWidth, newWidth - diff);
+  }
+
+  // Top boundary
+  const top = isCenter ? newY - halfHeight : newY;
+  if (top < dragLimits.minY) {
+    const diff = dragLimits.minY - top;
+    newY = isCenter ? dragLimits.minY + halfHeight : dragLimits.minY;
+    newHeight = Math.max(minHeight, newHeight - diff);
+  }
+
+  // Right boundary
+  const right = isCenter ? newX + halfWidth : newX + newWidth;
+  if (right > dragLimits.maxX) {
+    newWidth = Math.max(minWidth, newWidth - (right - dragLimits.maxX));
+    if (isCenter) newX = dragLimits.maxX - newWidth / 2;
+  }
+
+  // Bottom boundary
+  const bottom = isCenter ? newY + halfHeight : newY + newHeight;
+  if (bottom > dragLimits.maxY) {
+    newHeight = Math.max(minHeight, newHeight - (bottom - dragLimits.maxY));
+    if (isCenter) newY = dragLimits.maxY - newHeight / 2;
+  }
+
+  node.setAttrs({
+    x: newX,
+    y: newY,
+    width: newWidth,
+    ...(onlyWidth ? {} : { height: newHeight }),
+  });
+};
+
 
 // Helper component for loading images
 const UrlImage = ({ layer, isSelected, onSelect, onChange, dragLimits }: {
@@ -114,23 +184,7 @@ const UrlImage = ({ layer, isSelected, onSelect, onChange, dragLimits }: {
         }}
         onTransformStart={() => setIsMoving(true)}
         onTransform={(e) => {
-          const node = e.target;
-          const scaleX = node.scaleX();
-          const scaleY = node.scaleY();
-          const width = node.width() * scaleX;
-          const height = node.height() * scaleY;
-
-          // Clamp position
-          if (node.x() < dragLimits.minX) node.x(dragLimits.minX);
-          if (node.y() < dragLimits.minY) node.y(dragLimits.minY);
-          if (node.x() + width > dragLimits.maxX) {
-            const newScaleX = (dragLimits.maxX - node.x()) / node.width();
-            node.scaleX(newScaleX);
-          }
-          if (node.y() + height > dragLimits.maxY) {
-            const newScaleY = (dragLimits.maxY - node.y()) / node.height();
-            node.scaleY(newScaleY);
-          }
+          handleTransformClamping(e.target, dragLimits);
         }}
         onTransformEnd={() => {
           setIsMoving(false);
@@ -302,9 +356,28 @@ const SelectableLine = ({ layer, isSelected, onSelect, onChange, calculateBoundi
           }
           node.points(newPoints);
 
-          // Clamp position
-          if (node.x() < dragLimits.minX) node.x(dragLimits.minX);
-          if (node.y() < dragLimits.minY) node.y(dragLimits.minY);
+          // Calculate bounding box of transformed points
+          let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+          for (let i = 0; i < newPoints.length; i += 2) {
+            const px = newPoints[i] ?? 0;
+            const py = newPoints[i+1] ?? 0;
+            if (px < minX) minX = px;
+            if (px > maxX) maxX = px;
+            if (py < minY) minY = py;
+            if (py > maxY) maxY = py;
+          }
+
+          let nx = node.x();
+          let ny = node.y();
+
+          // Clamp position based on bounding box
+          if (nx + minX < dragLimits.minX) nx = dragLimits.minX - minX;
+          if (ny + minY < dragLimits.minY) ny = dragLimits.minY - minY;
+          if (nx + maxX > dragLimits.maxX) nx = dragLimits.maxX - maxX;
+          if (ny + maxY > dragLimits.maxY) ny = dragLimits.maxY - maxY;
+
+          node.x(nx);
+          node.y(ny);
         }}
         onTransformEnd={handleTransformEnd}
         onMouseEnter={handleMouseEnter}
@@ -522,31 +595,8 @@ const SelectableText = ({ layer, isSelected, onSelect, onChange, onDelete, dragL
             y: e.target.y(),
           });
         }}
-        onTransform={() => {
-          // We use onTransform to override the default scaling behavior
-          const node = shapeRef.current;
-          if (!node) return;
-
-          // Instead of scaling, we want to change the width
-          // Calculate new width based on scaleX
-          const scaleX = node.scaleX();
-
-          // Reset scale
-          node.scaleX(1);
-          node.scaleY(1);
-
-          // Update width
-          let newWidth = Math.max(30, node.width() * scaleX);
-
-          // Clamp width to boundaries
-          if (node.x() + newWidth > dragLimits.maxX) {
-            newWidth = dragLimits.maxX - node.x();
-          }
-          node.width(newWidth);
-
-          // Clamp position
-          if (node.x() < dragLimits.minX) node.x(dragLimits.minX);
-          if (node.y() < dragLimits.minY) node.y(dragLimits.minY);
+        onTransform={(e) => {
+          handleTransformClamping(e.target, dragLimits, { onlyWidth: true, minWidth: 30 });
         }}
         onTransformEnd={() => {
           const node = shapeRef.current;
@@ -613,11 +663,16 @@ const SelectableShape = ({ layer, isSelected, onSelect, onChange, dragLimits }: 
       let x = node.x();
       let y = node.y();
 
+      // Handle center-positioned shapes (Ellipse) vs top-left (Rect/Arrow)
+      const isCenter = node.className === 'Ellipse';
+      const halfWidth = isCenter ? width / 2 : 0;
+      const halfHeight = isCenter ? height / 2 : 0;
+
       // Handle negative dimensions (e.g. arrows pointing left or up)
-      const left = Math.min(x, x + width);
-      const right = Math.max(x, x + width);
-      const top = Math.min(y, y + height);
-      const bottom = Math.max(y, y + height);
+      const left = isCenter ? x - halfWidth : Math.min(x, x + width);
+      const right = isCenter ? x + halfWidth : Math.max(x, x + width);
+      const top = isCenter ? y - halfHeight : Math.min(y, y + height);
+      const bottom = isCenter ? y + halfHeight : Math.max(y, y + height);
 
       if (left < dragLimits.minX) x += (dragLimits.minX - left);
       if (right > dragLimits.maxX) x -= (right - dragLimits.maxX);
@@ -690,6 +745,8 @@ const SelectableShape = ({ layer, isSelected, onSelect, onChange, dragLimits }: 
           ref={shapeRef as React.Ref<Konva.Arrow>}
           x={layer.x}
           y={layer.y}
+          width={layer.width}
+          height={layer.height}
           points={[0, 0, layer.width, layer.height]}
           stroke={layer.stroke}
           strokeWidth={layer.strokeWidth}
@@ -754,53 +811,8 @@ const SelectableShape = ({ layer, isSelected, onSelect, onChange, dragLimits }: 
     onMouseEnter: handleMouseEnter,
     onMouseLeave: handleMouseLeave,
     onTransform: (e: Konva.KonvaEventObject<Event>) => {
-      const node = e.target;
-      const scaleX = node.scaleX();
-      const scaleY = node.scaleY();
-
-      // Reset scale immediately to keep stroke width and arrow heads constant
-      node.setAttrs({
-        scaleX: 1,
-        scaleY: 1,
-      });
-
-      const oldWidth = node.width();
-      const oldX = node.x();
-      const oldY = node.y();
-
-      let newWidth = Math.max(5, oldWidth * scaleX);
-      let newHeight = Math.max(5, (node.height() ?? 0) * scaleY);
-
-      // Clamping logic for boundaries during transformation
-      let newX = oldX;
-      let newY = oldY;
-
-      // Left boundary
-      if (newX < dragLimits.minX) {
-        const diff = dragLimits.minX - newX;
-        newX = dragLimits.minX;
-        newWidth = Math.max(5, newWidth - diff);
-      }
-      // Top boundary
-      if (newY < dragLimits.minY) {
-        const diff = dragLimits.minY - newY;
-        newY = dragLimits.minY;
-        newHeight = Math.max(5, newHeight - diff);
-      }
-      // Right boundary
-      if (newX + newWidth > dragLimits.maxX) {
-        newWidth = Math.max(5, dragLimits.maxX - newX);
-      }
-      // Bottom boundary
-      if (newY + newHeight > dragLimits.maxY) {
-        newHeight = Math.max(5, dragLimits.maxY - newY);
-      }
-
-      node.setAttrs({
-        x: newX,
-        y: newY,
-        width: newWidth,
-        height: newHeight,
+      handleTransformClamping(e.target, dragLimits, {
+        isCenter: e.target.className === 'Ellipse'
       });
     },
     onTransformEnd: () => {
@@ -926,6 +938,18 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
     minY: 0,
     maxY: canvasHeight
   };
+
+  const getClampedPointerPosition = useCallback(() => {
+    const stage = stageRef.current;
+    if (!stage) return null;
+    const pos = stage.getRelativePointerPosition();
+    if (!pos) return null;
+
+    return {
+      x: Math.max(dragLimits.minX, Math.min(dragLimits.maxX, pos.x)),
+      y: Math.max(dragLimits.minY, Math.min(dragLimits.maxY, pos.y))
+    };
+  }, [dragLimits]);
 
   // Internal helper to render individual layers - NOT a component to prevent unmounting on re-render
   const renderLayer = (layer: DrawingPath | MediaLayer | TextLayer | ShapeLayer, index: number) => {
@@ -1322,11 +1346,11 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
     }
 
     if (currentTool === 'text') {
-      const pos = stage.getRelativePointerPosition();
+      const pos = getClampedPointerPosition();
       if (!pos) return;
 
       const defaultWidth = CANVAS_WIDTH * (2 / 3);
-      const maxWidth = CANVAS_WIDTH - pos.x;
+      const maxWidth = dragLimits.maxX - pos.x;
       const finalWidth = Math.min(defaultWidth, maxWidth);
 
       const newText: TextLayer = {
@@ -1355,7 +1379,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
     deletedLayerIdsRef.current.clear();
 
     // Use relative pointer position to account for stage scaling
-    const pos = stage.getRelativePointerPosition();
+    const pos = getClampedPointerPosition();
     if (!pos) return;
 
     startPosRef.current = { x: pos.x, y: pos.y };
@@ -1398,7 +1422,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
     const stage = stageRef.current;
     if (!stage) return;
 
-    const pos = stage.getRelativePointerPosition();
+    const pos = getClampedPointerPosition();
     if (!pos) return;
 
     if (currentTool === 'eraser') {
@@ -1450,7 +1474,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
 
     const stage = stageRef.current;
     if (!stage) return;
-    const pos = stage.getRelativePointerPosition();
+    const pos = getClampedPointerPosition();
     if (!pos || !startPosRef.current) return;
 
     if (activeRectRef.current) activeRectRef.current.visible(false);
