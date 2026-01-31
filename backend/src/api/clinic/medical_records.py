@@ -22,10 +22,12 @@ router = APIRouter()
 class DrawingPath(BaseModel):
     """Vector drawing path data."""
     type: Literal['drawing'] = 'drawing'
+    id: Optional[str] = None
     tool: Literal['pen', 'eraser', 'highlighter']
     color: str
     width: float = Field(gt=0)
     points: List[List[float]]  # Array of [x, y, pressure?] coordinates
+    boundingBox: Optional[Dict[str, float]] = None
 
     @field_validator('points')
     @classmethod
@@ -47,15 +49,45 @@ class MediaLayer(BaseModel):
     height: float = Field(gt=0)
     rotation: float = 0.0
 
+class ShapeLayer(BaseModel):
+    """Shape layer (rectangle, circle, arrow) in the workspace."""
+    type: Literal['shape'] = 'shape'
+    id: str
+    tool: Literal['rectangle', 'circle', 'arrow']
+    x: float
+    y: float
+    width: float
+    height: float
+    rotation: float = 0.0
+    stroke: str
+    strokeWidth: float
+    fill: Optional[str] = None
+
+class TextLayer(BaseModel):
+    """Text layer in the workspace."""
+    type: Literal['text'] = 'text'
+    id: str
+    text: str
+    x: float
+    y: float
+    fontSize: float
+    fontFamily: Optional[str] = None
+    fontStyle: Optional[str] = None
+    fill: str
+    width: Optional[float] = None
+    rotation: float = 0.0
+
 class ViewportState(BaseModel):
     """Viewport state for the canvas."""
     zoom: float = Field(gt=0, default=1.0)
+    x: float = 0.0
+    y: float = 0.0
     scroll_top: float = Field(ge=0, default=0.0)
 
 class WorkspaceData(BaseModel):
     """Complete workspace data structure."""
     version: int = Field(ge=1)
-    layers: List[Annotated[Union[DrawingPath, MediaLayer], Field(discriminator='type')]]
+    layers: List[Annotated[Union[DrawingPath, MediaLayer, ShapeLayer, TextLayer], Field(discriminator='type')]]
     canvas_width: float = Field(gt=0, default=1000.0)
     canvas_height: float = Field(gt=0)
     background_image_url: Optional[str] = None
