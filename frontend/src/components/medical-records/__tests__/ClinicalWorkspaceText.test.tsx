@@ -140,7 +140,35 @@ describe('ClinicalWorkspace Text Tool', () => {
     const textLayer = lastCall.layers.find((l: { type: string; text: string; width?: number }) => l.type === 'text');
     expect(textLayer).toBeDefined();
     expect(textLayer.text).toBe('Hello World');
-    expect(textLayer.width).toBe(250); // Now defaults to 250 for area text wrapping
+    
+    // Default width is 2/3 of CANVAS_WIDTH (1000) = 666.666...
+    // Pointer position is mocked at {x: 100, y: 100} in beforeEach
+    expect(textLayer.width).toBeCloseTo(666.66, 1);
+  });
+
+  it('shrinks text box width when created near the right edge', async () => {
+    // Override pointer position to be near the right edge (x=900, CANVAS_WIDTH=1000)
+    vi.spyOn(Konva.Stage.prototype, 'getRelativePointerPosition').mockReturnValue({ x: 900, y: 100 });
+
+    const { container } = render(
+      <ClinicalWorkspace
+        recordId={1}
+        initialData={mockInitialData}
+        onUpdate={mockOnUpdate}
+      />
+    );
+
+    fireEvent.click(screen.getByLabelText('文字 (T)'));
+    const stage = container.querySelector('.konvajs-content');
+    fireEvent.mouseDown(stage!);
+    fireEvent.mouseUp(stage!);
+
+    expect(mockOnUpdate).toHaveBeenCalled();
+    const lastCall = mockOnUpdate.mock.calls[mockOnUpdate.mock.calls.length - 1][0];
+    const textLayer = lastCall.layers.find((l: { type: string; width?: number }) => l.type === 'text');
+    
+    // width = min(1000 * 2/3, 1000 - 900) = min(666.66, 100) = 100
+    expect(textLayer.width).toBe(100);
   });
 
   it('updates Konva text node in real-time while typing', async () => {

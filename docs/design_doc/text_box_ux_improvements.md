@@ -46,10 +46,11 @@ Reviewing popular applications like Google Slides, PowerPoint, and Figma reveals
     *   Current implementation only updates canvas on `blur`, creating a disconnected experience.
     *   `undefined` width leads to infinite horizontal growth (point-text style) which is often not desired for notes.
 *   **Refined Behavior**:
-    1.  **Default Width**: New text boxes should be initialized with a standard default width (e.g., **250px**) to encourage vertical growth and wrapping.
-    2.  **Real-time Sync**: The `input` event on the `textarea` should propagate changes to the `Konva.Text` node immediately (or with minimal debounce). This ensures the canvas and its selection box grow as the user types.
-    3.  **Wrapping Logic**: Use `whiteSpace: 'pre-wrap'` for the editor and `wrap: 'word'` for Konva to ensure consistent line breaking.
-    4.  **Height Sync**: The height of both the editor and the canvas node should always be driven by the content (`scrollHeight`).
+    1.  **Dynamic Default Width**: New text boxes should be initialized with a width of **2/3 of the canvas width** (approx. 667px for a 1000px canvas).
+    2.  **Boundary Awareness**: If the text box is inserted near the right edge of the canvas, the width must automatically shrink so that it does not overflow the canvas boundary. Formula: `Math.min(defaultWidth, CANVAS_WIDTH - insertionX)`.
+    3.  **Real-time Sync**: The `input` event on the `textarea` should propagate changes to the `Konva.Text` node immediately (or with minimal debounce). This ensures the canvas and its selection box grow as the user types.
+    4.  **Wrapping Logic**: Use `whiteSpace: 'pre-wrap'` for the editor and `wrap: 'word'` for Konva to ensure consistent line breaking.
+    5.  **Height Sync**: The height of both the editor and the canvas node should always be driven by the content (`scrollHeight`).
 
 ### 4.3. Resizing = Reflowing (Not Scaling)
 *   **Action**: Change `Transformer` configuration and `onTransform` logic.

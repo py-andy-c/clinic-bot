@@ -19,11 +19,12 @@ Reference Design Doc: [text_box_ux_improvements.md](file:///Users/andy/clinic-bo
 -   **Style Alignment**: Set `whiteSpace: 'pre-wrap'` and `wordBreak: 'break-word'` on the editor to ensure the visual representation in the editor matches the canvas exactly.
 
 ### 2. Standardized Wrapping (Area Text)
--   **Default Width**: New text layers now initialize with a default width of `250px`. This enforces vertical growth and wrapping from the start, providing a better "out-of-the-box" experience for notes.
+-   **Dynamic Default Width**: New text layers now initialize with a default width of **2/3 of the canvas width** (approx. 667px).
+-   **Boundary Awareness**: Implemented "Edge Shrinking" logic. If a text box is inserted near the right edge, its width is automatically reduced to fit the remaining space (`Math.min(defaultWidth, CANVAS_WIDTH - x)`), matching the behavior of Google Slides.
 -   **Area Text Pattern**: Transitioned from "Point Text" (auto-width) to "Area Text" (fixed-width wrapping) as the primary behavior.
 
 ### 3. Reflow-based Resizing
--   **Width-only Transformation**: Configured the Transformer to prioritize width adjustments.
+-   **Width-only Transformation**: Configured the Transformer to prioritize width adjustments by disabling top/bottom handles.
 -   **Scale Reset**: Implemented logic in `onTransform` to apply scale changes to the `width` property and reset `scaleX`/`scaleY` to `1`. This ensures text reflows correctly without distortion or font-size changes.
 
 ### 4. Feedback-Driven Refinements
@@ -35,10 +36,11 @@ Following a technical review, the following refinements were added:
 
 ### 5. Integration Tests
 - Updated [ClinicalWorkspaceText.test.tsx](file:///Users/andy/clinic-bot/frontend/src/components/medical-records/__tests__/ClinicalWorkspaceText.test.tsx) to:
-    - Assert the new `250px` default width.
+    - Assert the new **2/3 canvas width** default.
+    - **New**: Verify that text boxes shrink when created near the right edge.
     - Verify real-time canvas updates during the `input` event.
-    - **New**: Verify that `Escape` correctly reverts changes and triggers appropriate cleanup.
-    - **New**: Added a verification case for the reflow-based resizing logic.
+    - Verify that `Escape` correctly reverts changes and triggers appropriate cleanup.
+    - Added a verification case for the reflow-based resizing logic.
 
 ## Verification
 - Verified all frontend tests pass: `RUN v4.0.17 ... 11 passed (11)`.

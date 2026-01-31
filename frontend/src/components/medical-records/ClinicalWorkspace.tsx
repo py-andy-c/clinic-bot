@@ -956,6 +956,10 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
       const pos = stage.getRelativePointerPosition();
       if (!pos) return;
 
+      const defaultWidth = CANVAS_WIDTH * (2 / 3);
+      const maxWidth = CANVAS_WIDTH - pos.x;
+      const finalWidth = Math.min(defaultWidth, maxWidth);
+
       const newText: TextLayer = {
         type: 'text',
         id: `text-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
@@ -965,7 +969,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
         fontSize: currentFontSize,
         fill: TOOL_CONFIG.text.color,
         rotation: 0,
-        width: 250, // Default width for auto-wrap
+        width: finalWidth, // Dynamic width based on canvas width and position
       };
 
       // Better to call updateLayers to ensure history consistency
