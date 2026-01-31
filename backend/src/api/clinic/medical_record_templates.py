@@ -38,20 +38,12 @@ class HeaderField(BaseModel):
     options: Optional[List[str]] = None
     unit: Optional[str] = None
 
-class MediaLayer(BaseModel):
-    id: str  # Unique ID for this media instance
-    type: str = "media"
-    origin: MediaLayerOrigin
-    url: str  # S3 URL
-    x: float
-    y: float
-    width: float
-    height: float
-    rotation: float
+from api.clinic.medical_record_schemas import AnyLayer
+# MediaLayer is still used in type hints if needed, but base_layers uses AnyLayer
 
 class WorkspaceConfig(BaseModel):
-    # Array of "Base Layers" pre-configured by the admin (anatomy diagrams, etc.)
-    base_layers: list[MediaLayer] = []
+    # Array of "Base Layers" pre-configured by the admin (anatomy diagrams, drawings, shapes, etc.)
+    base_layers: List[AnyLayer] = []
     backgroundImageUrl: Optional[str] = None
     canvas_width: Optional[int] = None
     allow_practitioner_uploads: bool = True
