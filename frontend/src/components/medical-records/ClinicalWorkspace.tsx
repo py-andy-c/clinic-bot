@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { Stage, Layer, Group, Line, Image as KonvaImage, Transformer, Text as KonvaText, Rect, Arrow, Ellipse } from 'react-konva';
+import { Stage, Layer, Group, Line, Image as KonvaImage, Transformer, Text as KonvaText, Rect, Arrow, Ellipse, Circle } from 'react-konva';
 import Konva from 'konva';
 import useImage from 'use-image';
 import imageCompression from 'browser-image-compression';
@@ -214,13 +214,17 @@ const SelectableLine = ({ layer, isSelected, onSelect, onChange, calculateBoundi
     if (!node) return;
 
     const transform = node.getTransform();
-    const scaleX = node.scaleX();
-    const scaleY = node.scaleY();
+    const points = node.points();
 
-    const newPoints = layer.points.map(p => {
-      const transformed = transform.point({ x: p[0], y: p[1] });
-      return [transformed.x, transformed.y, p[2]] as [number, number, number?];
-    });
+    const newPoints: [number, number, number?][] = [];
+    for (let i = 0; i < points.length; i += 2) {
+      const p = transform.point({ x: points[i] ?? 0, y: points[i + 1] ?? 0 });
+      const originalP = layer.points[Math.floor(i / 2)];
+      const point: [number, number, number?] = originalP && originalP[2] !== undefined
+        ? [p.x, p.y, originalP[2]]
+        : [p.x, p.y];
+      newPoints.push(point);
+    }
 
     // Reset node properties
     node.setAttrs({
@@ -228,13 +232,12 @@ const SelectableLine = ({ layer, isSelected, onSelect, onChange, calculateBoundi
       y: 0,
       scaleX: 1,
       scaleY: 1,
-      rotation: 0
+      rotation: 0,
     });
 
     onChange({
       points: newPoints,
-      width: layer.width * ((scaleX + scaleY) / 2),
-      boundingBox: calculateBoundingBox(newPoints)
+      boundingBox: calculateBoundingBox(newPoints),
     });
   };
 
@@ -281,7 +284,25 @@ const SelectableLine = ({ layer, isSelected, onSelect, onChange, calculateBoundi
         onDragEnd={handleDragEnd}
         onTransform={(e) => {
           const node = e.target as Konva.Line;
-          // For simplicity, we just clamp the node's position during transform
+          const scaleX = node.scaleX();
+          const scaleY = node.scaleY();
+
+          // Reset scale immediately to keep stroke width constant
+          node.setAttrs({
+            scaleX: 1,
+            scaleY: 1,
+          });
+
+          // Update points
+          const points = node.points();
+          const newPoints = [];
+          for (let i = 0; i < points.length; i += 2) {
+            newPoints.push((points[i] ?? 0) * scaleX);
+            newPoints.push((points[i + 1] ?? 0) * scaleY);
+          }
+          node.points(newPoints);
+
+          // Clamp position
           if (node.x() < dragLimits.minX) node.x(dragLimits.minX);
           if (node.y() < dragLimits.minY) node.y(dragLimits.minY);
         }}
@@ -501,7 +522,7 @@ const SelectableText = ({ layer, isSelected, onSelect, onChange, onDelete, dragL
             y: e.target.y(),
           });
         }}
-        onTransform={(_e) => {
+        onTransform={() => {
           // We use onTransform to override the default scaling behavior
           const node = shapeRef.current;
           if (!node) return;
@@ -573,28 +594,36 @@ const SelectableShape = ({ layer, isSelected, onSelect, onChange, dragLimits }: 
   const trRef = useRef<Konva.Transformer>(null);
 
   useEffect(() => {
-    if (isSelected && trRef.current && shapeRef.current) {
+    if (isSelected && trRef.current && shapeRef.current && layer.tool !== 'arrow') {
       trRef.current.nodes([shapeRef.current]);
       trRef.current.getLayer()?.batchDraw();
     }
-  }, [isSelected]);
+  }, [isSelected, layer.tool]);
 
-  // For Arrow, we need to pass points. For Rect/Circle, we pass width/height.
-  const baseProps = {
-    id: layer.id,
-    x: layer.x,
-    y: layer.y,
-    rotation: layer.rotation,
-    stroke: layer.stroke,
-    strokeWidth: layer.strokeWidth,
-    fill: layer.fill || '',
+  // Base props for movement
+  const movementProps = {
     draggable: isSelected,
-    onClick: onSelect,
-    onTap: onSelect,
     onDragMove: (e: Konva.KonvaEventObject<DragEvent>) => {
       const node = e.target;
-      const x = Math.max(dragLimits.minX, Math.min(dragLimits.maxX - node.width() * node.scaleX(), node.x()));
-      const y = Math.max(dragLimits.minY, Math.min(dragLimits.maxY - node.height() * node.scaleY(), node.y()));
+      const scaleX = node.scaleX();
+      const scaleY = node.scaleY();
+      const width = node.width() * scaleX;
+      const height = node.height() * scaleY;
+
+      let x = node.x();
+      let y = node.y();
+
+      // Handle negative dimensions (e.g. arrows pointing left or up)
+      const left = Math.min(x, x + width);
+      const right = Math.max(x, x + width);
+      const top = Math.min(y, y + height);
+      const bottom = Math.max(y, y + height);
+
+      if (left < dragLimits.minX) x += (dragLimits.minX - left);
+      if (right > dragLimits.maxX) x -= (right - dragLimits.maxX);
+      if (top < dragLimits.minY) y += (dragLimits.minY - top);
+      if (bottom > dragLimits.maxY) y -= (bottom - dragLimits.maxY);
+
       node.x(x);
       node.y(y);
     },
@@ -604,24 +633,175 @@ const SelectableShape = ({ layer, isSelected, onSelect, onChange, dragLimits }: 
         y: e.target.y(),
       });
     },
+  };
+
+  const handleMouseEnter = (e: Konva.KonvaEventObject<MouseEvent>) => {
+    const stage = e.target.getStage();
+    if (stage) stage.container().style.cursor = isSelected ? 'move' : 'pointer';
+  };
+
+  const handleMouseLeave = (e: Konva.KonvaEventObject<MouseEvent>) => {
+    const stage = e.target.getStage();
+    if (stage) stage.container().style.cursor = 'default';
+  };
+
+  if (layer.tool === 'arrow') {
+    const getArrowCursor = () => {
+      const angle = Math.atan2(layer.height, layer.width) * (180 / Math.PI);
+      const absAngle = Math.abs(angle);
+      
+      if ((absAngle > 22.5 && absAngle < 67.5) || (absAngle > 112.5 && absAngle < 157.5)) {
+        return (angle > 0 === absAngle < 90) ? 'nwse-resize' : 'nesw-resize';
+      }
+      return absAngle < 45 || absAngle > 135 ? 'ew-resize' : 'ns-resize';
+    };
+
+    const handleAnchorDrag = (index: number, e: Konva.KonvaEventObject<DragEvent>) => {
+      const stage = e.target.getStage();
+      if (!stage) return;
+
+      const pos = e.target.position();
+      const newX = Math.max(dragLimits.minX, Math.min(dragLimits.maxX, pos.x));
+      const newY = Math.max(dragLimits.minY, Math.min(dragLimits.maxY, pos.y));
+
+      if (index === 0) {
+        // Tail dragged
+        const dx = newX - layer.x;
+        const dy = newY - layer.y;
+        onChange({
+          x: newX,
+          y: newY,
+          width: layer.width - dx,
+          height: layer.height - dy,
+        });
+      } else {
+        // Head dragged
+        onChange({
+          width: newX - layer.x,
+          height: newY - layer.y,
+        });
+      }
+    };
+
+    return (
+      <>
+        <Arrow
+          id={layer.id}
+          ref={shapeRef as React.Ref<Konva.Arrow>}
+          x={layer.x}
+          y={layer.y}
+          points={[0, 0, layer.width, layer.height]}
+          stroke={layer.stroke}
+          strokeWidth={layer.strokeWidth}
+          fill={layer.stroke}
+          onClick={onSelect}
+          onTap={onSelect}
+          onMouseEnter={handleMouseEnter}
+          onMouseLeave={handleMouseLeave}
+          {...movementProps}
+        />
+        {isSelected && (
+          <>
+            {/* Tail Anchor */}
+            <Circle
+              x={layer.x}
+              y={layer.y}
+              radius={6}
+              fill="white"
+              stroke="#0096ff"
+              strokeWidth={2}
+              draggable
+              onDragMove={(e) => handleAnchorDrag(0, e)}
+              onMouseEnter={(e) => {
+                const stage = e.target.getStage();
+                if (stage) stage.container().style.cursor = getArrowCursor();
+              }}
+              onMouseLeave={handleMouseLeave}
+            />
+            {/* Head Anchor */}
+            <Circle
+              x={layer.x + layer.width}
+              y={layer.y + layer.height}
+              radius={6}
+              fill="white"
+              stroke="#0096ff"
+              strokeWidth={2}
+              draggable
+              onDragMove={(e) => handleAnchorDrag(1, e)}
+              onMouseEnter={(e) => {
+                const stage = e.target.getStage();
+                if (stage) stage.container().style.cursor = getArrowCursor();
+              }}
+              onMouseLeave={handleMouseLeave}
+            />
+          </>
+        )}
+      </>
+    );
+  }
+
+  // For Rect/Circle, we pass width/height.
+  const baseProps = {
+    id: layer.id,
+    x: layer.x,
+    y: layer.y,
+    rotation: layer.rotation,
+    stroke: layer.stroke,
+    strokeWidth: layer.strokeWidth,
+    fill: layer.fill || '',
+    onClick: onSelect,
+    onTap: onSelect,
+    onMouseEnter: handleMouseEnter,
+    onMouseLeave: handleMouseLeave,
     onTransform: (e: Konva.KonvaEventObject<Event>) => {
       const node = e.target;
       const scaleX = node.scaleX();
       const scaleY = node.scaleY();
-      const width = node.width() * scaleX;
-      const height = node.height() * scaleY;
 
-      // Clamp position
-      if (node.x() < dragLimits.minX) node.x(dragLimits.minX);
-      if (node.y() < dragLimits.minY) node.y(dragLimits.minY);
+      // Reset scale immediately to keep stroke width and arrow heads constant
+      node.setAttrs({
+        scaleX: 1,
+        scaleY: 1,
+      });
 
-      // Clamp size
-      if (node.x() + width > dragLimits.maxX) {
-        node.scaleX((dragLimits.maxX - node.x()) / node.width());
+      const oldWidth = node.width();
+      const oldX = node.x();
+      const oldY = node.y();
+
+      let newWidth = Math.max(5, oldWidth * scaleX);
+      let newHeight = Math.max(5, (node.height() ?? 0) * scaleY);
+
+      // Clamping logic for boundaries during transformation
+      let newX = oldX;
+      let newY = oldY;
+
+      // Left boundary
+      if (newX < dragLimits.minX) {
+        const diff = dragLimits.minX - newX;
+        newX = dragLimits.minX;
+        newWidth = Math.max(5, newWidth - diff);
       }
-      if (node.y() + height > dragLimits.maxY) {
-        node.scaleY((dragLimits.maxY - node.y()) / node.height());
+      // Top boundary
+      if (newY < dragLimits.minY) {
+        const diff = dragLimits.minY - newY;
+        newY = dragLimits.minY;
+        newHeight = Math.max(5, newHeight - diff);
       }
+      // Right boundary
+      if (newX + newWidth > dragLimits.maxX) {
+        newWidth = Math.max(5, dragLimits.maxX - newX);
+      }
+      // Bottom boundary
+      if (newY + newHeight > dragLimits.maxY) {
+        newHeight = Math.max(5, dragLimits.maxY - newY);
+      }
+
+      node.setAttrs({
+        x: newX,
+        y: newY,
+        width: newWidth,
+        height: newHeight,
+      });
     },
     onTransformEnd: () => {
       const node = shapeRef.current;
@@ -640,36 +820,17 @@ const SelectableShape = ({ layer, isSelected, onSelect, onChange, dragLimits }: 
         rotation: node.rotation(),
       });
     },
-  };
-
-  const handleMouseEnter = (e: Konva.KonvaEventObject<MouseEvent>) => {
-    const stage = e.target.getStage();
-    if (stage) stage.container().style.cursor = isSelected ? 'move' : 'pointer';
-  };
-
-  const handleMouseLeave = (e: Konva.KonvaEventObject<MouseEvent>) => {
-    const stage = e.target.getStage();
-    if (stage) stage.container().style.cursor = 'default';
+    ...movementProps,
   };
 
   return (
     <>
-      {layer.tool === 'arrow' ? (
-        <Arrow
-          {...baseProps}
-          ref={shapeRef as React.Ref<Konva.Arrow>}
-          points={[0, 0, layer.width, layer.height]}
-          onMouseEnter={handleMouseEnter}
-          onMouseLeave={handleMouseLeave}
-        />
-      ) : layer.tool === 'rectangle' ? (
+      {layer.tool === 'rectangle' ? (
         <Rect
           {...baseProps}
           ref={shapeRef as React.Ref<Konva.Rect>}
           width={layer.width}
           height={layer.height}
-          onMouseEnter={handleMouseEnter}
-          onMouseLeave={handleMouseLeave}
         />
       ) : (
         <Ellipse
@@ -679,8 +840,6 @@ const SelectableShape = ({ layer, isSelected, onSelect, onChange, dragLimits }: 
           height={layer.height}
           radiusX={layer.width / 2}
           radiusY={layer.height / 2}
-          onMouseEnter={handleMouseEnter}
-          onMouseLeave={handleMouseLeave}
         />
       )}
       {isSelected && (
@@ -1263,8 +1422,12 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
         activeRectRef.current.width(dx);
         activeRectRef.current.height(dy);
       } else if (currentTool === 'circle' && activeEllipseRef.current) {
-        activeEllipseRef.current.radiusX(Math.abs(dx));
-        activeEllipseRef.current.radiusY(Math.abs(dy));
+        activeEllipseRef.current.setAttrs({
+          x: startPosRef.current.x + dx / 2,
+          y: startPosRef.current.y + dy / 2,
+          radiusX: Math.abs(dx) / 2,
+          radiusY: Math.abs(dy) / 2,
+        });
       } else if (currentTool === 'arrow' && activeArrowRef.current) {
         activeArrowRef.current.points([startPosRef.current.x, startPosRef.current.y, pos.x, pos.y]);
       }
