@@ -250,7 +250,8 @@ const MedicalRecordEditorPage: React.FC = () => {
   }
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <>
+      <div className="max-w-4xl mx-auto">
       <div className="mb-4">
         <button
           onClick={handleBack}
@@ -303,7 +304,7 @@ const MedicalRecordEditorPage: React.FC = () => {
         </div>
       </div>
 
-      <div className="space-y-6">
+      <div className="space-y-6 mb-12">
         {/* Structured Header Section */}
         <MedicalRecordHeader
           headerStructure={record.header_structure}
@@ -311,21 +312,23 @@ const MedicalRecordEditorPage: React.FC = () => {
           onUpdate={handleHeaderUpdate}
           onDirtyStateChange={handleDirtyStateChange}
         />
-
-        {/* Clinical Workspace Section - Phase 4 */}
-        <div className="space-y-4">
-          <h2 className="text-xl font-semibold">臨床工作區</h2>
-          <ClinicalWorkspace
-            recordId={record.id}
-            initialData={record.workspace_data}
-            initialVersion={record.version}
-            onUpdate={handleWorkspaceUpdate}
-            syncStatus={getSyncStatus()}
-          />
-        </div>
       </div>
     </div>
-  );
+
+    {/* Clinical Workspace Section - Phase 4 - Full Width Container */}
+    <div className="bg-gray-200 border-t border-gray-300 min-h-screen">
+      <div className="max-w-4xl mx-auto pt-12 px-4 sm:px-6 lg:px-8">
+        <h2 className="text-xl font-semibold mb-6">臨床工作區</h2>
+      </div>
+      <ClinicalWorkspace
+        recordId={record.id}
+        initialData={record.workspace_data}
+        onUpdate={handleWorkspaceUpdate}
+        syncStatus={getSyncStatus()}
+      />
+    </div>
+  </>
+);
 };
 
 export default MedicalRecordEditorPage;

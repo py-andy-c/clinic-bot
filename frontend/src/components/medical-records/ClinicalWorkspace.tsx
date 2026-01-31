@@ -1,16 +1,16 @@
-import React, { useRef, useEffect, useLayoutEffect, useState, useCallback } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
+import { Stage, Layer, Line, Image as KonvaImage, Transformer } from 'react-konva';
+import Konva from 'konva';
+import useImage from 'use-image';
 import imageCompression from 'browser-image-compression';
 import type { WorkspaceData, DrawingPath, MediaLayer, DrawingTool } from '../../types';
 import { logger } from '../../utils/logger';
 import { apiService } from '../../services/api';
-import { config } from '../../config/env';
-
 import { SyncStatus, SyncStatusType } from './SyncStatus';
 
 interface ClinicalWorkspaceProps {
   recordId: number;
   initialData: WorkspaceData;
-  initialVersion: number;
   onUpdate: (data: WorkspaceData) => void;
   syncStatus?: SyncStatusType;
 }
@@ -18,844 +18,488 @@ interface ClinicalWorkspaceProps {
 const TOOL_CONFIG = {
   pen: { color: '#000000', width: 2 },
   highlighter: { color: 'rgba(255, 255, 0, 0.3)', width: 20 },
-  eraser: { color: '#ffffff', width: 20 },
+  eraser: { color: '#ffffff', width: 20 }, // Not used for stroke-based eraser but kept for config consistency
   select: { color: '#3b82f6', width: 1 },
 };
 
-const LOGICAL_WIDTH = 1000;
+const CANVAS_WIDTH = 1000; // Logical width for coordinates
+const CONTAINER_WIDTH = 850; // Visual container width
+const MIN_CANVAS_HEIGHT = 1100;
+const WORKSPACE_VERSION = 2;
 
-const calculateBoundingBox = (points: [number, number, number?][]) => {
-  if (points.length === 0) return { minX: 0, maxX: 0, minY: 0, maxY: 0 };
-  const firstPoint = points[0]!;
-  let minX = firstPoint[0];
-  let maxX = firstPoint[0];
-  let minY = firstPoint[1];
-  let maxY = firstPoint[1];
-
-  for (let i = 1; i < points.length; i++) {
-    const point = points[i]!;
-    const [x, y] = point;
-    minX = Math.min(minX, x);
-    maxX = Math.max(maxX, x);
-    minY = Math.min(minY, y);
-    maxY = Math.max(maxY, y);
-  }
-  return { minX, maxX, minY, maxY };
+// Helper to calculate distance from point (px, py) to segment (x1, y1) -> (x2, y2)
+const getDistanceToSegment = (px: number, py: number, x1: number, y1: number, x2: number, y2: number) => {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const l2 = dx * dx + dy * dy;
+  if (l2 === 0) return Math.sqrt((px - x1) ** 2 + (py - y1) ** 2);
+  let t = ((px - x1) * dx + (py - y1) * dy) / l2;
+  t = Math.max(0, Math.min(1, t));
+  return Math.sqrt((px - (x1 + t * dx)) ** 2 + (py - (y1 + t * dy)) ** 2);
 };
 
-const migrateWorkspaceData = (data: WorkspaceData): WorkspaceData => {
-  if (!data || data.version >= 2) return data;
+// Helper component for loading images
+const UrlImage = ({ layer, isSelected, onSelect, onChange }: { 
+  layer: MediaLayer; 
+  isSelected: boolean;
+  onSelect: () => void;
+  onChange: (newAttrs: Partial<MediaLayer>) => void;
+}) => {
+  const [image] = useImage(layer.url, 'anonymous');
+  const shapeRef = useRef<Konva.Image>(null);
+  const trRef = useRef<Konva.Transformer>(null);
+  const [isMoving, setIsMoving] = useState(false);
 
-  const migratedLayers = (data.layers || []).map(layer => {
-    if (layer.type === 'drawing') {
-      const points = layer.points.map(p => {
-        if (p.length === 2) {
-          return [p[0], p[1], 0.5] as [number, number, number?];
-        }
-        return p as [number, number, number?];
-      });
-      return {
-        ...layer,
-        points,
-        boundingBox: layer.boundingBox || calculateBoundingBox(points)
-      };
+  useEffect(() => {
+    if (isSelected && trRef.current && shapeRef.current) {
+      trRef.current.nodes([shapeRef.current]);
+      trRef.current.getLayer()?.batchDraw();
     }
-    return layer;
-  });
+  }, [isSelected]);
 
-  return {
-    ...data,
-    version: 2,
-    canvas_width: data.canvas_width || 1000,
-    layers: migratedLayers
+  const handleMouseEnter = (e: Konva.KonvaEventObject<MouseEvent>) => {
+    const stage = e.target.getStage();
+    if (stage) stage.container().style.cursor = 'move';
   };
+
+  const handleMouseLeave = (e: Konva.KonvaEventObject<MouseEvent>) => {
+    const stage = e.target.getStage();
+    if (stage) stage.container().style.cursor = 'default';
+  };
+
+  return (
+    <>
+      <KonvaImage
+        image={image}
+        x={layer.x}
+        y={layer.y}
+        width={layer.width}
+        height={layer.height}
+        rotation={layer.rotation}
+        opacity={isMoving ? 0.7 : 1}
+        draggable={isSelected}
+        onClick={onSelect}
+        onTap={onSelect}
+        ref={shapeRef}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+        onDragStart={() => setIsMoving(true)}
+        onDragEnd={(e) => {
+          setIsMoving(false);
+          onChange({
+            x: e.target.x(),
+            y: e.target.y(),
+          });
+        }}
+        onTransformStart={() => setIsMoving(true)}
+        onTransformEnd={() => {
+          setIsMoving(false);
+          const node = shapeRef.current;
+          if (!node) return;
+          const scaleX = node.scaleX();
+          const scaleY = node.scaleY();
+          
+          // Reset scale and update width/height
+          node.scaleX(1);
+          node.scaleY(1);
+          
+          onChange({
+            x: node.x(),
+            y: node.y(),
+            width: Math.max(5, node.width() * scaleX),
+            height: Math.max(5, node.height() * scaleY),
+            rotation: node.rotation(),
+          });
+        }}
+      />
+      {isSelected && (
+        <Transformer
+          ref={trRef}
+          rotateEnabled={true}
+          enabledAnchors={['top-left', 'top-right', 'bottom-left', 'bottom-right']}
+          boundBoxFunc={(oldBox, newBox) => {
+            // Limit resize
+            if (newBox.width < 5 || newBox.height < 5) {
+              return oldBox;
+            }
+            return newBox;
+          }}
+        />
+      )}
+    </>
+  );
+};
+
+// Selectable Drawing Component
+const SelectableLine = ({ layer, isSelected, onSelect, onChange }: {
+  layer: DrawingPath;
+  isSelected: boolean;
+  onSelect: () => void;
+  onChange: (newAttrs: Partial<DrawingPath>) => void;
+}) => {
+  const shapeRef = useRef<Konva.Line>(null);
+  const trRef = useRef<Konva.Transformer>(null);
+
+  useEffect(() => {
+    if (isSelected && trRef.current && shapeRef.current) {
+      trRef.current.nodes([shapeRef.current]);
+      trRef.current.getLayer()?.batchDraw();
+    }
+  }, [isSelected]);
+
+  return (
+    <>
+      <Line
+        id={layer.id}
+        ref={shapeRef}
+        points={layer.points.flatMap(p => [p[0], p[1]])}
+        stroke={layer.color}
+        strokeWidth={layer.width}
+        tension={0.5}
+        lineCap="round"
+        lineJoin="round"
+        draggable={isSelected}
+        onClick={onSelect}
+        onTap={onSelect}
+        globalCompositeOperation={
+          layer.tool === 'highlighter' ? 'multiply' : 'source-over'
+        }
+        onDragEnd={(e) => {
+           onChange({
+             points: layer.points.map(p => [
+               p[0] + (e.target.x() / 1),
+               p[1] + (e.target.y() / 1),
+               p[2] // Preserve pressure
+             ] as [number, number, number?])
+           });
+           // Reset position to 0 since we updated points
+           e.target.x(0);
+           e.target.y(0);
+         }}
+         onTransformEnd={() => {
+           const node = shapeRef.current;
+           if (!node) return;
+           const scaleX = node.scaleX();
+           const scaleY = node.scaleY();
+           
+           // Update points based on scale
+           const newPoints = layer.points.map(p => [
+             p[0] * scaleX,
+             p[1] * scaleY,
+             p[2] // Preserve pressure
+           ] as [number, number, number?]);
+
+          node.scaleX(1);
+          node.scaleY(1);
+
+          onChange({
+            points: newPoints,
+            width: layer.width * ((scaleX + scaleY) / 2) // Rough stroke width scaling
+          });
+        }}
+      />
+      {isSelected && (
+        <Transformer
+          ref={trRef}
+          rotateEnabled={false} // Drawing rotation is complex with points
+          enabledAnchors={['top-left', 'top-right', 'bottom-left', 'bottom-right']}
+        />
+      )}
+    </>
+  );
+};
+
+// Background Image Component
+const BackgroundImage = ({ url, width }: { url: string; width: number }) => {
+  const [image] = useImage(url, 'anonymous');
+  if (!image) return null;
+  
+  // Calculate height to maintain aspect ratio based on canvas width
+  const height = (width / image.width) * image.height;
+  
+  return (
+    <KonvaImage
+      image={image}
+      width={width}
+      height={height}
+      listening={false} // Background shouldn't intercept events
+    />
+  );
 };
 
 export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
   recordId,
   initialData,
-  initialVersion,
   onUpdate,
   syncStatus,
 }) => {
-  const migratedInitialData = useRef(migrateWorkspaceData(initialData));
-
-  const backgroundCanvasRef = useRef<HTMLCanvasElement>(null);
-  const drawingCanvasRef = useRef<HTMLCanvasElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [layers, setLayers] = useState<(DrawingPath | MediaLayer)[]>(initialData.layers || []);
   const [currentTool, setCurrentTool] = useState<DrawingTool>('pen');
-  const [isDrawing, setIsDrawing] = useState(false);
-  const [layers, setLayers] = useState<(DrawingPath | MediaLayer)[]>(migratedInitialData.current.layers || []);
-  const [rawCanvasHeight, setRawCanvasHeight] = useState(migratedInitialData.current.canvas_height || 1000);
-  const [redoStack, setRedoStack] = useState<(DrawingPath | MediaLayer)[][]>([]);
-  const [canvasWidth, setCanvasWidth] = useState(800);
-  const [currentPath, setCurrentPath] = useState<DrawingPath | null>(null);
-  const [pendingUpdate, setPendingUpdate] = useState<WorkspaceData | null>(null);
-  const imagesRef = useRef<Record<string, HTMLImageElement>>({});
-  const [imagesLoaded, setImagesLoaded] = useState(0); // Trigger re-render when images load
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [canvasHeight, setCanvasHeight] = useState(initialData.canvas_height || MIN_CANVAS_HEIGHT);
+  
+  // Ref for the current drawing path
+  const isDrawing = useRef(false);
+  const currentPointsRef = useRef<number[]>([]);
+  const deletedLayerIdsRef = useRef<Set<number | string>>(new Set());
+  
+  const stageRef = useRef<Konva.Stage>(null);
+  const activeLineRef = useRef<Konva.Line>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
-  const [localVersion, setLocalVersion] = useState(0); // Counter for user actions
-  const [serverVersion, setServerVersion] = useState(initialVersion);
-  const lastUpdateVersionRef = useRef<number>(0); // Track what we last sent to parent
-  const acknowledgedLocalVersionRef = useRef<number>(0); // Track the last local version acknowledged by server
-  const [selectedLayerId, setSelectedLayerId] = useState<string | null>(null);
-  const [dragOffset, setDragOffset] = useState<{ x: number; y: number } | null>(null);
-  const [isResizing, setIsResizing] = useState(false);
-  const [isRotating, setIsRotating] = useState(false);
-  const [showToolbar, setShowToolbar] = useState(false);
+  
+  // Scaling factor
+  const scale = CONTAINER_WIDTH / CANVAS_WIDTH;
+  
+  // History for Undo/Redo
+  const [history, setHistory] = useState<(DrawingPath | MediaLayer)[][]>([initialData.layers || []]);
+  const [historyStep, setHistoryStep] = useState(0);
 
-  // Buffer canvas for flicker-free resizing
-  const bufferCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const isBufferValidRef = useRef<boolean>(false);
+  // Sync state
+  const [localVersion, setLocalVersion] = useState(0);
 
-  const COMFORT_BUFFER = 300; // Extra space at the bottom for writing
-  const MIN_CANVAS_HEIGHT = 800;
-  const HEIGHT_CHUNK_SIZE = 500; // Resize in 500px steps to reduce flicker frequency
-
-  const calculateContentBottom = useCallback(() => {
-    let maxBottom = 0;
-
-    // Check all layers
-    layers.forEach(layer => {
-      if (layer.type === 'media') {
-        maxBottom = Math.max(maxBottom, layer.y + layer.height);
-      } else if (layer.type === 'drawing') {
-        // Exclude eraser tool from height calculation to allow shrinking when content is erased
-        if (layer.tool !== 'eraser') {
-          if (layer.boundingBox) {
-            maxBottom = Math.max(maxBottom, layer.boundingBox.maxY);
-          } else {
-            // Fallback for legacy data without boundingBox
-            layer.points.forEach(point => {
-              maxBottom = Math.max(maxBottom, point[1]);
-            });
-          }
-        }
-      }
-    });
-
-    // Check current active path
-    if (currentPath && currentPath.tool !== 'eraser') {
-      if (currentPath.boundingBox) {
-        maxBottom = Math.max(maxBottom, currentPath.boundingBox.maxY);
-      } else {
-        currentPath.points.forEach(point => {
-          maxBottom = Math.max(maxBottom, point[1]);
-        });
-      }
-    }
-
-    // Check background image height
-    if (migratedInitialData.current.background_image_url) {
-      const bgImg = imagesRef.current['background'];
-      if (bgImg) {
-        maxBottom = Math.max(maxBottom, (LOGICAL_WIDTH / bgImg.width) * bgImg.height);
-      }
-    }
-
-    return maxBottom;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [layers, currentPath, imagesLoaded]);
-
-  // Reactive height adjustment with debouncing and chunking
-  useEffect(() => {
-    const contentBottom = calculateContentBottom();
-    const neededHeight = contentBottom + COMFORT_BUFFER;
-    
-    // Chunked height: Always round up to the next HEIGHT_CHUNK_SIZE
-    // This reduces the number of times the physical canvas element is resized
-    const targetHeight = Math.max(
-      MIN_CANVAS_HEIGHT, 
-      Math.ceil(neededHeight / HEIGHT_CHUNK_SIZE) * HEIGHT_CHUNK_SIZE
-    );
-
-    // Only update if the difference is significant to avoid jitter
-    if (Math.abs(rawCanvasHeight - targetHeight) > 1) {
-      const timer = setTimeout(() => {
-        // Capture current canvas content to buffer before resizing
-        const bgCanvas = backgroundCanvasRef.current;
-        const drCanvas = drawingCanvasRef.current;
-        
-        if (bgCanvas && drCanvas) {
-          // Create or resize buffer canvas
-          if (!bufferCanvasRef.current) {
-            bufferCanvasRef.current = document.createElement('canvas');
-          }
-          const buffer = bufferCanvasRef.current;
-          buffer.width = bgCanvas.width;
-          buffer.height = bgCanvas.height;
-          const bCtx = buffer.getContext('2d');
-          
-          if (bCtx) {
-            // Store current view
-            bCtx.drawImage(bgCanvas, 0, 0);
-            bCtx.drawImage(drCanvas, 0, 0);
-            isBufferValidRef.current = true;
-          }
-        }
-
-        setRawCanvasHeight(targetHeight);
-        // Increment local version to trigger persistence when height changes
-        setLocalVersion(v => v + 1);
-      }, 300); // Reduced from 500ms to 300ms for better responsiveness
-      return () => clearTimeout(timer);
-    }
-    return;
-  }, [layers, currentPath, calculateContentBottom, rawCanvasHeight]);
-
-  const scale = canvasWidth / (migratedInitialData.current.canvas_width || 1000);
-  const canvasHeight = rawCanvasHeight * scale;
-  const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
-
-  // Track network status - we don't need syncStatus state anymore
-  useEffect(() => {
-    const handleOnline = () => { };
-    const handleOffline = () => { };
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
-  }, []);
-
-  // Pre-load images
-  const mediaUrlsFingerprint = layers
-    .filter(l => l.type === 'media')
-    .map(l => (l as MediaLayer).url)
-    .join('|');
-
-  useEffect(() => {
-    // Background image
-    const bgUrl = initialData.background_image_url;
-    if (bgUrl) {
-      const existingImg = imagesRef.current['background'];
-      const urlChanged = existingImg && existingImg.src !== bgUrl;
-
-      if (!existingImg || urlChanged) {
-        const img = new Image();
-        img.crossOrigin = "anonymous";
-        img.src = bgUrl;
-        img.onload = () => {
-          imagesRef.current['background'] = img;
-          setImagesLoaded(v => v + 1);
-        };
-        img.onerror = () => {
-          logger.error(`Failed to load background image: ${bgUrl}`);
-        };
-      }
-    }
-
-    // Media layers
-    layers.forEach(layer => {
-      if (layer.type !== 'media') return;
-      
-      const existingImg = imagesRef.current[layer.id];
-      const urlChanged = existingImg && existingImg.src !== layer.url;
-
-      if (!existingImg || urlChanged) {
-        const img = new Image();
-        img.crossOrigin = "anonymous";
-        img.src = layer.url;
-        img.onload = () => {
-          imagesRef.current[layer.id] = img;
-          setImagesLoaded(v => v + 1);
-        };
-        img.onerror = () => {
-          logger.error(`Failed to load image: ${layer.url}`);
-        };
-      }
-    });
-  }, [mediaUrlsFingerprint, initialData.background_image_url]); // Re-run if any media URL changes or background URL changes
-
-  // Handle window resize for responsive canvas
-  useEffect(() => {
-    const updateWidth = () => {
-      if (containerRef.current) {
-        const oldWidth = canvasWidth;
-        // Use the container width but capped at 1000px or initialData.canvas_width if provided
-        const containerWidth = containerRef.current.clientWidth;
-        const targetWidth = Math.min(containerWidth - 32, migratedInitialData.current.canvas_width || 1000);
-        const newWidth = Math.max(400, targetWidth);
-        
-        if (Math.abs(oldWidth - newWidth) > 1) {
-          setCanvasWidth(newWidth);
-        }
-      }
-    };
-
-    updateWidth();
-    window.addEventListener('resize', updateWidth);
-    return () => window.removeEventListener('resize', updateWidth);
-  }, [migratedInitialData.current.canvas_width, canvasWidth]);
-
-  // Handle scroll for toolbar visibility
-  useEffect(() => {
-    const handleScroll = () => {
-      if (!containerRef.current) return;
-      const rect = containerRef.current.getBoundingClientRect();
-      // Show toolbar if the top of the workspace has entered the viewport (within 150px of bottom)
-      const isVisible = rect.top < window.innerHeight - 150;
-      setShowToolbar(isVisible);
-    };
-
-    handleScroll(); // Initial check
-    window.addEventListener('scroll', handleScroll, { capture: true });
-    return () => window.removeEventListener('scroll', handleScroll, { capture: true });
-  }, []);
-
-  useEffect(() => {
-    return () => { };
-  }, []);
-
-  // Sync layers when initialData changes (but only if we are not currently drawing)
-  useEffect(() => {
-    if (!isDrawing) {
-      const migrated = migrateWorkspaceData(initialData);
-      
-      // Update our acknowledgment ref if the server returned a local version
-      if (migrated.local_version !== undefined) {
-        acknowledgedLocalVersionRef.current = Math.max(
-          acknowledgedLocalVersionRef.current,
-          migrated.local_version
-        );
-      }
-
-      // If the server version is strictly greater than our local tracking of the server version,
-      // it means a save was successful or another client updated the record.
-      if (initialVersion > serverVersion) {
-        // If we were waiting for an update and this incoming version matches what we expected
-        // (or passed it), we can clear the pending update.
-        setPendingUpdate(null);
-
-        // CRITICAL: Only overwrite local layers if the server has acknowledged 
-        // our latest local changes. This prevents the race condition where 
-        // an older server response (from an earlier save) overwrites newer local state.
-        if (localVersion <= acknowledgedLocalVersionRef.current) {
-          // Optimization: Only update state if data actually changed to avoid unnecessary re-renders
-          const newLayers = migrated.layers || [];
-          const newHeight = migrated.canvas_height || 1000;
-          
-          // Fast path for layer comparison to avoid expensive JSON.stringify on every sync
-          let layersChanged = newLayers.length !== layers.length;
-          
-          if (!layersChanged) {
-            // Compare layers one by one. Drawing layers can be large, so we check
-            // basic properties first before falling back to JSON.stringify for points.
-            for (let i = 0; i < newLayers.length; i++) {
-               const nl = newLayers[i];
-               const ol = layers[i];
-               
-               if (!nl || !ol || nl.type !== ol.type) {
-                 layersChanged = true;
-                 break;
-               }
-              
-              if (nl.type === 'media') {
-                const nm = nl as MediaLayer;
-                const om = ol as MediaLayer;
-                if (nm.id !== om.id || nm.url !== om.url || nm.x !== om.x || nm.y !== om.y || 
-                    nm.width !== om.width || nm.height !== om.height || nm.rotation !== om.rotation) {
-                  layersChanged = true;
-                  break;
-                }
-              } else {
-                const nd = nl as DrawingPath;
-                const od = ol as DrawingPath;
-                if (nd.tool !== od.tool || nd.color !== od.color || nd.width !== od.width || 
-                    nd.points.length !== od.points.length) {
-                  layersChanged = true;
-                  break;
-                }
-                // Only stringify points if lengths are equal but we need to be absolutely sure.
-                // In most cases, points length change is enough, but we want to be correct.
-                if (JSON.stringify(nd.points) !== JSON.stringify(od.points)) {
-                  layersChanged = true;
-                  break;
-                }
-              }
-            }
-          }
-          
-          if (layersChanged) {
-            setLayers(newLayers);
-          }
-          
-          if (Math.abs(newHeight - rawCanvasHeight) > 1) {
-            setRawCanvasHeight(newHeight);
-          }
-        }
-
-        setServerVersion(initialVersion);
-        migratedInitialData.current = migrated;
-      } else if (initialVersion === serverVersion) {
-        // Just sync the ref without triggering a re-render if versions match
-        migratedInitialData.current = migrated;
-      }
-    }
-  }, [initialData, initialVersion, isDrawing, serverVersion, localVersion, layers, rawCanvasHeight]);
-
+  // Save functionality
   const saveWorkspace = useCallback(() => {
-    // ONLY send if our local version has actually increased since the last update we sent.
-    if (localVersion <= lastUpdateVersionRef.current) {
-      return;
-    }
-
     const workspaceData: WorkspaceData = {
-      ...migratedInitialData.current,
+      ...initialData,
       layers,
-      canvas_height: rawCanvasHeight,
-      version: 2,
-      // Pass our current local version as metadata so we can track acknowledgment
+      version: WORKSPACE_VERSION,
       local_version: localVersion,
+      canvas_width: CANVAS_WIDTH,
+      canvas_height: canvasHeight,
     };
 
-    lastUpdateVersionRef.current = localVersion;
-    setPendingUpdate(workspaceData);
     onUpdate(workspaceData);
-  }, [layers, rawCanvasHeight, onUpdate, localVersion]);
+  }, [layers, localVersion, onUpdate, initialData, canvasHeight]);
 
-  // Use the saveWorkspace in place of direct onUpdate calls
+  // Remove local debouncing - parent MedicalRecordEditorPage handles it
   useEffect(() => {
     if (localVersion > 0) {
       saveWorkspace();
     }
   }, [localVersion, saveWorkspace]);
 
-  // Handle local data updates for visual sync - internal status is no longer needed
-  // as it is handled at the page level.
-  useEffect(() => {
-    // This effect is kept for potential future local side effects when pendingUpdate changes
-  }, [pendingUpdate]);
-
-  const drawLayer = useCallback((ctx: CanvasRenderingContext2D, layer: DrawingPath | MediaLayer) => {
-    ctx.save();
-    // Use logical coordinates for all drawing operations
-    if (layer.type === 'drawing') {
-      const firstPoint = layer.points[0];
-      if (layer.points.length < 1 || !firstPoint) {
-        ctx.restore();
-        return;
-      }
-
-      ctx.strokeStyle = layer.color;
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-
-      if (layer.tool === 'eraser') {
-        ctx.globalCompositeOperation = 'destination-out';
-      } else {
-        ctx.globalCompositeOperation = 'source-over';
-      }
-
-      // If only one point, draw a dot
-      if (layer.points.length === 1) {
-        const [x, y, pressure = 0.5] = firstPoint;
-        ctx.beginPath();
-        ctx.fillStyle = layer.color;
-        ctx.arc(x, y, (layer.width * pressure) / 2, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
-        return;
-      }
-
-      // Draw path with variable width based on pressure
-      for (let i = 1; i < layer.points.length; i++) {
-        const prevPoint = layer.points[i - 1]!;
-        const currPoint = layer.points[i]!;
-        const [x1, y1, p1 = 0.5] = prevPoint;
-        const [x2, y2, p2 = 0.5] = currPoint;
-
-        ctx.beginPath();
-        ctx.moveTo(x1, y1);
-        ctx.lineTo(x2, y2);
-
-        // Dynamic line width based on pressure
-        // We use the average pressure of the two points for the segment
-        ctx.lineWidth = layer.width * ((p1 + p2) / 2);
-        ctx.stroke();
-      }
-    } else if (layer.type === 'media') {
-      const img = imagesRef.current[layer.id];
-      if (img) {
-        ctx.globalCompositeOperation = 'source-over';
-        ctx.translate(layer.x + layer.width / 2, layer.y + layer.height / 2);
-        ctx.rotate((layer.rotation * Math.PI) / 180);
-        ctx.drawImage(img, -layer.width / 2, -layer.height / 2, layer.width, layer.height);
-      }
-    }
-    ctx.restore();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [imagesLoaded]);
-
-  const renderBackground = useCallback(() => {
-    const bgCanvas = backgroundCanvasRef.current;
-    if (!bgCanvas) {
-      return;
-    }
-
-    const bgCtx = bgCanvas.getContext('2d');
-    if (!bgCtx) return;
-
-    let bgImageDrawn = false;
-
-    // Clear background canvas
-    bgCtx.clearRect(0, 0, bgCanvas.width, bgCanvas.height);
-
-    bgCtx.save();
-    bgCtx.scale(dpr * scale, dpr * scale);
-
-    // 1. Draw Template Background
-    if (initialData.background_image_url) {
-      const bgImg = imagesRef.current['background'];
-      if (bgImg) {
-        bgCtx.drawImage(bgImg, 0, 0, LOGICAL_WIDTH, (LOGICAL_WIDTH / bgImg.width) * bgImg.height);
-        bgImageDrawn = true;
-      }
-    }
-
-    // 2. Draw Media Layers
-    layers.forEach(layer => {
-      if (layer.type === 'media') {
-        const img = imagesRef.current[layer.id];
-        if (img) {
-          drawLayer(bgCtx, layer);
+  // Infinite height check
+  const ensureHeight = useCallback((y: number) => {
+    const padding = 300;
+    if (y + padding > canvasHeight) {
+      setCanvasHeight(prev => {
+        const next = y + padding + 500;
+        if (next > prev) {
+            return next;
         }
-
-        // Draw selection box if selected
-        if (layer.id === selectedLayerId) {
-          bgCtx.save();
-          bgCtx.strokeStyle = TOOL_CONFIG.select.color;
-          bgCtx.lineWidth = 2 / scale;
-          bgCtx.strokeRect(layer.x - 2, layer.y - 2, layer.width + 4, layer.height + 4);
-
-          // Draw resize handle (bottom-right)
-          bgCtx.fillStyle = TOOL_CONFIG.select.color;
-          const handleSize = 8 / scale;
-          bgCtx.fillRect(
-            layer.x + layer.width - handleSize / 2,
-            layer.y + layer.height - handleSize / 2,
-            handleSize,
-            handleSize
-          );
-
-          // Draw rotation handle (top-center)
-          bgCtx.beginPath();
-          bgCtx.arc(
-            layer.x + layer.width / 2,
-            layer.y - 20 / scale,
-            5 / scale,
-            0,
-            Math.PI * 2
-          );
-          bgCtx.fill();
-
-          // Draw line to rotation handle
-          bgCtx.beginPath();
-          bgCtx.moveTo(layer.x + layer.width / 2, layer.y);
-          bgCtx.lineTo(layer.x + layer.width / 2, layer.y - 20 / scale);
-          bgCtx.stroke();
-
-          bgCtx.restore();
-        }
-      }
-    });
-
-    bgCtx.restore();
-    // Draw placeholder if background image exists but failed to load
-    if (initialData.background_image_url && !bgImageDrawn) {
-      bgCtx.fillStyle = '#f3f4f6';
-      bgCtx.fillRect(0, 0, LOGICAL_WIDTH, 1000);
-      bgCtx.fillStyle = '#9ca3af';
-      bgCtx.font = '14px Inter';
-      bgCtx.fillText('Loading background...', 20, 40);
+        return prev;
+      });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [layers, drawLayer, scale, initialData.background_image_url, selectedLayerId, dpr, imagesLoaded]);
+  }, [canvasHeight]);
 
-  const renderDrawing = useCallback(() => {
-    const drawCanvas = drawingCanvasRef.current;
-    if (!drawCanvas) return;
-
-    const drawCtx = drawCanvas.getContext('2d');
-    if (!drawCtx) return;
-
-    // Clear drawing canvas
-    drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
-
-    drawCtx.save();
-    drawCtx.scale(dpr * scale, dpr * scale);
-
-    // Draw all drawing layers
-    layers.forEach(layer => {
-      if (layer.type === 'drawing') {
-        drawLayer(drawCtx, layer);
-      }
-    });
-
-    // Draw current path if drawing
-    if (currentPath) {
-      drawLayer(drawCtx, currentPath);
-    }
-
-    drawCtx.restore();
-    // Removed frequent renderDrawing complete log to reduce noise
-  }, [layers, currentPath, drawLayer, scale, dpr]);
-
-  useLayoutEffect(() => {
-    renderBackground();
-    
-    // Explicitly invalidate buffer after render is complete
-    if (isBufferValidRef.current) {
-      isBufferValidRef.current = false;
-    }
-  }, [renderBackground]);
-
-  useLayoutEffect(() => {
-    renderDrawing();
-  }, [renderDrawing]);
-
-  const handlePointerDown = (e: React.PointerEvent) => {
-    const canvas = drawingCanvasRef.current;
-    if (!canvas) return;
-
-    // Prevent scrolling when drawing on touch devices
-    if (currentTool !== 'select') {
-      (e.target as HTMLElement).setPointerCapture(e.pointerId);
-    }
-
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-
-    // Convert to logical coordinates
-    const logicalX = x / scale;
-    const logicalY = y / scale;
-    const pressure = e.pressure || 0.5;
-
+  // Tools Logic
+  const handleMouseDown = (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
     if (currentTool === 'select') {
-      // If a layer is already selected, check for resize handle first
-      if (selectedLayerId) {
-        const selectedLayer = layers.find(l => l.type === 'media' && l.id === selectedLayerId) as MediaLayer | undefined;
-        if (selectedLayer) {
-          const handleSize = 12 / scale; // Larger hit area for handle
-
-          // Resize handle (bottom-right)
-          const hx = selectedLayer.x + selectedLayer.width;
-          const hy = selectedLayer.y + selectedLayer.height;
-          if (
-            logicalX >= hx - handleSize && logicalX <= hx + handleSize &&
-            logicalY >= hy - handleSize && logicalY <= hy + handleSize
-          ) {
-            setIsResizing(true);
-            return;
-          }
-
-          // Rotation handle (top-center)
-          const rx = selectedLayer.x + selectedLayer.width / 2;
-          const ry = selectedLayer.y - 20 / scale;
-          if (
-            logicalX >= rx - handleSize && logicalX <= rx + handleSize &&
-            logicalY >= ry - handleSize && logicalY <= ry + handleSize
-          ) {
-            setIsRotating(true);
-            return;
-          }
-        }
-      }
-
-      // Hit detection for media layers (top to bottom)
-      const clickedMedia = [...layers].reverse().find(l =>
-        l.type === 'media' &&
-        logicalX >= l.x && logicalX <= l.x + l.width &&
-        logicalY >= l.y && logicalY <= l.y + l.height
-      ) as MediaLayer | undefined;
-
-      if (clickedMedia) {
-        setSelectedLayerId(clickedMedia.id);
-        setDragOffset({ x: logicalX - clickedMedia.x, y: logicalY - clickedMedia.y });
-        setIsResizing(false);
-      } else {
-        setSelectedLayerId(null);
-        setIsResizing(false);
+      const clickedOnEmpty = e.target === e.target.getStage();
+      if (clickedOnEmpty) {
+        setSelectedId(null);
       }
       return;
     }
 
-    setIsDrawing(true);
-    setCurrentPath({
+    isDrawing.current = true;
+    deletedLayerIdsRef.current.clear();
+    const stage = e.target.getStage();
+    if (!stage) return;
+    
+    // Use relative pointer position to account for stage scaling
+    const pos = stage.getRelativePointerPosition();
+    if (!pos) return;
+    
+    const newPoints = [pos.x, pos.y];
+    currentPointsRef.current = newPoints;
+    
+    // Imperatively update the active line
+    if (activeLineRef.current) {
+      activeLineRef.current.points(newPoints);
+      activeLineRef.current.visible(true);
+      activeLineRef.current.getLayer()?.batchDraw();
+    }
+  };
+
+  const handleMouseMove = (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
+    if (!isDrawing.current) return;
+    
+    const stage = e.target.getStage();
+    if (!stage) return;
+    
+    const pos = stage.getRelativePointerPosition();
+    if (!pos) return;
+
+    if (currentTool === 'eraser') {
+       // Stroke-based eraser: find all lines that intersect with current pointer
+       const hitRadius = TOOL_CONFIG.eraser.width / 2;
+       let hasHit = false;
+       
+       layers.forEach((layer) => {
+        if (layer.type !== 'drawing') return;
+        const drawing = layer as DrawingPath;
+        if (drawing.tool === 'eraser') return;
+        if (deletedLayerIdsRef.current.has(drawing.id)) return;
+
+        // Bounding box optimization
+        if (drawing.boundingBox) {
+          const { minX, maxX, minY, maxY } = drawing.boundingBox;
+          if (
+            pos.x < minX - hitRadius ||
+            pos.x > maxX + hitRadius ||
+            pos.y < minY - hitRadius ||
+            pos.y > maxY + hitRadius
+          ) {
+            return;
+          }
+        }
+
+        // Detailed check
+        const isHit = drawing.points.some((p, i) => {
+          if (i === 0) {
+            const dx = p[0] - pos.x;
+            const dy = p[1] - pos.y;
+            return Math.sqrt(dx * dx + dy * dy) < hitRadius;
+          }
+          const prev = drawing.points[i - 1];
+          if (!prev) return false;
+          return getDistanceToSegment(pos.x, pos.y, prev[0], prev[1], p[0], p[1]) < hitRadius;
+        });
+
+        if (isHit) {
+          deletedLayerIdsRef.current.add(drawing.id);
+          hasHit = true;
+          
+          // Imperatively hide the node for performance
+          const node = stage.findOne('#' + drawing.id);
+          if (node) {
+            node.visible(false);
+          }
+        }
+      });
+
+      if (hasHit) {
+         stage.batchDraw();
+       }
+       return;
+    }
+    
+    currentPointsRef.current.push(pos.x, pos.y);
+    
+    // Imperative update - NO React state change here
+    if (activeLineRef.current) {
+      activeLineRef.current.points([...currentPointsRef.current]);
+      activeLineRef.current.getLayer()?.batchDraw();
+    }
+  };
+
+  const handleMouseUp = () => {
+    if (!isDrawing.current) return;
+    isDrawing.current = false;
+    
+    if (currentTool === 'eraser') {
+      if (deletedLayerIdsRef.current.size > 0) {
+        const newLayers = layers.filter(layer => {
+          if (layer.type === 'drawing') {
+            return !deletedLayerIdsRef.current.has((layer as DrawingPath).id);
+          }
+          return true;
+        });
+        updateLayers(newLayers);
+      }
+      return;
+    }
+
+    const points = currentPointsRef.current;
+    if (points.length === 0) return;
+
+    // Check for height extension and calculate bounding box
+    let minY = Infinity, maxY = -Infinity, minX = Infinity, maxX = -Infinity;
+    for (let i = 0; i < points.length; i += 2) {
+      const x = points[i];
+      const y = points[i + 1];
+      if (x !== undefined && y !== undefined) {
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+      }
+    }
+    
+    if (maxY !== -Infinity) {
+      ensureHeight(maxY);
+    }
+
+    const newPath: DrawingPath = {
       type: 'drawing',
+      id: `path-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       tool: currentTool,
       color: TOOL_CONFIG[currentTool].color,
       width: TOOL_CONFIG[currentTool].width,
-      points: [[logicalX, logicalY, pressure]],
-      boundingBox: { minX: logicalX, maxX: logicalX, minY: logicalY, maxY: logicalY },
-    });
-  };
-
-  const handlePointerMove = (e: React.PointerEvent) => {
-    const canvas = drawingCanvasRef.current;
-    if (!canvas) return;
-
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-
-    // Convert to logical coordinates
-    const logicalX = x / scale;
-    const logicalY = y / scale;
-    const pressure = e.pressure || 0.5;
-
-    if (currentTool === 'select' && selectedLayerId) {
-      if (isResizing) {
-        const newLayers = layers.map(l => {
-          if (l.type === 'media' && l.id === selectedLayerId) {
-            return {
-              ...l,
-              width: Math.max(20, logicalX - l.x),
-              height: Math.max(20, logicalY - l.y)
-            };
-          }
-          return l;
-        });
-        setLayers(newLayers);
-        return;
-      }
-
-      if (isRotating) {
-        const selectedLayer = layers.find(l => l.type === 'media' && l.id === selectedLayerId) as MediaLayer | undefined;
-        if (selectedLayer) {
-          const centerX = selectedLayer.x + selectedLayer.width / 2;
-          const centerY = selectedLayer.y + selectedLayer.height / 2;
-          // Calculate angle in degrees
-          const angle = Math.atan2(logicalY - centerY, logicalX - centerX) * (180 / Math.PI);
-          // Add 90 degrees because the handle is at the top (0 degrees is to the right)
-          const rotation = (angle + 90) % 360;
-
-          const newLayers = layers.map(l => {
-            if (l.type === 'media' && l.id === selectedLayerId) {
-              return { ...l, rotation };
-            }
-            return l;
-          });
-          setLayers(newLayers);
-        }
-        return;
-      }
-
-      if (dragOffset) {
-        const newLayers = layers.map(l => {
-          if (l.type === 'media' && l.id === selectedLayerId) {
-            return { ...l, x: logicalX - dragOffset.x, y: logicalY - dragOffset.y };
-          }
-          return l;
-        });
-        setLayers(newLayers);
-        return;
-      }
-    }
-
-    if (!isDrawing || !currentPath) return;
-
-    const newBoundingBox = currentPath.boundingBox ? {
-      minX: Math.min(currentPath.boundingBox.minX, logicalX),
-      maxX: Math.max(currentPath.boundingBox.maxX, logicalX),
-      minY: Math.min(currentPath.boundingBox.minY, logicalY),
-      maxY: Math.max(currentPath.boundingBox.maxY, logicalY),
-    } : { minX: logicalX, maxX: logicalX, minY: logicalY, maxY: logicalY };
-
-    setCurrentPath({
-      ...currentPath,
-      points: [...currentPath.points, [logicalX, logicalY, pressure]],
-      boundingBox: newBoundingBox,
-    });
-  };
-
-  const handlePointerUp = (e: React.PointerEvent) => {
-    if (currentTool === 'select') {
-      if (dragOffset || isResizing || isRotating) {
-        setDragOffset(null);
-        setIsResizing(false);
-        setIsRotating(false);
-        setLocalVersion(v => v + 1);
-      }
-      return;
-    }
-
-    if (!isDrawing || !currentPath) return;
-
-    setIsDrawing(false);
-    (e.target as HTMLElement).releasePointerCapture(e.pointerId);
-
-    // Simplify path before saving to reduce data size
-    const simplifiedPoints = simplifyPath(currentPath.points, 0.5);
-    const simplifiedPath: DrawingPath = {
-      ...currentPath,
-      points: simplifiedPoints,
-      boundingBox: calculateBoundingBox(simplifiedPoints),
+      points: pointsToTuples(points),
+      boundingBox: minX !== Infinity ? { minX, maxX, minY, maxY } : undefined,
     };
 
-    const newLayers = [...layers, simplifiedPath];
-    setLayers(newLayers);
-    setCurrentPath(null);
-    setRedoStack([]); // Clear redo stack on new action
-    setLocalVersion(v => v + 1);
+    const newLayers = [...layers, newPath];
+    updateLayers(newLayers);
+    
+    // Clear and hide active line
+    currentPointsRef.current = [];
+    if (activeLineRef.current) {
+      activeLineRef.current.points([]);
+      activeLineRef.current.visible(false);
+      activeLineRef.current.getLayer()?.batchDraw();
+    }
   };
 
-  const clearCanvas = () => {
-    if (window.confirm('確定要清除所有繪圖與上傳的圖片嗎？（背景範本將會保留）')) {
-      const baseLayers = layers.filter(l => l.type === 'media' && l.origin === 'template');
-      setLayers(baseLayers);
-      setLocalVersion(v => v + 1);
+  const pointsToTuples = (flatPoints: number[]): [number, number, number?][] => {
+    const tuples: [number, number, number?][] = [];
+    for (let i = 0; i < flatPoints.length - 1; i += 2) {
+      const x = flatPoints[i];
+      const y = flatPoints[i + 1];
+      if (x !== undefined && y !== undefined) {
+        tuples.push([x, y]);
+      }
     }
+    return tuples;
+  };
+
+  const updateLayers = (newLayers: (DrawingPath | MediaLayer)[]) => {
+    // Add to history
+    const newHistory = history.slice(0, historyStep + 1);
+    newHistory.push(newLayers);
+    setHistory(newHistory);
+    setHistoryStep(newHistory.length - 1);
+    
+    setLayers(newLayers);
+    setLocalVersion(v => v + 1);
   };
 
   const undo = () => {
-    if (layers.length === 0) return;
-
-    // Find the last layer that is NOT a template base layer
-    const lastNonTemplateIndex = [...layers].reverse().findIndex(l =>
-      !(l.type === 'media' && l.origin === 'template')
-    );
-
-    if (lastNonTemplateIndex === -1) return; // Nothing to undo
-
-    const actualIndex = layers.length - 1 - lastNonTemplateIndex;
-    const layerToUndo = layers[actualIndex];
-    if (!layerToUndo) return;
-
-    const newLayers = layers.filter((_, i) => i !== actualIndex);
-
-    setRedoStack(prev => [...prev, layers]);
-    setLayers(newLayers);
-    setLocalVersion(v => v + 1);
+    if (historyStep === 0) return;
+    const prevStep = historyStep - 1;
+    const prevLayers = history[prevStep];
+    if (prevLayers) {
+        setLayers(prevLayers);
+        setHistoryStep(prevStep);
+        setLocalVersion(v => v + 1);
+    }
   };
 
   const redo = () => {
-    if (redoStack.length === 0) return;
-
-    const nextLayers = redoStack[redoStack.length - 1];
-    if (!nextLayers) return;
-
-    setRedoStack(prev => prev.slice(0, -1));
-    setLayers(nextLayers);
-    setLocalVersion(v => v + 1);
-  };
-
-  const deleteSelectedLayer = () => {
-    if (!selectedLayerId) return;
-    const layerToDelete = layers.find(l => l.type === 'media' && l.id === selectedLayerId) as MediaLayer | undefined;
-    if (layerToDelete?.origin === 'template') {
-      alert('無法刪除範本圖片');
-      return;
+    if (historyStep === history.length - 1) return;
+    const nextStep = historyStep + 1;
+    const nextLayers = history[nextStep];
+    if (nextLayers) {
+        setLayers(nextLayers);
+        setHistoryStep(nextStep);
+        setLocalVersion(v => v + 1);
     }
-
-    setLayers(layers.filter(l => !(l.type === 'media' && l.id === selectedLayerId)));
-    setSelectedLayerId(null);
-    setLocalVersion(v => v + 1);
   };
 
+  // Image Upload
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -865,28 +509,17 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
       return;
     }
 
-    const MAX_FILE_SIZE = config.maxUploadSizeMb * 1024 * 1024;
-    if (file.size > MAX_FILE_SIZE) {
-      alert(`檔案太大了 (上限 ${config.maxUploadSizeMb}MB)`);
-      return;
-    }
-
     setIsUploading(true);
-
     try {
-      // 1. Compress the image in a Web Worker (Option B)
       const compressionOptions = {
-        maxSizeMB: 1, // Target 1MB
-        maxWidthOrHeight: 2000, // Max 2000px resolution
+        maxSizeMB: 1,
+        maxWidthOrHeight: 2000,
         useWebWorker: true,
-        initialQuality: 0.8, // 80% quality
-        fileType: 'image/webp' as const, // Convert to WebP for better compression
+        initialQuality: 0.8,
+        fileType: 'image/webp' as const,
       };
-
+      
       const compressedFile = await imageCompression(file, compressionOptions);
-      logger.info(`Image compressed from ${file.size / 1024 / 1024}MB to ${compressedFile.size / 1024 / 1024}MB`);
-
-      // 2. Get image dimensions first to respect aspect ratio
       const dimensions = await new Promise<{ width: number; height: number }>((resolve, reject) => {
         const img = new Image();
         img.onload = () => {
@@ -897,256 +530,343 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
         img.src = URL.createObjectURL(compressedFile);
       });
 
-      // 3. Upload the compressed file
       const data = await apiService.uploadMedicalRecordMedia(recordId, compressedFile as File);
-
-      // 4. Calculate appropriate initial size (max 400px width, or canvas width)
-      const maxWidth = Math.min(400, LOGICAL_WIDTH - 40);
+      
+      const maxWidth = 400;
       let width = dimensions.width;
       let height = dimensions.height;
-
       if (width > maxWidth) {
         const ratio = maxWidth / width;
         width = maxWidth;
         height = height * ratio;
       }
 
-      // Add new media layer at the center of the current viewport
-      const scrollTop = containerRef.current?.scrollTop || 0;
-      const newMediaLayer: MediaLayer = {
+      // Calculate center of current viewport relative to canvas
+      let targetX = 100;
+      let targetY = 100;
+
+      if (stageRef.current) {
+        const container = stageRef.current.container();
+        const rect = container.getBoundingClientRect();
+        
+        // viewport center in document coordinates
+        const viewportCenterY = window.scrollY + window.innerHeight / 2;
+        
+        // canvas top in document coordinates
+        const canvasTop = rect.top + window.scrollY;
+        
+        // target Y is viewport center relative to canvas top, minus half image height
+        // Convert visual pixels to logical units by dividing by scale
+        targetY = Math.max(20, (viewportCenterY - canvasTop) / scale - height / 2);
+        
+        // target X is horizontal center of canvas minus half image width
+        targetX = Math.max(0, (CANVAS_WIDTH - width) / 2);
+      }
+
+      const newMedia: MediaLayer = {
         type: 'media',
         id: data.id,
         origin: 'upload',
         url: data.url,
-        x: (LOGICAL_WIDTH - width) / 2, // Center horizontally
-        y: scrollTop + 100,
+        x: targetX,
+        y: targetY,
         width,
         height,
         rotation: 0,
       };
 
-      const newLayers = [...layers, newMediaLayer];
-      setLayers(newLayers);
-      setLocalVersion(v => v + 1);
+      ensureHeight(newMedia.y + newMedia.height);
+      updateLayers([...layers, newMedia]);
+      setCurrentTool('select');
+      setSelectedId(data.id);
+      
     } catch (err) {
       logger.error('Upload error:', err);
       alert('圖片上傳失敗');
     } finally {
       setIsUploading(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
+  const deleteSelected = () => {
+    if (!selectedId) return;
+    const newLayers = layers.filter(l => {
+      if (l.type === 'media') return l.id !== selectedId;
+      if (l.type === 'drawing') return l.id !== selectedId;
+      return true;
+    });
+    updateLayers(newLayers);
+    setSelectedId(null);
+  };
+  
+  const moveLayer = (direction: 'up' | 'down' | 'front' | 'back') => {
+      if (!selectedId) return;
+      const index = layers.findIndex(l => {
+        if (l.type === 'media') return l.id === selectedId;
+        if (l.type === 'drawing') return l.id === selectedId;
+        return false;
+      });
+      if (index === -1) return;
+      
+      const newLayers = [...layers];
+      const current = newLayers[index];
+      if (!current) return;
+
+      if (direction === 'up' && index < layers.length - 1) {
+          const target = newLayers[index + 1];
+          if (target) {
+            newLayers[index] = target;
+            newLayers[index + 1] = current;
+          }
+      } else if (direction === 'down' && index > 0) {
+          const target = newLayers[index - 1];
+          if (target) {
+            newLayers[index] = target;
+            newLayers[index - 1] = current;
+          }
+      } else if (direction === 'front') {
+          newLayers.splice(index, 1);
+          newLayers.push(current);
+      } else if (direction === 'back') {
+          newLayers.splice(index, 1);
+          newLayers.unshift(current);
+      }
+      updateLayers(newLayers);
+  };
+
   return (
-    <div className="relative bg-white rounded-lg shadow min-h-screen">
-      <div
-        ref={containerRef}
-        className="relative bg-gray-100 p-4 pb-20"
-      >
-        <div
-          className="mx-auto shadow-lg bg-white relative"
-          style={{ width: `${canvasWidth}px`, height: `${canvasHeight}px` }}
-        >
-          {/* Background Canvas (Images, Template Background) */}
-          <canvas
-            ref={backgroundCanvasRef}
-            width={canvasWidth * dpr}
-            height={canvasHeight * dpr}
-            className="absolute top-0 left-0 pointer-events-none w-full h-full"
-          />
-          {/* Drawing Canvas (Pen, Highlighter, Eraser) */}
-          <canvas
-            ref={drawingCanvasRef}
-            width={canvasWidth * dpr}
-            height={canvasHeight * dpr}
-            onPointerDown={handlePointerDown}
-            onPointerMove={handlePointerMove}
-            onPointerUp={handlePointerUp}
-            onPointerLeave={handlePointerUp}
-            onPointerCancel={handlePointerUp}
-            className="absolute top-0 left-0 cursor-crosshair touch-none w-full h-full"
-          />
-        </div>
+    <div className="relative w-full bg-gray-200 min-h-full">
+       {/* Toolbar */}
+      <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-white rounded-full shadow-2xl px-6 py-3 flex items-center gap-4 z-20 border border-gray-200">
+         <div className="flex items-center gap-2">
+            <ToolButton 
+                active={currentTool === 'select'} 
+                onClick={() => setCurrentTool('select')} 
+                icon={<CursorIcon />} 
+                label="選取"
+            />
+             <div className="w-px h-6 bg-gray-300 mx-1" />
+            <ToolButton 
+                active={currentTool === 'pen'} 
+                onClick={() => { setCurrentTool('pen'); setSelectedId(null); }} 
+                icon={<PenIcon />} 
+                label="畫筆"
+            />
+            <ToolButton 
+                active={currentTool === 'highlighter'} 
+                onClick={() => { setCurrentTool('highlighter'); setSelectedId(null); }} 
+                icon={<HighlighterIcon />} 
+                label="螢光筆"
+            />
+            <ToolButton 
+                active={currentTool === 'eraser'} 
+                onClick={() => { setCurrentTool('eraser'); setSelectedId(null); }} 
+                icon={<EraserIcon />} 
+                label="橡皮擦"
+            />
+             <div className="w-px h-6 bg-gray-300 mx-1" />
+             <ToolButton 
+                onClick={() => fileInputRef.current?.click()} 
+                icon={<ImageIcon />} 
+                label="圖片"
+                disabled={isUploading}
+            />
+            <input 
+                ref={fileInputRef} 
+                type="file" 
+                hidden 
+                accept="image/*" 
+                onChange={handleImageUpload} 
+            />
+         </div>
+         
+         <div className="w-px h-6 bg-gray-300 mx-1" />
+         
+         <div className="flex items-center gap-2">
+             <button onClick={undo} disabled={historyStep === 0} className="p-2 hover:bg-gray-100 rounded-full disabled:opacity-30">
+                 <UndoIcon />
+             </button>
+             <button onClick={redo} disabled={historyStep === history.length - 1} className="p-2 hover:bg-gray-100 rounded-full disabled:opacity-30">
+                 <RedoIcon />
+             </button>
+         </div>
+
+         <div className="w-px h-6 bg-gray-300 mx-1" />
+         <SyncStatus status={syncStatus || 'none'} />
       </div>
+      
+      {/* Context Menu */}
+      {selectedId && (
+          <div className="fixed top-6 left-1/2 transform -translate-x-1/2 bg-white rounded-lg shadow-lg px-4 py-2 flex items-center gap-3 z-20 animate-fade-in border border-gray-200">
+              <span className="text-sm font-medium text-gray-600 mr-2">
+                已選取 {layers.find(l => (l.type === 'media' && l.id === selectedId) || (l.type === 'drawing' && l.id === selectedId))?.type === 'media' ? '圖片' : '筆跡'}
+              </span>
+              <div className="flex items-center gap-1">
+                <ContextButton onClick={() => moveLayer('front')} label="最上層" />
+                <ContextButton onClick={() => moveLayer('up')} label="上移" />
+                <ContextButton onClick={() => moveLayer('down')} label="下移" />
+                <ContextButton onClick={() => moveLayer('back')} label="最下層" />
+              </div>
+              <div className="w-px h-4 bg-gray-300 mx-1" />
+              <button onClick={deleteSelected} className="text-red-500 hover:text-red-700 text-sm font-medium px-2 py-1 rounded hover:bg-red-50 transition-colors">刪除</button>
+          </div>
+      )}
 
-      {/* Floating Toolbar Pill */}
-      <div className={`fixed bottom-8 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 p-2 bg-white/80 backdrop-blur-md border border-gray-200 shadow-2xl rounded-full transition-all duration-300 ${showToolbar ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10 pointer-events-none'
-        }`}>
-        <div className="flex items-center gap-1.5 px-2">
-          <button
-            onClick={() => setCurrentTool('pen')}
-            className={`p-2 rounded-full transition-colors ${currentTool === 'pen' ? 'bg-blue-100 text-blue-600' : 'hover:bg-gray-100'}`}
-            title="畫筆"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-            </svg>
-          </button>
-          <button
-            onClick={() => setCurrentTool('highlighter')}
-            className={`p-2 rounded-full transition-colors ${currentTool === 'highlighter' ? 'bg-yellow-100 text-yellow-600' : 'hover:bg-gray-100'}`}
-            title="螢光筆"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-            </svg>
-          </button>
-          <button
-            onClick={() => setCurrentTool('eraser')}
-            className={`p-2 rounded-full transition-colors ${currentTool === 'eraser' ? 'bg-red-100 text-red-600' : 'hover:bg-gray-100'}`}
-            title="橡皮擦"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-            </svg>
-          </button>
-          <button
-            onClick={() => setCurrentTool('select')}
-            className={`p-2 rounded-full transition-colors ${currentTool === 'select' ? 'bg-blue-100 text-blue-600' : 'hover:bg-gray-100'}`}
-            title="選擇/移動"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5" />
-            </svg>
-          </button>
-
-          <div className="w-px h-6 bg-gray-200 mx-1" />
-
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isUploading}
-            className={`p-2 rounded-full hover:bg-gray-100 transition-colors ${isUploading ? 'opacity-50' : ''}`}
-            title="上傳圖片"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            onChange={handleImageUpload}
-            className="hidden"
-          />
-
-          <div className="w-px h-6 bg-gray-200 mx-1" />
-
-          <button
-            onClick={undo}
-            disabled={layers.length === 0 || layers.every(l => l.type === 'media' && l.origin === 'template')}
-            className="p-2 rounded-full hover:bg-gray-100 transition-colors disabled:opacity-30"
-            title="復原 (Undo)"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
-            </svg>
-          </button>
-          <button
-            onClick={redo}
-            disabled={redoStack.length === 0}
-            className="p-2 rounded-full hover:bg-gray-100 transition-colors disabled:opacity-30"
-            title="重做 (Redo)"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 10H11a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6" />
-            </svg>
-          </button>
-
-          <button
-            onClick={clearCanvas}
-            disabled={layers.length === 0}
-            className="p-2 rounded-full hover:bg-red-50 text-red-600 transition-colors disabled:opacity-30"
-            title="清除全部"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-            </svg>
-          </button>
-
-          {selectedLayerId && (
-            <>
-              <div className="w-px h-6 bg-gray-200 mx-1" />
-              <button
-                onClick={deleteSelectedLayer}
-                className="p-2 rounded-full hover:bg-red-50 text-red-600 transition-colors"
-                title="刪除所選圖片"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-              </button>
-            </>
-          )}
-        </div>
-        <div className="pr-4 pl-2 border-l border-gray-100">
-          <SyncStatus status={syncStatus || 'none'} />
+      {/* Scrollable Container */}
+      <div 
+        className="relative touch-none py-12 overflow-x-auto"
+      >
+        {/* Paper Surface */}
+        <div 
+            className="bg-white mx-auto shadow-xl relative"
+            style={{ 
+                width: CONTAINER_WIDTH, 
+                minHeight: canvasHeight * scale,
+                cursor: currentTool === 'select' ? 'default' : 'crosshair'
+            }}
+        >
+            <Stage
+              ref={stageRef}
+              width={CONTAINER_WIDTH}
+              height={canvasHeight * scale}
+              scaleX={scale}
+              scaleY={scale}
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+              onTouchStart={handleMouseDown}
+              onTouchMove={handleMouseMove}
+              onTouchEnd={handleMouseUp}
+            >
+              {/* Background Template Layer - Static */}
+              <Layer name="background" listening={false}>
+                 {initialData.background_image_url && (
+                     <BackgroundImage url={initialData.background_image_url} width={CANVAS_WIDTH} />
+                 )}
+              </Layer>
+    
+              {/* Unified Content Layer - Dynamic Interleaved Z-Ordering */}
+              <Layer name="content">
+                {layers.map((layer, i) => {
+                  if (layer.type === 'media') {
+                    const mediaLayer = layer as MediaLayer;
+                    return (
+                      <UrlImage
+                        key={mediaLayer.id}
+                        layer={mediaLayer}
+                        isSelected={mediaLayer.id === selectedId}
+                        onSelect={() => {
+                            if (currentTool === 'select') {
+                                setSelectedId(mediaLayer.id);
+                            }
+                        }}
+                        onChange={(newAttrs) => {
+                          const newLayers = [...layers];
+                          newLayers[i] = { ...mediaLayer, ...newAttrs } as MediaLayer;
+                          updateLayers(newLayers);
+                          if (newAttrs.y || newAttrs.height) {
+                             ensureHeight((newAttrs.y || mediaLayer.y) + (newAttrs.height || mediaLayer.height));
+                          }
+                        }}
+                      />
+                    );
+                  } else if (layer.type === 'drawing') {
+                    const drawing = layer as DrawingPath;
+                    return (
+                      <SelectableLine
+                        key={drawing.id}
+                        layer={drawing}
+                        isSelected={drawing.id === selectedId}
+                        onSelect={() => {
+                            if (currentTool === 'select') {
+                                setSelectedId(drawing.id);
+                            }
+                        }}
+                        onChange={(newAttrs) => {
+                          const newLayers = [...layers];
+                          newLayers[i] = { ...drawing, ...newAttrs } as DrawingPath;
+                          updateLayers(newLayers);
+                        }}
+                      />
+                    );
+                  }
+                  return null;
+                })}
+                
+                {/* Current drawing path - always present but hidden when not drawing */}
+                <Line
+                   ref={activeLineRef}
+                   points={[]}
+                   stroke={TOOL_CONFIG[currentTool].color}
+                   strokeWidth={TOOL_CONFIG[currentTool].width}
+                   tension={0.5}
+                   lineCap="round"
+                   lineJoin="round"
+                   visible={false}
+                   globalCompositeOperation={
+                     currentTool === 'highlighter' ? 'multiply' : 'source-over'
+                   }
+                 />
+              </Layer>
+            </Stage>
         </div>
       </div>
     </div>
   );
 };
 
-/**
- * Ramer-Douglas-Peucker algorithm for path simplification
- */
-function simplifyPath(points: [number, number, number?][], epsilon = 1): [number, number, number?][] {
-  if (points.length <= 2) return points;
-
-  const sqTolerance = epsilon * epsilon;
-
-  function getSqSegDist(p: [number, number, number?], p1: [number, number, number?], p2: [number, number, number?]) {
-    let x = p1[0];
-    let y = p1[1];
-    let dx = p2[0] - x;
-    let dy = p2[1] - y;
-
-    if (dx !== 0 || dy !== 0) {
-      const t = ((p[0] - x) * dx + (p[1] - y) * dy) / (dx * dx + dy * dy);
-      if (t > 1) {
-        x = p2[0];
-        y = p2[1];
-      } else if (t > 0) {
-        x += dx * t;
-        y += dy * t;
-      }
-    }
-
-    dx = p[0] - x;
-    dy = p[1] - y;
-    return dx * dx + dy * dy;
-  }
-
-  function simplifyRecursive(
-    points: [number, number, number?][],
-    first: number,
-    last: number,
-    sqTolerance: number,
-    simplified: [number, number, number?][]
-  ) {
-    let maxSqDist = sqTolerance;
-    let index = -1;
-
-    for (let i = first + 1; i < last; i++) {
-      const sqDist = getSqSegDist(points[i]!, points[first]!, points[last]!);
-      if (sqDist > maxSqDist) {
-        index = i;
-        maxSqDist = sqDist;
-      }
-    }
-
-    if (index !== -1) {
-      simplifyRecursive(points, first, index, sqTolerance, simplified);
-      simplified.push(points[index]!);
-      simplifyRecursive(points, index, last, sqTolerance, simplified);
-    }
-  }
-
-  const simplified: [number, number, number?][] = [points[0]!];
-  simplifyRecursive(points, 0, points.length - 1, sqTolerance, simplified);
-  simplified.push(points[points.length - 1]!);
-
-  return simplified;
+interface ToolButtonProps {
+    active?: boolean;
+    onClick: () => void;
+    icon: React.ReactNode;
+    label: string;
+    disabled?: boolean;
 }
+
+const ToolButton = ({ active, onClick, icon, label, disabled }: ToolButtonProps) => (
+    <button
+        onClick={onClick}
+        disabled={disabled}
+        title={label}
+        className={`p-3 rounded-xl transition-all duration-200 flex items-center justify-center ${
+            active 
+            ? 'bg-blue-100 text-blue-600 shadow-inner' 
+            : 'hover:bg-gray-100 text-gray-600'
+        } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+    >
+        {icon}
+    </button>
+);
+
+const ContextButton = ({ onClick, label }: { onClick: () => void; label: string }) => (
+  <button 
+    onClick={onClick} 
+    className="text-gray-600 hover:text-black hover:bg-gray-100 px-2 py-1 rounded text-sm transition-colors"
+  >
+    {label}
+  </button>
+);
+
+// Icons
+const CursorIcon = () => (
+    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5" /></svg>
+);
+const PenIcon = () => (
+    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+);
+const HighlighterIcon = () => (
+    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+);
+const EraserIcon = () => (
+    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+);
+const ImageIcon = () => (
+    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+);
+const UndoIcon = () => (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
+);
+const RedoIcon = () => (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 10H11a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6" /></svg>
+);

@@ -29,6 +29,7 @@
     "browser-image-compression": "^2.0.2",
     "clsx": "^2.1.1",
     "i18next": "^25.6.3",
+    "konva": "^10.2.0",
     "moment": "^2.30.1",
     "moment-timezone": "^0.6.0",
     "postcss": "^8.4.38",
@@ -37,9 +38,11 @@
     "react-dom": "^18.3.1",
     "react-hook-form": "^7.68.0",
     "react-i18next": "^16.3.5",
+    "react-konva": "^18.2.14",
     "react-router-dom": "^7.13.0",
     "recharts": "^3.5.1",
     "tailwindcss": "^3.4.3",
+    "use-image": "^1.1.4",
     "vite": "^5.4.20",
     "zod": "^3.22.4",
     "zustand": "^5.0.8"
@@ -62,6 +65,7 @@
     "openapi-typescript": "^6.7.5",
     "pg": "^8.16.3",
     "typescript": "^5.2.2",
-    "vitest": "^4.0.6"
+    "vitest": "^4.0.6",
+    "vitest-canvas-mock": "^1.1.3"
   }
 }

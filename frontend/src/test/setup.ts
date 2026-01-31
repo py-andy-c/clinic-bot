@@ -1,4 +1,5 @@
 import '@testing-library/jest-dom';
+import 'vitest-canvas-mock';
 import { beforeAll, afterEach, afterAll } from 'vitest';
 import { server } from '../test-utils/msw-setup';
 

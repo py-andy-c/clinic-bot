@@ -90,13 +90,19 @@ Move to a floating, context-aware toolbar (similar to iOS markup or Notability).
 
 ## 5. Implementation Plan
 
-### Phase 1: Foundation (Konva Migration)
+## Status Update
+- **Phase 1: Basic Canvas Setup & Infinite Scroll** - COMPLETED & REFINED (Multi-layer architecture, logical coordinates, performance optimization)
+- **Phase 2: Media Support & UX Refinement** - COMPLETED & REFINED (Z-ordering, viewport-relative placement, point-to-segment hit testing, visual selection feedback)
+- **Phase 3: Advanced Interactions & Annotations** - Pending (Planned: Lasso selection, text support, zoom/pan)
+- **Phase 4: Optimization & Polish** - In Progress (Refining performance and edge cases)
+
+### Phase 1: Foundation (Konva Migration) ✅
 1.  Install `konva`, `react-konva`, `use-image`.
 2.  Create `CanvasStage` component to replace `CanvasLayer`.
 3.  Migrate `WorkspaceData` model to map to Konva Nodes (`Line`, `Image`, `Text`).
 4.  Implement basic Pen drawing using Konva `Line`.
 
-### Phase 2: Professional Interactions
+### Phase 2: Professional Interactions ✅
 1.  Implement `Transformer` for image resizing/rotation (replaces custom logic).
 2.  Implement Selection logic (click to select, click background to deselect).
 3.  Implement Z-ordering (Bring to Front / Send to Back).

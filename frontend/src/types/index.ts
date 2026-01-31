@@ -696,11 +696,12 @@ export type DrawingTool = 'pen' | 'eraser' | 'highlighter' | 'select';
 
 export interface DrawingPath {
   type: 'drawing';
+  id: string;
   tool: DrawingTool;
   color: string;
   width: number;
   points: [number, number, number?][]; // Array of [x, y, pressure?] coordinates
-  boundingBox?: { minY: number; maxY: number; minX: number; maxX: number; };
+  boundingBox?: { minY: number; maxY: number; minX: number; maxX: number; } | undefined;
 }
 
 export interface MediaLayer {
