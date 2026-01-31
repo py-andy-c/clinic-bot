@@ -220,6 +220,7 @@ const SelectableLine = ({ layer, isSelected, onSelect, onChange, calculateBoundi
         points={layer.points.flatMap(p => [p[0], p[1]])}
         stroke={layer.color}
         strokeWidth={layer.width}
+        hitStrokeWidth={Math.max(10, layer.width)}
         tension={0.5}
         lineCap="round"
         lineJoin="round"
@@ -663,9 +664,15 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
   }, [canvasHeight]);
 
   const updateLayers = (newLayers: (DrawingPath | MediaLayer | TextLayer | ShapeLayer)[]) => {
-    // Add to history
-    const newHistory = history.slice(0, historyStep + 1);
+    // Add to history and limit size to prevent memory leaks (max 50 steps)
+    const MAX_HISTORY = 50;
+    let newHistory = history.slice(0, historyStep + 1);
     newHistory.push(newLayers);
+    
+    if (newHistory.length > MAX_HISTORY) {
+      newHistory = newHistory.slice(newHistory.length - MAX_HISTORY);
+    }
+    
     setHistory(newHistory);
     setHistoryStep(newHistory.length - 1);
     
@@ -794,12 +801,12 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
       return;
     }
 
-    const newPoints = [pos.x, pos.y];
-    currentPointsRef.current = newPoints;
+    const pressure = (e.evt as unknown as PointerEvent).pressure || 0.5;
+    currentPointsRef.current = [pos.x, pos.y, pressure];
     
     // Imperatively update the active line
     if (activeLineRef.current) {
-      activeLineRef.current.points(newPoints);
+      activeLineRef.current.points([pos.x, pos.y]);
       activeLineRef.current.visible(true);
       activeLineRef.current.getLayer()?.batchDraw();
     }
@@ -941,7 +948,8 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
        return;
     }
     
-    currentPointsRef.current.push(pos.x, pos.y);
+    const pressure = (e.evt as unknown as PointerEvent).pressure || 0.5;
+    currentPointsRef.current.push(pos.x, pos.y, pressure);
     
     // Live canvas extension for smoother infinite vertical growth
     if (pos.y > canvasHeight - 200) {
@@ -950,7 +958,13 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
     
     // Imperative update - NO React state change here
     if (activeLineRef.current) {
-      activeLineRef.current.points([...currentPointsRef.current]);
+      // For Konva.Line preview, we only use x,y pairs
+      const flatPoints: number[] = [];
+      const points = currentPointsRef.current;
+      for (let i = 0; i < points.length - 2; i += 3) {
+        flatPoints.push(points[i] as number, points[i + 1] as number);
+      }
+      activeLineRef.current.points(flatPoints);
       activeLineRef.current.getLayer()?.batchDraw();
     }
   };
@@ -1097,7 +1111,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
 
     // Check for height extension and calculate bounding box
     let minY = Infinity, maxY = -Infinity, minX = Infinity, maxX = -Infinity;
-    for (let i = 0; i < points.length; i += 2) {
+    for (let i = 0; i < points.length - 1; i += 3) {
       const x = points[i];
       const y = points[i + 1];
       if (x !== undefined && y !== undefined) {
@@ -1150,11 +1164,20 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
 
   const pointsToTuples = (flatPoints: number[]): [number, number, number?][] => {
     const tuples: [number, number, number?][] = [];
-    for (let i = 0; i < flatPoints.length - 1; i += 2) {
+    for (let i = 0; i < flatPoints.length - 2; i += 3) {
       const x = flatPoints[i];
       const y = flatPoints[i + 1];
+      const p = flatPoints[i + 2];
       if (x !== undefined && y !== undefined) {
-        tuples.push([x, y]);
+        // Round to 1 decimal place to reduce JSON size while maintaining precision
+        const tuple: [number, number, number?] = [
+          Math.round(x * 10) / 10,
+          Math.round(y * 10) / 10
+        ];
+        if (p !== undefined) {
+          tuple.push(Math.round(p * 100) / 100);
+        }
+        tuples.push(tuple);
       }
     }
     return tuples;
