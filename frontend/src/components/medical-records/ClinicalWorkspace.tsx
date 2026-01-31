@@ -564,6 +564,15 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
   const [isUploading, setIsUploading] = useState(false);
   const [isSpacePressed, setIsSpacePressed] = useState(false);
   const clipboardRef = useRef<DrawingPath | MediaLayer | TextLayer | ShapeLayer | null>(null);
+  const lastSentVersionRef = useRef<number>(0);
+  const onUpdateRef = useRef(onUpdate);
+  const initialDataRef = useRef(initialData);
+
+  // Keep refs in sync
+  useEffect(() => {
+    onUpdateRef.current = onUpdate;
+    initialDataRef.current = initialData;
+  }, [onUpdate, initialData]);
 
   // Refs for keyboard shortcuts to avoid frequent re-registration
   const layersRef = useRef(layers);
@@ -758,7 +767,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
   // Save functionality
   const saveWorkspace = useCallback(() => {
     const workspaceData: WorkspaceData = {
-      ...initialData,
+      ...initialDataRef.current,
       layers,
       version: WORKSPACE_VERSION,
       local_version: localVersion,
@@ -768,19 +777,30 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
         zoom: stageScale,
         x: stagePos.x,
         y: stagePos.y,
-        scroll_top: window.scrollY
+        // Use the scroll top from initial data or current state, but don't 
+        // trigger saves purely based on window scroll as it's too volatile
+        scroll_top: initialDataRef.current.viewport?.scroll_top || 0
       }
     };
 
-    onUpdate(workspaceData);
-  }, [layers, localVersion, onUpdate, initialData, canvasHeight, stageScale, stagePos]);
+    onUpdateRef.current(workspaceData);
+    lastSentVersionRef.current = localVersion;
+  }, [layers, localVersion, canvasHeight, stageScale, stagePos]);
 
-  // Remove local debouncing - parent MedicalRecordEditorPage handles it
+  // Handle syncing state to parent
   useEffect(() => {
-    if (localVersion > 0) {
+    // Only trigger sync when internal state changes (layers, scale, pos)
+    // We already have dependencies in the effect array below.
+    const hasDrawingChanges = localVersion > lastSentVersionRef.current;
+    const hasViewportChanges =
+      stageScale !== (initialDataRef.current.viewport?.zoom || 1) ||
+      stagePos.x !== (initialDataRef.current.viewport?.x || 0) ||
+      stagePos.y !== (initialDataRef.current.viewport?.y || 0);
+
+    if (hasDrawingChanges || hasViewportChanges) {
       saveWorkspace();
     }
-  }, [localVersion, saveWorkspace]);
+  }, [localVersion, stageScale, stagePos, canvasHeight, saveWorkspace]);
 
   // Infinite height check
   const ensureHeight = useCallback((y: number) => {

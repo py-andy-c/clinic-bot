@@ -29,7 +29,7 @@ export const MedicalRecordHeader: React.FC<MedicalRecordHeaderProps> = ({
 
   // Reset form when headerValues change (e.g., after save)
   useEffect(() => {
-    reset(headerValues, { keepDirtyValues: true });
+    reset(headerValues);
     lastReportedValuesRef.current = JSON.stringify(headerValues);
   }, [headerValues, reset]);
 
@@ -51,8 +51,8 @@ export const MedicalRecordHeader: React.FC<MedicalRecordHeaderProps> = ({
     lastReportedValuesRef.current = currentValuesJson;
 
     // Determine if the current change is a toggle field
-    const isToggleField = headerStructure.some(f => 
-      ['select', 'checkbox', 'radio'].includes(f.type) && 
+    const isToggleField = headerStructure.some(f =>
+      ['select', 'checkbox', 'radio'].includes(f.type) &&
       JSON.stringify(watchedValues[f.id]) !== JSON.stringify(headerValues[f.id])
     );
 
@@ -69,9 +69,8 @@ export const MedicalRecordHeader: React.FC<MedicalRecordHeaderProps> = ({
     const hasError = !!errors[fieldId];
     const errorMessage = errors[fieldId]?.message as string | undefined;
 
-    const baseInputClasses = `w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-      hasError ? 'border-red-500' : 'border-gray-300'
-    }`;
+    const baseInputClasses = `w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${hasError ? 'border-red-500' : 'border-gray-300'
+      }`;
 
     switch (field.type) {
       case 'text':

@@ -108,7 +108,11 @@ const MedicalRecordEditorPage: React.FC = () => {
 
   const performSave = useCallback(async () => {
     if (!recordIdNum || !recordRef.current || recordRef.current.version === undefined) return;
-    if (!pendingHeaderValuesRef.current && !pendingWorkspaceDataRef.current) return;
+
+    if (!pendingHeaderValuesRef.current && !pendingWorkspaceDataRef.current) {
+      setHasUnsavedChanges(false);
+      return;
+    }
 
     setIsSaving(true);
     const headerToSave = pendingHeaderValuesRef.current || recordRef.current.header_values;
