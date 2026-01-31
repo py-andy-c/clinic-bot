@@ -1,4 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
+import imageCompression from 'browser-image-compression';
 import type { WorkspaceData, DrawingPath, MediaLayer, DrawingTool } from '../../types';
 import { logger } from '../../utils/logger';
 import { apiService } from '../../services/api';
@@ -168,6 +169,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
 
   const scale = canvasWidth / (migratedInitialData.current.canvas_width || 1000);
   const canvasHeight = rawCanvasHeight * scale;
+  const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
 
   // Track network status - we don't need syncStatus state anymore
   useEffect(() => {
@@ -366,34 +368,28 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
     ctx.restore();
   }, [images]);
 
-  const renderCanvas = useCallback(() => {
+  const renderBackground = useCallback(() => {
     const bgCanvas = backgroundCanvasRef.current;
-    const drawCanvas = drawingCanvasRef.current;
-    if (!bgCanvas || !drawCanvas) return;
+    if (!bgCanvas) return;
 
     const bgCtx = bgCanvas.getContext('2d');
-    const drawCtx = drawCanvas.getContext('2d');
-    if (!bgCtx || !drawCtx) return;
+    if (!bgCtx) return;
 
-    // Clear both canvases
+    // Clear background canvas
     bgCtx.clearRect(0, 0, bgCanvas.width, bgCanvas.height);
-    drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
 
-    // Apply scaling to both
     bgCtx.save();
-    bgCtx.scale(scale, scale);
-    drawCtx.save();
-    drawCtx.scale(scale, scale);
+    bgCtx.scale(dpr * scale, dpr * scale);
 
-    // 1. Draw to Background Canvas (Images + Template Background)
+    // 1. Draw Template Background
     if (initialData.background_image_url) {
       const bgImg = images['background'];
       if (bgImg) {
-        // Draw background image scaled to fill logical width
         bgCtx.drawImage(bgImg, 0, 0, LOGICAL_WIDTH, (LOGICAL_WIDTH / bgImg.width) * bgImg.height);
       }
     }
 
+    // 2. Draw Media Layers
     layers.forEach(layer => {
       if (layer.type === 'media') {
         drawLayer(bgCtx, layer);
@@ -434,23 +430,47 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
 
           bgCtx.restore();
         }
-      } else {
+      }
+    });
+
+    bgCtx.restore();
+  }, [layers, drawLayer, scale, initialData.background_image_url, images, selectedLayerId, dpr]);
+
+  const renderDrawing = useCallback(() => {
+    const drawCanvas = drawingCanvasRef.current;
+    if (!drawCanvas) return;
+
+    const drawCtx = drawCanvas.getContext('2d');
+    if (!drawCtx) return;
+
+    // Clear drawing canvas
+    drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+
+    drawCtx.save();
+    drawCtx.scale(dpr * scale, dpr * scale);
+
+    // Draw all drawing layers
+    layers.forEach(layer => {
+      if (layer.type === 'drawing') {
         drawLayer(drawCtx, layer);
       }
     });
 
-    // 2. Draw current path if drawing (always on drawing canvas)
+    // Draw current path if drawing
     if (currentPath) {
       drawLayer(drawCtx, currentPath);
     }
 
-    bgCtx.restore();
     drawCtx.restore();
-  }, [layers, currentPath, drawLayer, scale, initialData.background_image_url, images, canvasHeight]);
+  }, [layers, currentPath, drawLayer, scale, dpr]);
 
   useEffect(() => {
-    renderCanvas();
-  }, [renderCanvas]);
+    renderBackground();
+  }, [renderBackground]);
+
+  useEffect(() => {
+    renderDrawing();
+  }, [renderDrawing]);
 
   const handlePointerDown = (e: React.PointerEvent) => {
     const canvas = drawingCanvasRef.current;
@@ -710,7 +730,42 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
     setIsUploading(true);
 
     try {
-      const data = await apiService.uploadMedicalRecordMedia(recordId, file);
+      // 1. Compress the image in a Web Worker (Option B)
+      const compressionOptions = {
+        maxSizeMB: 1, // Target 1MB
+        maxWidthOrHeight: 2000, // Max 2000px resolution
+        useWebWorker: true,
+        initialQuality: 0.8, // 80% quality
+        fileType: 'image/webp' as const, // Convert to WebP for better compression
+      };
+
+      const compressedFile = await imageCompression(file, compressionOptions);
+      logger.info(`Image compressed from ${file.size / 1024 / 1024}MB to ${compressedFile.size / 1024 / 1024}MB`);
+
+      // 2. Get image dimensions first to respect aspect ratio
+      const dimensions = await new Promise<{ width: number; height: number }>((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+          resolve({ width: img.naturalWidth, height: img.naturalHeight });
+          URL.revokeObjectURL(img.src);
+        };
+        img.onerror = reject;
+        img.src = URL.createObjectURL(compressedFile);
+      });
+
+      // 3. Upload the compressed file
+      const data = await apiService.uploadMedicalRecordMedia(recordId, compressedFile as File);
+
+      // 4. Calculate appropriate initial size (max 400px width, or canvas width)
+      const maxWidth = Math.min(400, LOGICAL_WIDTH - 40);
+      let width = dimensions.width;
+      let height = dimensions.height;
+
+      if (width > maxWidth) {
+        const ratio = maxWidth / width;
+        width = maxWidth;
+        height = height * ratio;
+      }
 
       // Add new media layer at the center of the current viewport
       const scrollTop = containerRef.current?.scrollTop || 0;
@@ -719,10 +774,10 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
         id: data.id,
         origin: 'upload',
         url: data.url,
-        x: 100, // Default position
+        x: (LOGICAL_WIDTH - width) / 2, // Center horizontally
         y: scrollTop + 100,
-        width: 300, // Default size
-        height: 300,
+        width,
+        height,
         rotation: 0,
       };
 
@@ -753,21 +808,21 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
           {/* Background Canvas (Images, Template Background) */}
           <canvas
             ref={backgroundCanvasRef}
-            width={canvasWidth}
-            height={canvasHeight}
-            className="absolute top-0 left-0 pointer-events-none"
+            width={canvasWidth * dpr}
+            height={canvasHeight * dpr}
+            className="absolute top-0 left-0 pointer-events-none w-full h-full"
           />
           {/* Drawing Canvas (Pen, Highlighter, Eraser) */}
           <canvas
             ref={drawingCanvasRef}
-            width={canvasWidth}
-            height={canvasHeight}
+            width={canvasWidth * dpr}
+            height={canvasHeight * dpr}
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerUp}
             onPointerLeave={handlePointerUp}
             onPointerCancel={handlePointerUp}
-            className="absolute top-0 left-0 cursor-crosshair touch-none"
+            className="absolute top-0 left-0 cursor-crosshair touch-none w-full h-full"
           />
         </div>
       </div>
