@@ -91,10 +91,10 @@ Move to a floating, context-aware toolbar (similar to iOS markup or Notability).
 ## 5. Implementation Plan
 
 ## Status Update
-- **Phase 1: Basic Canvas Setup & Infinite Scroll** - COMPLETED & REFINED (Multi-layer architecture, logical coordinates, performance optimization)
-- **Phase 2: Media Support & UX Refinement** - COMPLETED & REFINED (Z-ordering, viewport-relative placement, point-to-segment hit testing, visual selection feedback)
-- **Phase 3: Advanced Interactions & Annotations** - Pending (Planned: Lasso selection, text support, zoom/pan)
-- **Phase 4: Optimization & Polish** - In Progress (Refining performance and edge cases)
+- **Phase 1: Basic Canvas Setup & Infinite Scroll** - COMPLETED
+- **Phase 2: Media Support & UX Refinement** - COMPLETED
+- **Phase 3: Advanced Interactions & Annotations** - COMPLETED (Zoom/Pan, Text Support, Transformer Optimization)
+- **Phase 4: Optimization & Polish** - COMPLETED (Performance, Infinite Height, Visual Feedback, Shapes)
 
 ### Phase 1: Foundation (Konva Migration) ✅
 1.  Install `konva`, `react-konva`, `use-image`.
@@ -103,18 +103,21 @@ Move to a floating, context-aware toolbar (similar to iOS markup or Notability).
 4.  Implement basic Pen drawing using Konva `Line`.
 
 ### Phase 2: Professional Interactions ✅
-1.  Implement `Transformer` for image resizing/rotation (replaces custom logic).
+1.  Implement `Transformer` for image resizing/rotation.
 2.  Implement Selection logic (click to select, click background to deselect).
 3.  Implement Z-ordering (Bring to Front / Send to Back).
 
-### Phase 3: Advanced Features
-1.  **Zoom/Pan:** Implement `stage.scale` and `stage.position` logic with gestures.
-2.  **Text Support:** Add `Text` nodes.
-3.  **Performance:** Implement `perfectDrawEnabled={false}` for dragging, and layer caching for static content.
+### Phase 3: Advanced Features ✅
+1.  **Zoom/Pan:** Implement `stage.scale` and `stage.position` logic with Ctrl+Scroll and Hand tool.
+2.  **Text Support:** Add `Text` nodes with native overlay editing.
+3.  **Selection Optimization:** Professional-grade transformer handles and padding.
 
-### Phase 4: Migration Strategy
-*   **Data Compatibility:** Write a utility to convert existing `DrawingPath` and `MediaLayer` JSON into the new Konva-compatible structure on load.
-*   **Fallback:** Keep the old component available behind a feature flag if needed during transition.
+### Phase 4: Optimization & Polish ✅
+1.  **Performance:** Implement `perfectDrawEnabled={false}` for active interactions and point-to-segment hit testing for the eraser. ✅
+2.  **Infinite Height:** Auto-expanding canvas as the user draws or moves items downwards. ✅
+3.  **Visual Feedback:** Hover cursors and selection state persistence. ✅
+4.  **Shapes Support:** Added geometric shapes (Rectangle, Circle, Arrow) with full transformation support. ✅
+5.  **Edge Cases:** Logical-to-visual coordinate mapping consistency. ✅
 
 ## 6. Technical Considerations
 

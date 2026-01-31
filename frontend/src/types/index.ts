@@ -692,16 +692,30 @@ export interface ResourceTypeBundleResponse {
 export * from './api';
 
 // Medical Record types
-export type DrawingTool = 'pen' | 'eraser' | 'highlighter' | 'select';
+export type DrawingTool = 'pen' | 'eraser' | 'highlighter' | 'select' | 'hand' | 'text' | 'rectangle' | 'circle' | 'arrow';
 
 export interface DrawingPath {
   type: 'drawing';
   id: string;
-  tool: DrawingTool;
+  tool: 'pen' | 'highlighter';
   color: string;
   width: number;
   points: [number, number, number?][]; // Array of [x, y, pressure?] coordinates
   boundingBox?: { minY: number; maxY: number; minX: number; maxX: number; } | undefined;
+}
+
+export interface ShapeLayer {
+  type: 'shape';
+  id: string;
+  tool: 'rectangle' | 'circle' | 'arrow';
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  rotation: number;
+  stroke: string;
+  strokeWidth: number;
+  fill?: string;
 }
 
 export interface MediaLayer {
@@ -716,13 +730,27 @@ export interface MediaLayer {
   rotation: number;
 }
 
+export interface TextLayer {
+  type: 'text';
+  id: string;
+  text: string;
+  x: number;
+  y: number;
+  fontSize: number;
+  fontFamily?: string;
+  fontStyle?: string;
+  fill: string;
+  width?: number;
+  rotation: number;
+}
+
 export interface WorkspaceData {
   version: number;
-  layers: (DrawingPath | MediaLayer)[];
+  layers: (DrawingPath | MediaLayer | TextLayer | ShapeLayer)[];
   canvas_height: number;
   canvas_width: number; // Mandatory for scaling consistency
   background_image_url?: string;
-  viewport?: { zoom: number; scroll_top: number };
+  viewport?: { zoom: number; x: number; y: number; scroll_top: number };
   local_version?: number; // Internal tracking for sync acknowledgment
 }
 
