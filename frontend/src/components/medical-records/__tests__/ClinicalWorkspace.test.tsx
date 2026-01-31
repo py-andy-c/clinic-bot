@@ -41,7 +41,7 @@ describe('ClinicalWorkspace', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    
+
     // Mock offsetWidth/Height
     Object.defineProperty(HTMLElement.prototype, 'offsetWidth', { configurable: true, value: 1000 });
     Object.defineProperty(HTMLElement.prototype, 'offsetHeight', { configurable: true, value: 800 });
@@ -60,7 +60,7 @@ describe('ClinicalWorkspace', () => {
       right: 850,
       x: 0,
       y: 0,
-      toJSON: () => {},
+      toJSON: () => { },
     });
 
     // Mock window scroll and size
@@ -70,7 +70,7 @@ describe('ClinicalWorkspace', () => {
     // Mock URL.createObjectURL and revokeObjectURL
     global.URL.createObjectURL = vi.fn().mockReturnValue('mock-url');
     global.URL.revokeObjectURL = vi.fn();
-    
+
     // Mock Image naturalWidth/Height
     // @ts-expect-error Mocking Image global
     global.Image = class {
@@ -174,7 +174,7 @@ describe('ClinicalWorkspace', () => {
           })
         ])
       }));
-      
+
       const lastCall = mockOnUpdate.mock.calls[mockOnUpdate.mock.calls.length - 1][0] as { layers: { type: string; x: number; y: number }[] };
       const uploadedImage = lastCall.layers.find((l) => l.type === 'media');
       expect(uploadedImage?.x).toBe(300); // (1000 - 400) / 2
@@ -206,11 +206,11 @@ describe('ClinicalWorkspace', () => {
     // Since we are in a test environment, we can't easily rely on Konva's internal pointer position.
     // However, the component uses stageRef.current.getPointerPosition().
     // We can try to mock that if we can get hold of the stage.
-    
+
     // Simpler approach: trigger mouse events and hope the mock stage handles it, 
     // or just trigger the internal logic if we could.
     // Let's try to simulate the events on the stage container.
-    
+
     fireEvent.mouseDown(stageElement, { clientX: 100, clientY: 100 });
     fireEvent.mouseMove(stageElement, { clientX: 100, clientY: 1050 });
     fireEvent.mouseUp(stageElement);
@@ -241,7 +241,7 @@ describe('ClinicalWorkspace', () => {
     // Actually, we can check if the move buttons work if we can trigger the selection.
     // But since selection is internal state, we'd need to mock it or find a way to click.
     // Let's skip the internal state test and just verify the buttons render when an ID is selected.
-    
+
     // For now, let's just run the existing tests to ensure stability.
   });
 });

@@ -14,14 +14,12 @@ interface ClinicalWorkspaceProps {
   onUpdate: (data: WorkspaceData) => void;
   syncStatus?: SyncStatusType;
 }
-
 const TOOL_CONFIG = {
   pen: { color: '#000000', width: 2 },
   highlighter: { color: 'rgba(255, 255, 0, 0.3)', width: 20 },
   eraser: { color: '#ffffff', width: 20 },
   select: { color: '#3b82f6', width: 1 },
   text: { color: '#000000', width: 1 },
-  hand: { color: '#000000', width: 1 },
   rectangle: { color: '#000000', width: 2 },
   circle: { color: '#000000', width: 2 },
   arrow: { color: '#000000', width: 2 },
@@ -32,16 +30,6 @@ const CONTAINER_WIDTH = 850; // Visual container width
 const MIN_CANVAS_HEIGHT = 1100;
 const WORKSPACE_VERSION = 2;
 
-// Helper to calculate distance from point (px, py) to segment (x1, y1) -> (x2, y2)
-const getDistanceToSegment = (px: number, py: number, x1: number, y1: number, x2: number, y2: number) => {
-  const dx = x2 - x1;
-  const dy = y2 - y1;
-  const l2 = dx * dx + dy * dy;
-  if (l2 === 0) return Math.sqrt((px - x1) ** 2 + (py - y1) ** 2);
-  let t = ((px - x1) * dx + (py - y1) * dy) / l2;
-  t = Math.max(0, Math.min(1, t));
-  return Math.sqrt((px - (x1 + t * dx)) ** 2 + (py - (y1 + t * dy)) ** 2);
-};
 
 // Helper component for loading images
 const UrlImage = ({ layer, isSelected, onSelect, onChange }: {
@@ -562,7 +550,6 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
   const activeArrowRef = useRef<Konva.Arrow>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
-  const [isSpacePressed, setIsSpacePressed] = useState(false);
   const clipboardRef = useRef<DrawingPath | MediaLayer | TextLayer | ShapeLayer | null>(null);
   const lastSentVersionRef = useRef<number>(0);
   const onUpdateRef = useRef(onUpdate);
@@ -586,10 +573,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
 
   // Get stage cursor based on tool
   const getStageCursor = () => {
-    if (isPanning) return 'grabbing';
-    if (isSpacePressed) return 'grab';
     switch (currentTool) {
-      case 'hand': return 'grab';
       case 'pen':
       case 'highlighter':
       case 'rectangle':
@@ -603,13 +587,12 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
     }
   };
 
-  // Viewport state (Zoom and Pan)
-  const [stageScale, setStageScale] = useState(initialData.viewport?.zoom || 1);
-  const [stagePos, setStagePos] = useState({ x: initialData.viewport?.x || 0, y: initialData.viewport?.y || 0 });
-  const [isPanning, setIsPanning] = useState(false);
+  // Viewport state (Fixed for Pageless model)
+  const stageScale = 1;
+  const stagePos = { x: 0, y: 0 };
 
-  // Combined scale for rendering
-  const scale = baseScale * stageScale;
+  // Combined scale for rendering - fixed to fit container width
+  const scale = baseScale;
 
   // History for Undo/Redo
   const [history, setHistory] = useState<(DrawingPath | MediaLayer | TextLayer | ShapeLayer)[][]>([initialData.layers || []]);
@@ -647,16 +630,11 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
         return;
       }
 
-      // Spacebar panning
-      if (e.code === 'Space' && !isSpacePressed) {
-        setIsSpacePressed(true);
-        e.preventDefault();
-      }
 
       // Tool Switching
       if (e.key.toLowerCase() === 'v') setCurrentTool('select');
       if (e.key.toLowerCase() === 'p') { setCurrentTool('pen'); setSelectedId(null); }
-      if (e.key.toLowerCase() === 'h') { setCurrentTool('hand'); setSelectedId(null); }
+      if (e.key.toLowerCase() === 'h') { setCurrentTool('select'); setSelectedId(null); }
       if (e.key.toLowerCase() === 'e') { setCurrentTool('eraser'); setSelectedId(null); }
       if (e.key.toLowerCase() === 'r') { setCurrentTool('rectangle'); setSelectedId(null); }
       if (e.key.toLowerCase() === 'o') { setCurrentTool('circle'); setSelectedId(null); }
@@ -750,10 +728,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
         e.preventDefault();
       }
     };
-    const handleKeyUp = (e: KeyboardEvent) => {
-      if (e.code === 'Space') {
-        setIsSpacePressed(false);
-      }
+    const handleKeyUp = (_e: KeyboardEvent) => {
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -762,7 +737,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [isSpacePressed, selectedId, layers, historyStep, history]); // Add dependencies needed for handlers
+  }, [selectedId, layers, historyStep, history]); // Add dependencies needed for handlers
 
   // Save functionality
   const saveWorkspace = useCallback(() => {
@@ -774,11 +749,9 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
       canvas_width: CANVAS_WIDTH,
       canvas_height: canvasHeight,
       viewport: {
-        zoom: stageScale,
-        x: stagePos.x,
-        y: stagePos.y,
-        // Use the scroll top from initial data or current state, but don't 
-        // trigger saves purely based on window scroll as it's too volatile
+        zoom: 1,
+        x: 0,
+        y: 0,
         scroll_top: initialDataRef.current.viewport?.scroll_top || 0
       }
     };
@@ -789,18 +762,13 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
 
   // Handle syncing state to parent
   useEffect(() => {
-    // Only trigger sync when internal state changes (layers, scale, pos)
-    // We already have dependencies in the effect array below.
+    // Only trigger sync when internal state changes (layers, canvas height)
     const hasDrawingChanges = localVersion > lastSentVersionRef.current;
-    const hasViewportChanges =
-      stageScale !== (initialDataRef.current.viewport?.zoom || 1) ||
-      stagePos.x !== (initialDataRef.current.viewport?.x || 0) ||
-      stagePos.y !== (initialDataRef.current.viewport?.y || 0);
 
-    if (hasDrawingChanges || hasViewportChanges) {
+    if (hasDrawingChanges) {
       saveWorkspace();
     }
-  }, [localVersion, stageScale, stagePos, canvasHeight, saveWorkspace]);
+  }, [localVersion, canvasHeight, saveWorkspace]);
 
   // Infinite height check
   const ensureHeight = useCallback((y: number) => {
@@ -839,33 +807,9 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
     });
   }, [historyStep]);
 
-  // Zoom logic
-  const handleWheel = (e: Konva.KonvaEventObject<WheelEvent>) => {
-    // Zoom only if Ctrl/Cmd is pressed
-    if (!e.evt.ctrlKey && !e.evt.metaKey) return;
-
-    e.evt.preventDefault();
-    const stage = stageRef.current;
-    if (!stage) return;
-
-    const oldScale = stage.scaleX();
-    const pointer = stage.getPointerPosition();
-    if (!pointer) return;
-
-    const mousePointTo = {
-      x: (pointer.x - stage.x()) / oldScale,
-      y: (pointer.y - stage.y()) / oldScale,
-    };
-
-    const zoomSpeed = 1.1;
-    const newScale = e.evt.deltaY > 0 ? oldScale / zoomSpeed : oldScale * zoomSpeed;
-    const boundedScale = Math.max(0.2, Math.min(5, newScale)); // Bounded between 20% and 500%
-
-    setStageScale(boundedScale / baseScale); // Adjust stageScale relative to baseScale
-    setStagePos({
-      x: pointer.x - mousePointTo.x * boundedScale,
-      y: pointer.y - mousePointTo.y * boundedScale,
-    });
+  // Zoom logic disabled for pageless model
+  const handleWheel = (_e: Konva.KonvaEventObject<WheelEvent>) => {
+    // Zoom disabled. Let the browser handle standard scrolling.
   };
 
   // Tools Logic
@@ -890,12 +834,6 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
     const pointerPos = stage.getPointerPosition();
     if (pointerPos) {
       lastPointerPosRef.current = pointerPos;
-    }
-
-    if (currentTool === 'hand' || isSpacePressed) {
-      isDrawing.current = true; // Use as isPanning
-      setIsPanning(true);
-      return;
     }
 
     if (currentTool === 'select') {
@@ -978,312 +916,136 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
     const stage = stageRef.current;
     if (!stage) return;
 
-    if (currentTool === 'hand' || isSpacePressed) {
-      const pos = stage.getPointerPosition();
-      if (pos && lastPointerPosRef.current) {
-        const dx = pos.x - lastPointerPosRef.current.x;
-        const dy = pos.y - lastPointerPosRef.current.y;
-        lastPointerPosRef.current = pos;
-
-        setStagePos(prev => ({
-          x: prev.x + dx,
-          y: prev.y + dy
-        }));
-      }
-      return;
-    }
-
     const pos = stage.getRelativePointerPosition();
     if (!pos) return;
 
-    if (currentTool === 'rectangle' && activeRectRef.current && startPosRef.current) {
-      let width = pos.x - startPosRef.current.x;
-      let height = pos.y - startPosRef.current.y;
-
-      if (e.evt.shiftKey) {
-        const size = Math.max(Math.abs(width), Math.abs(height));
-        width = width > 0 ? size : -size;
-        height = height > 0 ? size : -size;
-      }
-
-      activeRectRef.current.width(width);
-      activeRectRef.current.height(height);
-      stage.batchDraw();
-      return;
-    }
-
-    if (currentTool === 'circle' && activeEllipseRef.current && startPosRef.current) {
-      let width = pos.x - startPosRef.current.x;
-      let height = pos.y - startPosRef.current.y;
-
-      if (e.evt.shiftKey) {
-        const size = Math.max(Math.abs(width), Math.abs(height));
-        width = width > 0 ? size : -size;
-        height = height > 0 ? size : -size;
-      }
-
-      activeEllipseRef.current.x(startPosRef.current.x + width / 2);
-      activeEllipseRef.current.y(startPosRef.current.y + height / 2);
-      activeEllipseRef.current.radiusX(Math.abs(width) / 2);
-      activeEllipseRef.current.radiusY(Math.abs(height) / 2);
-
-      stage.batchDraw();
-      return;
-    }
-
-    if (currentTool === 'arrow' && activeArrowRef.current && startPosRef.current) {
-      let endX = pos.x;
-      let endY = pos.y;
-
-      if (e.evt.shiftKey) {
-        const dx = pos.x - startPosRef.current.x;
-        const dy = pos.y - startPosRef.current.y;
-        const angle = Math.atan2(dy, dx);
-        const snappedAngle = Math.round(angle / (Math.PI / 4)) * (Math.PI / 4);
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        endX = startPosRef.current.x + Math.cos(snappedAngle) * dist;
-        endY = startPosRef.current.y + Math.sin(snappedAngle) * dist;
-      }
-
-      activeArrowRef.current.points([startPosRef.current.x, startPosRef.current.y, endX, endY]);
-      stage.batchDraw();
-      return;
-    }
-
-    // Optimization: Disable perfectDraw during interaction
-    if (activeLineRef.current) {
-      activeLineRef.current.perfectDrawEnabled(false);
-      activeLineRef.current.listening(false); // Don't intercept own events
-    }
-
     if (currentTool === 'eraser') {
-      // Stroke-based eraser: find all lines that intersect with current pointer
-      const hitRadius = TOOL_CONFIG.eraser.width / 2;
-      let hasHit = false;
-
-      layers.forEach((layer) => {
-        if (layer.type !== 'drawing') return;
-        const drawing = layer as DrawingPath;
-        // Skip highlighter/pen check if we're erasing
-        if (deletedLayerIdsRef.current.has(drawing.id)) return;
-
-        // Bounding box optimization
-        if (drawing.boundingBox) {
-          const { minX, maxX, minY, maxY } = drawing.boundingBox;
-          if (
-            pos.x < minX - hitRadius ||
-            pos.x > maxX + hitRadius ||
-            pos.y < minY - hitRadius ||
-            pos.y > maxY + hitRadius
-          ) {
-            return;
-          }
+      const shape = stage.getIntersection(pos);
+      if (shape && shape.getType() === 'Shape' && shape.id()) {
+        const id = shape.id();
+        if (!deletedLayerIdsRef.current.has(id)) {
+          deletedLayerIdsRef.current.add(id);
+          updateLayers(prev => prev.filter(l => l.id !== id));
         }
-
-        // Detailed check
-        const isHit = drawing.points.some((p, i) => {
-          if (i === 0) {
-            const dx = p[0] - pos.x;
-            const dy = p[1] - pos.y;
-            return Math.sqrt(dx * dx + dy * dy) < hitRadius;
-          }
-          const prev = drawing.points[i - 1];
-          if (!prev) return false;
-          return getDistanceToSegment(pos.x, pos.y, prev[0], prev[1], p[0], p[1]) < hitRadius;
-        });
-
-        if (isHit) {
-          deletedLayerIdsRef.current.add(drawing.id);
-          hasHit = true;
-
-          // Imperatively hide the node for performance
-          const node = stage.findOne('#' + drawing.id);
-          if (node) {
-            node.visible(false);
-          }
-        }
-      });
-
-      if (hasHit) {
-        stage.batchDraw();
       }
+      return;
+    }
+
+    if (currentTool === 'rectangle' || currentTool === 'circle' || currentTool === 'arrow') {
+      if (!startPosRef.current) return;
+      const dx = pos.x - startPosRef.current.x;
+      const dy = pos.y - startPosRef.current.y;
+
+      if (currentTool === 'rectangle' && activeRectRef.current) {
+        activeRectRef.current.width(dx);
+        activeRectRef.current.height(dy);
+      } else if (currentTool === 'circle' && activeEllipseRef.current) {
+        activeEllipseRef.current.radiusX(Math.abs(dx));
+        activeEllipseRef.current.radiusY(Math.abs(dy));
+      } else if (currentTool === 'arrow' && activeArrowRef.current) {
+        activeArrowRef.current.points([startPosRef.current.x, startPosRef.current.y, pos.x, pos.y]);
+      }
+      stage.batchDraw();
       return;
     }
 
     const pressure = (e.evt as unknown as PointerEvent).pressure || 0.5;
-    currentPointsRef.current.push(pos.x, pos.y, pressure);
+    currentPointsRef.current = [...currentPointsRef.current, pos.x, pos.y, pressure];
 
-    // Live canvas extension for smoother infinite vertical growth
-    if (pos.y > canvasHeight - 200) {
-      ensureHeight(pos.y);
-    }
-
-    // Imperative update - NO React state change here
     if (activeLineRef.current) {
-      // For Konva.Line preview, we only use x,y pairs
-      const flatPoints: number[] = [];
-      const points = currentPointsRef.current;
-      for (let i = 0; i < points.length - 2; i += 3) {
-        flatPoints.push(points[i] as number, points[i + 1] as number);
-      }
-      activeLineRef.current.points(flatPoints);
+      activeLineRef.current.points(currentPointsRef.current.filter((_, i) => i % 3 !== 2));
       activeLineRef.current.getLayer()?.batchDraw();
     }
   };
 
-  const handleMouseUp = (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
+  const handleMouseUp = (_e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
     if (!isDrawing.current) return;
     isDrawing.current = false;
-    setIsPanning(false);
-    lastPointerPosRef.current = null;
-
-    // Optimization: Re-enable perfectDraw after interaction
-    if (activeLineRef.current) {
-      activeLineRef.current.perfectDrawEnabled(true);
-      activeLineRef.current.visible(false); // Hide the imperative line
-    }
-
-    if (currentTool === 'hand') return;
-
-    if (currentTool === 'eraser') {
-      if (deletedLayerIdsRef.current.size > 0) {
-        updateLayers(prev => prev.filter(layer => {
-          if (layer.type === 'drawing') {
-            return !deletedLayerIdsRef.current.has((layer as DrawingPath).id);
-          }
-          return true;
-        }));
-      }
-      return;
-    }
 
     const stage = stageRef.current;
-    const pos = stage?.getRelativePointerPosition();
+    if (!stage) return;
+    const pos = stage.getRelativePointerPosition();
     if (!pos || !startPosRef.current) return;
 
-    if (currentTool === 'rectangle' || currentTool === 'circle' || currentTool === 'arrow') {
-      let newShape: ShapeLayer | null = null;
+    if (activeRectRef.current) activeRectRef.current.visible(false);
+    if (activeEllipseRef.current) activeEllipseRef.current.visible(false);
+    if (activeArrowRef.current) activeArrowRef.current.visible(false);
+    if (activeLineRef.current) activeLineRef.current.visible(false);
 
-      if (currentTool === 'rectangle') {
-        let width = pos.x - startPosRef.current.x;
-        let height = pos.y - startPosRef.current.y;
+    let newShape: ShapeLayer | null = null;
 
-        if (e.evt.shiftKey) {
-          const size = Math.max(Math.abs(width), Math.abs(height));
-          width = width > 0 ? size : -size;
-          height = height > 0 ? size : -size;
-        }
+    if (currentTool === 'rectangle') {
+      const dx = pos.x - startPosRef.current.x;
+      const dy = pos.y - startPosRef.current.y;
 
-        if (Math.abs(width) < 5 && Math.abs(height) < 5) {
-          if (activeRectRef.current) activeRectRef.current.visible(false);
-          return;
-        }
-        newShape = {
-          type: 'shape',
-          id: `shape-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-          tool: 'rectangle',
-          x: width > 0 ? startPosRef.current.x : startPosRef.current.x + width,
-          y: height > 0 ? startPosRef.current.y : startPosRef.current.y + height,
-          width: Math.abs(width),
-          height: Math.abs(height),
-          rotation: 0,
-          stroke: TOOL_CONFIG.rectangle.color,
-          strokeWidth: TOOL_CONFIG.rectangle.width,
-        };
-        if (activeRectRef.current) activeRectRef.current.visible(false);
-      } else if (currentTool === 'circle') {
-        let width = pos.x - startPosRef.current.x;
-        let height = pos.y - startPosRef.current.y;
+      if (Math.abs(dx) < 5 && Math.abs(dy) < 5) return;
 
-        if (e.evt.shiftKey) {
-          const size = Math.max(Math.abs(width), Math.abs(height));
-          width = width > 0 ? size : -size;
-          height = height > 0 ? size : -size;
-        }
+      newShape = {
+        type: 'shape',
+        id: `shape-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+        tool: 'rectangle',
+        x: dx > 0 ? startPosRef.current.x : pos.x,
+        y: dy > 0 ? startPosRef.current.y : pos.y,
+        width: Math.abs(dx),
+        height: Math.abs(dy),
+        rotation: 0,
+        stroke: TOOL_CONFIG.rectangle.color,
+        strokeWidth: TOOL_CONFIG.rectangle.width,
+        fill: '',
+      };
+    } else if (currentTool === 'circle') {
+      const dx = pos.x - startPosRef.current.x;
+      const dy = pos.y - startPosRef.current.y;
 
-        if (Math.abs(width) < 5 && Math.abs(height) < 5) {
-          if (activeEllipseRef.current) activeEllipseRef.current.visible(false);
-          return;
-        }
-        newShape = {
-          type: 'shape',
-          id: `shape-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-          tool: 'circle',
-          x: startPosRef.current.x + width / 2,
-          y: startPosRef.current.y + height / 2,
-          width: Math.abs(width),
-          height: Math.abs(height),
-          rotation: 0,
-          stroke: TOOL_CONFIG.circle.color,
-          strokeWidth: TOOL_CONFIG.circle.width,
-        };
-        if (activeEllipseRef.current) activeEllipseRef.current.visible(false);
-      } else if (currentTool === 'arrow') {
-        let endX = pos.x;
-        let endY = pos.y;
+      if (Math.abs(dx) < 5 && Math.abs(dy) < 5) return;
 
-        if (e.evt.shiftKey) {
-          const dx = pos.x - startPosRef.current.x;
-          const dy = pos.y - startPosRef.current.y;
-          const angle = Math.atan2(dy, dx);
-          const snappedAngle = Math.round(angle / (Math.PI / 4)) * (Math.PI / 4);
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          endX = startPosRef.current.x + Math.cos(snappedAngle) * dist;
-          endY = startPosRef.current.y + Math.sin(snappedAngle) * dist;
-        }
+      newShape = {
+        type: 'shape',
+        id: `shape-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+        tool: 'circle',
+        x: startPosRef.current.x + dx / 2,
+        y: startPosRef.current.y + dy / 2,
+        width: Math.abs(dx),
+        height: Math.abs(dy),
+        rotation: 0,
+        stroke: TOOL_CONFIG.circle.color,
+        strokeWidth: TOOL_CONFIG.circle.width,
+        fill: '',
+      };
+    } else if (currentTool === 'arrow') {
+      const dx = pos.x - startPosRef.current.x;
+      const dy = pos.y - startPosRef.current.y;
 
-        const dx = endX - startPosRef.current.x;
-        const dy = endY - startPosRef.current.y;
+      if (Math.abs(dx) < 5 && Math.abs(dy) < 5) return;
 
-        if (Math.abs(dx) < 5 && Math.abs(dy) < 5) {
-          if (activeArrowRef.current) activeArrowRef.current.visible(false);
-          return;
-        }
-        newShape = {
-          type: 'shape',
-          id: `shape-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-          tool: 'arrow',
-          x: startPosRef.current.x,
-          y: startPosRef.current.y,
-          width: dx,
-          height: dy,
-          rotation: 0,
-          stroke: TOOL_CONFIG.arrow.color,
-          strokeWidth: TOOL_CONFIG.arrow.width,
-        };
-        if (activeArrowRef.current) activeArrowRef.current.visible(false);
-      }
+      newShape = {
+        type: 'shape',
+        id: `shape-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+        tool: 'arrow',
+        x: startPosRef.current.x,
+        y: startPosRef.current.y,
+        width: dx,
+        height: dy,
+        rotation: 0,
+        stroke: TOOL_CONFIG.arrow.color,
+        strokeWidth: TOOL_CONFIG.arrow.width,
+        fill: '',
+      };
+    }
 
-      if (newShape) {
-        ensureHeight(newShape.y + newShape.height);
-        updateLayers(prev => [...prev, newShape!]);
-        setCurrentTool('select');
-        setSelectedId(newShape.id);
-      }
+    if (newShape) {
+      ensureHeight(newShape.y + Math.abs(newShape.height));
+      updateLayers(prev => [...prev, newShape!]);
+      setCurrentTool('select');
+      setSelectedId(newShape.id);
       return;
     }
 
     const points = currentPointsRef.current;
-    if (points.length === 0) return;
-
-    // Check for height extension and calculate bounding box
-    let minY = Infinity, maxY = -Infinity, minX = Infinity, maxX = -Infinity;
-    for (let i = 0; i < points.length - 1; i += 3) {
-      const x = points[i];
-      const y = points[i + 1];
-      if (x !== undefined && y !== undefined) {
-        if (x < minX) minX = x;
-        if (x > maxX) maxX = x;
-        if (y < minY) minY = y;
-        if (y > maxY) maxY = y;
-      }
-    }
-
-    if (maxY !== -Infinity) {
-      ensureHeight(maxY);
-    }
+    if (points.length < 3) return;
 
     if (currentTool === 'pen' || currentTool === 'highlighter') {
+      const bbox = calculateBoundingBox(pointsToTuples(points));
       const newPath: DrawingPath = {
         type: 'drawing',
         id: `path-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
@@ -1291,20 +1053,19 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
         color: TOOL_CONFIG[currentTool].color,
         width: TOOL_CONFIG[currentTool].width,
         points: pointsToTuples(points),
-        boundingBox: minX !== Infinity ? { minX, maxX, minY, maxY } : undefined,
+        boundingBox: bbox,
       };
 
+      if (bbox) {
+        ensureHeight(bbox.maxY);
+      }
       updateLayers(prev => [...prev, newPath]);
     }
 
-    // Clear and hide active line
     currentPointsRef.current = [];
-    if (activeLineRef.current) {
-      activeLineRef.current.points([]);
-      activeLineRef.current.visible(false);
-      activeLineRef.current.getLayer()?.batchDraw();
-    }
+    if (stageRef.current) stageRef.current.batchDraw();
   };
+
 
   const calculateBoundingBox = (points: [number, number, number?][]) => {
     if (points.length === 0) return undefined;
@@ -1491,162 +1252,115 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
     });
   };
 
-  const [zoomLevel, setZoomLevel] = useState(100);
-  useEffect(() => {
-    setZoomLevel(Math.round(stageScale * 100));
-  }, [stageScale]);
 
   return (
-    <div className="relative w-full bg-gray-200 min-h-full">
+    <div className="relative w-full bg-gray-50 min-h-screen">
       {/* Toolbar */}
-      <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-white rounded-full shadow-2xl px-6 py-3 flex items-center gap-4 z-20 border border-gray-200">
-        <div className="flex items-center gap-2">
-          <ToolButton
-            active={currentTool === 'select'}
-            onClick={() => setCurrentTool('select')}
-            icon={<CursorIcon />}
-            label="選取 (V)"
-          />
-          <div className="w-px h-6 bg-gray-300 mx-1" />
-          <ToolButton
-            active={currentTool === 'pen'}
-            onClick={() => { setCurrentTool('pen'); setSelectedId(null); }}
-            icon={<PenIcon />}
-            label="畫筆 (P)"
-          />
-          <ToolButton
-            active={currentTool === 'highlighter'}
-            onClick={() => { setCurrentTool('highlighter'); setSelectedId(null); }}
-            icon={<HighlighterIcon />}
-            label="螢光筆"
-          />
-          <ToolButton
-            active={currentTool === 'eraser'}
-            onClick={() => { setCurrentTool('eraser'); setSelectedId(null); }}
-            icon={<EraserIcon />}
-            label="橡皮擦 (E)"
-          />
-          <div className="w-px h-6 bg-gray-300 mx-1" />
-          <ToolButton
-            active={currentTool === 'rectangle'}
-            onClick={() => { setCurrentTool('rectangle'); setSelectedId(null); }}
-            icon={<SquareIcon />}
-            label="矩形 (R)"
-          />
-          <ToolButton
-            active={currentTool === 'circle'}
-            onClick={() => { setCurrentTool('circle'); setSelectedId(null); }}
-            icon={<CircleIcon />}
-            label="圓形 (O)"
-          />
-          <ToolButton
-            active={currentTool === 'arrow'}
-            onClick={() => { setCurrentTool('arrow'); setSelectedId(null); }}
-            icon={<ArrowIcon />}
-            label="箭頭"
-          />
-          <div className="w-px h-6 bg-gray-300 mx-1" />
-          <ToolButton
-            active={currentTool === 'text'}
-            onClick={() => { setCurrentTool('text'); setSelectedId(null); }}
-            icon={<TextIcon />}
-            label="文字 (T)"
-          />
-          <ToolButton
-            active={currentTool === 'hand'}
-            onClick={() => { setCurrentTool('hand'); setSelectedId(null); }}
-            icon={<HandIcon />}
-            label="平移 (H)"
-          />
-          <div className="w-px h-6 bg-gray-300 mx-1" />
-          <ToolButton
-            onClick={() => fileInputRef.current?.click()}
-            icon={<ImageIcon />}
-            label="圖片上傳 (I)"
-            disabled={isUploading}
-          />
-          <input
-            ref={fileInputRef}
-            type="file"
-            id="canvas-image-upload"
-            aria-label="圖片隱藏輸入"
-            hidden
-            accept="image/*"
-            onChange={handleImageUpload}
-          />
-        </div>
-
-        <div className="w-px h-6 bg-gray-300 mx-1" />
-
-        <div className="flex items-center gap-2">
-          <button onClick={undo} disabled={historyStep === 0} title="還原 (Cmd+Z)" className="p-2 hover:bg-gray-100 rounded-full disabled:opacity-30">
-            <UndoIcon />
-          </button>
-          <button onClick={redo} disabled={historyStep === history.length - 1} title="重做 (Cmd+Shift+Z)" className="p-2 hover:bg-gray-100 rounded-full disabled:opacity-30">
-            <RedoIcon />
-          </button>
-        </div>
-
-        <div className="w-px h-6 bg-gray-300 mx-1" />
-
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => {
-              const newScale = Math.max(0.2, stageScale / 1.1);
-              setStageScale(newScale);
-            }}
-            className="p-1 hover:bg-gray-100 rounded"
-          >
-            -
-          </button>
-          <span className="text-xs font-mono w-10 text-center">{zoomLevel}%</span>
-          <button
-            onClick={() => {
-              const newScale = Math.min(5, stageScale * 1.1);
-              setStageScale(newScale);
-            }}
-            className="p-1 hover:bg-gray-100 rounded"
-          >
-            +
-          </button>
-        </div>
-
-        <div className="w-px h-6 bg-gray-300 mx-1" />
+      <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-white rounded-full shadow-2xl px-6 py-2 flex items-center gap-2 z-20 border border-gray-200">
+        <ToolButton
+          active={currentTool === 'select'}
+          onClick={() => setCurrentTool('select')}
+          icon={<CursorIcon />}
+          label="選取 (V)"
+        />
+        <div className="w-px h-6 bg-gray-200 mx-1" />
+        <ToolButton
+          active={currentTool === 'pen'}
+          onClick={() => { setCurrentTool('pen'); setSelectedId(null); }}
+          icon={<PenIcon />}
+          label="畫筆 (P)"
+        />
+        <ToolButton
+          active={currentTool === 'highlighter'}
+          onClick={() => { setCurrentTool('highlighter'); setSelectedId(null); }}
+          icon={<HighlighterIcon />}
+          label="螢光筆"
+        />
+        <ToolButton
+          active={currentTool === 'eraser'}
+          onClick={() => { setCurrentTool('eraser'); setSelectedId(null); }}
+          icon={<EraserIcon />}
+          label="橡皮擦 (E)"
+        />
+        <div className="w-px h-6 bg-gray-200 mx-1" />
+        <ToolButton
+          active={currentTool === 'rectangle'}
+          onClick={() => { setCurrentTool('rectangle'); setSelectedId(null); }}
+          icon={<SquareIcon />}
+          label="矩形 (R)"
+        />
+        <ToolButton
+          active={currentTool === 'circle'}
+          onClick={() => { setCurrentTool('circle'); setSelectedId(null); }}
+          icon={<CircleIcon />}
+          label="圓形 (O)"
+        />
+        <ToolButton
+          active={currentTool === 'arrow'}
+          onClick={() => { setCurrentTool('arrow'); setSelectedId(null); }}
+          icon={<ArrowIcon />}
+          label="箭頭"
+        />
+        <ToolButton
+          active={currentTool === 'text'}
+          onClick={() => { setCurrentTool('text'); setSelectedId(null); }}
+          icon={<TextIcon />}
+          label="文字 (T)"
+        />
+        <div className="w-px h-6 bg-gray-200 mx-1" />
+        <ToolButton
+          onClick={() => fileInputRef.current?.click()}
+          icon={<ImageIcon />}
+          label="圖片 (I)"
+          disabled={isUploading}
+        />
+        <input
+          ref={fileInputRef}
+          type="file"
+          id="canvas-image-upload"
+          aria-label="圖片隱藏輸入"
+          hidden
+          accept="image/*"
+          onChange={handleImageUpload}
+        />
+        <div className="w-px h-6 bg-gray-200 mx-1" />
+        <button onClick={undo} disabled={historyStep === 0} title="還原 (Cmd+Z)" className="p-2 hover:bg-gray-100 rounded-full disabled:opacity-30">
+          <UndoIcon />
+        </button>
+        <button onClick={redo} disabled={historyStep === history.length - 1} title="重做 (Cmd+Shift+Z)" className="p-2 hover:bg-gray-100 rounded-full disabled:opacity-30">
+          <RedoIcon />
+        </button>
+        <div className="w-px h-6 bg-gray-200 mx-1" />
         <SyncStatus status={syncStatus || 'none'} />
       </div>
 
-      {/* Context Menu */}
+      {/* Context Menu for selection */}
       {selectedId && (
-        <div className="fixed top-6 left-1/2 transform -translate-x-1/2 bg-white rounded-lg shadow-lg px-4 py-2 flex items-center gap-3 z-20 animate-fade-in border border-gray-200">
-          <span className="text-sm font-medium text-gray-600 mr-2">
+        <div className="fixed top-20 left-1/2 transform -translate-x-1/2 bg-white rounded-lg shadow-lg px-4 py-2 flex items-center gap-3 z-20 border border-gray-200">
+          <span className="text-xs font-medium text-gray-500 mr-2">
             已選取 {
-              layers.find(l => (l.id === selectedId))?.type === 'media' ? '圖片' :
-                layers.find(l => (l.id === selectedId))?.type === 'text' ? '文字' :
-                  layers.find(l => (l.id === selectedId))?.type === 'shape' ? '圖形' : '筆跡'
+              layers.find(l => l.id === selectedId)?.type === 'media' ? '圖片' :
+                layers.find(l => l.id === selectedId)?.type === 'text' ? '文字' :
+                  layers.find(l => l.id === selectedId)?.type === 'shape' ? '圖形' : '筆跡'
             }
           </span>
-          <div className="flex items-center gap-1">
-            <ContextButton onClick={() => moveLayer('front')} label="最上層" />
-            <ContextButton onClick={() => moveLayer('up')} label="上移" />
-            <ContextButton onClick={() => moveLayer('down')} label="下移" />
-            <ContextButton onClick={() => moveLayer('back')} label="最下層" />
-          </div>
-          <div className="w-px h-4 bg-gray-300 mx-1" />
-          <button onClick={deleteSelected} className="text-red-500 hover:text-red-700 text-sm font-medium px-2 py-1 rounded hover:bg-red-50 transition-colors">刪除</button>
+          <ContextButton onClick={() => moveLayer('front')} label="最上層" />
+          <ContextButton onClick={() => moveLayer('up')} label="上移" />
+          <ContextButton onClick={() => moveLayer('down')} label="下移" />
+          <ContextButton onClick={() => moveLayer('back')} label="最下層" />
+          <div className="w-px h-4 bg-gray-200 mx-1" />
+          <button onClick={deleteSelected} className="text-red-500 hover:text-red-700 text-xs font-medium px-2 py-1 rounded hover:bg-red-50 transition-colors">刪除</button>
         </div>
       )}
 
-      {/* Scrollable Container */}
-      <div
-        className="relative touch-none py-12 overflow-x-auto"
-      >
-        {/* Paper Surface */}
+      {/* Main Document View */}
+      <div className="relative pt-12 pb-32 px-4 flex justify-center">
         <div
-          className="bg-white mx-auto shadow-xl relative"
+          className="bg-white shadow-2xl relative"
           style={{
             width: CONTAINER_WIDTH,
             minHeight: canvasHeight * scale,
-            cursor: getStageCursor()
+            cursor: getStageCursor(),
           }}
         >
           <Stage
@@ -1655,8 +1369,6 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
             height={canvasHeight * scale}
             scaleX={scale}
             scaleY={scale}
-            x={stagePos.x}
-            y={stagePos.y}
             onWheel={handleWheel}
             onMouseDown={handleMouseDown}
             onMouseMove={handleMouseMove}
@@ -1665,14 +1377,11 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
             onTouchMove={handleMouseMove}
             onTouchEnd={handleMouseUp}
           >
-            {/* Background Template Layer - Static */}
             <Layer name="background" listening={false}>
               {initialData.background_image_url && (
                 <BackgroundImage url={initialData.background_image_url} width={CANVAS_WIDTH} />
               )}
             </Layer>
-
-            {/* Unified Content Layer - Dynamic Interleaved Z-Ordering */}
             <Layer name="content">
               {layers.map((layer, i) => {
                 if (layer.type === 'media') {
@@ -1682,11 +1391,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
                       key={mediaLayer.id}
                       layer={mediaLayer}
                       isSelected={mediaLayer.id === selectedId}
-                      onSelect={() => {
-                        if (currentTool === 'select') {
-                          setSelectedId(mediaLayer.id);
-                        }
-                      }}
+                      onSelect={() => currentTool === 'select' && setSelectedId(mediaLayer.id)}
                       onChange={(newAttrs) => {
                         const newLayers = [...layers];
                         newLayers[i] = { ...mediaLayer, ...newAttrs } as MediaLayer;
@@ -1705,20 +1410,14 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
                       layer={drawing}
                       isSelected={drawing.id === selectedId}
                       calculateBoundingBox={calculateBoundingBox}
-                      onSelect={() => {
-                        if (currentTool === 'select') {
-                          setSelectedId(drawing.id);
-                        }
-                      }}
+                      onSelect={() => currentTool === 'select' && setSelectedId(drawing.id)}
                       onChange={(newAttrs) => {
                         const newLayers = [...layers];
                         newLayers[i] = { ...drawing, ...newAttrs } as DrawingPath;
                         updateLayers(newLayers);
                         if (newAttrs.points) {
                           const d = newLayers[i] as DrawingPath;
-                          if (d.boundingBox) {
-                            ensureHeight(d.boundingBox.maxY);
-                          }
+                          if (d.boundingBox) ensureHeight(d.boundingBox.maxY);
                         }
                       }}
                     />
@@ -1730,11 +1429,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
                       key={textLayer.id}
                       layer={textLayer}
                       isSelected={textLayer.id === selectedId}
-                      onSelect={() => {
-                        if (currentTool === 'select') {
-                          setSelectedId(textLayer.id);
-                        }
-                      }}
+                      onSelect={() => currentTool === 'select' && setSelectedId(textLayer.id)}
                       onChange={(newAttrs) => {
                         const newLayers = [...layers];
                         newLayers[i] = { ...textLayer, ...newAttrs } as TextLayer;
@@ -1752,11 +1447,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
                       key={shapeLayer.id}
                       layer={shapeLayer}
                       isSelected={shapeLayer.id === selectedId}
-                      onSelect={() => {
-                        if (currentTool === 'select') {
-                          setSelectedId(shapeLayer.id);
-                        }
-                      }}
+                      onSelect={() => currentTool === 'select' && setSelectedId(shapeLayer.id)}
                       onChange={(newAttrs) => {
                         const newLayers = [...layers];
                         newLayers[i] = { ...shapeLayer, ...newAttrs } as ShapeLayer;
@@ -1771,7 +1462,6 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
                 return null;
               })}
 
-              {/* Active Previews */}
               <Line
                 ref={activeLineRef}
                 points={[]}
@@ -1782,31 +1472,11 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
                 lineJoin="round"
                 visible={false}
                 perfectDrawEnabled={false}
-                globalCompositeOperation={
-                  currentTool === 'highlighter' ? 'multiply' : 'source-over'
-                }
+                globalCompositeOperation={currentTool === 'highlighter' ? 'multiply' : 'source-over'}
               />
-              <Rect
-                ref={activeRectRef}
-                stroke={TOOL_CONFIG.rectangle.color}
-                strokeWidth={TOOL_CONFIG.rectangle.width}
-                visible={false}
-              />
-              <Ellipse
-                ref={activeEllipseRef}
-                radiusX={0}
-                radiusY={0}
-                stroke={TOOL_CONFIG.circle.color}
-                strokeWidth={TOOL_CONFIG.circle.width}
-                visible={false}
-              />
-              <Arrow
-                ref={activeArrowRef}
-                points={[0, 0, 0, 0]}
-                stroke={TOOL_CONFIG.arrow.color}
-                strokeWidth={TOOL_CONFIG.arrow.width}
-                visible={false}
-              />
+              <Rect ref={activeRectRef} stroke={TOOL_CONFIG.rectangle.color} strokeWidth={TOOL_CONFIG.rectangle.width} visible={false} />
+              <Ellipse ref={activeEllipseRef} radiusX={0} radiusY={0} stroke={TOOL_CONFIG.circle.color} strokeWidth={TOOL_CONFIG.circle.width} visible={false} />
+              <Arrow ref={activeArrowRef} points={[0, 0, 0, 0]} stroke={TOOL_CONFIG.arrow.color} strokeWidth={TOOL_CONFIG.arrow.width} visible={false} />
             </Layer>
           </Stage>
         </div>
@@ -1815,14 +1485,6 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
   );
 };
 
-const HandIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v5" />
-    <path d="M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v10" />
-    <path d="M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v8" />
-    <path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15" />
-  </svg>
-);
 
 const TextIcon = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
