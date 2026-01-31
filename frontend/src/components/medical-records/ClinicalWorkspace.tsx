@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { Stage, Layer, Line, Image as KonvaImage, Transformer, Text as KonvaText, Rect, Circle, Arrow } from 'react-konva';
+import { Stage, Layer, Line, Image as KonvaImage, Transformer, Text as KonvaText, Rect, Arrow, Ellipse } from 'react-konva';
 import Konva from 'konva';
 import useImage from 'use-image';
 import imageCompression from 'browser-image-compression';
@@ -312,6 +312,7 @@ const SelectableText = ({ layer, isSelected, onSelect, onChange }: {
         textarea.blur();
       }
       if (e.key === 'Escape') {
+        textarea.value = textNode.text(); // Revert to original text
         textarea.blur();
       }
     });
@@ -475,12 +476,13 @@ const SelectableShape = ({ layer, isSelected, onSelect, onChange }: {
           onMouseLeave={handleMouseLeave}
         />
       ) : (
-        <Circle 
+        <Ellipse 
           {...baseProps} 
-          ref={shapeRef as React.Ref<Konva.Circle>} 
+          ref={shapeRef as React.Ref<Konva.Ellipse>} 
           width={layer.width} 
           height={layer.height} 
-          radius={Math.max(layer.width, layer.height) / 2} 
+          radiusX={layer.width / 2}
+          radiusY={layer.height / 2}
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}
         />
@@ -537,11 +539,12 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
   const startPosRef = useRef<{ x: number, y: number } | null>(null);
   const lastPointerPosRef = useRef<{ x: number, y: number } | null>(null);
   const deletedLayerIdsRef = useRef<Set<number | string>>(new Set());
+  const lastPenTimeRef = useRef<number>(0);
   
   const stageRef = useRef<Konva.Stage>(null);
   const activeLineRef = useRef<Konva.Line>(null);
   const activeRectRef = useRef<Konva.Rect>(null);
-  const activeCircleRef = useRef<Konva.Circle>(null);
+  const activeEllipseRef = useRef<Konva.Ellipse>(null);
   const activeArrowRef = useRef<Konva.Arrow>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -587,7 +590,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
   // Tool change cleanup
   useEffect(() => {
     if (activeRectRef.current) activeRectRef.current.visible(false);
-    if (activeCircleRef.current) activeCircleRef.current.visible(false);
+    if (activeEllipseRef.current) activeEllipseRef.current.visible(false);
     if (activeArrowRef.current) activeArrowRef.current.visible(false);
     if (activeLineRef.current) activeLineRef.current.visible(false);
     isDrawing.current = false;
@@ -701,6 +704,19 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
 
   // Tools Logic
   const handleMouseDown = (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
+    // Basic palm rejection: ignore touch if a pen was recently used (within 500ms)
+    // We use a safe check for pointerType as it might not exist on all event types
+    const pointerType = (e.evt as unknown as PointerEvent).pointerType || 
+                        ((e.evt as unknown as TouchEvent).touches ? 'touch' : 'mouse');
+    
+    if (pointerType === 'pen') {
+      lastPenTimeRef.current = Date.now();
+    } else if (pointerType === 'touch') {
+      if (Date.now() - lastPenTimeRef.current < 500) {
+        return; // Ignore touch if pen was used recently
+      }
+    }
+
     const stage = e.target.getStage();
     if (!stage) return;
 
@@ -764,11 +780,12 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
         activeRectRef.current.width(0);
         activeRectRef.current.height(0);
         activeRectRef.current.visible(true);
-      } else if (currentTool === 'circle' && activeCircleRef.current) {
-        activeCircleRef.current.x(pos.x);
-        activeCircleRef.current.y(pos.y);
-        activeCircleRef.current.radius(0);
-        activeCircleRef.current.visible(true);
+      } else if (currentTool === 'circle' && activeEllipseRef.current) {
+        activeEllipseRef.current.x(pos.x);
+        activeEllipseRef.current.y(pos.y);
+        activeEllipseRef.current.radiusX(0);
+        activeEllipseRef.current.radiusY(0);
+        activeEllipseRef.current.visible(true);
       } else if (currentTool === 'arrow' && activeArrowRef.current) {
         activeArrowRef.current.points([pos.x, pos.y, pos.x, pos.y]);
         activeArrowRef.current.visible(true);
@@ -828,18 +845,19 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
       return;
     }
 
-    if (currentTool === 'circle' && activeCircleRef.current && startPosRef.current) {
+    if (currentTool === 'circle' && activeEllipseRef.current && startPosRef.current) {
       const dx = pos.x - startPosRef.current.x;
       const dy = pos.y - startPosRef.current.y;
       
-      let radius: number;
       if (e.evt.shiftKey) {
-        radius = Math.max(Math.abs(dx), Math.abs(dy));
+        const radius = Math.max(Math.abs(dx), Math.abs(dy));
+        activeEllipseRef.current.radiusX(radius);
+        activeEllipseRef.current.radiusY(radius);
       } else {
-        radius = Math.sqrt(dx * dx + dy * dy);
+        activeEllipseRef.current.radiusX(Math.abs(dx));
+        activeEllipseRef.current.radiusY(Math.abs(dy));
       }
       
-      activeCircleRef.current.radius(radius);
       stage.batchDraw();
       return;
     }
@@ -925,6 +943,11 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
     
     currentPointsRef.current.push(pos.x, pos.y);
     
+    // Live canvas extension for smoother infinite vertical growth
+    if (pos.y > canvasHeight - 200) {
+      ensureHeight(pos.y);
+    }
+    
     // Imperative update - NO React state change here
     if (activeLineRef.current) {
       activeLineRef.current.points([...currentPointsRef.current]);
@@ -997,15 +1020,18 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
         const dx = pos.x - startPosRef.current.x;
         const dy = pos.y - startPosRef.current.y;
         
-        let radius: number;
+        let width, height;
         if (e.evt.shiftKey) {
-          radius = Math.max(Math.abs(dx), Math.abs(dy));
+          const radius = Math.max(Math.abs(dx), Math.abs(dy));
+          width = radius * 2;
+          height = radius * 2;
         } else {
-          radius = Math.sqrt(dx * dx + dy * dy);
+          width = Math.abs(dx) * 2;
+          height = Math.abs(dy) * 2;
         }
 
-        if (radius < 5) {
-          if (activeCircleRef.current) activeCircleRef.current.visible(false);
+        if (width < 5 && height < 5) {
+          if (activeEllipseRef.current) activeEllipseRef.current.visible(false);
           return;
         }
         newShape = {
@@ -1014,13 +1040,13 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
           tool: 'circle',
           x: startPosRef.current.x,
           y: startPosRef.current.y,
-          width: radius * 2,
-          height: radius * 2,
+          width: width,
+          height: height,
           rotation: 0,
           stroke: TOOL_CONFIG.circle.color,
           strokeWidth: TOOL_CONFIG.circle.width,
         };
-        if (activeCircleRef.current) activeCircleRef.current.visible(false);
+        if (activeEllipseRef.current) activeEllipseRef.current.visible(false);
       } else if (currentTool === 'arrow') {
         let endX = pos.x;
         let endY = pos.y;
@@ -1412,7 +1438,8 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
               <span className="text-sm font-medium text-gray-600 mr-2">
                 已選取 {
                   layers.find(l => (l.id === selectedId))?.type === 'media' ? '圖片' : 
-                  layers.find(l => (l.id === selectedId))?.type === 'text' ? '文字' : '筆跡'
+                  layers.find(l => (l.id === selectedId))?.type === 'text' ? '文字' : 
+                  layers.find(l => (l.id === selectedId))?.type === 'shape' ? '圖形' : '筆跡'
                 }
               </span>
               <div className="flex items-center gap-1">
@@ -1582,8 +1609,10 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
                   strokeWidth={TOOL_CONFIG.rectangle.width}
                   visible={false}
                 />
-                <Circle
-                  ref={activeCircleRef}
+                <Ellipse
+                  ref={activeEllipseRef}
+                  radiusX={0}
+                  radiusY={0}
                   stroke={TOOL_CONFIG.circle.color}
                   strokeWidth={TOOL_CONFIG.circle.width}
                   visible={false}
