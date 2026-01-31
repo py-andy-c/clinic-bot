@@ -10,19 +10,14 @@ Specific user pain points:
 3.  **Incorrect Resizing Behavior**: Resizing the text box scales the text (stretching it or changing font size) instead of reflowing the text (adjusting line wraps) while keeping font size constant.
 4.  **Fixed Font Size**: Users cannot adjust the font size for new or existing text boxes.
 
-## 2. Current Implementation Analysis
+## 2. Current Implementation Analysis (Post-Implementation Gaps)
 
-The current implementation uses `Konva.Text` within `ClinicalWorkspace.tsx`.
+The current implementation uses `Konva.Text` within `ClinicalWorkspace.tsx`. While core reflowing is implemented, several UX issues remain:
 
-*   **Creation**: A new `TextLayer` is created with hardcoded text `'點擊編輯'` and `fontSize: 20`.
-*   **Editing**: A double-click triggers `SelectableText`. It creates a standard HTML `<textarea>` overlay.
-    *   The `textarea` has fixed dimensions (`width`, `height`) matching the Konva node.
-    *   It has `resize: none` and `overflow: hidden`.
-    *   It does not auto-grow during typing.
-*   **Resizing**: The `Transformer` is used on the `Konva.Text` node.
-    *   The default behavior of `Transformer` is to change the `scaleX` and `scaleY` of the node.
-    *   The `onTransformEnd` handler applies this scale to the `width` and `fontSize` properties: `width: node.width() * scaleX`, `fontSize: node.fontSize() * scaleY`.
-    *   This results in text growing/shrinking rather than reflowing.
+*   **Delayed Updates**: The canvas node only updates its content and size on `blur`. This prevents the selection box (Transformer) from growing in real-time as the user types.
+*   **Infinite Horizontal Growth**: By using `width: undefined`, text boxes do not wrap automatically. They continue to grow horizontally until the user manually resizes them.
+*   **Editor/Canvas Mismatch**: The `textarea` editor uses `whiteSpace: 'pre'` for auto-width boxes, which explicitly disables the line wrapping expected in slide-like tools.
+*   **Height Lag**: Since the canvas doesn't update in real-time, the vertical growth is not visible until editing is finished.
 
 ## 3. Industry Standards & Best Practices
 
@@ -35,27 +30,26 @@ Reviewing popular applications like Google Slides, PowerPoint, and Figma reveals
 | **Resizing** | **Reflows text**. Changing width adjusts the wrapping boundary. Font size remains **fixed**. | **Scales text**. Changing width stretches the text or increases font size. |
 | **Font Size** | Controlled via toolbar/menu. Independent of box dimensions. | Coupled with box resizing. No explicit control. |
 
-## 4. Proposed Improvements
+## 4. Proposed Improvements (Updated & Refined)
 
 ### 4.1. Lifecycle & Placeholder
 *   **Action**: Update the text tool creation logic.
 *   **Behavior**:
     1.  When "Text" tool is active and user clicks:
-        *   Create a text node with empty string `""` (or a visual-only placeholder that isn't part of the data).
+        *   Create a text node with empty string `""`.
         *   Immediately enter "Edit Mode" (focus the textarea).
-    2.  **Empty State**: If the user finishes editing (blurs) and the text is empty (or whitespace only), **delete the text layer** automatically.
-    3.  **Migration**: For existing records with "點擊編輯", we **leave them as is**. No migration script will be run. The new logic will only apply to new text boxes or when the user manually edits an old one (which will trigger the new resize/edit behavior).
+    2.  **Empty State**: If the user finishes editing (blurs) and the text is empty, **delete the text layer** automatically.
 
-### 4.2. Auto-Growing Text Box
-*   **Action**: Improve the `textarea` overlay and `Konva.Text` behavior.
-*   **Behavior**:
-    *   The `Konva.Text` node should typically have `width` set to "auto" (undefined) initially, or a default width if dragged.
-    *   **Editing**:
-        *   The `<textarea>` should automatically adjust its height as the user types.
-        *   We can use a library like `react-textarea-autosize` or a custom `useEffect` to adjust `style.height` based on `scrollHeight`.
-    *   **Konva Node**:
-        *   If the user hasn't manually resized the width, the `Konva.Text` should grow horizontally.
-        *   If the user *has* manually resized width, it should wrap and grow vertically.
+### 4.2. Auto-Growing & Real-time Wrapping
+*   **Action**: Sync the `textarea` overlay and `Konva.Text` in real-time.
+*   **Identified Gaps**:
+    *   Current implementation only updates canvas on `blur`, creating a disconnected experience.
+    *   `undefined` width leads to infinite horizontal growth (point-text style) which is often not desired for notes.
+*   **Refined Behavior**:
+    1.  **Default Width**: New text boxes should be initialized with a standard default width (e.g., **250px**) to encourage vertical growth and wrapping.
+    2.  **Real-time Sync**: The `input` event on the `textarea` should propagate changes to the `Konva.Text` node immediately (or with minimal debounce). This ensures the canvas and its selection box grow as the user types.
+    3.  **Wrapping Logic**: Use `whiteSpace: 'pre-wrap'` for the editor and `wrap: 'word'` for Konva to ensure consistent line breaking.
+    4.  **Height Sync**: The height of both the editor and the canvas node should always be driven by the content (`scrollHeight`).
 
 ### 4.3. Resizing = Reflowing (Not Scaling)
 *   **Action**: Change `Transformer` configuration and `onTransform` logic.

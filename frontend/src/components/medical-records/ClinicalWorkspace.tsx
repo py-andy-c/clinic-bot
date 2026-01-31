@@ -249,6 +249,15 @@ const SelectableText = ({ layer, isSelected, onSelect, onChange, onDelete }: {
 }) => {
   const shapeRef = useRef<Konva.Text>(null);
   const trRef = useRef<Konva.Transformer>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (textareaRef.current && textareaRef.current.parentNode === document.body) {
+        document.body.removeChild(textareaRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (layer.text === '' && isSelected) {
@@ -280,9 +289,11 @@ const SelectableText = ({ layer, isSelected, onSelect, onChange, onDelete }: {
     };
 
     const textarea = document.createElement('textarea');
+    textareaRef.current = textarea;
     document.body.appendChild(textarea);
 
-    textarea.value = textNode.text();
+    const initialValue = textNode.text();
+    textarea.value = initialValue;
     textarea.style.position = 'absolute';
     textarea.style.top = areaPosition.y + 'px';
     textarea.style.left = areaPosition.x + 'px';
@@ -301,11 +312,14 @@ const SelectableText = ({ layer, isSelected, onSelect, onChange, onDelete }: {
     textarea.style.color = typeof textNode.fill() === 'string' ? (textNode.fill() as string) : 'black';
     textarea.style.transform = `rotate(${textNode.rotation()}deg)`;
 
-    const isAutoWidth = layer.width === undefined;
+    const isAutoWidth = !layer.width;
+
+    textarea.style.whiteSpace = 'pre-wrap';
+    textarea.style.wordBreak = 'break-word';
 
     if (isAutoWidth) {
-      textarea.style.whiteSpace = 'pre'; // Don't wrap lines automatically
       textarea.style.width = 'auto';
+      textarea.style.minWidth = '50px';
     } else {
       textarea.style.width = textNode.width() * stage.scaleX() + 'px';
     }
@@ -318,9 +332,15 @@ const SelectableText = ({ layer, isSelected, onSelect, onChange, onDelete }: {
       if (isAutoWidth) {
          // For horizontal auto-grow
          textarea.style.width = '0px'; // Collapse to measure
-         // Add buffer to prevent jitter
          const newWidth = Math.max(textarea.scrollWidth, 50); 
          textarea.style.width = newWidth + 'px';
+      }
+
+      // Update Konva node in real-time
+      textNode.text(textarea.value);
+      textNode.getLayer()?.batchDraw();
+      if (trRef.current) {
+        trRef.current.forceUpdate();
       }
     };
 
@@ -331,10 +351,14 @@ const SelectableText = ({ layer, isSelected, onSelect, onChange, onDelete }: {
 
     textarea.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
-        if (textNode.text() === '') {
+        // Revert to initial value on Escape
+        textarea.value = initialValue;
+        textNode.text(initialValue);
+        textNode.getLayer()?.batchDraw();
+        if (trRef.current) trRef.current.forceUpdate();
+        
+        if (initialValue === '') {
            onDelete();
-        } else {
-           textarea.value = textNode.text();
         }
         textarea.blur();
       }
@@ -351,7 +375,9 @@ const SelectableText = ({ layer, isSelected, onSelect, onChange, onDelete }: {
       } else {
         onChange({ text: newVal });
       }
-      document.body.removeChild(textarea);
+      if (textarea.parentNode === document.body) {
+        document.body.removeChild(textarea);
+      }
     });
   };
 
@@ -377,6 +403,7 @@ const SelectableText = ({ layer, isSelected, onSelect, onChange, onDelete }: {
         fill={layer.fill}
         rotation={layer.rotation}
         draggable={isSelected}
+        wrap="word"
         {...(layer.width !== undefined ? { width: layer.width } : {})}
         onClick={onSelect}
         onTap={onSelect}
@@ -938,7 +965,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
         fontSize: currentFontSize,
         fill: TOOL_CONFIG.text.color,
         rotation: 0,
-        // width undefined for auto-grow
+        width: 250, // Default width for auto-wrap
       };
 
       // Better to call updateLayers to ensure history consistency
