@@ -19,7 +19,7 @@ const TOOL_CONFIG = {
   highlighter: { color: 'rgba(255, 255, 0, 0.3)', width: 20 },
   eraser: { color: '#ffffff', width: 20 },
   select: { color: '#3b82f6', width: 1 },
-  text: { color: '#000000', width: 1 },
+  text: { color: '#000000', width: 1, fontSize: 20 },
   rectangle: { color: '#000000', width: 2 },
   circle: { color: '#000000', width: 2 },
   arrow: { color: '#000000', width: 2 },
@@ -240,14 +240,21 @@ const SelectableLine = ({ layer, isSelected, onSelect, onChange, calculateBoundi
 };
 
 // Selectable Text Component
-const SelectableText = ({ layer, isSelected, onSelect, onChange }: {
+const SelectableText = ({ layer, isSelected, onSelect, onChange, onDelete }: {
   layer: TextLayer;
   isSelected: boolean;
   onSelect: () => void;
   onChange: (newAttrs: Partial<TextLayer>) => void;
+  onDelete: () => void;
 }) => {
   const shapeRef = useRef<Konva.Text>(null);
   const trRef = useRef<Konva.Transformer>(null);
+
+  useEffect(() => {
+    if (layer.text === '' && isSelected) {
+       handleDblClick();
+    }
+  }, [layer.text, isSelected]);
 
   useEffect(() => {
     if (isSelected && trRef.current && shapeRef.current) {
@@ -279,8 +286,6 @@ const SelectableText = ({ layer, isSelected, onSelect, onChange }: {
     textarea.style.position = 'absolute';
     textarea.style.top = areaPosition.y + 'px';
     textarea.style.left = areaPosition.x + 'px';
-    textarea.style.width = textNode.width() * stage.scaleX() + 'px';
-    textarea.style.height = textNode.height() * stage.scaleY() + 'px';
     textarea.style.fontSize = textNode.fontSize() * stage.scaleX() + 'px';
     textarea.style.border = 'none';
     textarea.style.padding = '0px';
@@ -296,20 +301,56 @@ const SelectableText = ({ layer, isSelected, onSelect, onChange }: {
     textarea.style.color = typeof textNode.fill() === 'string' ? (textNode.fill() as string) : 'black';
     textarea.style.transform = `rotate(${textNode.rotation()}deg)`;
 
+    const isAutoWidth = layer.width === undefined;
+
+    if (isAutoWidth) {
+      textarea.style.whiteSpace = 'pre'; // Don't wrap lines automatically
+      textarea.style.width = 'auto';
+    } else {
+      textarea.style.width = textNode.width() * stage.scaleX() + 'px';
+    }
+    
+    // Auto-grow logic
+    const updateSize = () => {
+      textarea.style.height = 'auto';
+      textarea.style.height = textarea.scrollHeight + 'px';
+
+      if (isAutoWidth) {
+         // For horizontal auto-grow
+         textarea.style.width = '0px'; // Collapse to measure
+         // Add buffer to prevent jitter
+         const newWidth = Math.max(textarea.scrollWidth, 50); 
+         textarea.style.width = newWidth + 'px';
+      }
+    };
+
+    // Apply size initially
+    updateSize();
+
     textarea.focus();
 
     textarea.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        textarea.blur();
-      }
       if (e.key === 'Escape') {
-        textarea.value = textNode.text(); // Revert to original text
+        if (textNode.text() === '') {
+           onDelete();
+        } else {
+           textarea.value = textNode.text();
+        }
         textarea.blur();
       }
     });
 
+    textarea.addEventListener('input', () => {
+        updateSize();
+    });
+
     textarea.addEventListener('blur', () => {
-      onChange({ text: textarea.value });
+      const newVal = textarea.value;
+      if (!newVal || newVal.trim() === '') {
+        onDelete();
+      } else {
+        onChange({ text: newVal });
+      }
       document.body.removeChild(textarea);
     });
   };
@@ -336,6 +377,7 @@ const SelectableText = ({ layer, isSelected, onSelect, onChange }: {
         fill={layer.fill}
         rotation={layer.rotation}
         draggable={isSelected}
+        {...(layer.width !== undefined ? { width: layer.width } : {})}
         onClick={onSelect}
         onTap={onSelect}
         onDblClick={handleDblClick}
@@ -348,21 +390,37 @@ const SelectableText = ({ layer, isSelected, onSelect, onChange }: {
             y: e.target.y(),
           });
         }}
+        onTransform={() => {
+            // We use onTransform to override the default scaling behavior
+            const node = shapeRef.current;
+            if (!node) return;
+            
+            // Instead of scaling, we want to change the width
+            // Calculate new width based on scaleX
+            const scaleX = node.scaleX();
+            
+            // Reset scale
+            node.scaleX(1);
+            node.scaleY(1);
+            
+            // Update width
+            const newWidth = Math.max(30, node.width() * scaleX);
+            node.width(newWidth);
+        }}
         onTransformEnd={() => {
           const node = shapeRef.current;
           if (!node) return;
-          const scaleX = node.scaleX();
-          const scaleY = node.scaleY();
-
+          
+          // Ensure scale is 1
           node.scaleX(1);
           node.scaleY(1);
 
           onChange({
             x: node.x(),
             y: node.y(),
-            width: node.width() * scaleX,
-            fontSize: node.fontSize() * scaleY,
+            width: node.width(),
             rotation: node.rotation(),
+            // Do NOT update fontSize here
           });
         }}
       />
@@ -370,7 +428,7 @@ const SelectableText = ({ layer, isSelected, onSelect, onChange }: {
         <Transformer
           ref={trRef}
           rotateEnabled={true}
-          enabledAnchors={['top-left', 'top-right', 'bottom-left', 'bottom-right']}
+          enabledAnchors={['middle-left', 'middle-right']} // Disable top/bottom handles
           anchorSize={8}
           padding={5}
           boundBoxFunc={(_oldBox, newBox) => {
@@ -532,6 +590,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
     });
   });
   const [currentTool, setCurrentTool] = useState<DrawingTool>('pen');
+  const [currentFontSize, setCurrentFontSize] = useState<number>(TOOL_CONFIG.text.fontSize);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [canvasHeight, setCanvasHeight] = useState(initialData.canvas_height || MIN_CANVAS_HEIGHT);
 
@@ -567,6 +626,28 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
 
   useEffect(() => { layersRef.current = layers; }, [layers]);
   useEffect(() => { selectedIdRef.current = selectedId; }, [selectedId]);
+
+  // Update font size when selecting text
+  useEffect(() => {
+    if (selectedId) {
+      const layer = layers.find(l => l.id === selectedId);
+      if (layer && layer.type === 'text') {
+        setCurrentFontSize((layer as TextLayer).fontSize);
+      }
+    }
+  }, [selectedId, layers]);
+
+  const handleFontSizeChange = (size: number) => {
+    setCurrentFontSize(size);
+    if (selectedId) {
+      const layer = layers.find(l => l.id === selectedId);
+      if (layer && layer.type === 'text') {
+        updateLayers(prev => prev.map(l => 
+          l.id === selectedId ? { ...l, fontSize: size } : l
+        ));
+      }
+    }
+  };
 
   // Scaling factor for logical to visual container
   const baseScale = CONTAINER_WIDTH / CANVAS_WIDTH;
@@ -728,7 +809,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
         e.preventDefault();
       }
     };
-    const handleKeyUp = (_e: KeyboardEvent) => {
+    const handleKeyUp = () => {
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -808,7 +889,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
   }, [historyStep]);
 
   // Zoom logic disabled for pageless model
-  const handleWheel = (_e: Konva.KonvaEventObject<WheelEvent>) => {
+  const handleWheel = () => {
     // Zoom disabled. Let the browser handle standard scrolling.
   };
 
@@ -851,12 +932,13 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
       const newText: TextLayer = {
         type: 'text',
         id: `text-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-        text: '點擊編輯',
+        text: '',
         x: pos.x,
         y: pos.y,
-        fontSize: 20,
+        fontSize: currentFontSize,
         fill: TOOL_CONFIG.text.color,
         rotation: 0,
+        // width undefined for auto-grow
       };
 
       // Better to call updateLayers to ensure history consistency
@@ -958,7 +1040,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
     }
   };
 
-  const handleMouseUp = (_e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
+  const handleMouseUp = () => {
     if (!isDrawing.current) return;
     isDrawing.current = false;
 
@@ -1307,6 +1389,20 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
           icon={<TextIcon />}
           label="文字 (T)"
         />
+        {(currentTool === 'text' || (selectedId && layers.find(l => l.id === selectedId)?.type === 'text')) && (
+          <div className="flex items-center gap-1 ml-1 px-2 py-1 bg-gray-100 rounded-md">
+            <span className="text-xs text-gray-500">Aa</span>
+            <select 
+              value={currentFontSize} 
+              onChange={(e) => handleFontSizeChange(Number(e.target.value))}
+              className="bg-transparent text-sm font-medium focus:outline-none cursor-pointer"
+            >
+              {[12, 14, 16, 18, 20, 24, 28, 32, 36, 48, 64].map(size => (
+                <option key={size} value={size}>{size}</option>
+              ))}
+            </select>
+          </div>
+        )}
         <div className="w-px h-6 bg-gray-200 mx-1" />
         <ToolButton
           onClick={() => fileInputRef.current?.click()}
@@ -1438,6 +1534,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
                           ensureHeight((newAttrs.y || textLayer.y) + (newAttrs.fontSize || textLayer.fontSize) * 2);
                         }
                       }}
+                      onDelete={() => deleteSelected()}
                     />
                   );
                 } else if (layer.type === 'shape') {
