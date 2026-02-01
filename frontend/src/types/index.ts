@@ -744,9 +744,21 @@ export interface TextLayer {
   rotation: number;
 }
 
+export interface LoadingLayer {
+  type: 'loading';
+  id: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  rotation: number;
+  status: 'uploading';
+  progress?: number;
+}
+
 export interface WorkspaceData {
   version: number;
-  layers: (DrawingPath | MediaLayer | TextLayer | ShapeLayer)[];
+  layers: (DrawingPath | MediaLayer | TextLayer | ShapeLayer | LoadingLayer)[];
   canvas_height: number;
   canvas_width: number; // Mandatory for scaling consistency
   background_image_url?: string;

@@ -3,7 +3,7 @@ import { Stage, Layer, Line, Image as KonvaImage, Transformer, Text as KonvaText
 import Konva from 'konva';
 import useImage from 'use-image';
 import imageCompression from 'browser-image-compression';
-import type { WorkspaceData, DrawingPath, MediaLayer, TextLayer, ShapeLayer, DrawingTool } from '../../types';
+import type { WorkspaceData, DrawingPath, MediaLayer, TextLayer, ShapeLayer, LoadingLayer, DrawingTool } from '../../types';
 import { logger } from '../../utils/logger';
 import { apiService } from '../../services/api';
 import { SyncStatus, SyncStatusType } from './SyncStatus';
@@ -1054,6 +1054,55 @@ const SelectableShape = ({ layer, isSelected, onSelect, onChange, dragLimits, is
   );
 };
 
+// Placeholder for images currently being uploaded
+const LoadingPlaceholder = ({ layer }: { layer: LoadingLayer }) => {
+  return (
+    <Group x={layer.x} y={layer.y} rotation={layer.rotation}>
+      <Rect
+        width={layer.width}
+        height={layer.height}
+        fill="#f3f4f6"
+        stroke="#9ca3af"
+        strokeWidth={2}
+        dash={[10, 5]}
+        cornerRadius={8}
+      />
+      <Group x={layer.width / 2} y={layer.height / 2}>
+        <KonvaText
+          text="上傳中..."
+          fontSize={14}
+          fontStyle="bold"
+          fill="#4b5563"
+          align="center"
+          width={layer.width}
+          offsetX={layer.width / 2}
+          offsetY={20}
+        />
+        {layer.progress !== undefined && (
+          <Group offsetY={-10}>
+            <Rect
+              x={-50}
+              y={0}
+              width={100}
+              height={4}
+              fill="#e5e7eb"
+              cornerRadius={2}
+            />
+            <Rect
+              x={-50}
+              y={0}
+              width={100 * (layer.progress || 0)}
+              height={4}
+              fill="#3b82f6"
+              cornerRadius={2}
+            />
+          </Group>
+        )}
+      </Group>
+    </Group>
+  );
+};
+
 // Background Image Component
 const BackgroundImage = ({ url, width }: { url: string; width: number }) => {
   const [image] = useImage(url, 'anonymous');
@@ -1078,7 +1127,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
   onUpdate,
   syncStatus,
 }) => {
-  const [layers, setLayers] = useState<(DrawingPath | MediaLayer | TextLayer | ShapeLayer)[]>(() => {
+  const [layers, setLayers] = useState<(DrawingPath | MediaLayer | TextLayer | ShapeLayer | LoadingLayer)[]>(() => {
     const rawLayers = initialData.layers || [];
     const seenIds = new Set<string>();
 
@@ -1122,7 +1171,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
         }
       }
 
-      return migrated as DrawingPath | MediaLayer | TextLayer | ShapeLayer;
+      return migrated as DrawingPath | MediaLayer | TextLayer | ShapeLayer | LoadingLayer;
     });
   });
   const [currentTool, setCurrentTool] = useState<DrawingTool>('select');
@@ -1175,7 +1224,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
   }, [dragLimits]);
 
   // Internal helper to render individual layers - NOT a component to prevent unmounting on re-render
-  const renderLayer = (layer: DrawingPath | MediaLayer | TextLayer | ShapeLayer, index: number) => {
+  const renderLayer = (layer: DrawingPath | MediaLayer | TextLayer | ShapeLayer | LoadingLayer, index: number) => {
     const isSelectToolActive = currentTool === 'select';
 
     if (layer.type === 'media') {
@@ -1261,6 +1310,8 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
           isSelectToolActive={isSelectToolActive}
         />
       );
+    } else if (layer.type === 'loading') {
+      return <LoadingPlaceholder key={layer.id} layer={layer as LoadingLayer} />;
     }
     return null;
   };
@@ -1317,15 +1368,11 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
     }
   };
 
-  // Viewport state (Fixed for Pageless model)
-  const stageScale = 1;
-  const stagePos = { x: 0, y: 0 };
-
   // Combined scale for rendering - fixed to fit container width
   const scale = SCALE;
 
   // History for Undo/Redo
-  const [history, setHistory] = useState<(DrawingPath | MediaLayer | TextLayer | ShapeLayer)[][]>([initialData.layers || []]);
+  const [history, setHistory] = useState<(DrawingPath | MediaLayer | TextLayer | ShapeLayer | LoadingLayer)[][]>([initialData.layers || []]);
   const [historyStep, setHistoryStep] = useState(0);
 
   // Sync state
@@ -1471,9 +1518,12 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
 
   // Save functionality
   const saveWorkspace = useCallback(() => {
+    // Filter out transient layers (like LoadingLayer) before saving
+    const persistentLayers = layers.filter(l => l.type !== 'loading') as (DrawingPath | MediaLayer | TextLayer | ShapeLayer)[];
+
     const workspaceData: WorkspaceData = {
       ...initialDataRef.current,
-      layers,
+      layers: persistentLayers,
       version: WORKSPACE_VERSION,
       local_version: localVersion,
       canvas_width: CANVAS_WIDTH,
@@ -1488,7 +1538,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
 
     onUpdateRef.current(workspaceData);
     lastSentVersionRef.current = localVersion;
-  }, [layers, localVersion, canvasHeight, stageScale, stagePos]);
+  }, [layers, localVersion, canvasHeight]);
 
   // Handle syncing state to parent
   useEffect(() => {
@@ -1514,16 +1564,20 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
     }
   }, [canvasHeight]);
 
-  const updateLayers = useCallback((newLayersOrUpdater: (DrawingPath | MediaLayer | TextLayer | ShapeLayer)[] | ((prev: (DrawingPath | MediaLayer | TextLayer | ShapeLayer)[]) => (DrawingPath | MediaLayer | TextLayer | ShapeLayer)[])) => {
+  const updateLayers = useCallback((newLayersOrUpdater: (DrawingPath | MediaLayer | TextLayer | ShapeLayer | LoadingLayer)[] | ((prev: (DrawingPath | MediaLayer | TextLayer | ShapeLayer | LoadingLayer)[]) => (DrawingPath | MediaLayer | TextLayer | ShapeLayer | LoadingLayer)[])) => {
     // Add to history and limit size to prevent memory leaks (max 50 steps)
     const MAX_HISTORY = 50;
 
     setLayers(prevLayers => {
       const nextLayers = typeof newLayersOrUpdater === 'function' ? newLayersOrUpdater(prevLayers) : newLayersOrUpdater;
 
+      // Filter out transient layers (like LoadingLayer) from history
+      // This prevents the "stuck uploading" state when undoing to a point where an upload was in progress
+      const persistentLayers = nextLayers.filter(l => l.type !== 'loading') as (DrawingPath | MediaLayer | TextLayer | ShapeLayer)[];
+
       setHistory(prevHistory => {
         let newHistory = prevHistory.slice(0, historyStep + 1);
-        newHistory.push(nextLayers);
+        newHistory.push(persistentLayers);
         if (newHistory.length > MAX_HISTORY) {
           newHistory = newHistory.slice(newHistory.length - MAX_HISTORY);
         }
@@ -1558,7 +1612,10 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
       pointerId = touch?.identifier || 0;
 
       // iPad/Safari Pencil Detection (touchType is 'stylus')
-      if (touch && (touch as any).touchType === 'stylus') {
+      // Use Touch type but cast to unknown first to safely check for vendor-specific touchType
+      // This is necessary because standard Touch interface doesn't include touchType (Safari/iPad specific)
+      const stylusTouch = touch as unknown as { touchType?: string };
+      if (stylusTouch && stylusTouch.touchType === 'stylus') {
         pointerType = 'pen';
       } else {
         pointerType = 'touch';
@@ -2018,7 +2075,42 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
     }
 
     setIsUploading(true);
+    const loadingId = `loading-${Math.random().toString(36).slice(2, 7)}`;
+
     try {
+      // Calculate center of current viewport relative to canvas for the placeholder
+      let targetX = (CANVAS_WIDTH - 200) / 2;
+      let targetY = 100;
+
+      if (stageRef.current) {
+        const container = stageRef.current.container();
+        const rect = container.getBoundingClientRect();
+        
+        // viewport center in document coordinates
+        const viewportCenterY = window.scrollY + window.innerHeight / 2;
+        
+        // canvas top in document coordinates
+        const canvasTop = rect.top + window.scrollY;
+        
+        // target Y is viewport center relative to canvas top, minus half placeholder height
+        targetY = Math.max(20, (viewportCenterY - canvasTop) / scale - 75);
+      }
+
+      // Add loading placeholder (don't add to history yet if possible, but updateLayers does)
+      const loadingLayer: LoadingLayer = {
+        type: 'loading',
+        id: loadingId,
+        x: targetX,
+        y: targetY,
+        width: 200,
+        height: 150,
+        rotation: 0,
+        progress: 0,
+        status: 'uploading'
+      };
+      
+      setLayers(prev => [...prev, loadingLayer]);
+
       const compressionOptions = {
         maxSizeMB: 1,
         maxWidthOrHeight: 2000,
@@ -2028,6 +2120,10 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
       };
 
       const compressedFile = await imageCompression(file, compressionOptions);
+      
+      // Update progress
+      setLayers(prev => prev.map(l => l.id === loadingId ? { ...l, progress: 0.3 } as LoadingLayer : l));
+
       const dimensions = await new Promise<{ width: number; height: number }>((resolve, reject) => {
         const img = new Image();
         img.onload = () => {
@@ -2049,25 +2145,13 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
         height = height * ratio;
       }
 
-      // Calculate center of current viewport relative to canvas
-      let targetX = 100;
-      let targetY = 100;
-
+      // Final target position based on actual dimensions
       if (stageRef.current) {
         const container = stageRef.current.container();
         const rect = container.getBoundingClientRect();
-
-        // viewport center in document coordinates
         const viewportCenterY = window.scrollY + window.innerHeight / 2;
-
-        // canvas top in document coordinates
         const canvasTop = rect.top + window.scrollY;
-
-        // target Y is viewport center relative to canvas top, minus half image height
-        // Convert visual pixels to logical units by dividing by scale
         targetY = Math.max(20, (viewportCenterY - canvasTop) / scale - height / 2);
-
-        // target X is horizontal center of canvas minus half image width
         targetX = Math.max(0, (CANVAS_WIDTH - width) / 2);
       }
 
@@ -2084,13 +2168,21 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
       };
 
       ensureHeight(newMedia.y + newMedia.height);
-      updateLayers(prev => [...prev, newMedia]);
+      
+      // Replace loading layer with actual media layer and add to history
+      updateLayers(prev => {
+        const filtered = prev.filter(l => l.id !== loadingId);
+        return [...filtered, newMedia];
+      });
+      
       setCurrentTool('select');
       setSelectedId(data.id);
 
     } catch (err) {
       logger.error('Upload error:', err);
       alert('圖片上傳失敗');
+      // Remove loading layer on error
+      setLayers(prev => prev.filter(l => l.id !== loadingId));
     } finally {
       setIsUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
