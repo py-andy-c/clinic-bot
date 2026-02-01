@@ -29,13 +29,20 @@ This PR significantly improves the drawing and annotation experience for medical
 
 ### 3. Robust Palm Rejection & Pencil Priority
 
-* **Pencil Priority**: The system now prioritizes `pen` input. Even if a palm is touching the screen, the Apple Pencil maintains priority and drawing operation continues uninterrupted.
-* **Pointer ID Filtering**: Implemented tracking of `activePointerId` to ensure `mousemove` events are only processed for the specific pointer that initiated the stroke. This prevents "line jumping" caused by overlapping palm touches.
-* **Stroke Cancellation**: Multi-touch detection during *finger* drawing now immediately finalizes the stroke to prevent accidental "smudges" while attempting to scroll.
+* **Pencil Priority**: The system now prioritizes `pen` input, with specific support for iOS/Safari's `stylus` touch type. Even if a palm is touching the screen, the Apple Pencil maintains priority and drawing continues uninterrupted.
+* **Pointer ID Synchronization**: Implemented tracking across both `TouchEvent` and `PointerEvent` APIs to ensure reliable multi-touch detection.
+* **Jitter Elimination**: The move handler now iterates through `changedTouches`, specifically extracting coordinates for the active drawing index. This prevents "line jumping" caused by overlapping palm contact during high-speed sketching.
 
-### 4. UI Polish for Tablets
+### 4. Technical Architecture
+
+* **Smart Scroll Discovery**: Replaced class-based sibling lookup with a robust `getComputedStyle` recursion that finds the actual nearest scrollable parent.
+
+* **Lifecycle Reliability**: Added `onTouchCancel` support to ensure drawing/navigation states are properly reset during system-level interruptions.
+
+### 5. UI Polish for Tablets
 
 * Disabled blue selection highlights on long-press (`user-select: none`).
+
 * Disabled the iOS system context menu on the drawing area (`-webkit-touch-callout: none`).
 
 ## Design Constraints & Exclusions (Intentional)

@@ -1140,6 +1140,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
   const lastTouchPos = useRef<{ x: number, y: number } | null>(null);
   const activePointerIdRef = useRef<number | null>(null);
   const activePointerTypeRef = useRef<string | null>(null);
+  const activePointersRef = useRef<Set<number>>(new Set());
 
   const stageRef = useRef<Konva.Stage>(null);
   const activeLineRef = useRef<Konva.Line>(null);
@@ -1160,10 +1161,11 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
     maxY: canvasHeight
   };
 
-  const getClampedPointerPosition = useCallback(() => {
+  const getClampedPointerPosition = useCallback((customPos?: { x: number, y: number }) => {
     const stage = stageRef.current;
     if (!stage) return null;
-    const pos = stage.getRelativePointerPosition();
+
+    const pos = customPos || stage.getRelativePointerPosition();
     if (!pos) return null;
 
     return {
@@ -1552,19 +1554,33 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
       pointerId = (nativeEvent as PointerEvent).pointerId;
     } else if (isTouch) {
       const touchEvent = nativeEvent as unknown as TouchEvent;
-      pointerType = 'touch';
-      // Use the first touch that started the event
-      pointerId = touchEvent.changedTouches[0]?.identifier || 0;
+      const touch = touchEvent.changedTouches[0] || touchEvent.touches[0];
+      pointerId = touch?.identifier || 0;
+
+      // iPad/Safari Pencil Detection (touchType is 'stylus')
+      if (touch && (touch as any).touchType === 'stylus') {
+        pointerType = 'pen';
+      } else {
+        pointerType = 'touch';
+      }
     }
 
-    const touchCount = isTouch ? (nativeEvent as unknown as TouchEvent).touches.length : 1;
+    // Use the native touch count if available, otherwise use our manual tracking Set
+    const touchCount = isTouch ? (nativeEvent as unknown as TouchEvent).touches.length : activePointersRef.current.size;
 
     return { nativeEvent, isTouch, pointerType, pointerId, touchCount };
   };
 
   // Tools Logic
   const handleMouseDown = (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
-    const { nativeEvent, isTouch, pointerType, pointerId, touchCount } = getEventData(e);
+    const nativeEvent = e.evt;
+
+    // Manually track active pointers for engines that use individual PointerEvents instead of TouchEvents
+    if (!('touches' in nativeEvent) && 'pointerId' in nativeEvent) {
+      activePointersRef.current.add((nativeEvent as PointerEvent).pointerId);
+    }
+
+    const { isTouch, pointerType, pointerId, touchCount } = getEventData(e);
 
     // Prevent browser-synthesized mouse events from touch to stop "double firing"
     if (isTouch && nativeEvent.cancelable) {
@@ -1711,14 +1727,22 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
         const dx = lastTouchPos.current.x - avgX;
         const dy = lastTouchPos.current.y - avgY;
 
-        // Smart scroll target: scroll window or closest scrollable container
-        const container = stageRef.current?.container();
-        const scrollParent = container?.closest('.scroll-container, .overflow-auto, .overflow-y-auto');
-        if (scrollParent) {
-          scrollParent.scrollBy(dx, dy);
-        } else {
-          window.scrollBy(dx, dy);
+        // Smart scroll target: find scrollable parent by overflow property or default to window
+        const stage = stageRef.current;
+        const container = stage?.container();
+        let scrollParent: Element | Window = window;
+        if (container) {
+          let parent = container.parentElement;
+          while (parent) {
+            const overflowY = window.getComputedStyle(parent).overflowY;
+            if (overflowY === 'auto' || overflowY === 'scroll') {
+              scrollParent = parent;
+              break;
+            }
+            parent = parent.parentElement;
+          }
         }
+        scrollParent.scrollBy(dx, dy);
       }
 
       lastTouchPos.current = { x: avgX, y: avgY };
@@ -1732,19 +1756,32 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
     }
 
     // 3. Drawing Logic
-    // Ignore movement from pointers that didn't initiate the drawing
-    if (isDrawing.current && activePointerIdRef.current !== null && activePointerIdRef.current !== pointerId) {
-      return;
+    const stage = stageRef.current;
+    if (!stage) return;
+
+    let customPos: { x: number, y: number } | undefined;
+    if (isTouch) {
+      const touchEvent = nativeEvent as unknown as TouchEvent;
+      // Search changedTouches for the specific pointer that initiated this stroke
+      const activeTouch = Array.from(touchEvent.changedTouches).find(t => t.identifier === activePointerIdRef.current);
+      if (!activeTouch) return; // This movement event doesn't involve our drawing pointer
+
+      const containerRect = stage.container().getBoundingClientRect();
+      const stagePos = {
+        x: activeTouch.clientX - containerRect.left,
+        y: activeTouch.clientY - containerRect.top
+      };
+      // Convert absolute stage position to relative logical position (accounts for stage scale/offset)
+      customPos = stage.getAbsoluteTransform().copy().invert().point(stagePos);
+    } else {
+      if (pointerId !== activePointerIdRef.current) return;
     }
 
     // If we are navigating, ONLY allow drawing if the current pointer is NOT a standard touch (i.e. it's a pen/mouse)
     if (isNavigating.current && pointerType === 'touch') return;
     if (!isDrawing.current) return;
 
-    const stage = stageRef.current;
-    if (!stage) return;
-
-    const pos = getClampedPointerPosition();
+    const pos = getClampedPointerPosition(customPos);
     if (!pos) return;
 
     if (currentTool === 'eraser') {
@@ -1792,7 +1829,11 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
 
   const handleMouseUp = (e?: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
     if (e) {
-      const { nativeEvent, isTouch } = getEventData(e);
+      const nativeEvent = e.evt;
+      if (!('touches' in nativeEvent) && 'pointerId' in nativeEvent) {
+        activePointersRef.current.delete((nativeEvent as PointerEvent).pointerId);
+      }
+      const { isTouch } = getEventData(e);
       if (isTouch && nativeEvent.cancelable) {
         nativeEvent.preventDefault();
       }
@@ -2237,6 +2278,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
             onTouchStart={handleMouseDown}
             onTouchMove={handleMouseMove}
             onTouchEnd={(e) => handleMouseUp(e)}
+            onTouchCancel={(e: Konva.KonvaEventObject<TouchEvent>) => handleMouseUp(e)}
           >
             <Layer name="background" listening={false}>
               {/* Paper Background */}
