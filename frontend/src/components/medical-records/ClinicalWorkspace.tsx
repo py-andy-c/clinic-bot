@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { Stage, Layer, Line, Image as KonvaImage, Transformer, Text as KonvaText, Rect, Arrow, Ellipse, Circle } from 'react-konva';
+import { Stage, Layer, Line, Image as KonvaImage, Transformer, Text as KonvaText, Rect, Arrow, Ellipse, Circle, Group } from 'react-konva';
 import Konva from 'konva';
 import useImage from 'use-image';
 import imageCompression from 'browser-image-compression';
@@ -838,12 +838,13 @@ const SelectableShape = ({ layer, isSelected, onSelect, onChange, dragLimits }: 
     };
 
     const handleAnchorDrag = (index: number, e: Konva.KonvaEventObject<DragEvent>) => {
+      e.cancelBubble = true; // Prevent Group's onDragMove from firing
       const stage = e.target.getStage();
       if (!stage) return;
 
-      const pos = e.target.position();
-      const newX = Math.max(dragLimits.minX, Math.min(dragLimits.maxX, pos.x));
-      const newY = Math.max(dragLimits.minY, Math.min(dragLimits.maxY, pos.y));
+      const absPos = e.target.getAbsolutePosition();
+      const newX = Math.max(dragLimits.minX, Math.min(dragLimits.maxX, absPos.x));
+      const newY = Math.max(dragLimits.minY, Math.min(dragLimits.maxY, absPos.y));
 
       if (index === 0) {
         // Tail dragged
@@ -864,13 +865,21 @@ const SelectableShape = ({ layer, isSelected, onSelect, onChange, dragLimits }: 
       }
     };
 
+    const handleAnchorDragEnd = (e: Konva.KonvaEventObject<DragEvent>) => {
+      e.cancelBubble = true; // Prevent Group's onDragEnd from firing
+    };
+
     return (
-      <>
+      <Group
+        x={layer.x}
+        y={layer.y}
+        {...movementProps}
+      >
         <Arrow
           id={layer.id}
           ref={shapeRef as React.Ref<Konva.Arrow>}
-          x={layer.x}
-          y={layer.y}
+          x={0}
+          y={0}
           width={layer.width}
           height={layer.height}
           points={[0, 0, layer.width, layer.height]}
@@ -882,20 +891,21 @@ const SelectableShape = ({ layer, isSelected, onSelect, onChange, dragLimits }: 
           onTap={onSelect}
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}
-          {...movementProps}
+          draggable={false}
         />
         {isSelected && (
           <>
             {/* Tail Anchor */}
             <Circle
-              x={layer.x}
-              y={layer.y}
+              x={0}
+              y={0}
               radius={6}
               fill="white"
               stroke="#0096ff"
               strokeWidth={2}
               draggable
               onDragMove={(e) => handleAnchorDrag(0, e)}
+              onDragEnd={handleAnchorDragEnd}
               onMouseEnter={(e) => {
                 const stage = e.target.getStage();
                 if (stage) stage.container().style.cursor = getArrowCursor();
@@ -904,14 +914,15 @@ const SelectableShape = ({ layer, isSelected, onSelect, onChange, dragLimits }: 
             />
             {/* Head Anchor */}
             <Circle
-              x={layer.x + layer.width}
-              y={layer.y + layer.height}
+              x={layer.width}
+              y={layer.height}
               radius={6}
               fill="white"
               stroke="#0096ff"
               strokeWidth={2}
               draggable
               onDragMove={(e) => handleAnchorDrag(1, e)}
+              onDragEnd={handleAnchorDragEnd}
               onMouseEnter={(e) => {
                 const stage = e.target.getStage();
                 if (stage) stage.container().style.cursor = getArrowCursor();
@@ -920,7 +931,7 @@ const SelectableShape = ({ layer, isSelected, onSelect, onChange, dragLimits }: 
             />
           </>
         )}
-      </>
+      </Group>
     );
   }
 
