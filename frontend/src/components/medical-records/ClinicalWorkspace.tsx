@@ -163,7 +163,7 @@ const handleSideAnchorTransform = (
   let newHeight = startState.height;
 
   switch (activeAnchor) {
-    case 'middle-right':
+    case 'middle-right': {
       // Right anchor: left edge stays fixed
       const desiredRightEdge = pointerPos.x;
       const clampedRightEdge = Math.min(dragLimits.maxX, Math.max(startLeft + minWidth, desiredRightEdge));
@@ -171,30 +171,34 @@ const handleSideAnchorTransform = (
       // For non-center: x is the left edge. For center: x is center
       newX = isCenter ? startLeft + newWidth / 2 : startLeft;
       break;
+    }
 
-    case 'middle-left':
+    case 'middle-left': {
       // Left anchor: right edge stays fixed
       const desiredLeftEdge = pointerPos.x;
       const clampedLeftEdge = Math.max(dragLimits.minX, Math.min(startRight - minWidth, desiredLeftEdge));
       newWidth = startRight - clampedLeftEdge;
       newX = isCenter ? clampedLeftEdge + newWidth / 2 : clampedLeftEdge;
       break;
+    }
 
-    case 'bottom-center':
+    case 'bottom-center': {
       // Bottom anchor: top edge stays fixed
       const desiredBottomEdge = pointerPos.y;
       const clampedBottomEdge = Math.min(dragLimits.maxY, Math.max(startTop + minHeight, desiredBottomEdge));
       newHeight = clampedBottomEdge - startTop;
       newY = isCenter ? startTop + newHeight / 2 : startTop;
       break;
+    }
 
-    case 'top-center':
+    case 'top-center': {
       // Top anchor: bottom edge stays fixed
       const desiredTopEdge = pointerPos.y;
       const clampedTopEdge = Math.max(dragLimits.minY, Math.min(startBottom - minHeight, desiredTopEdge));
       newHeight = startBottom - clampedTopEdge;
       newY = isCenter ? clampedTopEdge + newHeight / 2 : clampedTopEdge;
       break;
+    }
 
     default:
       return false; // Not a side anchor
@@ -405,7 +409,7 @@ const SelectableLine = ({ layer, isSelected, onSelect, onChange, calculateBoundi
         points={layer.points.flatMap(p => [p[0], p[1]])}
         stroke={layer.color}
         strokeWidth={layer.width}
-        hitStrokeWidth={Math.max(10, layer.width)}
+        hitStrokeWidth={Math.max(25, layer.width)}
         tension={0.5}
         lineCap="round"
         lineJoin="round"
@@ -872,6 +876,7 @@ const SelectableShape = ({ layer, isSelected, onSelect, onChange, dragLimits }: 
           points={[0, 0, layer.width, layer.height]}
           stroke={layer.stroke}
           strokeWidth={layer.strokeWidth}
+          hitStrokeWidth={Math.max(25, layer.strokeWidth)}
           fill={layer.stroke}
           onClick={onSelect}
           onTap={onSelect}
@@ -927,6 +932,7 @@ const SelectableShape = ({ layer, isSelected, onSelect, onChange, dragLimits }: 
     rotation: layer.rotation,
     stroke: layer.stroke,
     strokeWidth: layer.strokeWidth,
+    hitStrokeWidth: Math.max(25, layer.strokeWidth),
     fill: layer.fill || '',
     onClick: onSelect,
     onTap: onSelect,
