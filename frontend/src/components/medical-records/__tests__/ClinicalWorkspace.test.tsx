@@ -32,7 +32,7 @@ vi.mock('../../../services/api', () => ({
 describe('ClinicalWorkspace', () => {
   const mockInitialData = {
     layers: [],
-    canvas_width: 1000,
+    canvas_width: 900,
     canvas_height: 1000,
     version: 2,
   };
@@ -43,7 +43,7 @@ describe('ClinicalWorkspace', () => {
     vi.clearAllMocks();
 
     // Mock offsetWidth/Height
-    Object.defineProperty(HTMLElement.prototype, 'offsetWidth', { configurable: true, value: 1000 });
+    Object.defineProperty(HTMLElement.prototype, 'offsetWidth', { configurable: true, value: 900 });
     Object.defineProperty(HTMLElement.prototype, 'offsetHeight', { configurable: true, value: 800 });
 
     // Mock Konva Stage pointer position
@@ -52,12 +52,12 @@ describe('ClinicalWorkspace', () => {
 
     // Mock getBoundingClientRect
     HTMLElement.prototype.getBoundingClientRect = vi.fn().mockReturnValue({
-      width: 850,
+      width: 900,
       height: 1000,
       top: 0,
       left: 0,
       bottom: 1000,
-      right: 850,
+      right: 900,
       x: 0,
       y: 0,
       toJSON: () => { },
@@ -157,7 +157,7 @@ describe('ClinicalWorkspace', () => {
             height: 300, // Maintained 800:600 ratio (400:300)
           })
         ]),
-        canvas_width: 1000,
+        canvas_width: 900,
       }));
     }, { timeout: 3000 });
 
@@ -177,11 +177,11 @@ describe('ClinicalWorkspace', () => {
 
       const lastCall = mockOnUpdate.mock.calls[mockOnUpdate.mock.calls.length - 1][0] as { layers: { type: string; x: number; y: number }[] };
       const uploadedImage = lastCall.layers.find((l) => l.type === 'media');
-      expect(uploadedImage?.x).toBe(300); // (1000 - 400) / 2
+      expect(uploadedImage?.x).toBe(250); // (900 - 400) / 2
       // viewport center (400) - canvas top (0) = 400 visual px
-      // 400 visual px / scale (0.85) = 470.58 logical units
-      // 470.58 - image height / 2 (150) = 320.58
-      expect(uploadedImage?.y).toBeCloseTo(320.58, 1);
+      // 400 visual px / scale (1.0) = 400 logical units
+      // 400 - image height / 2 (150) = 250
+      expect(uploadedImage?.y).toBe(250);
     }, { timeout: 3000 });
 
     await waitFor(() => {

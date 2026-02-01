@@ -28,7 +28,7 @@ vi.mock('../../../services/api', () => ({
 describe('ClinicalWorkspace Text Tool', () => {
   const mockInitialData = {
     layers: [],
-    canvas_width: 1000,
+    canvas_width: 900,
     canvas_height: 1000,
     version: 2,
   };
@@ -39,7 +39,7 @@ describe('ClinicalWorkspace Text Tool', () => {
     vi.clearAllMocks();
 
     // Mock offsetWidth/Height
-    Object.defineProperty(HTMLElement.prototype, 'offsetWidth', { configurable: true, value: 1000 });
+    Object.defineProperty(HTMLElement.prototype, 'offsetWidth', { configurable: true, value: 900 });
     Object.defineProperty(HTMLElement.prototype, 'offsetHeight', { configurable: true, value: 800 });
 
     // Mock Konva Stage pointer position
@@ -48,12 +48,12 @@ describe('ClinicalWorkspace Text Tool', () => {
 
     // Mock getBoundingClientRect
     HTMLElement.prototype.getBoundingClientRect = vi.fn().mockReturnValue({
-      width: 850,
+      width: 900,
       height: 1000,
       top: 0,
       left: 0,
       bottom: 1000,
-      right: 850,
+      right: 900,
       x: 0,
       y: 0,
       toJSON: () => { },
@@ -116,7 +116,7 @@ describe('ClinicalWorkspace Text Tool', () => {
     // 2. Click on canvas to create text box
     const stage = container.querySelector('.konvajs-content');
     expect(stage).not.toBeNull();
-    
+
     // Simulate mousedown on stage
     fireEvent.mouseDown(stage!);
     fireEvent.mouseUp(stage!);
@@ -126,29 +126,29 @@ describe('ClinicalWorkspace Text Tool', () => {
 
     const textarea = document.querySelector('textarea');
     expect(textarea).not.toBeNull();
-    
+
     // 4. Type text
     fireEvent.change(textarea!, { target: { value: 'Hello World' } });
-    fireEvent.input(textarea!); 
-    
+    fireEvent.input(textarea!);
+
     // 5. Blur to save
     fireEvent.blur(textarea!);
-    
+
     // 6. Verify onUpdate called with new layer
     expect(mockOnUpdate).toHaveBeenCalled();
     const lastCall = mockOnUpdate.mock.calls[mockOnUpdate.mock.calls.length - 1][0];
     const textLayer = lastCall.layers.find((l: { type: string; text: string; width?: number }) => l.type === 'text');
     expect(textLayer).toBeDefined();
     expect(textLayer.text).toBe('Hello World');
-    
-    // Default width is 2/3 of CANVAS_WIDTH (1000) = 666.666...
+
+    // Default width is 2/3 of CANVAS_WIDTH (900) = 600
     // Pointer position is mocked at {x: 100, y: 100} in beforeEach
-    expect(textLayer.width).toBeCloseTo(666.66, 1);
+    expect(textLayer.width).toBe(600);
   });
 
   it('shrinks text box width when created near the right edge', async () => {
-    // Override pointer position to be near the right edge (x=900, CANVAS_WIDTH=1000)
-    vi.spyOn(Konva.Stage.prototype, 'getRelativePointerPosition').mockReturnValue({ x: 900, y: 100 });
+    // Override pointer position to be near the right edge (x=800, CANVAS_WIDTH=900)
+    vi.spyOn(Konva.Stage.prototype, 'getRelativePointerPosition').mockReturnValue({ x: 800, y: 100 });
 
     const { container } = render(
       <ClinicalWorkspace
@@ -166,9 +166,9 @@ describe('ClinicalWorkspace Text Tool', () => {
     expect(mockOnUpdate).toHaveBeenCalled();
     const lastCall = mockOnUpdate.mock.calls[mockOnUpdate.mock.calls.length - 1][0];
     const textLayer = lastCall.layers.find((l: { type: string; width?: number }) => l.type === 'text');
-    
-    // width = min(1000 * 2/3, 1027 - 900) = min(666.66, 127) = 127
-    expect(textLayer.width).toBe(127);
+
+    // width = min(900 * 2/3, 900 - 800) = min(600, 100) = 100
+    expect(textLayer.width).toBe(100);
   });
 
   it('updates Konva text node in real-time while typing', async () => {
@@ -192,11 +192,11 @@ describe('ClinicalWorkspace Text Tool', () => {
 
     await new Promise(resolve => setTimeout(resolve, 0));
     const textarea = document.querySelector('textarea') as HTMLTextAreaElement;
-    
+
     // 2. Mock the text node that would be found by dblclick/click logic
     // In the actual component, it finds the node via stage.findOne('.selected') or similar
     // For this test, we want to verify the 'input' event listener logic
-    
+
     // Type text and trigger input
     fireEvent.change(textarea, { target: { value: 'Typing real-time...' } });
     fireEvent.input(textarea);
@@ -225,17 +225,17 @@ describe('ClinicalWorkspace Text Tool', () => {
     await new Promise(resolve => setTimeout(resolve, 50));
     const textarea = document.querySelector('textarea') as HTMLTextAreaElement;
     expect(textarea).not.toBeNull();
-    
+
     // Initial value is empty for a new box, but let's type something and then escape
     fireEvent.change(textarea, { target: { value: 'New Text' } });
     fireEvent.input(textarea);
-    
+
     // Press Escape
     fireEvent.keyDown(textarea, { key: 'Escape' });
 
     // For a new box, initial value was '', so it should revert to '' and call onDelete
     expect(textarea.value).toBe('');
-    
+
     // Blur and verify onDelete was effectively called (text is empty)
     fireEvent.blur(textarea);
     expect(mockOnUpdate).toHaveBeenCalled();
@@ -270,22 +270,22 @@ describe('ClinicalWorkspace Text Tool', () => {
     // We need to access the Konva node to simulate transform
     // In Vitest/Testing Library Konva, we can sometimes find the node via refs or internal stage
     // But since we want to verify the logic in onTransform, we can trigger the event
-    
+
     // For this test, we'll look at the onChange call after transformEnd
     // 1. Select the text
     const stage = container.querySelector('.konvajs-content');
-    fireEvent.mouseDown(stage!); 
+    fireEvent.mouseDown(stage!);
     fireEvent.mouseUp(stage!);
 
     // Since we can't easily trigger Konva's internal transformer events from DOM testing library,
     // we'll rely on the logic we've already verified in previous steps or unit test the component logic.
     // However, we can mock the behavior by checking how onUpdate is called if we were to simulate a transform.
-    
+
     // NOTE: Testing internal Konva transformation logic is complex in RTL. 
     // The existing code has:
     // onTransform={() => { ... node.scaleX(1); node.width(newWidth); }}
     // onTransformEnd={() => { onChange({ width: node.width() }); }}
-    
+
     // We can verify that when we call onChange, it has the correct width.
   });
 });

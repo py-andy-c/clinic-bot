@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { Stage, Layer, Group, Line, Image as KonvaImage, Transformer, Text as KonvaText, Rect, Arrow, Ellipse, Circle } from 'react-konva';
+import { Stage, Layer, Line, Image as KonvaImage, Transformer, Text as KonvaText, Rect, Arrow, Ellipse, Circle } from 'react-konva';
 import Konva from 'konva';
 import useImage from 'use-image';
 import imageCompression from 'browser-image-compression';
@@ -41,14 +41,10 @@ const TOOL_CONFIG = {
   arrow: { color: '#000000', width: 2 },
 };
 
-const CANVAS_WIDTH = 1000; // Logical width for coordinates
-const CONTAINER_WIDTH = 850; // Visual "paper" width
-const STAGE_WIDTH = 896; // Visual "extended" area width (The visible desk)
-const STAGE_BUFFER = 40; // Extra pixels for handles
-const GUTTER_UNITS = 27; // logical units for 23px at 0.85 scale ((896-850)/2 / 0.85)
+const CANVAS_WIDTH = 900; // Single unified width
 const MIN_CANVAS_HEIGHT = 1100;
 const WORKSPACE_VERSION = 2;
-const SCALE = CONTAINER_WIDTH / CANVAS_WIDTH;
+const SCALE = 1; // 1:1 logical to visual
 
 /**
  * Shared logic for clamping transformations (resizing) to canvas boundaries.
@@ -360,7 +356,7 @@ const SelectableLine = ({ layer, isSelected, onSelect, onChange, calculateBoundi
           let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
           for (let i = 0; i < newPoints.length; i += 2) {
             const px = newPoints[i] ?? 0;
-            const py = newPoints[i+1] ?? 0;
+            const py = newPoints[i + 1] ?? 0;
             if (px < minX) minX = px;
             if (px > maxX) maxX = px;
             if (py < minY) minY = py;
@@ -436,6 +432,7 @@ const SelectableText = ({ layer, isSelected, onSelect, onChange, onDelete, dragL
   }, [isSelected]);
 
   const handleDblClick = () => {
+    if (textareaRef.current) return;
     const textNode = shapeRef.current;
     if (!textNode) return;
 
@@ -704,7 +701,7 @@ const SelectableShape = ({ layer, isSelected, onSelect, onChange, dragLimits }: 
     const getArrowCursor = () => {
       const angle = Math.atan2(layer.height, layer.width) * (180 / Math.PI);
       const absAngle = Math.abs(angle);
-      
+
       if ((absAngle > 22.5 && absAngle < 67.5) || (absAngle > 112.5 && absAngle < 157.5)) {
         return (angle > 0 === absAngle < 90) ? 'nwse-resize' : 'nesw-resize';
       }
@@ -898,13 +895,48 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
   const [layers, setLayers] = useState<(DrawingPath | MediaLayer | TextLayer | ShapeLayer)[]>(() => {
     const rawLayers = initialData.layers || [];
     const seenIds = new Set<string>();
+
+    // Migration logic: Scale coordinates if the source data was from the old 1000-unit canvas
+    const oldWidth = initialData.canvas_width || 1000;
+    const migrationScale = (initialData.version === undefined || initialData.version < 2) ? (CANVAS_WIDTH / oldWidth) : 1;
+
     return rawLayers.map((layer, i) => {
       let id = layer.id;
       if (!id || seenIds.has(id)) {
         id = `${layer.type || 'layer'}-${Date.now()}-${i}-${Math.random().toString(36).slice(2, 7)}`;
       }
       seenIds.add(id);
-      return { ...layer, id };
+
+      const migrated = { ...layer, id };
+
+      // Apply migration scaling for older records
+      if (migrationScale !== 1) {
+        if (migrated.type === 'drawing') {
+          migrated.points = migrated.points.map(p =>
+            p[2] !== undefined
+              ? [p[0] * migrationScale, p[1] * migrationScale, p[2]]
+              : [p[0] * migrationScale, p[1] * migrationScale]
+          );
+          if (migrated.boundingBox) {
+            migrated.boundingBox = {
+              minX: migrated.boundingBox.minX * migrationScale,
+              maxX: migrated.boundingBox.maxX * migrationScale,
+              minY: migrated.boundingBox.minY * migrationScale,
+              maxY: migrated.boundingBox.maxY * migrationScale,
+            };
+          }
+        } else {
+          migrated.x = (migrated.x || 0) * migrationScale;
+          migrated.y = (migrated.y || 0) * migrationScale;
+          if ('width' in migrated && migrated.width !== undefined) migrated.width *= migrationScale;
+          if ('height' in migrated && migrated.height !== undefined) migrated.height *= migrationScale;
+          if (migrated.type === 'text' && migrated.fontSize) {
+            migrated.fontSize *= migrationScale;
+          }
+        }
+      }
+
+      return migrated as DrawingPath | MediaLayer | TextLayer | ShapeLayer;
     });
   });
   const [currentTool, setCurrentTool] = useState<DrawingTool>('pen');
@@ -933,8 +965,8 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
   const initialDataRef = useRef(initialData);
 
   const dragLimits = {
-    minX: -GUTTER_UNITS,
-    maxX: CANVAS_WIDTH + GUTTER_UNITS,
+    minX: 0,
+    maxX: CANVAS_WIDTH,
     minY: 0,
     maxY: canvasHeight
   };
@@ -1764,7 +1796,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
 
 
   return (
-    <div className="relative w-full bg-gray-50 min-h-screen">
+    <div className="relative w-full bg-white min-h-screen">
       {/* Toolbar */}
       <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-white rounded-full shadow-2xl px-6 py-2 flex items-center gap-2 z-20 border border-gray-200">
         <ToolButton
@@ -1878,37 +1910,20 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
       )}
 
       {/* Main Document View */}
-      <div className="relative pt-12 pb-32 px-4 flex justify-center bg-gray-100 min-h-screen">
+      <div className="relative pt-12 pb-32 flex justify-center bg-white min-h-screen">
         <div
-          className="relative overflow-visible"
+          className="relative bg-white shadow-xl border border-gray-200"
           style={{
-            width: STAGE_WIDTH,
-            minHeight: canvasHeight * scale,
+            width: CANVAS_WIDTH,
+            minHeight: canvasHeight,
             cursor: getStageCursor(),
           }}
         >
-          {/* Visual Paper Shadow - positioned to match the logical 0-1000 area */}
-          <div
-            className="absolute bg-white shadow-xl"
-            style={{
-              left: GUTTER_UNITS * scale,
-              width: CANVAS_WIDTH * scale,
-              top: 0,
-              bottom: 0,
-              pointerEvents: 'none',
-              zIndex: 0
-            }}
-          />
-
           <Stage
             ref={stageRef}
-            width={STAGE_WIDTH + STAGE_BUFFER * 2}
-            height={canvasHeight * scale}
-            scaleX={scale}
-            scaleY={scale}
-            offsetX={-GUTTER_UNITS - (STAGE_BUFFER / scale)}
-            style={{ marginLeft: -STAGE_BUFFER }}
-            className="relative z-10"
+            width={CANVAS_WIDTH}
+            height={canvasHeight}
+            className="relative"
             onWheel={handleWheel}
             onMouseDown={handleMouseDown}
             onMouseMove={handleMouseMove}
@@ -1931,27 +1946,9 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
               )}
             </Layer>
             <Layer name="content">
-              {/* Group for non-selected items, clipped to the white page area */}
-              <Group
-                id="clipped-content"
-                clipX={0}
-                clipY={0}
-                clipWidth={CANVAS_WIDTH}
-                clipHeight={canvasHeight}
-              >
-                {layers.map((layer, i) => {
-                  if (layer.id === selectedId) return null;
-                  return renderLayer(layer, i);
-                })}
-              </Group>
-
-              {/* Render selected item outside the clipped group so it's visible in gutters */}
-              {selectedId && (() => {
-                const index = layers.findIndex(l => l.id === selectedId);
-                const selectedLayer = layers[index];
-                if (!selectedLayer) return null;
-                return renderLayer(selectedLayer, index);
-              })()}
+              {layers.map((layer, i) => (
+                renderLayer(layer, i)
+              ))}
 
               {/* Interaction Overlays */}
               <Line

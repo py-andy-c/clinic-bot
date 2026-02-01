@@ -320,9 +320,11 @@ const MedicalRecordEditorPage: React.FC = () => {
       </div>
 
       {/* Clinical Workspace Section - Phase 4 - Full Width Container */}
-      <div className="bg-gray-200 border-t border-gray-300 min-h-screen">
-        <div className="max-w-4xl mx-auto pt-12 px-4 sm:px-6 lg:px-8">
-          <h2 className="text-xl font-semibold mb-6">臨床工作區</h2>
+      <div className="bg-white">
+        <div className="pt-12 flex justify-center">
+          <div style={{ width: 900 }}>
+            <h2 className="text-xl font-semibold mb-6">臨床工作區</h2>
+          </div>
         </div>
         <ClinicalWorkspace
           key={record.id}
