@@ -211,6 +211,9 @@ describe('ClinicalWorkspace', () => {
     // or just trigger the internal logic if we could.
     // Let's try to simulate the events on the stage container.
 
+    // Select pen tool first since default is now 'select'
+    fireEvent.click(screen.getByLabelText(/畫筆/i));
+
     fireEvent.mouseDown(stageElement, { clientX: 100, clientY: 100 });
     fireEvent.mouseMove(stageElement, { clientX: 100, clientY: 1050 });
     fireEvent.mouseUp(stageElement);

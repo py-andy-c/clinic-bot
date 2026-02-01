@@ -1090,7 +1090,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
       return migrated as DrawingPath | MediaLayer | TextLayer | ShapeLayer;
     });
   });
-  const [currentTool, setCurrentTool] = useState<DrawingTool>('pen');
+  const [currentTool, setCurrentTool] = useState<DrawingTool>('select');
   const [currentFontSize, setCurrentFontSize] = useState<number>(TOOL_CONFIG.text.fontSize);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [canvasHeight, setCanvasHeight] = useState(initialData.canvas_height || MIN_CANVAS_HEIGHT);
