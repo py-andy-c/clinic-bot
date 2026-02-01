@@ -46,6 +46,9 @@ const MIN_CANVAS_HEIGHT = 1100;
 const WORKSPACE_VERSION = 2;
 const SCALE = 1; // 1:1 logical to visual
 
+const SCROLL_ZONE = 80;
+const MAX_SPEED = 20;
+
 /**
  * Shared logic for clamping transformations (resizing) to canvas boundaries.
  * This handles resetting scale to 1 and adjusting width/height manually.
@@ -216,13 +219,15 @@ const handleSideAnchorTransform = (
 
 
 // Helper component for loading images
-const UrlImage = ({ layer, isSelected, onSelect, onChange, dragLimits, isSelectToolActive }: {
+const UrlImage = ({ layer, isSelected, onSelect, onChange, dragLimits, isSelectToolActive, onAutoScroll, onStopAutoScroll }: {
   layer: MediaLayer;
   isSelected: boolean;
   onSelect: () => void;
   onChange: (newAttrs: Partial<MediaLayer>) => void;
   dragLimits: { minX: number; maxX: number; minY: number; maxY: number };
   isSelectToolActive: boolean;
+  onAutoScroll?: (e: Konva.KonvaEventObject<MouseEvent | TouchEvent | DragEvent>) => void;
+  onStopAutoScroll?: () => void;
 }) => {
   const [image] = useImage(layer.url, 'anonymous');
   const shapeRef = useRef<Konva.Image>(null);
@@ -272,9 +277,11 @@ const UrlImage = ({ layer, isSelected, onSelect, onChange, dragLimits, isSelectT
           const y = Math.max(dragLimits.minY, Math.min(dragLimits.maxY - node.height() * node.scaleY(), node.y()));
           node.x(x);
           node.y(y);
+          onAutoScroll?.(e);
         }}
         onDragEnd={(e) => {
           setIsMoving(false);
+          onStopAutoScroll?.();
           onChange({
             x: e.target.x(),
             y: e.target.y(),
@@ -283,9 +290,11 @@ const UrlImage = ({ layer, isSelected, onSelect, onChange, dragLimits, isSelectT
         onTransformStart={() => setIsMoving(true)}
         onTransform={(e) => {
           handleTransformClamping(e.target, dragLimits);
+          onAutoScroll?.(e as unknown as Konva.KonvaEventObject<MouseEvent | TouchEvent>);
         }}
         onTransformEnd={() => {
           setIsMoving(false);
+          onStopAutoScroll?.();
           const node = shapeRef.current;
           if (!node) return;
           const scaleX = node.scaleX();
@@ -325,7 +334,7 @@ const UrlImage = ({ layer, isSelected, onSelect, onChange, dragLimits, isSelectT
 };
 
 // Selectable Drawing Component
-const SelectableLine = ({ layer, isSelected, onSelect, onChange, calculateBoundingBox, dragLimits, isSelectToolActive }: {
+const SelectableLine = ({ layer, isSelected, onSelect, onChange, calculateBoundingBox, dragLimits, isSelectToolActive, onAutoScroll, onStopAutoScroll }: {
   layer: DrawingPath;
   isSelected: boolean;
   onSelect: () => void;
@@ -333,6 +342,8 @@ const SelectableLine = ({ layer, isSelected, onSelect, onChange, calculateBoundi
   calculateBoundingBox: (points: [number, number, number?][]) => { minX: number; maxX: number; minY: number; maxY: number } | undefined;
   dragLimits: { minX: number; maxX: number; minY: number; maxY: number };
   isSelectToolActive: boolean;
+  onAutoScroll?: (e: Konva.KonvaEventObject<MouseEvent | TouchEvent | DragEvent>) => void;
+  onStopAutoScroll?: () => void;
 }) => {
   const shapeRef = useRef<Konva.Line>(null);
   const trRef = useRef<Konva.Transformer>(null);
@@ -438,8 +449,12 @@ const SelectableLine = ({ layer, isSelected, onSelect, onChange, calculateBoundi
           const y = Math.max(dragLimits.minY - bbox.minY, Math.min(dragLimits.maxY - bbox.maxY, node.y()));
           node.x(x);
           node.y(y);
+          onAutoScroll?.(e);
         }}
-        onDragEnd={handleDragEnd}
+        onDragEnd={(e) => {
+          onStopAutoScroll?.();
+          handleDragEnd(e);
+        }}
         onTransform={(e) => {
           const node = e.target as Konva.Line;
           const scaleX = node.scaleX();
@@ -482,8 +497,12 @@ const SelectableLine = ({ layer, isSelected, onSelect, onChange, calculateBoundi
 
           node.x(nx);
           node.y(ny);
+          onAutoScroll?.(e as unknown as Konva.KonvaEventObject<MouseEvent | TouchEvent | DragEvent>);
         }}
-        onTransformEnd={handleTransformEnd}
+        onTransformEnd={() => {
+          onStopAutoScroll?.();
+          handleTransformEnd();
+        }}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
       />
@@ -501,7 +520,7 @@ const SelectableLine = ({ layer, isSelected, onSelect, onChange, calculateBoundi
 };
 
 // Selectable Text Component
-const SelectableText = ({ layer, isSelected, onSelect, onChange, onDelete, dragLimits, isSelectToolActive }: {
+const SelectableText = ({ layer, isSelected, onSelect, onChange, onDelete, dragLimits, isSelectToolActive, onAutoScroll, onStopAutoScroll }: {
   layer: TextLayer;
   isSelected: boolean;
   onSelect: () => void;
@@ -509,6 +528,8 @@ const SelectableText = ({ layer, isSelected, onSelect, onChange, onDelete, dragL
   onDelete: () => void;
   dragLimits: { minX: number; maxX: number; minY: number; maxY: number };
   isSelectToolActive: boolean;
+  onAutoScroll?: (e: Konva.KonvaEventObject<MouseEvent | TouchEvent | DragEvent>) => void;
+  onStopAutoScroll?: () => void;
 }) => {
   const shapeRef = useRef<Konva.Text>(null);
   const trRef = useRef<Konva.Transformer>(null);
@@ -701,8 +722,10 @@ const SelectableText = ({ layer, isSelected, onSelect, onChange, onDelete, dragL
           const y = Math.max(dragLimits.minY, Math.min(dragLimits.maxY - node.height(), node.y()));
           node.x(x);
           node.y(y);
+          onAutoScroll?.(e);
         }}
         onDragEnd={(e) => {
+          onStopAutoScroll?.();
           onChange({
             x: e.target.x(),
             y: e.target.y(),
@@ -733,8 +756,10 @@ const SelectableText = ({ layer, isSelected, onSelect, onChange, onDelete, dragL
             // Fallback
             handleTransformClamping(node, dragLimits, { onlyWidth: true, minWidth: 30 });
           }
+          onAutoScroll?.(e as unknown as Konva.KonvaEventObject<MouseEvent | TouchEvent | DragEvent>);
         }}
         onTransformEnd={() => {
+          onStopAutoScroll?.();
           const node = shapeRef.current;
           if (!node) return;
 
@@ -769,13 +794,15 @@ const SelectableText = ({ layer, isSelected, onSelect, onChange, onDelete, dragL
 };
 
 // Selectable Shape Component
-const SelectableShape = ({ layer, isSelected, onSelect, onChange, dragLimits, isSelectToolActive }: {
+const SelectableShape = ({ layer, isSelected, onSelect, onChange, dragLimits, isSelectToolActive, onAutoScroll, onStopAutoScroll }: {
   layer: ShapeLayer;
   isSelected: boolean;
   onSelect: () => void;
   onChange: (newAttrs: Partial<ShapeLayer>) => void;
   dragLimits: { minX: number; maxX: number; minY: number; maxY: number };
   isSelectToolActive: boolean;
+  onAutoScroll?: (e: Konva.KonvaEventObject<MouseEvent | TouchEvent | DragEvent>) => void;
+  onStopAutoScroll?: () => void;
 }) => {
   const shapeRef = useRef<Konva.Shape>(null);
   const trRef = useRef<Konva.Transformer>(null);
@@ -825,8 +852,10 @@ const SelectableShape = ({ layer, isSelected, onSelect, onChange, dragLimits, is
 
       node.x(x);
       node.y(y);
+      onAutoScroll?.(e);
     },
     onDragEnd: (e: Konva.KonvaEventObject<DragEvent>) => {
+      onStopAutoScroll?.();
       onChange({
         x: e.target.x(),
         y: e.target.y(),
@@ -881,10 +910,12 @@ const SelectableShape = ({ layer, isSelected, onSelect, onChange, dragLimits, is
           height: newY - layer.y,
         });
       }
+      onAutoScroll?.(e);
     };
 
     const handleAnchorDragEnd = (e: Konva.KonvaEventObject<DragEvent>) => {
       e.cancelBubble = true; // Prevent Group's onDragEnd from firing
+      onStopAutoScroll?.();
     };
 
     return (
@@ -997,8 +1028,10 @@ const SelectableShape = ({ layer, isSelected, onSelect, onChange, dragLimits, is
         // Use scale-based clamping for corner anchors
         handleTransformClamping(e.target, dragLimits, { isCenter });
       }
+      onAutoScroll?.(e as unknown as Konva.KonvaEventObject<MouseEvent | TouchEvent | DragEvent>);
     },
     onTransformEnd: () => {
+      onStopAutoScroll?.();
       const node = shapeRef.current;
       if (!node) return;
 
@@ -1178,6 +1211,8 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
   const [currentFontSize, setCurrentFontSize] = useState<number>(TOOL_CONFIG.text.fontSize);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [canvasHeight, setCanvasHeight] = useState(initialData.canvas_height || MIN_CANVAS_HEIGHT);
+  const canvasHeightRef = useRef(canvasHeight);
+  useEffect(() => { canvasHeightRef.current = canvasHeight; }, [canvasHeight]);
 
   // Ref for the current drawing path
   const isDrawing = useRef(false);
@@ -1206,12 +1241,127 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
   const onUpdateRef = useRef(onUpdate);
   const initialDataRef = useRef(initialData);
 
+  const scrollVelocityRef = useRef({ x: 0, y: 0 });
+  const scrollRafRef = useRef<number | null>(null);
+  const draggingNodeRef = useRef<Konva.Node | null>(null);
+  const lastPointerEventRef = useRef<MouseEvent | TouchEvent | null>(null);
+  const isScrollLoopRunning = useRef(false);
+
   const dragLimits = {
     minX: 0,
     maxX: CANVAS_WIDTH,
     minY: 0,
     maxY: canvasHeight
   };
+
+  const updateScrollVelocity = useCallback((e: Konva.KonvaEventObject<MouseEvent | TouchEvent | DragEvent>) => {
+    const stage = e.target.getStage();
+    if (!stage) return;
+
+    // Capture the original DOM event for viewport-relative coordinates
+    const evt = e.evt;
+    lastPointerEventRef.current = evt as MouseEvent | TouchEvent;
+    draggingNodeRef.current = e.target;
+
+    let clientX = 0;
+    let clientY = 0;
+
+    if ('clientX' in evt) {
+      clientX = (evt as MouseEvent).clientX;
+      clientY = (evt as MouseEvent).clientY;
+    } else if ('touches' in evt) {
+      const touch = (evt as TouchEvent).touches[0];
+      if (touch) {
+        clientX = touch.clientX;
+        clientY = touch.clientY;
+      } else {
+        return;
+      }
+    } else {
+      return;
+    }
+
+    let vx = 0;
+    let vy = 0;
+
+    // Vertical scroll
+    if (clientY < SCROLL_ZONE) {
+      vy = -MAX_SPEED * (1 - clientY / SCROLL_ZONE);
+    } else if (clientY > window.innerHeight - SCROLL_ZONE) {
+      vy = MAX_SPEED * (1 - (window.innerHeight - clientY) / SCROLL_ZONE);
+    }
+
+    // Horizontal scroll
+    if (clientX < SCROLL_ZONE) {
+      vx = -MAX_SPEED * (1 - clientX / SCROLL_ZONE);
+    } else if (clientX > window.innerWidth - SCROLL_ZONE) {
+      vx = MAX_SPEED * (1 - (window.innerWidth - clientX) / SCROLL_ZONE);
+    }
+
+    scrollVelocityRef.current = { x: vx, y: vy };
+
+    // Start loop if it's not already running
+    if ((vx !== 0 || vy !== 0) && !isScrollLoopRunning.current) {
+      isScrollLoopRunning.current = true;
+      
+      const scrollLoop = () => {
+        const { x: cvx, y: cvy } = scrollVelocityRef.current;
+        const cNode = draggingNodeRef.current;
+        const cLastEvt = lastPointerEventRef.current;
+
+        if (cvx === 0 && cvy === 0) {
+          isScrollLoopRunning.current = false;
+          scrollRafRef.current = null;
+          return;
+        }
+
+        window.scrollBy(cvx, cvy);
+
+        if (cNode && cLastEvt) {
+          const cStage = cNode.getStage();
+          if (cStage) {
+            // Update pointer position relative to stage (handles scroll)
+            cStage.setPointersPositions(cLastEvt);
+
+            // Manually shift the node/anchor by the scroll delta if it's a dragging operation.
+            // This ensures the item follows the stationary mouse during auto-scroll.
+            // Firing 'dragmove' later will trigger the component's clamping logic.
+            if (cNode.isDragging() || cNode.className === 'Circle') {
+              cNode.x(cNode.x() + cvx);
+              cNode.y(cNode.y() + cvy);
+            }
+
+            // Trigger dragmove/transform to update component visuals and clamping
+            cNode.fire(cNode.isDragging() ? 'dragmove' : 'transform', {
+              evt: cLastEvt,
+              target: cNode,
+            }, true);
+            cStage.batchDraw();
+          }
+        }
+
+        scrollRafRef.current = requestAnimationFrame(scrollLoop);
+      };
+
+      scrollRafRef.current = requestAnimationFrame(scrollLoop);
+    }
+  }, []);
+
+  const stopScrolling = useCallback(() => {
+    scrollVelocityRef.current = { x: 0, y: 0 };
+    draggingNodeRef.current = null;
+    lastPointerEventRef.current = null;
+  }, []);
+
+  // Cleanup scroll loop on unmount
+  useEffect(() => {
+    return () => {
+      if (scrollRafRef.current) {
+        cancelAnimationFrame(scrollRafRef.current);
+      }
+    };
+  }, []);
+
 
   const getClampedPointerPosition = useCallback((customPos?: { x: number, y: number }) => {
     const stage = stageRef.current;
@@ -1248,6 +1398,8 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
           }}
           dragLimits={dragLimits}
           isSelectToolActive={isSelectToolActive}
+          onAutoScroll={updateScrollVelocity}
+          onStopAutoScroll={stopScrolling}
         />
       );
     } else if (layer.type === 'drawing') {
@@ -1270,6 +1422,8 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
           }}
           dragLimits={dragLimits}
           isSelectToolActive={isSelectToolActive}
+          onAutoScroll={updateScrollVelocity}
+          onStopAutoScroll={stopScrolling}
         />
       );
     } else if (layer.type === 'text') {
@@ -1291,6 +1445,8 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
           onDelete={() => deleteSelected()}
           dragLimits={dragLimits}
           isSelectToolActive={isSelectToolActive}
+          onAutoScroll={updateScrollVelocity}
+          onStopAutoScroll={stopScrolling}
         />
       );
     } else if (layer.type === 'shape') {
@@ -1311,6 +1467,8 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
           }}
           dragLimits={dragLimits}
           isSelectToolActive={isSelectToolActive}
+          onAutoScroll={updateScrollVelocity}
+          onStopAutoScroll={stopScrolling}
         />
       );
     } else if (layer.type === 'loading') {
