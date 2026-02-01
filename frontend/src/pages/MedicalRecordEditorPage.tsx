@@ -254,7 +254,7 @@ const MedicalRecordEditorPage: React.FC = () => {
   }
 
   return (
-    <>
+    <div className="medical-record-editor-root">
       <div className="max-w-4xl mx-auto">
         <div className="mb-4">
           <button
@@ -334,7 +334,7 @@ const MedicalRecordEditorPage: React.FC = () => {
           syncStatus={getSyncStatus()}
         />
       </div>
-    </>
+    </div>
   );
 };
 
