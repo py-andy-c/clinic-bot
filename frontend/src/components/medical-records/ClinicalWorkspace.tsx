@@ -1197,6 +1197,9 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
   const activeEllipseRef = useRef<Konva.Ellipse>(null);
   const activeArrowRef = useRef<Konva.Arrow>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const toolbarRef = useRef<HTMLDivElement>(null);
+  const contextMenuRef = useRef<HTMLDivElement>(null);
+  const canvasContainerRef = useRef<HTMLDivElement>(null);
   const [isUploading, setIsUploading] = useState(false);
   const clipboardRef = useRef<DrawingPath | MediaLayer | TextLayer | ShapeLayer | null>(null);
   const lastSentVersionRef = useRef<number>(0);
@@ -1338,6 +1341,74 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
       }
     }
   }, [selectedId, layers]);
+
+  // Handle clicking outside the canvas to deselect
+  useEffect(() => {
+    let touchStartPos = { x: 0, y: 0 };
+    let isTouchMoved = false;
+
+    const isInsideInteractiveArea = (target: Node | null) => {
+      if (!target) return false;
+      return (
+        canvasContainerRef.current?.contains(target) ||
+        toolbarRef.current?.contains(target) ||
+        contextMenuRef.current?.contains(target)
+      );
+    };
+
+    const handleGlobalMouseDown = (e: MouseEvent) => {
+      // Only care if something is selected
+      if (!selectedIdRef.current) return;
+
+      const target = e.target as Node;
+      if (isInsideInteractiveArea(target)) return;
+
+      // Otherwise, click is outside "the interactive canvas area", so deselect
+      setSelectedId(null);
+    };
+
+    const handleGlobalTouchStart = (e: TouchEvent) => {
+      const touch = e.touches[0];
+      if (touch) {
+        touchStartPos = { x: touch.clientX, y: touch.clientY };
+        isTouchMoved = false;
+      }
+    };
+
+    const handleGlobalTouchMove = (e: TouchEvent) => {
+      const touch = e.touches[0];
+      if (touch) {
+        const dx = Math.abs(touch.clientX - touchStartPos.x);
+        const dy = Math.abs(touch.clientY - touchStartPos.y);
+        // If moved more than 10px, consider it a scroll/drag rather than a tap
+        if (dx > 10 || dy > 10) {
+          isTouchMoved = true;
+        }
+      }
+    };
+
+    const handleGlobalTouchEnd = (e: TouchEvent) => {
+      // Only care if something is selected AND it wasn't a scroll/drag
+      if (!selectedIdRef.current || isTouchMoved) return;
+
+      const target = e.target as Node;
+      if (isInsideInteractiveArea(target)) return;
+
+      setSelectedId(null);
+    };
+
+    window.addEventListener('mousedown', handleGlobalMouseDown);
+    window.addEventListener('touchstart', handleGlobalTouchStart, { passive: true });
+    window.addEventListener('touchmove', handleGlobalTouchMove, { passive: true });
+    window.addEventListener('touchend', handleGlobalTouchEnd);
+
+    return () => {
+      window.removeEventListener('mousedown', handleGlobalMouseDown);
+      window.removeEventListener('touchstart', handleGlobalTouchStart);
+      window.removeEventListener('touchmove', handleGlobalTouchMove);
+      window.removeEventListener('touchend', handleGlobalTouchEnd);
+    };
+  }, []);
 
   const handleFontSizeChange = (size: number) => {
     setCurrentFontSize(size);
@@ -2233,7 +2304,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
   return (
     <div className="relative w-full bg-white min-h-screen">
       {/* Toolbar */}
-      <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-white rounded-full shadow-2xl px-6 py-2 flex items-center gap-2 z-20 border border-gray-200">
+      <div ref={toolbarRef} className="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-white rounded-full shadow-2xl px-6 py-2 flex items-center gap-2 z-20 border border-gray-200">
         <ToolButton
           active={currentTool === 'select'}
           onClick={() => setCurrentTool('select')}
@@ -2327,7 +2398,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
 
       {/* Context Menu for selection */}
       {selectedId && (
-        <div className="fixed top-20 left-1/2 transform -translate-x-1/2 bg-white rounded-lg shadow-lg px-4 py-2 flex items-center gap-3 z-20 border border-gray-200">
+        <div ref={contextMenuRef} className="fixed top-20 left-1/2 transform -translate-x-1/2 bg-white rounded-lg shadow-lg px-4 py-2 flex items-center gap-3 z-20 border border-gray-200">
           <span className="text-xs font-medium text-gray-500 mr-2">
             已選取 {
               layers.find(l => l.id === selectedId)?.type === 'media' ? '圖片' :
@@ -2347,6 +2418,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
       {/* Main Document View */}
       <div className="relative pt-12 pb-32 flex justify-center bg-white min-h-screen">
         <div
+          ref={canvasContainerRef}
           className="relative bg-white shadow-xl border border-gray-200"
           style={{
             width: CANVAS_WIDTH,
