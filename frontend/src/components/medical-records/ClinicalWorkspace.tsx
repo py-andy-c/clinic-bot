@@ -49,6 +49,10 @@ const SCALE = 1; // 1:1 logical to visual
 /**
  * Shared logic for clamping transformations (resizing) to canvas boundaries.
  * This handles resetting scale to 1 and adjusting width/height manually.
+ * 
+ * NOTE: This function works well for CORNER anchors where both edges can move.
+ * For SIDE anchors (middle-left, middle-right, etc.), use handleSideAnchorTransform
+ * to avoid position drift issues.
  */
 const handleTransformClamping = (
   node: Konva.Node,
@@ -114,6 +118,96 @@ const handleTransformClamping = (
     width: newWidth,
     ...(onlyWidth ? {} : { height: newHeight }),
   });
+};
+
+/**
+ * Handles side anchor (middle-left, middle-right, top-center, bottom-center) transforms
+ * using pointer position directly.
+ * 
+ * BACKGROUND: Konva's Transformer calculates scale values relative to the current node
+ * dimensions. When we modify the node during onTransform and Konva recalculates scale,
+ * it creates a feedback loop that causes position drift and flaky behavior.
+ * 
+ * SOLUTION: Instead of using Konva's scale values, we use the pointer position directly
+ * to calculate where the dragged edge should be. This ensures:
+ * - The opposite edge stays completely fixed
+ * - The dragged edge follows the cursor exactly
+ * - No feedback loop or position drift
+ */
+const handleSideAnchorTransform = (
+  node: Konva.Node,
+  stage: Konva.Stage,
+  activeAnchor: string,
+  startState: { x: number; y: number; width: number; height: number },
+  dragLimits: { minX: number; maxX: number; minY: number; maxY: number },
+  options: { isCenter?: boolean; minWidth?: number; minHeight?: number } = {}
+): boolean => {
+  const { isCenter = false, minWidth = 5, minHeight = 5 } = options;
+
+  // Get pointer position in stage (logical) coordinates
+  const pointerPos = stage.getRelativePointerPosition();
+  if (!pointerPos) return false;
+
+  // Reset scale immediately
+  node.setAttrs({ scaleX: 1, scaleY: 1 });
+
+  // Calculate coordinates of the edges at start
+  const startLeft = isCenter ? startState.x - startState.width / 2 : startState.x;
+  const startRight = isCenter ? startState.x + startState.width / 2 : startState.x + startState.width;
+  const startTop = isCenter ? startState.y - startState.height / 2 : startState.y;
+  const startBottom = isCenter ? startState.y + startState.height / 2 : startState.y + startState.height;
+
+  let newX = startState.x;
+  let newY = startState.y;
+  let newWidth = startState.width;
+  let newHeight = startState.height;
+
+  switch (activeAnchor) {
+    case 'middle-right':
+      // Right anchor: left edge stays fixed
+      const desiredRightEdge = pointerPos.x;
+      const clampedRightEdge = Math.min(dragLimits.maxX, Math.max(startLeft + minWidth, desiredRightEdge));
+      newWidth = clampedRightEdge - startLeft;
+      // For non-center: x is the left edge. For center: x is center
+      newX = isCenter ? startLeft + newWidth / 2 : startLeft;
+      break;
+
+    case 'middle-left':
+      // Left anchor: right edge stays fixed
+      const desiredLeftEdge = pointerPos.x;
+      const clampedLeftEdge = Math.max(dragLimits.minX, Math.min(startRight - minWidth, desiredLeftEdge));
+      newWidth = startRight - clampedLeftEdge;
+      newX = isCenter ? clampedLeftEdge + newWidth / 2 : clampedLeftEdge;
+      break;
+
+    case 'bottom-center':
+      // Bottom anchor: top edge stays fixed
+      const desiredBottomEdge = pointerPos.y;
+      const clampedBottomEdge = Math.min(dragLimits.maxY, Math.max(startTop + minHeight, desiredBottomEdge));
+      newHeight = clampedBottomEdge - startTop;
+      newY = isCenter ? startTop + newHeight / 2 : startTop;
+      break;
+
+    case 'top-center':
+      // Top anchor: bottom edge stays fixed
+      const desiredTopEdge = pointerPos.y;
+      const clampedTopEdge = Math.max(dragLimits.minY, Math.min(startBottom - minHeight, desiredTopEdge));
+      newHeight = startBottom - clampedTopEdge;
+      newY = isCenter ? clampedTopEdge + newHeight / 2 : clampedTopEdge;
+      break;
+
+    default:
+      return false; // Not a side anchor
+  }
+
+  node.setAttrs({
+    x: newX,
+    y: newY,
+    width: newWidth,
+    height: newHeight,
+  });
+
+  return true;
 };
 
 
@@ -405,6 +499,10 @@ const SelectableText = ({ layer, isSelected, onSelect, onChange, onDelete, dragL
   const trRef = useRef<Konva.Transformer>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
+  // Track transform state for side anchor handling
+  const activeAnchorRef = useRef<string | null>(null);
+  const transformStartStateRef = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
+
   useEffect(() => {
     return () => {
       if (textareaRef.current) {
@@ -592,24 +690,47 @@ const SelectableText = ({ layer, isSelected, onSelect, onChange, onDelete, dragL
             y: e.target.y(),
           });
         }}
-        onTransform={(e) => {
-          handleTransformClamping(e.target, dragLimits, { onlyWidth: true, minWidth: 30 });
+        onTransformStart={(e: Konva.KonvaEventObject<Event>) => {
+          // Capture active anchor and start state for side anchor handling
+          const node = e.target;
+          const transformer = trRef.current;
+          activeAnchorRef.current = transformer?.getActiveAnchor() || null;
+          transformStartStateRef.current = {
+            x: node.x(),
+            y: node.y(),
+            width: node.width(),
+            height: node.height() ?? 0,
+          };
+        }}
+        onTransform={(e: Konva.KonvaEventObject<Event>) => {
+          const node = e.target;
+          const stage = node.getStage();
+          const activeAnchor = activeAnchorRef.current;
+          const startState = transformStartStateRef.current;
+
+          // Text only uses side anchors (middle-left, middle-right)
+          if (stage && startState && activeAnchor) {
+            handleSideAnchorTransform(node, stage, activeAnchor, startState, dragLimits, { minWidth: 30 });
+          } else {
+            // Fallback
+            handleTransformClamping(node, dragLimits, { onlyWidth: true, minWidth: 30 });
+          }
         }}
         onTransformEnd={() => {
           const node = shapeRef.current;
           if (!node) return;
 
-          // Ensure scale is 1
-          node.scaleX(1);
-          node.scaleY(1);
-
+          // Scale is already 1.0 due to eager reset in onTransform
           onChange({
             x: node.x(),
             y: node.y(),
             width: node.width(),
             rotation: node.rotation(),
-            // Do NOT update fontSize here
           });
+
+          // Clear transform state
+          activeAnchorRef.current = null;
+          transformStartStateRef.current = null;
         }}
       />
       {isSelected && (
@@ -639,6 +760,10 @@ const SelectableShape = ({ layer, isSelected, onSelect, onChange, dragLimits }: 
 }) => {
   const shapeRef = useRef<Konva.Shape>(null);
   const trRef = useRef<Konva.Transformer>(null);
+
+  // Track transform state for side anchor handling
+  const activeAnchorRef = useRef<string | null>(null);
+  const transformStartStateRef = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
 
   useEffect(() => {
     if (isSelected && trRef.current && shapeRef.current && layer.tool !== 'arrow') {
@@ -807,27 +932,53 @@ const SelectableShape = ({ layer, isSelected, onSelect, onChange, dragLimits }: 
     onTap: onSelect,
     onMouseEnter: handleMouseEnter,
     onMouseLeave: handleMouseLeave,
+    onTransformStart: (e: Konva.KonvaEventObject<Event>) => {
+      // Capture active anchor and start state for side anchor handling
+      const node = e.target;
+      const transformer = trRef.current;
+      activeAnchorRef.current = transformer?.getActiveAnchor() || null;
+      transformStartStateRef.current = {
+        x: node.x(),
+        y: node.y(),
+        width: node.width(),
+        height: node.height() ?? 0,
+      };
+    },
     onTransform: (e: Konva.KonvaEventObject<Event>) => {
-      handleTransformClamping(e.target, dragLimits, {
-        isCenter: e.target.className === 'Ellipse'
-      });
+      const node = e.target;
+      const stage = node.getStage();
+      const isCenter = node.className === 'Ellipse';
+      const activeAnchor = activeAnchorRef.current;
+      const startState = transformStartStateRef.current;
+
+      // Check if this is a side anchor that needs special handling
+      const isSideAnchor = activeAnchor &&
+        ['middle-right', 'middle-left', 'top-center', 'bottom-center'].includes(activeAnchor);
+
+      if (isSideAnchor && stage && startState) {
+        // Use pointer-based transform for side anchors to avoid position drift
+        handleSideAnchorTransform(node, stage, activeAnchor, startState, dragLimits, { isCenter });
+      } else {
+        // Use scale-based clamping for corner anchors
+        handleTransformClamping(e.target, dragLimits, { isCenter });
+      }
     },
     onTransformEnd: () => {
       const node = shapeRef.current;
       if (!node) return;
-      const scaleX = node.scaleX();
-      const scaleY = node.scaleY();
 
-      node.scaleX(1);
-      node.scaleY(1);
-
+      // Scale is already 1.0 due to eager reset in onTransform
       onChange({
         x: node.x(),
         y: node.y(),
-        width: node.width() * scaleX,
-        height: node.height() * scaleY,
+        width: node.width(),
+        height: node.height(),
         rotation: node.rotation(),
       });
+
+      // Clear transform state
+      activeAnchorRef.current = null;
+      transformStartStateRef.current = null;
     },
     ...movementProps,
   };
