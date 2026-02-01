@@ -1134,9 +1134,12 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
   const isDrawing = useRef(false);
   const currentPointsRef = useRef<number[]>([]);
   const startPosRef = useRef<{ x: number, y: number } | null>(null);
-  const lastPointerPosRef = useRef<{ x: number, y: number } | null>(null);
   const deletedLayerIdsRef = useRef<Set<number | string>>(new Set());
   const lastPenTimeRef = useRef<number>(0);
+  const isNavigating = useRef(false);
+  const lastTouchPos = useRef<{ x: number, y: number } | null>(null);
+  const activePointerIdRef = useRef<number | null>(null);
+  const activePointerTypeRef = useRef<string | null>(null);
 
   const stageRef = useRef<Konva.Stage>(null);
   const activeLineRef = useRef<Konva.Line>(null);
@@ -1537,13 +1540,65 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
     // Zoom disabled. Let the browser handle standard scrolling.
   };
 
+  const getEventData = (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
+    const nativeEvent = e.evt;
+    const isTouch = 'touches' in nativeEvent;
+
+    let pointerType = 'mouse';
+    let pointerId = 0;
+
+    if ('pointerType' in nativeEvent) {
+      pointerType = (nativeEvent as PointerEvent).pointerType;
+      pointerId = (nativeEvent as PointerEvent).pointerId;
+    } else if (isTouch) {
+      const touchEvent = nativeEvent as unknown as TouchEvent;
+      pointerType = 'touch';
+      // Use the first touch that started the event
+      pointerId = touchEvent.changedTouches[0]?.identifier || 0;
+    }
+
+    const touchCount = isTouch ? (nativeEvent as unknown as TouchEvent).touches.length : 1;
+
+    return { nativeEvent, isTouch, pointerType, pointerId, touchCount };
+  };
+
   // Tools Logic
   const handleMouseDown = (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
-    // Basic palm rejection: ignore touch if a pen was recently used (within 500ms)
-    // We use a safe check for pointerType as it might not exist on all event types
-    const pointerType = (e.evt as unknown as PointerEvent).pointerType ||
-      ((e.evt as unknown as TouchEvent).touches ? 'touch' : 'mouse');
+    const { nativeEvent, isTouch, pointerType, pointerId, touchCount } = getEventData(e);
 
+    // Prevent browser-synthesized mouse events from touch to stop "double firing"
+    if (isTouch && nativeEvent.cancelable) {
+      nativeEvent.preventDefault();
+    }
+
+    // 1. Navigation Detection (2+ fingers, but NOT pen)
+    // If it's a pen, we always prioritize drawing even if palm is down.
+    if (isTouch && touchCount >= 2 && pointerType !== 'pen') {
+      // CRITICAL: If a pen is already drawing, ignore additional touches (Palm rejection)
+      if (isDrawing.current && activePointerTypeRef.current === 'pen') {
+        return;
+      }
+
+      if (isDrawing.current) {
+        handleMouseUp(); // Finalize current stroke before navigating
+      }
+
+      // Start navigation mode (set AFTER handleMouseUp because handleMouseUp clears it)
+      isNavigating.current = true;
+
+      // Store initial average position of touches for panning
+      const touches = (nativeEvent as unknown as TouchEvent).touches;
+      const avgX = (touches[0]!.clientX + touches[1]!.clientX) / 2;
+      const avgY = (touches[0]!.clientY + touches[1]!.clientY) / 2;
+      lastTouchPos.current = { x: avgX, y: avgY };
+
+      if (stageRef.current) stageRef.current.batchDraw();
+      return;
+    }
+
+    isNavigating.current = false;
+
+    // 2. Palm Rejection
     if (pointerType === 'pen') {
       lastPenTimeRef.current = Date.now();
     } else if (pointerType === 'touch') {
@@ -1552,14 +1607,12 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
       }
     }
 
+    // Track active pointer to prevent interference from other touch points
+    activePointerIdRef.current = pointerId;
+    activePointerTypeRef.current = pointerType;
+
     const stage = e.target.getStage();
     if (!stage) return;
-
-    // Record pointer position for panning delta calculation (supports touch)
-    const pointerPos = stage.getPointerPosition();
-    if (pointerPos) {
-      lastPointerPosRef.current = pointerPos;
-    }
 
     if (currentTool === 'select') {
       const clickedOnEmpty = e.target === stage;
@@ -1641,6 +1694,51 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
   };
 
   const handleMouseMove = (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
+    const { nativeEvent, isTouch, pointerType, pointerId, touchCount } = getEventData(e);
+
+    // Prevent browser synthetic events
+    if (isTouch && nativeEvent.cancelable) {
+      nativeEvent.preventDefault();
+    }
+
+    // 1. Handle Manual Page Scrolling (Navigation)
+    if (isNavigating.current && isTouch && touchCount >= 2 && pointerType !== 'pen') {
+      const touches = (nativeEvent as unknown as TouchEvent).touches;
+      const avgX = (touches[0]!.clientX + touches[1]!.clientX) / 2;
+      const avgY = (touches[0]!.clientY + touches[1]!.clientY) / 2;
+
+      if (lastTouchPos.current) {
+        const dx = lastTouchPos.current.x - avgX;
+        const dy = lastTouchPos.current.y - avgY;
+
+        // Smart scroll target: scroll window or closest scrollable container
+        const container = stageRef.current?.container();
+        const scrollParent = container?.closest('.scroll-container, .overflow-auto, .overflow-y-auto');
+        if (scrollParent) {
+          scrollParent.scrollBy(dx, dy);
+        } else {
+          window.scrollBy(dx, dy);
+        }
+      }
+
+      lastTouchPos.current = { x: avgX, y: avgY };
+      return;
+    }
+
+    // 2. Stop drawing if user adds more fingers (unless it's the pen)
+    if (isDrawing.current && isTouch && touchCount > 1 && pointerType !== 'pen') {
+      handleMouseUp();
+      return;
+    }
+
+    // 3. Drawing Logic
+    // Ignore movement from pointers that didn't initiate the drawing
+    if (isDrawing.current && activePointerIdRef.current !== null && activePointerIdRef.current !== pointerId) {
+      return;
+    }
+
+    // If we are navigating, ONLY allow drawing if the current pointer is NOT a standard touch (i.e. it's a pen/mouse)
+    if (isNavigating.current && pointerType === 'touch') return;
     if (!isDrawing.current) return;
 
     const stage = stageRef.current;
@@ -1692,7 +1790,19 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
     }
   };
 
-  const handleMouseUp = () => {
+  const handleMouseUp = (e?: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
+    if (e) {
+      const { nativeEvent, isTouch } = getEventData(e);
+      if (isTouch && nativeEvent.cancelable) {
+        nativeEvent.preventDefault();
+      }
+    }
+
+    isNavigating.current = false;
+    lastTouchPos.current = null;
+    activePointerIdRef.current = null;
+    activePointerTypeRef.current = null;
+
     if (!isDrawing.current) return;
     isDrawing.current = false;
 
@@ -2109,6 +2219,10 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
             width: CANVAS_WIDTH,
             minHeight: canvasHeight,
             cursor: getStageCursor(),
+            touchAction: 'none', // Critical: Prevent browser gesture interference
+            userSelect: 'none', // Prevent blue selection highlight on long press
+            WebkitUserSelect: 'none',
+            WebkitTouchCallout: 'none', // Prevent iOS context menu on long press
           }}
         >
           <Stage
@@ -2119,10 +2233,10 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
             onWheel={handleWheel}
             onMouseDown={handleMouseDown}
             onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
+            onMouseUp={(e) => handleMouseUp(e)}
             onTouchStart={handleMouseDown}
             onTouchMove={handleMouseMove}
-            onTouchEnd={handleMouseUp}
+            onTouchEnd={(e) => handleMouseUp(e)}
           >
             <Layer name="background" listening={false}>
               {/* Paper Background */}
