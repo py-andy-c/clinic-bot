@@ -18,11 +18,11 @@ Modern note-taking and drawing apps follow a "Gesture-First" interaction model:
 - **Palm Rejection**: They prioritize stylus input and ignore large-area touch inputs that resemble a palm.
 
 ### 2.2 Standard Interaction Table
-| Input Type | Action (One Finger) | Action (Two Fingers) |
-| :--- | :--- | :--- |
-| **Finger (Touch)** | Active Tool (Draw/Erase/Select) | **Pan/Scroll Workspace** |
-| **Apple Pencil (Stylus)** | **Always Active Tool** | N/A (Treated as single point) |
-| **Palm** | Ignored (Palm Rejection) | Ignored |
+| Input Type | Action (One Finger) | Action (Two Fingers) | Action (3+ Fingers) |
+| :--- | :--- | :--- | :--- |
+| **Finger (Touch)** | Active Tool (Draw/Erase/Select) | **Pan & Pinch-to-Zoom** | Ignored / Cancel Action |
+| **Apple Pencil (Stylus)** | **Always Active Tool** | N/A (Treated as single point) | N/A |
+| **Palm** | Ignored (Palm Rejection) | Ignored | Ignored |
 
 ## 3. Proposed UX: The "Pro-Note" Hybrid
 
@@ -31,15 +31,24 @@ We will implement a hybrid model that prioritizes drawing while allowing seamles
 
 1.  **Inside Canvas Boundaries**:
     - **One Finger**: Executes the currently selected tool (Pen, Highlighter, Eraser, etc.).
-    - **Two Fingers**: Moves the "paper" (scrolls the page/container).
+    - **Two Fingers**: 
+        - **Panning**: Moves the "paper" (scrolls the page/container).
+        - **Pinching**: Zooms the canvas in/out (centered at midpoint).
     - **Apple Pencil**: Always draws, even if the user's palm is touching the screen.
 2.  **Outside Canvas Boundaries**:
     - Standard browser scrolling is preserved for toolbars, headers, and margins.
 
-### 3.2 Tool-Specific Behavior
-- **Selection Tool**: One finger moves/transforms objects; two fingers scroll.
-- **Text Tool**: One finger taps to place/edit text; two fingers scroll.
-- **Pen/Eraser**: One finger draws/erases; two fingers scroll.
+### 3.2 State Transitions & Safety
+To prevent accidental "stray marks" and ensure a smooth experience:
+- **Gesture Lock**: Once a one-finger action (drawing) or a two-finger action (panning/zooming) starts, the mode is "locked" until all fingers are lifted.
+- **Stroke Cancellation**: If a user is drawing with one finger and adds a second, the current drawing stroke is immediately cancelled and deleted.
+- **Hysteresis**: A small movement threshold (e.g., 5-10 pixels) must be met before committing to a "Draw" vs. "Pan" action to avoid micro-movements triggering accidental strokes.
+- **Visual Feedback**: The cursor or a subtle overlay indicator should change when entering "Panning Mode" to reassure the user.
+
+### 3.3 Tool-Specific Behavior
+- **Selection Tool**: One finger moves/transforms objects; two fingers scroll/zoom.
+- **Text Tool**: One finger taps to place/edit text; two fingers scroll/zoom.
+- **Pen/Eraser**: One finger draws/erases; two fingers scroll/zoom.
 
 ## 4. Proposed Technical Changes
 
@@ -49,11 +58,15 @@ Apply `touch-action: none` to the Konva `Stage` container. This is critical to p
 ### 4.2 Gesture Detection (`ClinicalWorkspace.tsx`)
 Modify the `onTouchStart`, `onTouchMove`, and `onTouchEnd` handlers:
 - **Multi-Touch Check**: Detect `e.touches.length`.
-- **Scrolling Logic**: If two touches are detected, calculate the delta between frames and manually update the `window.scrollBy` or container scroll position.
+- **Scrolling/Zooming Logic**: 
+    - Use `requestAnimationFrame` to ensure smooth, high-performance updates.
+    - If two touches are detected, calculate both the **delta** (for panning) and the **distance change** (for zooming).
+    - Implement a simple velocity-based **inertia** for panning to give a premium feel.
 - **Input Filtering**: Use `e.evt.pointerType` to identify if the input is `pen` or `touch`.
 
 ### 4.3 Palm Rejection
-- Implement a "Pen Priority" window. If a `pen` input is detected, temporarily ignore all `touch` inputs for ~500ms to prevent palm strokes. (Partially implemented, needs refinement).
+- **Pen Priority**: If a `pen` input is detected, temporarily ignore all `touch` inputs for ~500ms.
+- **Radius Check**: If supported by the device, ignore any touch with a large `radiusX` or `radiusY` (> 20px), as these typically represent a palm or side of the hand.
 
 ## 5. Success Criteria
 - Users can draw a continuous line with a finger without the page moving.
