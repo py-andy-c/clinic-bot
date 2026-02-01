@@ -46,6 +46,20 @@ const MIN_CANVAS_HEIGHT = 1100;
 const WORKSPACE_VERSION = 2;
 const SCALE = 1; // 1:1 logical to visual
 
+// Tablet UX Config
+const ZOOM_CONFIG = {
+  MIN: 0.1,
+  MAX: 5.0,
+  SENSITIVITY: 1,
+};
+
+const INERTIA_CONFIG = {
+  FRICTION: 0.95, // Decay factor per frame
+  STOP_THRESHOLD: 0.5, // Stop when velocity is below this
+};
+
+const HYSTERESIS_THRESHOLD = 5; // Pixels to move before drawing starts
+
 /**
  * Shared logic for clamping transformations (resizing) to canvas boundaries.
  * This handles resetting scale to 1 and adjusting width/height manually.
@@ -1132,11 +1146,24 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
 
   // Ref for the current drawing path
   const isDrawing = useRef(false);
+  const isPanningRef = useRef(false);
+  const touchStartDistRef = useRef<number>(0);
+  const touchStartCenterRef = useRef<{ x: number, y: number } | null>(null);
+  const touchStartWindowScrollRef = useRef<{ x: number, y: number } | null>(null);
+  const gestureLockedRef = useRef<'none' | 'drawing' | 'panning'>('none');
   const currentPointsRef = useRef<number[]>([]);
   const startPosRef = useRef<{ x: number, y: number } | null>(null);
   const lastPointerPosRef = useRef<{ x: number, y: number } | null>(null);
   const deletedLayerIdsRef = useRef<Set<number | string>>(new Set());
   const lastPenTimeRef = useRef<number>(0);
+
+  // RAF, Inertia and Touch Tracking Refs
+  const rafIdRef = useRef<number | null>(null);
+  const lastCenterRef = useRef<{ x: number, y: number } | null>(null);
+  const velocityRef = useRef<{ x: number, y: number }>({ x: 0, y: 0 });
+  const touchIdentifiersRef = useRef<number[]>([]);
+  const lastMoveTimeRef = useRef<number>(0);
+  const hysteresisStartPosRef = useRef<{ x: number, y: number } | null>(null);
 
   const stageRef = useRef<Konva.Stage>(null);
   const activeLineRef = useRef<Konva.Line>(null);
@@ -1537,23 +1564,93 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
     // Zoom disabled. Let the browser handle standard scrolling.
   };
 
+  // Helper to get distance between two touches
+  const getDistance = (p1: { x: number, y: number }, p2: { x: number, y: number }) => {
+    return Math.sqrt(Math.pow(p2.x - p1.x, 2) + Math.pow(p2.y - p1.y, 2));
+  };
+
+  // Helper to get center point between two touches
+  const getCenter = (p1: { x: number, y: number }, p2: { x: number, y: number }) => {
+    return {
+      x: (p1.x + p2.x) / 2,
+      y: (p1.y + p2.y) / 2,
+    };
+  };
+
   // Tools Logic
   const handleMouseDown = (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
-    // Basic palm rejection: ignore touch if a pen was recently used (within 500ms)
-    // We use a safe check for pointerType as it might not exist on all event types
+    const stage = e.target.getStage();
+    if (!stage) return;
+
+    // Detect input type
     const pointerType = (e.evt as unknown as PointerEvent).pointerType ||
       ((e.evt as unknown as TouchEvent).touches ? 'touch' : 'mouse');
 
+    // Multi-touch logic (Panning/Zooming)
+    if (e.evt instanceof TouchEvent && e.evt.touches.length >= 2) {
+      // Stop any ongoing inertia
+      if (rafIdRef.current) {
+        cancelAnimationFrame(rafIdRef.current);
+        rafIdRef.current = null;
+      }
+      velocityRef.current = { x: 0, y: 0 };
+
+      // If we were drawing, cancel it
+      if (gestureLockedRef.current === 'drawing') {
+        isDrawing.current = false;
+        hysteresisStartPosRef.current = null;
+        currentPointsRef.current = [];
+        if (activeLineRef.current) activeLineRef.current.visible(false);
+        if (activeRectRef.current) activeRectRef.current.visible(false);
+        if (activeEllipseRef.current) activeEllipseRef.current.visible(false);
+        if (activeArrowRef.current) activeArrowRef.current.visible(false);
+        stage.batchDraw();
+      }
+
+      gestureLockedRef.current = 'panning';
+      isPanningRef.current = true;
+
+      // Track unique identifiers for stable multi-touch
+      touchIdentifiersRef.current = [
+        e.evt.touches[0]!.identifier,
+        e.evt.touches[1]!.identifier
+      ];
+
+      const t1 = { x: e.evt.touches[0]!.clientX, y: e.evt.touches[0]!.clientY };
+      const t2 = { x: e.evt.touches[1]!.clientX, y: e.evt.touches[1]!.clientY };
+
+      touchStartDistRef.current = getDistance(t1, t2);
+      touchStartCenterRef.current = getCenter(t1, t2);
+      touchStartWindowScrollRef.current = { x: window.scrollX, y: window.scrollY };
+      return;
+    }
+
+    // Single touch or mouse logic
     if (pointerType === 'pen') {
       lastPenTimeRef.current = Date.now();
     } else if (pointerType === 'touch') {
-      if (Date.now() - lastPenTimeRef.current < 500) {
-        return; // Ignore touch if pen was used recently
+      // Palm rejection: ignore touch if pen used recently or if touch radius is too large
+      let isLargeTouch = false;
+      if (e.evt instanceof TouchEvent) {
+        const touch = e.evt.touches[0];
+        isLargeTouch = !!touch && (touch.radiusX || 0) > 20;
+      } else if (window.PointerEvent && e.evt instanceof PointerEvent) {
+        isLargeTouch = e.evt.width > 40 || e.evt.height > 40;
+      }
+
+      if (Date.now() - lastPenTimeRef.current < 500 || isLargeTouch) {
+        // Ensure we don't accidentally start drawing
+        isDrawing.current = false;
+        gestureLockedRef.current = 'none';
+        return;
       }
     }
 
-    const stage = e.target.getStage();
-    if (!stage) return;
+    // Stop any ongoing inertia on new interaction
+    if (rafIdRef.current) {
+      cancelAnimationFrame(rafIdRef.current);
+      rafIdRef.current = null;
+    }
 
     // Record pointer position for panning delta calculation (supports touch)
     const pointerPos = stage.getPointerPosition();
@@ -1569,44 +1666,16 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
       return;
     }
 
-    if (currentTool === 'text') {
-      const pos = getClampedPointerPosition();
-      if (!pos) return;
-
-      const defaultWidth = CANVAS_WIDTH * (2 / 3);
-      const maxWidth = dragLimits.maxX - pos.x;
-      const finalWidth = Math.min(defaultWidth, maxWidth);
-
-      const newText: TextLayer = {
-        type: 'text',
-        id: `text-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-        text: '',
-        x: pos.x,
-        y: pos.y,
-        fontSize: currentFontSize,
-        fill: TOOL_CONFIG.text.color,
-        rotation: 0,
-        width: finalWidth, // Dynamic width based on canvas width and position
-      };
-
-      // Better to call updateLayers to ensure history consistency
-      updateLayers(prev => [...prev, newText]);
-      setCurrentTool('select');
-      setSelectedId(newText.id);
-      return;
-    }
-
-    // Reset selection when starting to draw or erase
-    setSelectedId(null);
-
-    isDrawing.current = true;
-    deletedLayerIdsRef.current.clear();
-
-    // Use relative pointer position to account for stage scaling
+    // Initialize drawing state but wait for hysteresis
     const pos = getClampedPointerPosition();
     if (!pos) return;
 
+    gestureLockedRef.current = 'drawing';
+    isDrawing.current = true;
+    hysteresisStartPosRef.current = { x: pos.x, y: pos.y };
     startPosRef.current = { x: pos.x, y: pos.y };
+    deletedLayerIdsRef.current.clear();
+    setSelectedId(null);
 
     if (currentTool === 'rectangle' || currentTool === 'circle' || currentTool === 'arrow') {
       if (currentTool === 'rectangle' && activeRectRef.current) {
@@ -1632,7 +1701,6 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
     const pressure = (e.evt as unknown as PointerEvent).pressure || 0.5;
     currentPointsRef.current = [pos.x, pos.y, pressure];
 
-    // Imperatively update the active line
     if (activeLineRef.current) {
       activeLineRef.current.points([pos.x, pos.y]);
       activeLineRef.current.visible(true);
@@ -1641,13 +1709,88 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
   };
 
   const handleMouseMove = (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
-    if (!isDrawing.current) return;
-
     const stage = stageRef.current;
     if (!stage) return;
 
+    // Multi-touch logic (Panning/Zooming)
+    if (e.evt instanceof TouchEvent && e.evt.touches.length >= 2) {
+      if (gestureLockedRef.current !== 'panning') return;
+
+      // Robust touch tracking: find the touches that match our identifiers
+      const t1_evt = Array.from(e.evt.touches).find(t => t.identifier === touchIdentifiersRef.current[0]);
+      const t2_evt = Array.from(e.evt.touches).find(t => t.identifier === touchIdentifiersRef.current[1]);
+
+      if (!t1_evt || !t2_evt) return;
+
+      const t1 = { x: t1_evt.clientX, y: t1_evt.clientY };
+      const t2 = { x: t2_evt.clientX, y: t2_evt.clientY };
+
+      const newDist = getDistance(t1, t2);
+      const newCenter = getCenter(t1, t2);
+
+      if (touchStartCenterRef.current && touchStartWindowScrollRef.current) {
+        // Calculate velocity for inertia (only if not zoomed in too much)
+        const now = Date.now();
+        const dt = now - lastMoveTimeRef.current;
+        if (dt > 0 && lastCenterRef.current) {
+          velocityRef.current = {
+            x: (newCenter.x - lastCenterRef.current.x) / dt,
+            y: (newCenter.y - lastCenterRef.current.y) / dt,
+          };
+        }
+        lastMoveTimeRef.current = now;
+        lastCenterRef.current = newCenter;
+
+        // RAF Batching for smooth updates
+        if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
+        rafIdRef.current = requestAnimationFrame(() => {
+          // Panning: Scroll the window
+          const dx = newCenter.x - touchStartCenterRef.current!.x;
+          const dy = newCenter.y - touchStartCenterRef.current!.y;
+
+          window.scrollTo(
+            touchStartWindowScrollRef.current!.x - dx,
+            touchStartWindowScrollRef.current!.y - dy
+          );
+
+          // Zooming: Scale the stage
+          if (touchStartDistRef.current > 0) {
+            const scaleBy = newDist / touchStartDistRef.current;
+            const oldScale = stage.scaleX();
+            const newScale = Math.max(ZOOM_CONFIG.MIN, Math.min(ZOOM_CONFIG.MAX, oldScale * scaleBy));
+
+            if (newScale !== oldScale) {
+              const mousePointTo = {
+                x: (newCenter.x - stage.x()) / oldScale,
+                y: (newCenter.y - stage.y()) / oldScale,
+              };
+
+              stage.scale({ x: newScale, y: newScale });
+              stage.position({
+                x: newCenter.x - mousePointTo.x * newScale,
+                y: newCenter.y - mousePointTo.y * newScale,
+              });
+              stage.batchDraw();
+            }
+          }
+          rafIdRef.current = null;
+        });
+      }
+      return;
+    }
+
+    if (!isDrawing.current || gestureLockedRef.current !== 'drawing') return;
+
     const pos = getClampedPointerPosition();
     if (!pos) return;
+
+    // Hysteresis: Don't start drawing until moved more than threshold
+    if (hysteresisStartPosRef.current) {
+      const dist = getDistance(pos, hysteresisStartPosRef.current);
+      if (dist < HYSTERESIS_THRESHOLD) return;
+
+      hysteresisStartPosRef.current = null; // Threshold crossed
+    }
 
     if (currentTool === 'eraser') {
       const shape = stage.getIntersection(pos);
@@ -1692,7 +1835,49 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
     }
   };
 
-  const handleMouseUp = () => {
+  const handleMouseUp = (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
+    // Reset gesture lock when all touches/buttons are released
+    if (e.evt instanceof TouchEvent) {
+      if (e.evt.touches.length === 0) {
+        // Start inertia if we have velocity
+        if (Math.abs(velocityRef.current.x) > 0.1 || Math.abs(velocityRef.current.y) > 0.1) {
+          const applyInertia = () => {
+            velocityRef.current.x *= INERTIA_CONFIG.FRICTION;
+            velocityRef.current.y *= INERTIA_CONFIG.FRICTION;
+
+            if (Math.abs(velocityRef.current.x) < INERTIA_CONFIG.STOP_THRESHOLD &&
+              Math.abs(velocityRef.current.y) < INERTIA_CONFIG.STOP_THRESHOLD) {
+              velocityRef.current = { x: 0, y: 0 };
+              rafIdRef.current = null;
+              return;
+            }
+
+            window.scrollBy(-velocityRef.current.x * 16, -velocityRef.current.y * 16);
+            rafIdRef.current = requestAnimationFrame(applyInertia);
+          };
+          rafIdRef.current = requestAnimationFrame(applyInertia);
+        }
+
+        gestureLockedRef.current = 'none';
+        isPanningRef.current = false;
+        lastCenterRef.current = null;
+        touchIdentifiersRef.current = [];
+      }
+    } else if (window.PointerEvent && e.evt instanceof PointerEvent) {
+      if (e.evt.buttons === 0) {
+        gestureLockedRef.current = 'none';
+        isPanningRef.current = false;
+        lastCenterRef.current = null;
+      }
+    } else {
+      gestureLockedRef.current = 'none';
+      isPanningRef.current = false;
+      lastCenterRef.current = null;
+    }
+
+    // Always reset hysteresis on mouse up
+    hysteresisStartPosRef.current = null;
+
     if (!isDrawing.current) return;
     isDrawing.current = false;
 
@@ -1772,6 +1957,23 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
       updateLayers(prev => [...prev, newShape!]);
       setCurrentTool('select');
       setSelectedId(newShape.id);
+      return;
+    }
+
+    if (currentTool === 'text') {
+      const newText: TextLayer = {
+        type: 'text',
+        id: `text-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+        x: pos.x,
+        y: pos.y,
+        text: '',
+        fontSize: currentFontSize,
+        fill: TOOL_CONFIG.text.color,
+        rotation: 0,
+        width: Math.min(CANVAS_WIDTH * 2 / 3, CANVAS_WIDTH - pos.x),
+      };
+      updateLayers(prev => [...prev, newText]);
+      setSelectedId(newText.id);
       return;
     }
 
@@ -2109,6 +2311,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
             width: CANVAS_WIDTH,
             minHeight: canvasHeight,
             cursor: getStageCursor(),
+            touchAction: 'none',
           }}
         >
           <Stage
