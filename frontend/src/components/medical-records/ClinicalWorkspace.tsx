@@ -216,12 +216,13 @@ const handleSideAnchorTransform = (
 
 
 // Helper component for loading images
-const UrlImage = ({ layer, isSelected, onSelect, onChange, dragLimits }: {
+const UrlImage = ({ layer, isSelected, onSelect, onChange, dragLimits, isSelectToolActive }: {
   layer: MediaLayer;
   isSelected: boolean;
   onSelect: () => void;
   onChange: (newAttrs: Partial<MediaLayer>) => void;
   dragLimits: { minX: number; maxX: number; minY: number; maxY: number };
+  isSelectToolActive: boolean;
 }) => {
   const [image] = useImage(layer.url, 'anonymous');
   const shapeRef = useRef<Konva.Image>(null);
@@ -237,7 +238,7 @@ const UrlImage = ({ layer, isSelected, onSelect, onChange, dragLimits }: {
 
   const handleMouseEnter = (e: Konva.KonvaEventObject<MouseEvent>) => {
     const stage = e.target.getStage();
-    if (stage) stage.container().style.cursor = 'move';
+    if (stage) stage.container().style.cursor = isSelectToolActive ? 'move' : 'pointer';
   };
 
   const handleMouseLeave = (e: Konva.KonvaEventObject<MouseEvent>) => {
@@ -255,13 +256,16 @@ const UrlImage = ({ layer, isSelected, onSelect, onChange, dragLimits }: {
         height={layer.height}
         rotation={layer.rotation}
         opacity={isMoving ? 0.7 : 1}
-        draggable={isSelected}
+        draggable={isSelectToolActive}
         onClick={onSelect}
         onTap={onSelect}
         ref={shapeRef}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
-        onDragStart={() => setIsMoving(true)}
+        onDragStart={() => {
+          setIsMoving(true);
+          onSelect();
+        }}
         onDragMove={(e) => {
           const node = e.target;
           const x = Math.max(dragLimits.minX, Math.min(dragLimits.maxX - node.width() * node.scaleX(), node.x()));
@@ -321,13 +325,14 @@ const UrlImage = ({ layer, isSelected, onSelect, onChange, dragLimits }: {
 };
 
 // Selectable Drawing Component
-const SelectableLine = ({ layer, isSelected, onSelect, onChange, calculateBoundingBox, dragLimits }: {
+const SelectableLine = ({ layer, isSelected, onSelect, onChange, calculateBoundingBox, dragLimits, isSelectToolActive }: {
   layer: DrawingPath;
   isSelected: boolean;
   onSelect: () => void;
   onChange: (newAttrs: Partial<DrawingPath>) => void;
   calculateBoundingBox: (points: [number, number, number?][]) => { minX: number; maxX: number; minY: number; maxY: number } | undefined;
   dragLimits: { minX: number; maxX: number; minY: number; maxY: number };
+  isSelectToolActive: boolean;
 }) => {
   const shapeRef = useRef<Konva.Line>(null);
   const trRef = useRef<Konva.Transformer>(null);
@@ -338,6 +343,10 @@ const SelectableLine = ({ layer, isSelected, onSelect, onChange, calculateBoundi
       trRef.current.getLayer()?.batchDraw();
     }
   }, [isSelected, layer]); // Re-bind if layer changes (points updated)
+
+  const handleDragStart = () => {
+    onSelect();
+  };
 
   const handleDragEnd = (e: Konva.KonvaEventObject<DragEvent>) => {
     const node = e.target;
@@ -391,7 +400,7 @@ const SelectableLine = ({ layer, isSelected, onSelect, onChange, calculateBoundi
 
   const handleMouseEnter = (e: Konva.KonvaEventObject<MouseEvent>) => {
     const stage = e.target.getStage();
-    if (stage) stage.container().style.cursor = isSelected ? 'move' : 'pointer';
+    if (stage) stage.container().style.cursor = isSelectToolActive ? 'move' : 'pointer';
   };
 
   const handleMouseLeave = (e: Konva.KonvaEventObject<MouseEvent>) => {
@@ -413,13 +422,14 @@ const SelectableLine = ({ layer, isSelected, onSelect, onChange, calculateBoundi
         tension={0.5}
         lineCap="round"
         lineJoin="round"
-        draggable={isSelected}
+        draggable={isSelectToolActive}
         onClick={onSelect}
         onTap={onSelect}
         perfectDrawEnabled={false}
         globalCompositeOperation={
           layer.tool === 'highlighter' ? 'multiply' : 'source-over'
         }
+        onDragStart={handleDragStart}
         onDragMove={(e) => {
           const node = e.target;
           const bbox = layer.boundingBox || { minX: 0, maxX: 0, minY: 0, maxY: 0 };
@@ -491,13 +501,14 @@ const SelectableLine = ({ layer, isSelected, onSelect, onChange, calculateBoundi
 };
 
 // Selectable Text Component
-const SelectableText = ({ layer, isSelected, onSelect, onChange, onDelete, dragLimits }: {
+const SelectableText = ({ layer, isSelected, onSelect, onChange, onDelete, dragLimits, isSelectToolActive }: {
   layer: TextLayer;
   isSelected: boolean;
   onSelect: () => void;
   onChange: (newAttrs: Partial<TextLayer>) => void;
   onDelete: () => void;
   dragLimits: { minX: number; maxX: number; minY: number; maxY: number };
+  isSelectToolActive: boolean;
 }) => {
   const shapeRef = useRef<Konva.Text>(null);
   const trRef = useRef<Konva.Transformer>(null);
@@ -653,7 +664,7 @@ const SelectableText = ({ layer, isSelected, onSelect, onChange, onDelete, dragL
 
   const handleMouseEnter = (e: Konva.KonvaEventObject<MouseEvent>) => {
     const stage = e.target.getStage();
-    if (stage) stage.container().style.cursor = isSelected ? 'move' : 'text';
+    if (stage) stage.container().style.cursor = isSelectToolActive ? 'move' : 'text';
   };
 
   const handleMouseLeave = (e: Konva.KonvaEventObject<MouseEvent>) => {
@@ -672,7 +683,7 @@ const SelectableText = ({ layer, isSelected, onSelect, onChange, onDelete, dragL
         fontSize={layer.fontSize}
         fill={layer.fill}
         rotation={layer.rotation}
-        draggable={isSelected}
+        draggable={isSelectToolActive}
         wrap="word"
         {...(layer.width !== undefined ? { width: layer.width } : {})}
         onClick={onSelect}
@@ -681,6 +692,9 @@ const SelectableText = ({ layer, isSelected, onSelect, onChange, onDelete, dragL
         onDblTap={handleDblClick}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
+        onDragStart={() => {
+          onSelect();
+        }}
         onDragMove={(e) => {
           const node = e.target;
           const x = Math.max(dragLimits.minX, Math.min(dragLimits.maxX - node.width(), node.x()));
@@ -755,12 +769,13 @@ const SelectableText = ({ layer, isSelected, onSelect, onChange, onDelete, dragL
 };
 
 // Selectable Shape Component
-const SelectableShape = ({ layer, isSelected, onSelect, onChange, dragLimits }: {
+const SelectableShape = ({ layer, isSelected, onSelect, onChange, dragLimits, isSelectToolActive }: {
   layer: ShapeLayer;
   isSelected: boolean;
   onSelect: () => void;
   onChange: (newAttrs: Partial<ShapeLayer>) => void;
   dragLimits: { minX: number; maxX: number; minY: number; maxY: number };
+  isSelectToolActive: boolean;
 }) => {
   const shapeRef = useRef<Konva.Shape>(null);
   const trRef = useRef<Konva.Transformer>(null);
@@ -778,13 +793,16 @@ const SelectableShape = ({ layer, isSelected, onSelect, onChange, dragLimits }: 
 
   // Base props for movement
   const movementProps = {
-    draggable: isSelected,
+    draggable: isSelectToolActive,
+    onDragStart: () => {
+      onSelect();
+    },
     onDragMove: (e: Konva.KonvaEventObject<DragEvent>) => {
       const node = e.target;
       const scaleX = node.scaleX();
       const scaleY = node.scaleY();
       const width = node.width() * scaleX;
-      const height = node.height() * scaleY;
+      const height = (node.height() ?? 0) * scaleY;
 
       let x = node.x();
       let y = node.y();
@@ -818,7 +836,7 @@ const SelectableShape = ({ layer, isSelected, onSelect, onChange, dragLimits }: 
 
   const handleMouseEnter = (e: Konva.KonvaEventObject<MouseEvent>) => {
     const stage = e.target.getStage();
-    if (stage) stage.container().style.cursor = isSelected ? 'move' : 'pointer';
+    if (stage) stage.container().style.cursor = isSelectToolActive ? 'move' : 'pointer';
   };
 
   const handleMouseLeave = (e: Konva.KonvaEventObject<MouseEvent>) => {
@@ -1153,6 +1171,8 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
 
   // Internal helper to render individual layers - NOT a component to prevent unmounting on re-render
   const renderLayer = (layer: DrawingPath | MediaLayer | TextLayer | ShapeLayer, index: number) => {
+    const isSelectToolActive = currentTool === 'select';
+
     if (layer.type === 'media') {
       const mediaLayer = layer as MediaLayer;
       return (
@@ -1170,6 +1190,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
             }
           }}
           dragLimits={dragLimits}
+          isSelectToolActive={isSelectToolActive}
         />
       );
     } else if (layer.type === 'drawing') {
@@ -1191,6 +1212,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
             }
           }}
           dragLimits={dragLimits}
+          isSelectToolActive={isSelectToolActive}
         />
       );
     } else if (layer.type === 'text') {
@@ -1211,6 +1233,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
           }}
           onDelete={() => deleteSelected()}
           dragLimits={dragLimits}
+          isSelectToolActive={isSelectToolActive}
         />
       );
     } else if (layer.type === 'shape') {
@@ -1230,6 +1253,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
             }
           }}
           dragLimits={dragLimits}
+          isSelectToolActive={isSelectToolActive}
         />
       );
     }
