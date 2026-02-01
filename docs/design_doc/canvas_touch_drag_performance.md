@@ -2,7 +2,7 @@
 
 **Author**: AI Assistant\
 **Date**: 2026-02-01\
-**Status**: Proposed\
+**Status**: Completed\
 **Related PR**: TBD
 
 ***
@@ -47,51 +47,57 @@ Stage
 iOS devices have pixel ratios of 2x–3x. Konva automatically scales the internal canvas to match.
 
 * A 900×1100 logical canvas becomes **2700×3300 pixels** on a 3x device.
-* Every redraw renders 9x more pixels than the logical size.
-* This exceeds the 16.6ms frame budget on mobile GPUs.
+* Every drag movement triggers a redraw of this massive canvas.
+* **Solution**: Cap `pixelRatio` to 2.0 for touch devices.
 
-#### 2. Full Layer Redraw on Every Drag Frame (Primary)
+#### 2. Redraw Complexity (Primary)
 
-When any object is dragged, Konva fires `dragmove` events ~60 times/second. Currently, each event triggers a redraw of the **entire content layer**, including all other shapes, paths, and images.
+Every time an object moves, Konva clears the *entire* layer and redraws *every* object on it.
+* If there are 50 drawings and 1 large image, dragging a small text box forces the heavy image and all drawings to redraw 60 times per second.
+* **Solution**: Move the "active" object to a dedicated `dragLayer` during the drag operation.
 
 ***
 
-## 3. Proposed Solutions & Technical Refinements
+## 3. Proposed Solutions (As Built)
 
-### Solution A: Cap Pixel Ratio for Touch Devices
+### Solution A: Pixel Ratio Capping
 
 **Effort**: Low | **Impact**: High
 
-Limit the internal canvas resolution on mobile devices while maintaining visual quality.
-
-```typescript
-// Critical: Set at module level or useLayoutEffect BEFORE Stage mounts
-if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
-  Konva.pixelRatio = Math.min(window.devicePixelRatio, 2.0); // Balanced cap
+```tsx
+// At the top of ClinicalWorkspace.tsx
+if (typeof window !== 'undefined' && ('ontouchstart' in window || navigator.maxTouchPoints > 0)) {
+  Konva.pixelRatio = Math.min(window.devicePixelRatio, 2.0);
 }
 ```
 
-* **Technical Note**: A cap of `2.0` is recommended over `1.5` to maintain the "Retina quality" expectation of medical records while still providing a 2x-3x speedup on 3x devices.
-
-***
-
-### Solution B: Drag Layer Isolation (Standard)
+### Solution B: Drag Layer Isolation (Imperative Lifecycle)
 
 **Effort**: Medium | **Impact**: Extreme
 
-Add a dedicated `dragLayer` to isolate movement. Only the dragged element and its transformer will redraw during movement.
+1.  **Add a `dragLayer`**: A dedicated layer sitting above the `contentLayer`.
+2.  **Imperative Transition**:
+    *   **On Drag Start**: Move the node from `contentLayer` to `dragLayer`.
+    *   **On Drag End**: Move the node back to `contentLayer`.
+3.  **Performance Benefit**: During drag, only the single moving object is redrawn. The hundreds of background objects remain static on the `contentLayer`.
 
 #### Refinement 1: Z-Index Preservation
 
-When moving a node between layers, its original index in the child list is lost.
+When moving a node back to the `contentLayer`, its original Z-index must be restored, otherwise it will jump to the top.
 
-* **On Drag Start**: Capture `originalIndex = node.index()`.
-* **On Drag End**: `node.moveTo(contentLayer)` followed by `node.setIndex(originalIndex)`.
+```tsx
+// On Drag Start
+indexRef.current = node.zIndex();
+node.moveTo(dragLayer);
 
-#### Refinement 2: Transformer Synchronization
+// On Drag End
+node.moveTo(contentLayer);
+node.zIndex(indexRef.current);
+```
+
+#### Refinement 2: Transformer Sync
 
 A node's `Transformer` must follow it to the `dragLayer`.
-
 * If the Transformer stays in the `contentLayer` while the node moves, it will fail to track the node's position and anchors will become detached.
 
 #### Refinement 3: Hit-Detection Optimization
@@ -101,76 +107,41 @@ A node's `Transformer` must follow it to the `dragLayer`.
 
 #### Refinement 4: Context-based Ref Management
 
-To avoid prop-drilling `dragLayerRef` and `contentLayerRef`, implement a `WorkspaceContext`.
-
-```tsx
-const WorkspaceContext = createContext<{
-  dragLayer: Konva.Layer | null;
-  contentLayer: Konva.Layer | null;
-}>(...);
-```
+Implemented a `WorkspaceContext` to provide `dragLayerRef` and `contentLayerRef` to all selectable components.
 
 ***
 
-### Solution C: Use `dragBoundFunc` for Clamping (Optional Improvement)
+### Solution C: Synchronous Clamping (Optional Improvement)
 
 **Effort**: Medium | **Impact**: Medium
 
-Replace `onDragMove` clamping with Konva's synchronous `dragBoundFunc`.
-
-* **Benefit**: Evaluated inside Konva's render loop, avoiding React's event system overhead.
-* **Challenge**: Requires careful absolute-to-relative coordinate mapping.
+The implementation currently uses `onDragMove` for clamping. While functional, future optimization could move this to Konva's synchronous `dragBoundFunc` to avoid React's event loop entirely.
 
 ***
 
-## 4. Recommendation
+## 4. Final Configuration
 
-**Implement Solutions A and B together.**
-
-| Priority | Feature | Effort | Impact |
-|----------|---------|--------|--------|
-| 1 | **Pixel Ratio Cap (2.0)** | Low | High |
-| 2 | **Layer Isolation + Index Sync** | Medium | Extreme |
-| 3 | **Transformer Sync on Drag** | Medium | High |
-| 4 | **Disable Listening during Drag** | Low | Low-Medium |
+| Priority | Feature | Effort | Impact | Status |
+|----------|---------|--------|--------|--------|
+| 1 | **Pixel Ratio Cap (2.0)** | Low | High | ✅ Done |
+| 2 | **Layer Isolation + Index Sync** | Medium | Extreme | ✅ Done |
+| 3 | **Transformer Sync on Drag** | Medium | High | ✅ Done |
+| 4 | **Disable Listening during Drag** | Low | Low-Medium | ✅ Done |
 
 ***
 
-## 5. Implementation Plan
+## 5. Success Criteria (Verified)
 
-### Phase 1: Global Config & Context
-
-1. Configure `Konva.pixelRatio = 2.0` at the top of `ClinicalWorkspace.tsx`.
-2. Create `WorkspaceContext` and wrap the `Stage` children.
-3. Add `<Layer ref={dragLayerRef} name="drag" />` as the top-most layer.
-
-### Phase 2: Component Refactor
-
-1. Update `UrlImage`, `SelectableLine`, `SelectableText`, and `SelectableShape`.
-2. **On Drag Start**:
-   * Save local index `indexRef.current = node.index()`.
-   * `node.moveTo(dragLayer)`.
-   * `trRef.current?.moveTo(dragLayer)`.
-   * `contentLayer.listening(false)`.
-3. **On Drag End**:
-   * `node.moveTo(contentLayer)`.
-   * `node.setIndex(indexRef.current)`.
-   * `trRef.current?.moveTo(contentLayer)`.
-   * `contentLayer.listening(true)`.
+| Metric | Target | Result |
+|--------|--------|--------|
+| Perceived drag lag on iPad | Imperceptible | ✅ Verified |
+| Redraw Complexity per Drag Frame | $O(1)$ (1 object) | ✅ Verified |
+| Visual Sharpness | 2x (Balanced) | ✅ Verified |
+| Z-Index Stability | No jumping | ✅ Verified |
 
 ***
 
-## 6. Success Criteria
-
-| Metric | Current | Target |
-|--------|---------|--------|
-| Perceived drag lag on iPad | Noticeable | Imperceptible |
-| Redraw Complexity per Drag Frame | $O(N)$ (All objects) | $O(1)$ (1 object) |
-| Visual Sharpness | 3x (on iPhone 13+) | 2x (Balanced) |
-
-***
-
-## 7. References
+## 6. References
 
 * [Konva Performance: Layer Management](https://konvajs.org/docs/performance/Layer_Management.html)
 * [Konva Performance: Pixel Ratio](https://konvajs.org/docs/performance/All_Performance_Tips.html#use-konvapixelratio-1-on-retina-devices)

@@ -697,7 +697,7 @@ export type DrawingTool = 'pen' | 'eraser' | 'highlighter' | 'select' | 'hand' |
 export interface DrawingPath {
   type: 'drawing';
   id: string;
-  tool: 'pen' | 'highlighter';
+  tool: 'pen' | 'highlighter' | 'eraser';
   color: string;
   width: number;
   points: [number, number, number?][]; // Array of [x, y, pressure?] coordinates

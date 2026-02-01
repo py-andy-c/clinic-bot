@@ -61,10 +61,11 @@ describe('ClinicalWorkspace Text Tool', () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.restoreAllMocks();
   });
 
-  it('activates text tool and shows font size control', () => {
+  it('activates text tool and shows font size control', async () => {
     render(
       <ClinicalWorkspace
         recordId={1}
@@ -77,12 +78,17 @@ describe('ClinicalWorkspace Text Tool', () => {
     const textBtn = screen.getByLabelText('文字 (T)');
     fireEvent.click(textBtn);
 
-    // Font size control should appear
-    const fontSizeSelect = screen.getByDisplayValue('20');
+    // Create text by clicking on canvas
+    const stage = document.querySelector('.konvajs-content');
+    fireEvent.mouseDown(stage!);
+    fireEvent.mouseUp(stage!);
+
+    // Font size control should appear in context menu after selection
+    const fontSizeSelect = await screen.findByDisplayValue('20');
     expect(fontSizeSelect).toBeDefined();
   });
 
-  it('updates font size', () => {
+  it('updates font size', async () => {
     render(
       <ClinicalWorkspace
         recordId={1}
@@ -94,7 +100,12 @@ describe('ClinicalWorkspace Text Tool', () => {
     const textBtn = screen.getByLabelText('文字 (T)');
     fireEvent.click(textBtn);
 
-    const fontSizeSelect = screen.getByDisplayValue('20') as HTMLSelectElement;
+    // Create text by clicking on canvas
+    const stage = document.querySelector('.konvajs-content');
+    fireEvent.mouseDown(stage!);
+    fireEvent.mouseUp(stage!);
+
+    const fontSizeSelect = await screen.findByDisplayValue('20') as HTMLSelectElement;
     fireEvent.change(fontSizeSelect, { target: { value: '32' } });
 
     expect(fontSizeSelect.value).toBe('32');
@@ -122,8 +133,9 @@ describe('ClinicalWorkspace Text Tool', () => {
     fireEvent.mouseUp(stage!);
 
     // 3. Expect textarea to appear (wait for effect)
-    await new Promise(resolve => setTimeout(resolve, 0));
-
+    // In Vitest, with useFakeTimers, we might need to run timers if there's any delay
+    
+    // Check for textarea
     const textarea = document.querySelector('textarea');
     expect(textarea).not.toBeNull();
 
@@ -134,7 +146,7 @@ describe('ClinicalWorkspace Text Tool', () => {
     // 5. Blur to save
     fireEvent.blur(textarea!);
 
-    // 6. Verify onUpdate called with new layer
+    // 7. Verify onUpdate called with new layer
     expect(mockOnUpdate).toHaveBeenCalled();
     const lastCall = mockOnUpdate.mock.calls[mockOnUpdate.mock.calls.length - 1][0];
     const textLayer = lastCall.layers.find((l: { type: string; text: string; width?: number }) => l.type === 'text');
@@ -163,6 +175,7 @@ describe('ClinicalWorkspace Text Tool', () => {
     fireEvent.mouseDown(stage!);
     fireEvent.mouseUp(stage!);
 
+
     expect(mockOnUpdate).toHaveBeenCalled();
     const lastCall = mockOnUpdate.mock.calls[mockOnUpdate.mock.calls.length - 1][0];
     const textLayer = lastCall.layers.find((l: { type: string; width?: number }) => l.type === 'text');
@@ -190,7 +203,6 @@ describe('ClinicalWorkspace Text Tool', () => {
     fireEvent.mouseDown(stage!);
     fireEvent.mouseUp(stage!);
 
-    await new Promise(resolve => setTimeout(resolve, 0));
     const textarea = document.querySelector('textarea') as HTMLTextAreaElement;
 
     // 2. Mock the text node that would be found by dblclick/click logic
@@ -222,7 +234,6 @@ describe('ClinicalWorkspace Text Tool', () => {
     fireEvent.mouseUp(stage!);
 
     // Wait for textarea
-    await new Promise(resolve => setTimeout(resolve, 50));
     const textarea = document.querySelector('textarea') as HTMLTextAreaElement;
     expect(textarea).not.toBeNull();
 
@@ -238,6 +249,8 @@ describe('ClinicalWorkspace Text Tool', () => {
 
     // Blur and verify onDelete was effectively called (text is empty)
     fireEvent.blur(textarea);
+    
+
     expect(mockOnUpdate).toHaveBeenCalled();
     // Since it was deleted, it shouldn't be in the layers
     const lastCall = mockOnUpdate.mock.calls[mockOnUpdate.mock.calls.length - 1][0];
