@@ -5,17 +5,17 @@ Resource Management API endpoints.
 
 import logging
 import re
-from datetime import datetime, date as date_type
+from datetime import datetime
 from typing import Dict, List, Optional, Any
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi import status as http_status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, and_
 
 from core.database import get_db
-from auth.dependencies import require_admin_role, require_practitioner_or_admin, require_authenticated, UserContext, ensure_clinic_access
+from auth.dependencies import require_admin_role, require_authenticated, UserContext, ensure_clinic_access
 from models import ResourceType, Resource, AppointmentType, AppointmentResourceRequirement, AppointmentResourceAllocation, CalendarEvent, Appointment
 from utils.datetime_utils import taiwan_now
 

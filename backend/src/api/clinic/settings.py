@@ -15,7 +15,7 @@ from pydantic import BaseModel, model_validator, field_validator, Field
 from datetime import time
 from decimal import Decimal
 from sqlalchemy.orm import Session
-from sqlalchemy import func, delete, or_, text
+from sqlalchemy import func, or_, text
 
 from core.database import get_db
 from auth.dependencies import require_admin_role, require_authenticated, UserContext, ensure_clinic_access
@@ -27,8 +27,7 @@ from models import (
     BillingScenario,
     AppointmentResourceRequirement,
     FollowUpMessage,
-    ResourceType,
-    Resource
+    ResourceType
 )
 from services import AppointmentTypeService
 from services.availability_service import AvailabilityService

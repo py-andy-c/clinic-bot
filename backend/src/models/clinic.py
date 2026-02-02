@@ -197,14 +197,13 @@ class Clinic(Base):
 
     subscription_status: Mapped[str] = mapped_column(String(50), default="trial")
     """
-    Current subscription status of the clinic.
-
-    Possible values:
-    - 'trial': Free trial period active
-    - 'active': Paid subscription active
-    - 'past_due': Payment overdue
-    - 'canceled': Subscription canceled
+    Status of the clinic's subscription.
+    
+    Values: 'trial', 'active', 'past_due', 'canceled', 'lifetime'.
+    Determines access to features.
     """
+
+    medical_record_templates = relationship("MedicalRecordTemplate", back_populates="clinic", cascade="all, delete-orphan")
 
     trial_ends_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
     """

@@ -1823,7 +1823,6 @@ class AvailabilityService:
 
         This is a helper method for batch conflict checking.
         """
-        from services.appointment_type_service import AppointmentTypeService
         from models import Appointment
 
         default_intervals = schedule_data['default_intervals']

@@ -9,7 +9,7 @@ This service handles:
 
 import logging
 from datetime import datetime
-from typing import List, Dict, Any, Optional, cast
+from typing import List, Dict, Any, Optional
 
 from sqlalchemy import and_
 from sqlalchemy.orm import Session

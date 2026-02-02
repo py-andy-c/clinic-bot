@@ -15,13 +15,12 @@ from sqlalchemy.orm import Session, joinedload
 from core.database import get_db
 from core.constants import MAX_EVENT_NAME_LENGTH, RECURRENT_APPOINTMENT_NOTIF_MAX_ITEMS
 from auth.dependencies import require_authenticated, require_practitioner_or_admin, require_admin_role, UserContext, ensure_clinic_access
-from models import User, Clinic, AppointmentType, CalendarEvent, Appointment, Patient, ResourceType, Resource, AppointmentResourceRequirement, AppointmentResourceAllocation, UserClinicAssociation
+from models import User, Clinic, AppointmentType, CalendarEvent, Appointment, Patient, ResourceType, Resource, AppointmentResourceRequirement, AppointmentResourceAllocation
 from services import AppointmentService, AppointmentTypeService
 from services.availability_service import AvailabilityService
 from services.notification_service import NotificationService
 from services.receipt_service import ReceiptService
 from services.resource_service import ResourceService
-from services.line_service import LINEService
 from utils.datetime_utils import datetime_validator, parse_date_string, parse_datetime_to_taiwan, TAIWAN_TZ, format_datetime
 parse_dt = parse_datetime_to_taiwan
 from utils.practitioner_helpers import (

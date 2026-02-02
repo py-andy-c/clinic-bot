@@ -25,8 +25,7 @@ from utils.datetime_utils import parse_date_string
 from utils.practitioner_helpers import verify_practitioner_in_clinic, get_practitioner_display_name_for_appointment
 from api.responses import (
     AvailableSlotsResponse, AvailableSlotResponse, ConflictWarningResponse, ConflictDetail,
-    SchedulingConflictResponse, BatchSchedulingConflictResponse, AppointmentConflictDetail, ExceptionConflictDetail, DefaultAvailabilityInfo,
-    SelectionInsufficientWarning, ResourceConflictWarning
+    BatchSchedulingConflictResponse
 )
 
 logger = logging.getLogger(__name__)

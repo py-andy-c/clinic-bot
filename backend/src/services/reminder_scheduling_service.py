@@ -14,7 +14,7 @@ from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 
 from models import Appointment, ScheduledLineMessage, Clinic, CalendarEvent
-from utils.datetime_utils import taiwan_now, ensure_taiwan, TAIWAN_TZ
+from utils.datetime_utils import taiwan_now, ensure_taiwan
 
 logger = logging.getLogger(__name__)
 

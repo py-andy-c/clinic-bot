@@ -320,15 +320,18 @@ class TestDashboardServiceNewPatients:
         
         # Create patients in current month
         now = taiwan_now()
+        # Ensure we are in the current month, even if today is the 1st
+        current_month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        
         patient1 = Patient(
             clinic_id=clinic.id,
             full_name="Patient 1",
-            created_at=now - timedelta(days=5)
+            created_at=current_month_start + timedelta(hours=1)
         )
         patient2 = Patient(
             clinic_id=clinic.id,
             full_name="Patient 2",
-            created_at=now - timedelta(days=1)
+            created_at=current_month_start + timedelta(days=1)
         )
         db_session.add(patient1)
         db_session.add(patient2)

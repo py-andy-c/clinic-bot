@@ -79,3 +79,10 @@ LIFF_ID = os.getenv("LIFF_ID", "")  # LINE LIFF ID for availability notification
 # Defaults to 'development' if not set (for local development)
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
 
+# S3 Configuration
+S3_BUCKET = os.getenv("S3_BUCKET", "clinic-bot-dev")
+AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID", "")
+AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY", "")
+AWS_REGION = os.getenv("AWS_REGION", "ap-northeast-1")
+
+
