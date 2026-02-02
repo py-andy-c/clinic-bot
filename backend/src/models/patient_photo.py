@@ -16,10 +16,10 @@ class PatientPhoto(Base):
     __tablename__ = "patient_photos"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    clinic_id: Mapped[int] = mapped_column(Integer, ForeignKey("clinics.id"), nullable=False, index=True)
-    patient_id: Mapped[int] = mapped_column(Integer, ForeignKey("patients.id"), nullable=False, index=True)
+    clinic_id: Mapped[int] = mapped_column(Integer, ForeignKey("clinics.id"), nullable=False)
+    patient_id: Mapped[int] = mapped_column(Integer, ForeignKey("patients.id"), nullable=False)
     
-    medical_record_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("medical_records.id", ondelete="CASCADE"), nullable=True, index=True)
+    medical_record_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("medical_records.id", ondelete="CASCADE"), nullable=True)
     
     filename: Mapped[str] = mapped_column(String(255), nullable=False)
     storage_key: Mapped[str] = mapped_column(String(512), nullable=False)
@@ -31,11 +31,11 @@ class PatientPhoto(Base):
     
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     
-    is_pending: Mapped[bool] = mapped_column(Boolean, default=True) # Staged state
-    is_deleted: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_pending: Mapped[bool] = mapped_column(Boolean, server_default='true', nullable=False) # Staged state
+    is_deleted: Mapped[bool] = mapped_column(Boolean, server_default='false', nullable=False)
     deleted_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
     
-    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default='now()')
     updated_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP(timezone=True), nullable=True, onupdate=lambda: datetime.now(timezone.utc))
     uploaded_by_user_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("users.id"), nullable=True)
     updated_by_user_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("users.id"), nullable=True)
@@ -48,6 +48,9 @@ class PatientPhoto(Base):
     updated_by_user = relationship("User", foreign_keys=[updated_by_user_id])
 
     __table_args__ = (
+        Index("idx_patient_photos_clinic", "clinic_id"),
+        Index("idx_patient_photos_patient", "patient_id"),
+        Index("idx_patient_photos_medical_record", "medical_record_id"),
         Index("idx_patient_photos_patient_record", "patient_id", "medical_record_id"),
         Index("idx_patient_photos_deleted", "clinic_id", "is_deleted"),
         Index("idx_patient_photos_dedup", "clinic_id", "content_hash"),

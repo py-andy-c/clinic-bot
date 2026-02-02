@@ -17,19 +17,19 @@ class MedicalRecordTemplate(Base):
     __tablename__ = "medical_record_templates"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    clinic_id: Mapped[int] = mapped_column(Integer, ForeignKey("clinics.id"), nullable=False, index=True)
+    clinic_id: Mapped[int] = mapped_column(Integer, ForeignKey("clinics.id"), nullable=False)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     
     # JSONB field for storing template structure (list of fields)
     fields: Mapped[List[Dict[str, Any]]] = mapped_column(JSONB, nullable=False)
     
-    version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    version: Mapped[int] = mapped_column(Integer, server_default='1', nullable=False)
     
-    is_deleted: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_deleted: Mapped[bool] = mapped_column(Boolean, server_default='false', nullable=False)
     deleted_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
     
-    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default='now()')
     created_by_user_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("users.id"), nullable=True)
     
     updated_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP(timezone=True), nullable=True, onupdate=lambda: datetime.now(timezone.utc))
@@ -41,5 +41,6 @@ class MedicalRecordTemplate(Base):
     updated_by_user = relationship("User", foreign_keys=[updated_by_user_id])
     
     __table_args__ = (
+        Index("idx_medical_record_templates_clinic", "clinic_id"),
         Index("idx_medical_record_templates_deleted", "clinic_id", "is_deleted"),
     )
