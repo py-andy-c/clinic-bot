@@ -94,28 +94,23 @@ export interface MedicalRecordsListResponse {
   total: number;
 }
 
-// Patient Photo types
+// Patient Photo types (matches backend PatientPhotoResponse)
 export interface PatientPhoto {
   id: number;
   clinic_id: number;
   patient_id: number;
   medical_record_id?: number;
-  storage_key: string;
-  thumbnail_key: string;
-  content_hash: string;
-  file_name: string;
-  mime_type: string;
+  filename: string;
+  content_type: string;
   size_bytes: number;
   description?: string;
   is_pending: boolean;
-  is_deleted: boolean;
-  deleted_at?: string;
   created_at: string;
-  created_by_user_id?: number;
-  updated_at?: string;
+  url?: string;
+  thumbnail_url?: string;
 }
 
-export interface PatientPhotosListResponse {
-  photos: PatientPhoto[];
-  total: number;
+export interface PatientPhotoUpdateRequest {
+  description?: string;
+  medical_record_id?: number;
 }

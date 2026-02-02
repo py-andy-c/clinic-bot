@@ -10,6 +10,7 @@ import { useModal } from '../contexts/ModalContext';
 import { LoadingSpinner } from './shared';
 import { MedicalRecord } from '../types/medicalRecord';
 import { MedicalRecordModal } from './MedicalRecordModal';
+import { PatientPhotoGallery } from './PatientPhotoGallery';
 import { formatDateOnly } from '../utils/calendarUtils';
 import { getErrorMessage } from '../types/api';
 import { logger } from '../utils/logger';
@@ -180,6 +181,15 @@ export const PatientMedicalRecordsSection: React.FC<PatientMedicalRecordsSection
           )}
         </div>
       )}
+
+      {/* Photo Gallery Section */}
+      <div className="mt-8 pt-8 border-t">
+        <PatientPhotoGallery
+          clinicId={activeClinicId ?? null}
+          patientId={patientId}
+          unlinkedOnly={true}
+        />
+      </div>
 
       {/* Modal */}
       {modalState.isOpen && (

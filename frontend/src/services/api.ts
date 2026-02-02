@@ -1570,6 +1570,84 @@ export class ApiService {
     return response.data;
   }
 
+  // Patient Photo methods
+  async listPatientPhotos(
+    patientId: number,
+    params?: { 
+      skip?: number; 
+      limit?: number; 
+      medical_record_id?: number;
+      unlinked_only?: boolean;
+    }
+  ): Promise<import('../types/medicalRecord').PatientPhoto[]> {
+    const response = await this.client.get(`/clinic/patient-photos`, { 
+      params: { patient_id: patientId, ...params } 
+    });
+    return response.data;
+  }
+
+  async uploadPatientPhoto(
+    patientId: number,
+    file: File,
+    options?: {
+      description?: string;
+      medical_record_id?: number;
+      is_pending?: boolean;
+      onUploadProgress?: (progressEvent: any) => void;
+    }
+  ): Promise<import('../types/medicalRecord').PatientPhoto> {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('patient_id', patientId.toString());
+    
+    if (options?.description) {
+      formData.append('description', options.description);
+    }
+    if (options?.medical_record_id !== undefined) {
+      formData.append('medical_record_id', options.medical_record_id.toString());
+    }
+    if (options?.is_pending !== undefined) {
+      formData.append('is_pending', options.is_pending.toString());
+    }
+
+    const config: any = {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    };
+    
+    if (options?.onUploadProgress) {
+      config.onUploadProgress = options.onUploadProgress;
+    }
+
+    const response = await this.client.post(`/clinic/patient-photos`, formData, config);
+    return response.data;
+  }
+
+  async updatePatientPhoto(
+    photoId: number,
+    data: import('../types/medicalRecord').PatientPhotoUpdateRequest
+  ): Promise<import('../types/medicalRecord').PatientPhoto> {
+    const response = await this.client.put(`/clinic/patient-photos/${photoId}`, data);
+    return response.data;
+  }
+
+  async deletePatientPhoto(photoId: number): Promise<{ status: string }> {
+    const response = await this.client.delete(`/clinic/patient-photos/${photoId}`);
+    return response.data;
+  }
+
+  async attachPhotosToRecord(
+    recordId: number,
+    photoIds: number[]
+  ): Promise<import('../types/medicalRecord').PatientPhoto[]> {
+    const response = await this.client.post(`/clinic/patient-photos/attach`, {
+      record_id: recordId,
+      photo_ids: photoIds,
+    });
+    return response.data;
+  }
+
 }
 
 export const apiService = new ApiService();
