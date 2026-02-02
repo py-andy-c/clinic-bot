@@ -412,9 +412,15 @@ export const MedicalRecordModal: React.FC<MedicalRecordModalProps> = ({
                         const endDate = new Date(apt.end_time);
                         const timeStr = formatAppointmentTimeRange(startDate, endDate);
                         const serviceName = apt.appointment_type_name || '預約';
+
+                        // Check if it's today
+                        const now = new Date();
+                        const isToday = formatDateOnly(startDate) === formatDateOnly(now);
+                        const prefix = isToday ? '[今] ' : '';
+
                         return (
                           <option key={aptId} value={aptId}>
-                            {timeStr} - {serviceName}
+                            {prefix}{timeStr} - {serviceName}
                           </option>
                         );
                       })}
