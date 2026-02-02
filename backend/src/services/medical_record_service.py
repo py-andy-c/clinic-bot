@@ -7,6 +7,7 @@ from fastapi import HTTPException
 from models.medical_record import MedicalRecord
 from models.medical_record_template import MedicalRecordTemplate
 from models.patient_photo import PatientPhoto
+from models.patient import Patient
 
 class MedicalRecordService:
     @staticmethod
@@ -20,6 +21,13 @@ class MedicalRecordService:
         appointment_id: Optional[int] = None,
         created_by_user_id: Optional[int] = None
     ) -> MedicalRecord:
+        # Verify Patient belongs to Clinic
+        patient = db.query(Patient).filter(Patient.id == patient_id).first()
+        if not patient:
+             raise HTTPException(status_code=404, detail="Patient not found")
+        if patient.clinic_id != clinic_id:
+             raise HTTPException(status_code=403, detail="Patient does not belong to this clinic")
+
         # Fetch template to snapshot it
         template = db.query(MedicalRecordTemplate).filter(
             MedicalRecordTemplate.id == template_id,
@@ -48,7 +56,8 @@ class MedicalRecordService:
         if photo_ids:
             photos = db.query(PatientPhoto).filter(
                 PatientPhoto.id.in_(photo_ids),
-                PatientPhoto.clinic_id == clinic_id
+                PatientPhoto.clinic_id == clinic_id,
+                PatientPhoto.patient_id == patient_id
             ).all()
             
             # Verify all photos were found
@@ -56,7 +65,7 @@ class MedicalRecordService:
                 # Check which ones are missing or invalid
                 found_ids = {p.id for p in photos}
                 missing = set(photo_ids) - found_ids
-                raise HTTPException(status_code=404, detail=f"Photos not found or access denied: {missing}")
+                raise HTTPException(status_code=404, detail=f"Photos not found, access denied, or belong to another patient: {missing}")
 
             for photo in photos:
                 photo.medical_record_id = record.id
@@ -142,13 +151,14 @@ class MedicalRecordService:
                 # Verify existence and access
                 photos_to_link = db.query(PatientPhoto).filter(
                     PatientPhoto.id.in_(ids_to_link),
-                    PatientPhoto.clinic_id == clinic_id
+                    PatientPhoto.clinic_id == clinic_id,
+                    PatientPhoto.patient_id == record.patient_id
                 ).all()
                 
                 if len(photos_to_link) != len(ids_to_link):
                     found_ids = {p.id for p in photos_to_link}
                     missing = ids_to_link - found_ids
-                    raise HTTPException(status_code=404, detail=f"Photos not found or access denied: {missing}")
+                    raise HTTPException(status_code=404, detail=f"Photos not found, access denied, or belong to another patient: {missing}")
                 
                 for photo in photos_to_link:
                     photo.medical_record_id = record_id

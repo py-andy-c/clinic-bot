@@ -370,6 +370,10 @@ class PatientPhotoService:
         
         if medical_record_id:
             query = query.filter(PatientPhoto.medical_record_id == medical_record_id)
+        elif not unlinked_only:
+            # Default to showing only Active photos in general gallery (hide staged/pending ones)
+            # But allow seeing them if specifically asking for unlinked photos (e.g. for attachment)
+            query = query.filter(PatientPhoto.is_pending == False)
         
         if unlinked_only:
             query = query.filter(PatientPhoto.medical_record_id.is_(None))
