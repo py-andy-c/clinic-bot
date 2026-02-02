@@ -141,6 +141,13 @@ export const MedicalRecordTemplateEditorModal: React.FC<MedicalRecordTemplateEdi
     try {
       // Helper function to convert options string to array
       const processFieldOptions = (field: any) => {
+        // Only process options for field types that support them
+        const supportsOptions = ['dropdown', 'radio', 'checkbox'].includes(field.type);
+        
+        if (!supportsOptions) {
+          return undefined; // Clear options for non-select field types
+        }
+        
         if (field.options && typeof field.options === 'string') {
           // Split by newline and filter out empty lines
           return field.options

@@ -65,6 +65,17 @@ class MedicalRecordTemplateService:
         ).offset(skip).limit(limit).all()
 
     @staticmethod
+    def count_templates(
+        db: Session,
+        clinic_id: int
+    ) -> int:
+        """Get total count of non-deleted templates for a clinic."""
+        return db.query(MedicalRecordTemplate).filter(
+            MedicalRecordTemplate.clinic_id == clinic_id,
+            MedicalRecordTemplate.is_deleted == False
+        ).count()
+
+    @staticmethod
     def update_template(
         db: Session,
         template_id: int,

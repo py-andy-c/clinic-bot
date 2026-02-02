@@ -74,6 +74,10 @@ def list_templates(
         raise HTTPException(status_code=400, detail="Clinic context required")
     clinic_id = user.active_clinic_id
     
+    # Get total count before pagination
+    total = MedicalRecordTemplateService.count_templates(db=db, clinic_id=clinic_id)
+    
+    # Get paginated templates
     templates = MedicalRecordTemplateService.list_templates(
         db=db,
         clinic_id=clinic_id,
@@ -86,7 +90,7 @@ def list_templates(
     
     return MedicalRecordTemplatesListResponse(
         templates=template_responses,
-        total=len(template_responses)
+        total=total
     )
 
 @router.get("/{template_id}", response_model=MedicalRecordTemplateResponse)
