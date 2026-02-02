@@ -82,8 +82,8 @@ class MedicalRecordService:
                 PatientPhoto.patient_id == patient_id
             ).all()
             
-            # Verify all photos were found
-            if len(photos) != len(photo_ids):
+            # Verify all photos were found (handle duplicates by using set)
+            if len(photos) != len(set(photo_ids)):
                 # Check which ones are missing or invalid
                 found_ids = {p.id for p in photos}
                 missing = set(photo_ids) - found_ids
