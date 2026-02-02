@@ -18,6 +18,7 @@ import { PatientNotesSection } from '../components/patient/PatientNotesSection';
 import { PatientAssignedPractitionersSection } from '../components/patient/PatientAssignedPractitionersSection';
 import { PatientAppointmentsList } from '../components/patient/PatientAppointmentsList';
 import { CreateAppointmentModal } from '../components/calendar/CreateAppointmentModal';
+import { PatientMedicalRecordsSection } from '../components/PatientMedicalRecordsSection';
 
 const PatientDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -179,6 +180,8 @@ const PatientDetailPage: React.FC = () => {
             appointmentsListRefetchRef.current = refetch;
           }}
         />
+
+        <PatientMedicalRecordsSection patientId={patient.id} />
       </div>
 
       {/* Create Appointment Modal */}
