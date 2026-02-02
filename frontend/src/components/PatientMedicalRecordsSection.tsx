@@ -35,10 +35,11 @@ export const PatientMedicalRecordsSection: React.FC<PatientMedicalRecordsSection
     mode: 'create',
   });
 
+  // Always fetch all records (including deleted) to determine trash button visibility
   const { data, isLoading, error } = usePatientMedicalRecords(
     activeClinicId ?? null,
     patientId,
-    { include_deleted: showDeleted }
+    { include_deleted: true }
   );
 
   const deleteMutation = useDeleteMedicalRecord(activeClinicId ?? null, patientId);
