@@ -6,10 +6,10 @@ import { BaseModal } from './shared/BaseModal';
 import { ModalHeader, ModalBody, ModalFooter } from './shared/ModalParts';
 import { LoadingSpinner } from './shared';
 import { FormInput, FormTextarea, FormField } from './forms';
-import { 
-  useMedicalRecordTemplate, 
-  useCreateMedicalRecordTemplate, 
-  useUpdateMedicalRecordTemplate 
+import {
+  useMedicalRecordTemplate,
+  useCreateMedicalRecordTemplate,
+  useUpdateMedicalRecordTemplate
 } from '../hooks/useMedicalRecordTemplates';
 import { useAuth } from '../hooks/useAuth';
 import { useModal } from '../contexts/ModalContext';
@@ -63,7 +63,7 @@ export const MedicalRecordTemplateEditorModal: React.FC<MedicalRecordTemplateEdi
 
   const isEdit = templateId !== null;
   const { data: template, isLoading } = useMedicalRecordTemplate(
-    activeClinicId ?? null, 
+    activeClinicId ?? null,
     templateId
   );
   const createMutation = useCreateMedicalRecordTemplate(activeClinicId ?? null);
@@ -143,11 +143,11 @@ export const MedicalRecordTemplateEditorModal: React.FC<MedicalRecordTemplateEdi
       const processFieldOptions = (field: any) => {
         // Only process options for field types that support them
         const supportsOptions = ['dropdown', 'radio', 'checkbox'].includes(field.type);
-        
+
         if (!supportsOptions) {
           return undefined; // Clear options for non-select field types
         }
-        
+
         if (field.options && typeof field.options === 'string') {
           // Split by newline and filter out empty lines
           return field.options
@@ -204,7 +204,7 @@ export const MedicalRecordTemplateEditorModal: React.FC<MedicalRecordTemplateEdi
   return (
     <BaseModal onClose={handleClose}>
       <FormProvider {...methods}>
-        <form onSubmit={methods.handleSubmit(onSubmit)}>
+        <form onSubmit={methods.handleSubmit(onSubmit)} className="flex flex-col flex-1 min-h-0">
           <ModalHeader
             title={isEdit ? '編輯病歷模板' : '新增病歷模板'}
             onClose={handleClose}
@@ -323,7 +323,7 @@ const FieldEditor: React.FC<FieldEditorProps> = ({
     <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
       {/* Hidden input to preserve field ID during updates */}
       <input type="hidden" {...register(`fields.${index}.id`)} />
-      
+
       <div className="flex items-start gap-4">
         {/* Move buttons */}
         <div className="flex flex-col gap-1">

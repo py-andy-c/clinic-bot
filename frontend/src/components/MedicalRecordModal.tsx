@@ -44,10 +44,10 @@ const createDynamicSchema = (fields: TemplateField[] | undefined) => {
 
   fields.forEach((field) => {
     const fieldId = field.id;
-    
+
     // Base validation based on field type
     let fieldSchema: z.ZodTypeAny;
-    
+
     switch (field.type) {
       case 'number':
         fieldSchema = z.union([z.number(), z.string().transform(val => val === '' ? undefined : Number(val))]);
@@ -61,7 +61,7 @@ const createDynamicSchema = (fields: TemplateField[] | undefined) => {
       default:
         fieldSchema = z.any().optional();
     }
-    
+
     // Apply required validation
     if (field.required) {
       if (field.type === 'checkbox') {
@@ -75,7 +75,7 @@ const createDynamicSchema = (fields: TemplateField[] | undefined) => {
         fieldSchema = z.string().min(1, `${field.label}為必填欄位`);
       }
     }
-    
+
     valuesShape[fieldId] = fieldSchema;
   });
 
@@ -180,9 +180,9 @@ export const MedicalRecordModal: React.FC<MedicalRecordModalProps> = ({
   const onSubmit = async (data: RecordFormData) => {
     try {
       if (isCreate) {
-        const createData: { 
-          template_id: number; 
-          values: Record<string, any>; 
+        const createData: {
+          template_id: number;
+          values: Record<string, any>;
           appointment_id?: number;
           photo_ids?: number[];
         } = {
@@ -198,9 +198,9 @@ export const MedicalRecordModal: React.FC<MedicalRecordModalProps> = ({
         await createMutation.mutateAsync(createData);
         await alert('病歷記錄已成功建立', '建立成功');
       } else if (isEdit && record) {
-        const updateData: { 
-          version: number; 
-          values?: Record<string, any>; 
+        const updateData: {
+          version: number;
+          values?: Record<string, any>;
           appointment_id?: number | null;
           photo_ids?: number[];
         } = {
@@ -213,7 +213,7 @@ export const MedicalRecordModal: React.FC<MedicalRecordModalProps> = ({
         }
         // Always include photo_ids for edit (even if empty, to allow unlinking)
         updateData.photo_ids = selectedPhotoIds;
-        
+
         await updateMutation.mutateAsync({
           recordId: record.id,
           data: updateData,
@@ -223,13 +223,13 @@ export const MedicalRecordModal: React.FC<MedicalRecordModalProps> = ({
       onClose();
     } catch (error) {
       logger.error('Failed to save medical record:', error);
-      
+
       // Handle version conflict (409)
       if (error instanceof AxiosError && error.response?.status === 409) {
         const errorDetail = error.response.data?.detail;
         const currentRecord = errorDetail?.current_record;
         const updatedByUserName = errorDetail?.updated_by_user_name;
-        
+
         // Show conflict resolution dialog
         setConflictState({
           show: true,
@@ -256,7 +256,7 @@ export const MedicalRecordModal: React.FC<MedicalRecordModalProps> = ({
 
   const handleConflictForceSave = async () => {
     if (!conflictState || !isEdit || !record) return;
-    
+
     try {
       const forceSaveData: { version: number; values?: Record<string, any>; appointment_id?: number | null } = {
         version: conflictState.currentRecord.version, // Use latest version
@@ -294,7 +294,7 @@ export const MedicalRecordModal: React.FC<MedicalRecordModalProps> = ({
   return (
     <BaseModal onClose={handleClose}>
       <FormProvider {...methods}>
-        <form onSubmit={methods.handleSubmit(onSubmit)}>
+        <form onSubmit={methods.handleSubmit(onSubmit)} className="flex flex-col flex-1 min-h-0">
           <ModalHeader title={getTitle()} onClose={handleClose} />
 
           <ModalBody>
@@ -341,8 +341,8 @@ export const MedicalRecordModal: React.FC<MedicalRecordModalProps> = ({
                 {/* Appointment Selector (Optional) */}
                 <FormField name="appointment_id" label="關聯預約 (選填)">
                   <select
-                    {...methods.register('appointment_id', { 
-                      setValueAs: (v) => v === '' ? null : parseInt(v) 
+                    {...methods.register('appointment_id', {
+                      setValueAs: (v) => v === '' ? null : parseInt(v)
                     })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                     disabled={isView}
