@@ -13,6 +13,7 @@ import {
 } from '../hooks/useMedicalRecordTemplates';
 import { useAuth } from '../hooks/useAuth';
 import { useModal } from '../contexts/ModalContext';
+import { useUnsavedChangesDetection } from '../hooks/useUnsavedChangesDetection';
 import { TemplateFieldType } from '../types/medicalRecord';
 import { getErrorMessage } from '../types/api';
 import { logger } from '../utils/logger';
@@ -58,7 +59,7 @@ export const MedicalRecordTemplateEditorModal: React.FC<MedicalRecordTemplateEdi
 }) => {
   const { user } = useAuth();
   const activeClinicId = user?.active_clinic_id;
-  const { alert } = useModal();
+  const { alert, confirm } = useModal();
 
   const isEdit = templateId !== null;
   const { data: template, isLoading } = useMedicalRecordTemplate(
@@ -82,6 +83,22 @@ export const MedicalRecordTemplateEditorModal: React.FC<MedicalRecordTemplateEdi
     name: 'fields',
   });
 
+  // Setup unsaved changes detection
+  useUnsavedChangesDetection({
+    hasUnsavedChanges: () => methods.formState.isDirty,
+  });
+
+  // Handle close with unsaved changes confirmation
+  const handleClose = async () => {
+    if (methods.formState.isDirty) {
+      const confirmed = await confirm('您有未儲存的變更，確定要離開嗎？', '確認離開');
+      if (!confirmed) {
+        return;
+      }
+    }
+    onClose();
+  };
+
   // Load template data when editing
   useEffect(() => {
     if (template && isEdit) {
@@ -104,7 +121,7 @@ export const MedicalRecordTemplateEditorModal: React.FC<MedicalRecordTemplateEdi
       type: 'text',
       required: false,
       placeholder: '',
-      options: [],
+      options: '', // Initialize as empty string for textarea consistency
       order: fields.length,
     });
   };
@@ -178,12 +195,12 @@ export const MedicalRecordTemplateEditorModal: React.FC<MedicalRecordTemplateEdi
   const isSaving = createMutation.isPending || updateMutation.isPending;
 
   return (
-    <BaseModal onClose={onClose}>
+    <BaseModal onClose={handleClose}>
       <FormProvider {...methods}>
         <form onSubmit={methods.handleSubmit(onSubmit)}>
           <ModalHeader
             title={isEdit ? '編輯病歷模板' : '新增病歷模板'}
-            onClose={onClose}
+            onClose={handleClose}
           />
 
           <ModalBody>
@@ -251,7 +268,7 @@ export const MedicalRecordTemplateEditorModal: React.FC<MedicalRecordTemplateEdi
           <ModalFooter>
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleClose}
               className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
               disabled={isSaving}
             >
@@ -297,6 +314,9 @@ const FieldEditor: React.FC<FieldEditorProps> = ({
 
   return (
     <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+      {/* Hidden input to preserve field ID during updates */}
+      <input type="hidden" {...register(`fields.${index}.id`)} />
+      
       <div className="flex items-start gap-4">
         {/* Move buttons */}
         <div className="flex flex-col gap-1">
