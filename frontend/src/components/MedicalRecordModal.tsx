@@ -7,6 +7,7 @@ import { ModalHeader, ModalBody, ModalFooter } from './shared/ModalParts';
 import { LoadingSpinner } from './shared';
 import { FormField } from './forms';
 import { MedicalRecordDynamicForm } from './MedicalRecordDynamicForm';
+import { MedicalRecordPhotoSelector } from './MedicalRecordPhotoSelector';
 import {
   useMedicalRecord,
   useCreateMedicalRecord,
@@ -100,6 +101,7 @@ export const MedicalRecordModal: React.FC<MedicalRecordModalProps> = ({
   const activeClinicId = user?.active_clinic_id;
   const { alert, confirm } = useModal();
   const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null);
+  const [selectedPhotoIds, setSelectedPhotoIds] = useState<number[]>([]);
   const [conflictState, setConflictState] = useState<{
     show: boolean;
     currentRecord: any;
@@ -178,17 +180,30 @@ export const MedicalRecordModal: React.FC<MedicalRecordModalProps> = ({
   const onSubmit = async (data: RecordFormData) => {
     try {
       if (isCreate) {
-        const createData: { template_id: number; values: Record<string, any>; appointment_id?: number } = {
+        const createData: { 
+          template_id: number; 
+          values: Record<string, any>; 
+          appointment_id?: number;
+          photo_ids?: number[];
+        } = {
           template_id: data.template_id,
           values: data.values,
         };
         if (data.appointment_id) {
           createData.appointment_id = data.appointment_id;
         }
+        if (selectedPhotoIds.length > 0) {
+          createData.photo_ids = selectedPhotoIds;
+        }
         await createMutation.mutateAsync(createData);
         await alert('病歷記錄已成功建立', '建立成功');
       } else if (isEdit && record) {
-        const updateData: { version: number; values?: Record<string, any>; appointment_id?: number | null } = {
+        const updateData: { 
+          version: number; 
+          values?: Record<string, any>; 
+          appointment_id?: number | null;
+          photo_ids?: number[];
+        } = {
           version: record.version,
           values: data.values,
         };
@@ -196,6 +211,9 @@ export const MedicalRecordModal: React.FC<MedicalRecordModalProps> = ({
         if (data.appointment_id !== undefined) {
           updateData.appointment_id = data.appointment_id;
         }
+        // Always include photo_ids for edit (even if empty, to allow unlinking)
+        updateData.photo_ids = selectedPhotoIds;
+        
         await updateMutation.mutateAsync({
           recordId: record.id,
           data: updateData,
@@ -351,6 +369,19 @@ export const MedicalRecordModal: React.FC<MedicalRecordModalProps> = ({
                 {/* Dynamic Form Fields */}
                 {selectedTemplate && selectedTemplate.fields && (
                   <MedicalRecordDynamicForm fields={selectedTemplate.fields} />
+                )}
+
+                {/* Photo Selector */}
+                {selectedTemplate && !isView && (
+                  <div className="pt-6 border-t">
+                    <MedicalRecordPhotoSelector
+                      clinicId={activeClinicId ?? null}
+                      patientId={patientId}
+                      selectedPhotoIds={selectedPhotoIds}
+                      onPhotoIdsChange={setSelectedPhotoIds}
+                      recordId={recordId}
+                    />
+                  </div>
                 )}
 
                 {!selectedTemplate && isCreate && (

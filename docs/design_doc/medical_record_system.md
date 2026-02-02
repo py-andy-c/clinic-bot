@@ -854,8 +854,13 @@ AppointmentModal (existing, enhanced)
 * [x] Photo edit modal (PhotoEditModal for description updates)
 * [x] React Query hooks for photo management (usePatientPhotos)
 * [x] Photo API integration (apiService methods)
+* [x] **Photo integration in MedicalRecordModal** (MedicalRecordPhotoSelector component)
+  - Select existing unlinked photos
+  - Upload new photos (staged as `is_pending=true`)
+  - Photos committed when record is saved
+  - Supports both create and edit modes
 
-**Note**: Photo selection within MedicalRecordModal (for attaching photos during record creation/editing) is deferred to a future enhancement. Users can currently upload photos to the gallery and link them via the backend API.
+**Integration Complete**: Users can now attach photos to medical records during creation/editing, implementing the "Atomic Record Lifecycle" principle.
 
 ### Phase 5: Polish & Testing (Week 5-6) ✅ **COMPLETE**
 
