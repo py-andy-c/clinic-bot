@@ -33,6 +33,10 @@ class MedicalRecordTemplateResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class MedicalRecordTemplatesListResponse(BaseModel):
+    templates: List[MedicalRecordTemplateResponse]
+    total: int
+
 @router.post("", response_model=MedicalRecordTemplateResponse)
 def create_template(
     template: MedicalRecordTemplateCreate,
@@ -58,7 +62,7 @@ def create_template(
         created_by_user_id=user.user_id
     )
 
-@router.get("", response_model=List[MedicalRecordTemplateResponse])
+@router.get("", response_model=MedicalRecordTemplatesListResponse)
 def list_templates(
     user: UserContext = Depends(require_authenticated),
     db: Session = Depends(get_db),
@@ -70,11 +74,19 @@ def list_templates(
         raise HTTPException(status_code=400, detail="Clinic context required")
     clinic_id = user.active_clinic_id
     
-    return MedicalRecordTemplateService.list_templates(
+    templates = MedicalRecordTemplateService.list_templates(
         db=db,
         clinic_id=clinic_id,
         skip=skip,
         limit=limit
+    )
+    
+    # Convert ORM models to response models
+    template_responses = [MedicalRecordTemplateResponse.model_validate(t) for t in templates]
+    
+    return MedicalRecordTemplatesListResponse(
+        templates=template_responses,
+        total=len(template_responses)
     )
 
 @router.get("/{template_id}", response_model=MedicalRecordTemplateResponse)
