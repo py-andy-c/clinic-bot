@@ -42,6 +42,11 @@ def create_template(
     ensure_clinic_access(user)
     if user.active_clinic_id is None:
         raise HTTPException(status_code=400, detail="Clinic context required")
+    
+    # Only admins can create templates
+    if not user.has_role("admin"):
+        raise HTTPException(status_code=403, detail="Only admins can create templates")
+        
     clinic_id = user.active_clinic_id
     
     return MedicalRecordTemplateService.create_template(
@@ -98,6 +103,11 @@ def update_template(
     ensure_clinic_access(user)
     if user.active_clinic_id is None:
         raise HTTPException(status_code=400, detail="Clinic context required")
+    
+    # Requirement: Create/Edit/Delete Templates: Admin only
+    if not user.has_role("admin"):
+        raise HTTPException(status_code=403, detail="Only clinic admins can manage templates")
+
     clinic_id = user.active_clinic_id
     
     return MedicalRecordTemplateService.update_template(
@@ -120,6 +130,11 @@ def delete_template(
     ensure_clinic_access(user)
     if user.active_clinic_id is None:
         raise HTTPException(status_code=400, detail="Clinic context required")
+    
+    # Requirement: Create/Edit/Delete Templates: Admin only
+    if not user.has_role("admin"):
+        raise HTTPException(status_code=403, detail="Only clinic admins can manage templates")
+
     clinic_id = user.active_clinic_id
     
     return MedicalRecordTemplateService.delete_template(

@@ -253,7 +253,7 @@ def test_atomic_linking_and_unified_fate(client, test_clinic_setup, db_session):
     photo_ids = []
     for i in range(2):
         files = {"file": (f"photo_{i}.jpg", img_content, "image/jpeg")}
-        data = {"patient_id": patient.id}
+        data = {"patient_id": patient.id, "is_pending": True}
         resp = client.post("/api/clinic/patient-photos", data=data, files=files, headers=headers)
         assert resp.json()["is_pending"] == True
         photo_ids.append(resp.json()["id"])

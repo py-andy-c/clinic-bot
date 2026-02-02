@@ -99,6 +99,7 @@ class MedicalRecordService:
         clinic_id: int,
         version: int,
         values: Optional[Dict[str, Any]] = None,
+        photo_ids: Optional[List[int]] = None,
         appointment_id: Optional[int] = None,
         updated_by_user_id: Optional[int] = None
     ) -> MedicalRecord:
@@ -114,6 +115,45 @@ class MedicalRecordService:
         if appointment_id is not None:
             record.appointment_id = appointment_id
             
+        # Handle Photo Updates
+        if photo_ids is not None:
+            # Get current photos
+            current_photos = db.query(PatientPhoto).filter(
+                PatientPhoto.medical_record_id == record_id,
+                PatientPhoto.clinic_id == clinic_id
+            ).all()
+            current_ids = {p.id for p in current_photos}
+            new_ids = set(photo_ids)
+            
+            # Unlink removed photos
+            ids_to_unlink = current_ids - new_ids
+            if ids_to_unlink:
+                db.query(PatientPhoto).filter(
+                    PatientPhoto.id.in_(ids_to_unlink)
+                ).update({
+                    "medical_record_id": None,
+                    # If unlinked, they become standalone gallery photos, so ensure they are active
+                    "is_pending": False 
+                }, synchronize_session=False)
+            
+            # Link new photos
+            ids_to_link = new_ids - current_ids
+            if ids_to_link:
+                # Verify existence and access
+                photos_to_link = db.query(PatientPhoto).filter(
+                    PatientPhoto.id.in_(ids_to_link),
+                    PatientPhoto.clinic_id == clinic_id
+                ).all()
+                
+                if len(photos_to_link) != len(ids_to_link):
+                    found_ids = {p.id for p in photos_to_link}
+                    missing = ids_to_link - found_ids
+                    raise HTTPException(status_code=404, detail=f"Photos not found or access denied: {missing}")
+                
+                for photo in photos_to_link:
+                    photo.medical_record_id = record_id
+                    photo.is_pending = False
+
         record.version += 1
         record.updated_by_user_id = updated_by_user_id
         record.updated_at = datetime.now(timezone.utc)

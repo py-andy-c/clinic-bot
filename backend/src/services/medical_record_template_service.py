@@ -1,9 +1,17 @@
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone
+import uuid
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
 
 from models.medical_record_template import MedicalRecordTemplate
+
+def _ensure_field_ids(fields: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Ensure every field has a unique ID."""
+    for field in fields:
+        if "id" not in field or not field["id"]:
+            field["id"] = str(uuid.uuid4())
+    return fields
 
 class MedicalRecordTemplateService:
     @staticmethod
@@ -15,6 +23,9 @@ class MedicalRecordTemplateService:
         description: Optional[str] = None,
         created_by_user_id: Optional[int] = None
     ) -> MedicalRecordTemplate:
+        # Ensure fields have stable IDs
+        fields = _ensure_field_ids(fields)
+
         template = MedicalRecordTemplate(
             clinic_id=clinic_id,
             name=name,
@@ -74,7 +85,8 @@ class MedicalRecordTemplateService:
         if name is not None:
             template.name = name
         if fields is not None:
-            template.fields = fields
+            # Ensure fields have stable IDs
+            template.fields = _ensure_field_ids(fields)
         if description is not None:
             template.description = description
             

@@ -35,6 +35,8 @@ class PatientPhotoResponse(BaseModel):
 def upload_photo(
     patient_id: int = Form(...),
     description: Optional[str] = Form(None),
+    medical_record_id: Optional[int] = Form(None),
+    is_pending: Optional[bool] = Form(None),
     file: UploadFile = File(...),
     user: UserContext = Depends(require_authenticated),
     db: Session = Depends(get_db),
@@ -51,7 +53,9 @@ def upload_photo(
         patient_id=patient_id,
         file=file,
         uploaded_by_user_id=user.user_id,
-        description=description
+        description=description,
+        medical_record_id=medical_record_id,
+        is_pending=is_pending
     )
     
     # Generate URLs for response
@@ -97,6 +101,41 @@ def list_photos(
         responses.append(response)
         
     return responses
+
+class PatientPhotoUpdate(BaseModel):
+    description: Optional[str] = None
+    medical_record_id: Optional[int] = None
+
+@router.put("/{photo_id}", response_model=PatientPhotoResponse)
+def update_photo(
+    photo_id: int,
+    update_data: PatientPhotoUpdate,
+    user: UserContext = Depends(require_authenticated),
+    db: Session = Depends(get_db),
+    photo_service: PatientPhotoService = Depends(get_photo_service)
+):
+    ensure_clinic_access(user)
+    if user.active_clinic_id is None:
+        raise HTTPException(status_code=400, detail="Clinic context required")
+    clinic_id = user.active_clinic_id
+    
+    photo = photo_service.update_photo(
+        db=db,
+        photo_id=photo_id,
+        clinic_id=clinic_id,
+        description=update_data.description,
+        medical_record_id=update_data.medical_record_id,
+        updated_by_user_id=user.user_id
+    )
+    
+    if not photo:
+        raise HTTPException(status_code=404, detail="Photo not found")
+        
+    response = PatientPhotoResponse.model_validate(photo)
+    response.url = photo_service.get_photo_url(photo.storage_key)
+    if photo.thumbnail_key:
+        response.thumbnail_url = photo_service.get_photo_url(photo.thumbnail_key)
+    return response
 
 @router.delete("/{photo_id}")
 def delete_photo(
