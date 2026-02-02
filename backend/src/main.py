@@ -58,6 +58,10 @@ from services.practitioner_daily_notification_service import (
     start_practitioner_daily_notification_scheduler,
     stop_practitioner_daily_notification_scheduler
 )
+from services.cleanup_scheduler import (
+    start_cleanup_scheduler,
+    stop_cleanup_scheduler
+)
 
 # Configure logging
 logging.basicConfig(
@@ -114,6 +118,7 @@ async def lifespan(app: FastAPI):
         start_scheduler_safely("Admin daily notification scheduler", start_admin_daily_notification_scheduler),
         start_scheduler_safely("Practitioner daily notification scheduler", start_practitioner_daily_notification_scheduler),
         start_scheduler_safely("Scheduled message scheduler (handles reminders, follow-ups)", start_scheduled_message_scheduler),
+        start_scheduler_safely("Medical record cleanup scheduler", start_cleanup_scheduler),
         return_exceptions=True  # Don't fail if any scheduler fails
     )
     
@@ -182,6 +187,13 @@ async def lifespan(app: FastAPI):
         logger.info("🛑 Scheduled message scheduler stopped")
     except Exception as e:
         logger.exception(f"❌ Error stopping scheduled message scheduler: {e}")
+
+    # Stop medical record cleanup scheduler
+    try:
+        await stop_cleanup_scheduler()
+        logger.info("🛑 Medical record cleanup scheduler stopped")
+    except Exception as e:
+        logger.exception(f"❌ Error stopping medical record cleanup scheduler: {e}")
 
     logger.info("🛑 Shutting down Clinic Bot Backend API")
 

@@ -1,3 +1,14 @@
+"""
+Manual cleanup script for medical records and photos.
+
+NOTE: Automatic cleanup is now handled by CleanupScheduler (runs daily at 3 AM).
+This script is provided for:
+- Manual/emergency cleanup operations
+- Testing cleanup logic in development
+- One-time maintenance tasks
+
+For production, the scheduler in services/cleanup_scheduler.py handles automatic cleanup.
+"""
 import sys
 import os
 

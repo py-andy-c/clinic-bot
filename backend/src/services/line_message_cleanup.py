@@ -89,9 +89,14 @@ class LineMessageCleanupService:
         Clean up old LINE messages.
         
         Deletes all messages older than LINE_MESSAGE_RETENTION_HOURS (10 days).
+        
+        Note: Offloads blocking operations to a thread pool to prevent blocking
+        the main asyncio event loop and freezing the FastAPI application.
         """
         try:
-            deleted_count = LineMessageCleanupService.cleanup_old_messages()
+            # Run blocking cleanup logic in a separate thread to avoid blocking the event loop
+            import asyncio
+            deleted_count = await asyncio.to_thread(LineMessageCleanupService.cleanup_old_messages)
             if deleted_count > 0:
                 logger.info(f"Cleaned up {deleted_count} old LINE messages")
         except Exception as e:
