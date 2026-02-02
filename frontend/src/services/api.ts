@@ -1528,7 +1528,7 @@ export class ApiService {
   // Medical Record methods
   async listPatientMedicalRecords(
     patientId: number,
-    params?: { skip?: number; limit?: number; include_deleted?: boolean }
+    params?: { skip?: number; limit?: number; include_deleted?: boolean; appointment_id?: number }
   ): Promise<import('../types/medicalRecord').MedicalRecordsListResponse> {
     const response = await this.client.get(`/clinic/patients/${patientId}/medical-records`, { params });
     return response.data;
@@ -1573,15 +1573,15 @@ export class ApiService {
   // Patient Photo methods
   async listPatientPhotos(
     patientId: number,
-    params?: { 
-      skip?: number; 
-      limit?: number; 
+    params?: {
+      skip?: number;
+      limit?: number;
       medical_record_id?: number;
       unlinked_only?: boolean;
     }
   ): Promise<import('../types/medicalRecord').PatientPhoto[]> {
-    const response = await this.client.get(`/clinic/patient-photos`, { 
-      params: { patient_id: patientId, ...params } 
+    const response = await this.client.get(`/clinic/patient-photos`, {
+      params: { patient_id: patientId, ...params }
     });
     return response.data;
   }
@@ -1599,7 +1599,7 @@ export class ApiService {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('patient_id', patientId.toString());
-    
+
     if (options?.description) {
       formData.append('description', options.description);
     }
@@ -1615,7 +1615,7 @@ export class ApiService {
         'Content-Type': 'multipart/form-data',
       },
     };
-    
+
     if (options?.onUploadProgress) {
       config.onUploadProgress = options.onUploadProgress;
     }

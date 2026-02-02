@@ -20,6 +20,7 @@ import { ReceiptListModal } from './ReceiptListModal';
 import { canEditAppointment } from '../../utils/appointmentPermissions';
 import { SchedulingConflictResponse, AppointmentType } from '../../types';
 import moment from 'moment-timezone';
+import { LinkedMedicalRecordsSection } from './LinkedMedicalRecordsSection';
 
 // Maximum length for custom event names
 // Must match backend/src/core/constants.py MAX_EVENT_NAME_LENGTH = 100
@@ -244,7 +245,7 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
     <BaseModal
       onClose={onClose}
       aria-label={event.resource.type === 'appointment' ? '預約詳情' : '休診詳情'}
-     
+
     >
       <ModalHeader showClose onClose={onClose}>
         {isEditingName ? (
@@ -354,6 +355,15 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
                 disabled={!canEdit || isSavingClinicNotes}
               />
             </div>
+
+            {/* Linked Medical Records Section */}
+            {event.resource.patient_id && event.resource.calendar_event_id && (
+              <LinkedMedicalRecordsSection
+                patientId={event.resource.patient_id}
+                appointmentId={event.resource.calendar_event_id}
+                clinicId={user?.active_clinic_id ?? null}
+              />
+            )}
           </div>
         ) : (
           <div className="space-y-2">

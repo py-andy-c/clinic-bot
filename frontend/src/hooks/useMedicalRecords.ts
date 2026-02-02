@@ -9,9 +9,9 @@ import { logger } from '../utils/logger';
 // Query key factory
 export const medicalRecordKeys = {
   all: (clinicId: number | null) => ['medical-records', clinicId] as const,
-  patient: (clinicId: number | null, patientId: number) => 
+  patient: (clinicId: number | null, patientId: number) =>
     ['medical-records', clinicId, 'patient', patientId] as const,
-  detail: (clinicId: number | null, recordId: number) => 
+  detail: (clinicId: number | null, recordId: number) =>
     ['medical-record', clinicId, recordId] as const,
 };
 
@@ -19,10 +19,12 @@ export const medicalRecordKeys = {
 export function usePatientMedicalRecords(
   clinicId: number | null,
   patientId: number | null,
-  options?: { include_deleted?: boolean }
+  options?: { include_deleted?: boolean; appointment_id?: number }
 ) {
   return useQuery({
-    queryKey: medicalRecordKeys.patient(clinicId, patientId!),
+    queryKey: options?.appointment_id
+      ? [...medicalRecordKeys.patient(clinicId, patientId!), 'appointment', options.appointment_id] as const
+      : medicalRecordKeys.patient(clinicId, patientId!),
     queryFn: async () => {
       if (!patientId) throw new Error('Patient ID required');
       return apiService.listPatientMedicalRecords(patientId, options);

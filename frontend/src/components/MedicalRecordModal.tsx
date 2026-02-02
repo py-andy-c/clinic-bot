@@ -29,6 +29,7 @@ interface MedicalRecordModalProps {
   recordId: number | null; // null for create, number for edit/view
   mode: 'create' | 'edit' | 'view';
   onClose: () => void;
+  defaultAppointmentId?: number;
 }
 
 // Generate dynamic Zod schema based on template fields
@@ -96,6 +97,7 @@ export const MedicalRecordModal: React.FC<MedicalRecordModalProps> = ({
   recordId,
   mode,
   onClose,
+  defaultAppointmentId,
 }) => {
   const { user } = useAuth();
   const activeClinicId = user?.active_clinic_id;
@@ -143,7 +145,7 @@ export const MedicalRecordModal: React.FC<MedicalRecordModalProps> = ({
     resolver: zodResolver(dynamicSchema),
     defaultValues: {
       template_id: 0,
-      appointment_id: null,
+      appointment_id: defaultAppointmentId || null,
       values: {},
     },
     mode: 'onSubmit', // Only validate on submit
