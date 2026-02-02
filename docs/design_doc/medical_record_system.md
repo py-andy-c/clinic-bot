@@ -796,41 +796,41 @@ AppointmentModal (existing, enhanced)
 
 ### Phase 1: Core Infrastructure (Week 1-2)
 
-* \[ ] Database migrations for all 3 tables
-* \[ ] Backend models and basic CRUD services (Include `libheif-dev`, `libde265-dev` dependencies)
-* \[ ] File upload/download endpoints
-* \[ ] Basic API endpoints
+* [x] Database migrations for all 3 tables
+* [x] Backend models and basic CRUD services (Include `libheif-dev`, `libde265-dev` dependencies)
+* [x] File upload/download endpoints
+* [x] Basic API endpoints
 
 ### Phase 2: Template System (Week 2-3)
 
-* \[ ] Template CRUD API endpoints
-* \[ ] Template editor frontend (Settings page)
-* \[ ] Field builder component
-* \[ ] Template list and management
+* [x] Template CRUD API endpoints
+* [ ] Template editor frontend (Settings page)
+* [ ] Field builder component
+* [ ] Template list and management
 
 ### Phase 3: Medical Records (Week 3-4)
 
-* \[ ] Medical record CRUD API endpoints
-* \[ ] Dynamic form generation from template
-* \[ ] Medical records section in PatientDetailPage
-* \[ ] Create/edit/view record modals
-* \[ ] Version conflict handling UI and error states
-* \[ ] "Recently Deleted" (Trash) management UI and restore/hard-delete logic
+* [x] Medical record CRUD API endpoints
+* [ ] Dynamic form generation from template
+* [ ] Medical records section in PatientDetailPage
+* [ ] Create/edit/view record modals
+* [ ] Version conflict handling UI and error states (Backend logic implemented)
+* [ ] "Recently Deleted" (Trash) management UI and restore/hard-delete logic (Backend logic implemented)
 
 ### Phase 4: Photo Gallery (Week 4-5)
 
-* \[ ] Photo upload/download API endpoints
-* \[ ] Photo gallery section in PatientDetailPage
-* \[ ] Upload component with progress
-* \[ ] Lightbox viewer
-* \[ ] Photo-to-record association
+* [x] Photo upload/download API endpoints
+* [ ] Photo gallery section in PatientDetailPage
+* [ ] Upload component with progress
+* [ ] Lightbox viewer
+* [x] Photo-to-record association (Backend logic implemented)
 
 ### Phase 5: Polish & Testing (Week 5-6)
 
-* \[ ] Responsive design refinements
-* \[ ] E2E tests for key flows
-* \[ ] Performance optimization
-* \[ ] Documentation
+* [ ] Responsive design refinements
+* [ ] E2E tests for key flows
+* [x] Performance optimization (S3 GC & List Enrichment)
+* [x] Documentation
 
 ***
 
