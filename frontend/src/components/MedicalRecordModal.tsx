@@ -141,15 +141,67 @@ export const MedicalRecordModal: React.FC<MedicalRecordModalProps> = ({
     [selectedTemplate?.fields]
   );
 
+  // Calculate default appointment
+  const defaultAppointmentValue = useMemo(() => {
+    // 1. If explicitly provided via props, use it
+    if (defaultAppointmentId) return defaultAppointmentId;
+
+    // 2. If editing an existing record, use the saved value
+    if (record?.appointment_id) return record.appointment_id;
+
+    // 3. Smart Pre-selection for new records
+    if (!appointments?.appointments) return null;
+
+    const confirmedApps = appointments.appointments.filter(a => a.status === 'confirmed');
+    if (confirmedApps.length === 0) return null;
+
+    // a. Sort chronologically (Past -> Future)
+    const sortedApps = [...confirmedApps].sort((a, b) =>
+      new Date(a.start_time).getTime() - new Date(b.start_time).getTime()
+    );
+
+    const now = new Date();
+    const todayStr = formatDateOnly(now.toISOString());
+
+    // b. Priority 1: Appointment on TODAY
+    const infoToday = sortedApps.find(a => formatDateOnly(a.start_time) === todayStr);
+    if (infoToday) return infoToday.calendar_event_id || infoToday.id;
+
+    // c. Priority 2: Most recent PAST appointment (closest to now but in the past)
+    // Since sortedApps is chronological, we look for the last item where start_time < now
+    const pastApps = sortedApps.filter(a => new Date(a.start_time) < now);
+    if (pastApps.length > 0) {
+      const lastPast = pastApps[pastApps.length - 1]; // Last one in the list is the most recent
+      if (lastPast) {
+        return lastPast.calendar_event_id || lastPast.id;
+      }
+    }
+
+    // d. Fallback: No selection (let user choose future appointment if that's all there is)
+    return null;
+
+  }, [defaultAppointmentId, record?.appointment_id, appointments?.appointments]);
+
   const methods = useForm<RecordFormData>({
     resolver: zodResolver(dynamicSchema),
     defaultValues: {
       template_id: 0,
-      appointment_id: defaultAppointmentId || null,
+      appointment_id: defaultAppointmentId || null, // Will be updated by useEffect below
       values: {},
     },
     mode: 'onSubmit', // Only validate on submit
   });
+
+  // Sync the smart default when calculated
+  useEffect(() => {
+    if (isCreate && defaultAppointmentValue !== null) {
+      // Only set if field is not dirty (user hasn't manually changed it yet)
+      const currentVal = methods.getValues('appointment_id');
+      if (!currentVal) {
+        methods.setValue('appointment_id', defaultAppointmentValue);
+      }
+    }
+  }, [defaultAppointmentValue, isCreate, methods]);
 
   // Setup unsaved changes detection
   useUnsavedChangesDetection({
@@ -352,16 +404,17 @@ export const MedicalRecordModal: React.FC<MedicalRecordModalProps> = ({
                     <option value="">無關聯預約</option>
                     {appointments?.appointments
                       ?.filter((apt) => apt.status === 'confirmed')
+                      .sort((a, b) => new Date(b.start_time).getTime() - new Date(a.start_time).getTime()) // Sort Newest -> Oldest
                       .map((apt) => {
                         const aptId = apt.calendar_event_id || apt.id;
-                        const dateStr = formatDateOnly(apt.start_time);
+                        // const dateStr = formatDateOnly(apt.start_time); // Unused
                         const startDate = new Date(apt.start_time);
                         const endDate = new Date(apt.end_time);
                         const timeStr = formatAppointmentTimeRange(startDate, endDate);
                         const serviceName = apt.appointment_type_name || '預約';
                         return (
                           <option key={aptId} value={aptId}>
-                            {dateStr} {timeStr} - {serviceName}
+                            {timeStr} - {serviceName}
                           </option>
                         );
                       })}
