@@ -3,7 +3,7 @@ import boto3
 import io
 from moto import mock_aws
 from fastapi.testclient import TestClient
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from PIL import Image
 
 from main import app
@@ -11,6 +11,8 @@ from core.database import get_db
 from models.clinic import Clinic
 from models.patient import Patient
 from models.patient_photo import PatientPhoto
+from models.medical_record import MedicalRecord
+from services.cleanup_service import CleanupService
 from tests.conftest import create_user_with_clinic_association
 
 @pytest.fixture
@@ -316,3 +318,217 @@ def test_atomic_linking_and_unified_fate(client, test_clinic_setup, db_session):
     for pid in photo_ids:
         photo = db_session.query(PatientPhoto).get(pid)
         assert photo is None
+
+
+def test_optimistic_locking_conflict_response(client, test_clinic_setup, db_session):
+    """
+    Verifies that optimistic locking returns 409 with current record state.
+    This allows the frontend to show a proper conflict resolution UI.
+    """
+    clinic, patient, headers = test_clinic_setup
+    
+    # 1. Create Template
+    template_data = {"name": "Conflict Test", "fields": [{"name": "Notes", "type": "text"}]}
+    resp = client.post("/api/clinic/medical-record-templates", json=template_data, headers=headers)
+    template_id = resp.json()["id"]
+    
+    # 2. Create Record
+    record_data = {
+        "patient_id": patient.id,
+        "template_id": template_id,
+        "values": {"Notes": "Initial"}
+    }
+    resp = client.post("/api/clinic/medical-records", json=record_data, headers=headers)
+    assert resp.status_code == 200
+    record_id = resp.json()["id"]
+    initial_version = resp.json()["version"]
+    
+    # 3. User A updates the record (version 1 -> 2)
+    update_a = {
+        "version": initial_version,
+        "values": {"Notes": "Updated by User A"}
+    }
+    resp = client.put(f"/api/clinic/medical-records/{record_id}", json=update_a, headers=headers)
+    assert resp.status_code == 200
+    assert resp.json()["version"] == 2
+    assert resp.json()["values"]["Notes"] == "Updated by User A"
+    
+    # 4. User B tries to update with stale version (still version 1)
+    update_b = {
+        "version": initial_version,  # Stale version!
+        "values": {"Notes": "Updated by User B"}
+    }
+    resp = client.put(f"/api/clinic/medical-records/{record_id}", json=update_b, headers=headers)
+    
+    # 5. Verify 409 response with current record state
+    assert resp.status_code == 409
+    error_detail = resp.json()["detail"]
+    
+    # Check that error includes message
+    assert "message" in error_detail
+    assert "modified" in error_detail["message"].lower()
+    
+    # Check that error includes current record state
+    assert "current_record" in error_detail
+    current_record = error_detail["current_record"]
+    assert current_record["id"] == record_id
+    assert current_record["version"] == 2
+    assert current_record["values"]["Notes"] == "Updated by User A"
+    
+    # 6. User B can now see the conflict and decide to force save with correct version
+    force_update = {
+        "version": 2,  # Use current version from conflict response
+        "values": {"Notes": "Updated by User B (force save)"}
+    }
+    resp = client.put(f"/api/clinic/medical-records/{record_id}", json=force_update, headers=headers)
+    assert resp.status_code == 200
+    assert resp.json()["version"] == 3
+    assert resp.json()["values"]["Notes"] == "Updated by User B (force save)"
+
+
+@mock_aws
+def test_abandoned_upload_cleanup(client, test_clinic_setup, db_session):
+    """
+    Verifies that abandoned uploads (is_pending=True) are cleaned up after retention period.
+    This prevents data leaks from photos uploaded but never committed to a record.
+    """
+    clinic, patient, headers = test_clinic_setup
+    
+    # Setup S3
+    s3 = boto3.client("s3", region_name="ap-northeast-1")
+    s3.create_bucket(Bucket="clinic-bot-dev", CreateBucketConfiguration={'LocationConstraint': 'ap-northeast-1'})
+    
+    # 1. Upload a photo in pending state (simulating "New Record" upload that was abandoned)
+    img = Image.new('RGB', (100, 100), color='green')
+    img_byte_arr = io.BytesIO()
+    img.save(img_byte_arr, format='JPEG')
+    img_content = img_byte_arr.getvalue()
+    
+    files = {"file": ("abandoned.jpg", img_content, "image/jpeg")}
+    data = {"patient_id": patient.id, "is_pending": True}
+    resp = client.post("/api/clinic/patient-photos", data=data, files=files, headers=headers)
+    assert resp.status_code == 200
+    abandoned_photo_id = resp.json()["id"]
+    
+    # 2. Upload another photo that's active (should NOT be cleaned up)
+    files2 = {"file": ("active.jpg", img_content, "image/jpeg")}
+    data2 = {"patient_id": patient.id, "is_pending": False}
+    resp = client.post("/api/clinic/patient-photos", data=data2, files=files2, headers=headers)
+    assert resp.status_code == 200
+    active_photo_id = resp.json()["id"]
+    
+    # 3. Verify both photos exist
+    abandoned_photo = db_session.query(PatientPhoto).get(abandoned_photo_id)
+    active_photo = db_session.query(PatientPhoto).get(active_photo_id)
+    assert abandoned_photo is not None
+    assert abandoned_photo.is_pending == True
+    assert active_photo is not None
+    assert active_photo.is_pending == False
+    
+    # 4. Simulate time passing (31 days)
+    old_date = datetime.now(timezone.utc) - timedelta(days=31)
+    abandoned_photo.created_at = old_date
+    db_session.commit()
+    
+    # 5. Run cleanup service
+    cleanup_service = CleanupService(db_session)
+    deleted_count = cleanup_service.cleanup_soft_deleted_data(retention_days=30)
+    
+    # 6. Verify abandoned photo was deleted
+    db_session.expire_all()  # Clear session cache
+    abandoned_photo_after = db_session.query(PatientPhoto).get(abandoned_photo_id)
+    active_photo_after = db_session.query(PatientPhoto).get(active_photo_id)
+    
+    assert abandoned_photo_after is None, "Abandoned photo should be deleted"
+    assert active_photo_after is not None, "Active photo should NOT be deleted"
+    assert deleted_count >= 1, "Cleanup should report at least 1 deletion"
+
+
+@mock_aws
+def test_cleanup_service_comprehensive(client, test_clinic_setup, db_session):
+    """
+    Comprehensive test for CleanupService covering:
+    1. Soft-deleted records cleanup
+    2. Soft-deleted photos cleanup
+    3. Abandoned uploads cleanup
+    """
+    clinic, patient, headers = test_clinic_setup
+    
+    # Setup S3
+    s3 = boto3.client("s3", region_name="ap-northeast-1")
+    s3.create_bucket(Bucket="clinic-bot-dev", CreateBucketConfiguration={'LocationConstraint': 'ap-northeast-1'})
+    
+    # 1. Create template and record
+    template_data = {"name": "Cleanup Test", "fields": []}
+    resp = client.post("/api/clinic/medical-record-templates", json=template_data, headers=headers)
+    template_id = resp.json()["id"]
+    
+    record_data = {
+        "patient_id": patient.id,
+        "template_id": template_id,
+        "values": {}
+    }
+    resp = client.post("/api/clinic/medical-records", json=record_data, headers=headers)
+    record_id = resp.json()["id"]
+    
+    # 2. Upload photo and link to record
+    img = Image.new('RGB', (100, 100), color='yellow')
+    img_byte_arr = io.BytesIO()
+    img.save(img_byte_arr, format='JPEG')
+    img_content = img_byte_arr.getvalue()
+    
+    files = {"file": ("linked.jpg", img_content, "image/jpeg")}
+    data = {"patient_id": patient.id, "is_pending": False}
+    resp = client.post("/api/clinic/patient-photos", data=data, files=files, headers=headers)
+    linked_photo_id = resp.json()["id"]
+    
+    # Link photo to record
+    update_data = {"version": 1, "photo_ids": [linked_photo_id]}
+    resp = client.put(f"/api/clinic/medical-records/{record_id}", json=update_data, headers=headers)
+    assert resp.status_code == 200
+    
+    # 3. Upload standalone photo and soft-delete it
+    files2 = {"file": ("standalone.jpg", img_content, "image/jpeg")}
+    data2 = {"patient_id": patient.id, "is_pending": False}
+    resp = client.post("/api/clinic/patient-photos", data=data2, files=files2, headers=headers)
+    standalone_photo_id = resp.json()["id"]
+    
+    resp = client.delete(f"/api/clinic/patient-photos/{standalone_photo_id}", headers=headers)
+    assert resp.status_code == 200
+    
+    # 4. Upload abandoned photo
+    files3 = {"file": ("abandoned.jpg", img_content, "image/jpeg")}
+    data3 = {"patient_id": patient.id, "is_pending": True}
+    resp = client.post("/api/clinic/patient-photos", data=data3, files=files3, headers=headers)
+    abandoned_photo_id = resp.json()["id"]
+    
+    # 5. Soft-delete the record (should cascade to linked photo)
+    resp = client.delete(f"/api/clinic/medical-records/{record_id}", headers=headers)
+    assert resp.status_code == 200
+    
+    # 6. Simulate time passing (31 days)
+    old_date = datetime.now(timezone.utc) - timedelta(days=31)
+    
+    record = db_session.query(MedicalRecord).get(record_id)
+    record.deleted_at = old_date
+    
+    standalone_photo = db_session.query(PatientPhoto).get(standalone_photo_id)
+    standalone_photo.deleted_at = old_date
+    
+    abandoned_photo = db_session.query(PatientPhoto).get(abandoned_photo_id)
+    abandoned_photo.created_at = old_date
+    
+    db_session.commit()
+    
+    # 7. Run cleanup
+    cleanup_service = CleanupService(db_session)
+    deleted_count = cleanup_service.cleanup_soft_deleted_data(retention_days=30)
+    
+    # 8. Verify all expired items are deleted
+    db_session.expire_all()
+    
+    assert db_session.query(MedicalRecord).get(record_id) is None, "Expired record should be deleted"
+    assert db_session.query(PatientPhoto).get(linked_photo_id) is None, "Linked photo should be deleted with record"
+    assert db_session.query(PatientPhoto).get(standalone_photo_id) is None, "Expired standalone photo should be deleted"
+    assert db_session.query(PatientPhoto).get(abandoned_photo_id) is None, "Abandoned photo should be deleted"
+    assert deleted_count >= 3, "Should delete at least 3 items (1 record + 2 photos directly)"

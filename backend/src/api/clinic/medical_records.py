@@ -5,7 +5,7 @@ from pydantic import BaseModel
 
 from core.database import get_db
 from auth.dependencies import require_authenticated, UserContext, ensure_clinic_access
-from services.medical_record_service import MedicalRecordService
+from services.medical_record_service import MedicalRecordService, RecordVersionConflictError
 from services.patient_photo_service import PatientPhotoService
 from .patient_photos import PatientPhotoResponse
 
@@ -141,17 +141,33 @@ def update_record(
 ):
     ensure_clinic_access(user)
     assert user.active_clinic_id is not None
-    updated_record = MedicalRecordService.update_record(
-        db=db,
-        record_id=record_id,
-        clinic_id=user.active_clinic_id,
-        version=update_data.version,
-        values=update_data.values,
-        photo_ids=update_data.photo_ids,
-        appointment_id=update_data.appointment_id,
-        updated_by_user_id=user.user_id
-    )
-    return _enrich_record_with_photos(updated_record, photo_service)
+    
+    try:
+        updated_record = MedicalRecordService.update_record(
+            db=db,
+            record_id=record_id,
+            clinic_id=user.active_clinic_id,
+            version=update_data.version,
+            values=update_data.values,
+            photo_ids=update_data.photo_ids,
+            appointment_id=update_data.appointment_id,
+            updated_by_user_id=user.user_id
+        )
+        return _enrich_record_with_photos(updated_record, photo_service)
+    except RecordVersionConflictError as e:
+        # Return 409 with the current record state for UI conflict resolution
+        current_record_response = _enrich_record_with_photos(e.current_record, photo_service)
+        
+        # Convert to dict with JSON-serializable values
+        current_record_dict = current_record_response.model_dump(mode='json')
+        
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": e.message,
+                "current_record": current_record_dict
+            }
+        )
 
 @router.delete("/{record_id}")
 def delete_record(

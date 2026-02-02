@@ -22,6 +22,7 @@ class CleanupService:
     def cleanup_soft_deleted_data(self, retention_days: int = 30) -> int:
         """
         Hard delete records and photos that have been soft-deleted for more than `retention_days`.
+        Also cleans up abandoned uploads (is_pending=True) that were never committed.
         Returns the number of items deleted.
         """
         cutoff_date = datetime.now(timezone.utc) - timedelta(days=retention_days)
@@ -47,6 +48,17 @@ class CleanupService:
         ).all()
 
         for photo in expired_photos:
+            self.db.delete(photo)
+            count += 1
+        
+        # 3. Clean up abandoned uploads (is_pending=True for >retention_days)
+        # These are photos uploaded but never committed (user abandoned the record creation/edit)
+        abandoned_photos = self.db.query(PatientPhoto).filter(
+            PatientPhoto.is_pending == True,
+            PatientPhoto.created_at <= cutoff_date
+        ).all()
+
+        for photo in abandoned_photos:
             self.db.delete(photo)
             count += 1
         

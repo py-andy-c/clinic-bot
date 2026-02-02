@@ -10,6 +10,14 @@ from models.patient_photo import PatientPhoto
 from models.patient import Patient
 from models.appointment import Appointment
 
+
+class RecordVersionConflictError(Exception):
+    """Exception raised when a record version conflict is detected during update."""
+    def __init__(self, message: str, current_record: MedicalRecord):
+        self.message = message
+        self.current_record = current_record
+        super().__init__(self.message)
+
 class MedicalRecordService:
     @staticmethod
     def create_record(
@@ -131,7 +139,12 @@ class MedicalRecordService:
             raise HTTPException(status_code=404, detail="Record not found")
         
         if record.version != version:
-            raise HTTPException(status_code=409, detail="Record has been modified by another user")
+            # Refresh record to get latest state including relationships
+            db.refresh(record)
+            raise RecordVersionConflictError(
+                "Record has been modified by another user",
+                current_record=record
+            )
 
         if values is not None:
             record.values = values
