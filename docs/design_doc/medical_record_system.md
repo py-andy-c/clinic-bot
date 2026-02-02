@@ -813,15 +813,33 @@ AppointmentModal (existing, enhanced)
 * [x] Options cleanup for non-select field types
 * [x] Pagination support with accurate total count
 
-### Phase 3: Medical Records (Week 3-4)
+### Phase 3: Medical Records (Week 3-4) ✅ **COMPLETE**
 
+**Backend:**
 * [x] Medical record CRUD API endpoints
 * [x] Duplicate photo ID handling in create_record
-* [ ] Dynamic form generation from template
-* [ ] Medical records section in PatientDetailPage
-* [ ] Create/edit/view record modals
-* [ ] Version conflict handling UI and error states (Backend logic implemented)
-* [ ] "Recently Deleted" (Trash) management UI and restore/hard-delete logic (Backend logic implemented)
+* [x] API route structure: `/patients/{patient_id}/medical-records`
+* [x] API response format: `{ records, total }` with pagination
+* [x] Trash logic with `include_deleted` parameter
+* [x] Template snapshot includes `{"name": ..., "fields": ...}`
+* [x] Optimistic locking with enriched 409 conflict response
+
+**Frontend:**
+* [x] Medical record types and API methods
+* [x] React Query hooks for medical records (useMedicalRecords)
+* [x] Dynamic form generation from template (MedicalRecordDynamicForm)
+* [x] Medical records section in PatientDetailPage (PatientMedicalRecordsSection)
+* [x] Create/edit/view record modals (MedicalRecordModal)
+* [x] Version conflict handling UI (409 conflict with reload option)
+* [x] "Recently Deleted" (Trash) management UI with restore/hard-delete actions
+* [x] Full CRUD operations with proper error handling
+* [x] Unsaved changes detection and confirmation
+
+**P2 Fixes (Data Integrity & UX):**
+* [x] Checkbox implementation: Produces clean array format `["val1", "val2"]`
+* [x] Required field validation: Dynamic Zod schema enforces required fields
+* [x] Appointment linking UI: Dropdown selector for patient appointments
+* [x] Validation error display: Shows field-level errors on submit
 
 ### Phase 4: Photo Gallery (Week 4-5)
 

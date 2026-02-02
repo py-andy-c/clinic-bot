@@ -53,3 +53,69 @@ export interface MedicalRecordTemplatesListResponse {
   templates: MedicalRecordTemplate[];
   total: number;
 }
+
+// Medical Record types
+export interface MedicalRecord {
+  id: number;
+  clinic_id: number;
+  patient_id: number;
+  template_id: number;
+  appointment_id?: number;
+  template_snapshot: {
+    name: string;
+    fields: TemplateField[];
+  };
+  values: Record<string, any>;
+  version: number;
+  is_deleted: boolean;
+  deleted_at?: string;
+  created_at: string;
+  created_by_user_id?: number;
+  updated_at?: string;
+  updated_by_user_id?: number;
+}
+
+export interface MedicalRecordCreateRequest {
+  template_id: number;
+  appointment_id?: number;
+  values: Record<string, any>;
+  photo_ids?: number[];
+}
+
+export interface MedicalRecordUpdateRequest {
+  version: number;
+  values?: Record<string, any>;
+  appointment_id?: number | null;
+  photo_ids?: number[];
+}
+
+export interface MedicalRecordsListResponse {
+  records: MedicalRecord[];
+  total: number;
+}
+
+// Patient Photo types
+export interface PatientPhoto {
+  id: number;
+  clinic_id: number;
+  patient_id: number;
+  medical_record_id?: number;
+  storage_key: string;
+  thumbnail_key: string;
+  content_hash: string;
+  file_name: string;
+  mime_type: string;
+  size_bytes: number;
+  description?: string;
+  is_pending: boolean;
+  is_deleted: boolean;
+  deleted_at?: string;
+  created_at: string;
+  created_by_user_id?: number;
+  updated_at?: string;
+}
+
+export interface PatientPhotosListResponse {
+  photos: PatientPhoto[];
+  total: number;
+}

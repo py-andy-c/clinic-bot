@@ -93,11 +93,10 @@ def test_medical_record_lifecycle(client, test_clinic_setup, db_session):
     
     # 2. Create Record R1 (Uses V1)
     r1_data = {
-        "patient_id": patient.id,
         "template_id": template_id,
         "values": {"Weight": 70, "Notes": "Healthy"}
     }
-    resp = client.post("/api/clinic/medical-records", json=r1_data, headers=headers)
+    resp = client.post(f"/api/clinic/patients/{patient.id}/medical-records", json=r1_data, headers=headers)
     assert resp.status_code == 200
     r1_id = resp.json()["id"]
     r1_snapshot = resp.json()["template_snapshot"]
@@ -114,11 +113,10 @@ def test_medical_record_lifecycle(client, test_clinic_setup, db_session):
     
     # 4. Create Record R2 (Uses V2)
     r2_data = {
-        "patient_id": patient.id,
         "template_id": template_id,
         "values": {"Weight": 70, "Notes": "Healthy", "Height": 175}
     }
-    resp = client.post("/api/clinic/medical-records", json=r2_data, headers=headers)
+    resp = client.post(f"/api/clinic/patients/{patient.id}/medical-records", json=r2_data, headers=headers)
     assert resp.status_code == 200
     r2_id = resp.json()["id"]
     r2_snapshot = resp.json()["template_snapshot"]
@@ -142,8 +140,8 @@ def test_medical_record_lifecycle(client, test_clinic_setup, db_session):
     assert resp.status_code == 200
     
     # Verify R1 is gone from list
-    resp = client.get(f"/api/clinic/medical-records?patient_id={patient.id}", headers=headers)
-    records = resp.json()
+    resp = client.get(f"/api/clinic/patients/{patient.id}/medical-records", headers=headers)
+    records = resp.json()["records"]
     assert len(records) == 1
     assert records[0]["id"] == r2_id
     
@@ -266,12 +264,11 @@ def test_atomic_linking_and_unified_fate(client, test_clinic_setup, db_session):
     
     # 3. Create Record with Photos (Atomic Commit)
     record_data = {
-        "patient_id": patient.id,
         "template_id": template_id,
         "values": {},
         "photo_ids": photo_ids
     }
-    resp = client.post("/api/clinic/medical-records", json=record_data, headers=headers)
+    resp = client.post(f"/api/clinic/patients/{patient.id}/medical-records", json=record_data, headers=headers)
     assert resp.status_code == 200
     record_id = resp.json()["id"]
     
@@ -334,11 +331,10 @@ def test_optimistic_locking_conflict_response(client, test_clinic_setup, db_sess
     
     # 2. Create Record
     record_data = {
-        "patient_id": patient.id,
         "template_id": template_id,
         "values": {"Notes": "Initial"}
     }
-    resp = client.post("/api/clinic/medical-records", json=record_data, headers=headers)
+    resp = client.post(f"/api/clinic/patients/{patient.id}/medical-records", json=record_data, headers=headers)
     assert resp.status_code == 200
     record_id = resp.json()["id"]
     initial_version = resp.json()["version"]
@@ -464,11 +460,10 @@ def test_cleanup_service_comprehensive(client, test_clinic_setup, db_session):
     template_id = resp.json()["id"]
     
     record_data = {
-        "patient_id": patient.id,
         "template_id": template_id,
         "values": {}
     }
-    resp = client.post("/api/clinic/medical-records", json=record_data, headers=headers)
+    resp = client.post(f"/api/clinic/patients/{patient.id}/medical-records", json=record_data, headers=headers)
     record_id = resp.json()["id"]
     
     # 2. Upload photo and link to record

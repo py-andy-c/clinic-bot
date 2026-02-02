@@ -9,13 +9,12 @@ from services.medical_record_service import MedicalRecordService, RecordVersionC
 from services.patient_photo_service import PatientPhotoService
 from .patient_photos import PatientPhotoResponse
 
-router = APIRouter(prefix="/medical-records", tags=["medical-records"])
+router = APIRouter(tags=["medical-records"])
 
 def get_photo_service():
     return PatientPhotoService()
 
 class MedicalRecordCreate(BaseModel):
-    patient_id: int
     template_id: int
     values: Dict[str, Any]
     photo_ids: Optional[List[int]] = None
@@ -44,6 +43,10 @@ class MedicalRecordResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class MedicalRecordsListResponse(BaseModel):
+    records: List[MedicalRecordResponse]
+    total: int
+
 def _enrich_record_with_photos(
     record: Any, # SQLAlchemy model
     photo_service: PatientPhotoService
@@ -68,8 +71,9 @@ def _enrich_record_with_photos(
     response.photos = photo_responses
     return response
 
-@router.post("", response_model=MedicalRecordResponse)
+@router.post("/patients/{patient_id}/medical-records", response_model=MedicalRecordResponse)
 def create_record(
+    patient_id: int,
     record: MedicalRecordCreate,
     user: UserContext = Depends(require_authenticated),
     db: Session = Depends(get_db),
@@ -83,7 +87,7 @@ def create_record(
     created_record = MedicalRecordService.create_record(
         db=db,
         clinic_id=clinic_id,
-        patient_id=record.patient_id,
+        patient_id=patient_id,  # Use patient_id from path
         template_id=record.template_id,
         values=record.values,
         photo_ids=record.photo_ids,
@@ -93,31 +97,47 @@ def create_record(
     
     return _enrich_record_with_photos(created_record, photo_service)
 
-@router.get("", response_model=List[MedicalRecordResponse])
+@router.get("/patients/{patient_id}/medical-records", response_model=MedicalRecordsListResponse)
 def list_records(
     patient_id: int,
     user: UserContext = Depends(require_authenticated),
     db: Session = Depends(get_db),
     photo_service: PatientPhotoService = Depends(get_photo_service),
     skip: int = 0,
-    limit: int = 100
+    limit: int = 100,
+    include_deleted: bool = False
 ):
     ensure_clinic_access(user)
     if user.active_clinic_id is None:
         raise HTTPException(status_code=400, detail="Clinic context required")
     clinic_id = user.active_clinic_id
     
+    # Get total count
+    total = MedicalRecordService.count_patient_records(
+        db=db,
+        clinic_id=clinic_id,
+        patient_id=patient_id,
+        include_deleted=include_deleted
+    )
+    
+    # Get records
     records = MedicalRecordService.list_patient_records(
         db=db,
         clinic_id=clinic_id,
         patient_id=patient_id,
         skip=skip,
-        limit=limit
+        limit=limit,
+        include_deleted=include_deleted
     )
     
-    return [_enrich_record_with_photos(record, photo_service) for record in records]
+    enriched_records = [_enrich_record_with_photos(record, photo_service) for record in records]
+    
+    return MedicalRecordsListResponse(
+        records=enriched_records,
+        total=total
+    )
 
-@router.get("/{record_id}", response_model=MedicalRecordResponse)
+@router.get("/medical-records/{record_id}", response_model=MedicalRecordResponse)
 def get_record(
     record_id: int,
     user: UserContext = Depends(require_authenticated),
@@ -131,7 +151,7 @@ def get_record(
         raise HTTPException(status_code=404, detail="Record not found")
     return _enrich_record_with_photos(record, photo_service)
 
-@router.put("/{record_id}", response_model=MedicalRecordResponse)
+@router.put("/medical-records/{record_id}", response_model=MedicalRecordResponse)
 def update_record(
     record_id: int,
     update_data: MedicalRecordUpdate,
@@ -169,7 +189,7 @@ def update_record(
             }
         )
 
-@router.delete("/{record_id}")
+@router.delete("/medical-records/{record_id}")
 def delete_record(
     record_id: int,
     user: UserContext = Depends(require_authenticated),
@@ -190,7 +210,7 @@ def delete_record(
         raise HTTPException(status_code=404, detail="Record not found")
     return {"status": "success"}
 
-@router.post("/{record_id}/restore", response_model=MedicalRecordResponse)
+@router.post("/medical-records/{record_id}/restore", response_model=MedicalRecordResponse)
 def restore_record(
     record_id: int,
     user: UserContext = Depends(require_authenticated),
@@ -211,7 +231,7 @@ def restore_record(
         raise HTTPException(status_code=404, detail="Record not found or not deleted")
     return _enrich_record_with_photos(record, photo_service)
 
-@router.delete("/{record_id}/hard")
+@router.delete("/medical-records/{record_id}/hard")
 def hard_delete_record(
     record_id: int,
     user: UserContext = Depends(require_authenticated),

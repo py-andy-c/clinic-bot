@@ -64,7 +64,7 @@ class MedicalRecordService:
             patient_id=patient_id,
             template_id=template_id,
             template_name=template.name,
-            template_snapshot={"fields": template.fields},
+            template_snapshot={"name": template.name, "fields": template.fields},
             values=values,
             appointment_id=appointment_id,
             created_by_user_id=created_by_user_id,
@@ -115,13 +115,36 @@ class MedicalRecordService:
         clinic_id: int,
         patient_id: int,
         skip: int = 0,
-        limit: int = 100
+        limit: int = 100,
+        include_deleted: bool = False
     ) -> List[MedicalRecord]:
-        return db.query(MedicalRecord).filter(
+        query = db.query(MedicalRecord).filter(
             MedicalRecord.clinic_id == clinic_id,
-            MedicalRecord.patient_id == patient_id,
-            MedicalRecord.is_deleted == False
-        ).order_by(desc(MedicalRecord.created_at)).offset(skip).limit(limit).all()
+            MedicalRecord.patient_id == patient_id
+        )
+        
+        if not include_deleted:
+            query = query.filter(MedicalRecord.is_deleted == False)
+        
+        return query.order_by(desc(MedicalRecord.created_at)).offset(skip).limit(limit).all()
+
+    @staticmethod
+    def count_patient_records(
+        db: Session,
+        clinic_id: int,
+        patient_id: int,
+        include_deleted: bool = False
+    ) -> int:
+        """Get total count of patient records."""
+        query = db.query(MedicalRecord).filter(
+            MedicalRecord.clinic_id == clinic_id,
+            MedicalRecord.patient_id == patient_id
+        )
+        
+        if not include_deleted:
+            query = query.filter(MedicalRecord.is_deleted == False)
+        
+        return query.count()
 
     @staticmethod
     def update_record(

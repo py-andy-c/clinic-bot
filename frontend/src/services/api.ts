@@ -1525,6 +1525,51 @@ export class ApiService {
     return response.data;
   }
 
+  // Medical Record methods
+  async listPatientMedicalRecords(
+    patientId: number,
+    params?: { skip?: number; limit?: number; include_deleted?: boolean }
+  ): Promise<import('../types/medicalRecord').MedicalRecordsListResponse> {
+    const response = await this.client.get(`/clinic/patients/${patientId}/medical-records`, { params });
+    return response.data;
+  }
+
+  async getMedicalRecord(recordId: number): Promise<import('../types/medicalRecord').MedicalRecord> {
+    const response = await this.client.get(`/clinic/medical-records/${recordId}`);
+    return response.data;
+  }
+
+  async createMedicalRecord(
+    patientId: number,
+    data: import('../types/medicalRecord').MedicalRecordCreateRequest
+  ): Promise<import('../types/medicalRecord').MedicalRecord> {
+    const response = await this.client.post(`/clinic/patients/${patientId}/medical-records`, data);
+    return response.data;
+  }
+
+  async updateMedicalRecord(
+    recordId: number,
+    data: import('../types/medicalRecord').MedicalRecordUpdateRequest
+  ): Promise<import('../types/medicalRecord').MedicalRecord> {
+    const response = await this.client.put(`/clinic/medical-records/${recordId}`, data);
+    return response.data;
+  }
+
+  async deleteMedicalRecord(recordId: number): Promise<{ success: boolean }> {
+    const response = await this.client.delete(`/clinic/medical-records/${recordId}`);
+    return response.data;
+  }
+
+  async restoreMedicalRecord(recordId: number): Promise<import('../types/medicalRecord').MedicalRecord> {
+    const response = await this.client.post(`/clinic/medical-records/${recordId}/restore`);
+    return response.data;
+  }
+
+  async hardDeleteMedicalRecord(recordId: number): Promise<{ success: boolean }> {
+    const response = await this.client.delete(`/clinic/medical-records/${recordId}/hard`);
+    return response.data;
+  }
+
 }
 
 export const apiService = new ApiService();
