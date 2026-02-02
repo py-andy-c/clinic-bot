@@ -8,6 +8,7 @@ from models.medical_record import MedicalRecord
 from models.medical_record_template import MedicalRecordTemplate
 from models.patient_photo import PatientPhoto
 from models.patient import Patient
+from models.appointment import Appointment
 
 class MedicalRecordService:
     @staticmethod
@@ -28,6 +29,19 @@ class MedicalRecordService:
         if patient.clinic_id != clinic_id:
              raise HTTPException(status_code=403, detail="Patient does not belong to this clinic")
 
+        # Verify Appointment (if provided)
+        if appointment_id:
+            appt = db.query(Appointment).filter(Appointment.calendar_event_id == appointment_id).first()
+            # Note: Appointment primary key is calendar_event_id
+            if not appt:
+                raise HTTPException(status_code=404, detail="Appointment not found")
+            # We need to check clinic_id via the associated CalendarEvent or Patient?
+            # Appointment doesn't have clinic_id directly visible in the snippet I read, 
+            # but Patient does. And Appointment -> Patient.
+            if appt.patient_id != patient_id:
+                raise HTTPException(status_code=400, detail="Appointment does not belong to this patient")
+            # Indirect clinic check via patient is sufficient since patient is already checked.
+            
         # Fetch template to snapshot it
         template = db.query(MedicalRecordTemplate).filter(
             MedicalRecordTemplate.id == template_id,
@@ -122,6 +136,13 @@ class MedicalRecordService:
         if values is not None:
             record.values = values
         if appointment_id is not None:
+            # Validate appointment if changing
+            if appointment_id != record.appointment_id:
+                appt = db.query(Appointment).filter(Appointment.calendar_event_id == appointment_id).first()
+                if not appt:
+                    raise HTTPException(status_code=404, detail="Appointment not found")
+                if appt.patient_id != record.patient_id:
+                    raise HTTPException(status_code=400, detail="Appointment does not belong to this patient")
             record.appointment_id = appointment_id
             
         # Handle Photo Updates
@@ -257,7 +278,8 @@ class MedicalRecordService:
         # Yes, delete the photo rows.
         
         db.query(PatientPhoto).filter(
-            PatientPhoto.medical_record_id == record_id
+            PatientPhoto.medical_record_id == record_id,
+            PatientPhoto.clinic_id == clinic_id
         ).delete(synchronize_session=False)
         
         db.delete(record)

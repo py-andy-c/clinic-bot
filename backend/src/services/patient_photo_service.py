@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from core.config import S3_BUCKET, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION
 from models.patient_photo import PatientPhoto
 from models.medical_record import MedicalRecord
+from models.patient import Patient
 
 # Register HEIF opener
 pillow_heif.register_heif_opener() # type: ignore
@@ -96,6 +97,13 @@ class PatientPhotoService:
     ) -> PatientPhoto:
         original_content = file.file.read()
         content_hash = self._calculate_content_hash(original_content)
+        
+        # Verify Patient belongs to Clinic
+        patient = db.query(Patient).filter(Patient.id == patient_id).first()
+        if not patient:
+             raise HTTPException(status_code=404, detail="Patient not found")
+        if patient.clinic_id != clinic_id:
+             raise HTTPException(status_code=403, detail="Patient does not belong to this clinic")
         
         # Check for duplicates within the same clinic
         existing_photo = db.query(PatientPhoto).filter(
@@ -280,6 +288,10 @@ class PatientPhotoService:
             ).first()
             if not record:
                 raise HTTPException(status_code=404, detail="Medical record not found")
+            
+            # Verify record belongs to the same patient
+            if record.patient_id != photo.patient_id:
+                raise HTTPException(status_code=400, detail="Medical record belongs to a different patient")
                 
             photo.medical_record_id = medical_record_id
             photo.is_pending = False # Activate if linked

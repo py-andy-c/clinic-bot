@@ -98,6 +98,7 @@ def list_records(
     patient_id: int,
     user: UserContext = Depends(require_authenticated),
     db: Session = Depends(get_db),
+    photo_service: PatientPhotoService = Depends(get_photo_service),
     skip: int = 0,
     limit: int = 100
 ):
@@ -106,13 +107,15 @@ def list_records(
         raise HTTPException(status_code=400, detail="Clinic context required")
     clinic_id = user.active_clinic_id
     
-    return MedicalRecordService.list_patient_records(
+    records = MedicalRecordService.list_patient_records(
         db=db,
         clinic_id=clinic_id,
         patient_id=patient_id,
         skip=skip,
         limit=limit
     )
+    
+    return [_enrich_record_with_photos(record, photo_service) for record in records]
 
 @router.get("/{record_id}", response_model=MedicalRecordResponse)
 def get_record(

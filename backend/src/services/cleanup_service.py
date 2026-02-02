@@ -60,14 +60,17 @@ class CleanupService:
         """
         # 1. Get all referenced keys from DB
         # We need ALL rows, including soft-deleted ones (if they are not expired yet)
-        all_photos = self.db.query(PatientPhoto).all()
+        # Optimization: Only fetch necessary columns and use yield_per to avoid loading everything into memory
         referenced_keys: Set[str] = set()
         
-        for photo in all_photos:
-            if photo.storage_key:
-                referenced_keys.add(photo.storage_key)
-            if photo.thumbnail_key:
-                referenced_keys.add(photo.thumbnail_key)
+        # Query tuples of (storage_key, thumbnail_key)
+        query = self.db.query(PatientPhoto.storage_key, PatientPhoto.thumbnail_key).execution_options(yield_per=1000)
+        
+        for storage_key, thumbnail_key in query:
+            if storage_key:
+                referenced_keys.add(storage_key)
+            if thumbnail_key:
+                referenced_keys.add(thumbnail_key)
 
         # 2. List all objects in S3
         # Note: For large buckets, this needs pagination. using get_paginator is safer.
