@@ -9,13 +9,16 @@ from models.medical_record_template import MedicalRecordTemplate
 from models.patient_photo import PatientPhoto
 from models.patient import Patient
 from models.appointment import Appointment
+from models.user import User
+from models.user_clinic_association import UserClinicAssociation
 
 
 class RecordVersionConflictError(Exception):
     """Exception raised when a record version conflict is detected during update."""
-    def __init__(self, message: str, current_record: MedicalRecord):
+    def __init__(self, message: str, current_record: MedicalRecord, updated_by_user_name: Optional[str] = None):
         self.message = message
         self.current_record = current_record
+        self.updated_by_user_name = updated_by_user_name
         super().__init__(self.message)
 
 class MedicalRecordService:
@@ -164,9 +167,22 @@ class MedicalRecordService:
         if record.version != version:
             # Refresh record to get latest state including relationships
             db.refresh(record)
+            
+            # Fetch the user name who last updated the record
+            updated_by_user_name = None
+            if record.updated_by_user_id:
+                # Join with UserClinicAssociation to get the clinic-specific name
+                user_assoc = db.query(UserClinicAssociation).filter(
+                    UserClinicAssociation.user_id == record.updated_by_user_id,
+                    UserClinicAssociation.clinic_id == clinic_id
+                ).first()
+                if user_assoc:
+                    updated_by_user_name = user_assoc.full_name
+            
             raise RecordVersionConflictError(
                 "Record has been modified by another user",
-                current_record=record
+                current_record=record,
+                updated_by_user_name=updated_by_user_name
             )
 
         if values is not None:

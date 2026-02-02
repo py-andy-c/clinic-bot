@@ -185,7 +185,8 @@ def update_record(
             status_code=409,
             detail={
                 "message": e.message,
-                "current_record": current_record_dict
+                "current_record": current_record_dict,
+                "updated_by_user_name": e.updated_by_user_name
             }
         )
 

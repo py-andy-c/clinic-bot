@@ -65,10 +65,17 @@ class CleanupService:
         self.db.commit()
         return count
 
-    def garbage_collect_s3(self, dry_run: bool = False) -> int:
+    def garbage_collect_s3(self, dry_run: bool = False, prefix: str = "clinic_assets/") -> int:
         """
         Delete S3 objects that are not referenced by any PatientPhoto row in the database.
-        Returns the number of objects deleted (or found, if dry_run).
+        
+        Args:
+            dry_run: If True, only report what would be deleted without actually deleting
+            prefix: S3 key prefix to limit the scope of garbage collection (default: "clinic_assets/")
+                   This prevents accidental deletion of non-photo assets in shared buckets
+        
+        Returns:
+            The number of objects deleted (or found, if dry_run)
         """
         # 1. Get all referenced keys from DB
         # We need ALL rows, including soft-deleted ones (if they are not expired yet)
@@ -84,10 +91,10 @@ class CleanupService:
             if thumbnail_key:
                 referenced_keys.add(thumbnail_key)
 
-        # 2. List all objects in S3
+        # 2. List all objects in S3 with prefix filter
         # Note: For large buckets, this needs pagination. using get_paginator is safer.
         paginator: Any = self.s3_client.get_paginator('list_objects_v2') # type: ignore
-        pages: Any = paginator.paginate(Bucket=self.bucket) # type: ignore
+        pages: Any = paginator.paginate(Bucket=self.bucket, Prefix=prefix) # type: ignore
 
         deleted_count = 0
         

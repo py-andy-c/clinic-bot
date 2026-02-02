@@ -100,6 +100,12 @@ export const MedicalRecordModal: React.FC<MedicalRecordModalProps> = ({
   const activeClinicId = user?.active_clinic_id;
   const { alert, confirm } = useModal();
   const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null);
+  const [conflictState, setConflictState] = useState<{
+    show: boolean;
+    currentRecord: any;
+    updatedByUserName?: string;
+    userChanges: RecordFormData;
+  } | null>(null);
 
   const isCreate = mode === 'create';
   const isView = mode === 'view';
@@ -202,28 +208,61 @@ export const MedicalRecordModal: React.FC<MedicalRecordModalProps> = ({
       
       // Handle version conflict (409)
       if (error instanceof AxiosError && error.response?.status === 409) {
-        const currentRecord = error.response.data?.current_record;
-        const updatedBy = currentRecord?.updated_by_user_id;
-        const updatedAt = currentRecord?.updated_at;
+        const errorDetail = error.response.data?.detail;
+        const currentRecord = errorDetail?.current_record;
+        const updatedByUserName = errorDetail?.updated_by_user_name;
         
-        const message = updatedBy && updatedAt
-          ? `此病歷已被其他使用者在 ${new Date(updatedAt).toLocaleString('zh-TW')} 更新\n\n您可以選擇：\n• 確定：重新載入最新版本（放棄您的變更）\n• 取消：繼續編輯`
-          : '此病歷已被其他使用者更新\n\n點擊「確定」重新載入最新版本，或「取消」繼續編輯';
-        
-        const shouldReload = await confirm(message, '版本衝突');
-        
-        if (shouldReload && currentRecord) {
-          // Reload with latest data
-          methods.reset({
-            template_id: currentRecord.template_id,
-            appointment_id: currentRecord.appointment_id ?? null,
-            values: currentRecord.values || {},
-          });
-        }
+        // Show conflict resolution dialog
+        setConflictState({
+          show: true,
+          currentRecord,
+          updatedByUserName,
+          userChanges: data,
+        });
       } else {
         await alert(getErrorMessage(error), '儲存失敗');
       }
     }
+  };
+
+  const handleConflictReload = () => {
+    if (conflictState?.currentRecord) {
+      methods.reset({
+        template_id: conflictState.currentRecord.template_id,
+        appointment_id: conflictState.currentRecord.appointment_id ?? null,
+        values: conflictState.currentRecord.values || {},
+      });
+    }
+    setConflictState(null);
+  };
+
+  const handleConflictForceSave = async () => {
+    if (!conflictState || !isEdit || !record) return;
+    
+    try {
+      const forceSaveData: { version: number; values?: Record<string, any>; appointment_id?: number | null } = {
+        version: conflictState.currentRecord.version, // Use latest version
+        values: conflictState.userChanges.values, // Keep user's changes
+      };
+      if (conflictState.userChanges.appointment_id !== undefined) {
+        forceSaveData.appointment_id = conflictState.userChanges.appointment_id;
+      }
+      await updateMutation.mutateAsync({
+        recordId: record.id,
+        data: forceSaveData,
+      });
+      await alert('病歷記錄已強制儲存', '儲存成功');
+      setConflictState(null);
+      onClose();
+    } catch (forceSaveError) {
+      logger.error('Force save failed:', forceSaveError);
+      await alert(getErrorMessage(forceSaveError), '強制儲存失敗');
+      setConflictState(null);
+    }
+  };
+
+  const handleConflictCancel = () => {
+    setConflictState(null);
   };
 
   const isSaving = createMutation.isPending || updateMutation.isPending;
@@ -344,6 +383,66 @@ export const MedicalRecordModal: React.FC<MedicalRecordModalProps> = ({
           </ModalFooter>
         </form>
       </FormProvider>
+
+      {/* Conflict Resolution Dialog */}
+      {conflictState?.show && (
+        <BaseModal onClose={handleConflictCancel}>
+          <ModalHeader title="版本衝突" onClose={handleConflictCancel} />
+          <ModalBody>
+            <div className="space-y-4">
+              <p className="text-gray-700">
+                此病歷已被
+                {conflictState.updatedByUserName ? (
+                  <span className="font-semibold"> {conflictState.updatedByUserName} </span>
+                ) : (
+                  ' 其他使用者 '
+                )}
+                {conflictState.currentRecord?.updated_at && (
+                  <>
+                    在 <span className="font-semibold">
+                      {new Date(conflictState.currentRecord.updated_at).toLocaleString('zh-TW')}
+                    </span>{' '}
+                  </>
+                )}
+                更新
+              </p>
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <p className="text-sm text-yellow-800">
+                  <strong>您可以選擇：</strong>
+                </p>
+                <ul className="mt-2 text-sm text-yellow-700 space-y-1 list-disc list-inside">
+                  <li><strong>重新載入</strong>：查看最新版本（放棄您的變更）</li>
+                  <li><strong>強制儲存</strong>：覆蓋對方的變更（保留您的變更）</li>
+                  <li><strong>取消</strong>：繼續編輯</li>
+                </ul>
+              </div>
+            </div>
+          </ModalBody>
+          <ModalFooter>
+            <button
+              type="button"
+              onClick={handleConflictCancel}
+              className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              取消
+            </button>
+            <button
+              type="button"
+              onClick={handleConflictReload}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              重新載入
+            </button>
+            <button
+              type="button"
+              onClick={handleConflictForceSave}
+              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+            >
+              強制儲存
+            </button>
+          </ModalFooter>
+        </BaseModal>
+      )}
     </BaseModal>
   );
 };
