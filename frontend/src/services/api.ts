@@ -1490,6 +1490,41 @@ export class ApiService {
     return response.data;
   }
 
+  // Medical Record Template methods
+  async listMedicalRecordTemplates(params?: {
+    page?: number;
+    pageSize?: number;
+    include_deleted?: boolean;
+  }): Promise<import('../types/medicalRecord').MedicalRecordTemplatesListResponse> {
+    const response = await this.client.get('/clinic/medical-record-templates', { params });
+    return response.data;
+  }
+
+  async getMedicalRecordTemplate(templateId: number): Promise<import('../types/medicalRecord').MedicalRecordTemplate> {
+    const response = await this.client.get(`/clinic/medical-record-templates/${templateId}`);
+    return response.data;
+  }
+
+  async createMedicalRecordTemplate(
+    data: import('../types/medicalRecord').MedicalRecordTemplateCreateRequest
+  ): Promise<import('../types/medicalRecord').MedicalRecordTemplate> {
+    const response = await this.client.post('/clinic/medical-record-templates', data);
+    return response.data;
+  }
+
+  async updateMedicalRecordTemplate(
+    templateId: number,
+    data: import('../types/medicalRecord').MedicalRecordTemplateUpdateRequest
+  ): Promise<import('../types/medicalRecord').MedicalRecordTemplate> {
+    const response = await this.client.put(`/clinic/medical-record-templates/${templateId}`, data);
+    return response.data;
+  }
+
+  async deleteMedicalRecordTemplate(templateId: number): Promise<{ success: boolean }> {
+    const response = await this.client.delete(`/clinic/medical-record-templates/${templateId}`);
+    return response.data;
+  }
+
 }
 
 export const apiService = new ApiService();

@@ -42,6 +42,13 @@ const settingCards: SettingCard[] = [
     description: '管理 AI 聊天機器人的設定和行為',
   },
   {
+    name: '病歷模板',
+    path: 'medical-record-templates',
+    icon: '📝',
+    description: '管理病歷記錄的模板和表單欄位',
+    adminOnly: true,
+  },
+  {
     name: '收據設定',
     path: 'receipts',
     icon: '🧾',
