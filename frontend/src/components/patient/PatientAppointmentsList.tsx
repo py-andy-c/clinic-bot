@@ -503,7 +503,7 @@ export const PatientAppointmentsList: React.FC<
   }
 
   return (
-    <div className="bg-white rounded-lg shadow-md p-4">
+    <div className="bg-white -mx-4 sm:mx-0 sm:rounded-lg shadow-none sm:shadow-md border-b sm:border-none border-gray-200 p-4 sm:p-6 mb-0 sm:mb-6">
       <h2 className="text-xl font-semibold text-gray-900 mb-4">預約記錄</h2>
 
       <div className="border-b border-gray-200 mb-4">

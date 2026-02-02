@@ -126,81 +126,83 @@ export const PatientMedicalRecordsSection: React.FC<PatientMedicalRecordsSection
   const deletedRecords = records.filter(r => r.is_deleted);
 
   return (
-    <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <h3 className="text-lg font-semibold text-gray-900">病歷記錄</h3>
-        <button
-          type="button"
-          onClick={handleCreate}
-          className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
-        >
-          新增病歷
-        </button>
-      </div>
-
-      {activeRecords.length === 0 ? (
-        <div className="text-center py-8 text-gray-500">
-          尚無病歷記錄
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {activeRecords.map((record) => (
-            <MedicalRecordCard
-              key={record.id}
-              record={record}
-              onView={() => handleView(record.id)}
-              onEdit={() => handleEdit(record.id)}
-              onDelete={() => handleDelete(record.id)}
-            />
-          ))}
-        </div>
-      )}
-
-      {deletedRecords.length > 0 && (
-        <div className="mt-6">
+    <>
+      <div className="bg-white -mx-4 sm:mx-0 sm:rounded-lg shadow-none sm:shadow-md border-b sm:border-none border-gray-200 p-4 sm:p-6 mb-0 sm:mb-6">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-xl font-semibold text-gray-900">病歷記錄</h3>
           <button
             type="button"
-            onClick={() => setShowDeleted(!showDeleted)}
-            className="text-sm text-gray-600 hover:text-gray-900"
+            onClick={handleCreate}
+            className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
           >
-            {showDeleted ? '隱藏' : '查看'}最近刪除 ({deletedRecords.length})
+            新增病歷
           </button>
-
-          {showDeleted && (
-            <div className="mt-3 space-y-2 border-t pt-3">
-              {deletedRecords.map((record) => (
-                <MedicalRecordCard
-                  key={record.id}
-                  record={record}
-                  isDeleted
-                  onRestore={() => handleRestore(record.id)}
-                  onHardDelete={() => handleHardDelete(record.id)}
-                />
-              ))}
-            </div>
-          )}
         </div>
-      )}
+
+        {activeRecords.length === 0 ? (
+          <div className="text-center py-8 text-gray-500">
+            尚無病歷記錄
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {activeRecords.map((record) => (
+              <MedicalRecordCard
+                key={record.id}
+                record={record}
+                onView={() => handleView(record.id)}
+                onEdit={() => handleEdit(record.id)}
+                onDelete={() => handleDelete(record.id)}
+              />
+            ))}
+          </div>
+        )}
+
+        {deletedRecords.length > 0 && (
+          <div className="mt-6">
+            <button
+              type="button"
+              onClick={() => setShowDeleted(!showDeleted)}
+              className="text-sm text-gray-600 hover:text-gray-900"
+            >
+              {showDeleted ? '隱藏' : '查看'}最近刪除 ({deletedRecords.length})
+            </button>
+
+            {showDeleted && (
+              <div className="mt-3 space-y-2 border-t pt-3">
+                {deletedRecords.map((record) => (
+                  <MedicalRecordCard
+                    key={record.id}
+                    record={record}
+                    isDeleted
+                    onRestore={() => handleRestore(record.id)}
+                    onHardDelete={() => handleHardDelete(record.id)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Modal */}
+        {modalState.isOpen && (
+          <MedicalRecordModal
+            patientId={patientId}
+            recordId={modalState.recordId}
+            mode={modalState.mode}
+            onClose={closeModal}
+          />
+        )}
+      </div>
 
       {/* Photo Gallery Section */}
-      <div className="mt-8 pt-8 border-t">
+      <div className="bg-white -mx-4 sm:mx-0 sm:rounded-lg shadow-none sm:shadow-md border-b sm:border-none border-gray-200 p-4 sm:p-6 mb-0 sm:mb-6">
         <PatientPhotoGallery
           clinicId={activeClinicId ?? null}
           patientId={patientId}
           unlinkedOnly={true}
         />
       </div>
-
-      {/* Modal */}
-      {modalState.isOpen && (
-        <MedicalRecordModal
-          patientId={patientId}
-          recordId={modalState.recordId}
-          mode={modalState.mode}
-          onClose={closeModal}
-        />
-      )}
-    </div>
+    </>
   );
 };
 
@@ -225,9 +227,8 @@ const MedicalRecordCard: React.FC<MedicalRecordCardProps> = ({
 }) => {
   return (
     <div
-      className={`p-4 border rounded-lg ${
-        isDeleted ? 'bg-gray-50 border-gray-300' : 'bg-white border-gray-200 hover:border-primary-300'
-      } transition-colors`}
+      className={`p-4 border rounded-lg ${isDeleted ? 'bg-gray-50 border-gray-300' : 'bg-white border-gray-200 hover:border-primary-300'
+        } transition-colors`}
     >
       <div className="flex justify-between items-start">
         <div className="flex-1">

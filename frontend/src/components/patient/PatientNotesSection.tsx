@@ -48,7 +48,7 @@ export const PatientNotesSection: React.FC<PatientNotesSectionProps> = ({
     return (
       <div className="bg-white rounded-lg shadow-md p-4 sm:p-6">
         <h2 className="text-xl font-semibold text-gray-900 mb-4">備註</h2>
-        
+
         {error && (
           <div className="mb-4 bg-red-50 border border-red-200 rounded-md p-3">
             <p className="text-sm text-red-600">{error}</p>
@@ -88,7 +88,7 @@ export const PatientNotesSection: React.FC<PatientNotesSectionProps> = ({
   }
 
   return (
-    <div className="bg-white rounded-lg shadow-md p-4 sm:p-6">
+    <div className="bg-white -mx-4 sm:mx-0 sm:rounded-lg shadow-none sm:shadow-md border-b sm:border-none border-gray-200 p-4 sm:p-6 mb-0 sm:mb-6">
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-semibold text-gray-900">備註</h2>
         {canEdit && (
