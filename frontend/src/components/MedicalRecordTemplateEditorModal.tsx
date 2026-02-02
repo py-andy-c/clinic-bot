@@ -236,37 +236,33 @@ export const MedicalRecordTemplateEditorModal: React.FC<MedicalRecordTemplateEdi
 
                 {/* Fields Section */}
                 <div className="border-t pt-6">
-                  <div className="flex justify-between items-center mb-4">
+                  <div className="mb-4">
                     <h3 className="text-lg font-semibold text-gray-900">表單欄位</h3>
+                  </div>
+
+                  <div className="space-y-4">
+                    {fields.map((field, index) => (
+                      <FieldEditor
+                        key={field.id}
+                        index={index}
+                        field={field}
+                        onRemove={() => handleRemoveField(index)}
+                        onMoveUp={() => handleMoveField(index, 'up')}
+                        onMoveDown={() => handleMoveField(index, 'down')}
+                        canMoveUp={index > 0}
+                        canMoveDown={index < fields.length - 1}
+                      />
+                    ))}
+
                     <button
                       type="button"
                       onClick={handleAddField}
-                      className="px-3 py-1.5 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+                      className="w-full py-4 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 hover:text-primary-600 hover:border-primary-500 hover:bg-primary-50 transition-all flex items-center justify-center gap-2 group"
                     >
-                      + 新增欄位
+                      <span className="text-2xl group-hover:scale-110 transition-transform">+</span>
+                      <span className="font-medium">新增欄位</span>
                     </button>
                   </div>
-
-                  {fields.length === 0 ? (
-                    <div className="text-center py-8 text-gray-500">
-                      尚未新增任何欄位，點擊「新增欄位」開始建立表單
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      {fields.map((field, index) => (
-                        <FieldEditor
-                          key={field.id}
-                          index={index}
-                          field={field}
-                          onRemove={() => handleRemoveField(index)}
-                          onMoveUp={() => handleMoveField(index, 'up')}
-                          onMoveDown={() => handleMoveField(index, 'down')}
-                          canMoveUp={index > 0}
-                          canMoveDown={index < fields.length - 1}
-                        />
-                      ))}
-                    </div>
-                  )}
                 </div>
               </div>
             )}
