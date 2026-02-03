@@ -50,19 +50,26 @@ const createDynamicSchema = (fields: TemplateField[] | undefined) => {
       case 'textarea':
       case 'dropdown':
       case 'radio':
-        fieldSchema = z.string().optional();
+      case 'date':
+        fieldSchema = z.string().nullable().optional();
         break;
       case 'number':
         fieldSchema = z.union([
           z.number(),
-          z.string().transform(val => val === '' ? undefined : Number(val))
+          z.string().transform(val => val === '' ? undefined : Number(val)),
+          z.null()
         ]).optional();
         break;
       case 'checkbox':
-        fieldSchema = z.array(z.string()).optional();
-        break;
-      case 'date':
-        fieldSchema = z.string().optional();
+        fieldSchema = z.preprocess(
+          (val) => {
+            if (Array.isArray(val)) return val;
+            if (val === null || val === undefined) return [];
+            if (typeof val === 'boolean') return [];
+            return [String(val)];
+          },
+          z.array(z.string())
+        ).optional();
         break;
       default:
         fieldSchema = z.any().optional();
