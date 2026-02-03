@@ -167,9 +167,9 @@ const PatientGalleryPage: React.FC = () => {
               if (!photosForDate) return null;
               
               return (
-              <div key={date} className="bg-white -mx-4 sm:mx-0 sm:rounded-lg shadow-none sm:shadow-md border-b sm:border-none border-gray-200 p-4 sm:p-6">
+              <div key={date} className="bg-white -mx-4 sm:mx-0 sm:rounded-lg shadow-none sm:shadow-md border-b sm:border-none border-gray-200">
                 {/* Date Header */}
-                <div className="flex items-center gap-3 mb-4 pb-3 border-b border-gray-200">
+                <div className="flex items-center gap-3 px-4 sm:px-6 py-3 border-b border-gray-200">
                   <div className="w-2 h-2 rounded-full bg-blue-600"></div>
                   <h2 className="text-lg font-semibold text-gray-900">{date}</h2>
                   <span className="text-sm text-gray-500">
@@ -177,15 +177,15 @@ const PatientGalleryPage: React.FC = () => {
                   </span>
                 </div>
 
-                {/* Photos Grid */}
-                <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                {/* Photos Grid - Edge-to-edge on mobile */}
+                <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-0.5 sm:gap-1 -mx-4 sm:mx-0">
                   {photosForDate.map((photo) => {
                     const photoIndex = photos.findIndex(p => p.id === photo.id);
                     
                     return (
                       <div
                         key={photo.id}
-                        className="relative aspect-square bg-gray-100 rounded-lg overflow-hidden cursor-pointer hover:ring-2 hover:ring-blue-500 transition-all group"
+                        className="relative aspect-square bg-gray-100 overflow-hidden cursor-pointer group"
                       >
                         <img
                           src={photo.thumbnail_url || photo.url}
@@ -238,8 +238,8 @@ const PatientGalleryPage: React.FC = () => {
 
                         {/* Medical Record Badge */}
                         {photo.medical_record_id && (
-                          <div className="absolute top-2 right-2">
-                            <div className="bg-blue-600 text-white p-1.5 rounded-full shadow-lg">
+                          <div className="absolute top-1 right-1">
+                            <div className="bg-blue-600 text-white p-1 rounded-full shadow-lg">
                               <LinkIcon />
                             </div>
                           </div>
