@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { LoadingSpinner, ErrorMessage } from '../components/shared';
 import { apiService } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
@@ -21,9 +21,12 @@ import { CreateAppointmentModal } from '../components/calendar/CreateAppointment
 import { PatientMedicalRecordsSection } from '../components/PatientMedicalRecordsSection';
 import { RecentPhotosRibbon } from '../components/RecentPhotosRibbon';
 
+type TabType = 'info' | 'appointments' | 'records' | 'photos';
+
 const PatientDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { hasRole, user } = useAuth();
   const activeClinicId = user?.active_clinic_id;
   const { alert } = useModal();
@@ -36,6 +39,13 @@ const PatientDetailPage: React.FC = () => {
 
   const patientId = id ? parseInt(id, 10) : undefined;
 
+  // Get active tab from URL or default to 'info'
+  const activeTab = (searchParams.get('tab') as TabType) || 'info';
+
+  const setActiveTab = (tab: TabType) => {
+    setSearchParams({ tab });
+  };
+
   // Scroll to top when component mounts or patientId changes
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -46,11 +56,15 @@ const PatientDetailPage: React.FC = () => {
   const canEdit = hasRole && (hasRole('admin') || hasRole('practitioner'));
   const canCreateAppointment = canEdit; // Same permissions as editing
 
-  // Fetch clinic settings for appointment types
-  const { data: clinicSettings } = useClinicSettings();
+  // Fetch clinic settings for appointment types (only when needed)
+  const { data: clinicSettings } = useClinicSettings(
+    activeTab === 'appointments' || isAppointmentModalOpen
+  );
 
-  // Fetch practitioners (needed for edit/delete appointment buttons and create modal)
-  const { data: practitionersData } = usePractitioners();
+  // Fetch practitioners (only when needed)
+  const { data: practitionersData } = usePractitioners({
+    enabled: activeTab === 'appointments' || activeTab === 'info' || isAppointmentModalOpen,
+  });
 
   // Optimistic update hook for appointment creation
   const createAppointmentMutation = useCreateAppointmentOptimistic();
@@ -144,50 +158,107 @@ const PatientDetailPage: React.FC = () => {
         </div>
       )}
 
+      {/* Tab Navigation */}
+      <div className="border-b border-gray-200 mb-6">
+        <nav className="-mb-px flex space-x-8">
+          <button
+            onClick={() => setActiveTab('info')}
+            className={`py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${
+              activeTab === 'info'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            基本資料
+          </button>
+          <button
+            onClick={() => setActiveTab('appointments')}
+            className={`py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${
+              activeTab === 'appointments'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            預約記錄
+          </button>
+          <button
+            onClick={() => setActiveTab('records')}
+            className={`py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${
+              activeTab === 'records'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            病歷記錄
+          </button>
+          <button
+            onClick={() => setActiveTab('photos')}
+            className={`py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${
+              activeTab === 'photos'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            照片
+          </button>
+        </nav>
+      </div>
+
+      {/* Tab Content */}
       <div className="space-y-6">
-        <PatientInfoSection
-          patient={patient}
-          isEditing={isEditing}
-          onEdit={() => setIsEditing(true)}
-          onCancel={() => setIsEditing(false)}
-          onUpdate={handleUpdate}
-          canEdit={canEdit}
-        />
+        {activeTab === 'info' && (
+          <>
+            <PatientInfoSection
+              patient={patient}
+              isEditing={isEditing}
+              onEdit={() => setIsEditing(true)}
+              onCancel={() => setIsEditing(false)}
+              onUpdate={handleUpdate}
+              canEdit={canEdit}
+            />
 
-        <PatientNotesSection
-          patient={patient}
-          isEditing={isEditingNotes}
-          onEdit={() => setIsEditingNotes(true)}
-          onCancel={() => setIsEditingNotes(false)}
-          onUpdate={handleUpdate}
-          canEdit={canEdit}
-        />
+            <PatientNotesSection
+              patient={patient}
+              isEditing={isEditingNotes}
+              onEdit={() => setIsEditingNotes(true)}
+              onCancel={() => setIsEditingNotes(false)}
+              onUpdate={handleUpdate}
+              canEdit={canEdit}
+            />
 
-        <PatientAssignedPractitionersSection
-          patient={patient}
-          isEditing={isEditingPractitioners}
-          onEdit={() => setIsEditingPractitioners(true)}
-          onCancel={() => setIsEditingPractitioners(false)}
-          onUpdate={handleUpdate}
-          canEdit={canEdit}
-          practitioners={practitioners}
-        />
+            <PatientAssignedPractitionersSection
+              patient={patient}
+              isEditing={isEditingPractitioners}
+              onEdit={() => setIsEditingPractitioners(true)}
+              onCancel={() => setIsEditingPractitioners(false)}
+              onUpdate={handleUpdate}
+              canEdit={canEdit}
+              practitioners={practitioners}
+            />
+          </>
+        )}
 
-        <PatientAppointmentsList
-          patientId={patient.id}
-          practitioners={practitioners}
-          appointmentTypes={appointmentTypes}
-          onRefetchReady={(refetch) => {
-            appointmentsListRefetchRef.current = refetch;
-          }}
-        />
+        {activeTab === 'appointments' && (
+          <PatientAppointmentsList
+            patientId={patient.id}
+            practitioners={practitioners}
+            appointmentTypes={appointmentTypes}
+            onRefetchReady={(refetch) => {
+              appointmentsListRefetchRef.current = refetch;
+            }}
+          />
+        )}
 
-        <PatientMedicalRecordsSection patientId={patient.id} />
+        {activeTab === 'records' && (
+          <PatientMedicalRecordsSection patientId={patient.id} />
+        )}
 
-        <RecentPhotosRibbon
-          clinicId={activeClinicId ?? null}
-          patientId={patient.id}
-        />
+        {activeTab === 'photos' && (
+          <RecentPhotosRibbon
+            clinicId={activeClinicId ?? null}
+            patientId={patient.id}
+          />
+        )}
       </div>
 
       {/* Create Appointment Modal */}
