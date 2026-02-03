@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { usePatientPhotos, useUploadPatientPhoto } from '../hooks/usePatientPhotos';
@@ -17,14 +17,21 @@ const UploadIcon = () => (
 interface RecentPhotosRibbonProps {
   clinicId: number | null;
   patientId: number;
+  triggerUpload?: boolean;
+  onUploadComplete?: () => void;
+  hideUploadButton?: boolean;
 }
 
 export const RecentPhotosRibbon: React.FC<RecentPhotosRibbonProps> = ({
   clinicId,
   patientId,
+  triggerUpload = false,
+  onUploadComplete,
+  hideUploadButton = false,
 }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Upload state
   const [showAnnotationModal, setShowAnnotationModal] = useState(false);
@@ -44,6 +51,16 @@ export const RecentPhotosRibbon: React.FC<RecentPhotosRibbonProps> = ({
 
   const photos = photosResponse?.items || [];
   const totalPhotos = photosResponse?.total || 0;
+
+  // Handle external trigger for upload
+  useEffect(() => {
+    if (triggerUpload && fileInputRef.current) {
+      fileInputRef.current.click();
+      if (onUploadComplete) {
+        onUploadComplete();
+      }
+    }
+  }, [triggerUpload, onUploadComplete]);
 
   // Cleanup object URL on unmount to prevent memory leaks
   useEffect(() => {
@@ -151,29 +168,44 @@ export const RecentPhotosRibbon: React.FC<RecentPhotosRibbonProps> = ({
   return (
     <>
       <div className="bg-white -mx-4 sm:mx-0 sm:rounded-lg shadow-none sm:shadow-md border-b sm:border-none border-gray-200 p-4 sm:p-6 mb-0 sm:mb-6">
-        <div className="flex justify-end items-center mb-4">
-          <div className="flex items-center gap-3">
-            <label className="cursor-pointer inline-flex items-center px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-              <UploadIcon />
-              <span className="ml-1.5">{t('上傳照片')}</span>
-              <input
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={handleFileSelect}
-                disabled={uploadMutation.isPending}
-              />
-            </label>
-            {totalPhotos > 0 && (
-              <button
-                onClick={() => navigate(`/admin/clinic/patients/${patientId}/gallery`)}
-                className="text-sm text-blue-600 hover:text-blue-800 font-medium transition-colors"
-              >
-                {t('查看全部')} ({totalPhotos})
-              </button>
-            )}
+        {!hideUploadButton && (
+          <div className="flex justify-end items-center mb-4">
+            <div className="flex items-center gap-3">
+              <label className="cursor-pointer inline-flex items-center px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                <UploadIcon />
+                <span className="ml-1.5">{t('上傳照片')}</span>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleFileSelect}
+                  disabled={uploadMutation.isPending}
+                />
+              </label>
+              {totalPhotos > 0 && (
+                <button
+                  onClick={() => navigate(`/admin/clinic/patients/${patientId}/gallery`)}
+                  className="text-sm text-blue-600 hover:text-blue-800 font-medium transition-colors"
+                >
+                  {t('查看全部')} ({totalPhotos})
+                </button>
+              )}
+            </div>
           </div>
-        </div>
+        )}
+
+        {/* Hidden file input for external trigger */}
+        {hideUploadButton && (
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleFileSelect}
+            disabled={uploadMutation.isPending}
+          />
+        )}
 
         {totalPhotos === 0 ? (
           <div className="text-center py-8 text-gray-500">

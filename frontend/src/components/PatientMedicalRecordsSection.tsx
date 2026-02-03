@@ -18,10 +18,12 @@ import { MEDICAL_RECORD_RETENTION_DAYS } from '../constants/medicalRecords';
 
 interface PatientMedicalRecordsSectionProps {
   patientId: number;
+  hideCreateButton?: boolean;
 }
 
 export const PatientMedicalRecordsSection: React.FC<PatientMedicalRecordsSectionProps> = ({
   patientId,
+  hideCreateButton = false,
 }) => {
   const { user } = useAuth();
   const activeClinicId = user?.active_clinic_id;
@@ -128,15 +130,17 @@ export const PatientMedicalRecordsSection: React.FC<PatientMedicalRecordsSection
   return (
     <>
       <div className="bg-white -mx-4 sm:mx-0 sm:rounded-lg shadow-none sm:shadow-md border-b sm:border-none border-gray-200 p-4 sm:p-6 mb-0 sm:mb-6">
-        <div className="flex justify-end items-center mb-4">
-          <button
-            type="button"
-            onClick={handleCreate}
-            className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
-          >
-            新增病歷
-          </button>
-        </div>
+        {!hideCreateButton && (
+          <div className="flex justify-end items-center mb-4">
+            <button
+              type="button"
+              onClick={handleCreate}
+              className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+            >
+              新增病歷
+            </button>
+          </div>
+        )}
 
         {activeRecords.length === 0 ? (
           <div className="text-center py-8 text-gray-500">
