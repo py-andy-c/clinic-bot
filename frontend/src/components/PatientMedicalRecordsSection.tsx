@@ -276,14 +276,14 @@ const MedicalRecordCard: React.FC<MedicalRecordCardProps> = ({
             {/* Created Time */}
             <div>
               建立：{formatAppointmentDateTime(new Date(record.created_at))}
-              {record.created_by_user_name && ` by ${record.created_by_user_name}`}
+              {record.created_by_user_name && ` 由${record.created_by_user_name}`}
             </div>
             
             {/* Updated Time (only if different from created) */}
             {record.updated_at && new Date(record.updated_at).getTime() !== new Date(record.created_at).getTime() && (
               <div>
                 編輯：{formatAppointmentDateTime(new Date(record.updated_at))}
-                {record.updated_by_user_name && ` by ${record.updated_by_user_name}`}
+                {record.updated_by_user_name && ` 由${record.updated_by_user_name}`}
               </div>
             )}
             
