@@ -38,20 +38,25 @@ export const MedicalRecordPhotoSelector: React.FC<MedicalRecordPhotoSelectorProp
 
   // Fetch unlinked photos (photos not attached to any record)
   const { data: unlinkedPhotos = [] } = usePatientPhotos(clinicId, patientId, { unlinked_only: true });
-  
+
   // Fetch photos already linked to this record (for edit mode)
   const { data: linkedPhotos = [] } = usePatientPhotos(
-    clinicId, 
-    patientId, 
+    clinicId,
+    patientId,
     recordId ? { medical_record_id: recordId } : undefined
   );
 
   const uploadMutation = useUploadPatientPhoto(clinicId!, patientId);
 
   // Combine available photos: unlinked + already linked to this record
-  const availablePhotos = recordId 
-    ? [...unlinkedPhotos, ...linkedPhotos]
-    : unlinkedPhotos;
+  // De-duplicate by ID to prevent duplicate key warnings
+  const availablePhotos = React.useMemo(() => {
+    const all = recordId
+      ? [...unlinkedPhotos, ...linkedPhotos]
+      : unlinkedPhotos;
+
+    return Array.from(new Map(all.map(p => [p.id, p])).values());
+  }, [unlinkedPhotos, linkedPhotos, recordId]);
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
@@ -107,7 +112,7 @@ export const MedicalRecordPhotoSelector: React.FC<MedicalRecordPhotoSelectorProp
     });
 
     const uploadedPhotos = (await Promise.all(uploadPromises)).filter(Boolean) as PatientPhoto[];
-    
+
     // Add newly uploaded photo IDs to selection
     if (uploadedPhotos.length > 0) {
       const newPhotoIds = uploadedPhotos.map(p => p.id);
@@ -197,8 +202,8 @@ export const MedicalRecordPhotoSelector: React.FC<MedicalRecordPhotoSelectorProp
                 className={`
                   relative aspect-square rounded-lg overflow-hidden cursor-pointer
                   border-2 transition-all
-                  ${isSelected 
-                    ? 'border-blue-500 ring-2 ring-blue-200' 
+                  ${isSelected
+                    ? 'border-blue-500 ring-2 ring-blue-200'
                     : 'border-gray-200 hover:border-gray-300'
                   }
                 `}
@@ -208,7 +213,7 @@ export const MedicalRecordPhotoSelector: React.FC<MedicalRecordPhotoSelectorProp
                   alt={photo.description || photo.filename}
                   className="w-full h-full object-cover"
                 />
-                
+
                 {/* Selection Indicator */}
                 {isSelected && (
                   <div className="absolute inset-0 bg-blue-500 bg-opacity-20 flex items-center justify-center">

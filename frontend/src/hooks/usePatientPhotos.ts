@@ -6,9 +6,9 @@ import { logger } from '../utils/logger';
 // Query key factory
 export const patientPhotoKeys = {
   all: (clinicId: number | null) => ['patient-photos', clinicId] as const,
-  patient: (clinicId: number | null, patientId: number) => 
-    ['patient-photos', clinicId, 'patient', patientId] as const,
-  record: (clinicId: number | null, recordId: number) => 
+  patient: (clinicId: number | null, patientId: number, options?: any) =>
+    ['patient-photos', clinicId, 'patient', patientId, options || {}] as const,
+  record: (clinicId: number | null, recordId: number) =>
     ['patient-photos', clinicId, 'record', recordId] as const,
 };
 
@@ -16,13 +16,13 @@ export const patientPhotoKeys = {
 export function usePatientPhotos(
   clinicId: number | null,
   patientId: number | null,
-  options?: { 
+  options?: {
     medical_record_id?: number;
     unlinked_only?: boolean;
   }
 ) {
   return useQuery({
-    queryKey: patientPhotoKeys.patient(clinicId, patientId!),
+    queryKey: patientPhotoKeys.patient(clinicId, patientId!, options),
     queryFn: async () => {
       if (!patientId) throw new Error('Patient ID required');
       return apiService.listPatientPhotos(patientId, options);
@@ -50,12 +50,12 @@ export function useUploadPatientPhoto(clinicId: number | null, patientId: number
         is_pending?: boolean;
         onUploadProgress?: (progressEvent: any) => void;
       } = {};
-      
+
       if (params.description !== undefined) options.description = params.description;
       if (params.medical_record_id !== undefined) options.medical_record_id = params.medical_record_id;
       if (params.is_pending !== undefined) options.is_pending = params.is_pending;
       if (params.onUploadProgress !== undefined) options.onUploadProgress = params.onUploadProgress;
-      
+
       return apiService.uploadPatientPhoto(patientId, params.file, options);
     },
     onSuccess: () => {
