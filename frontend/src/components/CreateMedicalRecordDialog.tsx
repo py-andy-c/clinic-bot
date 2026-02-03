@@ -1,5 +1,6 @@
 import React, { useMemo, useEffect } from 'react';
 import { useForm, FormProvider } from 'react-hook-form';
+import { Link } from 'react-router-dom';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { BaseModal } from './shared/BaseModal';
@@ -40,9 +41,10 @@ export const CreateMedicalRecordDialog: React.FC<CreateMedicalRecordDialogProps>
   onSuccess,
   defaultAppointmentId,
 }) => {
-  const { user } = useAuth();
+  const { user, hasRole } = useAuth();
   const activeClinicId = user?.active_clinic_id;
   const { alert } = useModal();
+  const isAdmin = hasRole?.('admin');
 
   const { data: templates, isLoading: loadingTemplates } = useMedicalRecordTemplates(activeClinicId ?? null);
   const { data: appointments } = usePatientAppointments(patientId);
@@ -133,6 +135,29 @@ export const CreateMedicalRecordDialog: React.FC<CreateMedicalRecordDialogProps>
               <div className="flex justify-center items-center py-12">
                 <LoadingSpinner size="lg" />
               </div>
+            ) : !templates || templates.length === 0 ? (
+              <div className="text-center py-8">
+                <div className="mb-4 text-gray-500">
+                  <svg className="w-12 h-12 mx-auto text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <p className="mt-2 text-lg font-medium text-gray-900">尚無病歷模板</p>
+                  <p className="mt-1 text-sm text-gray-500">
+                    {isAdmin
+                      ? '請先建立病歷模板，才能夠新增病歷記錄。'
+                      : '請聯絡管理員建立病歷模板，才能夠新增病歷記錄。'}
+                  </p>
+                </div>
+                {isAdmin && (
+                  <Link
+                    to="/admin/clinic/settings/medical-record-templates"
+                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+                    onClick={onClose}
+                  >
+                    前往設定頁面建立模板
+                  </Link>
+                )}
+              </div>
             ) : (
               <div className="space-y-6">
                 {/* Template Selector */}
@@ -194,13 +219,15 @@ export const CreateMedicalRecordDialog: React.FC<CreateMedicalRecordDialogProps>
             >
               取消
             </button>
-            <button
-              type="submit"
-              className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={isSaving || methods.watch('template_id') === 0}
-            >
-              {isSaving ? '建立中...' : '建立'}
-            </button>
+            {templates && templates.length > 0 && (
+              <button
+                type="submit"
+                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={isSaving || methods.watch('template_id') === 0}
+              >
+                {isSaving ? '建立中...' : '建立'}
+              </button>
+            )}
           </ModalFooter>
         </form>
       </FormProvider>
