@@ -292,6 +292,16 @@ class MedicalRecordService:
                 for photo in photos_to_link:
                     photo.medical_record_id = record_id
                     photo.is_pending = False
+            
+            # Ensure all currently linked photos are committed (not pending)
+            # This handles photos that were already linked from previous saves
+            ids_to_keep = current_ids & new_ids
+            if ids_to_keep:
+                db.query(PatientPhoto).filter(
+                    PatientPhoto.id.in_(ids_to_keep)
+                ).update({
+                    "is_pending": False
+                }, synchronize_session=False)
 
         record.version += 1
         record.updated_by_user_id = updated_by_user_id
