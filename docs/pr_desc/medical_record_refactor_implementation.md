@@ -36,25 +36,30 @@ This PR implements the "Initialize-Then-Document" architecture for the medical r
 
 **`MedicalRecordPage.tsx`**
 - Full-page editor at `/admin/clinic/patients/:patientId/records/:recordId`
-- Fixed header with patient info, template name, appointment context
+- Fixed header with patient info, template name, editable appointment dropdown
+- Appointment is part of form state (saves together with content)
 - Maximized real estate for text and photos
 - Auto-save ready architecture
 - Features ported from old modal:
   - Conflict resolution (optimistic locking)
-  - Unsaved changes detection
+  - Unsaved changes detection (form + photos)
   - Dynamic schema generation (modified)
   - Photo selector integration
-  - Appointment re-linking
+  - Appointment editing (as form field)
 
 #### Updated Components
 
 **`PatientMedicalRecordsSection.tsx`**
 - Uses `CreateMedicalRecordDialog` instead of `MedicalRecordModal`
-- Navigates to full-page editor on create/edit/view
+- Navigates to full-page editor on create/open
+- Single "開啟" (Open) button for all records
+- Shows "空白" (Empty) badge for records with no content
 - Removed modal state management
 
 **`LinkedMedicalRecordsSection.tsx`**
 - Updated to use new flow (create dialog + navigation)
+- Single "開啟" (Open) button for all records
+- Shows "空白" (Empty) badge for records with no content
 - Maintains appointment pre-selection
 
 **`MedicalRecordPhotoSelector.tsx`**
@@ -281,11 +286,24 @@ After the initial commit, additional technical reviews identified critical issue
    - Prevents repeated conflicts from stale data
    - useEffect handles state reset when fresh data arrives
 
-3. **Removed Appointment Re-linking** ✅
-   - Appointment now read-only in editor header
+3. **Made Appointment Editable in Form** ✅
+   - Appointment now part of form state (not read-only)
+   - Saves together with form content and photos
    - Prevents version conflicts from immediate mutations
-   - Consistent with rest of form (everything saves together)
-   - Appointment set during initialization, immutable during editing
+   - Consistent UX: all changes save together
+   - Dropdown in header with hint "(與其他變更一起儲存)"
+
+4. **Consolidated View/Edit Buttons** ✅
+   - Removed separate "查看" (View) and "編輯" (Edit) buttons
+   - Single "開啟" (Open) button for all records
+   - Simpler UX: all records open in same editor
+   - Applied to both `PatientMedicalRecordsSection` and `LinkedMedicalRecordsSection`
+
+5. **Added Empty Record Indicator** ✅
+   - Records with no content show "空白" (Empty) badge
+   - Helps users identify records that need documentation
+   - Applied to both record list views
+   - Checks if values object is empty or all values are null/undefined
 
 ### Rationale for Changes
 
@@ -295,11 +313,22 @@ After the initial commit, additional technical reviews identified critical issue
 - Prevents confusion: No phantom photos appearing after discard
 - Backend already supports it: No new code needed
 
-**Why remove appointment re-linking?**
-- Version sync issues: Immediate mutation bumps version, causes race conditions
-- Inconsistent UX: Some changes immediate, others require save
-- Simpler mental model: Everything saves together
-- Appointment is context, not content: Set once during initialization
+**Why make appointment editable in form?**
+- Consistent UX: All changes save together (no immediate mutations)
+- Prevents version conflicts: No race conditions from separate updates
+- Simpler mental model: One save action commits everything
+- Appointment is context: Can be adjusted during documentation
+
+**Why consolidate buttons?**
+- No "view-only" mode: All users see full editor
+- Simpler UX: One action instead of two
+- Clearer intent: "Open" is more intuitive than "View vs Edit"
+- Reduces cognitive load: Fewer decisions for users
+
+**Why add empty badge?**
+- Visual feedback: Users can see which records need work
+- Reduces confusion: Clear indication of incomplete records
+- Helps prioritization: Easy to spot records to complete
 
 ## Next Steps (Future Enhancements)
 

@@ -37,12 +37,7 @@ export const LinkedMedicalRecordsSection: React.FC<LinkedMedicalRecordsSectionPr
         navigate(`/admin/clinic/patients/${patientId}/records/${recordId}`);
     };
 
-    const handleView = (recordId: number) => {
-        // Navigate to the full-page editor
-        navigate(`/admin/clinic/patients/${patientId}/records/${recordId}`);
-    };
-
-    const handleEdit = (recordId: number) => {
+    const handleOpen = (recordId: number) => {
         // Navigate to the full-page editor
         navigate(`/admin/clinic/patients/${patientId}/records/${recordId}`);
     };
@@ -73,31 +68,36 @@ export const LinkedMedicalRecordsSection: React.FC<LinkedMedicalRecordsSectionPr
                 </p>
             ) : (
                 <div className="space-y-2">
-                    {activeRecords.map(record => (
-                        <div
-                            key={record.id}
-                            className="flex justify-between items-center p-3 bg-gray-50 rounded-lg border border-gray-100 hover:border-primary-200 transition-colors"
-                        >
-                            <div>
-                                <p className="font-medium text-gray-900">{record.template_snapshot.name}</p>
-                                <p className="text-xs text-gray-500">{formatDateOnly(record.created_at)}</p>
-                            </div>
-                            <div className="flex gap-2">
+                    {activeRecords.map(record => {
+                        // Check if record is empty (no values or all values are empty)
+                        const isEmpty = !record.values || Object.keys(record.values).length === 0 || 
+                            Object.values(record.values).every(v => v === '' || v === null || v === undefined);
+
+                        return (
+                            <div
+                                key={record.id}
+                                className="flex justify-between items-center p-3 bg-gray-50 rounded-lg border border-gray-100 hover:border-primary-200 transition-colors"
+                            >
+                                <div className="flex-1">
+                                    <div className="flex items-center gap-2">
+                                        <p className="font-medium text-gray-900">{record.template_snapshot.name}</p>
+                                        {isEmpty && (
+                                            <span className="px-2 py-0.5 text-xs bg-gray-100 text-gray-600 rounded">
+                                                空白
+                                            </span>
+                                        )}
+                                    </div>
+                                    <p className="text-xs text-gray-500">{formatDateOnly(record.created_at)}</p>
+                                </div>
                                 <button
-                                    onClick={() => handleView(record.id)}
-                                    className="text-xs px-2 py-1 text-gray-600 hover:text-gray-900 bg-white border border-primary-200 rounded"
+                                    onClick={() => handleOpen(record.id)}
+                                    className="text-xs px-3 py-1 bg-primary-600 text-white rounded hover:bg-primary-700 transition-colors"
                                 >
-                                    查看
-                                </button>
-                                <button
-                                    onClick={() => handleEdit(record.id)}
-                                    className="text-xs px-2 py-1 text-primary-600 hover:text-primary-700 bg-white border border-primary-200 rounded"
-                                >
-                                    編輯
+                                    開啟
                                 </button>
                             </div>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
             )}
 

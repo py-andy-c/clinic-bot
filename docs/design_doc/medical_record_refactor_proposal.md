@@ -50,7 +50,7 @@ A dedicated route (e.g., `/emr/:recordIdentifier`) for viewing and editing the c
 * **UI Features**:
   * **Full Screen**: Maximizes real estate for text and photos.
   * **Fixed Header**: Shows Patient Info, Template Name, and Appointment Context.
-    * *Appointment Re-linking*: Users can still edit the associated appointment via a "Change" button in the header if they made a mistake during initialization.
+    * *Appointment Editing*: Users can edit the associated appointment via a dropdown in the header. Changes save together with form content (not immediately).
   * **Auto-Save Ready**: A persistent page is safer for implementing V2 auto-save than a modal.
 * **Validation Logic**:
   * **Calculated Flexibility**: All fields are treated as optional in the backend. Users can save partial or empty records at any time.
@@ -166,8 +166,9 @@ This approach provides clear semantics and matches user expectations for documen
 
 ### 3.3 Addressing Feedback
 
-* **Orphaned Records**: Instead of a complex "Draft" status, we will visually indicate empty records in the list (e.g., "No content"). Users can manually delete them if created by mistake.
-* **Navigation Safety**: The new page will include a prominent "Back to Patient" button to prevent users from feeling lost.
+* **Orphaned Records**: Empty records are visually indicated with an "空白" (Empty) badge in the record list. Users can manually delete them if created by mistake.
+* **Navigation Safety**: The new page includes a prominent back arrow button to return to the patient detail page.
+* **Simplified Actions**: Record lists use a single "開啟" (Open) button instead of separate View/Edit buttons, as all records open in the same full-page editor.
 
 ### 3.3 Pros & Cons
 
@@ -186,15 +187,23 @@ To maintain feature parity, the following logic from `MedicalRecordModal.tsx` mu
    * Displays modal offering "Reload" (overwrite local) or "Force Save" (overwrite server).
 2. **Unsaved Changes Detection**:
    * Uses `useUnsavedChangesDetection` to warn users before navigating away or closing the page.
+   * Tracks both form changes and photo changes for accurate dirty state.
 3. **Dynamic Schema Generation**:
    * Logic to build Zod schemas based on field types (Date, Checkbox, Number).
    * **Modification**: Updated to ignore the `required` flag for validation purposes.
 4. **Smart Appointment Pre-selection**:
    * *Port Location*: Moves to the **Initialization Modal**.
    * Logic: Priority 1 (Today), Priority 2 (Recent Past), Priority 3 (None).
-5. **Photo Selector Integration**:
+5. **Appointment Editing**:
+   * *Port Location*: Available in the **Full Page Editor**.
+   * Appointment can be changed via dropdown in header.
+   * Changes save together with form content (part of form state).
+6. **Photo Selector Integration**:
    * Reuses `MedicalRecordPhotoSelector`.
    * Simplifies logic as `record_id` is guaranteed to exist at upload time.
+7. **Empty Record Indication**:
+   * Records with no content show "空白" (Empty) badge in lists.
+   * Helps users identify records that need documentation.
 
 ***
 

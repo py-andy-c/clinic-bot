@@ -51,12 +51,7 @@ export const PatientMedicalRecordsSection: React.FC<PatientMedicalRecordsSection
     navigate(`/admin/clinic/patients/${patientId}/records/${recordId}`);
   };
 
-  const handleView = (recordId: number) => {
-    // Navigate to the full-page editor in view mode (we'll add a query param)
-    navigate(`/admin/clinic/patients/${patientId}/records/${recordId}`);
-  };
-
-  const handleEdit = (recordId: number) => {
+  const handleOpen = (recordId: number) => {
     // Navigate to the full-page editor
     navigate(`/admin/clinic/patients/${patientId}/records/${recordId}`);
   };
@@ -147,8 +142,7 @@ export const PatientMedicalRecordsSection: React.FC<PatientMedicalRecordsSection
               <MedicalRecordCard
                 key={record.id}
                 record={record}
-                onView={() => handleView(record.id)}
-                onEdit={() => handleEdit(record.id)}
+                onOpen={() => handleOpen(record.id)}
                 onDelete={() => handleDelete(record.id)}
               />
             ))}
@@ -206,8 +200,7 @@ export const PatientMedicalRecordsSection: React.FC<PatientMedicalRecordsSection
 interface MedicalRecordCardProps {
   record: MedicalRecord;
   isDeleted?: boolean;
-  onView?: () => void;
-  onEdit?: () => void;
+  onOpen?: () => void;
   onDelete?: () => void;
   onRestore?: () => void;
   onHardDelete?: () => void;
@@ -216,12 +209,15 @@ interface MedicalRecordCardProps {
 const MedicalRecordCard: React.FC<MedicalRecordCardProps> = ({
   record,
   isDeleted,
-  onView,
-  onEdit,
+  onOpen,
   onDelete,
   onRestore,
   onHardDelete,
 }) => {
+  // Check if record is empty (no values or all values are empty)
+  const isEmpty = !record.values || Object.keys(record.values).length === 0 || 
+    Object.values(record.values).every(v => v === '' || v === null || v === undefined);
+
   return (
     <div
       className={`p-4 border rounded-lg ${isDeleted ? 'bg-gray-50 border-gray-300' : 'bg-white border-gray-200 hover:border-primary-300'
@@ -229,9 +225,16 @@ const MedicalRecordCard: React.FC<MedicalRecordCardProps> = ({
     >
       <div className="flex justify-between items-start">
         <div className="flex-1">
-          <h4 className="font-medium text-gray-900">
-            {record.template_snapshot.name}
-          </h4>
+          <div className="flex items-center gap-2">
+            <h4 className="font-medium text-gray-900">
+              {record.template_snapshot.name}
+            </h4>
+            {!isDeleted && isEmpty && (
+              <span className="px-2 py-0.5 text-xs bg-gray-100 text-gray-600 rounded">
+                空白
+              </span>
+            )}
+          </div>
           <p className="text-sm text-gray-500 mt-1">
             {formatDateOnly(record.created_at)}
           </p>
@@ -262,17 +265,10 @@ const MedicalRecordCard: React.FC<MedicalRecordCardProps> = ({
           <div className="flex gap-2">
             <button
               type="button"
-              onClick={onView}
-              className="px-3 py-1 text-sm text-primary-600 hover:text-primary-700 border border-primary-600 rounded hover:bg-primary-50"
-            >
-              查看
-            </button>
-            <button
-              type="button"
-              onClick={onEdit}
+              onClick={onOpen}
               className="px-3 py-1 text-sm bg-primary-600 text-white rounded hover:bg-primary-700"
             >
-              編輯
+              開啟
             </button>
             <button
               type="button"

@@ -77,6 +77,7 @@ const createDynamicSchema = (fields: TemplateField[] | undefined) => {
 
 type RecordFormData = {
   values: Record<string, any>;
+  appointment_id?: number | null;
 };
 
 /**
@@ -130,6 +131,7 @@ const MedicalRecordPage: React.FC = () => {
     resolver: zodResolver(dynamicSchema),
     defaultValues: {
       values: {},
+      appointment_id: null,
     },
     mode: 'onSubmit',
   });
@@ -139,6 +141,7 @@ const MedicalRecordPage: React.FC = () => {
     if (record) {
       methods.reset({
         values: record.values || {},
+        appointment_id: record.appointment_id ?? null,
       });
       // Initialize selected photos
       if (record.photos) {
@@ -173,10 +176,12 @@ const MedicalRecordPage: React.FC = () => {
       const updateData: {
         version: number;
         values?: Record<string, any>;
+        appointment_id?: number | null;
         photo_ids?: number[];
       } = {
         version: record.version,
         values: data.values,
+        appointment_id: data.appointment_id ?? null,
         photo_ids: selectedPhotoIds,
       };
 
@@ -311,29 +316,37 @@ const MedicalRecordPage: React.FC = () => {
             </button>
           </div>
 
-          {/* Appointment Context - Read Only */}
+          {/* Appointment Context - Editable */}
           <div className="mt-4 flex items-center gap-2">
-            <span className="text-sm text-gray-600">關聯預約：</span>
-            <span className="text-sm text-gray-900">
-              {record.appointment_id ? (
-                (() => {
-                  const apt = appointments?.appointments?.find(
-                    a => (a.calendar_event_id || a.id) === record.appointment_id
+            <label htmlFor="appointment_id" className="text-sm text-gray-600">
+              關聯預約：
+            </label>
+            <select
+              id="appointment_id"
+              {...methods.register('appointment_id', {
+                setValueAs: (v) => v === '' ? null : parseInt(v)
+              })}
+              className="text-sm px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            >
+              <option value="">無關聯預約</option>
+              {appointments?.appointments
+                ?.filter((apt) => apt.status === 'confirmed')
+                .sort((a, b) => new Date(b.start_time).getTime() - new Date(a.start_time).getTime())
+                .map((apt) => {
+                  const aptId = apt.calendar_event_id || apt.id;
+                  const startDate = new Date(apt.start_time);
+                  const endDate = new Date(apt.end_time);
+                  const timeStr = formatAppointmentTimeRange(startDate, endDate);
+                  const serviceName = apt.appointment_type_name || '預約';
+
+                  return (
+                    <option key={aptId} value={aptId}>
+                      {timeStr} - {serviceName}
+                    </option>
                   );
-                  if (apt) {
-                    const startDate = new Date(apt.start_time);
-                    const endDate = new Date(apt.end_time);
-                    const timeStr = formatAppointmentTimeRange(startDate, endDate);
-                    const serviceName = apt.appointment_type_name || '預約';
-                    return `${timeStr} - ${serviceName}`;
-                  }
-                  return '預約已刪除';
-                })()
-              ) : (
-                '無'
-              )}
-            </span>
-            <span className="text-xs text-gray-500">(在初始化時設定)</span>
+                })}
+            </select>
+            <span className="text-xs text-gray-500">(與其他變更一起儲存)</span>
           </div>
         </div>
       </div>
