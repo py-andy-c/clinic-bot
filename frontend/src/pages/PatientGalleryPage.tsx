@@ -140,7 +140,7 @@ const PatientGalleryPage: React.FC = () => {
             ← {t('返回病患詳情')}
           </button>
           
-          <div className="bg-white rounded-lg shadow-md p-6">
+          <div className="bg-white -mx-4 sm:mx-0 sm:rounded-lg shadow-none sm:shadow-md border-b sm:border-none border-gray-200 p-4 sm:p-6">
             <h1 className="text-2xl font-bold text-gray-900 mb-2">
               {patient.full_name} - {t('照片收藏')}
             </h1>
@@ -152,7 +152,7 @@ const PatientGalleryPage: React.FC = () => {
 
         {/* Timeline View */}
         {photos.length === 0 ? (
-          <div className="bg-white rounded-lg shadow-md p-12 text-center">
+          <div className="bg-white -mx-4 sm:mx-0 sm:rounded-lg shadow-none sm:shadow-md border-b sm:border-none border-gray-200 p-12 text-center">
             <div className="text-gray-400 mb-4">
               <svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -167,7 +167,7 @@ const PatientGalleryPage: React.FC = () => {
               if (!photosForDate) return null;
               
               return (
-              <div key={date} className="bg-white rounded-lg shadow-md p-6">
+              <div key={date} className="bg-white -mx-4 sm:mx-0 sm:rounded-lg shadow-none sm:shadow-md border-b sm:border-none border-gray-200 p-4 sm:p-6">
                 {/* Date Header */}
                 <div className="flex items-center gap-3 mb-4 pb-3 border-b border-gray-200">
                   <div className="w-2 h-2 rounded-full bg-blue-600"></div>
