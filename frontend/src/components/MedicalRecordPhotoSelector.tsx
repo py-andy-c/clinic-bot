@@ -1,8 +1,10 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { usePatientPhotos, useUploadPatientPhoto } from '../hooks/usePatientPhotos';
 import { PatientPhoto } from '../types/medicalRecord';
 import { logger } from '../utils/logger';
+import { useModal } from '../contexts/ModalContext';
+import { PhotoLightbox } from './PhotoLightbox';
 
 // Simple SVG Icons
 const UploadIcon = () => (
@@ -17,11 +19,18 @@ const XIcon = () => (
   </svg>
 );
 
+const PencilIcon = () => (
+  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+  </svg>
+);
+
 interface MedicalRecordPhotoSelectorProps {
   clinicId: number | null;
   patientId: number;
   selectedPhotoIds: number[];
   onPhotoIdsChange: (photoIds: number[]) => void;
+  onPhotoUpdate?: (photoId: number, updates: Partial<PatientPhoto>) => void; // For description edits
   recordId?: number | null; // For edit mode
 }
 
@@ -30,9 +39,11 @@ export const MedicalRecordPhotoSelector: React.FC<MedicalRecordPhotoSelectorProp
   patientId,
   selectedPhotoIds,
   onPhotoIdsChange,
+  onPhotoUpdate,
   recordId,
 }) => {
   const { t } = useTranslation();
+  const { confirm } = useModal();
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [showAnnotationModal, setShowAnnotationModal] = useState(false);
@@ -42,6 +53,28 @@ export const MedicalRecordPhotoSelector: React.FC<MedicalRecordPhotoSelectorProp
   
   // Track locally uploaded photos (for new records where photos aren't yet visible from server)
   const [localPhotos, setLocalPhotos] = useState<PatientPhoto[]>([]);
+  
+  // Track description overrides (for edited descriptions that haven't been saved yet)
+  const [descriptionOverrides, setDescriptionOverrides] = useState<Record<number, string>>({});
+  
+  // Track which photos have loaded their full-resolution version
+  const [loadedFullImages, setLoadedFullImages] = useState<Set<number>>(new Set());
+  
+  // Track which photo is being edited
+  const [editingPhotoId, setEditingPhotoId] = useState<number | null>(null);
+  const [editingDescription, setEditingDescription] = useState<string>('');
+  
+  // Track lightbox state
+  const [selectedPhotoIndex, setSelectedPhotoIndex] = useState<number | null>(null);
+
+  // Cleanup object URL on unmount to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      if (pendingPreview) {
+        URL.revokeObjectURL(pendingPreview);
+      }
+    };
+  }, [pendingPreview]);
 
   // Fetch photos already linked to this record (for edit mode)
   const { data: linkedPhotosResponse } = usePatientPhotos(
@@ -70,11 +103,28 @@ export const MedicalRecordPhotoSelector: React.FC<MedicalRecordPhotoSelectorProp
     // Deduplicate by ID
     const uniquePhotos = Array.from(new Map(allPhotos.map(p => [p.id, p])).values());
     
-    // Filter by selectedPhotoIds to handle removals
-    const filtered = uniquePhotos.filter(p => selectedPhotoIds.includes(p.id));
+    // Apply description overrides
+    const photosWithOverrides = uniquePhotos.map(p => {
+      const overrideDescription = descriptionOverrides[p.id];
+      return {
+        ...p,
+        ...(overrideDescription !== undefined && { description: overrideDescription })
+      };
+    });
     
-    return filtered;
-  }, [linkedPhotos, unlinkedPhotos, localPhotos, selectedPhotoIds]);
+    // Filter by selectedPhotoIds to handle removals
+    const filtered = photosWithOverrides.filter(p => selectedPhotoIds.includes(p.id));
+    
+    // Sort by created_at DESC to match backend ordering (newest first)
+    const sorted = filtered.sort((a, b) => {
+      const dateA = new Date(a.created_at).getTime();
+      const dateB = new Date(b.created_at).getTime();
+      if (dateB !== dateA) return dateB - dateA; // Descending by date
+      return b.id - a.id; // Descending by ID as tiebreaker
+    });
+    
+    return sorted;
+  }, [linkedPhotos, unlinkedPhotos, localPhotos, selectedPhotoIds, descriptionOverrides]);
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
@@ -98,12 +148,9 @@ export const MedicalRecordPhotoSelector: React.FC<MedicalRecordPhotoSelectorProp
       return;
     }
 
-    // Generate preview
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      setPendingPreview(e.target?.result as string);
-    };
-    reader.readAsDataURL(file);
+    // Generate preview using createObjectURL (more memory-efficient than Base64)
+    const previewUrl = URL.createObjectURL(file);
+    setPendingPreview(previewUrl);
 
     // Set pending file and show annotation modal
     setPendingFile(file);
@@ -143,6 +190,11 @@ export const MedicalRecordPhotoSelector: React.FC<MedicalRecordPhotoSelectorProp
       // Add newly uploaded photo ID to selection
       onPhotoIdsChange([...selectedPhotoIds, uploadedPhoto.id]);
 
+      // Clean up object URL to free memory
+      if (pendingPreview) {
+        URL.revokeObjectURL(pendingPreview);
+      }
+
       // Reset state
       setShowAnnotationModal(false);
       setPendingFile(null);
@@ -157,6 +209,11 @@ export const MedicalRecordPhotoSelector: React.FC<MedicalRecordPhotoSelectorProp
   };
 
   const handleCancelUpload = () => {
+    // Clean up object URL to free memory
+    if (pendingPreview) {
+      URL.revokeObjectURL(pendingPreview);
+    }
+    
     setShowAnnotationModal(false);
     setPendingFile(null);
     setPendingPreview(null);
@@ -165,8 +222,38 @@ export const MedicalRecordPhotoSelector: React.FC<MedicalRecordPhotoSelectorProp
     setUploadError(null);
   };
 
-  const removePhoto = (photoId: number) => {
-    onPhotoIdsChange(selectedPhotoIds.filter(id => id !== photoId));
+  const removePhoto = async (photoId: number) => {
+    // Confirm before removing
+    const confirmed = await confirm(t('確定要移除此照片嗎？'), t('移除照片'));
+    if (confirmed) {
+      onPhotoIdsChange(selectedPhotoIds.filter(id => id !== photoId));
+    }
+  };
+
+  const startEditingDescription = (photo: PatientPhoto) => {
+    setEditingPhotoId(photo.id);
+    setEditingDescription(photo.description || '');
+  };
+
+  const saveDescription = async (photoId: number) => {
+    // Store the description override locally (for immediate UI update)
+    setDescriptionOverrides(prev => ({
+      ...prev,
+      [photoId]: editingDescription
+    }));
+    
+    // Notify parent of the change (triggers unsaved changes detection)
+    if (onPhotoUpdate) {
+      onPhotoUpdate(photoId, { description: editingDescription });
+    }
+    
+    setEditingPhotoId(null);
+    setEditingDescription('');
+  };
+
+  const cancelEditingDescription = () => {
+    setEditingPhotoId(null);
+    setEditingDescription('');
   };
 
   return (
@@ -195,42 +282,102 @@ export const MedicalRecordPhotoSelector: React.FC<MedicalRecordPhotoSelectorProp
         </div>
       )}
 
-      {/* Photo Grid - Appendix Style */}
+      {/* Photo List - Appendix Style (Vertical Layout, Two Columns on Desktop) */}
       {visiblePhotos.length === 0 ? (
-        <div className="text-center py-6 text-gray-500 text-sm border-2 border-dashed border-gray-200 rounded-lg">
+        <div className="text-center py-12 text-gray-500 text-sm border-2 border-dashed border-gray-200 rounded-lg">
           <p>{t('尚無附錄照片')}</p>
+          <p className="text-xs mt-2 text-gray-400">{t('點擊上方按鈕上傳照片')}</p>
         </div>
       ) : (
-        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
-          {visiblePhotos.map((photo) => (
-            <div
-              key={photo.id}
-              className="relative aspect-square rounded-lg overflow-hidden border border-gray-200"
-            >
-              <img
-                src={photo.thumbnail_url || photo.url}
-                alt={photo.description || photo.filename}
-                className="w-full h-full object-cover"
-              />
-
-              {/* Description Label */}
-              {photo.description && (
-                <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-60 text-white text-xs px-2 py-1 truncate">
-                  {photo.description}
-                </div>
-              )}
-
-              {/* Remove Button */}
-              <button
-                type="button"
-                onClick={() => removePhoto(photo.id)}
-                className="absolute top-1 right-1 p-1 bg-red-600 text-white rounded-full hover:bg-red-700 transition-colors"
-                title={t('移除')}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {visiblePhotos.map((photo, index) => {
+            // Determine which image to show (progressive loading)
+            const showFullImage = loadedFullImages.has(photo.id);
+            const imageSrc = showFullImage ? (photo.url || photo.thumbnail_url) : (photo.thumbnail_url || photo.url);
+            
+            return (
+              <div 
+                key={photo.id} 
+                className="relative border border-gray-200 rounded-lg p-4 bg-white shadow-sm"
               >
-                <XIcon />
-              </button>
-            </div>
-          ))}
+                {/* Remove Button - Top Right */}
+                <button
+                  type="button"
+                  onClick={() => removePhoto(photo.id)}
+                  className="absolute top-2 right-2 p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"
+                  title={t('移除')}
+                >
+                  <XIcon />
+                </button>
+
+                {/* Description Label with Edit Button */}
+                {editingPhotoId === photo.id ? (
+                  <div className="mb-3 pr-8">
+                    <input
+                      type="text"
+                      value={editingDescription}
+                      onChange={(e) => setEditingDescription(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          saveDescription(photo.id);
+                        } else if (e.key === 'Escape') {
+                          cancelEditingDescription();
+                        }
+                      }}
+                      onBlur={() => saveDescription(photo.id)}
+                      className="w-full px-2 py-1 text-base font-medium border border-blue-500 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      autoFocus
+                    />
+                  </div>
+                ) : (
+                  <div className="mb-3 pr-8 flex items-center gap-2">
+                    <span className="font-medium text-gray-900 text-base">
+                      {photo.description || `附圖 ${index + 1}`}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => startEditingDescription(photo)}
+                      className="text-gray-400 hover:text-blue-600 transition-colors"
+                      title={t('編輯說明')}
+                    >
+                      <PencilIcon />
+                    </button>
+                  </div>
+                )}
+                
+                {/* Image Container - Clickable for full-screen view */}
+                <div 
+                  className="mb-3 flex justify-center cursor-pointer group/image"
+                  onClick={() => setSelectedPhotoIndex(index)}
+                  title={t('點擊查看大圖')}
+                >
+                  <img 
+                    src={imageSrc || ''}
+                    alt={photo.description || photo.filename}
+                    loading="lazy"
+                    className="h-auto rounded border border-gray-100 group-hover/image:border-blue-300 transition-colors"
+                    style={{ maxWidth: '300px', maxHeight: '400px', objectFit: 'contain' }}
+                    onLoad={() => {
+                      // Progressive loading: after thumbnail loads, preload full image
+                      if (!showFullImage && photo.thumbnail_url && photo.url && photo.url !== photo.thumbnail_url) {
+                        const fullImg = new Image();
+                        fullImg.src = photo.url;
+                        fullImg.onload = () => {
+                          setLoadedFullImages(prev => new Set(prev).add(photo.id));
+                        };
+                      }
+                    }}
+                    onError={(e) => {
+                      // Fallback to thumbnail if full image fails to load
+                      if (photo.thumbnail_url && e.currentTarget.src === photo.url) {
+                        e.currentTarget.src = photo.thumbnail_url;
+                      }
+                    }}
+                  />
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -309,6 +456,15 @@ export const MedicalRecordPhotoSelector: React.FC<MedicalRecordPhotoSelectorProp
             </div>
           </div>
         </div>
+      )}
+
+      {/* Photo Lightbox */}
+      {selectedPhotoIndex !== null && (
+        <PhotoLightbox
+          photos={visiblePhotos}
+          initialIndex={selectedPhotoIndex}
+          onClose={() => setSelectedPhotoIndex(null)}
+        />
       )}
     </div>
   );

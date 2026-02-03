@@ -23,8 +23,9 @@ import { getErrorMessage } from '../types/api';
 import { logger } from '../utils/logger';
 import { AxiosError } from 'axios';
 import { getGenderLabel } from '../utils/genderUtils';
-import { TemplateField } from '../types/medicalRecord';
+import { TemplateField, PatientPhoto } from '../types/medicalRecord';
 import { formatAppointmentTimeRange } from '../utils/calendarUtils';
+import { apiService } from '../services/api';
 
 /**
  * Generate dynamic Zod schema based on template fields.
@@ -112,6 +113,7 @@ const MedicalRecordPage: React.FC = () => {
 
   const [selectedPhotoIds, setSelectedPhotoIds] = useState<number[]>([]);
   const [initialPhotoIds, setInitialPhotoIds] = useState<number[]>([]); // Track initial state
+  const [photoUpdates, setPhotoUpdates] = useState<Record<number, Partial<PatientPhoto>>>({}); // Track photo description changes
   const [isSelectAppointmentModalOpen, setIsSelectAppointmentModalOpen] = useState(false);
   const [conflictState, setConflictState] = useState<{
     show: boolean;
@@ -207,12 +209,22 @@ const MedicalRecordPage: React.FC = () => {
 
   // Calculate if there are unsaved changes (form + photos)
   const photosDirty = useMemo(() => {
-    return JSON.stringify([...selectedPhotoIds].sort()) !== JSON.stringify([...initialPhotoIds].sort());
-  }, [selectedPhotoIds, initialPhotoIds]);
+    const idsChanged = JSON.stringify([...selectedPhotoIds].sort()) !== JSON.stringify([...initialPhotoIds].sort());
+    const descriptionsChanged = Object.keys(photoUpdates).length > 0;
+    return idsChanged || descriptionsChanged;
+  }, [selectedPhotoIds, initialPhotoIds, photoUpdates]);
 
   const hasUnsavedChanges = useCallback(() => {
     return isDirty || photosDirty;
   }, [isDirty, photosDirty]);
+
+  // Handle photo description updates
+  const handlePhotoUpdate = useCallback((photoId: number, updates: Partial<PatientPhoto>) => {
+    setPhotoUpdates(prev => ({
+      ...prev,
+      [photoId]: { ...prev[photoId], ...updates }
+    }));
+  }, []);
 
   // Setup unsaved changes detection
   useUnsavedChangesDetection({
@@ -240,14 +252,61 @@ const MedicalRecordPage: React.FC = () => {
         photo_ids: selectedPhotoIds,
       };
 
+      // Save medical record first
       await updateMutation.mutateAsync({
         recordId: record.id,
         data: updateData,
       });
+
+      // Save photo description updates with better error handling
+      let photoUpdatesFailed = false;
+      const failedPhotoIds: number[] = [];
+      
+      if (Object.keys(photoUpdates).length > 0) {
+        const photoUpdatePromises = Object.entries(photoUpdates).map(([photoIdStr, updates]) => {
+          const photoId = parseInt(photoIdStr, 10);
+          return { photoId, promise: apiService.updatePatientPhoto(photoId, updates) };
+        });
+        
+        const results = await Promise.allSettled(photoUpdatePromises.map(p => p.promise));
+        
+        results.forEach((result, index) => {
+          if (result.status === 'rejected') {
+            photoUpdatesFailed = true;
+            const photoId = photoUpdatePromises[index]?.photoId;
+            if (photoId) {
+              failedPhotoIds.push(photoId);
+              logger.error(`Photo ${photoId} description update failed:`, result.reason);
+            }
+          }
+        });
+      }
+
+      // Reset states after successful save
       methods.reset(methods.getValues()); // Use raw values for cleaner reset
       setInitialPhotoIds([...selectedPhotoIds]); // Reset photo state
+      
+      // Only clear successful photo updates, keep failed ones for retry
+      if (photoUpdatesFailed) {
+        const failedUpdates: Record<number, Partial<PatientPhoto>> = {};
+        failedPhotoIds.forEach(photoId => {
+          if (photoUpdates[photoId]) {
+            failedUpdates[photoId] = photoUpdates[photoId];
+          }
+        });
+        setPhotoUpdates(failedUpdates);
+      } else {
+        setPhotoUpdates({}); // Clear all if everything succeeded
+      }
+      
       setIsSelectAppointmentModalOpen(false); // Close modal if open
-      await alert('病歷記錄已成功更新', '更新成功');
+      
+      // Show appropriate success message
+      if (photoUpdatesFailed) {
+        await alert('病歷記錄已更新，但部分照片說明更新失敗。請再次點擊儲存以重試。', '部分成功');
+      } else {
+        await alert('病歷記錄已成功更新', '更新成功');
+      }
     } catch (error) {
       logger.error('Failed to save medical record:', error);
 
@@ -276,6 +335,7 @@ const MedicalRecordPage: React.FC = () => {
     queryClient.invalidateQueries({
       queryKey: medicalRecordKeys.detail(activeClinicId, recordId)
     });
+    setPhotoUpdates({}); // Clear pending photo description edits
     setConflictState(null);
     // The useEffect will handle resetting form and photo state when fresh data arrives
   };
@@ -296,11 +356,53 @@ const MedicalRecordPage: React.FC = () => {
         photo_ids: selectedPhotoIds,
       };
 
+      // Force save medical record first
       await updateMutation.mutateAsync({
         recordId: record.id,
         data: forceSaveData,
       });
-      await alert('病歷記錄已強制儲存', '儲存成功');
+
+      // Save photo description updates with better error handling
+      let photoUpdatesFailed = false;
+      const failedPhotoIds: number[] = [];
+      
+      if (Object.keys(photoUpdates).length > 0) {
+        const photoUpdatePromises = Object.entries(photoUpdates).map(([photoIdStr, updates]) => {
+          const photoId = parseInt(photoIdStr, 10);
+          return { photoId, promise: apiService.updatePatientPhoto(photoId, updates) };
+        });
+        
+        const results = await Promise.allSettled(photoUpdatePromises.map(p => p.promise));
+        
+        results.forEach((result, index) => {
+          if (result.status === 'rejected') {
+            photoUpdatesFailed = true;
+            const photoId = photoUpdatePromises[index]?.photoId;
+            if (photoId) {
+              failedPhotoIds.push(photoId);
+              logger.error(`Photo ${photoId} description update failed:`, result.reason);
+            }
+          }
+        });
+      }
+
+      // Show appropriate success message
+      if (photoUpdatesFailed) {
+        await alert('病歷記錄已強制儲存，但部分照片說明更新失敗。請再次點擊儲存以重試。', '部分成功');
+        
+        // Only clear successful photo updates, keep failed ones for retry
+        const failedUpdates: Record<number, Partial<PatientPhoto>> = {};
+        failedPhotoIds.forEach(photoId => {
+          if (photoUpdates[photoId]) {
+            failedUpdates[photoId] = photoUpdates[photoId];
+          }
+        });
+        setPhotoUpdates(failedUpdates);
+      } else {
+        await alert('病歷記錄已強制儲存', '儲存成功');
+        setPhotoUpdates({}); // Clear all if everything succeeded
+      }
+      
       setConflictState(null);
       methods.reset(conflictState.userChanges);
     } catch (forceSaveError) {
@@ -477,6 +579,7 @@ const MedicalRecordPage: React.FC = () => {
                       patientId={patientId}
                       selectedPhotoIds={selectedPhotoIds}
                       onPhotoIdsChange={setSelectedPhotoIds}
+                      onPhotoUpdate={handlePhotoUpdate}
                       recordId={recordId ?? null}
                     />
                   </div>

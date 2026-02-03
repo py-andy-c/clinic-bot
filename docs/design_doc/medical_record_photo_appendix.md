@@ -17,14 +17,26 @@ The primary objective is to professionalize medical documentation within the sys
 
 ### 2.1 Medical Record Editor & View ✅ **IMPLEMENTED**
 
-* **Formal Appendix Layout**: Photos associated with a medical record are displayed at the bottom in a structured grid (Appendix Section). ✅
-* **Automatic Description Suggestion**: During photo upload, the system counts existing photos linked to the record and suggests a description: **「附圖 X」**. ✅
+* **Formal Appendix Layout**: Photos displayed in a vertical list format (two columns on desktop) with images maintaining original aspect ratio (max 300px width, 400px height). ✅
+* **Progressive Loading**: Thumbnails load first for fast initial display, then full-resolution images load in background. ✅
+* **Professional Document Style**: Clean layout with descriptions above images, no overlays, X button on top-right corner for removal. ✅
+* **Full-Screen Image Viewer**: Clicking on any photo opens a full-screen lightbox viewer with keyboard navigation (arrow keys to navigate, Escape to close). ✅
+* **Automatic Description Suggestion**: During photo upload, the system counts existing photos and suggests a description: **「附圖 X」**. ✅
 * **Proactive Annotation (Upload Flow)**: ✅
   1. User clicks "附錄" (Appendix) upload button. ✅
   2. User selects **one** file (Frontend explicitly disables `multiple` selection to ensure robust indexing). ✅
   3. A **Preview & Annotation Modal** appears where the user can see the image and its suggested description. ✅
   4. The user can accept the default (`附圖 X`) or edit it before confirming upload. ✅
+  5. Pressing Enter in the input field confirms the upload (intuitive UX). ✅
+* **Description Editing**: ✅
+  1. Pencil icon appears next to each photo description (always visible, gray by default, blue on hover). ✅
+  2. Clicking pencil icon enables inline editing of the description. ✅
+  3. Pressing Enter or clicking outside saves the edit (triggers unsaved changes detection). ✅
+  4. Pressing Escape cancels the edit. ✅
+  5. Description changes are tracked and saved to backend when user clicks main "儲存變更" button. ✅
+* **Removal Confirmation**: Clicking the X button shows a custom modal confirmation before removing the photo. ✅
 * **Staged Synchronization**: Photos uploaded to a medical record are initially marked as `is_pending = true`. They are only fully committed/linked when the user clicks the main **"Save"** button for the medical record. This ensures the Appendix remains perfectly in sync with the record's text content. ✅
+* **Unsaved Changes Detection**: Photo selection changes AND description edits trigger the unsaved changes warning system, preventing accidental data loss. ✅
 
 ### 2.2 Patient Detail Page (Overview) ⏳ **FUTURE PHASE**
 
@@ -92,9 +104,14 @@ The primary objective is to professionalize medical documentation within the sys
     - Removed "unlinked photos" collection logic
     - Enforced single-file upload (removed `multiple` attribute)
     - Added photo annotation modal with preview
-    - Auto-suggests description as "附圖 X" using `useCountRecordPhotos`
+    - Auto-suggests description as "附圖 X" using `visiblePhotos.length`
     - Changed label from "附加照片" to "附錄"
     - Simplified state management (single file instead of batch)
+    - **Vertical list layout** with full-width images
+    - **Progressive loading**: Thumbnails first, then full images
+    - **Professional document style**: Descriptions above, buttons below, no overlays
+    - **Original aspect ratio**: Images maintain natural proportions (max-width: 800px)
+    - Enter key handling for quick upload confirmation
   * **`PatientPhotoGallery.tsx`**: Updated to handle paginated response
 * **Routing**: ⏳ Gallery page routing deferred to future phase
 * **Tests**: ✅ All frontend tests passing
@@ -117,16 +134,18 @@ The primary objective is to professionalize medical documentation within the sys
 
 ## 6. Implementation Summary
 
-### Files Modified (9)
+### Files Modified (11)
 1. `backend/src/services/patient_photo_service.py` - Pagination and counting logic
 2. `backend/src/api/clinic/patient_photos.py` - API response structure and count endpoint
 3. `backend/tests/integration/test_medical_record_features.py` - Updated for paginated response
 4. `backend/tests/integration/test_medical_records_security.py` - Updated for paginated response
 5. `frontend/src/types/medicalRecord.ts` - Added paginated response type
-6. `frontend/src/services/api.ts` - Updated API methods
-7. `frontend/src/hooks/usePatientPhotos.ts` - Added count hook
-8. `frontend/src/components/MedicalRecordPhotoSelector.tsx` - Complete refactor to appendix pattern
+6. `frontend/src/services/api.ts` - Updated API methods, added updatePatientPhoto
+7. `frontend/src/hooks/usePatientPhotos.ts` - Added count hook and update mutation
+8. `frontend/src/components/MedicalRecordPhotoSelector.tsx` - Complete refactor to appendix pattern with editing
 9. `frontend/src/components/PatientPhotoGallery.tsx` - Updated for paginated response
+10. `frontend/src/pages/MedicalRecordPage.tsx` - Added photo update tracking and save integration
+11. `docs/design_doc/medical_record_photo_appendix.md` - Updated documentation
 
 ### Files Created (2)
 1. `backend/tests/unit/test_patient_photo_service.py` - Comprehensive unit tests
@@ -144,9 +163,17 @@ The primary objective is to professionalize medical documentation within the sys
 
 ### Key Changes
 1. **Backend**: Changed from `List[PatientPhoto]` to `Tuple[List[PatientPhoto], int]` for pagination support
-2. **Frontend**: Transformed from multi-file upload with "unlinked photos" to single-file upload with annotation modal
+2. **Frontend**: Transformed from grid layout with overlays to vertical list with professional document styling
 3. **UX**: Changed from "附加照片" (attached photos) to "附錄" (appendix) terminology
-4. **Auto-suggestion**: Implemented "附圖 X" description based on existing photo count
+4. **Layout**: Two-column vertical list on desktop (single column on mobile) with images maintaining original aspect ratio (max 300px width, 400px height)
+5. **Progressive Loading**: Thumbnails load first for fast display, then full images load in background
+6. **Professional Style**: Descriptions above images, X button on top-right corner, no overlays
+7. **Auto-suggestion**: Implemented "附圖 X" description based on existing photo count
+8. **Enter Key**: Pressing Enter in annotation modal confirms upload
+9. **Description Editing**: Inline editing with pencil icon, integrated with unsaved changes detection
+10. **Removal Confirmation**: Custom modal confirmation before removing photos
+11. **Save Integration**: Photo description edits are tracked and saved to backend when user clicks "儲存變更"
+12. **Full-Screen Viewer**: Clicking images opens PhotoLightbox component with keyboard navigation (reused from patient gallery)
 
 ### Next Steps (Future Phases)
 1. Implement Patient Detail Page "Recent Media Ribbon" (last 6 photos)
