@@ -111,9 +111,13 @@ const PatientDetailPage: React.FC = () => {
 
   // Determine action button based on active tab
   const getHeaderAction = () => {
-    if (activeTab === 'appointments' && canCreateAppointment) {
-      return (
+    const buttons = [];
+
+    // Always show "新增預約" button if user has permission
+    if (canCreateAppointment) {
+      buttons.push(
         <button
+          key="create-appointment"
           onClick={() => setIsAppointmentModalOpen(true)}
           className="btn btn-primary whitespace-nowrap flex items-center gap-2"
         >
@@ -125,9 +129,11 @@ const PatientDetailPage: React.FC = () => {
       );
     }
 
+    // Add tab-specific buttons
     if (activeTab === 'records' && canEdit) {
-      return (
+      buttons.push(
         <button
+          key="create-record"
           onClick={handleCreateMedicalRecord}
           className="btn btn-primary whitespace-nowrap flex items-center gap-2"
         >
@@ -140,8 +146,9 @@ const PatientDetailPage: React.FC = () => {
     }
 
     if (activeTab === 'photos') {
-      return (
+      buttons.push(
         <button
+          key="upload-photo"
           onClick={() => setShowPhotoUpload(true)}
           className="btn btn-primary whitespace-nowrap flex items-center gap-2"
         >
@@ -153,7 +160,15 @@ const PatientDetailPage: React.FC = () => {
       );
     }
 
-    return undefined;
+    // Return buttons wrapped in a flex container if multiple buttons
+    if (buttons.length === 0) return undefined;
+    if (buttons.length === 1) return buttons[0];
+    
+    return (
+      <div className="flex items-center gap-3">
+        {buttons}
+      </div>
+    );
   };
 
   if (loading) {
