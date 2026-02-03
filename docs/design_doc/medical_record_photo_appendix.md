@@ -1,6 +1,6 @@
 # Design Document: Clinical Photos Management (Appendix & Gallery)
 
-**Status**: ✅ **IMPLEMENTED** (Phase 1: Medical Record Appendix)
+**Status**: ✅ **FULLY IMPLEMENTED** (Phase 1 & Phase 2 Complete)
 
 **Implementation Date**: February 3, 2026
 
@@ -11,7 +11,7 @@
 The primary objective is to professionalize medical documentation within the system by transforming how clinical photos are managed. This involves two major shifts:
 
 1. **Medical Record Page**: Treat photos as a formal, indexed "Appendix" rather than a loose collection of attachments. ✅ **COMPLETED**
-2. **Patient Detail Page**: Provide a centralized, high-performance "Gallery" for a patient's entire clinical history. ⏳ **FUTURE PHASE**
+2. **Patient Detail Page**: Provide a centralized, high-performance "Gallery" for a patient's entire clinical history. ✅ **COMPLETED**
 
 ## 2. User Experience (UX)
 
@@ -38,16 +38,30 @@ The primary objective is to professionalize medical documentation within the sys
 * **Staged Synchronization**: Photos uploaded to a medical record are initially marked as `is_pending = true`. They are only fully committed/linked when the user clicks the main **"Save"** button for the medical record. This ensures the Appendix remains perfectly in sync with the record's text content. ✅
 * **Unsaved Changes Detection**: Photo selection changes AND description edits trigger the unsaved changes warning system, preventing accidental data loss. ✅
 
-### 2.2 Patient Detail Page (Overview) ⏳ **FUTURE PHASE**
+### 2.2 Patient Detail Page (Overview) ✅ **IMPLEMENTED**
 
-* **Recent Media Ribbon**: A small section showing the **last 6 photos** (by upload time) for the patient.
-* **Navigation**: A "View All" link in the section header leads to the Dedicated Gallery Page.
+* **Photos Section**: A section titled "照片" showing the **last 6 photos** (by upload time) for the patient. ✅
+* **Section Styling**: Matches other sections on the page with edge-to-edge design on mobile for space efficiency. ✅
+* **Navigation**: A "查看全部" (View All) link in the section header leads to the Dedicated Gallery Page. ✅
+* **Responsive Grid**: 2 columns on mobile, 3 on tablet, 6 on desktop. ✅
+* **Click to Navigate**: Clicking any photo navigates to the full gallery page. ✅
+* **Auto-hide**: Section doesn't appear if patient has no photos. ✅
+* **Section Order**: Appears after Medical Records section. ✅
 
-### 2.3 Dedicated Gallery Page (Full Clinical History) ⏳ **FUTURE PHASE**
+### 2.3 Dedicated Gallery Page (Full Clinical History) ✅ **IMPLEMENTED**
 
-* **Dedicated URL**: `/admin/clinic/patients/:id/gallery`.
-* **Timeline View**: Photos are grouped by **Upload Date** (Descending) at the frontend level.
-* **Performance**: Uses pagination parameters (`skip`, `limit`) and returns a `total_count` from the backend to support high-performance viewing.
+* **Dedicated URL**: `/admin/clinic/patients/:id/gallery`. ✅
+* **Timeline View**: Photos are grouped by **Upload Date** (Descending) at the frontend level. ✅
+* **Date Grouping**: Each date section shows the date with a count of photos. ✅
+* **All Photos Displayed**: Shows both linked and unlinked photos (complete photo history). ✅
+* **Action Buttons**: Each photo has three action buttons on hover:
+  - **View** (eye icon): Opens full-screen lightbox viewer. ✅
+  - **Edit** (pencil icon): Opens modal to edit photo description. ✅
+  - **Delete** (trash icon): Confirms and deletes the photo. ✅
+* **Full-Screen Viewer**: Clicking view button or photo opens the lightbox with keyboard navigation. ✅
+* **Status Badges**: Photos linked to medical records show a "已連結" badge in top-right corner. ✅
+* **Responsive Grid**: 2-5 columns depending on screen size. ✅
+* **Back Navigation**: Easy return to patient detail page. ✅
 
 ## 3. Design Choices & Rationale
 
@@ -116,25 +130,50 @@ The primary objective is to professionalize medical documentation within the sys
 * **Routing**: ⏳ Gallery page routing deferred to future phase
 * **Tests**: ✅ All frontend tests passing
 
-### 4.3 Future Phases ⏳
+### 4.3 Phase 2: Patient Gallery (February 3, 2026) ✅ **COMPLETED**
 
-* **Patient Detail Page - Recent Media Ribbon**: Not yet implemented
-* **Dedicated Gallery Page**: Not yet implemented
-  - URL: `/admin/clinic/patients/:id/gallery`
-  - Timeline view with date grouping
-  - Full pagination support
+* **Recent Photos Ribbon**: ✅
+  - Created `RecentPhotosRibbon.tsx` component
+  - Shows last 6 photos with responsive grid (2-6 columns)
+  - Section title: "照片" (Photos)
+  - "查看全部" (View All) link with total photo count
+  - Auto-hides if no photos exist
+  - Integrated into `PatientDetailPage.tsx` after Medical Records section
+  - Matches section styling with edge-to-edge design on mobile
+
+* **Dedicated Gallery Page**: ✅
+  - Created `PatientGalleryPage.tsx` at `/admin/clinic/patients/:id/gallery`
+  - Timeline view with date grouping (newest first)
+  - Each date section shows photo count
+  - Shows all photos (both linked and unlinked to medical records)
+  - Three action buttons per photo: View, Edit, Delete
+  - Hover overlay with circular white buttons
+  - Responsive grid layout (2-5 columns)
+  - Full-screen lightbox integration
+  - Photo edit modal for description updates
+  - Status badges for linked photos ("已連結")
+  - Back navigation to patient detail
+
+* **Routing**: ✅
+  - Added route in `App.tsx`
+  - Lazy loading for performance
+
+* **Tests**: ✅
+  - All frontend tests passing
+  - TypeScript compilation successful
 
 ## 5. Success Metrics
 
 * **Clinical Accuracy**: Medical records follow a standard "Appendix" format. ✅ **ACHIEVED**
 * **Efficiency**: Indexing is handled automatically but remains customizable. ✅ **ACHIEVED**
-* **Performance**: The Patient Detail page load time is optimized via the `limit=6` ribbon and paginated full gallery. ⏳ **PENDING** (Gallery page not yet implemented)
+* **Performance**: The Patient Detail page load time is optimized via the `limit=6` ribbon and paginated full gallery. ✅ **ACHIEVED**
+* **User Experience**: Centralized photo management with timeline view for complete clinical history. ✅ **ACHIEVED**
 
 ---
 
 ## 6. Implementation Summary
 
-### Files Modified (11)
+### Files Modified (13)
 1. `backend/src/services/patient_photo_service.py` - Pagination and counting logic
 2. `backend/src/api/clinic/patient_photos.py` - API response structure and count endpoint
 3. `backend/tests/integration/test_medical_record_features.py` - Updated for paginated response
@@ -145,11 +184,16 @@ The primary objective is to professionalize medical documentation within the sys
 8. `frontend/src/components/MedicalRecordPhotoSelector.tsx` - Complete refactor to appendix pattern with editing
 9. `frontend/src/components/PatientPhotoGallery.tsx` - Updated for paginated response
 10. `frontend/src/pages/MedicalRecordPage.tsx` - Added photo update tracking and save integration
-11. `docs/design_doc/medical_record_photo_appendix.md` - Updated documentation
+11. `frontend/src/pages/PatientDetailPage.tsx` - Added RecentPhotosRibbon integration
+12. `frontend/src/App.tsx` - Added gallery page routing
+13. `frontend/src/components/PatientMedicalRecordsSection.tsx` - Removed old gallery section
+14. `docs/design_doc/medical_record_photo_appendix.md` - Updated documentation
 
-### Files Created (2)
+### Files Created (4)
 1. `backend/tests/unit/test_patient_photo_service.py` - Comprehensive unit tests
 2. `backend/tests/integration/test_patient_photos_api.py` - Comprehensive API integration tests
+3. `frontend/src/components/RecentPhotosRibbon.tsx` - Recent photos component for patient detail page
+4. `frontend/src/pages/PatientGalleryPage.tsx` - Dedicated gallery page with timeline view
 
 ### Test Coverage
 - ✅ All backend tests passing (unit + integration)
@@ -174,8 +218,19 @@ The primary objective is to professionalize medical documentation within the sys
 10. **Removal Confirmation**: Custom modal confirmation before removing photos
 11. **Save Integration**: Photo description edits are tracked and saved to backend when user clicks "儲存變更"
 12. **Full-Screen Viewer**: Clicking images opens PhotoLightbox component with keyboard navigation (reused from patient gallery)
+13. **Recent Photos Section**: Shows last 6 photos on patient detail page with "查看全部" link, titled "照片"
+14. **Section Styling**: Photos section matches other sections with edge-to-edge mobile design
+15. **Section Order**: Photos section placed after Medical Records section
+16. **Dedicated Gallery Page**: Timeline view with date grouping, full-screen viewer, and status badges
+17. **Gallery Action Buttons**: View, Edit, and Delete buttons on hover for each photo in gallery
+18. **Complete Photo History**: Gallery shows all photos (linked and unlinked to medical records)
+19. **Memory Optimization**: Using URL.createObjectURL() instead of Base64 for previews
+20. **Error Recovery**: Partial failure handling with retry logic for photo description updates
+21. **Old Gallery Removal**: Removed old `PatientPhotoGallery` section from medical records section (replaced by new ribbon and dedicated page)
 
-### Next Steps (Future Phases)
-1. Implement Patient Detail Page "Recent Media Ribbon" (last 6 photos)
-2. Implement Dedicated Gallery Page at `/admin/clinic/patients/:id/gallery`
-3. Add timeline view with date grouping for full clinical history
+### Next Steps
+All planned features have been implemented. Future enhancements could include:
+1. Batch photo description updates API endpoint for better performance
+2. Photo tagging/categorization system
+3. Advanced search and filtering in gallery
+4. Photo comparison view for tracking treatment progress

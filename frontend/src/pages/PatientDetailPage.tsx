@@ -19,6 +19,7 @@ import { PatientAssignedPractitionersSection } from '../components/patient/Patie
 import { PatientAppointmentsList } from '../components/patient/PatientAppointmentsList';
 import { CreateAppointmentModal } from '../components/calendar/CreateAppointmentModal';
 import { PatientMedicalRecordsSection } from '../components/PatientMedicalRecordsSection';
+import { RecentPhotosRibbon } from '../components/RecentPhotosRibbon';
 
 const PatientDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -182,6 +183,11 @@ const PatientDetailPage: React.FC = () => {
         />
 
         <PatientMedicalRecordsSection patientId={patient.id} />
+
+        <RecentPhotosRibbon
+          clinicId={activeClinicId ?? null}
+          patientId={patient.id}
+        />
       </div>
 
       {/* Create Appointment Modal */}

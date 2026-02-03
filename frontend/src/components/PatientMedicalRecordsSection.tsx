@@ -11,7 +11,6 @@ import { useModal } from '../contexts/ModalContext';
 import { LoadingSpinner } from './shared';
 import { MedicalRecord } from '../types/medicalRecord';
 import { CreateMedicalRecordDialog } from './CreateMedicalRecordDialog';
-import { PatientPhotoGallery } from './PatientPhotoGallery';
 import { formatAppointmentDateTime } from '../utils/calendarUtils';
 import { getErrorMessage } from '../types/api';
 import { logger } from '../utils/logger';
@@ -200,15 +199,6 @@ export const PatientMedicalRecordsSection: React.FC<PatientMedicalRecordsSection
             onSuccess={handleCreateSuccess}
           />
         )}
-      </div>
-
-      {/* Photo Gallery Section */}
-      <div className="bg-white -mx-4 sm:mx-0 sm:rounded-lg shadow-none sm:shadow-md border-b sm:border-none border-gray-200 p-4 sm:p-6 mb-0 sm:mb-6">
-        <PatientPhotoGallery
-          clinicId={activeClinicId ?? null}
-          patientId={patientId}
-          unlinkedOnly={true}
-        />
       </div>
     </>
   );
