@@ -90,6 +90,16 @@ export interface MedicalRecord {
   updated_at?: string;
   updated_by_user_id?: number;
   photos?: PatientPhoto[]; // Photos attached to this record
+  
+  // Enriched fields from backend
+  appointment?: {
+    id: number;
+    start_time: string;
+    end_time: string;
+    appointment_type: string | null;
+  };
+  created_by_user_name?: string;
+  updated_by_user_name?: string;
 }
 
 export interface MedicalRecordCreateRequest {

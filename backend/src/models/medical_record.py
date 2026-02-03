@@ -3,12 +3,15 @@ Medical Record model.
 """
 
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, TYPE_CHECKING
 from sqlalchemy import String, Integer, Boolean, TIMESTAMP, ForeignKey, Index
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from core.database import Base
+
+if TYPE_CHECKING:
+    from models.patient_photo import PatientPhoto
 
 class MedicalRecord(Base):
     """
@@ -51,7 +54,7 @@ class MedicalRecord(Base):
     created_by_user = relationship("User", foreign_keys=[created_by_user_id])
     updated_by_user = relationship("User", foreign_keys=[updated_by_user_id])
     
-    photos = relationship("PatientPhoto", back_populates="medical_record", cascade="all, delete-orphan")
+    photos: Mapped[list["PatientPhoto"]] = relationship("PatientPhoto", back_populates="medical_record", cascade="all, delete-orphan")
 
     __table_args__ = (
         Index("idx_medical_records_clinic", "clinic_id"),

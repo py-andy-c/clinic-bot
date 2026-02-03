@@ -1,7 +1,7 @@
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone
 from sqlalchemy import desc
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from fastapi import HTTPException
 
 from models.medical_record import MedicalRecord
@@ -9,7 +9,6 @@ from models.medical_record_template import MedicalRecordTemplate
 from models.patient_photo import PatientPhoto
 from models.patient import Patient
 from models.appointment import Appointment
-from models.user import User
 from models.user_clinic_association import UserClinicAssociation
 
 
@@ -110,6 +109,12 @@ class MedicalRecordService:
             MedicalRecord.id == record_id,
             MedicalRecord.clinic_id == clinic_id,
             MedicalRecord.is_deleted == False
+        ).options(
+            joinedload(MedicalRecord.photos),
+            joinedload(MedicalRecord.appointment).joinedload(Appointment.calendar_event),
+            joinedload(MedicalRecord.appointment).joinedload(Appointment.appointment_type),
+            joinedload(MedicalRecord.created_by_user),
+            joinedload(MedicalRecord.updated_by_user)
         ).first()
 
     @staticmethod
@@ -119,15 +124,44 @@ class MedicalRecordService:
         patient_id: int,
         skip: int = 0,
         limit: int = 100,
-        include_deleted: bool = False
+        include_deleted: bool = False,
+        status: Optional[str] = None
     ) -> List[MedicalRecord]:
+        """
+        List patient medical records with optional filtering by deletion status.
+        
+        Args:
+            status: Filter by record status - 'active', 'deleted', or 'all'
+                   If not provided, falls back to include_deleted for backward compatibility
+        """
         query = db.query(MedicalRecord).filter(
             MedicalRecord.clinic_id == clinic_id,
             MedicalRecord.patient_id == patient_id
         )
         
-        if not include_deleted:
-            query = query.filter(MedicalRecord.is_deleted == False)
+        # Use status parameter if provided, otherwise fall back to include_deleted
+        if status is not None:
+            if status == 'active':
+                query = query.filter(MedicalRecord.is_deleted == False)
+            elif status == 'deleted':
+                query = query.filter(MedicalRecord.is_deleted == True)
+            elif status == 'all':
+                pass  # No filter
+            else:
+                raise ValueError(f"Invalid status value: {status}. Must be 'active', 'deleted', or 'all'")
+        else:
+            # Backward compatibility: use include_deleted
+            if not include_deleted:
+                query = query.filter(MedicalRecord.is_deleted == False)
+        
+        # Eagerly load relationships for metadata display
+        query = query.options(
+            joinedload(MedicalRecord.photos),
+            joinedload(MedicalRecord.appointment).joinedload(Appointment.calendar_event),
+            joinedload(MedicalRecord.appointment).joinedload(Appointment.appointment_type),
+            joinedload(MedicalRecord.created_by_user),
+            joinedload(MedicalRecord.updated_by_user)
+        )
         
         return query.order_by(desc(MedicalRecord.created_at)).offset(skip).limit(limit).all()
 
@@ -136,16 +170,35 @@ class MedicalRecordService:
         db: Session,
         clinic_id: int,
         patient_id: int,
-        include_deleted: bool = False
+        include_deleted: bool = False,
+        status: Optional[str] = None
     ) -> int:
-        """Get total count of patient records."""
+        """
+        Get total count of patient records with optional filtering by deletion status.
+        
+        Args:
+            status: Filter by record status - 'active', 'deleted', or 'all'
+                   If not provided, falls back to include_deleted for backward compatibility
+        """
         query = db.query(MedicalRecord).filter(
             MedicalRecord.clinic_id == clinic_id,
             MedicalRecord.patient_id == patient_id
         )
         
-        if not include_deleted:
-            query = query.filter(MedicalRecord.is_deleted == False)
+        # Use status parameter if provided, otherwise fall back to include_deleted
+        if status is not None:
+            if status == 'active':
+                query = query.filter(MedicalRecord.is_deleted == False)
+            elif status == 'deleted':
+                query = query.filter(MedicalRecord.is_deleted == True)
+            elif status == 'all':
+                pass  # No filter
+            else:
+                raise ValueError(f"Invalid status value: {status}. Must be 'active', 'deleted', or 'all'")
+        else:
+            # Backward compatibility: use include_deleted
+            if not include_deleted:
+                query = query.filter(MedicalRecord.is_deleted == False)
         
         return query.count()
 

@@ -19,17 +19,21 @@ export const medicalRecordKeys = {
 export function usePatientMedicalRecords(
   clinicId: number | null,
   patientId: number | null,
-  options?: { include_deleted?: boolean; appointment_id?: number }
+  options?: { include_deleted?: boolean; appointment_id?: number; status?: 'active' | 'deleted' | 'all' },
+  queryOptions?: { enabled?: boolean }
 ) {
+  // Determine cache key suffix based on status or include_deleted
+  const statusKey = options?.status || (options?.include_deleted ? 'with-deleted' : 'active');
+  
   return useQuery({
     queryKey: options?.appointment_id
-      ? [...medicalRecordKeys.patient(clinicId, patientId!), 'appointment', options.appointment_id] as const
-      : medicalRecordKeys.patient(clinicId, patientId!),
+      ? [...medicalRecordKeys.patient(clinicId, patientId!), 'appointment', options.appointment_id, statusKey] as const
+      : [...medicalRecordKeys.patient(clinicId, patientId!), statusKey] as const,
     queryFn: async () => {
       if (!patientId) throw new Error('Patient ID required');
       return apiService.listPatientMedicalRecords(patientId, options);
     },
-    enabled: !!clinicId && !!patientId,
+    enabled: (queryOptions?.enabled ?? true) && !!clinicId && !!patientId,
     staleTime: 1 * 60 * 1000, // 1 minute
   });
 }

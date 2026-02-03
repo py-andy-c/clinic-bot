@@ -12,9 +12,10 @@ import { LoadingSpinner } from './shared';
 import { MedicalRecord } from '../types/medicalRecord';
 import { CreateMedicalRecordDialog } from './CreateMedicalRecordDialog';
 import { PatientPhotoGallery } from './PatientPhotoGallery';
-import { formatDateOnly } from '../utils/calendarUtils';
+import { formatAppointmentDateTime } from '../utils/calendarUtils';
 import { getErrorMessage } from '../types/api';
 import { logger } from '../utils/logger';
+import { MEDICAL_RECORD_RETENTION_DAYS } from '../constants/medicalRecords';
 
 interface PatientMedicalRecordsSectionProps {
   patientId: number;
@@ -30,11 +31,19 @@ export const PatientMedicalRecordsSection: React.FC<PatientMedicalRecordsSection
   const [showDeleted, setShowDeleted] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
 
-  // Always fetch all records (including deleted) to determine trash button visibility
-  const { data, isLoading, error } = usePatientMedicalRecords(
+  // Fetch active records
+  const { data: activeData, isLoading: isLoadingActive, error: activeError } = usePatientMedicalRecords(
     activeClinicId ?? null,
     patientId,
-    { include_deleted: true }
+    { include_deleted: false }
+  );
+
+  // Fetch deleted records only when needed
+  const { data: deletedData, isLoading: isLoadingDeleted } = usePatientMedicalRecords(
+    activeClinicId ?? null,
+    patientId,
+    { status: 'deleted' as const }, // Fetch only deleted records
+    { enabled: showDeleted } // Only fetch when showDeleted is true
   );
 
   const deleteMutation = useDeleteMedicalRecord(activeClinicId ?? null, patientId);
@@ -58,7 +67,7 @@ export const PatientMedicalRecordsSection: React.FC<PatientMedicalRecordsSection
 
   const handleDelete = async (recordId: number) => {
     const confirmed = await confirm(
-      '此病歷將移至回收桶，30天後自動刪除。確定刪除？',
+      `此病歷將移至回收桶，${MEDICAL_RECORD_RETENTION_DAYS}天後自動刪除。確定刪除？`,
       '確認刪除'
     );
     if (!confirmed) return;
@@ -98,7 +107,7 @@ export const PatientMedicalRecordsSection: React.FC<PatientMedicalRecordsSection
     }
   };
 
-  if (isLoading) {
+  if (isLoadingActive) {
     return (
       <div className="flex justify-center items-center py-12">
         <LoadingSpinner size="lg" />
@@ -106,7 +115,7 @@ export const PatientMedicalRecordsSection: React.FC<PatientMedicalRecordsSection
     );
   }
 
-  if (error) {
+  if (activeError) {
     return (
       <div className="text-center py-12 text-red-600">
         載入病歷記錄時發生錯誤
@@ -114,9 +123,8 @@ export const PatientMedicalRecordsSection: React.FC<PatientMedicalRecordsSection
     );
   }
 
-  const records = data?.records || [];
-  const activeRecords = records.filter(r => !r.is_deleted);
-  const deletedRecords = records.filter(r => r.is_deleted);
+  const activeRecords = activeData?.records || [];
+  const deletedRecords = deletedData?.records || []; // No need to filter - backend returns only deleted records
 
   return (
     <>
@@ -149,19 +157,28 @@ export const PatientMedicalRecordsSection: React.FC<PatientMedicalRecordsSection
           </div>
         )}
 
-        {deletedRecords.length > 0 && (
-          <div className="mt-6">
-            <button
-              type="button"
-              onClick={() => setShowDeleted(!showDeleted)}
-              className="text-sm text-gray-600 hover:text-gray-900"
-            >
-              {showDeleted ? '隱藏' : '查看'}最近刪除 ({deletedRecords.length})
-            </button>
+        {/* Always show trash button - display "no records" message inside if empty */}
+        <div className="mt-6">
+          <button
+            type="button"
+            onClick={() => setShowDeleted(!showDeleted)}
+            className="text-sm text-gray-600 hover:text-gray-900"
+          >
+            {showDeleted ? '隱藏' : '查看'}最近刪除 {showDeleted && deletedRecords.length > 0 && `(${deletedRecords.length})`}
+          </button>
 
-            {showDeleted && (
-              <div className="mt-3 space-y-2 border-t pt-3">
-                {deletedRecords.map((record) => (
+          {showDeleted && (
+            <div className="mt-3 space-y-2 border-t pt-3">
+              {isLoadingDeleted ? (
+                <div className="flex justify-center py-4">
+                  <LoadingSpinner size="sm" />
+                </div>
+              ) : deletedRecords.length === 0 ? (
+                <div className="text-center py-4 text-gray-500 text-sm">
+                  尚無刪除記錄
+                </div>
+              ) : (
+                deletedRecords.map((record) => (
                   <MedicalRecordCard
                     key={record.id}
                     record={record}
@@ -169,11 +186,11 @@ export const PatientMedicalRecordsSection: React.FC<PatientMedicalRecordsSection
                     onRestore={() => handleRestore(record.id)}
                     onHardDelete={() => handleHardDelete(record.id)}
                   />
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+                ))
+              )}
+            </div>
+          )}
+        </div>
 
         {/* Create Dialog */}
         {showCreateDialog && (
@@ -218,6 +235,16 @@ const MedicalRecordCard: React.FC<MedicalRecordCardProps> = ({
   const isEmpty = !record.values || Object.keys(record.values).length === 0 || 
     Object.values(record.values).every(v => v === '' || v === null || v === undefined);
 
+  // Calculate permanent deletion date for soft-deleted records
+  const permanentDeletionDate = isDeleted && record.deleted_at
+    ? new Date(new Date(record.deleted_at).getTime() + MEDICAL_RECORD_RETENTION_DAYS * 24 * 60 * 60 * 1000)
+    : null;
+
+  // Calculate days until permanent deletion
+  const daysUntilDeletion = permanentDeletionDate
+    ? Math.ceil((permanentDeletionDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+    : null;
+
   return (
     <div
       className={`p-4 border rounded-lg ${isDeleted ? 'bg-gray-50 border-gray-300' : 'bg-white border-gray-200 hover:border-primary-300'
@@ -235,14 +262,45 @@ const MedicalRecordCard: React.FC<MedicalRecordCardProps> = ({
               </span>
             )}
           </div>
-          <p className="text-sm text-gray-500 mt-1">
-            {formatDateOnly(record.created_at)}
-          </p>
-          {isDeleted && record.deleted_at && (
-            <p className="text-xs text-red-600 mt-1">
-              已刪除於 {formatDateOnly(record.deleted_at)}
-            </p>
-          )}
+          
+          {/* Metadata - Always Visible */}
+          <div className="text-sm text-gray-600 mt-2 space-y-1">
+            {/* Appointment Info */}
+            {record.appointment && (
+              <div>
+                預約：{formatAppointmentDateTime(new Date(record.appointment.start_time))}
+                {record.appointment.appointment_type && ` • ${record.appointment.appointment_type}`}
+              </div>
+            )}
+            
+            {/* Created Time */}
+            <div>
+              建立：{formatAppointmentDateTime(new Date(record.created_at))}
+              {record.created_by_user_name && ` by ${record.created_by_user_name}`}
+            </div>
+            
+            {/* Updated Time (only if different from created) */}
+            {record.updated_at && new Date(record.updated_at).getTime() !== new Date(record.created_at).getTime() && (
+              <div>
+                編輯：{formatAppointmentDateTime(new Date(record.updated_at))}
+                {record.updated_by_user_name && ` by ${record.updated_by_user_name}`}
+              </div>
+            )}
+            
+            {/* Deletion Info (for deleted records) */}
+            {isDeleted && record.deleted_at && (
+              <>
+                <div>
+                  刪除：{formatAppointmentDateTime(new Date(record.deleted_at))}
+                </div>
+                {daysUntilDeletion !== null && daysUntilDeletion > 0 && (
+                  <div className="text-red-600">
+                    將於{daysUntilDeletion}天後永久刪除
+                  </div>
+                )}
+              </>
+            )}
+          </div>
         </div>
         {isDeleted ? (
           <div className="flex gap-2">

@@ -1,13 +1,20 @@
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, TYPE_CHECKING
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+from datetime import datetime
 
 from core.database import get_db
 from auth.dependencies import require_authenticated, UserContext, ensure_clinic_access
 from services.medical_record_service import MedicalRecordService, RecordVersionConflictError
 from services.patient_photo_service import PatientPhotoService
-from .patient_photos import PatientPhotoResponse
+from models.user_clinic_association import UserClinicAssociation
+from utils.datetime_utils import ensure_taiwan
+from api.clinic.patient_photos import PatientPhotoResponse
+
+if TYPE_CHECKING:
+    from models.medical_record import MedicalRecord
+    from models.patient_photo import PatientPhoto
 
 router = APIRouter(tags=["medical-records"])
 
@@ -26,6 +33,13 @@ class MedicalRecordUpdate(BaseModel):
     photo_ids: Optional[List[int]] = None
     appointment_id: Optional[int] = None
 
+class AppointmentInfo(BaseModel):
+    """Appointment information for medical record display"""
+    id: int
+    start_time: str
+    end_time: str
+    appointment_type: Optional[str] = None
+
 class MedicalRecordResponse(BaseModel):
     id: int
     clinic_id: int
@@ -40,7 +54,14 @@ class MedicalRecordResponse(BaseModel):
     deleted_at: Optional[Any]
     created_at: Any
     updated_at: Any
-    photos: List[PatientPhotoResponse] = []
+    created_by_user_id: Optional[int] = None
+    updated_by_user_id: Optional[int] = None
+    photos: List[PatientPhotoResponse] = Field(default_factory=list)  # type: ignore[reportUnknownVariableType]
+    
+    # Enriched fields (populated manually by _enrich_record_with_photos)
+    appointment: Optional[AppointmentInfo] = None
+    created_by_user_name: Optional[str] = None
+    updated_by_user_name: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -49,29 +70,84 @@ class MedicalRecordsListResponse(BaseModel):
     records: List[MedicalRecordResponse]
     total: int
 
+def _batch_fetch_user_names(db: Session, clinic_id: int, user_ids: List[int]) -> Dict[int, str]:
+    """Batch fetch user names for the given user IDs in the clinic context."""
+    if not user_ids:
+        return {}
+    
+    user_assocs = db.query(UserClinicAssociation).filter(
+        UserClinicAssociation.clinic_id == clinic_id,
+        UserClinicAssociation.user_id.in_(user_ids)
+    ).all()
+    
+    return {assoc.user_id: assoc.full_name for assoc in user_assocs}
+
 def _enrich_record_with_photos(
-    record: Any, # SQLAlchemy model
-    photo_service: PatientPhotoService
+    record: "MedicalRecord",  # SQLAlchemy model with proper typing
+    photo_service: PatientPhotoService,
+    user_names_map: Dict[int, str]  # Pre-fetched user names
 ) -> MedicalRecordResponse:
-    # Convert to Pydantic model
-    response = MedicalRecordResponse.model_validate(record)
+    # Manually construct response dict to avoid Pydantic trying to validate SQLAlchemy relationships
+    response_data: Dict[str, Any] = {
+        'id': record.id,
+        'clinic_id': record.clinic_id,
+        'patient_id': record.patient_id,
+        'template_id': record.template_id,
+        'template_name': record.template_name,
+        'template_snapshot': record.template_snapshot,
+        'values': record.values,
+        'appointment_id': record.appointment_id,
+        'version': record.version,
+        'is_deleted': record.is_deleted,
+        'deleted_at': record.deleted_at,
+        'created_at': record.created_at,
+        'updated_at': record.updated_at,
+        'created_by_user_id': record.created_by_user_id,
+        'updated_by_user_id': record.updated_by_user_id,
+    }
     
     # Process photos
     photo_responses: List[PatientPhotoResponse] = []
-    if hasattr(record, 'photos'):
-        for photo in record.photos:
+    if hasattr(record, 'photos') and record.photos:
+        photos_list: List["PatientPhoto"] = list(record.photos)
+        for photo in photos_list:
             # Skip deleted photos if they happen to be in the relationship (should be filtered by DB usually but safe to check)
             if getattr(photo, 'is_deleted', False):
                 continue
                 
-            p_res = PatientPhotoResponse.model_validate(photo)
+            p_res: PatientPhotoResponse = PatientPhotoResponse.model_validate(photo)
             p_res.url = photo_service.get_photo_url(photo.storage_key)
             if photo.thumbnail_key:
                 p_res.thumbnail_url = photo_service.get_photo_url(photo.thumbnail_key)
             photo_responses.append(p_res)
     
-    response.photos = photo_responses
-    return response
+    response_data['photos'] = photo_responses
+    
+    # Add appointment details if linked
+    if record.appointment_id and hasattr(record, 'appointment') and record.appointment:
+        appointment = record.appointment
+        calendar_event = getattr(appointment, 'calendar_event', None)
+        
+        if calendar_event and calendar_event.date and calendar_event.start_time and calendar_event.end_time:
+            # Combine date and time to create datetime objects, then ensure Taiwan timezone
+            start_datetime = ensure_taiwan(datetime.combine(calendar_event.date, calendar_event.start_time))
+            end_datetime = ensure_taiwan(datetime.combine(calendar_event.date, calendar_event.end_time))
+            
+            response_data['appointment'] = AppointmentInfo(
+                id=appointment.calendar_event_id,
+                start_time=start_datetime.isoformat() if start_datetime else "",
+                end_time=end_datetime.isoformat() if end_datetime else "",
+                appointment_type=appointment.appointment_type.name if hasattr(appointment, 'appointment_type') and appointment.appointment_type else None,
+            )
+    
+    # Populate user names from pre-fetched map
+    if record.created_by_user_id:
+        response_data['created_by_user_name'] = user_names_map.get(record.created_by_user_id)
+    
+    if record.updated_by_user_id:
+        response_data['updated_by_user_name'] = user_names_map.get(record.updated_by_user_id)
+    
+    return MedicalRecordResponse.model_validate(response_data)
 
 @router.post("/patients/{patient_id}/medical-records", response_model=MedicalRecordResponse)
 def create_record(
@@ -97,7 +173,11 @@ def create_record(
         created_by_user_id=user.user_id
     )
     
-    return _enrich_record_with_photos(created_record, photo_service)
+    # Batch fetch user names
+    user_ids = [uid for uid in [created_record.created_by_user_id, created_record.updated_by_user_id] if uid]
+    user_names_map = _batch_fetch_user_names(db, clinic_id, user_ids)
+    
+    return _enrich_record_with_photos(created_record, photo_service, user_names_map)
 
 @router.get("/patients/{patient_id}/medical-records", response_model=MedicalRecordsListResponse)
 def list_records(
@@ -107,19 +187,33 @@ def list_records(
     photo_service: PatientPhotoService = Depends(get_photo_service),
     skip: int = 0,
     limit: int = 100,
-    include_deleted: bool = False
+    include_deleted: bool = False,
+    status: Optional[str] = None
 ):
+    """
+    List medical records for a patient.
+    
+    Query Parameters:
+        status: Filter by record status - 'active', 'deleted', or 'all'
+               Takes precedence over include_deleted if provided
+        include_deleted: Legacy parameter for backward compatibility
+    """
     ensure_clinic_access(user)
     if user.active_clinic_id is None:
         raise HTTPException(status_code=400, detail="Clinic context required")
     clinic_id = user.active_clinic_id
+    
+    # Validate status parameter if provided
+    if status is not None and status not in ['active', 'deleted', 'all']:
+        raise HTTPException(status_code=400, detail="Invalid status. Must be 'active', 'deleted', or 'all'")
     
     # Get total count
     total = MedicalRecordService.count_patient_records(
         db=db,
         clinic_id=clinic_id,
         patient_id=patient_id,
-        include_deleted=include_deleted
+        include_deleted=include_deleted,
+        status=status
     )
     
     # Get records
@@ -129,10 +223,20 @@ def list_records(
         patient_id=patient_id,
         skip=skip,
         limit=limit,
-        include_deleted=include_deleted
+        include_deleted=include_deleted,
+        status=status
     )
     
-    enriched_records = [_enrich_record_with_photos(record, photo_service) for record in records]
+    # Batch fetch user names for all records
+    user_ids: set[int] = set()
+    for record in records:
+        if record.created_by_user_id:
+            user_ids.add(record.created_by_user_id)
+        if record.updated_by_user_id:
+            user_ids.add(record.updated_by_user_id)
+    user_names_map = _batch_fetch_user_names(db, clinic_id, list(user_ids))
+    
+    enriched_records = [_enrich_record_with_photos(record, photo_service, user_names_map) for record in records]
     
     return MedicalRecordsListResponse(
         records=enriched_records,
@@ -147,11 +251,18 @@ def get_record(
     photo_service: PatientPhotoService = Depends(get_photo_service)
 ):
     ensure_clinic_access(user)
-    assert user.active_clinic_id is not None
-    record = MedicalRecordService.get_record(db, record_id, user.active_clinic_id)
+    if user.active_clinic_id is None:
+        raise HTTPException(status_code=400, detail="Clinic context required")
+    clinic_id = user.active_clinic_id
+    record = MedicalRecordService.get_record(db, record_id, clinic_id)
     if not record:
         raise HTTPException(status_code=404, detail="Record not found")
-    return _enrich_record_with_photos(record, photo_service)
+    
+    # Batch fetch user names
+    user_ids = [uid for uid in [record.created_by_user_id, record.updated_by_user_id] if uid]
+    user_names_map = _batch_fetch_user_names(db, clinic_id, user_ids)
+    
+    return _enrich_record_with_photos(record, photo_service, user_names_map)
 
 @router.put("/medical-records/{record_id}", response_model=MedicalRecordResponse)
 def update_record(
@@ -162,23 +273,34 @@ def update_record(
     photo_service: PatientPhotoService = Depends(get_photo_service)
 ):
     ensure_clinic_access(user)
-    assert user.active_clinic_id is not None
+    if user.active_clinic_id is None:
+        raise HTTPException(status_code=400, detail="Clinic context required")
+    clinic_id = user.active_clinic_id
     
     try:
         updated_record = MedicalRecordService.update_record(
             db=db,
             record_id=record_id,
-            clinic_id=user.active_clinic_id,
+            clinic_id=clinic_id,
             version=update_data.version,
             values=update_data.values,
             photo_ids=update_data.photo_ids,
             appointment_id=update_data.appointment_id,
             updated_by_user_id=user.user_id
         )
-        return _enrich_record_with_photos(updated_record, photo_service)
+        
+        # Batch fetch user names
+        user_ids = [uid for uid in [updated_record.created_by_user_id, updated_record.updated_by_user_id] if uid]
+        user_names_map = _batch_fetch_user_names(db, clinic_id, user_ids)
+        
+        return _enrich_record_with_photos(updated_record, photo_service, user_names_map)
     except RecordVersionConflictError as e:
+        # Batch fetch user names for conflict response
+        user_ids = [uid for uid in [e.current_record.created_by_user_id, e.current_record.updated_by_user_id] if uid]
+        user_names_map = _batch_fetch_user_names(db, clinic_id, user_ids)
+        
         # Return 409 with the current record state for UI conflict resolution
-        current_record_response = _enrich_record_with_photos(e.current_record, photo_service)
+        current_record_response = _enrich_record_with_photos(e.current_record, photo_service, user_names_map)
         
         # Convert to dict with JSON-serializable values
         current_record_dict = current_record_response.model_dump(mode='json')
@@ -232,7 +354,12 @@ def restore_record(
     )
     if not record:
         raise HTTPException(status_code=404, detail="Record not found or not deleted")
-    return _enrich_record_with_photos(record, photo_service)
+    
+    # Batch fetch user names
+    user_ids = [uid for uid in [record.created_by_user_id, record.updated_by_user_id] if uid]
+    user_names_map = _batch_fetch_user_names(db, clinic_id, user_ids)
+    
+    return _enrich_record_with_photos(record, photo_service, user_names_map)
 
 @router.delete("/medical-records/{record_id}/hard")
 def hard_delete_record(

@@ -1528,7 +1528,7 @@ export class ApiService {
   // Medical Record methods
   async listPatientMedicalRecords(
     patientId: number,
-    params?: { skip?: number; limit?: number; include_deleted?: boolean; appointment_id?: number }
+    params?: { skip?: number; limit?: number; include_deleted?: boolean; appointment_id?: number; status?: 'active' | 'deleted' | 'all' }
   ): Promise<import('../types/medicalRecord').MedicalRecordsListResponse> {
     const response = await this.client.get(`/clinic/patients/${patientId}/medical-records`, { params });
     return response.data;
