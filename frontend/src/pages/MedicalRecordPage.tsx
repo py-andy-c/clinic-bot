@@ -215,7 +215,7 @@ const MedicalRecordPage: React.FC = () => {
 
   const handleConflictReload = () => {
     if (!activeClinicId || !recordId) return;
-    
+
     // Invalidate query to get fresh data (including new version and photos)
     queryClient.invalidateQueries({
       queryKey: medicalRecordKeys.detail(activeClinicId, recordId)
@@ -278,104 +278,133 @@ const MedicalRecordPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Fixed Header */}
-      <div className="bg-white border-b border-gray-200 sticky top-0 z-10 shadow-sm">
-        <div className="max-w-6xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <button
-                onClick={handleBack}
-                className="text-gray-600 hover:text-gray-900 transition-colors"
-                title="返回病患詳情"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-              </button>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">
+    <div className="min-h-screen bg-white py-8 px-4">
+      <div className="max-w-4xl mx-auto">
+        {/* Back Button matching PatientDetailPage style */}
+        <div className="mb-4">
+          <button
+            onClick={handleBack}
+            className="text-blue-600 hover:text-blue-800 font-medium transition-colors"
+          >
+            ← 返回病患詳情
+          </button>
+        </div>
+
+        {/* The "Document" - Clean, white-on-white with a subtle shadow/border */}
+        <div className="bg-white shadow-[0_8px_30px_rgb(0,0,0,0.04)] rounded-xl overflow-hidden border border-gray-100 mb-12">
+          {/* Document Header */}
+          <div className="px-10 pt-10 pb-8 border-b border-gray-100">
+            <div className="flex justify-between items-start gap-6">
+              <div className="flex-1 min-w-0">
+                <h1 className="text-4xl font-extrabold text-gray-900 tracking-tight truncate">
                   {record.template_snapshot.name}
                 </h1>
-                <p className="text-sm text-gray-600 mt-1">
-                  病患：{patient?.full_name || '載入中...'}
+                <div className="mt-4 flex flex-wrap gap-x-8 gap-y-2 text-sm text-gray-500">
+                  <span className="flex items-center gap-2">
+                    <span className="text-gray-400 font-medium uppercase tracking-wider text-[10px]">病患</span>
+                    <span className="font-semibold text-gray-800">{patient?.full_name || '載入中...'}</span>
+                  </span>
                   {record.created_at && (
-                    <span className="ml-3">
-                      建立時間：{new Date(record.created_at).toLocaleString('zh-TW')}
+                    <span className="flex items-center gap-2">
+                      <span className="text-gray-400 font-medium uppercase tracking-wider text-[10px]">建立時間</span>
+                      <span className="font-semibold text-gray-800">
+                        {new Date(record.created_at).toLocaleString('zh-TW', {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </span>
                     </span>
                   )}
-                </p>
+                </div>
               </div>
+              <button
+                onClick={methods.handleSubmit(onSubmit)}
+                disabled={isSaving || !hasUnsavedChanges()}
+                className="btn-primary px-10 py-3 text-base shadow-sm hover:shadow-md transition-all"
+              >
+                {isSaving ? '儲存中...' : '儲存變更'}
+              </button>
             </div>
-            <button
-              onClick={methods.handleSubmit(onSubmit)}
-              disabled={isSaving || !hasUnsavedChanges()}
-              className="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isSaving ? '儲存中...' : '儲存'}
-            </button>
+
+            {/* Appointment Context - Ultra Clean Selection */}
+            <div className="mt-8 pt-8 border-t border-gray-100 flex flex-wrap items-center gap-6">
+              <label htmlFor="appointment_id" className="text-xs font-bold text-gray-400 uppercase tracking-widest">
+                關聯預約
+              </label>
+              <div className="flex-1 max-w-sm relative">
+                <select
+                  id="appointment_id"
+                  {...methods.register('appointment_id', {
+                    setValueAs: (v) => v === '' ? null : parseInt(v)
+                  })}
+                  className="w-full text-sm appearance-none bg-white border border-gray-200 rounded-lg px-4 py-2.5 pr-10 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none"
+                >
+                  <option value="">無關聯預約</option>
+                  {appointments?.appointments
+                    ?.filter((apt) => apt.status === 'confirmed')
+                    .sort((a, b) => new Date(b.start_time).getTime() - new Date(a.start_time).getTime())
+                    .map((apt) => {
+                      const aptId = apt.calendar_event_id || apt.id;
+                      const startDate = new Date(apt.start_time);
+                      const endDate = new Date(apt.end_time);
+                      const timeStr = formatAppointmentTimeRange(startDate, endDate);
+                      const serviceName = apt.appointment_type_name || '預約';
+
+                      return (
+                        <option key={aptId} value={aptId}>
+                          {timeStr} - {serviceName}
+                        </option>
+                      );
+                    })}
+                </select>
+                <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-gray-400">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+              </div>
+              <span className="text-xs text-gray-400 italic">(與其他變更一起儲存)</span>
+            </div>
           </div>
 
-          {/* Appointment Context - Editable */}
-          <div className="mt-4 flex items-center gap-2">
-            <label htmlFor="appointment_id" className="text-sm text-gray-600">
-              關聯預約：
-            </label>
-            <select
-              id="appointment_id"
-              {...methods.register('appointment_id', {
-                setValueAs: (v) => v === '' ? null : parseInt(v)
-              })}
-              className="text-sm px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-            >
-              <option value="">無關聯預約</option>
-              {appointments?.appointments
-                ?.filter((apt) => apt.status === 'confirmed')
-                .sort((a, b) => new Date(b.start_time).getTime() - new Date(a.start_time).getTime())
-                .map((apt) => {
-                  const aptId = apt.calendar_event_id || apt.id;
-                  const startDate = new Date(apt.start_time);
-                  const endDate = new Date(apt.end_time);
-                  const timeStr = formatAppointmentTimeRange(startDate, endDate);
-                  const serviceName = apt.appointment_type_name || '預約';
+          {/* Document Content */}
+          <div className="px-10 py-10">
+            <FormProvider {...methods}>
+              <form onSubmit={methods.handleSubmit(onSubmit)} className="space-y-16">
+                {/* Dynamic Form Fields */}
+                <section>
+                  <div className="mb-8 flex items-baseline justify-between border-b border-gray-100 pb-3">
+                    <h2 className="text-2xl font-bold text-gray-900 tracking-tight">病歷內容</h2>
+                  </div>
+                  <div className="max-w-3xl">
+                    {record.template_snapshot?.fields && (
+                      <MedicalRecordDynamicForm fields={record.template_snapshot.fields} />
+                    )}
+                  </div>
+                </section>
 
-                  return (
-                    <option key={aptId} value={aptId}>
-                      {timeStr} - {serviceName}
-                    </option>
-                  );
-                })}
-            </select>
-            <span className="text-xs text-gray-500">(與其他變更一起儲存)</span>
+                {/* Photo Selector */}
+                <section>
+                  <div className="mb-8 flex items-baseline justify-between border-b border-gray-100 pb-3">
+                    <h2 className="text-2xl font-bold text-gray-900 tracking-tight">附加照片</h2>
+                  </div>
+                  <div className="bg-white rounded-xl">
+                    <MedicalRecordPhotoSelector
+                      clinicId={activeClinicId ?? null}
+                      patientId={patientId}
+                      selectedPhotoIds={selectedPhotoIds}
+                      onPhotoIdsChange={setSelectedPhotoIds}
+                      recordId={recordId ?? null}
+                    />
+                  </div>
+                </section>
+              </form>
+            </FormProvider>
           </div>
         </div>
-      </div>
-
-      {/* Main Content */}
-      <div className="max-w-6xl mx-auto px-6 py-8">
-        <FormProvider {...methods}>
-          <form onSubmit={methods.handleSubmit(onSubmit)} className="space-y-8">
-            {/* Dynamic Form Fields */}
-            <div className="bg-white rounded-lg shadow-sm p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-6">病歷內容</h2>
-              {record.template_snapshot?.fields && (
-                <MedicalRecordDynamicForm fields={record.template_snapshot.fields} />
-              )}
-            </div>
-
-            {/* Photo Selector */}
-            <div className="bg-white rounded-lg shadow-sm p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-6">照片</h2>
-              <MedicalRecordPhotoSelector
-                clinicId={activeClinicId ?? null}
-                patientId={patientId}
-                selectedPhotoIds={selectedPhotoIds}
-                onPhotoIdsChange={setSelectedPhotoIds}
-                recordId={recordId ?? null}
-              />
-            </div>
-          </form>
-        </FormProvider>
       </div>
 
       {/* Conflict Resolution Dialog */}
