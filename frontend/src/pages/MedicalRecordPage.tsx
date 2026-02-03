@@ -80,6 +80,7 @@ const createDynamicSchema = (fields: TemplateField[] | undefined) => {
 
   return z.object({
     values: z.object(valuesShape),
+    appointment_id: z.number().nullable().optional(),
   });
 };
 
