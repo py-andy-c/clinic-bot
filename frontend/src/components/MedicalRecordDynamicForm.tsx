@@ -21,20 +21,20 @@ export const MedicalRecordDynamicForm: React.FC<MedicalRecordDynamicFormProps> =
     switch (field.type) {
       case 'text':
         return (
-          <FormField key={field.id} name={fieldName} label={label}>
+          <FormField key={field.id} name={fieldName} label={label} description={field.description}>
             <FormInput
               name={fieldName}
-              placeholder={field.placeholder}
+              placeholder=""
             />
           </FormField>
         );
 
       case 'textarea':
         return (
-          <FormField key={field.id} name={fieldName} label={label}>
+          <FormField key={field.id} name={fieldName} label={label} description={field.description}>
             <FormTextarea
               name={fieldName}
-              placeholder={field.placeholder}
+              placeholder=""
               rows={4}
             />
           </FormField>
@@ -42,29 +42,29 @@ export const MedicalRecordDynamicForm: React.FC<MedicalRecordDynamicFormProps> =
 
       case 'number':
         return (
-          <FormField key={field.id} name={fieldName} label={label}>
+          <FormField key={field.id} name={fieldName} label={label} description={field.description}>
             <FormInput
               name={fieldName}
               type="number"
-              placeholder={field.placeholder}
+              placeholder=""
             />
           </FormField>
         );
 
       case 'date':
         return (
-          <FormField key={field.id} name={fieldName} label={label}>
+          <FormField key={field.id} name={fieldName} label={label} description={field.description}>
             <FormInput
               name={fieldName}
               type="date"
-              placeholder={field.placeholder}
+              placeholder=""
             />
           </FormField>
         );
 
       case 'dropdown':
         return (
-          <FormField key={field.id} name={fieldName} label={label}>
+          <FormField key={field.id} name={fieldName} label={label} description={field.description}>
             <select
               {...register(fieldName)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
@@ -81,7 +81,7 @@ export const MedicalRecordDynamicForm: React.FC<MedicalRecordDynamicFormProps> =
 
       case 'radio':
         return (
-          <FormField key={field.id} name={fieldName} label={label}>
+          <FormField key={field.id} name={fieldName} label={label} description={field.description}>
             <div className="space-y-2">
               {field.options?.map((option, index) => (
                 <label key={index} className="flex items-center gap-2">
@@ -102,7 +102,7 @@ export const MedicalRecordDynamicForm: React.FC<MedicalRecordDynamicFormProps> =
         // Multiple checkboxes with same name and different values
         // automatically produce an array in react-hook-form
         return (
-          <FormField key={field.id} name={fieldName} label={label}>
+          <FormField key={field.id} name={fieldName} label={label} description={field.description}>
             <div className="space-y-2">
               {field.options?.map((option, index) => (
                 <label key={index} className="flex items-center gap-2">

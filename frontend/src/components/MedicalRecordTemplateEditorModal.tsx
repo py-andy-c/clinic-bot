@@ -30,6 +30,7 @@ const TemplateFieldSchema = z.object({
   type: z.enum(['text', 'textarea', 'number', 'date', 'dropdown', 'radio', 'checkbox']),
   required: z.boolean(),
   placeholder: z.string().optional().or(z.literal('')),
+  description: z.string().optional(),
   options: z.union([z.array(z.string()), z.string()]).optional(), // Allow both array and string (textarea)
   order: z.number(),
 });
@@ -121,6 +122,7 @@ export const MedicalRecordTemplateEditorModal: React.FC<MedicalRecordTemplateEdi
       type: 'text',
       required: false,
       placeholder: '',
+      description: '',
       options: '', // Initialize as empty string for textarea consistency
       order: fields.length,
     });
@@ -170,6 +172,7 @@ export const MedicalRecordTemplateEditorModal: React.FC<MedicalRecordTemplateEdi
               ...field,
               id: field.id || '', // Backend will generate ID if empty
               placeholder: field.placeholder || undefined,
+              description: field.description || undefined,
               options: processFieldOptions(field),
               order: index,
             })),
@@ -186,6 +189,7 @@ export const MedicalRecordTemplateEditorModal: React.FC<MedicalRecordTemplateEdi
             type: field.type,
             required: field.required,
             placeholder: field.placeholder || undefined,
+            description: field.description || undefined,
             options: processFieldOptions(field),
             order: index,
           })),
@@ -366,10 +370,18 @@ const FieldEditor: React.FC<FieldEditorProps> = ({
             </FormField>
           </div>
 
-          <FormField name={`fields.${index}.placeholder`} label="提示文字（選填）">
+          {/* Deprecated Placeholder UI - removed per design decision */}
+          {/* <FormField name={`fields.${index}.placeholder`} label="提示文字（選填）">
             <FormInput
               name={`fields.${index}.placeholder`}
               placeholder="例如：請輸入數值"
+            />
+          </FormField> */}
+
+          <FormField name={`fields.${index}.description`} label="欄位說明（選填）">
+            <FormInput
+              name={`fields.${index}.description`}
+              placeholder="例如：請填寫收縮壓與舒張壓"
             />
           </FormField>
 

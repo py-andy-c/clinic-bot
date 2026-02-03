@@ -5,7 +5,7 @@ interface FormFieldProps {
   name: string;
   label?: string | React.ReactNode;
   children: React.ReactElement;
-  description?: string;
+  description?: string | undefined;
   className?: string;
 }
 
@@ -37,16 +37,16 @@ export const FormField: React.FC<FormFieldProps> = ({
           {label}
         </label>
       )}
-      
+
+      {description && !errorMessage && (
+        <p className="text-xs text-gray-500 mb-1">{description}</p>
+      )}
+
       {React.cloneElement(children, {
         id: name,
         'aria-invalid': error ? 'true' : 'false',
         'aria-describedby': errorMessage ? `${name}-error` : undefined,
       })}
-
-      {description && !errorMessage && (
-        <p className="text-xs text-gray-500">{description}</p>
-      )}
 
       {errorMessage && (
         <p

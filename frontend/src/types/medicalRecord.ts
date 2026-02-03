@@ -17,6 +17,7 @@ export interface TemplateField {
   type: TemplateFieldType;
   required: boolean;
   placeholder?: string | undefined;
+  description?: string | undefined;
   options?: string[] | undefined;
   order: number;
 }
