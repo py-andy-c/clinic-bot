@@ -61,7 +61,7 @@ export const PatientPhotoGallery: React.FC<PatientPhotoGalleryProps> = ({
 
   const validateAndUploadFile = async (file: File): Promise<void> => {
     const fileId = `${file.name}-${Date.now()}`;
-    
+
     // Validate file type
     if (!file.type.startsWith('image/')) {
       setUploadErrors(prev => [...prev, { fileName: file.name, error: t('檔案類型不支援') }]);
@@ -83,7 +83,7 @@ export const PatientPhotoGallery: React.FC<PatientPhotoGalleryProps> = ({
           setUploadProgress(prev => ({ ...prev, [fileId]: percentCompleted }));
         },
       });
-      
+
       // Clear progress after successful upload
       setUploadProgress(prev => {
         const newProgress = { ...prev };
@@ -152,7 +152,7 @@ export const PatientPhotoGallery: React.FC<PatientPhotoGalleryProps> = ({
 
   const handleDelete = async (photoId: number) => {
     if (!confirm(t('確定要刪除此照片嗎？'))) return;
-    
+
     try {
       await deleteMutation.mutateAsync(photoId);
     } catch (error) {
@@ -204,9 +204,9 @@ export const PatientPhotoGallery: React.FC<PatientPhotoGalleryProps> = ({
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         className={`
-          border-2 border-dashed rounded-lg p-8 text-center transition-colors
-          ${isDragging 
-            ? 'border-blue-500 bg-blue-50' 
+          hidden lg:block border-2 border-dashed rounded-lg p-8 text-center transition-colors
+          ${isDragging
+            ? 'border-blue-500 bg-blue-50'
             : 'border-gray-300 hover:border-gray-400'
           }
         `}
@@ -286,7 +286,7 @@ export const PatientPhotoGallery: React.FC<PatientPhotoGalleryProps> = ({
                 alt={photo.description || photo.filename}
                 className="w-full h-full object-cover"
               />
-              
+
               {/* Hover Overlay */}
               <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all duration-200 flex items-center justify-center">
                 <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex space-x-2">
