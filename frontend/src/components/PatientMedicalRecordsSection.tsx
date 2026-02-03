@@ -292,6 +292,7 @@ const MedicalRecordCard: React.FC<MedicalRecordCardProps> = ({
               <>
                 <div>
                   刪除：{formatAppointmentDateTime(new Date(record.deleted_at))}
+                  {record.updated_by_user_name && ` 由${record.updated_by_user_name}`}
                 </div>
                 {daysUntilDeletion !== null && daysUntilDeletion > 0 && (
                   <div className="text-red-600">
