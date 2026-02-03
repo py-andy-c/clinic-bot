@@ -185,19 +185,24 @@ The primary objective is to professionalize medical documentation within the sys
 5. `frontend/src/types/medicalRecord.ts` - Added paginated response type
 6. `frontend/src/services/api.ts` - Updated API methods, added updatePatientPhoto
 7. `frontend/src/hooks/usePatientPhotos.ts` - Added count hook and update mutation
-8. `frontend/src/components/MedicalRecordPhotoSelector.tsx` - Complete refactor to appendix pattern with editing
-9. `frontend/src/components/PatientPhotoGallery.tsx` - Updated for paginated response
+8. `frontend/src/components/MedicalRecordPhotoSelector.tsx` - Complete refactor to appendix pattern with modal editing
+9. `frontend/src/components/PhotoEditModal.tsx` - Added batch save support with onSave callback
 10. `frontend/src/pages/MedicalRecordPage.tsx` - Added photo update tracking and save integration
 11. `frontend/src/pages/PatientDetailPage.tsx` - Added RecentPhotosRibbon integration
-12. `frontend/src/App.tsx` - Added gallery page routing
-13. `frontend/src/components/PatientMedicalRecordsSection.tsx` - Removed old gallery section
-14. `docs/design_doc/medical_record_photo_appendix.md` - Updated documentation
+12. `frontend/src/pages/PatientGalleryPage.tsx` - Added upload flow and custom delete modal
+13. `frontend/src/App.tsx` - Added gallery page routing
+14. `frontend/src/components/PatientMedicalRecordsSection.tsx` - Removed old gallery section
+15. `frontend/src/components/RecentPhotosRibbon.tsx` - Added upload button and annotation modal
+16. `docs/design_doc/medical_record_photo_appendix.md` - Updated documentation
 
 ### Files Created (4)
 1. `backend/tests/unit/test_patient_photo_service.py` - Comprehensive unit tests
 2. `backend/tests/integration/test_patient_photos_api.py` - Comprehensive API integration tests
 3. `frontend/src/components/RecentPhotosRibbon.tsx` - Recent photos component for patient detail page
 4. `frontend/src/pages/PatientGalleryPage.tsx` - Dedicated gallery page with timeline view
+
+### Files Deleted (1)
+1. `frontend/src/components/PatientPhotoGallery.tsx` - Deprecated component (replaced by RecentPhotosRibbon and PatientGalleryPage)
 
 ### Test Coverage
 - ✅ All backend tests passing (unit + integration)
