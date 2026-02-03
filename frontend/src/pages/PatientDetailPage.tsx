@@ -20,6 +20,7 @@ import { PatientAppointmentsList } from '../components/patient/PatientAppointmen
 import { CreateAppointmentModal } from '../components/calendar/CreateAppointmentModal';
 import { PatientMedicalRecordsSection } from '../components/PatientMedicalRecordsSection';
 import { RecentPhotosRibbon } from '../components/RecentPhotosRibbon';
+import { CreateMedicalRecordDialog } from '../components/CreateMedicalRecordDialog';
 
 type TabType = 'info' | 'appointments' | 'records' | 'photos';
 
@@ -35,6 +36,7 @@ const PatientDetailPage: React.FC = () => {
   const [isEditingNotes, setIsEditingNotes] = useState(false);
   const [isEditingPractitioners, setIsEditingPractitioners] = useState(false);
   const [isAppointmentModalOpen, setIsAppointmentModalOpen] = useState(false);
+  const [isCreateRecordModalOpen, setIsCreateRecordModalOpen] = useState(false);
   const appointmentsListRefetchRef = useRef<(() => Promise<void>) | null>(null);
 
   const patientId = id ? parseInt(id, 10) : undefined;
@@ -103,7 +105,7 @@ const PatientDetailPage: React.FC = () => {
 
   // Handler for creating medical record
   const handleCreateMedicalRecord = () => {
-    navigate(`/admin/clinic/patients/${patientId}/records/new`);
+    setIsCreateRecordModalOpen(true);
   };
 
   // Handler for uploading photo
@@ -163,7 +165,7 @@ const PatientDetailPage: React.FC = () => {
     // Return buttons wrapped in a flex container if multiple buttons
     if (buttons.length === 0) return undefined;
     if (buttons.length === 1) return buttons[0];
-    
+
     return (
       <div className="flex items-center gap-2">
         {buttons}
@@ -221,41 +223,37 @@ const PatientDetailPage: React.FC = () => {
         <nav className="-mb-px flex space-x-8">
           <button
             onClick={() => setActiveTab('info')}
-            className={`py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${
-              activeTab === 'info'
-                ? 'border-blue-500 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
+            className={`py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${activeTab === 'info'
+              ? 'border-blue-500 text-blue-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
           >
             基本資料
           </button>
           <button
             onClick={() => setActiveTab('appointments')}
-            className={`py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${
-              activeTab === 'appointments'
-                ? 'border-blue-500 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
+            className={`py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${activeTab === 'appointments'
+              ? 'border-blue-500 text-blue-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
           >
             預約記錄
           </button>
           <button
             onClick={() => setActiveTab('records')}
-            className={`py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${
-              activeTab === 'records'
-                ? 'border-blue-500 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
+            className={`py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${activeTab === 'records'
+              ? 'border-blue-500 text-blue-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
           >
             病歷記錄
           </button>
           <button
             onClick={() => setActiveTab('photos')}
-            className={`py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${
-              activeTab === 'photos'
-                ? 'border-blue-500 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
+            className={`py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${activeTab === 'photos'
+              ? 'border-blue-500 text-blue-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
           >
             照片
           </button>
@@ -308,7 +306,7 @@ const PatientDetailPage: React.FC = () => {
         )}
 
         {activeTab === 'records' && (
-          <PatientMedicalRecordsSection 
+          <PatientMedicalRecordsSection
             patientId={patient.id}
             hideCreateButton={true}
           />
@@ -371,6 +369,18 @@ const PatientDetailPage: React.FC = () => {
             if (appointmentsListRefetchRef.current) {
               await appointmentsListRefetchRef.current();
             }
+          }}
+        />
+      )}
+
+      {/* Create Medical Record Dialog */}
+      {isCreateRecordModalOpen && patientId !== undefined && (
+        <CreateMedicalRecordDialog
+          patientId={patientId}
+          onClose={() => setIsCreateRecordModalOpen(false)}
+          onSuccess={(recordId) => {
+            setIsCreateRecordModalOpen(false);
+            navigate(`/admin/clinic/patients/${patientId}/records/${recordId}`);
           }}
         />
       )}
