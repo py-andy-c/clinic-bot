@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import {
   usePatientMedicalRecords,
@@ -9,7 +10,7 @@ import {
 import { useModal } from '../contexts/ModalContext';
 import { LoadingSpinner } from './shared';
 import { MedicalRecord } from '../types/medicalRecord';
-import { MedicalRecordModal } from './MedicalRecordModal';
+import { CreateMedicalRecordDialog } from './CreateMedicalRecordDialog';
 import { PatientPhotoGallery } from './PatientPhotoGallery';
 import { formatDateOnly } from '../utils/calendarUtils';
 import { getErrorMessage } from '../types/api';
@@ -24,17 +25,10 @@ export const PatientMedicalRecordsSection: React.FC<PatientMedicalRecordsSection
 }) => {
   const { user } = useAuth();
   const activeClinicId = user?.active_clinic_id;
+  const navigate = useNavigate();
   const { confirm, alert } = useModal();
   const [showDeleted, setShowDeleted] = useState(false);
-  const [modalState, setModalState] = useState<{
-    isOpen: boolean;
-    recordId: number | null;
-    mode: 'create' | 'edit' | 'view';
-  }>({
-    isOpen: false,
-    recordId: null,
-    mode: 'create',
-  });
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
 
   // Always fetch all records (including deleted) to determine trash button visibility
   const { data, isLoading, error } = usePatientMedicalRecords(
@@ -48,15 +42,23 @@ export const PatientMedicalRecordsSection: React.FC<PatientMedicalRecordsSection
   const hardDeleteMutation = useHardDeleteMedicalRecord(activeClinicId ?? null, patientId);
 
   const handleCreate = () => {
-    setModalState({ isOpen: true, recordId: null, mode: 'create' });
+    setShowCreateDialog(true);
+  };
+
+  const handleCreateSuccess = (recordId: number) => {
+    setShowCreateDialog(false);
+    // Navigate to the full-page editor
+    navigate(`/admin/clinic/patients/${patientId}/records/${recordId}`);
   };
 
   const handleView = (recordId: number) => {
-    setModalState({ isOpen: true, recordId, mode: 'view' });
+    // Navigate to the full-page editor in view mode (we'll add a query param)
+    navigate(`/admin/clinic/patients/${patientId}/records/${recordId}`);
   };
 
   const handleEdit = (recordId: number) => {
-    setModalState({ isOpen: true, recordId, mode: 'edit' });
+    // Navigate to the full-page editor
+    navigate(`/admin/clinic/patients/${patientId}/records/${recordId}`);
   };
 
   const handleDelete = async (recordId: number) => {
@@ -99,10 +101,6 @@ export const PatientMedicalRecordsSection: React.FC<PatientMedicalRecordsSection
       logger.error('Failed to permanently delete record:', error);
       await alert(getErrorMessage(error), '刪除失敗');
     }
-  };
-
-  const closeModal = () => {
-    setModalState({ isOpen: false, recordId: null, mode: 'create' });
   };
 
   if (isLoading) {
@@ -183,13 +181,12 @@ export const PatientMedicalRecordsSection: React.FC<PatientMedicalRecordsSection
           </div>
         )}
 
-        {/* Modal */}
-        {modalState.isOpen && (
-          <MedicalRecordModal
+        {/* Create Dialog */}
+        {showCreateDialog && (
+          <CreateMedicalRecordDialog
             patientId={patientId}
-            recordId={modalState.recordId}
-            mode={modalState.mode}
-            onClose={closeModal}
+            onClose={() => setShowCreateDialog(false)}
+            onSuccess={handleCreateSuccess}
           />
         )}
       </div>

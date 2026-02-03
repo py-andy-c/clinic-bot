@@ -54,6 +54,22 @@ export interface MedicalRecordTemplatesListResponse {
   total: number;
 }
 
+// Patient Photo types (matches backend PatientPhotoResponse)
+export interface PatientPhoto {
+  id: number;
+  clinic_id: number;
+  patient_id: number;
+  medical_record_id?: number;
+  filename: string;
+  content_type: string;
+  size_bytes: number;
+  description?: string;
+  is_pending: boolean;
+  created_at: string;
+  url?: string;
+  thumbnail_url?: string;
+}
+
 // Medical Record types
 export interface MedicalRecord {
   id: number;
@@ -73,6 +89,7 @@ export interface MedicalRecord {
   created_by_user_id?: number;
   updated_at?: string;
   updated_by_user_id?: number;
+  photos?: PatientPhoto[]; // Photos attached to this record
 }
 
 export interface MedicalRecordCreateRequest {
@@ -92,22 +109,6 @@ export interface MedicalRecordUpdateRequest {
 export interface MedicalRecordsListResponse {
   records: MedicalRecord[];
   total: number;
-}
-
-// Patient Photo types (matches backend PatientPhotoResponse)
-export interface PatientPhoto {
-  id: number;
-  clinic_id: number;
-  patient_id: number;
-  medical_record_id?: number;
-  filename: string;
-  content_type: string;
-  size_bytes: number;
-  description?: string;
-  is_pending: boolean;
-  created_at: string;
-  url?: string;
-  thumbnail_url?: string;
 }
 
 export interface PatientPhotoUpdateRequest {

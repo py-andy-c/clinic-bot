@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { usePatientMedicalRecords } from '../../hooks/useMedicalRecords';
-import { MedicalRecordModal } from '../MedicalRecordModal';
+import { CreateMedicalRecordDialog } from '../CreateMedicalRecordDialog';
 import { LoadingSpinner } from '../shared';
 import { formatDateOnly } from '../../utils/calendarUtils';
 
@@ -15,15 +16,8 @@ export const LinkedMedicalRecordsSection: React.FC<LinkedMedicalRecordsSectionPr
     appointmentId,
     clinicId,
 }) => {
-    const [modalState, setModalState] = useState<{
-        isOpen: boolean;
-        recordId: number | null;
-        mode: 'create' | 'edit' | 'view';
-    }>({
-        isOpen: false,
-        recordId: null,
-        mode: 'create',
-    });
+    const navigate = useNavigate();
+    const [showCreateDialog, setShowCreateDialog] = useState(false);
 
     const { data, isLoading } = usePatientMedicalRecords(
         clinicId,
@@ -34,19 +28,23 @@ export const LinkedMedicalRecordsSection: React.FC<LinkedMedicalRecordsSectionPr
     const activeRecords = data?.records?.filter(r => !r.is_deleted) || [];
 
     const handleCreate = () => {
-        setModalState({ isOpen: true, recordId: null, mode: 'create' });
+        setShowCreateDialog(true);
+    };
+
+    const handleCreateSuccess = (recordId: number) => {
+        setShowCreateDialog(false);
+        // Navigate to the full-page editor
+        navigate(`/admin/clinic/patients/${patientId}/records/${recordId}`);
     };
 
     const handleView = (recordId: number) => {
-        setModalState({ isOpen: true, recordId, mode: 'view' });
+        // Navigate to the full-page editor
+        navigate(`/admin/clinic/patients/${patientId}/records/${recordId}`);
     };
 
     const handleEdit = (recordId: number) => {
-        setModalState({ isOpen: true, recordId, mode: 'edit' });
-    };
-
-    const closeModal = () => {
-        setModalState({ isOpen: false, recordId: null, mode: 'create' });
+        // Navigate to the full-page editor
+        navigate(`/admin/clinic/patients/${patientId}/records/${recordId}`);
     };
 
     if (isLoading) {
@@ -103,12 +101,11 @@ export const LinkedMedicalRecordsSection: React.FC<LinkedMedicalRecordsSectionPr
                 </div>
             )}
 
-            {modalState.isOpen && (
-                <MedicalRecordModal
+            {showCreateDialog && (
+                <CreateMedicalRecordDialog
                     patientId={patientId}
-                    recordId={modalState.recordId}
-                    mode={modalState.mode}
-                    onClose={closeModal}
+                    onClose={() => setShowCreateDialog(false)}
+                    onSuccess={handleCreateSuccess}
                     defaultAppointmentId={appointmentId}
                 />
             )}

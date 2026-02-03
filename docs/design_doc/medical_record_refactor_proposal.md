@@ -58,15 +58,40 @@ A dedicated route (e.g., `/emr/:recordIdentifier`) for viewing and editing the c
 
 ### 2.3 Benefit: Simplification of Photo Lifecycle
 
-The "Initialize-Then-Document" flow drastically simplifies the complex **Stage & Commit** logic described in the original design.
+The "Initialize-Then-Document" flow drastically simplifies photo management by adopting a **declarative state** approach.
 
-* **Old Logic (Stage & Commit)**:
-  * Since the record didn't exist yet, photos had to be uploaded with `is_pending=true`.
-  * We needed complex logic to "commit" (flip flag) on save, or "garbage collect" if the modal was abandoned.
-* **New Logic (Direct Association)**:
-  * Because the `MedicalRecord` is created *before* the user lands on the editor, it has a valid `ID`.
-  * Photos are uploaded and immediately linked to this `ID`.
-  * **Result**: The `is_pending` flag is no longer needed for medical record photos. The "abandoned upload" scenario disappears because the record itself persists.
+**Old Logic (Stage & Commit)**:
+- Photos uploaded with `is_pending=true` (staged state)
+- Complex "commit" logic to flip flag on save
+- Garbage collection needed for abandoned uploads
+- Photos in "limbo" until record saved
+
+**New Logic (Declarative State)**:
+- Record created *before* editor opens (has valid ID)
+- Photos uploaded and **immediately linked** to record
+- Frontend declares desired state: `photo_ids: [1, 2, 3, 4]`
+- Backend reconciles: adds new photos, unlinks removed photos
+- **Result**: No `is_pending` flag, no garbage collection, simpler architecture
+
+**Why Declarative State?**
+
+We chose this approach over staging for several reasons:
+
+1. **Backend Already Implements It**: `MedicalRecordService.update_record()` already performs declarative reconciliation (calculates diffs, links/unlinks accordingly)
+2. **Simpler**: No `is_pending` complexity, no cleanup jobs
+3. **Idempotent**: Same `photo_ids` = same result
+4. **Clear Semantics**: Upload = commit (no ambiguous "staged" state)
+5. **Better UX**: Photos immediately visible in context
+
+**Handling Discarded Changes:**
+
+If a user uploads photos then navigates away without saving:
+- Photos remain linked to the record (intentional)
+- This is correct: upload = commit
+- User can remove unwanted photos by deselecting and saving
+- No "orphaned" photos because they're intentionally linked
+
+This eliminates the entire class of "abandoned upload" bugs.
 
 ### 2.4 Benefit: Impact on Future Features
 
