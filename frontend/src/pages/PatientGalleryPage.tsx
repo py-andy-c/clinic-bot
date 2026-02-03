@@ -178,7 +178,7 @@ const PatientGalleryPage: React.FC = () => {
                 </div>
 
                 {/* Photos Grid */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                   {photosForDate.map((photo) => {
                     const photoIndex = photos.findIndex(p => p.id === photo.id);
                     
