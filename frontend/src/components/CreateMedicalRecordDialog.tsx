@@ -181,12 +181,6 @@ export const CreateMedicalRecordDialog: React.FC<CreateMedicalRecordDialogProps>
                       })}
                   </select>
                 </FormField>
-
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                  <p className="text-sm text-blue-800">
-                    建立後將開啟編輯頁面，您可以在那裡填寫病歷內容和上傳照片。
-                  </p>
-                </div>
               </div>
             )}
           </ModalBody>
