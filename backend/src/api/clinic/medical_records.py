@@ -36,6 +36,8 @@ class MedicalRecordResponse(BaseModel):
     values: Dict[str, Any]
     appointment_id: Optional[int]
     version: int
+    is_deleted: bool
+    deleted_at: Optional[Any]
     created_at: Any
     updated_at: Any
     photos: List[PatientPhotoResponse] = []

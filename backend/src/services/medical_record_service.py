@@ -252,19 +252,29 @@ class MedicalRecordService:
         clinic_id: int,
         deleted_by_user_id: Optional[int] = None
     ) -> bool:
-        record = MedicalRecordService.get_record(db, record_id, clinic_id)
+        # Check if record exists (including already deleted ones for idempotency)
+        record = db.query(MedicalRecord).filter(
+            MedicalRecord.id == record_id,
+            MedicalRecord.clinic_id == clinic_id
+        ).first()
+        
         if not record:
             return False
+        
+        # If already deleted, return success (idempotent operation)
+        if record.is_deleted:
+            return True
             
         # Unified Fate: Soft delete record and its photos
         record.is_deleted = True
         record.deleted_at = datetime.now(timezone.utc)
         record.updated_by_user_id = deleted_by_user_id
         
-        # Soft delete associated photos
+        # Soft delete associated photos (only non-deleted ones)
         db.query(PatientPhoto).filter(
             PatientPhoto.medical_record_id == record_id,
-            PatientPhoto.clinic_id == clinic_id
+            PatientPhoto.clinic_id == clinic_id,
+            PatientPhoto.is_deleted == False
         ).update({
             "is_deleted": True, 
             "deleted_at": datetime.now(timezone.utc)

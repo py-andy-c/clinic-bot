@@ -101,11 +101,10 @@ export function useDeleteMedicalRecord(clinicId: number | null, patientId: numbe
       return apiService.deleteMedicalRecord(recordId);
     },
     onSuccess: () => {
-      // Invalidate patient's records list
+      // Invalidate all queries for this patient's medical records
       queryClient.invalidateQueries({
         queryKey: medicalRecordKeys.patient(clinicId, patientId),
       });
-      logger.info('Medical record deleted successfully');
     },
     onError: (error) => {
       logger.error('Failed to delete medical record:', error);
