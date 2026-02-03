@@ -11,6 +11,7 @@ interface PhotoEditModalProps {
   patientId: number;
   photo: PatientPhoto;
   onClose: () => void;
+  onSave?: (photoId: number, description: string) => void; // Optional callback for batch save contexts
 }
 
 export const PhotoEditModal: React.FC<PhotoEditModalProps> = ({
@@ -18,12 +19,21 @@ export const PhotoEditModal: React.FC<PhotoEditModalProps> = ({
   patientId,
   photo,
   onClose,
+  onSave,
 }) => {
   const { t } = useTranslation();
   const [description, setDescription] = useState(photo.description || '');
   const updateMutation = useUpdatePatientPhoto(clinicId, patientId);
 
   const handleSave = async () => {
+    // If onSave callback is provided (Medical Record context), use it for batch save
+    if (onSave) {
+      onSave(photo.id, description.trim());
+      onClose();
+      return;
+    }
+
+    // Otherwise, save immediately to backend (Gallery context)
     try {
       const updateData: PatientPhotoUpdateRequest = {};
       if (description.trim()) {
@@ -82,16 +92,16 @@ export const PhotoEditModal: React.FC<PhotoEditModalProps> = ({
         <button
           onClick={onClose}
           className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-          disabled={updateMutation.isPending}
+          disabled={!onSave && updateMutation.isPending}
         >
           {t('取消')}
         </button>
         <button
           onClick={handleSave}
           className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
-          disabled={updateMutation.isPending}
+          disabled={!onSave && updateMutation.isPending}
         >
-          {updateMutation.isPending ? t('儲存中...') : t('儲存')}
+          {!onSave && updateMutation.isPending ? t('儲存中...') : t('儲存')}
         </button>
       </ModalFooter>
     </BaseModal>

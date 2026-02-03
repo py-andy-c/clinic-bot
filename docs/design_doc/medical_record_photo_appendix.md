@@ -30,10 +30,10 @@ The primary objective is to professionalize medical documentation within the sys
   5. Pressing Enter in the input field confirms the upload (intuitive UX). ✅
 * **Description Editing**: ✅
   1. Pencil icon appears next to each photo description (always visible, gray by default, blue on hover). ✅
-  2. Clicking pencil icon enables inline editing of the description. ✅
-  3. Pressing Enter or clicking outside saves the edit (triggers unsaved changes detection). ✅
-  4. Pressing Escape cancels the edit. ✅
-  5. Description changes are tracked and saved to backend when user clicks main "儲存變更" button. ✅
+  2. Clicking pencil icon opens PhotoEditModal with photo preview, description textarea, and metadata (filename, size, upload time). ✅
+  3. User can edit description and click Save button. ✅
+  4. Changes are tracked locally and saved to backend when user clicks main "儲存變更" button (batch save). ✅
+  5. Modal provides better space for editing and shows helpful metadata. ✅
 * **Removal Confirmation**: Clicking the X button shows a custom modal confirmation before removing the photo. ✅
 * **Staged Synchronization**: Photos uploaded to a medical record are initially marked as `is_pending = true`. They are only fully committed/linked when the user clicks the main **"Save"** button for the medical record. This ensures the Appendix remains perfectly in sync with the record's text content. ✅
 * **Unsaved Changes Detection**: Photo selection changes AND description edits trigger the unsaved changes warning system, preventing accidental data loss. ✅
@@ -51,13 +51,16 @@ The primary objective is to professionalize medical documentation within the sys
 ### 2.3 Dedicated Gallery Page (Full Clinical History) ✅ **IMPLEMENTED**
 
 * **Dedicated URL**: `/admin/clinic/patients/:id/gallery`. ✅
+* **Upload Button**: "上傳照片" button in page header for adding new photos. ✅
+* **Upload Flow**: Same annotation modal as Medical Record page (preview + description input), but without auto-suggested "附圖 X" naming. ✅
 * **Timeline View**: Photos are grouped by **Upload Date** (Descending) at the frontend level. ✅
 * **Date Grouping**: Each date section shows the date with a count of photos. ✅
 * **All Photos Displayed**: Shows both linked and unlinked photos (complete photo history). ✅
+* **Thumbnail Display**: Shows thumbnails only (no progressive loading to full images for performance with large photo collections). ✅
 * **Action Buttons**: Each photo has three action buttons on hover:
   - **View** (eye icon): Opens full-screen lightbox viewer. ✅
-  - **Edit** (pencil icon): Opens modal to edit photo description. ✅
-  - **Delete** (trash icon): Confirms and deletes the photo. ✅
+  - **Edit** (pencil icon): Opens PhotoEditModal to edit photo description with metadata display. ✅
+  - **Delete** (trash icon): Shows custom modal confirmation. If photo is linked to medical record, warns user it will be removed from the record. ✅
 * **Full-Screen Viewer**: Clicking view button or photo opens the lightbox with keyboard navigation. ✅
 * **Status Badges**: Photos linked to medical records show a "已連結" badge in top-right corner. ✅
 * **Responsive Grid**: 2-5 columns depending on screen size. ✅
@@ -210,23 +213,25 @@ The primary objective is to professionalize medical documentation within the sys
 2. **Frontend**: Transformed from grid layout with overlays to vertical list with professional document styling
 3. **UX**: Changed from "附加照片" (attached photos) to "附錄" (appendix) terminology
 4. **Layout**: Two-column vertical list on desktop (single column on mobile) with images maintaining original aspect ratio (max 300px width, 400px height)
-5. **Progressive Loading**: Thumbnails load first for fast display, then full images load in background
+5. **Progressive Loading**: Thumbnails load first for fast display, then full images load in background (Medical Record only)
 6. **Professional Style**: Descriptions above images, X button on top-right corner, no overlays
-7. **Auto-suggestion**: Implemented "附圖 X" description based on existing photo count
+7. **Auto-suggestion**: Implemented "附圖 X" description based on existing photo count (Medical Record only)
 8. **Enter Key**: Pressing Enter in annotation modal confirms upload
-9. **Description Editing**: Inline editing with pencil icon, integrated with unsaved changes detection
+9. **Description Editing**: Modal-based editing with PhotoEditModal showing photo preview, description textarea, and metadata (filename, size, upload time) - consistent across Medical Record and Gallery pages
 10. **Removal Confirmation**: Custom modal confirmation before removing photos
-11. **Save Integration**: Photo description edits are tracked and saved to backend when user clicks "儲存變更"
+11. **Save Integration**: Photo description edits are tracked and saved to backend when user clicks "儲存變更" (Medical Record) or immediately (Gallery)
 12. **Full-Screen Viewer**: Clicking images opens PhotoLightbox component with keyboard navigation (reused from patient gallery)
 13. **Recent Photos Section**: Shows last 6 photos on patient detail page with "查看全部" link, titled "照片"
 14. **Section Styling**: Photos section matches other sections with edge-to-edge mobile design
 15. **Section Order**: Photos section placed after Medical Records section
 16. **Dedicated Gallery Page**: Timeline view with date grouping, full-screen viewer, and status badges
-17. **Gallery Action Buttons**: View, Edit, and Delete buttons on hover for each photo in gallery
-18. **Complete Photo History**: Gallery shows all photos (linked and unlinked to medical records)
-19. **Memory Optimization**: Using URL.createObjectURL() instead of Base64 for previews
-20. **Error Recovery**: Partial failure handling with retry logic for photo description updates
-21. **Old Gallery Removal**: Removed old `PatientPhotoGallery` section from medical records section (replaced by new ribbon and dedicated page)
+17. **Gallery Upload**: Added upload button and annotation modal to Gallery page (without auto-suggested "附圖 X")
+18. **Gallery Delete Confirmation**: Custom modal with warning if photo is linked to medical record
+19. **Complete Photo History**: Gallery shows all photos (linked and unlinked to medical records)
+20. **Memory Optimization**: Using URL.createObjectURL() instead of Base64 for previews
+21. **Error Recovery**: Partial failure handling with retry logic for photo description updates
+22. **Old Gallery Removal**: Removed old `PatientPhotoGallery` section from medical records section (replaced by new ribbon and dedicated page)
+23. **Unified Edit UX**: Both Medical Record and Gallery pages use PhotoEditModal for consistent editing experience with metadata display
 
 ### Next Steps
 All planned features have been implemented. Future enhancements could include:

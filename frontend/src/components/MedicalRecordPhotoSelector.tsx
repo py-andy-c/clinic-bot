@@ -5,6 +5,7 @@ import { PatientPhoto } from '../types/medicalRecord';
 import { logger } from '../utils/logger';
 import { useModal } from '../contexts/ModalContext';
 import { PhotoLightbox } from './PhotoLightbox';
+import { PhotoEditModal } from './PhotoEditModal';
 
 // Simple SVG Icons
 const UploadIcon = () => (
@@ -60,9 +61,8 @@ export const MedicalRecordPhotoSelector: React.FC<MedicalRecordPhotoSelectorProp
   // Track which photos have loaded their full-resolution version
   const [loadedFullImages, setLoadedFullImages] = useState<Set<number>>(new Set());
   
-  // Track which photo is being edited
-  const [editingPhotoId, setEditingPhotoId] = useState<number | null>(null);
-  const [editingDescription, setEditingDescription] = useState<string>('');
+  // Track which photo is being edited via modal
+  const [editingPhoto, setEditingPhoto] = useState<PatientPhoto | null>(null);
   
   // Track lightbox state
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState<number | null>(null);
@@ -230,30 +230,27 @@ export const MedicalRecordPhotoSelector: React.FC<MedicalRecordPhotoSelectorProp
     }
   };
 
-  const startEditingDescription = (photo: PatientPhoto) => {
-    setEditingPhotoId(photo.id);
-    setEditingDescription(photo.description || '');
+  const handlePhotoEdit = (photo: PatientPhoto) => {
+    setEditingPhoto(photo);
   };
 
-  const saveDescription = async (photoId: number) => {
+  const handlePhotoEditClose = () => {
+    setEditingPhoto(null);
+  };
+
+  const handlePhotoEditSave = (photoId: number, description: string) => {
     // Store the description override locally (for immediate UI update)
     setDescriptionOverrides(prev => ({
       ...prev,
-      [photoId]: editingDescription
+      [photoId]: description
     }));
     
     // Notify parent of the change (triggers unsaved changes detection)
     if (onPhotoUpdate) {
-      onPhotoUpdate(photoId, { description: editingDescription });
+      onPhotoUpdate(photoId, { description });
     }
     
-    setEditingPhotoId(null);
-    setEditingDescription('');
-  };
-
-  const cancelEditingDescription = () => {
-    setEditingPhotoId(null);
-    setEditingDescription('');
+    setEditingPhoto(null);
   };
 
   return (
@@ -311,39 +308,19 @@ export const MedicalRecordPhotoSelector: React.FC<MedicalRecordPhotoSelectorProp
                 </button>
 
                 {/* Description Label with Edit Button */}
-                {editingPhotoId === photo.id ? (
-                  <div className="mb-3 pr-8">
-                    <input
-                      type="text"
-                      value={editingDescription}
-                      onChange={(e) => setEditingDescription(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          saveDescription(photo.id);
-                        } else if (e.key === 'Escape') {
-                          cancelEditingDescription();
-                        }
-                      }}
-                      onBlur={() => saveDescription(photo.id)}
-                      className="w-full px-2 py-1 text-base font-medium border border-blue-500 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      autoFocus
-                    />
-                  </div>
-                ) : (
-                  <div className="mb-3 pr-8 flex items-center gap-2">
-                    <span className="font-medium text-gray-900 text-base">
-                      {photo.description || `附圖 ${index + 1}`}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => startEditingDescription(photo)}
-                      className="text-gray-400 hover:text-blue-600 transition-colors"
-                      title={t('編輯說明')}
-                    >
-                      <PencilIcon />
-                    </button>
-                  </div>
-                )}
+                <div className="mb-3 pr-8 flex items-center gap-2">
+                  <span className="font-medium text-gray-900 text-base">
+                    {photo.description || `附圖 ${index + 1}`}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handlePhotoEdit(photo)}
+                    className="text-gray-400 hover:text-blue-600 transition-colors"
+                    title={t('編輯說明')}
+                  >
+                    <PencilIcon />
+                  </button>
+                </div>
                 
                 {/* Image Container - Clickable for full-screen view */}
                 <div 
@@ -464,6 +441,17 @@ export const MedicalRecordPhotoSelector: React.FC<MedicalRecordPhotoSelectorProp
           photos={visiblePhotos}
           initialIndex={selectedPhotoIndex}
           onClose={() => setSelectedPhotoIndex(null)}
+        />
+      )}
+
+      {/* Photo Edit Modal */}
+      {editingPhoto && (
+        <PhotoEditModal
+          clinicId={clinicId}
+          patientId={patientId}
+          photo={editingPhoto}
+          onClose={handlePhotoEditClose}
+          onSave={handlePhotoEditSave}
         />
       )}
     </div>
