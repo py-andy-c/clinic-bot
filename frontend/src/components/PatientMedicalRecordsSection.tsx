@@ -247,96 +247,123 @@ const MedicalRecordCard: React.FC<MedicalRecordCardProps> = ({
 
   return (
     <div
-      className={`p-4 border rounded-lg ${isDeleted ? 'bg-gray-50 border-gray-300' : 'bg-white border-gray-200 hover:border-primary-300'
-        } transition-colors`}
+      onClick={!isDeleted ? onOpen : undefined}
+      className={`p-4 border rounded-lg transition-all duration-200 ${isDeleted
+        ? 'bg-gray-50 border-gray-300'
+        : 'bg-white border-gray-200 hover:border-primary-400 hover:shadow-md cursor-pointer'
+        }`}
     >
-      <div className="flex justify-between items-start">
-        <div className="flex-1">
+      <div className="flex justify-between items-start mb-3">
+        <div className="flex flex-col gap-1">
           <div className="flex items-center gap-2">
-            <h4 className="font-medium text-gray-900">
+            <h4 className="font-semibold text-gray-900 text-lg">
               {record.template_snapshot.name}
             </h4>
             {!isDeleted && isEmpty && (
-              <span className="px-2 py-0.5 text-xs bg-gray-100 text-gray-600 rounded">
-                空白
+              <span className="px-2 py-0.5 text-xs bg-gray-100 text-gray-500 font-medium rounded-full">
+                空
               </span>
             )}
           </div>
-
-          {/* Metadata - Always Visible */}
-          <div className="text-sm text-gray-600 mt-2 space-y-1">
-            {/* Appointment Info */}
-            {record.appointment && (
-              <div>
-                預約：{formatAppointmentDateTime(new Date(record.appointment.start_time))}
-                {record.appointment.appointment_type_name && ` • ${record.appointment.appointment_type_name}`}
-              </div>
-            )}
-
-            {/* Created Time */}
-            <div>
-              建立：{formatAppointmentDateTime(new Date(record.created_at))}
-              {record.created_by_user_name && ` 由 ${record.created_by_user_name}`}
-            </div>
-
-            {/* Updated Time (only if different from created) */}
-            {record.updated_at && new Date(record.updated_at).getTime() !== new Date(record.created_at).getTime() && (
-              <div>
-                編輯：{formatAppointmentDateTime(new Date(record.updated_at))}
-                {record.updated_by_user_name && ` 由 ${record.updated_by_user_name}`}
-              </div>
-            )}
-
-            {/* Deletion Info (for deleted records) */}
-            {isDeleted && record.deleted_at && (
-              <>
-                <div>
-                  刪除：{formatAppointmentDateTime(new Date(record.deleted_at))}
-                  {record.updated_by_user_name && ` 由 ${record.updated_by_user_name}`}
-                </div>
-                {daysUntilDeletion !== null && daysUntilDeletion > 0 && (
-                  <div className="text-red-600">
-                    將於{daysUntilDeletion}天後永久刪除
-                  </div>
-                )}
-              </>
-            )}
-          </div>
         </div>
-        {isDeleted ? (
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={onRestore}
-              className="px-3 py-1 text-sm bg-green-600 text-white rounded hover:bg-green-700"
-            >
-              還原
-            </button>
-            <button
-              type="button"
-              onClick={onHardDelete}
-              className="px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700"
-            >
-              永久刪除
-            </button>
+
+        <div className="flex gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+          {isDeleted ? (
+            <>
+              <button
+                type="button"
+                onClick={onRestore}
+                className="px-3 py-1.5 text-sm font-medium bg-green-50 text-green-700 border border-green-200 rounded-lg hover:bg-green-100 transition-colors"
+              >
+                還原
+              </button>
+              <button
+                type="button"
+                onClick={onHardDelete}
+                className="px-3 py-1.5 text-sm font-medium bg-white text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
+              >
+                永久刪除
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={onOpen}
+                className="px-4 py-1.5 text-sm font-medium bg-primary-600 text-white rounded-lg hover:bg-primary-700 shadow-sm transition-colors"
+              >
+                開啟
+              </button>
+              <button
+                type="button"
+                onClick={onDelete}
+                className="px-3 py-1.5 text-sm font-medium text-red-600 hover:text-red-700 border border-red-200 rounded-lg hover:bg-red-50 hover:border-red-300 transition-colors"
+              >
+                刪除
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5 text-sm text-gray-500">
+        {/* Appointment Info */}
+        {record.appointment && (
+          <div className="flex items-start gap-2">
+            <svg className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            <span className="break-words">
+              預約：{formatAppointmentDateTime(new Date(record.appointment.start_time))}
+              {record.appointment.appointment_type_name && ` • ${record.appointment.appointment_type_name}`}
+            </span>
           </div>
-        ) : (
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={onOpen}
-              className="px-3 py-1 text-sm bg-primary-600 text-white rounded hover:bg-primary-700"
-            >
-              開啟
-            </button>
-            <button
-              type="button"
-              onClick={onDelete}
-              className="px-3 py-1 text-sm text-red-600 hover:text-red-700 border border-red-600 rounded hover:bg-red-50"
-            >
-              刪除
-            </button>
+        )}
+
+        {/* Created Info */}
+        <div className="flex items-start gap-2">
+          <svg className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <span className="break-words">
+            建立：{formatAppointmentDateTime(new Date(record.created_at))}
+            {record.created_by_user_name && ` 由 ${record.created_by_user_name}`}
+          </span>
+        </div>
+
+        {/* Updated Info */}
+        {record.updated_at && new Date(record.updated_at).getTime() !== new Date(record.created_at).getTime() && (
+          <div className="flex items-start gap-2">
+            <svg className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+            </svg>
+            <span className="break-words">
+              編輯：{formatAppointmentDateTime(new Date(record.updated_at))}
+              {record.updated_by_user_name && ` 由 ${record.updated_by_user_name}`}
+            </span>
           </div>
+        )}
+
+        {/* Deletion Info */}
+        {isDeleted && record.deleted_at && (
+          <>
+            <div className="flex items-start gap-2 text-red-500">
+              <svg className="w-4 h-4 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+              <span className="break-words">
+                刪除：{formatAppointmentDateTime(new Date(record.deleted_at))}
+              </span>
+            </div>
+            {daysUntilDeletion !== null && daysUntilDeletion > 0 && (
+              <div className="flex items-start gap-2 text-red-600 font-medium">
+                <svg className="w-4 h-4 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span className="break-words">{daysUntilDeletion}天後永久刪除</span>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
