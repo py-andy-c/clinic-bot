@@ -370,9 +370,41 @@ class LINEService:
             )
             
             return message_id
+        except httpx.HTTPStatusError as e:
+            # Enhanced logging for HTTP errors including quota issues
+            status_code = e.response.status_code
+            error_body = e.response.text
+            
+            # Log different severity based on error type
+            if status_code == 429:
+                logger.error(
+                    f"LINE API QUOTA/RATE LIMIT ERROR: Failed to send message to {line_user_id[:10]}... "
+                    f"Status: {status_code}, Response: {error_body}, "
+                    f"Event: {labels.get('event_type') if labels else 'unknown'}, "
+                    f"Clinic: {clinic_id}"
+                )
+            elif 400 <= status_code < 500:
+                logger.error(
+                    f"LINE API CLIENT ERROR: Failed to send message to {line_user_id[:10]}... "
+                    f"Status: {status_code}, Response: {error_body}, "
+                    f"Event: {labels.get('event_type') if labels else 'unknown'}, "
+                    f"Clinic: {clinic_id}"
+                )
+            else:
+                logger.error(
+                    f"LINE API SERVER ERROR: Failed to send message to {line_user_id[:10]}... "
+                    f"Status: {status_code}, Response: {error_body}, "
+                    f"Event: {labels.get('event_type') if labels else 'unknown'}, "
+                    f"Clinic: {clinic_id}"
+                )
+            raise
         except Exception as e:
             # Log the error but let caller handle it
-            logger.exception(f"Failed to send LINE message to {line_user_id}: {e}")
+            logger.exception(
+                f"Failed to send LINE message to {line_user_id[:10]}...: {e}, "
+                f"Event: {labels.get('event_type') if labels else 'unknown'}, "
+                f"Clinic: {clinic_id}"
+            )
             raise
 
     def send_template_message_with_button(
@@ -479,8 +511,40 @@ class LINEService:
             )
             
             return message_id
+        except httpx.HTTPStatusError as e:
+            # Enhanced logging for HTTP errors including quota issues
+            status_code = e.response.status_code
+            error_body = e.response.text
+            
+            # Log different severity based on error type
+            if status_code == 429:
+                logger.error(
+                    f"LINE API QUOTA/RATE LIMIT ERROR: Failed to send template message to {line_user_id[:10]}... "
+                    f"Status: {status_code}, Response: {error_body}, "
+                    f"Event: {labels.get('event_type') if labels else 'unknown'}, "
+                    f"Clinic: {clinic_id}"
+                )
+            elif 400 <= status_code < 500:
+                logger.error(
+                    f"LINE API CLIENT ERROR: Failed to send template message to {line_user_id[:10]}... "
+                    f"Status: {status_code}, Response: {error_body}, "
+                    f"Event: {labels.get('event_type') if labels else 'unknown'}, "
+                    f"Clinic: {clinic_id}"
+                )
+            else:
+                logger.error(
+                    f"LINE API SERVER ERROR: Failed to send template message to {line_user_id[:10]}... "
+                    f"Status: {status_code}, Response: {error_body}, "
+                    f"Event: {labels.get('event_type') if labels else 'unknown'}, "
+                    f"Clinic: {clinic_id}"
+                )
+            raise
         except Exception as e:
-            logger.exception(f"Failed to send template message to {line_user_id}: {e}")
+            logger.exception(
+                f"Failed to send template message to {line_user_id[:10]}...: {e}, "
+                f"Event: {labels.get('event_type') if labels else 'unknown'}, "
+                f"Clinic: {clinic_id}"
+            )
             raise
 
     def start_loading_animation(self, line_user_id: str, loading_seconds: int = 60) -> bool:
