@@ -58,40 +58,65 @@ A dedicated route (e.g., `/emr/:recordIdentifier`) for viewing and editing the c
 
 ### 2.3 Benefit: Simplification of Photo Lifecycle
 
-The "Initialize-Then-Document" flow drastically simplifies photo management by adopting a **declarative state** approach.
+The "Initialize-Then-Document" flow simplifies photo management by ensuring the record exists before photos are uploaded.
 
-**Old Logic (Stage & Commit)**:
-- Photos uploaded with `is_pending=true` (staged state)
-- Complex "commit" logic to flip flag on save
-- Garbage collection needed for abandoned uploads
-- Photos in "limbo" until record saved
+**Old Logic (No Record ID)**:
+- Modal-based creation meant no record ID until save
+- Photos uploaded to temporary storage
+- Complex commit logic on modal save
+- Garbage collection needed for abandoned modals
 
-**New Logic (Declarative State)**:
+**New Logic (Staged Upload with Record ID)**:
 - Record created *before* editor opens (has valid ID)
-- Photos uploaded and **immediately linked** to record
-- Frontend declares desired state: `photo_ids: [1, 2, 3, 4]`
-- Backend reconciles: adds new photos, unlinks removed photos
-- **Result**: No `is_pending` flag, no garbage collection, simpler architecture
+- Photos uploaded with `is_pending=true` and linked to record ID
+- Photos remain staged until user clicks "Save"
+- On save: Backend commits photos by setting `is_pending=false`
+- On discard: Staged photos remain in database but can be garbage collected
 
-**Why Declarative State?**
+**Why Staging with `is_pending`?**
 
-We chose this approach over staging for several reasons:
+We chose the "staging" approach for these reasons:
 
-1. **Backend Already Implements It**: `MedicalRecordService.update_record()` already performs declarative reconciliation (calculates diffs, links/unlinks accordingly)
-2. **Simpler**: No `is_pending` complexity, no cleanup jobs
-3. **Idempotent**: Same `photo_ids` = same result
-4. **Clear Semantics**: Upload = commit (no ambiguous "staged" state)
-5. **Better UX**: Photos immediately visible in context
+1. **Consistent with "Unsaved Changes" Semantics**: 
+   - Upload = stage (not commit)
+   - Save = commit everything (form + photos)
+   - Discard = abandon staged changes
+   - Clear mental model: nothing persists until "Save"
 
-**Handling Discarded Changes:**
+2. **Backend Already Implements It**: 
+   - `MedicalRecordService.create_record()` and `update_record()` already handle photo commit via `attach_photos_to_record()`
+   - Sets `is_pending=false` and links photos atomically
+   - No code changes needed!
 
-If a user uploads photos then navigates away without saving:
-- Photos remain linked to the record (intentional)
-- This is correct: upload = commit
-- User can remove unwanted photos by deselecting and saving
-- No "orphaned" photos because they're intentionally linked
+3. **Prevents Phantom Attachments**:
+   - If user uploads photos then discards, photos remain staged (not visible in record)
+   - Garbage collection can clean up old staged photos periodically
+   - No confusion about "why are these photos here?"
 
-This eliminates the entire class of "abandoned upload" bugs.
+4. **True "All or Nothing" Save**:
+   - User expects "Save" to commit everything
+   - User expects "Discard" to abandon everything
+   - Staging approach matches these expectations
+
+**Photo Lifecycle Flow:**
+
+```
+1. User uploads photo
+   → Backend: is_pending=true, medical_record_id=123
+   → Frontend: Photo appears in selector (staged)
+
+2. User clicks "Save"
+   → Frontend: Sends photo_ids=[1,2,3]
+   → Backend: Sets is_pending=false for these photos
+   → Photos now committed and visible in record
+
+3. User clicks "Discard" (or closes browser)
+   → Staged photos remain in database with is_pending=true
+   → Garbage collection job cleans up old pending photos
+   → No phantom attachments in record
+```
+
+This approach provides clear semantics and matches user expectations for document editing.
 
 ### 2.4 Benefit: Impact on Future Features
 

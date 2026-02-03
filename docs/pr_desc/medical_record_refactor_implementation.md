@@ -102,54 +102,57 @@ This PR implements the "Initialize-Then-Document" architecture for the medical r
 - Complex logic to "commit" (flip flag) on save
 - Garbage collection needed for abandoned uploads
 
-**New Logic (Declarative State):**
+**New Logic (Staged Upload with Record ID):**
 - Record created before entering editor (has valid ID)
-- Photos uploaded and **immediately linked** to record ID
-- Frontend declares desired photo state via `photo_ids` array on save
-- Backend reconciles: adds new photos, unlinks removed photos
-- No `is_pending` flag needed for medical record photos
-- No garbage collection needed
+- Photos uploaded with `is_pending=true` and linked to record ID
+- Photos remain staged until user clicks "Save"
+- On save: Backend commits photos by setting `is_pending=false`
+- On discard: Staged photos remain in database but can be garbage collected
 
-**Rationale for Declarative Approach:**
+**Rationale for Staging Approach:**
 
-We chose the "declarative state" approach (Option 2) over "staging with is_pending" (Option 1) for the following reasons:
+We chose the "staging with `is_pending`" approach for these reasons:
 
-1. **Backend Already Implements It**: The existing `MedicalRecordService.update_record()` already performs declarative reconciliation:
-   - Calculates `ids_to_unlink = current_ids - new_ids`
-   - Calculates `ids_to_link = new_ids - current_ids`
-   - Updates database accordingly
+1. **Consistent with "Unsaved Changes" Semantics**: 
+   - Upload = stage (not commit)
+   - Save = commit everything (form + photos)
+   - Discard = abandon staged changes
+   - Clear mental model: nothing persists until "Save"
+
+2. **Backend Already Implements It**: 
+   - `MedicalRecordService.create_record()` and `update_record()` already handle photo commit via `attach_photos_to_record()`
+   - Sets `is_pending=false` and links photos atomically
    - No code changes needed!
 
-2. **Simpler Architecture**: 
-   - No `is_pending` flag complexity
-   - No garbage collection jobs needed
-   - No "limbo" state for photos
-   - Upload = immediate persistence (clear semantics)
+3. **Prevents Phantom Attachments**:
+   - If user uploads photos then discards, photos remain staged (not visible in record)
+   - Garbage collection can clean up old staged photos periodically
+   - No confusion about "why are these photos here?"
 
-3. **Idempotent Operations**:
-   - Same `photo_ids` array = same result
-   - Frontend declares "these photos should exist"
-   - Backend figures out how to achieve that state
+4. **True "All or Nothing" Save**:
+   - User expects "Save" to commit everything
+   - User expects "Discard" to abandon everything
+   - Staging approach matches these expectations
 
-4. **Better User Experience**:
-   - Photos immediately visible after upload
-   - No waiting for "commit" on save
-   - Can preview photos in context immediately
+**Photo Lifecycle Flow:**
 
-5. **Matches React Philosophy**:
-   - Declarative: "What should exist" not "How to get there"
-   - State reconciliation handled by backend
-   - Simpler mental model for developers
+```
+1. User uploads photo
+   → Backend: is_pending=true, medical_record_id=123
+   → Frontend: Photo appears in selector (staged)
 
-**Handling "Discarded" Uploads:**
+2. User clicks "Save"
+   → Frontend: Sends photo_ids=[1,2,3]
+   → Backend: Sets is_pending=false for these photos
+   → Photos now committed and visible in record
 
-If a user uploads a photo then navigates away without saving:
-- The photo remains linked to the record (correct behavior)
-- This is intentional: upload = commit
-- User can remove unwanted photos by deselecting and saving
-- No "orphaned" photos because they're intentionally linked
+3. User clicks "Discard" (or closes browser)
+   → Staged photos remain in database with is_pending=true
+   → Garbage collection job cleans up old pending photos
+   → No phantom attachments in record
+```
 
-This approach eliminates the entire class of "abandoned upload" bugs while providing a cleaner, more maintainable architecture.
+This approach provides clear semantics and matches user expectations for document editing.
 
 #### Better UX
 
@@ -258,7 +261,45 @@ Based on technical reviews in `docs/workspace/`, the following issues were addre
 
 - **View Mode**: Not implemented - all users see full editor (can be added with `?mode=view` query param)
 - **Internationalization**: Hardcoded Chinese strings (should use `useTranslation` hook)
-- **Appointment Re-link**: Immediate mutation may cause version conflicts (should be part of main form state)
+
+## Post-Commit Fixes (Based on Additional Feedback)
+
+After the initial commit, additional technical reviews identified critical issues that were addressed:
+
+### Critical Fixes
+
+1. **Reverted to `is_pending` Photo Staging** ✅
+   - Changed from "immediate commit" to "staged upload" approach
+   - Photos now uploaded with `is_pending=true`
+   - Committed only when user clicks "Save"
+   - Matches "Unsaved Changes" semantics
+   - Prevents phantom attachments on discard
+
+2. **Fixed Conflict Reload Bug** ✅
+   - Added query invalidation to fetch fresh data
+   - Conflict reload now gets latest version and photos
+   - Prevents repeated conflicts from stale data
+   - useEffect handles state reset when fresh data arrives
+
+3. **Removed Appointment Re-linking** ✅
+   - Appointment now read-only in editor header
+   - Prevents version conflicts from immediate mutations
+   - Consistent with rest of form (everything saves together)
+   - Appointment set during initialization, immutable during editing
+
+### Rationale for Changes
+
+**Why revert to `is_pending`?**
+- User expectation: "Discard" should abandon ALL changes (including photos)
+- Consistent semantics: Upload = stage, Save = commit
+- Prevents confusion: No phantom photos appearing after discard
+- Backend already supports it: No new code needed
+
+**Why remove appointment re-linking?**
+- Version sync issues: Immediate mutation bumps version, causes race conditions
+- Inconsistent UX: Some changes immediate, others require save
+- Simpler mental model: Everything saves together
+- Appointment is context, not content: Set once during initialization
 
 ## Next Steps (Future Enhancements)
 

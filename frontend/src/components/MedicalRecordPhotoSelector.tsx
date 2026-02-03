@@ -59,7 +59,7 @@ export const MedicalRecordPhotoSelector: React.FC<MedicalRecordPhotoSelectorProp
 
     setUploadErrors([]);
 
-    // Upload files in parallel and link directly to record
+    // Upload files with staging (is_pending=true)
     const uploadPromises = Array.from(files).map(async (file) => {
       // Validate file type
       if (!file.type.startsWith('image/')) {
@@ -78,7 +78,8 @@ export const MedicalRecordPhotoSelector: React.FC<MedicalRecordPhotoSelectorProp
       try {
         const uploadedPhoto = await uploadMutation.mutateAsync({
           file,
-          ...(recordId && { medical_record_id: recordId }), // Only include if recordId exists
+          is_pending: true, // Stage the photo
+          ...(recordId && { medical_record_id: recordId }), // Link to record if exists
           onUploadProgress: (progressEvent: any) => {
             const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
             setUploadProgress(prev => ({ ...prev, [fileId]: percentCompleted }));

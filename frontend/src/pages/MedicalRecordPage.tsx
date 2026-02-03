@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useForm, FormProvider } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { useQueryClient } from '@tanstack/react-query';
 import { LoadingSpinner, ErrorMessage } from '../components/shared';
 import { BaseModal } from '../components/shared/BaseModal';
 import { ModalHeader, ModalBody, ModalFooter } from '../components/shared/ModalParts';
@@ -11,6 +12,7 @@ import { MedicalRecordPhotoSelector } from '../components/MedicalRecordPhotoSele
 import {
   useMedicalRecord,
   useUpdateMedicalRecord,
+  medicalRecordKeys,
 } from '../hooks/useMedicalRecords';
 import { usePatientDetail } from '../hooks/queries';
 import { usePatientAppointments } from '../hooks/queries/usePatientAppointments';
@@ -21,7 +23,7 @@ import { getErrorMessage } from '../types/api';
 import { logger } from '../utils/logger';
 import { AxiosError } from 'axios';
 import { TemplateField } from '../types/medicalRecord';
-import { formatDateOnly, formatAppointmentTimeRange } from '../utils/calendarUtils';
+import { formatAppointmentTimeRange } from '../utils/calendarUtils';
 
 /**
  * Generate dynamic Zod schema based on template fields.
@@ -87,6 +89,7 @@ const MedicalRecordPage: React.FC = () => {
     recordId: string;
   }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { user } = useAuth();
   const activeClinicId = user?.active_clinic_id;
   const { alert } = useModal();
@@ -96,7 +99,6 @@ const MedicalRecordPage: React.FC = () => {
 
   const [selectedPhotoIds, setSelectedPhotoIds] = useState<number[]>([]);
   const [initialPhotoIds, setInitialPhotoIds] = useState<number[]>([]); // Track initial state
-  const [isEditingAppointment, setIsEditingAppointment] = useState(false);
   const [conflictState, setConflictState] = useState<{
     show: boolean;
     currentRecord: any;
@@ -207,12 +209,14 @@ const MedicalRecordPage: React.FC = () => {
   };
 
   const handleConflictReload = () => {
-    if (conflictState?.currentRecord) {
-      methods.reset({
-        values: conflictState.currentRecord.values || {},
-      });
-    }
+    if (!activeClinicId || !recordId) return;
+    
+    // Invalidate query to get fresh data (including new version and photos)
+    queryClient.invalidateQueries({
+      queryKey: medicalRecordKeys.detail(activeClinicId, recordId)
+    });
     setConflictState(null);
+    // The useEffect will handle resetting form and photo state when fresh data arrives
   };
 
   const handleConflictForceSave = async () => {
@@ -245,25 +249,6 @@ const MedicalRecordPage: React.FC = () => {
 
   const handleConflictCancel = () => {
     setConflictState(null);
-  };
-
-  const handleAppointmentChange = async (newAppointmentId: number | null) => {
-    if (!record) return;
-
-    try {
-      await updateMutation.mutateAsync({
-        recordId: record.id,
-        data: {
-          version: record.version,
-          appointment_id: newAppointmentId,
-        },
-      });
-      setIsEditingAppointment(false);
-      await alert('關聯預約已更新', '更新成功');
-    } catch (error) {
-      logger.error('Failed to update appointment:', error);
-      await alert(getErrorMessage(error), '更新失敗');
-    }
   };
 
   const isSaving = updateMutation.isPending;
@@ -326,76 +311,29 @@ const MedicalRecordPage: React.FC = () => {
             </button>
           </div>
 
-          {/* Appointment Context */}
+          {/* Appointment Context - Read Only */}
           <div className="mt-4 flex items-center gap-2">
             <span className="text-sm text-gray-600">關聯預約：</span>
-            {!isEditingAppointment ? (
-              <>
-                <span className="text-sm text-gray-900">
-                  {record.appointment_id ? (
-                    (() => {
-                      const apt = appointments?.appointments?.find(
-                        a => (a.calendar_event_id || a.id) === record.appointment_id
-                      );
-                      if (apt) {
-                        const startDate = new Date(apt.start_time);
-                        const endDate = new Date(apt.end_time);
-                        const timeStr = formatAppointmentTimeRange(startDate, endDate);
-                        const serviceName = apt.appointment_type_name || '預約';
-                        return `${timeStr} - ${serviceName}`;
-                      }
-                      return '預約已刪除';
-                    })()
-                  ) : (
-                    '無'
-                  )}
-                </span>
-                <button
-                  onClick={() => setIsEditingAppointment(true)}
-                  className="text-sm text-primary-600 hover:text-primary-700"
-                >
-                  變更
-                </button>
-              </>
-            ) : (
-              <div className="flex items-center gap-2">
-                <select
-                  defaultValue={record.appointment_id || ''}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    handleAppointmentChange(value === '' ? null : parseInt(value));
-                  }}
-                  className="text-sm px-2 py-1 border border-gray-300 rounded"
-                >
-                  <option value="">無關聯預約</option>
-                  {appointments?.appointments
-                    ?.filter((apt) => apt.status === 'confirmed')
-                    .sort((a, b) => new Date(b.start_time).getTime() - new Date(a.start_time).getTime())
-                    .map((apt) => {
-                      const aptId = apt.calendar_event_id || apt.id;
-                      const startDate = new Date(apt.start_time);
-                      const endDate = new Date(apt.end_time);
-                      const timeStr = formatAppointmentTimeRange(startDate, endDate);
-                      const serviceName = apt.appointment_type_name || '預約';
-                      const now = new Date();
-                      const isToday = formatDateOnly(startDate) === formatDateOnly(now);
-                      const prefix = isToday ? '[今] ' : '';
-
-                      return (
-                        <option key={aptId} value={aptId}>
-                          {prefix}{timeStr} - {serviceName}
-                        </option>
-                      );
-                    })}
-                </select>
-                <button
-                  onClick={() => setIsEditingAppointment(false)}
-                  className="text-sm text-gray-600 hover:text-gray-900"
-                >
-                  取消
-                </button>
-              </div>
-            )}
+            <span className="text-sm text-gray-900">
+              {record.appointment_id ? (
+                (() => {
+                  const apt = appointments?.appointments?.find(
+                    a => (a.calendar_event_id || a.id) === record.appointment_id
+                  );
+                  if (apt) {
+                    const startDate = new Date(apt.start_time);
+                    const endDate = new Date(apt.end_time);
+                    const timeStr = formatAppointmentTimeRange(startDate, endDate);
+                    const serviceName = apt.appointment_type_name || '預約';
+                    return `${timeStr} - ${serviceName}`;
+                  }
+                  return '預約已刪除';
+                })()
+              ) : (
+                '無'
+              )}
+            </span>
+            <span className="text-xs text-gray-500">(在初始化時設定)</span>
           </div>
         </div>
       </div>
