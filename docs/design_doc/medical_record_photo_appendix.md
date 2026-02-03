@@ -41,11 +41,12 @@ The primary objective is to professionalize medical documentation within the sys
 ### 2.2 Patient Detail Page (Overview) ✅ **IMPLEMENTED**
 
 * **Photos Section**: A section titled "照片" showing the **last 6 photos** (by upload time) for the patient. ✅
+* **Upload Button**: "上傳照片" button in section header for quick photo uploads with annotation modal. ✅
 * **Section Styling**: Matches other sections on the page with edge-to-edge design on mobile for space efficiency. ✅
-* **Navigation**: A "查看全部" (View All) link in the section header leads to the Dedicated Gallery Page. ✅
+* **Navigation**: A "查看全部" (View All) link in the section header leads to the Dedicated Gallery Page (only shown if photos exist). ✅
+* **Empty State**: Shows "尚無照片" message with upload prompt when no photos exist, section always visible. ✅
 * **Responsive Grid**: 2 columns on mobile, 3 on tablet, 6 on desktop. ✅
 * **Click to Navigate**: Clicking any photo navigates to the full gallery page. ✅
-* **Auto-hide**: Section doesn't appear if patient has no photos. ✅
 * **Section Order**: Appears after Medical Records section. ✅
 
 ### 2.3 Dedicated Gallery Page (Full Clinical History) ✅ **IMPLEMENTED**
@@ -221,17 +222,19 @@ The primary objective is to professionalize medical documentation within the sys
 10. **Removal Confirmation**: Custom modal confirmation before removing photos
 11. **Save Integration**: Photo description edits are tracked and saved to backend when user clicks "儲存變更" (Medical Record) or immediately (Gallery)
 12. **Full-Screen Viewer**: Clicking images opens PhotoLightbox component with keyboard navigation (reused from patient gallery)
-13. **Recent Photos Section**: Shows last 6 photos on patient detail page with "查看全部" link, titled "照片"
+13. **Recent Photos Section**: Shows last 6 photos on patient detail page with "查看全部" link and upload button, titled "照片"
 14. **Section Styling**: Photos section matches other sections with edge-to-edge mobile design
 15. **Section Order**: Photos section placed after Medical Records section
-16. **Dedicated Gallery Page**: Timeline view with date grouping, full-screen viewer, and status badges
-17. **Gallery Upload**: Added upload button and annotation modal to Gallery page (without auto-suggested "附圖 X")
-18. **Gallery Delete Confirmation**: Custom modal with warning if photo is linked to medical record
-19. **Complete Photo History**: Gallery shows all photos (linked and unlinked to medical records)
-20. **Memory Optimization**: Using URL.createObjectURL() instead of Base64 for previews
-21. **Error Recovery**: Partial failure handling with retry logic for photo description updates
-22. **Old Gallery Removal**: Removed old `PatientPhotoGallery` section from medical records section (replaced by new ribbon and dedicated page)
-23. **Unified Edit UX**: Both Medical Record and Gallery pages use PhotoEditModal for consistent editing experience with metadata display
+16. **Section Always Visible**: Photos section now always shows (even with 0 photos) with upload button and empty state message
+17. **Dedicated Gallery Page**: Timeline view with date grouping, full-screen viewer, and status badges
+18. **Gallery Upload**: Added upload button and annotation modal to Gallery page (without auto-suggested "附圖 X")
+19. **Gallery Delete Confirmation**: Custom modal with warning if photo is linked to medical record
+20. **Complete Photo History**: Gallery shows all photos (linked and unlinked to medical records)
+21. **Memory Optimization**: Using URL.createObjectURL() instead of Base64 for previews
+22. **Error Recovery**: Partial failure handling with retry logic for photo description updates
+23. **Old Gallery Removal**: Removed old `PatientPhotoGallery` section from medical records section (replaced by new ribbon and dedicated page)
+24. **Unified Edit UX**: Both Medical Record and Gallery pages use PhotoEditModal for consistent editing experience with metadata display
+25. **Patient Detail Upload**: Added upload button to RecentPhotosRibbon for quick photo uploads from patient detail page
 
 ### Next Steps
 All planned features have been implemented. Future enhancements could include:
