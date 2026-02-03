@@ -207,8 +207,8 @@ def test_photo_gallery_features(client, test_clinic_setup, db_session):
     # 3. List Photos
     resp = client.get(f"/api/clinic/patient-photos?patient_id={patient.id}", headers=headers)
     assert resp.status_code == 200
-    photos = resp.json()
-    assert len(photos) == 2
+    photos_response = resp.json()
+    assert len(photos_response["items"]) == 2
     
     # 4. Delete Photo A
     resp = client.delete(f"/api/clinic/patient-photos/{photo_a['id']}", headers=headers)
@@ -216,9 +216,9 @@ def test_photo_gallery_features(client, test_clinic_setup, db_session):
     
     # Verify Photo A is gone from list
     resp = client.get(f"/api/clinic/patient-photos?patient_id={patient.id}", headers=headers)
-    photos = resp.json()
-    assert len(photos) == 1
-    assert photos[0]["id"] == photo_b["id"]
+    photos_response = resp.json()
+    assert len(photos_response["items"]) == 1
+    assert photos_response["items"][0]["id"] == photo_b["id"]
     
     # Verify S3 Object still exists (because Photo B still uses it)
     # Note: The current implementation does NOT delete from S3 on soft delete anyway, 
@@ -280,7 +280,8 @@ def test_atomic_linking_and_unified_fate(client, test_clinic_setup, db_session):
         
     # Verify Unlinked list is empty
     resp = client.get(f"/api/clinic/patient-photos?patient_id={patient.id}&unlinked_only=true", headers=headers)
-    assert len(resp.json()) == 0
+    unlinked_response = resp.json()
+    assert len(unlinked_response["items"]) == 0
 
     # 4. Soft Delete Record (Unified Fate)
     resp = client.delete(f"/api/clinic/medical-records/{record_id}", headers=headers)

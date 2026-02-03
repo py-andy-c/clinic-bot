@@ -167,18 +167,20 @@ class TestMedicalRecordSecurity:
         service = PatientPhotoService()
         
         # List photos without record_id -> should only show active
-        photos = service.list_photos(db_session, clinic.id, patient.id)
+        photos, total = service.list_photos(db_session, clinic.id, patient.id)
         ids = [p.id for p in photos]
         assert active_photo.id in ids
         assert pending_photo.id not in ids
+        assert total == 1
         
         # Simulate record creation linking the pending photo
         pending_photo.is_pending = False
         db_session.add(pending_photo)
         db_session.commit()
         
-        photos_after = service.list_photos(db_session, clinic.id, patient.id)
+        photos_after, total_after = service.list_photos(db_session, clinic.id, patient.id)
         ids_after = [p.id for p in photos_after]
         assert active_photo.id in ids_after
         assert pending_photo.id in ids_after
+        assert total_after == 2
 

@@ -19,6 +19,8 @@ export function usePatientPhotos(
   options?: {
     medical_record_id?: number;
     unlinked_only?: boolean;
+    skip?: number;
+    limit?: number;
   }
 ) {
   return useQuery({
@@ -29,6 +31,22 @@ export function usePatientPhotos(
     },
     enabled: !!clinicId && !!patientId,
     staleTime: 1 * 60 * 1000, // 1 minute
+  });
+}
+
+// Count photos for a medical record (for auto-suggestion)
+export function useCountRecordPhotos(
+  clinicId: number | null,
+  medicalRecordId: number | null
+) {
+  return useQuery({
+    queryKey: ['patient-photos', clinicId, 'record-count', medicalRecordId] as const,
+    queryFn: async () => {
+      if (!medicalRecordId) throw new Error('Medical record ID required');
+      return apiService.countRecordPhotos(medicalRecordId);
+    },
+    enabled: !!clinicId && !!medicalRecordId,
+    staleTime: 30 * 1000, // 30 seconds
   });
 }
 

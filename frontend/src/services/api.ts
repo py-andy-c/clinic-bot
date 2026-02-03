@@ -1579,9 +1579,16 @@ export class ApiService {
       medical_record_id?: number;
       unlinked_only?: boolean;
     }
-  ): Promise<import('../types/medicalRecord').PatientPhoto[]> {
+  ): Promise<import('../types/medicalRecord').PatientPhotosListResponse> {
     const response = await this.client.get(`/clinic/patient-photos`, {
       params: { patient_id: patientId, ...params }
+    });
+    return response.data;
+  }
+
+  async countRecordPhotos(medicalRecordId: number): Promise<{ count: number }> {
+    const response = await this.client.get(`/clinic/patient-photos/count`, {
+      params: { medical_record_id: medicalRecordId }
     });
     return response.data;
   }

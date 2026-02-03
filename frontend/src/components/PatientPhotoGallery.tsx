@@ -55,9 +55,11 @@ export const PatientPhotoGallery: React.FC<PatientPhotoGalleryProps> = ({
   const [uploadErrors, setUploadErrors] = useState<UploadError[]>([]);
   const [isDragging, setIsDragging] = useState(false);
 
-  const { data: photos = [], isLoading, error } = usePatientPhotos(clinicId, patientId, { unlinked_only: unlinkedOnly });
+  const { data: photosResponse, isLoading, error } = usePatientPhotos(clinicId, patientId, { unlinked_only: unlinkedOnly });
   const uploadMutation = useUploadPatientPhoto(clinicId!, patientId);
   const deleteMutation = useDeletePatientPhoto(clinicId!, patientId);
+
+  const photos: PatientPhoto[] = photosResponse?.items || [];
 
   const validateAndUploadFile = async (file: File): Promise<void> => {
     const fileId = `${file.name}-${Date.now()}`;

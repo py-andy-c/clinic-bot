@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { usePatientPhotos, useUploadPatientPhoto } from '../hooks/usePatientPhotos';
 import { PatientPhoto } from '../types/medicalRecord';
@@ -33,118 +33,153 @@ export const MedicalRecordPhotoSelector: React.FC<MedicalRecordPhotoSelectorProp
   recordId,
 }) => {
   const { t } = useTranslation();
-  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
-  const [uploadErrors, setUploadErrors] = useState<string[]>([]);
-
-  // Fetch unlinked photos (photos not attached to any record)
-  const { data: unlinkedPhotos = [] } = usePatientPhotos(clinicId, patientId, { unlinked_only: true });
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [showAnnotationModal, setShowAnnotationModal] = useState(false);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [pendingPreview, setPendingPreview] = useState<string | null>(null);
+  const [photoDescription, setPhotoDescription] = useState<string>('');
+  
+  // Track locally uploaded photos (for new records where photos aren't yet visible from server)
+  const [localPhotos, setLocalPhotos] = useState<PatientPhoto[]>([]);
 
   // Fetch photos already linked to this record (for edit mode)
-  const { data: linkedPhotos = [] } = usePatientPhotos(
+  const { data: linkedPhotosResponse } = usePatientPhotos(
     clinicId,
     patientId,
     recordId ? { medical_record_id: recordId } : undefined
   );
 
+  // Fetch unlinked photos (for new records - these are staged photos)
+  const { data: unlinkedPhotosResponse } = usePatientPhotos(
+    clinicId,
+    patientId,
+    { unlinked_only: true }
+  );
+
   const uploadMutation = useUploadPatientPhoto(clinicId!, patientId);
 
-  // Combine available photos: unlinked + already linked to this record
-  // De-duplicate by ID to prevent duplicate key warnings
-  const availablePhotos = React.useMemo(() => {
-    const all = recordId
-      ? [...unlinkedPhotos, ...linkedPhotos]
-      : unlinkedPhotos;
+  const linkedPhotos = linkedPhotosResponse?.items || [];
+  const unlinkedPhotos = unlinkedPhotosResponse?.items || [];
 
-    return Array.from(new Map(all.map(p => [p.id, p])).values());
-  }, [unlinkedPhotos, linkedPhotos, recordId]);
+  // Merge and deduplicate photos: server photos + local photos, filtered by selectedPhotoIds
+  const visiblePhotos = useMemo(() => {
+    // Combine all sources
+    const allPhotos = [...linkedPhotos, ...unlinkedPhotos, ...localPhotos];
+    
+    // Deduplicate by ID
+    const uniquePhotos = Array.from(new Map(allPhotos.map(p => [p.id, p])).values());
+    
+    // Filter by selectedPhotoIds to handle removals
+    const filtered = uniquePhotos.filter(p => selectedPhotoIds.includes(p.id));
+    
+    return filtered;
+  }, [linkedPhotos, unlinkedPhotos, localPhotos, selectedPhotoIds]);
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (!files || files.length === 0) return;
 
-    setUploadErrors([]);
+    // Only allow single file upload
+    const file = files[0];
+    if (!file) return;
 
-    // Upload files with staging (is_pending=true)
-    const uploadPromises = Array.from(files).map(async (file) => {
-      // Validate file type
-      if (!file.type.startsWith('image/')) {
-        setUploadErrors(prev => [...prev, `${file.name}: ${t('檔案類型不支援')}`]);
-        return null;
-      }
-
-      // Validate file size (20MB)
-      if (file.size > 20 * 1024 * 1024) {
-        setUploadErrors(prev => [...prev, `${file.name}: ${t('檔案大小超過 20MB')}`]);
-        return null;
-      }
-
-      const fileId = `${file.name}-${Date.now()}`;
-
-      try {
-        const uploadedPhoto = await uploadMutation.mutateAsync({
-          file,
-          is_pending: true, // Stage the photo
-          ...(recordId && { medical_record_id: recordId }), // Link to record if exists
-          onUploadProgress: (progressEvent: any) => {
-            const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-            setUploadProgress(prev => ({ ...prev, [fileId]: percentCompleted }));
-          },
-        });
-
-        // Clear progress
-        setUploadProgress(prev => {
-          const newProgress = { ...prev };
-          delete newProgress[fileId];
-          return newProgress;
-        });
-
-        return uploadedPhoto;
-      } catch (error) {
-        logger.error('Failed to upload photo:', error);
-        setUploadProgress(prev => {
-          const newProgress = { ...prev };
-          delete newProgress[fileId];
-          return newProgress;
-        });
-        setUploadErrors(prev => [...prev, `${file.name}: ${t('上傳失敗')}`]);
-        return null;
-      }
-    });
-
-    const uploadedPhotos = (await Promise.all(uploadPromises)).filter(Boolean) as PatientPhoto[];
-
-    // Add newly uploaded photo IDs to selection
-    if (uploadedPhotos.length > 0) {
-      const newPhotoIds = uploadedPhotos.map(p => p.id);
-      onPhotoIdsChange([...selectedPhotoIds, ...newPhotoIds]);
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      setUploadError(t('檔案類型不支援'));
+      event.target.value = '';
+      return;
     }
+
+    // Validate file size (20MB)
+    if (file.size > 20 * 1024 * 1024) {
+      setUploadError(t('檔案大小超過 20MB'));
+      event.target.value = '';
+      return;
+    }
+
+    // Generate preview
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      setPendingPreview(e.target?.result as string);
+    };
+    reader.readAsDataURL(file);
+
+    // Set pending file and show annotation modal
+    setPendingFile(file);
+    
+    // Auto-suggest description: 附圖 X
+    // Use visiblePhotos.length since it's already deduplicated and filtered
+    const suggestedDescription = `附圖 ${visiblePhotos.length + 1}`;
+    setPhotoDescription(suggestedDescription);
+    
+    setShowAnnotationModal(true);
+    setUploadError(null);
 
     // Reset input
     event.target.value = '';
   };
 
-  const togglePhotoSelection = (photoId: number) => {
-    if (selectedPhotoIds.includes(photoId)) {
-      onPhotoIdsChange(selectedPhotoIds.filter(id => id !== photoId));
-    } else {
-      onPhotoIdsChange([...selectedPhotoIds, photoId]);
+  const handleConfirmUpload = async () => {
+    if (!pendingFile) return;
+
+    try {
+      setUploadProgress(0);
+      
+      const uploadedPhoto = await uploadMutation.mutateAsync({
+        file: pendingFile,
+        description: photoDescription,
+        is_pending: true, // Stage the photo
+        ...(recordId && { medical_record_id: recordId }), // Link to record if exists
+        onUploadProgress: (progressEvent: any) => {
+          const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          setUploadProgress(percentCompleted);
+        },
+      });
+
+      // Add to local photos state (for immediate visibility)
+      setLocalPhotos(prev => [...prev, uploadedPhoto]);
+
+      // Add newly uploaded photo ID to selection
+      onPhotoIdsChange([...selectedPhotoIds, uploadedPhoto.id]);
+
+      // Reset state
+      setShowAnnotationModal(false);
+      setPendingFile(null);
+      setPendingPreview(null);
+      setPhotoDescription('');
+      setUploadProgress(null);
+    } catch (error) {
+      logger.error('Failed to upload photo:', error);
+      setUploadError(t('上傳失敗'));
+      setUploadProgress(null);
     }
   };
 
-  const hasUploadingFiles = Object.keys(uploadProgress).length > 0;
+  const handleCancelUpload = () => {
+    setShowAnnotationModal(false);
+    setPendingFile(null);
+    setPendingPreview(null);
+    setPhotoDescription('');
+    setUploadProgress(null);
+    setUploadError(null);
+  };
+
+  const removePhoto = (photoId: number) => {
+    onPhotoIdsChange(selectedPhotoIds.filter(id => id !== photoId));
+  };
 
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <label className="block text-sm font-medium text-gray-700">
-          {t('附加照片')} ({t('選填')})
+          {t('附錄')} ({t('選填')})
         </label>
         <label className="cursor-pointer inline-flex items-center px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
           <UploadIcon />
-          <span className="ml-1.5">{t('上傳新照片')}</span>
+          <span className="ml-1.5">{t('上傳照片')}</span>
           <input
             type="file"
-            multiple
             accept="image/*"
             className="hidden"
             onChange={handleFileSelect}
@@ -153,101 +188,118 @@ export const MedicalRecordPhotoSelector: React.FC<MedicalRecordPhotoSelectorProp
         </label>
       </div>
 
-      {/* Upload Progress */}
-      {hasUploadingFiles && (
-        <div className="space-y-2">
-          {Object.entries(uploadProgress).map(([fileId, progress]) => (
-            <div key={fileId} className="bg-gray-50 rounded-lg p-2">
-              <div className="flex justify-between text-xs mb-1">
-                <span className="text-gray-600">{t('上傳中...')}</span>
-                <span className="text-gray-900 font-medium">{progress}%</span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-1.5">
-                <div
-                  className="bg-blue-600 h-1.5 rounded-full transition-all duration-300"
-                  style={{ width: `${progress}%` }}
-                />
-              </div>
+      {/* Upload Error */}
+      {uploadError && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+          <p className="text-sm text-red-800">{uploadError}</p>
+        </div>
+      )}
+
+      {/* Photo Grid - Appendix Style */}
+      {visiblePhotos.length === 0 ? (
+        <div className="text-center py-6 text-gray-500 text-sm border-2 border-dashed border-gray-200 rounded-lg">
+          <p>{t('尚無附錄照片')}</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
+          {visiblePhotos.map((photo) => (
+            <div
+              key={photo.id}
+              className="relative aspect-square rounded-lg overflow-hidden border border-gray-200"
+            >
+              <img
+                src={photo.thumbnail_url || photo.url}
+                alt={photo.description || photo.filename}
+                className="w-full h-full object-cover"
+              />
+
+              {/* Description Label */}
+              {photo.description && (
+                <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-60 text-white text-xs px-2 py-1 truncate">
+                  {photo.description}
+                </div>
+              )}
+
+              {/* Remove Button */}
+              <button
+                onClick={() => removePhoto(photo.id)}
+                className="absolute top-1 right-1 p-1 bg-red-600 text-white rounded-full hover:bg-red-700 transition-colors"
+                title={t('移除')}
+              >
+                <XIcon />
+              </button>
             </div>
           ))}
         </div>
       )}
 
-      {/* Upload Errors */}
-      {uploadErrors.length > 0 && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-          <p className="text-sm font-medium text-red-800 mb-1">{t('上傳失敗')}:</p>
-          <ul className="text-xs text-red-700 space-y-0.5">
-            {uploadErrors.map((error, index) => (
-              <li key={index}>{error}</li>
-            ))}
-          </ul>
-        </div>
-      )}
+      {/* Annotation Modal */}
+      {showAnnotationModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full p-6 space-y-4">
+            <h3 className="text-lg font-semibold text-gray-900">{t('照片標註')}</h3>
 
-      {/* Photo Grid */}
-      {availablePhotos.length === 0 ? (
-        <div className="text-center py-6 text-gray-500 text-sm border-2 border-dashed border-gray-200 rounded-lg">
-          <p>{t('尚無可選擇的照片')}</p>
-          <p className="text-xs mt-1">{t('請上傳新照片或從照片收藏中選擇')}</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
-          {availablePhotos.map((photo) => {
-            const isSelected = selectedPhotoIds.includes(photo.id);
-            return (
-              <div
-                key={photo.id}
-                onClick={() => togglePhotoSelection(photo.id)}
-                className={`
-                  relative aspect-square rounded-lg overflow-hidden cursor-pointer
-                  border-2 transition-all
-                  ${isSelected
-                    ? 'border-blue-500 ring-2 ring-blue-200'
-                    : 'border-gray-200 hover:border-gray-300'
-                  }
-                `}
-              >
+            {/* Preview */}
+            {pendingPreview && (
+              <div className="aspect-video rounded-lg overflow-hidden border border-gray-200">
                 <img
-                  src={photo.thumbnail_url || photo.url}
-                  alt={photo.description || photo.filename}
-                  className="w-full h-full object-cover"
+                  src={pendingPreview}
+                  alt="Preview"
+                  className="w-full h-full object-contain bg-gray-50"
                 />
-
-                {/* Selection Indicator */}
-                {isSelected && (
-                  <div className="absolute inset-0 bg-blue-500 bg-opacity-20 flex items-center justify-center">
-                    <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center">
-                      <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                      </svg>
-                    </div>
-                  </div>
-                )}
-
-                {/* Remove Button (for selected photos) */}
-                {isSelected && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      togglePhotoSelection(photo.id);
-                    }}
-                    className="absolute top-1 right-1 p-1 bg-red-600 text-white rounded-full hover:bg-red-700 transition-colors"
-                    title={t('移除')}
-                  >
-                    <XIcon />
-                  </button>
-                )}
               </div>
-            );
-          })}
-        </div>
-      )}
+            )}
 
-      {selectedPhotoIds.length > 0 && (
-        <p className="text-sm text-gray-600">
-          {t('已選擇')} {selectedPhotoIds.length} {t('張照片')}
-        </p>
+            {/* Description Input */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {t('照片說明')}
+              </label>
+              <input
+                type="text"
+                value={photoDescription}
+                onChange={(e) => setPhotoDescription(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder={t('例如：附圖 1')}
+                autoFocus
+              />
+            </div>
+
+            {/* Upload Progress */}
+            {uploadProgress !== null && (
+              <div className="space-y-2">
+                <div className="flex justify-between text-xs">
+                  <span className="text-gray-600">{t('上傳中...')}</span>
+                  <span className="text-gray-900 font-medium">{uploadProgress}%</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div
+                    className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${uploadProgress}%` }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Actions */}
+            <div className="flex gap-3">
+              <button
+                onClick={handleCancelUpload}
+                disabled={uploadProgress !== null}
+                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {t('取消')}
+              </button>
+              <button
+                onClick={handleConfirmUpload}
+                disabled={uploadProgress !== null}
+                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {t('確認上傳')}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -71,6 +71,11 @@ export interface PatientPhoto {
   thumbnail_url?: string;
 }
 
+export interface PatientPhotosListResponse {
+  items: PatientPhoto[];
+  total: number;
+}
+
 // Medical Record types
 export interface MedicalRecord {
   id: number;

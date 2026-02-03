@@ -1,31 +1,37 @@
 # Design Document: Clinical Photos Management (Appendix & Gallery)
 
+**Status**: ✅ **IMPLEMENTED** (Phase 1: Medical Record Appendix)
+
+**Implementation Date**: February 3, 2026
+
+---
+
 ## 1. Goal
 
 The primary objective is to professionalize medical documentation within the system by transforming how clinical photos are managed. This involves two major shifts:
 
-1. **Medical Record Page**: Treat photos as a formal, indexed "Appendix" rather than a loose collection of attachments.
-2. **Patient Detail Page**: Provide a centralized, high-performance "Gallery" for a patient's entire clinical history.
+1. **Medical Record Page**: Treat photos as a formal, indexed "Appendix" rather than a loose collection of attachments. ✅ **COMPLETED**
+2. **Patient Detail Page**: Provide a centralized, high-performance "Gallery" for a patient's entire clinical history. ⏳ **FUTURE PHASE**
 
 ## 2. User Experience (UX)
 
-### 2.1 Medical Record Editor & View
+### 2.1 Medical Record Editor & View ✅ **IMPLEMENTED**
 
-* **Formal Appendix Layout**: Photos associated with a medical record are displayed at the bottom in a structured grid (Appendix Section).
-* **Automatic Description Suggestion**: During photo upload, the system counts existing photos linked to the record and suggests a description: **「附圖 X」**.
-* **Proactive Annotation (Upload Flow)**:
-  1. User clicks "Upload".
-  2. User selects **one** file (Frontend will explicitly disable `multiple` selection to ensure robust indexing).
-  3. A **Preview & Annotation Step** appears where the user can see the image and its suggested description.
-  4. The user can accept the default (`附圖 X`) or edit it.
-* **Staged Synchronization**: Photos uploaded to a medical record (both new and existing) are initially marked as `is_pending = true`. They are only fully committed/linked when the user clicks the main **"Save"** button for the medical record. This ensures the Appendix remains perfectly in sync with the record's text content.
+* **Formal Appendix Layout**: Photos associated with a medical record are displayed at the bottom in a structured grid (Appendix Section). ✅
+* **Automatic Description Suggestion**: During photo upload, the system counts existing photos linked to the record and suggests a description: **「附圖 X」**. ✅
+* **Proactive Annotation (Upload Flow)**: ✅
+  1. User clicks "附錄" (Appendix) upload button. ✅
+  2. User selects **one** file (Frontend explicitly disables `multiple` selection to ensure robust indexing). ✅
+  3. A **Preview & Annotation Modal** appears where the user can see the image and its suggested description. ✅
+  4. The user can accept the default (`附圖 X`) or edit it before confirming upload. ✅
+* **Staged Synchronization**: Photos uploaded to a medical record are initially marked as `is_pending = true`. They are only fully committed/linked when the user clicks the main **"Save"** button for the medical record. This ensures the Appendix remains perfectly in sync with the record's text content. ✅
 
-### 2.2 Patient Detail Page (Overview)
+### 2.2 Patient Detail Page (Overview) ⏳ **FUTURE PHASE**
 
 * **Recent Media Ribbon**: A small section showing the **last 6 photos** (by upload time) for the patient.
 * **Navigation**: A "View All" link in the section header leads to the Dedicated Gallery Page.
 
-### 2.3 Dedicated Gallery Page (Full Clinical History)
+### 2.3 Dedicated Gallery Page (Full Clinical History) ⏳ **FUTURE PHASE**
 
 * **Dedicated URL**: `/admin/clinic/patients/:id/gallery`.
 * **Timeline View**: Photos are grouped by **Upload Date** (Descending) at the frontend level.
@@ -33,42 +39,116 @@ The primary objective is to professionalize medical documentation within the sys
 
 ## 3. Design Choices & Rationale
 
-### 3.1 Stable Ordering Strategy
+### 3.1 Stable Ordering Strategy ✅ **IMPLEMENTED**
 
 * **Primary Sort**: `created_at DESC` (Upload Time).
 * **Secondary Sort**: `id DESC`.
 * **Rationale**: Using a composite sort key ensures a stable and predictable UI order, especially when multiple photos are uploaded in rapid succession and might share identical timestamps.
+* **Implementation**: `order_by(PatientPhoto.created_at.desc(), PatientPhoto.id.desc())` in `patient_photo_service.py`
 
-### 3.2 Simplified Scope (No Batch Upload)
+### 3.2 Simplified Scope (No Batch Upload) ✅ **IMPLEMENTED**
 
-* **Decision**: Medical record context will support only **single-file uploads**.
+* **Decision**: Medical record context supports only **single-file uploads**.
 * **Rationale**: This eliminates complexity in the "Auto-suggest" indexing logic and ensures that every clinical photo is intentionally reviewed and labeled by the practitioner during the annotation step.
+* **Implementation**: Removed `multiple` attribute from file input in `MedicalRecordPhotoSelector.tsx`
 
-### 3.3 Backend Metadata
+### 3.3 Backend Metadata ✅ **IMPLEMENTED**
 
-* The `list_photos` API will be updated to return an object structure: `{ items: List[Photo], total: int }`. This is essential for the frontend to calculate pagination counts correctly.
+* The `list_photos` API returns an object structure: `{ items: List[Photo], total: int }`.
+* **Implementation**: 
+  - Service layer returns `Tuple[List[PatientPhoto], int]`
+  - API layer returns `PatientPhotosListResponse` model with `items` and `total` fields
+  - Frontend hooks handle paginated response structure
 
 ## 4. Implementation Plan
 
-### 4.1 Backend (Python/FastAPI)
+### 4.1 Backend (Python/FastAPI) ✅ **COMPLETED**
 
-* **Service (`patient_photo_service.py`)**:
-  * Update `list_photos` to return a `(items, total_count)` tuple.
-  * Implement stable `order_by(PatientPhoto.created_at.desc(), PatientPhoto.id.desc())`.
-* **API (`patient_photos.py`)**:
-  * Update response schema to `{ items: List[Photo], total: int }`.
+* **Service (`patient_photo_service.py`)**: ✅
+  * Updated `list_photos` to return a `(items, total_count)` tuple
+  * Implemented stable `order_by(PatientPhoto.created_at.desc(), PatientPhoto.id.desc())`
+  * Added `count_record_photos()` method for auto-suggestion of photo descriptions
+* **API (`patient_photos.py`)**: ✅
+  * Updated response schema to `PatientPhotosListResponse` with `items` and `total` fields
+  * Added GET `/count` endpoint for counting photos linked to a medical record
+* **Tests**: ✅
+  * Created `backend/tests/unit/test_patient_photo_service.py` - comprehensive unit tests
+  * Created `backend/tests/integration/test_patient_photos_api.py` - comprehensive API tests
+  * Updated existing tests in `test_medical_record_features.py` and `test_medical_records_security.py`
+  * All tests passing ✅
 
-### 4.2 Frontend (React/TypeScript)
+### 4.2 Frontend (React/TypeScript) ✅ **COMPLETED**
 
-* **Hooks**: Update `usePatientPhotos` to handle the new paginated object structure.
-* **Components**:
-  * `MedicalRecordAppendix`: Refactor `MedicalRecordPhotoSelector` to remove "Unlinked" collection logic and enforce single-file upload.
-  * `PhotoUploadAnnotation`: Single-photo label confirmation modal.
-  * `GalleryTimeline`: Implementation of date-grouping for the full history view.
-* **Routing**: Register `/admin/clinic/patients/:id/gallery` in `App.tsx`.
+* **Types (`types/medicalRecord.ts`)**: ✅
+  * Added `PatientPhotosListResponse` interface
+* **API Service (`services/api.ts`)**: ✅
+  * Updated `listPatientPhotos()` to return paginated response
+  * Added `countRecordPhotos()` method
+* **Hooks (`hooks/usePatientPhotos.ts`)**: ✅
+  * Updated `usePatientPhotos` to handle new paginated response structure
+  * Added `useCountRecordPhotos` hook for auto-suggestion
+* **Components**: ✅
+  * **`MedicalRecordPhotoSelector.tsx`**: Complete refactor
+    - Removed "unlinked photos" collection logic
+    - Enforced single-file upload (removed `multiple` attribute)
+    - Added photo annotation modal with preview
+    - Auto-suggests description as "附圖 X" using `useCountRecordPhotos`
+    - Changed label from "附加照片" to "附錄"
+    - Simplified state management (single file instead of batch)
+  * **`PatientPhotoGallery.tsx`**: Updated to handle paginated response
+* **Routing**: ⏳ Gallery page routing deferred to future phase
+* **Tests**: ✅ All frontend tests passing
+
+### 4.3 Future Phases ⏳
+
+* **Patient Detail Page - Recent Media Ribbon**: Not yet implemented
+* **Dedicated Gallery Page**: Not yet implemented
+  - URL: `/admin/clinic/patients/:id/gallery`
+  - Timeline view with date grouping
+  - Full pagination support
 
 ## 5. Success Metrics
 
-* **Clinical Accuracy**: Medical records follow a standard "Appendix" format.
-* **Efficiency**: Indexing is handled automatically but remains customizable.
-* **Performance**: The Patient Detail page load time is optimized via the `limit=6` ribbon and paginated full gallery.
+* **Clinical Accuracy**: Medical records follow a standard "Appendix" format. ✅ **ACHIEVED**
+* **Efficiency**: Indexing is handled automatically but remains customizable. ✅ **ACHIEVED**
+* **Performance**: The Patient Detail page load time is optimized via the `limit=6` ribbon and paginated full gallery. ⏳ **PENDING** (Gallery page not yet implemented)
+
+---
+
+## 6. Implementation Summary
+
+### Files Modified (9)
+1. `backend/src/services/patient_photo_service.py` - Pagination and counting logic
+2. `backend/src/api/clinic/patient_photos.py` - API response structure and count endpoint
+3. `backend/tests/integration/test_medical_record_features.py` - Updated for paginated response
+4. `backend/tests/integration/test_medical_records_security.py` - Updated for paginated response
+5. `frontend/src/types/medicalRecord.ts` - Added paginated response type
+6. `frontend/src/services/api.ts` - Updated API methods
+7. `frontend/src/hooks/usePatientPhotos.ts` - Added count hook
+8. `frontend/src/components/MedicalRecordPhotoSelector.tsx` - Complete refactor to appendix pattern
+9. `frontend/src/components/PatientPhotoGallery.tsx` - Updated for paginated response
+
+### Files Created (2)
+1. `backend/tests/unit/test_patient_photo_service.py` - Comprehensive unit tests
+2. `backend/tests/integration/test_patient_photos_api.py` - Comprehensive API integration tests
+
+### Test Coverage
+- ✅ All backend tests passing (unit + integration)
+- ✅ All frontend tests passing
+- ✅ Comprehensive test coverage for new functionality:
+  - Pagination logic
+  - Stable ordering
+  - Photo counting
+  - API endpoints
+  - Filtering behavior
+
+### Key Changes
+1. **Backend**: Changed from `List[PatientPhoto]` to `Tuple[List[PatientPhoto], int]` for pagination support
+2. **Frontend**: Transformed from multi-file upload with "unlinked photos" to single-file upload with annotation modal
+3. **UX**: Changed from "附加照片" (attached photos) to "附錄" (appendix) terminology
+4. **Auto-suggestion**: Implemented "附圖 X" description based on existing photo count
+
+### Next Steps (Future Phases)
+1. Implement Patient Detail Page "Recent Media Ribbon" (last 6 photos)
+2. Implement Dedicated Gallery Page at `/admin/clinic/patients/:id/gallery`
+3. Add timeline view with date grouping for full clinical history

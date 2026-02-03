@@ -31,6 +31,11 @@ class PatientPhotoResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class PatientPhotosListResponse(BaseModel):
+    """Paginated response for patient photos list"""
+    items: List[PatientPhotoResponse]
+    total: int
+
 @router.post("", response_model=PatientPhotoResponse)
 def upload_photo(
     patient_id: int = Form(...),
@@ -66,7 +71,7 @@ def upload_photo(
         
     return response
 
-@router.get("", response_model=List[PatientPhotoResponse])
+@router.get("", response_model=PatientPhotosListResponse)
 def list_photos(
     patient_id: int,
     medical_record_id: Optional[int] = None,
@@ -81,7 +86,7 @@ def list_photos(
     if user.active_clinic_id is None:
         raise HTTPException(status_code=400, detail="Clinic context required")
     
-    photos = photo_service.list_photos(
+    photos, total = photo_service.list_photos(
         db=db,
         clinic_id=user.active_clinic_id,
         patient_id=patient_id,
@@ -92,15 +97,15 @@ def list_photos(
     )
     
     # Augment with URLs
-    responses: List[PatientPhotoResponse] = []
+    items: List[PatientPhotoResponse] = []
     for photo in photos:
         response = PatientPhotoResponse.model_validate(photo)
         response.url = photo_service.get_photo_url(photo.storage_key)
         if photo.thumbnail_key:
             response.thumbnail_url = photo_service.get_photo_url(photo.thumbnail_key)
-        responses.append(response)
+        items.append(response)
         
-    return responses
+    return PatientPhotosListResponse(items=items, total=total)
 
 class PatientPhotoUpdate(BaseModel):
     description: Optional[str] = None
@@ -136,6 +141,26 @@ def update_photo(
     if photo.thumbnail_key:
         response.thumbnail_url = photo_service.get_photo_url(photo.thumbnail_key)
     return response
+
+@router.get("/count", response_model=dict)
+def count_record_photos(
+    medical_record_id: int,
+    user: UserContext = Depends(require_authenticated),
+    db: Session = Depends(get_db),
+    photo_service: PatientPhotoService = Depends(get_photo_service)
+):
+    """Count photos linked to a medical record for auto-suggestion"""
+    ensure_clinic_access(user)
+    if user.active_clinic_id is None:
+        raise HTTPException(status_code=400, detail="Clinic context required")
+    
+    count = photo_service.count_record_photos(
+        db=db,
+        clinic_id=user.active_clinic_id,
+        medical_record_id=medical_record_id
+    )
+    
+    return {"count": count}
 
 @router.delete("/{photo_id}")
 def delete_photo(

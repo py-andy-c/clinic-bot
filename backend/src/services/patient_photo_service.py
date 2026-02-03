@@ -375,7 +375,12 @@ class PatientPhotoService:
         unlinked_only: bool = False,
         skip: int = 0,
         limit: int = 100
-    ) -> List[PatientPhoto]:
+    ) -> Tuple[List[PatientPhoto], int]:
+        """
+        List photos with pagination support.
+        Returns tuple of (items, total_count).
+        Uses stable ordering: created_at DESC, id DESC.
+        """
         query = db.query(PatientPhoto).filter(
             PatientPhoto.clinic_id == clinic_id,
             PatientPhoto.patient_id == patient_id,
@@ -391,5 +396,30 @@ class PatientPhotoService:
         
         if unlinked_only:
             query = query.filter(PatientPhoto.medical_record_id.is_(None))
-            
-        return query.order_by(PatientPhoto.created_at.desc()).offset(skip).limit(limit).all()
+        
+        # Get total count before pagination
+        total_count = query.count()
+        
+        # Apply stable ordering and pagination
+        items = query.order_by(
+            PatientPhoto.created_at.desc(),
+            PatientPhoto.id.desc()
+        ).offset(skip).limit(limit).all()
+        
+        return items, total_count
+    
+    def count_record_photos(
+        self,
+        db: Session,
+        clinic_id: int,
+        medical_record_id: int
+    ) -> int:
+        """
+        Count photos linked to a specific medical record.
+        Used for auto-suggestion of photo descriptions (附圖 X).
+        """
+        return db.query(PatientPhoto).filter(
+            PatientPhoto.clinic_id == clinic_id,
+            PatientPhoto.medical_record_id == medical_record_id,
+            PatientPhoto.is_deleted == False
+        ).count()
