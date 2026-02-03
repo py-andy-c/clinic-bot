@@ -128,8 +128,7 @@ export const PatientMedicalRecordsSection: React.FC<PatientMedicalRecordsSection
   return (
     <>
       <div className="bg-white -mx-4 sm:mx-0 sm:rounded-lg shadow-none sm:shadow-md border-b sm:border-none border-gray-200 p-4 sm:p-6 mb-0 sm:mb-6">
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-xl font-semibold text-gray-900">病歷記錄</h3>
+        <div className="flex justify-end items-center mb-4">
           <button
             type="button"
             onClick={handleCreate}
