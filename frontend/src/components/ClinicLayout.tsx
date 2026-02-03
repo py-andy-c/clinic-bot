@@ -250,6 +250,7 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
   } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const isMedicalRecordPage = /^\/admin\/clinic\/patients\/\d+\/records\/\d+$/.test(location.pathname);
 
   const { hasUnsavedChanges } = useUnsavedChanges();
   const { confirm } = useModal();
@@ -614,8 +615,8 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
       <GlobalWarnings />
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto py-2 md:py-6 sm:px-6 lg:px-8 pt-16">
-        <div className="px-4 py-2 md:py-6 sm:px-0 md:max-w-4xl md:mx-auto">
+      <main className={`mx-auto pt-16 ${isMedicalRecordPage ? 'w-full' : 'max-w-7xl py-2 md:py-6 sm:px-6 lg:px-8'}`}>
+        <div className={isMedicalRecordPage ? 'w-full' : 'px-4 py-2 md:py-6 sm:px-0 md:max-w-4xl md:mx-auto'}>
           {children}
         </div>
       </main>

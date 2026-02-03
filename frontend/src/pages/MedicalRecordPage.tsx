@@ -336,7 +336,7 @@ const MedicalRecordPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-white py-8 px-4 print:p-0">
+    <div className="min-h-screen bg-white py-0 px-0 md:py-8 md:px-4 print:p-0">
       <style>{`
         @media print {
           .no-print { display: none !important; }
@@ -355,7 +355,7 @@ const MedicalRecordPage: React.FC = () => {
 
       <div className="max-w-4xl mx-auto">
         {/* Back Button - Hidden on Print */}
-        <div className="mb-6 no-print">
+        <div className="mb-6 no-print px-5 py-4 md:p-0">
           <button
             onClick={handleBack}
             className="text-blue-600 hover:text-blue-800 font-medium transition-colors flex items-center gap-1"
@@ -365,11 +365,11 @@ const MedicalRecordPage: React.FC = () => {
         </div>
 
         {/* The "Document" Page */}
-        <div className="bg-white shadow-[0_4px_30px_rgb(0,0,0,0.06)] rounded-sm overflow-hidden border border-gray-100 mb-12 document-page">
+        <div className="bg-white md:shadow-[0_4px_30px_rgb(0,0,0,0.06)] md:rounded-sm overflow-hidden md:border border-gray-100 mb-0 md:mb-12 document-page">
           {/* Record Title & Metadata Block */}
-          <div className="px-12 pt-12 pb-10 bg-gray-50/5 border-b border-gray-100">
+          <div className="px-5 py-6 md:px-12 md:pt-12 md:pb-10 bg-gray-50/5 border-b border-gray-100">
             <div className="flex justify-between items-start mb-10">
-              <h1 className="text-4xl font-extrabold text-blue-900 tracking-tight">
+              <h1 className="text-2xl md:text-3xl lg:text-4xl font-extrabold text-blue-900 tracking-tight">
                 {record.template_snapshot.name}
               </h1>
               <div className="text-right no-print">
@@ -386,7 +386,7 @@ const MedicalRecordPage: React.FC = () => {
             {/* Grouped Information Row */}
             <div className="space-y-6">
               {/* Patient Data Row */}
-              <div className="flex flex-wrap gap-x-10 gap-y-3 text-sm">
+              <div className="flex flex-wrap gap-x-4 md:gap-x-10 gap-y-3 text-sm">
                 {patient?.full_name && (
                   <div className="flex items-center gap-2.5">
                     <span className="text-gray-500 font-bold uppercase tracking-wider text-sm">病患姓名</span>
@@ -455,7 +455,7 @@ const MedicalRecordPage: React.FC = () => {
           </div>
 
           {/* Document Content Sections */}
-          <div className="px-12 py-10 space-y-12">
+          <div className="px-5 py-6 md:px-12 md:py-10 space-y-12">
             <FormProvider {...methods}>
               <form onSubmit={methods.handleSubmit(onSubmit)} className="space-y-12">
                 {/* Dynamic Form Content */}
