@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useForm, FormProvider } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -51,7 +51,10 @@ const createDynamicSchema = (fields: TemplateField[] | undefined) => {
       case 'dropdown':
       case 'radio':
       case 'date':
-        fieldSchema = z.string().nullable().optional();
+        fieldSchema = z.string()
+          .transform(val => (val === '' ? null : val))
+          .nullable()
+          .optional();
         break;
       case 'number':
         fieldSchema = z.union([
@@ -109,6 +112,7 @@ const MedicalRecordPage: React.FC = () => {
 
   const [selectedPhotoIds, setSelectedPhotoIds] = useState<number[]>([]);
   const [initialPhotoIds, setInitialPhotoIds] = useState<number[]>([]); // Track initial state
+  const [isSelectAppointmentModalOpen, setIsSelectAppointmentModalOpen] = useState(false);
   const [conflictState, setConflictState] = useState<{
     show: boolean;
     currentRecord: any;
@@ -125,10 +129,19 @@ const MedicalRecordPage: React.FC = () => {
   // Fetch patient info for header
   const { data: patient } = usePatientDetail(patientId);
 
-  // Fetch appointments for re-linking
-  const { data: appointments } = usePatientAppointments(patientId ?? 0);
+  // Fetch appointments for re-linking - only when modal is open
+  const { data: appointments, isLoading: loadingAppointments } = usePatientAppointments(patientId ?? 0, {
+    enabled: isSelectAppointmentModalOpen
+  });
 
   const updateMutation = useUpdateMedicalRecord(activeClinicId ?? null, patientId ?? 0);
+
+  // Callback ref to auto-scroll to the selected item when it's rendered
+  const scrollToSelected = useCallback((node: HTMLDivElement | null) => {
+    if (node) {
+      node.scrollIntoView({ block: 'center' });
+    }
+  }, []);
 
   // Generate dynamic schema based on template fields
   const dynamicSchema = useMemo(
@@ -142,16 +155,47 @@ const MedicalRecordPage: React.FC = () => {
       values: {},
       appointment_id: null,
     },
-    mode: 'onSubmit',
+    mode: 'onChange', // Changed to onChange for better UI feedback
   });
+
+  // Destructure formState to ensure reactivity
+  const { isDirty } = methods.formState;
+
+  // Watch current appointment selection for real-time UI updates
+  const currentAppointmentId = methods.watch('appointment_id');
+
+  // Resolve the appointment object to display (either from initial record or from loaded appointments list)
+  const displayAppointment = useMemo(() => {
+    if (!currentAppointmentId) return null;
+
+    // If it matches initial, use that data (most reliable when modal hasn't opened yet)
+    if (currentAppointmentId === record?.appointment_id && record?.appointment) {
+      return record.appointment;
+    }
+
+    // Otherwise look for it in the loaded appointments list (after user opens modal and picks one)
+    return appointments?.appointments?.find(apt => apt.id === currentAppointmentId);
+  }, [currentAppointmentId, record, appointments]);
 
   // Load record data
   useEffect(() => {
     if (record) {
+      // Normalize nulls to empty strings for form compatibility
+      const normalizedValues = { ...(record.values || {}) };
+      record.template_snapshot?.fields?.forEach(field => {
+        if (
+          ['text', 'textarea', 'dropdown', 'radio', 'date'].includes(field.type) &&
+          normalizedValues[field.id] === null
+        ) {
+          normalizedValues[field.id] = '';
+        }
+      });
+
       methods.reset({
-        values: record.values || {},
+        values: normalizedValues,
         appointment_id: record.appointment_id ?? null,
       });
+
       // Initialize selected photos
       if (record.photos) {
         const photoIds = record.photos.map(p => p.id);
@@ -162,11 +206,13 @@ const MedicalRecordPage: React.FC = () => {
   }, [record, methods]);
 
   // Calculate if there are unsaved changes (form + photos)
-  const hasUnsavedChanges = () => {
-    const formDirty = methods.formState.isDirty;
-    const photosDirty = JSON.stringify(selectedPhotoIds.sort()) !== JSON.stringify(initialPhotoIds.sort());
-    return formDirty || photosDirty;
-  };
+  const photosDirty = useMemo(() => {
+    return JSON.stringify([...selectedPhotoIds].sort()) !== JSON.stringify([...initialPhotoIds].sort());
+  }, [selectedPhotoIds, initialPhotoIds]);
+
+  const hasUnsavedChanges = useCallback(() => {
+    return isDirty || photosDirty;
+  }, [isDirty, photosDirty]);
 
   // Setup unsaved changes detection
   useUnsavedChangesDetection({
@@ -198,9 +244,10 @@ const MedicalRecordPage: React.FC = () => {
         recordId: record.id,
         data: updateData,
       });
-      await alert('病歷記錄已成功更新', '更新成功');
-      methods.reset(data); // Reset form state to mark as not dirty
+      methods.reset(methods.getValues()); // Use raw values for cleaner reset
       setInitialPhotoIds([...selectedPhotoIds]); // Reset photo state
+      setIsSelectAppointmentModalOpen(false); // Close modal if open
+      await alert('病歷記錄已成功更新', '更新成功');
     } catch (error) {
       logger.error('Failed to save medical record:', error);
 
@@ -240,10 +287,12 @@ const MedicalRecordPage: React.FC = () => {
       const forceSaveData: {
         version: number;
         values?: Record<string, any>;
+        appointment_id?: number | null;
         photo_ids?: number[];
       } = {
         version: conflictState.currentRecord.version,
         values: conflictState.userChanges.values,
+        appointment_id: conflictState.userChanges.appointment_id ?? null,
         photo_ids: selectedPhotoIds,
       };
 
@@ -378,34 +427,29 @@ const MedicalRecordPage: React.FC = () => {
 
               {/* Appointment Context Row */}
               <div className="flex items-center gap-4 text-sm no-print">
-                <label htmlFor="appointment_id" className="font-bold text-gray-500 uppercase tracking-wider text-sm whitespace-nowrap">
+                <span className="font-bold text-gray-500 uppercase tracking-wider text-sm whitespace-nowrap">
                   關聯預約
-                </label>
-                <select
-                  id="appointment_id"
-                  {...methods.register('appointment_id', {
-                    setValueAs: (v) => v === '' ? null : parseInt(v)
-                  })}
-                  className="flex-1 bg-transparent border-b border-dashed border-gray-300 py-1 focus:border-blue-500 transition-colors outline-none cursor-pointer text-gray-900 font-medium"
-                >
-                  <option value="">(未選取 / 無預約)</option>
-                  {appointments?.appointments
-                    ?.filter((apt) => apt.status === 'confirmed')
-                    .sort((a, b) => new Date(b.start_time).getTime() - new Date(a.start_time).getTime())
-                    .map((apt) => {
-                      const aptId = apt.calendar_event_id || apt.id;
-                      const startDate = new Date(apt.start_time);
-                      const endDate = new Date(apt.end_time);
-                      const timeStr = formatAppointmentTimeRange(startDate, endDate);
-                      const serviceName = apt.appointment_type_name || '預約';
+                </span>
 
-                      return (
-                        <option key={aptId} value={aptId}>
-                          {timeStr} - {serviceName}
-                        </option>
-                      );
-                    })}
-                </select>
+                <div className="flex-1 flex items-center gap-2 group">
+                  <span className="text-gray-900 font-medium">
+                    {displayAppointment ? (
+                      `${formatAppointmentTimeRange(new Date(displayAppointment.start_time), new Date(displayAppointment.end_time))}${displayAppointment.appointment_type_name ? ` • ${displayAppointment.appointment_type_name}` : ''}`
+                    ) : (
+                      '(未選取 / 無預約)'
+                    )}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setIsSelectAppointmentModalOpen(true)}
+                    className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-all"
+                    title="修改關聯預約"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                    </svg>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -467,7 +511,7 @@ const MedicalRecordPage: React.FC = () => {
       {/* Conflict Resolution Dialog */}
       {conflictState?.show && (
         <BaseModal onClose={handleConflictCancel}>
-          <ModalHeader title="版本衝突" onClose={handleConflictCancel} />
+          <ModalHeader title="版本衝突" onClose={handleConflictCancel} showClose={true} />
           <ModalBody>
             <div className="space-y-4">
               <p className="text-gray-700">
@@ -521,6 +565,88 @@ const MedicalRecordPage: React.FC = () => {
               強制儲存
             </button>
           </ModalFooter>
+        </BaseModal>
+      )}
+
+      {/* Appointment Selection Modal */}
+      {isSelectAppointmentModalOpen && (
+        <BaseModal onClose={() => setIsSelectAppointmentModalOpen(false)}>
+          <ModalHeader title="選擇關聯預約" onClose={() => setIsSelectAppointmentModalOpen(false)} showClose={true} />
+          <ModalBody>
+            <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
+              <div
+                ref={methods.getValues('appointment_id') === null ? scrollToSelected : null}
+                onClick={() => {
+                  methods.setValue('appointment_id', null, { shouldDirty: true });
+                  setIsSelectAppointmentModalOpen(false);
+                }}
+                className={`p-3 border rounded-lg cursor-pointer transition-all ${methods.getValues('appointment_id') === null
+                  ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500'
+                  : 'border-gray-100 hover:border-gray-300 hover:bg-gray-50'
+                  }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-gray-600">(未選取 / 無預約)</span>
+                  {methods.getValues('appointment_id') === null && (
+                    <div className="h-5 w-5 rounded-full bg-blue-500 flex items-center justify-center">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-white" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {loadingAppointments ? (
+                <div className="flex justify-center py-8">
+                  <LoadingSpinner size="md" />
+                </div>
+              ) : (
+                appointments?.appointments
+                  ?.filter((apt) => apt.status === 'confirmed' || apt.id === record?.appointment_id)
+                  .sort((a, b) => new Date(b.start_time).getTime() - new Date(a.start_time).getTime())
+                  .map((apt) => {
+                    const aptId = apt.id;
+                    const isSelected = methods.getValues('appointment_id') === aptId;
+                    const startDate = new Date(apt.start_time);
+                    const endDate = new Date(apt.end_time);
+                    const timeStr = formatAppointmentTimeRange(startDate, endDate);
+                    const serviceName = apt.appointment_type_name || '預約';
+
+                    return (
+                      <div
+                        key={aptId}
+                        ref={isSelected ? scrollToSelected : null}
+                        onClick={() => {
+                          methods.setValue('appointment_id', aptId, { shouldDirty: true });
+                          setIsSelectAppointmentModalOpen(false);
+                        }}
+                        className={`p-3 border rounded-lg cursor-pointer transition-all ${isSelected
+                          ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500'
+                          : 'border-gray-100 hover:border-gray-300 hover:bg-gray-50'
+                          }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <span className="text-sm font-semibold text-gray-900">{timeStr}</span>
+                            <span className="text-gray-400">|</span>
+                            <span className="text-sm text-gray-600">{serviceName}</span>
+                          </div>
+                          {isSelected && (
+                            <div className="h-5 w-5 rounded-full bg-blue-500 flex items-center justify-center">
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-white" viewBox="0 0 20 20" fill="currentColor">
+                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                              </svg>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+              )}
+            </div>
+          </ModalBody>
+
         </BaseModal>
       )}
     </div>

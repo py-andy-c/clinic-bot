@@ -7,6 +7,9 @@ export const logger = {
   log: (...args: any[]) => {
     if (isDevelopment) console.log(...args);
   },
+  debug: (...args: any[]) => {
+    if (isDevelopment) console.debug(...args);
+  },
   info: (...args: any[]) => {
     if (isDevelopment) console.info(...args);
   },

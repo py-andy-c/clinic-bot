@@ -6,7 +6,7 @@ from datetime import datetime
 
 from core.database import get_db
 from auth.dependencies import require_authenticated, UserContext, ensure_clinic_access
-from services.medical_record_service import MedicalRecordService, RecordVersionConflictError
+from services.medical_record_service import MedicalRecordService, RecordVersionConflictError, MISSING
 from services.patient_photo_service import PatientPhotoService
 from models.user_clinic_association import UserClinicAssociation
 from utils.datetime_utils import ensure_taiwan
@@ -38,7 +38,7 @@ class AppointmentInfo(BaseModel):
     id: int
     start_time: str
     end_time: str
-    appointment_type: Optional[str] = None
+    appointment_type_name: Optional[str] = None
 
 class MedicalRecordResponse(BaseModel):
     id: int
@@ -137,7 +137,7 @@ def _enrich_record_with_photos(
                 id=appointment.calendar_event_id,
                 start_time=start_datetime.isoformat() if start_datetime else "",
                 end_time=end_datetime.isoformat() if end_datetime else "",
-                appointment_type=appointment.appointment_type.name if hasattr(appointment, 'appointment_type') and appointment.appointment_type else None,
+                appointment_type_name=appointment.appointment_type.name if hasattr(appointment, 'appointment_type') and appointment.appointment_type else None,
             )
     
     # Populate user names from pre-fetched map
@@ -278,14 +278,21 @@ def update_record(
     clinic_id = user.active_clinic_id
     
     try:
+        # Prepare arguments, using MISSING for fields not explicitly provided in the JSON body
+        # This allows us to distinguish between "field not provided" (no change) and 
+        # "field provided as null" (clear the association)
+        values = update_data.values if 'values' in update_data.model_fields_set else MISSING
+        photo_ids = update_data.photo_ids if 'photo_ids' in update_data.model_fields_set else MISSING
+        appointment_id = update_data.appointment_id if 'appointment_id' in update_data.model_fields_set else MISSING
+
         updated_record = MedicalRecordService.update_record(
             db=db,
             record_id=record_id,
             clinic_id=clinic_id,
             version=update_data.version,
-            values=update_data.values,
-            photo_ids=update_data.photo_ids,
-            appointment_id=update_data.appointment_id,
+            values=values,
+            photo_ids=photo_ids,
+            appointment_id=appointment_id,
             updated_by_user_id=user.user_id
         )
         

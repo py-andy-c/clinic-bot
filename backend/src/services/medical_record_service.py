@@ -20,6 +20,9 @@ class RecordVersionConflictError(Exception):
         self.updated_by_user_name = updated_by_user_name
         super().__init__(self.message)
 
+# Sentinel for optional parameters not provided in an update
+MISSING = object()
+
 class MedicalRecordService:
     @staticmethod
     def create_record(
@@ -208,9 +211,9 @@ class MedicalRecordService:
         record_id: int,
         clinic_id: int,
         version: int,
-        values: Optional[Dict[str, Any]] = None,
-        photo_ids: Optional[List[int]] = None,
-        appointment_id: Optional[int] = None,
+        values: Any = MISSING,
+        photo_ids: Any = MISSING,
+        appointment_id: Any = MISSING,
         updated_by_user_id: Optional[int] = None
     ) -> MedicalRecord:
         record = MedicalRecordService.get_record(db, record_id, clinic_id)
@@ -238,11 +241,11 @@ class MedicalRecordService:
                 updated_by_user_name=updated_by_user_name
             )
 
-        if values is not None:
+        if values is not MISSING:
             record.values = values
-        if appointment_id is not None:
+        if appointment_id is not MISSING:
             # Validate appointment if changing
-            if appointment_id != record.appointment_id:
+            if appointment_id is not None and appointment_id != record.appointment_id:
                 appt = db.query(Appointment).filter(Appointment.calendar_event_id == appointment_id).first()
                 if not appt:
                     raise HTTPException(status_code=404, detail="Appointment not found")
@@ -251,14 +254,14 @@ class MedicalRecordService:
             record.appointment_id = appointment_id
             
         # Handle Photo Updates
-        if photo_ids is not None:
+        if photo_ids is not MISSING:
             # Get current photos
             current_photos = db.query(PatientPhoto).filter(
                 PatientPhoto.medical_record_id == record_id,
                 PatientPhoto.clinic_id == clinic_id
             ).all()
             current_ids = {p.id for p in current_photos}
-            new_ids = set(photo_ids)
+            new_ids: set[int] = set(photo_ids) if photo_ids is not None else set()
             
             # Unlink removed photos
             ids_to_unlink = current_ids - new_ids

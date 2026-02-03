@@ -232,7 +232,7 @@ const MedicalRecordCard: React.FC<MedicalRecordCardProps> = ({
   onHardDelete,
 }) => {
   // Check if record is empty (no values or all values are empty)
-  const isEmpty = !record.values || Object.keys(record.values).length === 0 || 
+  const isEmpty = !record.values || Object.keys(record.values).length === 0 ||
     Object.values(record.values).every(v => v === '' || v === null || v === undefined);
 
   // Calculate permanent deletion date for soft-deleted records
@@ -262,23 +262,23 @@ const MedicalRecordCard: React.FC<MedicalRecordCardProps> = ({
               </span>
             )}
           </div>
-          
+
           {/* Metadata - Always Visible */}
           <div className="text-sm text-gray-600 mt-2 space-y-1">
             {/* Appointment Info */}
             {record.appointment && (
               <div>
                 預約：{formatAppointmentDateTime(new Date(record.appointment.start_time))}
-                {record.appointment.appointment_type && ` • ${record.appointment.appointment_type}`}
+                {record.appointment.appointment_type_name && ` • ${record.appointment.appointment_type_name}`}
               </div>
             )}
-            
+
             {/* Created Time */}
             <div>
               建立：{formatAppointmentDateTime(new Date(record.created_at))}
               {record.created_by_user_name && ` 由 ${record.created_by_user_name}`}
             </div>
-            
+
             {/* Updated Time (only if different from created) */}
             {record.updated_at && new Date(record.updated_at).getTime() !== new Date(record.created_at).getTime() && (
               <div>
@@ -286,7 +286,7 @@ const MedicalRecordCard: React.FC<MedicalRecordCardProps> = ({
                 {record.updated_by_user_name && ` 由 ${record.updated_by_user_name}`}
               </div>
             )}
-            
+
             {/* Deletion Info (for deleted records) */}
             {isDeleted && record.deleted_at && (
               <>
