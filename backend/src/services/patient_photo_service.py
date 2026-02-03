@@ -3,7 +3,7 @@ import hashlib
 import io
 from typing import List, Optional, Tuple, Any
 from datetime import datetime, timezone
-from PIL import Image
+from PIL import Image, ImageOps
 import pillow_heif # type: ignore
 from fastapi import UploadFile, HTTPException
 from sqlalchemy.orm import Session
@@ -32,6 +32,7 @@ class PatientPhotoService:
     def _generate_thumbnail(self, image_content: bytes, max_size: Tuple[int, int] = (300, 300)) -> bytes:
         try:
             image = Image.open(io.BytesIO(image_content))
+            image = ImageOps.exif_transpose(image)
             image.thumbnail(max_size)
             buffer = io.BytesIO()
             # Convert to RGB if necessary (e.g. for PNGs with transparency or CMYK)
@@ -59,6 +60,7 @@ class PatientPhotoService:
         """
         try:
             image = Image.open(io.BytesIO(image_content))
+            image = ImageOps.exif_transpose(image)
             
             # Resize if needed
             width, height = image.size
