@@ -22,6 +22,7 @@ import { useUnsavedChangesDetection } from '../hooks/useUnsavedChangesDetection'
 import { getErrorMessage } from '../types/api';
 import { logger } from '../utils/logger';
 import { AxiosError } from 'axios';
+import { getGenderLabel } from '../utils/genderUtils';
 import { TemplateField } from '../types/medicalRecord';
 import { formatAppointmentTimeRange } from '../utils/calendarUtils';
 
@@ -278,71 +279,108 @@ const MedicalRecordPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-white py-8 px-4">
+    <div className="min-h-screen bg-white py-8 px-4 print:p-0">
+      <style>{`
+        @media print {
+          .no-print { display: none !important; }
+          body { background: white !important; }
+          .document-page { 
+            box-shadow: none !important; 
+            border: none !important; 
+            margin: 0 !important;
+            padding: 0 !important;
+            width: 100% !important;
+            max-width: 100% !important;
+          }
+          select { -webkit-appearance: none; -moz-appearance: none; appearance: none; border: none !important; padding: 0 !important; }
+        }
+      `}</style>
+
       <div className="max-w-4xl mx-auto">
-        {/* Back Button matching PatientDetailPage style */}
-        <div className="mb-4">
+        {/* Back Button - Hidden on Print */}
+        <div className="mb-6 no-print">
           <button
             onClick={handleBack}
-            className="text-blue-600 hover:text-blue-800 font-medium transition-colors"
+            className="text-blue-600 hover:text-blue-800 font-medium transition-colors flex items-center gap-1"
           >
             ← 返回病患詳情
           </button>
         </div>
 
-        {/* The "Document" - Clean, white-on-white with a subtle shadow/border */}
-        <div className="bg-white shadow-[0_8px_30px_rgb(0,0,0,0.04)] rounded-xl overflow-hidden border border-gray-100 mb-12">
-          {/* Document Header */}
-          <div className="px-10 pt-10 pb-8 border-b border-gray-100">
-            <div className="flex justify-between items-start gap-6">
-              <div className="flex-1 min-w-0">
-                <h1 className="text-4xl font-extrabold text-gray-900 tracking-tight truncate">
-                  {record.template_snapshot.name}
-                </h1>
-                <div className="mt-4 flex flex-wrap gap-x-8 gap-y-2 text-sm text-gray-500">
-                  <span className="flex items-center gap-2">
-                    <span className="text-gray-400 font-medium uppercase tracking-wider text-[10px]">病患</span>
-                    <span className="font-semibold text-gray-800">{patient?.full_name || '載入中...'}</span>
-                  </span>
-                  {record.created_at && (
-                    <span className="flex items-center gap-2">
-                      <span className="text-gray-400 font-medium uppercase tracking-wider text-[10px]">建立時間</span>
-                      <span className="font-semibold text-gray-800">
-                        {new Date(record.created_at).toLocaleString('zh-TW', {
-                          year: 'numeric',
-                          month: 'long',
-                          day: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })}
-                      </span>
-                    </span>
-                  )}
-                </div>
+        {/* The "Document" Page */}
+        <div className="bg-white shadow-[0_4px_30px_rgb(0,0,0,0.06)] rounded-sm overflow-hidden border border-gray-100 mb-12 document-page">
+          {/* Record Title & Metadata Block */}
+          <div className="px-12 pt-12 pb-10 bg-gray-50/5 border-b border-gray-100">
+            <div className="flex justify-between items-start mb-10">
+              <h1 className="text-4xl font-extrabold text-blue-900 tracking-tight">
+                {record.template_snapshot.name}
+              </h1>
+              <div className="text-right no-print">
+                <button
+                  onClick={methods.handleSubmit(onSubmit)}
+                  disabled={isSaving || !hasUnsavedChanges()}
+                  className="btn-primary px-8 py-2.5 shadow-md hover:shadow-xl transition-all"
+                >
+                  {isSaving ? '儲存中...' : '儲存變更'}
+                </button>
               </div>
-              <button
-                onClick={methods.handleSubmit(onSubmit)}
-                disabled={isSaving || !hasUnsavedChanges()}
-                className="btn-primary px-10 py-3 text-base shadow-sm hover:shadow-md transition-all"
-              >
-                {isSaving ? '儲存中...' : '儲存變更'}
-              </button>
             </div>
 
-            {/* Appointment Context - Ultra Clean Selection */}
-            <div className="mt-8 pt-8 border-t border-gray-100 flex flex-wrap items-center gap-6">
-              <label htmlFor="appointment_id" className="text-xs font-bold text-gray-400 uppercase tracking-widest">
-                關聯預約
-              </label>
-              <div className="flex-1 max-w-sm relative">
+            {/* Grouped Information Row */}
+            <div className="space-y-6">
+              {/* Patient Data Row */}
+              <div className="flex flex-wrap gap-x-10 gap-y-3 text-sm">
+                {patient?.full_name && (
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-gray-500 font-bold uppercase tracking-wider text-sm">病患姓名</span>
+                    <span className="font-bold text-gray-900">{patient.full_name}</span>
+                  </div>
+                )}
+                {patient?.birthday && (
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-gray-500 font-bold uppercase tracking-wider text-sm">出生日期</span>
+                    <span className="font-bold text-gray-900">{patient.birthday}</span>
+                  </div>
+                )}
+                {patient?.gender && (
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-gray-500 font-bold uppercase tracking-wider text-sm">性別</span>
+                    <span className="font-bold text-gray-900">{getGenderLabel(patient.gender)}</span>
+                  </div>
+                )}
+                {patient?.phone_number && (
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-gray-500 font-bold uppercase tracking-wider text-sm">電話</span>
+                    <span className="font-bold text-gray-900">{patient.phone_number}</span>
+                  </div>
+                )}
+                {record.created_at && (
+                  <div className="flex items-center gap-3">
+                    <span className="text-gray-500 font-bold uppercase tracking-wider text-sm">診次日期</span>
+                    <span className="font-bold text-gray-900">
+                      {new Date(record.created_at).toLocaleDateString('zh-TW', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
+                      })}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Appointment Context Row */}
+              <div className="flex items-center gap-4 text-sm no-print">
+                <label htmlFor="appointment_id" className="font-bold text-gray-500 uppercase tracking-wider text-sm whitespace-nowrap">
+                  關聯預約
+                </label>
                 <select
                   id="appointment_id"
                   {...methods.register('appointment_id', {
                     setValueAs: (v) => v === '' ? null : parseInt(v)
                   })}
-                  className="w-full text-sm appearance-none bg-white border border-gray-200 rounded-lg px-4 py-2.5 pr-10 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none"
+                  className="flex-1 bg-transparent border-b border-dashed border-gray-300 py-1 focus:border-blue-500 transition-colors outline-none cursor-pointer text-gray-900 font-medium"
                 >
-                  <option value="">無關聯預約</option>
+                  <option value="">(未選取 / 無預約)</option>
                   {appointments?.appointments
                     ?.filter((apt) => apt.status === 'confirmed')
                     .sort((a, b) => new Date(b.start_time).getTime() - new Date(a.start_time).getTime())
@@ -360,38 +398,28 @@ const MedicalRecordPage: React.FC = () => {
                       );
                     })}
                 </select>
-                <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-gray-400">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
-                </div>
               </div>
-              <span className="text-xs text-gray-400 italic">(與其他變更一起儲存)</span>
             </div>
           </div>
 
-          {/* Document Content */}
-          <div className="px-10 py-10">
+          {/* Document Content Sections */}
+          <div className="px-12 py-10 space-y-12">
             <FormProvider {...methods}>
-              <form onSubmit={methods.handleSubmit(onSubmit)} className="space-y-16">
-                {/* Dynamic Form Fields */}
+              <form onSubmit={methods.handleSubmit(onSubmit)} className="space-y-12">
+                {/* Dynamic Form Content */}
                 <section>
-                  <div className="mb-8 flex items-baseline justify-between border-b border-gray-100 pb-3">
-                    <h2 className="text-2xl font-bold text-gray-900 tracking-tight">病歷內容</h2>
-                  </div>
-                  <div className="max-w-3xl">
+                  <div className="max-w-none">
                     {record.template_snapshot?.fields && (
-                      <MedicalRecordDynamicForm fields={record.template_snapshot.fields} />
+                      <div className="grid grid-cols-1 gap-x-8 gap-y-10">
+                        <MedicalRecordDynamicForm fields={record.template_snapshot.fields} />
+                      </div>
                     )}
                   </div>
                 </section>
 
-                {/* Photo Selector */}
-                <section>
-                  <div className="mb-8 flex items-baseline justify-between border-b border-gray-100 pb-3">
-                    <h2 className="text-2xl font-bold text-gray-900 tracking-tight">附加照片</h2>
-                  </div>
-                  <div className="bg-white rounded-xl">
+                {/* Photos with formal caption if printed, or interactive selector if web */}
+                <section className="print:break-before-page">
+                  <div className="bg-white">
                     <MedicalRecordPhotoSelector
                       clinicId={activeClinicId ?? null}
                       patientId={patientId}
@@ -401,8 +429,29 @@ const MedicalRecordPage: React.FC = () => {
                     />
                   </div>
                 </section>
+
+                {/* Print-only Signature Area */}
+                <section className="hidden print:block pt-16 mt-16 border-t border-gray-100">
+                  <div className="flex justify-between">
+                    <div className="w-1/3">
+                      <div className="border-b border-gray-900 pb-2 mb-2 text-sm"></div>
+                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest text-center">診所負責人簽章</p>
+                    </div>
+                    <div className="w-1/3">
+                      <div className="border-b border-gray-900 pb-2 mb-2 text-sm text-center">
+                        {new Date().toLocaleDateString('zh-TW')}
+                      </div>
+                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest text-center">日期</p>
+                    </div>
+                  </div>
+                </section>
               </form>
             </FormProvider>
+          </div>
+
+          {/* Print-only Footer */}
+          <div className="hidden print:block px-12 pb-12 pt-8 text-center text-[9px] text-gray-400 italic">
+            本附件僅供醫療参考，不作他用。本系統產生之內容僅供授權醫護人員使用。
           </div>
         </div>
       </div>
