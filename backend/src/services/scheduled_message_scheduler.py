@@ -50,7 +50,7 @@ class ScheduledMessageScheduler:
         # Schedule to run every hour
         self.scheduler.add_job(  # type: ignore
             self._send_pending_messages,
-            CronTrigger(hour="*", minute=6),  # Run every hour at :06
+            CronTrigger(hour="*", minute=0),  # Run every hour at :00
             id="send_scheduled_messages",
             name="Send scheduled LINE messages",
             max_instances=REMINDER_SCHEDULER_MAX_INSTANCES,  # Prevent overlapping runs
