@@ -128,7 +128,7 @@ export const CreateMedicalRecordDialog: React.FC<CreateMedicalRecordDialogProps>
     <BaseModal onClose={onClose}>
       <FormProvider {...methods}>
         <form onSubmit={methods.handleSubmit(onSubmit)} className="flex flex-col flex-1 min-h-0">
-          <ModalHeader title="新增病歷記錄" onClose={onClose} />
+          <ModalHeader title="新增病歷記錄" onClose={onClose} showClose />
 
           <ModalBody>
             {loadingTemplates ? (
