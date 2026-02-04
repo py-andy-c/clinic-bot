@@ -103,11 +103,8 @@ class ReminderSchedulingService:
                 appointment.calendar_event, clinic
             )
 
-            # Skip if appointment is today (can't send reminder yesterday)
-            current_time = taiwan_now()
-            if reminder_send_time.date() >= current_time.date():
-                logger.debug(f"Skipping previous day reminder for same-day appointment {appointment.calendar_event_id}")
-                return
+            # Reminder send time is validated below to ensure it's in the future
+            pass
         else:
             # Hours before mode: existing logic
             start_datetime = datetime.combine(
