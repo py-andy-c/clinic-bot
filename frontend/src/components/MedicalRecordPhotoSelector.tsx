@@ -51,19 +51,19 @@ export const MedicalRecordPhotoSelector: React.FC<MedicalRecordPhotoSelectorProp
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [pendingPreview, setPendingPreview] = useState<string | null>(null);
   const [photoDescription, setPhotoDescription] = useState<string>('');
-  
+
   // Track locally uploaded photos (for new records where photos aren't yet visible from server)
   const [localPhotos, setLocalPhotos] = useState<PatientPhoto[]>([]);
-  
+
   // Track description overrides (for edited descriptions that haven't been saved yet)
   const [descriptionOverrides, setDescriptionOverrides] = useState<Record<number, string>>({});
-  
+
   // Track which photos have loaded their full-resolution version
   const [loadedFullImages, setLoadedFullImages] = useState<Set<number>>(new Set());
-  
+
   // Track which photo is being edited via modal
   const [editingPhoto, setEditingPhoto] = useState<PatientPhoto | null>(null);
-  
+
   // Track lightbox state
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState<number | null>(null);
 
@@ -99,10 +99,10 @@ export const MedicalRecordPhotoSelector: React.FC<MedicalRecordPhotoSelectorProp
   const visiblePhotos = useMemo(() => {
     // Combine all sources
     const allPhotos = [...linkedPhotos, ...unlinkedPhotos, ...localPhotos];
-    
+
     // Deduplicate by ID
     const uniquePhotos = Array.from(new Map(allPhotos.map(p => [p.id, p])).values());
-    
+
     // Apply description overrides
     const photosWithOverrides = uniquePhotos.map(p => {
       const overrideDescription = descriptionOverrides[p.id];
@@ -111,10 +111,10 @@ export const MedicalRecordPhotoSelector: React.FC<MedicalRecordPhotoSelectorProp
         ...(overrideDescription !== undefined && { description: overrideDescription })
       };
     });
-    
+
     // Filter by selectedPhotoIds to handle removals
     const filtered = photosWithOverrides.filter(p => selectedPhotoIds.includes(p.id));
-    
+
     // Sort by created_at DESC to match backend ordering (newest first)
     const sorted = filtered.sort((a, b) => {
       const dateA = new Date(a.created_at).getTime();
@@ -122,7 +122,7 @@ export const MedicalRecordPhotoSelector: React.FC<MedicalRecordPhotoSelectorProp
       if (dateB !== dateA) return dateB - dateA; // Descending by date
       return b.id - a.id; // Descending by ID as tiebreaker
     });
-    
+
     return sorted;
   }, [linkedPhotos, unlinkedPhotos, localPhotos, selectedPhotoIds, descriptionOverrides]);
 
@@ -154,12 +154,12 @@ export const MedicalRecordPhotoSelector: React.FC<MedicalRecordPhotoSelectorProp
 
     // Set pending file and show annotation modal
     setPendingFile(file);
-    
+
     // Auto-suggest description: 附圖 X
     // Use visiblePhotos.length since it's already deduplicated and filtered
     const suggestedDescription = `附圖 ${visiblePhotos.length + 1}`;
     setPhotoDescription(suggestedDescription);
-    
+
     setShowAnnotationModal(true);
     setUploadError(null);
 
@@ -172,7 +172,7 @@ export const MedicalRecordPhotoSelector: React.FC<MedicalRecordPhotoSelectorProp
 
     try {
       setUploadProgress(0);
-      
+
       const uploadedPhoto = await uploadMutation.mutateAsync({
         file: pendingFile,
         description: photoDescription,
@@ -213,7 +213,7 @@ export const MedicalRecordPhotoSelector: React.FC<MedicalRecordPhotoSelectorProp
     if (pendingPreview) {
       URL.revokeObjectURL(pendingPreview);
     }
-    
+
     setShowAnnotationModal(false);
     setPendingFile(null);
     setPendingPreview(null);
@@ -244,12 +244,12 @@ export const MedicalRecordPhotoSelector: React.FC<MedicalRecordPhotoSelectorProp
       ...prev,
       [photoId]: description
     }));
-    
+
     // Notify parent of the change (triggers unsaved changes detection)
     if (onPhotoUpdate) {
       onPhotoUpdate(photoId, { description });
     }
-    
+
     setEditingPhoto(null);
   };
 
@@ -291,10 +291,10 @@ export const MedicalRecordPhotoSelector: React.FC<MedicalRecordPhotoSelectorProp
             // Determine which image to show (progressive loading)
             const showFullImage = loadedFullImages.has(photo.id);
             const imageSrc = showFullImage ? (photo.url || photo.thumbnail_url) : (photo.thumbnail_url || photo.url);
-            
+
             return (
-              <div 
-                key={photo.id} 
+              <div
+                key={photo.id}
                 className="relative border border-gray-200 rounded-lg p-4 bg-white shadow-sm"
               >
                 {/* Remove Button - Top Right */}
@@ -321,14 +321,14 @@ export const MedicalRecordPhotoSelector: React.FC<MedicalRecordPhotoSelectorProp
                     <PencilIcon />
                   </button>
                 </div>
-                
+
                 {/* Image Container - Clickable for full-screen view */}
-                <div 
+                <div
                   className="mb-3 flex justify-center cursor-pointer group/image"
                   onClick={() => setSelectedPhotoIndex(index)}
                   title={t('點擊查看大圖')}
                 >
-                  <img 
+                  <img
                     src={imageSrc || ''}
                     alt={photo.description || photo.filename}
                     loading="lazy"
@@ -385,9 +385,9 @@ export const MedicalRecordPhotoSelector: React.FC<MedicalRecordPhotoSelectorProp
                 value={photoDescription}
                 onChange={(e) => setPhotoDescription(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' && uploadProgress === null) {
+                  if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
                     e.preventDefault();
-                    handleConfirmUpload();
+                    e.stopPropagation();
                   }
                 }}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"

@@ -197,7 +197,7 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
   }, [editingName, event.resource.calendar_event_id, event.title, onEventNameUpdated, isSaving]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
+    if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
       handleSaveName();
     } else if (e.key === 'Escape') {
       handleCancelEdit();

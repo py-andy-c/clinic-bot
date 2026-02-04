@@ -72,7 +72,7 @@ export const ServiceTypeGroupsTable: React.FC<ServiceTypeGroupsTableProps> = ({
       setEditingGroupId(-1); // Use -1 to represent "new group" row
       setEditingName('');
       setErrorMessage('');
-      
+
       // Auto-scroll to the new group row
       setTimeout(() => {
         const targetRef = isMobile ? newGroupRowRefMobile.current : newGroupRowRefDesktop.current;
@@ -130,7 +130,7 @@ export const ServiceTypeGroupsTable: React.FC<ServiceTypeGroupsTableProps> = ({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent, group: ServiceTypeGroup | { id: number; name: string }) => {
-    if (e.key === 'Enter') {
+    if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
       handleConfirm(group);
     } else if (e.key === 'Escape') {
       handleCancel();
@@ -410,7 +410,7 @@ export const ServiceTypeGroupsTable: React.FC<ServiceTypeGroupsTableProps> = ({
 
     if (isMobile) {
       return (
-        <div 
+        <div
           ref={newGroupRowRefMobile}
           className="bg-blue-50/50 border-2 border-dashed border-blue-200 rounded-lg p-4 shadow-sm animate-pulse-slow"
         >
