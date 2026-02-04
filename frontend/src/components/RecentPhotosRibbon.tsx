@@ -112,7 +112,7 @@ export const RecentPhotosRibbon: React.FC<RecentPhotosRibbonProps> = ({
 
     try {
       setUploadProgress(0);
-      
+
       await uploadMutation.mutateAsync({
         file: pendingFile,
         description: photoDescription,
@@ -146,7 +146,7 @@ export const RecentPhotosRibbon: React.FC<RecentPhotosRibbonProps> = ({
     if (pendingPreview) {
       URL.revokeObjectURL(pendingPreview);
     }
-    
+
     setShowAnnotationModal(false);
     setPendingFile(null);
     setPendingPreview(null);
@@ -263,7 +263,7 @@ export const RecentPhotosRibbon: React.FC<RecentPhotosRibbonProps> = ({
                   value={photoDescription}
                   onChange={(e) => setPhotoDescription(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' && uploadProgress === null) {
+                    if (e.key === 'Enter' && !e.nativeEvent.isComposing && uploadProgress === null) {
                       e.preventDefault();
                       handleConfirmUpload();
                     }

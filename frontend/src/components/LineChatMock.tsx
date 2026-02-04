@@ -40,13 +40,13 @@ const LineChatMock: React.FC<LineChatMockProps> = ({ messages, clinicType }) => 
     if (container) {
       // Initial check
       checkScrollPosition();
-      
+
       // Add scroll listener
       container.addEventListener('scroll', checkScrollPosition);
-      
+
       // Check on resize
       window.addEventListener('resize', checkScrollPosition);
-      
+
       return () => {
         container.removeEventListener('scroll', checkScrollPosition);
         window.removeEventListener('resize', checkScrollPosition);
@@ -110,8 +110,8 @@ const LineChatMock: React.FC<LineChatMockProps> = ({ messages, clinicType }) => 
             </div>
           </div>
         </div>
-        <div 
-          className="p-3 md:p-4 min-h-[300px] md:min-h-[400px] flex items-center justify-center" 
+        <div
+          className="p-3 md:p-4 min-h-[300px] md:min-h-[400px] flex items-center justify-center"
           style={{ backgroundColor: LINE_THEME.chatBackground }}
         >
           <p className="text-gray-600">暫無訊息</p>
@@ -134,11 +134,11 @@ const LineChatMock: React.FC<LineChatMockProps> = ({ messages, clinicType }) => 
       </div>
 
       {/* Chat Messages - Blue background */}
-      <div 
+      <div
         className="relative h-[300px] md:h-[400px]"
         style={{ backgroundColor: LINE_THEME.chatBackground }}
       >
-        <div 
+        <div
           ref={chatContainerRef}
           className="p-3 md:p-4 space-y-1 overflow-y-auto h-full"
         >
@@ -155,20 +155,19 @@ const LineChatMock: React.FC<LineChatMockProps> = ({ messages, clinicType }) => 
                 </div>
               )}
               <div
-                className={`max-w-[75%] md:max-w-[80%] rounded-2xl px-3 md:px-4 py-2 md:py-2.5 relative ${
-                  message.sender === 'user'
+                className={`max-w-[75%] md:max-w-[80%] rounded-2xl px-3 md:px-4 py-2 md:py-2.5 relative ${message.sender === 'user'
                     ? 'text-gray-900'
                     : 'bg-white text-gray-900'
-                }`}
+                  }`}
                 style={{
-                  ...(message.sender === 'user' 
+                  ...(message.sender === 'user'
                     ? {
-                        backgroundColor: LINE_THEME.userBubble,
-                        borderBottomRightRadius: '4px',
-                      }
+                      backgroundColor: LINE_THEME.userBubble,
+                      borderBottomRightRadius: '4px',
+                    }
                     : {
-                        borderBottomLeftRadius: '4px',
-                      }
+                      borderBottomLeftRadius: '4px',
+                    }
                   )
                 }}
               >
@@ -179,17 +178,17 @@ const LineChatMock: React.FC<LineChatMockProps> = ({ messages, clinicType }) => 
             </div>
           ))}
         </div>
-        
+
         {/* Floating scroll indicator - fixed at bottom of visible area */}
         {!isScrolledToBottom && (
-          <div 
+          <div
             className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-10 cursor-pointer pointer-events-auto"
             onClick={scrollToBottom}
             role="button"
             aria-label="Scroll to bottom"
             tabIndex={0}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
+              if ((e.key === 'Enter' || e.key === ' ') && !e.nativeEvent.isComposing) {
                 e.preventDefault();
                 scrollToBottom();
               }
@@ -197,10 +196,10 @@ const LineChatMock: React.FC<LineChatMockProps> = ({ messages, clinicType }) => 
           >
             <div className="animate-bounce">
               <div className="bg-gray-800 bg-opacity-50 rounded-full p-2 shadow-lg backdrop-blur-sm">
-                <svg 
-                  className="w-5 h-5 md:w-6 md:h-6 text-white" 
-                  fill="none" 
-                  stroke="currentColor" 
+                <svg
+                  className="w-5 h-5 md:w-6 md:h-6 text-white"
+                  fill="none"
+                  stroke="currentColor"
                   viewBox="0 0 24 24"
                 >
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
