@@ -212,6 +212,7 @@ export const MedicalRecordTemplateEditorModal: React.FC<MedicalRecordTemplateEdi
           <ModalHeader
             title={isEdit ? '編輯病歷模板' : '新增病歷模板'}
             onClose={handleClose}
+            showClose
           />
 
           <ModalBody>

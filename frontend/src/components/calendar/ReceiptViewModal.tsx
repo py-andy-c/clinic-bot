@@ -174,6 +174,8 @@ export const ReceiptViewModal: React.FC<ReceiptViewModalProps> = ({
     return (
         <>
             <BaseModal onClose={onClose} aria-label="檢視收據" fullScreen className="p-0">
+                <ModalHeader title="檢視收據" showClose onClose={onClose} />
+
                 {/* Void information banner */}
                 {isVoided && (
                     <div
@@ -211,9 +213,8 @@ export const ReceiptViewModal: React.FC<ReceiptViewModalProps> = ({
                 {/* Receipt HTML in iframe */}
                 <iframe
                     srcDoc={receiptHtml || ''}
-                    className="w-full h-full border-0"
+                    className="w-full h-full border-0 flex-1"
                     title="收據"
-                    style={{ minHeight: '100vh' }}
                     sandbox="allow-same-origin"
                 />
 
@@ -270,7 +271,7 @@ export const ReceiptViewModal: React.FC<ReceiptViewModalProps> = ({
                         setVoidReason('');
                     }}
                     aria-label="確認作廢收據"
-                   
+
                 >
                     <ModalHeader
                         title="確認作廢收據"

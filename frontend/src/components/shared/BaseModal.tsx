@@ -8,7 +8,7 @@
 
 import React, { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { useTranslation } from 'react-i18next';
+
 import { Z_INDEX } from '../../constants/app';
 
 export interface BaseModalProps {
@@ -31,10 +31,9 @@ export const BaseModal: React.FC<BaseModalProps> = React.memo(({
   'aria-labelledby': ariaLabelledBy,
   zIndex = Z_INDEX.MODAL,
   fullScreen = false,
-  showCloseButton: showCloseButtonProp,
+  showCloseButton: _showCloseButton,
   closeOnOverlayClick = false,
 }) => {
-  const { t } = useTranslation();
   const historyPushedRef = useRef(false);
   const isHandlingBackRef = useRef(false);
   const popStateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -209,15 +208,6 @@ export const BaseModal: React.FC<BaseModalProps> = React.memo(({
     };
   }, [fullScreen, onClose]);
 
-  // Determine if we should show the structural close button
-  // 1. If showCloseButtonProp is explicitly false, don't show it.
-  // 2. If it's undefined/true, we hide it if children contains a ModalHeader.
-  const hasHeader = React.Children.toArray(children).some(
-    (child) => React.isValidElement(child) && (child.type as any).displayName === 'ModalHeader'
-  );
-
-  const showAbsoluteClose = showCloseButtonProp !== false && !hasHeader;
-
   return createPortal(
     <div
       className={fullScreen
@@ -246,30 +236,6 @@ export const BaseModal: React.FC<BaseModalProps> = React.memo(({
         onMouseDown={(e) => e.stopPropagation()}
         tabIndex={-1}
       >
-        {/* Close button (X) in top-right corner */}
-        {showAbsoluteClose && onClose && (
-          <button
-            onClick={onClose}
-            className="absolute top-4 right-4 z-20 bg-white rounded-full p-1.5 shadow-md text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-            aria-label={t('common.close')}
-            type="button"
-          >
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
-          </button>
-        )}
         {children}
       </div>
     </div>,
