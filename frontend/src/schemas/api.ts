@@ -133,6 +133,7 @@ export const ReceiptsSettingsFormSchema = z.object({
 export const ChatSettingsFormSchema = z.object({
   chat_settings: z.object({
     chat_enabled: z.boolean(),
+    label_ai_replies: z.boolean().optional(),
     clinic_description: z.string().nullable().optional(),
     therapist_info: z.string().nullable().optional(),
     treatment_details: z.string().nullable().optional(),
@@ -170,6 +171,7 @@ export const AppointmentsSettingsFormSchema = z.object({
 export const ChatSettingsSchema = createValidatedSchema(
   z.object({
     chat_enabled: z.boolean(),
+    label_ai_replies: z.boolean().optional(),
     clinic_description: z.string().nullable().optional(),
     therapist_info: z.string().nullable().optional(),
     treatment_details: z.string().nullable().optional(),

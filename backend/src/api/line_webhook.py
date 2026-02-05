@@ -499,6 +499,11 @@ async def _process_regular_message(
         )
         return {"status": "ok", "message": "AI remained silent"}
 
+    # Prepend AI label if enabled in clinic settings
+    if clinic.get_validated_settings().chat_settings.label_ai_replies:
+        label = "[AI reply] " if preferred_language == 'en' else "[AI回覆] "
+        response_text = f"{label}{response_text}"
+
     # Send response back to patient via LINE
     bot_message_id = line_service.send_text_message(
         line_user_id=line_user_id,

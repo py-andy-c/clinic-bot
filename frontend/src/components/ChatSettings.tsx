@@ -196,6 +196,7 @@ const ChatSettings: React.FC<ChatSettingsProps> = ({
   isClinicAdmin = false,
 }) => {
   const [showAiGuidancePopup, setShowAiGuidancePopup] = useState(false);
+  const [showLabelAiInfo, setShowLabelAiInfo] = useState(false);
   const [showTestModal, setShowTestModal] = useState(false);
 
   const { control, watch, setValue } = useFormContext<ChatSettingsFormData>();
@@ -257,7 +258,7 @@ const ChatSettings: React.FC<ChatSettingsProps> = ({
   };
 
   // Type for string-only fields in ChatSettings (excludes chat_enabled which is boolean)
-  type StringChatSettingsField = Exclude<keyof ChatSettingsType, 'chat_enabled'>;
+  type StringChatSettingsField = Exclude<keyof ChatSettingsType, 'chat_enabled' | 'label_ai_replies'>;
 
   const renderField = (
     label: string,
@@ -313,8 +314,8 @@ const ChatSettings: React.FC<ChatSettingsProps> = ({
   return (
     <>
       <div className="space-y-6 max-w-2xl">
-        {/* Toggle */}
-        <div>
+        {/* Toggles */}
+        <div className="space-y-4">
           <div className="flex items-center justify-between max-w-2xl">
             <label className="block text-sm font-medium text-gray-700">
               啟用 AI 聊天功能
@@ -329,7 +330,57 @@ const ChatSettings: React.FC<ChatSettingsProps> = ({
               <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed"></div>
             </label>
           </div>
+
+          <div className="flex items-center justify-between max-w-2xl">
+            <div className="flex items-center gap-2">
+              <label className="block text-sm font-medium text-gray-700">
+                標註 AI 回覆訊息
+              </label>
+              <button
+                type="button"
+                onClick={() => setShowLabelAiInfo(true)}
+                className="inline-flex items-center justify-center p-1 text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-full"
+                aria-label="查看標註說明"
+              >
+                <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                </svg>
+              </button>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                {...control.register('chat_settings.label_ai_replies')}
+                disabled={!isClinicAdmin}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed"></div>
+            </label>
+          </div>
         </div>
+
+        {showLabelAiInfo && (
+          <BaseModal
+            onClose={() => setShowLabelAiInfo(false)}
+            aria-label="標註 AI 回覆說明"
+          >
+            <ModalHeader title="標註 AI 回覆說明" showClose onClose={() => setShowLabelAiInfo(false)} />
+            <ModalBody>
+              <div className="text-sm text-gray-700 space-y-4">
+                <p>開啟此功能後，AI 產生的每一則回覆訊息開頭都會包含標記，讓病患清楚知道這是由 AI 自動產生的內容，而非人工即時回覆。</p>
+
+                <div className="space-y-2">
+                  <p className="font-medium">標記方式：</p>
+                  <ul className="list-disc pl-5 space-y-1">
+                    <li><span className="font-mono bg-gray-100 px-1 rounded">[AI回覆]</span> (當病患語言設定為繁體中文時)</li>
+                    <li><span className="font-mono bg-gray-100 px-1 rounded">[AI reply]</span> (當病患語言設定為英文時)</li>
+                  </ul>
+                </div>
+
+              </div>
+            </ModalBody>
+          </BaseModal>
+        )}
 
         {/* Expanded form - always show */}
         <div className="space-y-6 pt-4 border-t border-gray-200">

@@ -130,6 +130,12 @@ async def test_chatbot(
             chat_settings_override=request.chat_settings
         )
 
+        # Prepend AI label if enabled in provided settings
+        # Note: In test mode, we default to Chinese label as there's no specific LineUser
+        if response_text.strip() != "[SILENCE]" and request.chat_settings.label_ai_replies:
+            label = "[AI回覆] "
+            response_text = f"{label}{response_text}"
+
         return ChatTestResponse(
             response=response_text,
             session_id=session_id
