@@ -254,7 +254,7 @@ def _create_clinic_agent(
 
 
 # Constants
-FALLBACK_ERROR_MESSAGE = "抱歉，我暫時無法處理您的訊息。請稍後再試，或直接聯繫診所。"
+FALLBACK_ERROR_MESSAGE = "抱歉，我暫時無法處理您的訊息。請稍後再試。"
 
 
 class ClinicAgentService:
