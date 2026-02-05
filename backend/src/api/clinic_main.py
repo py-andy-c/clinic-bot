@@ -130,6 +130,18 @@ async def test_chatbot(
             chat_settings_override=request.chat_settings
         )
 
+        # Handle silence fallback for Test Chat
+        # If AI decides to stay silent, check if this session has ever had a non-silent response
+        # If it has, send a polite fallback instead of truly staying silent
+        if response_text.strip() == "[SILENCE]":
+            has_answered = await ClinicAgentService.has_session_answered(session_id)
+            if has_answered:
+                response_text = "抱歉，我沒有這方面資訊。稍後再由診所人員回覆您喔！"
+                logger.info(
+                    f"Test AI decided [SILENCE] but session is active. Sending fallback: clinic_id={clinic.id}, "
+                    f"session_id={session_id}"
+                )
+
         # Prepend AI label if enabled in provided settings
         # Note: In test mode, we default to Chinese label as there's no specific LineUser
         if response_text.strip() != "[SILENCE]" and request.chat_settings.label_ai_replies:

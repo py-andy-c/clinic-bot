@@ -103,7 +103,7 @@ class TestChatTestEndpoint:
                 data = response.json()
                 assert "response" in data
                 assert "session_id" in data
-                assert data["response"] == "這是一個測試回應"
+                assert data["response"] == "[AI回覆] 這是一個測試回應"
                 # Backend returns full format: test-{clinic_id}-{uuid}
                 expected_session_id = f"test-{clinic.id}-{test_uuid}"
                 assert data["session_id"] == expected_session_id
@@ -158,6 +158,7 @@ class TestChatTestEndpoint:
                 
                 assert response.status_code == 200
                 data = response.json()
+                assert data["response"] == "[AI回覆] 這是第二個回應"
                 # Backend returns full format: test-{clinic_id}-{uuid}
                 expected_session_id = f"test-{clinic.id}-{test_uuid}"
                 assert data["session_id"] == expected_session_id
@@ -258,6 +259,8 @@ class TestChatTestEndpoint:
                 response = client.post("/api/clinic/chat/test", json=request_data)
                 
                 assert response.status_code == 200
+                data = response.json()
+                assert data["response"] == "[AI回覆] 測試回應"
                 
                 # Verify the service was called with the provided settings, not saved ones
                 call_args = mock_process.call_args

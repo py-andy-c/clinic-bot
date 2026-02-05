@@ -10,7 +10,7 @@ AI agent and sends responses back to patients.
 import json
 import logging
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Request, HTTPException, status, Header, Depends
@@ -18,13 +18,14 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from core.database import get_db
-from models import Clinic, PractitionerLinkCode, User, LineAiReply
+from models import Clinic, PractitionerLinkCode, User, LineAiReply, LineMessage
 from services.line_service import LINEService
 from utils.datetime_utils import taiwan_now
 from services.line_user_service import LineUserService
 from services.clinic_agent import ClinicAgentService
 from services.line_message_service import LineMessageService, QUOTE_ATTEMPTED_BUT_NOT_AVAILABLE
 from services.line_user_ai_disabled_service import is_ai_disabled
+from core.constants import AI_FALLBACK_EXPIRY_MINUTES
 
 logger = logging.getLogger(__name__)
 
@@ -414,11 +415,35 @@ async def _process_regular_message(
 
     # Check for silence token
     if response_text.strip() == "[SILENCE]":
-        logger.info(
-            f"AI decided to remain silent: clinic_id={clinic.id}, "
-            f"line_user_id={line_user_id}"
-        )
-        return {"status": "ok", "message": "AI remained silent"}
+        # Check for recent AI interaction (last 20 mins) to determine if conversation is active
+        # If active, send a polite fallback instead of truly staying silent
+        threshold_time = taiwan_now() - timedelta(minutes=AI_FALLBACK_EXPIRY_MINUTES)
+        
+        last_ai_msg = db.query(LineMessage).filter(
+            LineMessage.line_user_id == line_user_id,
+            LineMessage.clinic_id == clinic.id,
+            LineMessage.is_from_user == False,
+            LineMessage.created_at >= threshold_time
+        ).order_by(LineMessage.created_at.desc()).first()
+
+        if last_ai_msg:
+            # Send localized fallback message
+            if preferred_language == 'en':
+                response_text = "I'm sorry, I don't have this information. Our staff will get back to you later!"
+            else:
+                response_text = "抱歉，我沒有這方面資訊。稍後再由診所人員回覆您喔！"
+            
+            logger.info(
+                f"AI decided [SILENCE] but conversation is active. Sending fallback: clinic_id={clinic.id}, "
+                f"line_user_id={line_user_id}"
+            )
+            # Proceed to label and send logic below
+        else:
+            logger.info(
+                f"AI decided to remain silent: clinic_id={clinic.id}, "
+                f"line_user_id={line_user_id}"
+            )
+            return {"status": "ok", "message": "AI remained silent"}
 
     # Prepend AI label if enabled in clinic settings
     if clinic.get_validated_settings().chat_settings.label_ai_replies:

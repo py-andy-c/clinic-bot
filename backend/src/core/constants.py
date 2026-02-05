@@ -62,6 +62,9 @@ CHAT_TEST_SESSION_EXPIRY_HOURS = 12  # Test sessions expire after 12 hour
 # LINE message metadata retention
 LINE_MESSAGE_RETENTION_HOURS = 240  # 10 days (longer than CHAT_SESSION_EXPIRY_HOURS for safety)
 
+# AI fallback message settings
+AI_FALLBACK_EXPIRY_MINUTES = 20  # Only send fallback message if AI has replied within this window
+
 # Availability Notification Limits
 MAX_TIME_WINDOWS_PER_NOTIFICATION = 10
 MAX_NOTIFICATIONS_PER_USER = 10

@@ -6,6 +6,7 @@ This service uses OpenAI Agent SDK to generate AI-powered responses
 to patient inquiries, with conversation history stored in PostgreSQL.
 """
 
+import json
 import logging
 from datetime import timedelta
 from typing import Optional, List
@@ -383,6 +384,43 @@ class ClinicAgentService:
             )
             # Return fallback message
             return FALLBACK_ERROR_MESSAGE
+
+    @staticmethod
+    async def has_session_answered(session_id: str) -> bool:
+        """
+        Check if an AI agent has ever successfully answered in this session.
+        (i.e., has an 'assistant' message that is not '[SILENCE]')
+        
+        Args:
+            session_id: Session ID to check
+            
+        Returns:
+            bool: True if session has had at least one non-silent answer
+        """
+        try:
+            engine = get_async_engine()
+            async with AsyncSession(engine) as async_session:
+                query = text("""
+                    SELECT message_data
+                    FROM agent_messages
+                    WHERE session_id = :session_id
+                """)
+                result = await async_session.execute(query, {"session_id": session_id})
+                rows = result.fetchall()
+                
+                for (message_data_str,) in rows:
+                    if not message_data_str:
+                        continue
+                    message_data = json.loads(message_data_str)
+                    if (message_data.get("role") == "assistant" and 
+                        message_data.get("type") == "message" and
+                        message_data.get("content") and 
+                        message_data.get("content").strip() != "[SILENCE]"):
+                        return True
+            return False
+        except Exception as e:
+            logger.warning(f"Error checking if session has answered for {session_id}: {e}")
+            return False
     
     @staticmethod
     async def _delete_test_session(session_id: str) -> None:

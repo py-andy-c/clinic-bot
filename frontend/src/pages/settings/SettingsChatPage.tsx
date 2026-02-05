@@ -26,7 +26,7 @@ const SettingsChatPage: React.FC = () => {
     const { alert, confirm } = useModal();
 
     const methods = useForm<ChatSettingsFormData>({
-        resolver: zodResolver(ChatSettingsFormSchema),
+        resolver: zodResolver(ChatSettingsFormSchema) as any,
         defaultValues: {
             chat_settings: {
                 chat_enabled: false,
@@ -35,7 +35,7 @@ const SettingsChatPage: React.FC = () => {
         },
     });
 
-    const { reset, handleSubmit, formState: { isDirty } } = methods;
+    const { reset, formState: { isDirty } } = methods;
 
     useEffect(() => {
         if (settings) {
@@ -140,7 +140,7 @@ const SettingsChatPage: React.FC = () => {
                 </button>
             </div>
 
-            <form onSubmit={handleSubmit(onFormSubmit)} className="space-y-4 pb-24">
+            <form onSubmit={methods.handleSubmit(onFormSubmit as any)} className="space-y-4 pb-24">
                 <div className="bg-white md:rounded-xl md:border md:border-gray-100 md:shadow-sm p-0 md:p-6">
                     <ChatSettings isClinicAdmin={isClinicAdmin} />
                 </div>
@@ -150,7 +150,7 @@ const SettingsChatPage: React.FC = () => {
                 isVisible={isDirty}
                 isSubmitting={mutation.isPending}
                 onDiscard={handleDiscard}
-                onSave={handleSubmit(onFormSubmit)}
+                onSave={methods.handleSubmit(onFormSubmit as any)}
             />
         </FormProvider>
     );
