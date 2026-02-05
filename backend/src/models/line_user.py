@@ -110,10 +110,9 @@ class LineUser(Base):
 
     ai_opt_out_until: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
     """
-    Timestamp when the user's temporary AI opt-out expires.
+    [DEPRECATED] Timestamp when the user's temporary AI opt-out expires.
     
-    When a user sends "人工回覆", they are opted out for 24 hours. After this timestamp,
-    the user is automatically opted back in. NULL means not opted out.
+    This feature has been removed. Field is kept for database compatibility.
     """
 
     # Relationships
