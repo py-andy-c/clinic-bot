@@ -20,6 +20,8 @@ from models import Clinic
 from models.clinic import ChatSettings as ChatSettingsModel
 from services.clinic_agent import ClinicAgentService
 
+from core.constants import AI_LABEL_LONG_THRESHOLD
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
@@ -145,7 +147,9 @@ async def test_chatbot(
         # Prepend AI label if enabled in provided settings
         # Note: In test mode, we default to Chinese label as there's no specific LineUser
         if response_text.strip() != "[SILENCE]" and request.chat_settings.label_ai_replies:
-            label = "[AI回覆] "
+            is_long = len(response_text) > AI_LABEL_LONG_THRESHOLD or "\n" in response_text
+            separator = "\n" if is_long else " "
+            label = f"[AI回覆]{separator}"
             response_text = f"{label}{response_text}"
 
         return ChatTestResponse(

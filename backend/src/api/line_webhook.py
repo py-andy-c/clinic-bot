@@ -25,7 +25,7 @@ from services.line_user_service import LineUserService
 from services.clinic_agent import ClinicAgentService
 from services.line_message_service import LineMessageService, QUOTE_ATTEMPTED_BUT_NOT_AVAILABLE
 from services.line_user_ai_disabled_service import is_ai_disabled
-from core.constants import AI_FALLBACK_EXPIRY_MINUTES
+from core.constants import AI_FALLBACK_EXPIRY_MINUTES, AI_LABEL_LONG_THRESHOLD
 
 logger = logging.getLogger(__name__)
 
@@ -447,7 +447,9 @@ async def _process_regular_message(
 
     # Prepend AI label if enabled in clinic settings
     if clinic.get_validated_settings().chat_settings.label_ai_replies:
-        label = "[AI reply] " if preferred_language == 'en' else "[AI回覆] "
+        is_long = len(response_text) > AI_LABEL_LONG_THRESHOLD or "\n" in response_text
+        separator = "\n" if is_long else " "
+        label = ("[AI reply]" if preferred_language == 'en' else "[AI回覆]") + separator
         response_text = f"{label}{response_text}"
 
     # Send response back to patient via LINE

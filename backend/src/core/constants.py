@@ -64,6 +64,7 @@ LINE_MESSAGE_RETENTION_HOURS = 240  # 10 days (longer than CHAT_SESSION_EXPIRY_H
 
 # AI fallback message settings
 AI_FALLBACK_EXPIRY_MINUTES = 20  # Only send fallback message if AI has replied within this window
+AI_LABEL_LONG_THRESHOLD = 30    # Responses longer than this get a newline after the AI label
 
 # Availability Notification Limits
 MAX_TIME_WINDOWS_PER_NOTIFICATION = 10
