@@ -433,7 +433,8 @@ async def _process_regular_message(
     reply_token: str,
     message_id: str | None,
     quoted_message_id: str | None,
-    clinic: Clinic
+    clinic: Clinic,
+    preferred_language: str | None = None
 ) -> Dict[str, str]:
     """Process regular message through AI agent and send response."""
     # Generate session ID
@@ -486,7 +487,8 @@ async def _process_regular_message(
         message=message_text,
         clinic=clinic,
         quoted_message_text=quoted_message_text,
-        quoted_is_from_user=quoted_is_from_user
+        quoted_is_from_user=quoted_is_from_user,
+        preferred_language=preferred_language
     )
 
     # Check for silence token
@@ -587,6 +589,7 @@ async def line_webhook(
     # Initialize context variables for error logging
     clinic_id = None
     line_user_id = None
+    line_user = None
 
     try:
         # Extract and validate webhook data
@@ -744,7 +747,8 @@ async def line_webhook(
             return {"status": "ok", "message": "Message received but cannot reply"}
         return await _process_regular_message(
             db, line_service, line_user_id, message_text, reply_token,
-            message_id, quoted_message_id, clinic
+            message_id, quoted_message_id, clinic,
+            preferred_language=line_user.preferred_language if line_user else None
         )
 
     except HTTPException:
