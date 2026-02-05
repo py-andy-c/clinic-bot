@@ -220,11 +220,10 @@ def _create_clinic_agent(clinic: Clinic, chat_settings_override: Optional[ChatSe
     agent = Agent(
         name=f"Clinic Agent - {clinic.name}",
         instructions=instructions,
-        model="gpt-5-mini",
+        model="gpt-5-nano",
         model_settings=ModelSettings(
             reasoning=Reasoning(
-                effort="low",
-                summary="auto",
+                effort="minimal",
             ),
             verbosity="low"
         )  

@@ -434,8 +434,8 @@ class TestLineWebhookOptOutMessageHandling:
                 call_args = mock_service.send_text_message.call_args
                 assert call_args.kwargs['text'] == "這是AI回覆"
                 
-                # Verify loading animation was started
-                mock_service.start_loading_animation.assert_called_once()
+                # Verify loading animation was NOT started
+                mock_service.start_loading_animation.assert_not_called()
     
     def test_opt_out_expires_automatically(self, client, db_session, test_clinic_with_chat_enabled):
         """Test that expired opt-outs are automatically treated as enabled."""

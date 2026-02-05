@@ -436,9 +436,6 @@ async def _process_regular_message(
     clinic: Clinic
 ) -> Dict[str, str]:
     """Process regular message through AI agent and send response."""
-    # Start loading animation
-    line_service.start_loading_animation(line_user_id, loading_seconds=60)
-
     # Generate session ID
     session_id = f"{clinic.id}-{line_user_id}"
 
@@ -491,6 +488,14 @@ async def _process_regular_message(
         quoted_message_text=quoted_message_text,
         quoted_is_from_user=quoted_is_from_user
     )
+
+    # Check for silence token
+    if response_text.strip() == "[SILENCE]":
+        logger.info(
+            f"AI decided to remain silent: clinic_id={clinic.id}, "
+            f"line_user_id={line_user_id}"
+        )
+        return {"status": "ok", "message": "AI remained silent"}
 
     # Send response back to patient via LINE
     bot_message_id = line_service.send_text_message(
