@@ -113,7 +113,7 @@ class ClinicInfoSettings(BaseModel):
 class ChatSettings(BaseModel):
     """Schema for chat/chatbot settings."""
     chat_enabled: bool = Field(default=False, description="Whether the AI chatbot feature is enabled for this clinic")
-    label_ai_replies: bool = Field(default=False, description="Whether to prepend AI messages with [AI回覆] or [AI reply]")
+    label_ai_replies: bool = Field(default=True, description="Whether to prepend AI messages with [AI回覆] or [AI reply]")
     clinic_description: Optional[str] = Field(default=None, max_length=10000, description="Clinic description, specialties, and treatment approach")
     therapist_info: Optional[str] = Field(default=None, max_length=10000, description="Detailed information about therapists")
     treatment_details: Optional[str] = Field(default=None, max_length=10000, description="Detailed information about treatments, prices, duration, and content")

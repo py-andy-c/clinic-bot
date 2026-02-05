@@ -330,6 +330,7 @@ class ClinicInfoSettings(BaseModel):
 class ChatSettings(BaseModel):
     """Chat/chatbot settings for clinic."""
     chat_enabled: bool = False
+    label_ai_replies: bool = True
     clinic_description: Optional[str] = None
     therapist_info: Optional[str] = None
     treatment_details: Optional[str] = None

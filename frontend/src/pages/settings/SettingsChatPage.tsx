@@ -28,7 +28,10 @@ const SettingsChatPage: React.FC = () => {
     const methods = useForm<ChatSettingsFormData>({
         resolver: zodResolver(ChatSettingsFormSchema),
         defaultValues: {
-            chat_settings: { chat_enabled: false },
+            chat_settings: {
+                chat_enabled: false,
+                label_ai_replies: true
+            },
         },
     });
 
