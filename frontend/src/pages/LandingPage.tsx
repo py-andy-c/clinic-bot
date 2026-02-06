@@ -40,18 +40,6 @@ const FeatureSection: React.FC<{
                 <p className={`text-[14px] lg:text-base leading-snug lg:leading-7 transition-colors duration-500 ${isActive ? 'text-gray-900 font-bold' : 'text-gray-500 font-semibold'}`}>
                   {feature}
                 </p>
-
-                {/* Progress Underline (Mobile only, shown when active) */}
-                {isActive && (
-                  <div className="lg:hidden mt-2 h-0.5 w-[30px] bg-primary-100 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-primary-600 rounded-full"
-                      style={{
-                        animation: 'progressFill 4.5s linear forwards'
-                      }}
-                    />
-                  </div>
-                )}
               </div>
             </li>
           );
@@ -62,12 +50,6 @@ const FeatureSection: React.FC<{
 
   return (
     <section className={`${bgColor} py-6 lg:py-32 overflow-hidden`}>
-      <style>{`
-        @keyframes progressFill {
-          from { width: 0%; }
-          to { width: 100%; }
-        }
-      `}</style>
       <div className="max-w-7xl mx-auto px-4 lg:px-8">
         <div className={`flex flex-col ${imageSide === 'left' ? 'lg:flex-row-reverse' : 'lg:flex-row'} lg:items-center gap-4 lg:gap-24`}>
           {textContent}
