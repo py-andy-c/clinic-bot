@@ -23,7 +23,7 @@ const SettingsChatPage: React.FC = () => {
     const queryClient = useQueryClient();
     const { data: settings, isLoading } = useClinicSettings();
     const { isClinicAdmin } = useAuth();
-    const { alert, confirm } = useModal();
+    const { alert } = useModal();
 
     const methods = useForm<ChatSettingsFormData>({
         resolver: zodResolver(ChatSettingsFormSchema) as any,
@@ -64,35 +64,6 @@ const SettingsChatPage: React.FC = () => {
 
     const onFormSubmit = async (data: ChatSettingsFormData) => {
         if (!isClinicAdmin || !settings) return;
-
-        const wasEnabled = settings.chat_settings.chat_enabled;
-        const isEnabled = data.chat_settings.chat_enabled;
-
-        // Case 1: Off -> On
-        if (!wasEnabled && isEnabled) {
-            const confirmed = await confirm(
-                '您即將開啟 AI 聊天功能，病患將開始收到 AI 的自動回覆。確定要開啟嗎？',
-                '開啟 AI 聊天功能'
-            );
-            if (!confirmed) return;
-        }
-        // Case 2: On -> Off
-        else if (wasEnabled && !isEnabled) {
-            const confirmed = await confirm(
-                '您即將關閉 AI 聊天功能，病患將不再收到 AI 的自動回覆。確定要關閉嗎？',
-                '關閉 AI 聊天功能'
-            );
-            if (!confirmed) return;
-        }
-        // Case 3: Off -> Off (but changes made)
-        else if (!wasEnabled && !isEnabled) {
-            const confirmed = await confirm(
-                '您的變更將被儲存，但 AI 聊天功能目前仍處於關閉狀態，病患不會收到 AI 回覆。',
-                '儲存設定'
-            );
-            if (!confirmed) return;
-        }
-
         mutation.mutate(data);
     };
 
