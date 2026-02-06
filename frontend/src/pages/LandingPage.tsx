@@ -780,7 +780,7 @@ const DigitalReceiptMock = () => (
 );
 
 const FinancialDashboardMock = () => (
-  <div className="bg-white rounded-[2rem] shadow-[0_20px_50px_-12px_rgba(0,0,0,0.15)] p-7 border border-gray-100 space-y-7 max-w-sm mx-auto">
+  <div className="bg-white rounded-[2rem] shadow-[0_20px_50px_-12px_rgba(0,0,0,0.15)] p-6 border border-gray-100 space-y-5 max-w-sm mx-auto">
     {/* Key Stats Cards */}
     <div className="w-full">
       {[
@@ -797,22 +797,22 @@ const FinancialDashboardMock = () => (
     </div>
 
     {/* Service Breakdown */}
-    <div className="space-y-4">
+    <div className="space-y-3">
       <div className="flex justify-between items-center text-base">
         <span className="text-gray-900 font-medium">療程項目佔比</span>
       </div>
-      <div className="space-y-4">
+      <div className="space-y-3">
         {[
           { label: '徒手治療', value: 65, color: 'bg-primary-500' },
           { label: '運動治療', value: 25, color: 'bg-primary-300' },
           { label: '其他', value: 10, color: 'bg-gray-200' }
         ].map((item, i) => (
-          <div key={i} className="space-y-2">
-            <div className="flex justify-between text-xs lg:text-sm font-medium text-gray-600">
+          <div key={i} className="space-y-1">
+            <div className="flex justify-between text-sm font-medium text-gray-600">
               <span>{item.label}</span>
               <span>{item.value}%</span>
             </div>
-            <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
+            <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
               <div style={{ width: `${item.value}%` }} className={`h-full ${item.color} rounded-full`}></div>
             </div>
           </div>
@@ -821,26 +821,21 @@ const FinancialDashboardMock = () => (
     </div>
 
     {/* Practitioner Performance */}
-    <div className="space-y-5 pt-1">
+    <div className="space-y-3 pt-1">
       <div className="text-base font-medium text-gray-900">醫師 / 治療師業績</div>
-      <div className="space-y-4">
+      <div className="space-y-3">
         {[
           { name: '李醫師', amount: '$182,400', share: '$63,840' },
           { name: '林治療師', amount: '$124,500', share: '$43,575' }
         ].map((staff, i) => (
-          <div key={i} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-100">
-            <div className="flex items-center gap-4">
-              <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center text-primary-600 text-sm font-medium">
-                {staff.name[0]}
-              </div>
-              <div className="flex flex-col">
-                <span className="text-sm font-medium text-gray-900">{staff.name}</span>
-                <span className="text-xs text-gray-500 font-medium whitespace-nowrap">業績: {staff.amount}</span>
-              </div>
+          <div key={i} className="flex items-center justify-between px-4 py-3 bg-gray-50 rounded-xl border border-gray-100">
+            <div className="flex flex-col">
+              <span className="text-base font-bold text-gray-900">{staff.name}</span>
+              <span className="text-sm text-gray-500 font-medium whitespace-nowrap">業績: {staff.amount}</span>
             </div>
             <div className="text-right">
-              <span className="text-sm font-medium text-primary-600 block">自動分潤</span>
-              <span className="text-xs text-gray-400 font-medium">{staff.share}</span>
+              <span className="text-base font-bold text-primary-600 block">分潤</span>
+              <span className="text-sm text-gray-600 font-bold">{staff.share}</span>
             </div>
           </div>
         ))}
