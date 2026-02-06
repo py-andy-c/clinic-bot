@@ -27,17 +27,17 @@ const FeatureSection: React.FC<{
             <li
               key={index}
               className={`group relative flex items-start transition-all duration-300 lg:-ml-4 lg:p-4 lg:rounded-2xl
-                ${isActive ? 'opacity-100 lg:bg-primary-50 lg:translate-x-3' : 'opacity-40 lg:opacity-60'}`}
+                ${isActive ? 'opacity-100 lg:bg-primary-50 lg:translate-x-3' : (activeIndex === -1 ? 'opacity-100' : 'opacity-40 lg:opacity-60')}`}
               onMouseEnter={() => onHoverFeature?.(index)}
               onMouseLeave={() => onLeaveFeature?.()}
             >
-              <div className={`mt-0.5 lg:mt-1 flex-shrink-0 transition-colors duration-500 ${isActive ? 'text-primary-600' : 'text-gray-400'}`}>
-                <div className={`flex h-5 w-5 lg:h-8 lg:w-8 items-center justify-center rounded-full transition-all duration-500 border-2 ${isActive ? 'bg-white border-primary-500 shadow-sm' : 'bg-gray-100 border-transparent'}`}>
+              <div className={`mt-0.5 lg:mt-1 flex-shrink-0 transition-colors duration-500 ${isActive || activeIndex === -1 ? 'text-primary-600' : 'text-gray-400'}`}>
+                <div className={`flex h-5 w-5 lg:h-8 lg:w-8 items-center justify-center rounded-full transition-all duration-500 border-2 ${isActive || activeIndex === -1 ? 'bg-white border-primary-500 shadow-sm' : 'bg-gray-100 border-transparent'}`}>
                   <span className="text-[9px] lg:text-sm font-bold">{index + 1}</span>
                 </div>
               </div>
               <div className="ml-3 lg:ml-4 flex-1">
-                <p className={`text-[14px] lg:text-base leading-snug lg:leading-7 transition-colors duration-500 ${isActive ? 'text-gray-900 font-bold' : 'text-gray-500 font-semibold'}`}>
+                <p className={`text-[14px] lg:text-base leading-snug lg:leading-7 transition-colors duration-500 ${isActive || activeIndex === -1 ? 'text-gray-900 font-bold' : 'text-gray-500 font-semibold'}`}>
                   {feature}
                 </p>
               </div>
@@ -933,11 +933,10 @@ const LandingPage: React.FC = () => {
         {/* Section 5: 數位收據與結帳 */}
         <FeatureSection
           title="數位收據與結帳"
-          valueProp="數位化快速結帳，告別繁瑣手寫，提升行政效率。"
+          valueProp="數位化結帳，告別繁瑣手寫，提升行政效率。"
           features={[
             "一鍵生成收據，結帳效率倍增。",
-            "嚴謹作廢稽核，杜絕財務漏洞。",
-            "支援 PDF 與 LINE，全面無紙化。"
+            "支援 PDF 與 LINE 傳送，全面無紙化。"
           ]}
           imageSide="right"
           mockup={<DigitalReceiptMock />}
