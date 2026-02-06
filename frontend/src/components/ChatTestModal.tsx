@@ -207,23 +207,37 @@ export const ChatTestModal: React.FC<ChatTestModalProps> = ({
             </div>
           ) : (
             <div className="space-y-3">
-              {messages.map((message) => (
-                <div
-                  key={message.id}
-                  className={`flex ${message.isUser ? 'justify-end' : 'justify-start'}`}
-                >
+              {messages.map((message) => {
+                // Check if this is a SILENCE message from AI
+                if (!message.isUser && message.text.trim() === '[SILENCE]') {
+                  return (
+                    <div key={message.id} className="flex justify-center my-4 w-full">
+                      <div className="bg-gray-100 text-gray-500 text-xs px-4 py-2 rounded-full flex items-center gap-2 border border-gray-200">
+                        <span className="text-base">🔇</span>
+                        <span>AI 無法回答此問題，等待人工回覆 (LINE 用戶不會看到此訊息)</span>
+                      </div>
+                    </div>
+                  );
+                }
+
+                return (
                   <div
-                    className={`max-w-[75%] rounded-2xl px-4 py-2 ${message.isUser
-                      ? 'bg-[#06C755] text-white'
-                      : 'bg-white text-gray-900 border border-gray-200'
-                      }`}
+                    key={message.id}
+                    className={`flex ${message.isUser ? 'justify-end' : 'justify-start'}`}
                   >
-                    <p className="text-sm whitespace-pre-wrap break-words">
-                      {message.text}
-                    </p>
+                    <div
+                      className={`max-w-[75%] rounded-2xl px-4 py-2 ${message.isUser
+                        ? 'bg-[#06C755] text-white'
+                        : 'bg-white text-gray-900 border border-gray-200'
+                        }`}
+                    >
+                      <p className="text-sm whitespace-pre-wrap break-words">
+                        {message.text}
+                      </p>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
               {isLoading && (
                 <div className="flex justify-start">
                   <div className="bg-white border border-gray-200 rounded-2xl px-4 py-2">
