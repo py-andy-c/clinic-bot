@@ -651,11 +651,11 @@ const LandingPage: React.FC = () => {
         {/* Section 2: 智慧排班與資源管理 */}
         <FeatureSection
           title="智慧排班與資源管理"
-          valueProp="資源最佳化，徹底杜絕撞單與混亂。"
+          valueProp="資源最佳化，杜絕撞單與混亂。"
           features={[
-            "一鍵預約鎖定資源，無需人工核對。",
+            "一鍵預約，自動分配人力、診間、設備",
             "拖拉式排班，關聯資源同步更新。",
-            "智能偵測衝突，從源頭阻斷錯誤。"
+            "偵測衝突，避免診間超收。"
           ]}
           imageSide="left"
           bgColor="bg-gray-50"
