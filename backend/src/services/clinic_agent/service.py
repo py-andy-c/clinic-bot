@@ -9,7 +9,7 @@ to patient inquiries, with conversation history stored in PostgreSQL.
 import json
 import logging
 from datetime import timedelta
-from typing import Optional, List
+from typing import Optional, List, Any, Dict, cast
 
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncEngine, AsyncSession
 from sqlalchemy import text
@@ -413,10 +413,30 @@ class ClinicAgentService:
                         continue
                     message_data = json.loads(message_data_str)
                     if (message_data.get("role") == "assistant" and 
-                        message_data.get("type") == "message" and
-                        message_data.get("content") and 
-                        message_data.get("content").strip() != "[SILENCE]"):
-                        return True
+                        message_data.get("type") == "message"):
+                        
+                        content = message_data.get("content")
+                        if not content:
+                            continue
+                            
+                        # Extract text content (can be string or list of dicts)
+                        text_content = ""
+                        if isinstance(content, str):
+                            text_content = content
+                        elif isinstance(content, list):
+                            # Handle structured content (e.g. [{'type': 'output_text', 'text': '...'}])
+                            content_list = cast(List[Any], content)
+                            text_parts: List[str] = []
+                            for part in content_list:
+                                if isinstance(part, dict):
+                                    part_dict = cast(Dict[str, Any], part)
+                                    text_val = part_dict.get("text")
+                                    if isinstance(text_val, str):
+                                        text_parts.append(text_val)
+                            text_content = "".join(text_parts)
+                        
+                        if text_content and text_content.strip() != "[SILENCE]":
+                            return True
             return False
         except Exception as e:
             logger.warning(f"Error checking if session has answered for {session_id}: {e}")
