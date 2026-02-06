@@ -248,24 +248,7 @@ const SchedulingMock = ({ scenario }: { scenario: number }) => {
   return (
     <div className="max-w-3xl mx-auto transform transition-all duration-700">
       <div className="grid grid-cols-[60px_1fr_1fr_1fr_1fr] bg-white rounded-2xl overflow-hidden border border-gray-200 shadow-xl relative">
-        {/* Cursor Overlay for Scenario 0 */}
-        {scenario === 0 && (
-          <div
-            className={`absolute z-50 pointer-events-none transition-all duration-700 ease-in-out
-              ${autoState === 'idle' ? 'top-1/2 left-1/4 opacity-0' :
-                autoState === 'clicking' ? 'top-[164px] left-[140px] opacity-100 scale-90' :
-                  'top-[164px] left-[140px] opacity-0 scale-75'}`}
-          >
-            <div className="relative">
-              <svg className="w-8 h-8 text-primary-600 drop-shadow-lg" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M7 2l12 11.2l-5.8 0.5l3.3 7.3l-2.2 1l-3.2-7.4l-4.1 3.9z" />
-              </svg>
-              {autoState === 'clicking' && (
-                <div className="absolute top-0 left-0 w-8 h-8 rounded-full bg-primary-400/30 animate-ping"></div>
-              )}
-            </div>
-          </div>
-        )}
+
 
         {/* Categorical Headers */}
         <div className="p-2 border-b border-r border-gray-100 bg-gray-50/50"></div>
@@ -322,6 +305,24 @@ const SchedulingMock = ({ scenario }: { scenario: number }) => {
                         <span className="text-[10px] font-bold text-gray-900 truncate">門診預約</span>
                         {resIdx === 2 && <span className="text-[8px] font-black text-emerald-600 animate-pulse">AUTO</span>}
                       </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Scenario 0: Cursor click in target cell (王院長/10:00) */}
+                {scenario === 0 && timeIdx === 1 && resIdx === 0 && (
+                  <div className={`absolute inset-0 flex items-center justify-center z-50 pointer-events-none transition-all duration-700
+                    ${autoState === 'idle' ? 'opacity-0 scale-150 translate-y-8' :
+                      autoState === 'clicking' ? 'opacity-100 scale-100 translate-y-0' :
+                        'opacity-0 scale-95'}`}
+                  >
+                    <div className="relative">
+                      <svg className="w-8 h-8 text-primary-600 drop-shadow-lg" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M7 2l12 11.2l-5.8 0.5l3.3 7.3l-2.2 1l-3.2-7.4l-4.1 3.9z" />
+                      </svg>
+                      {autoState === 'clicking' && (
+                        <div className="absolute top-0 left-0 w-8 h-8 rounded-full bg-primary-400/30 animate-ping"></div>
+                      )}
                     </div>
                   </div>
                 )}
