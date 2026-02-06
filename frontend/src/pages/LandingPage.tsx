@@ -423,43 +423,149 @@ const SchedulingMock = ({ scenario }: { scenario: number }) => {
   );
 };
 
-const MedicalRecordMock = () => (
-  <div className="bg-white rounded-2xl shadow-[0_20px_50px_-12px_rgba(0,0,0,0.15)] border border-gray-100 overflow-hidden flex h-[400px]">
-    <div className="w-1/3 bg-gray-50 border-r border-gray-100 p-4 space-y-4">
-      <div className="h-10 bg-gray-200 rounded animate-pulse"></div>
-      {[1, 2, 3, 4].map(i => (
-        <div key={i} className="space-y-2">
-          <div className="h-2 w-1/2 bg-gray-200 rounded"></div>
-          <div className="h-3 w-full bg-gray-100 rounded"></div>
-        </div>
-      ))}
+const MedicalRecordMock = ({ scenario }: { scenario: number }) => {
+  const [templateIndex, setTemplateIndex] = React.useState(0);
+
+  // Internal auto-switch for templates in scenario 0
+  React.useEffect(() => {
+    if (scenario !== 0) return;
+    const interval = setInterval(() => {
+      setTemplateIndex(prev => (prev + 1) % 3);
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [scenario]);
+
+  const templates = [
+    { title: '初診病歷', fields: ['患者主訴', '過往病史', '系統評估', '治療計畫'] },
+    { title: '複診追蹤', fields: ['疼痛分數 (VAS)', '活動度量測', '今日治療項目', '醫囑備註'] },
+    { title: '特約評估', fields: ['專屬量表 A', '功能性測試', '影像比對分析'] }
+  ];
+
+  const renderContent = () => {
+    switch (scenario) {
+      case 0: // Templates
+        return (
+          <div key="templates" className="h-full flex flex-col animate-in fade-in slide-in-from-right-4 duration-500">
+            <div className="p-4 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
+              <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">模板切換示範</span>
+              <div className="flex gap-1">
+                {[0, 1, 2].map(i => (
+                  <div key={i} className={`h-1.5 w-4 rounded-full transition-all duration-300 ${i === templateIndex ? 'bg-primary-500 w-8' : 'bg-gray-200'}`} />
+                ))}
+              </div>
+            </div>
+            <div className="flex flex-1 overflow-hidden">
+              {/* Sidebar Tabs */}
+              <div className="w-1/3 border-r border-gray-100 bg-gray-50 p-2 space-y-2">
+                {templates.map((t, i) => (
+                  <div key={i} className={`p-2 rounded-lg text-[10px] font-bold transition-all ${i === templateIndex ? 'bg-white shadow-sm text-primary-600 border border-primary-100' : 'text-gray-400'}`}>
+                    {t.title}
+                  </div>
+                ))}
+              </div>
+              {/* Dynamic Form Content */}
+              <div className="flex-1 p-4 space-y-4">
+                {templates[templateIndex] && (
+                  <div key={templateIndex} className="animate-in fade-in slide-in-from-bottom-2 duration-300 space-y-4">
+                    <p className="text-xs font-black text-gray-800 border-b border-gray-100 pb-2">{templates[templateIndex].title}</p>
+                    {templates[templateIndex].fields.map((field, i) => (
+                      <div key={i} className="space-y-1">
+                        <div className="h-1.5 w-1/3 bg-gray-200 rounded animate-pulse" />
+                        <div className="h-8 w-full bg-white border border-gray-100 rounded-lg shadow-sm flex items-center px-3">
+                          <span className="text-[10px] text-gray-400 font-medium">{field}...</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      case 1: // Photos Timeline
+        return (
+          <div key="photos" className="h-full flex flex-col p-6 animate-in fade-in slide-in-from-right-4 duration-500">
+            <div className="flex items-center justify-between mb-6 border-b border-gray-100 pb-4">
+              <span className="text-xs font-black text-gray-800">影像進度比對 (物理治療)</span>
+              <span className="text-[10px] text-primary-600 font-bold bg-primary-50 px-2 py-1 rounded-full text-left">進步幅度: +35%</span>
+            </div>
+            <div className="flex-1 flex gap-4 overflow-x-auto pb-4 scrollbar-hide">
+              {[
+                { date: '01/10', label: '初次就診', improvement: '75%', color: 'from-red-400 to-red-100' },
+                { date: '01/24', label: '兩週追蹤', improvement: '45%', color: 'from-amber-400 to-amber-100' },
+                { date: '02/07', label: '穩定復原', improvement: '15%', color: 'from-emerald-400 to-emerald-100' }
+              ].map((item, i) => (
+                <div key={i} className="flex-shrink-0 w-44 space-y-3">
+                  <div className={`h-48 w-full rounded-2xl bg-gradient-to-b ${item.color} shadow-lg relative overflow-hidden group flex flex-col items-center justify-center border border-white`}>
+                    {/* SVG Progress Illustration */}
+                    <div className="relative w-20 h-32 flex items-center justify-center">
+                      <div className={`w-1 h-32 bg-white/40 rounded-full`} />
+                      <div
+                        className={`absolute w-1 h-32 bg-white rounded-full transition-all duration-1000`}
+                        style={{
+                          transform: `rotate(${item.improvement})`,
+                          boxShadow: '0 0 10px rgba(255,255,255,0.8)'
+                        }}
+                      />
+                    </div>
+                    <div className="absolute top-2 left-2 px-2 py-0.5 bg-white/20 backdrop-blur-md rounded-md text-[9px] text-white font-bold">{item.date}</div>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-[11px] font-bold text-gray-800">{item.label}</p>
+                    <p className="text-[9px] text-gray-400 font-medium">VAS 指數: {5 - i * 2}/10</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      case 2: // History
+        return (
+          <div key="history" className="h-full flex flex-col animate-in fade-in slide-in-from-right-4 duration-500 overflow-hidden">
+            <div className="p-6 bg-gradient-to-r from-primary-600 to-primary-700 text-white shrink-0 shadow-lg">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center text-xl shadow-inner border border-white/20 text-left">👤</div>
+                <div>
+                  <h3 className="font-bold text-base leading-tight">王曉明</h3>
+                  <p className="text-[10px] text-primary-100 font-medium opacity-80 mt-0.5">病歷號: CLIN-2024-001</p>
+                </div>
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50/50">
+              {[
+                { date: '2024/02/06', type: '物理治療', doc: '陳醫師', tags: ['肩頸痠痛', '徒手'] },
+                { date: '2024/01/30', type: '物理治療', doc: '陳醫師', tags: ['複診'] },
+                { date: '2024/01/23', type: '初診評估', doc: '王院長', tags: ['初診', '運動'] }
+              ].map((rec, i) => (
+                <div key={i} className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 hover:border-primary-200 transition-colors group cursor-pointer text-left">
+                  <div className="flex justify-between items-start mb-2 text-left">
+                    <div>
+                      <span className="text-[10px] font-black text-gray-400 block mb-1">{rec.date}</span>
+                      <span className="text-[13px] font-bold text-gray-900 leading-tight">{rec.type}</span>
+                    </div>
+                    <span className="text-[10px] font-bold text-gray-500 bg-gray-100 px-2 py-0.5 rounded text-left">{rec.doc}</span>
+                  </div>
+                  <div className="flex gap-1.5 flex-wrap">
+                    {rec.tags.map(tag => (
+                      <span key={tag} className="text-[9px] font-bold text-primary-600 bg-primary-50 px-1.5 py-0.5 rounded text-left">#{tag}</span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <div className="bg-white rounded-3xl shadow-[0_30px_60px_-15px_rgba(0,0,0,0.15)] border border-gray-100 overflow-hidden h-[420px] max-w-lg mx-auto transform transition-all duration-700">
+      {renderContent()}
     </div>
-    <div className="flex-1 p-6 space-y-6">
-      <div className="flex justify-between">
-        <div className="space-y-1">
-          <div className="h-4 w-32 bg-gray-200 rounded"></div>
-          <div className="h-3 w-48 bg-gray-100 rounded"></div>
-        </div>
-        <div className="w-12 h-12 bg-primary-50 rounded-full"></div>
-      </div>
-      <div className="grid grid-cols-2 gap-4">
-        <div className="h-32 bg-gray-50 rounded-xl border-2 border-dashed border-gray-200 flex items-center justify-center">
-          <span className="text-[10px] text-gray-400">影像上傳...</span>
-        </div>
-        <div className="space-y-2">
-          <div className="h-2 bg-gray-100 rounded"></div>
-          <div className="h-2 bg-gray-100 rounded"></div>
-          <div className="h-2 bg-gray-100 rounded w-2/3"></div>
-        </div>
-      </div>
-      <div className="h-20 bg-primary-50/50 rounded-xl p-4">
-        <div className="h-2 w-full bg-primary-200/50 rounded mb-2"></div>
-        <div className="h-2 w-full bg-primary-200/50 rounded mb-2"></div>
-        <div className="h-2 w-2/3 bg-primary-200/50 rounded"></div>
-      </div>
-    </div>
-  </div>
-);
+  );
+};
 
 const AutomationFlowMock = () => (
   <div className="bg-white rounded-2xl shadow-[0_20px_50px_-12px_rgba(0,0,0,0.15)] p-8 border border-gray-100 max-w-md mx-auto relative">
@@ -577,6 +683,7 @@ const AISetupMock = () => (
 const LandingPage: React.FC = () => {
   const [activeLineFeature, setActiveLineFeature] = React.useState(0);
   const [activeSchedulingFeature, setActiveSchedulingFeature] = React.useState(0);
+  const [activeMedicalFeature, setActiveMedicalFeature] = React.useState(0);
   const [isPaused, setIsPaused] = React.useState(false);
 
   React.useEffect(() => {
@@ -584,6 +691,7 @@ const LandingPage: React.FC = () => {
     const interval = setInterval(() => {
       setActiveLineFeature((prev) => (prev + 1) % 3);
       setActiveSchedulingFeature((prev) => (prev + 1) % 3);
+      setActiveMedicalFeature((prev) => (prev + 1) % 3);
     }, 4500);
     return () => clearInterval(interval);
   }, [isPaused]);
@@ -671,7 +779,10 @@ const LandingPage: React.FC = () => {
             "秒速調閱紀錄，確保治療連續性。"
           ]}
           imageSide="right"
-          mockup={<MedicalRecordMock />}
+          activeIndex={activeMedicalFeature}
+          onHoverFeature={(index) => handleHover(index, setActiveMedicalFeature)}
+          onLeaveFeature={() => setIsPaused(false)}
+          mockup={<MedicalRecordMock scenario={activeMedicalFeature} />}
         />
 
         {/* Section 4: 個案關懷與追蹤 */}
