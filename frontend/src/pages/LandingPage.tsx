@@ -780,28 +780,71 @@ const DigitalReceiptMock = () => (
 );
 
 const FinancialDashboardMock = () => (
-  <div className="bg-[#111827] rounded-2xl shadow-[0_20px_50px_-12px_rgba(0,0,0,0.3)] p-6 border border-gray-800 space-y-6">
-    <div className="grid grid-cols-2 gap-4">
+  <div className="bg-white rounded-[2rem] shadow-[0_20px_50px_-12px_rgba(0,0,0,0.15)] p-7 border border-gray-100 space-y-7 max-w-sm mx-auto">
+    {/* Key Stats Cards */}
+    <div className="w-full">
       {[
-        { l: '月營收', v: '$1.2M', c: 'text-green-400' },
-        { l: '成長率', v: '+24%', c: 'text-primary-400' }
+        { l: '本月營收', v: '$428,500', c: 'text-primary-600', g: '+18%' }
       ].map(s => (
-        <div key={s.l} className="bg-gray-800/50 p-4 rounded-xl border border-white/5">
-          <p className="text-[10px] text-gray-400 mb-1">{s.l}</p>
-          <p className={`text-xl font-bold ${s.c}`}>{s.v}</p>
+        <div key={s.l} className="bg-gray-50/50 px-5 py-4 rounded-2xl border border-gray-100 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <span className="text-sm text-gray-500 font-medium">{s.l}</span>
+            <span className={`text-xl lg:text-2xl font-medium ${s.c}`}>{s.v}</span>
+          </div>
+          <span className="text-sm font-medium text-green-800 bg-green-100 px-2.5 py-1 rounded-full">{s.g}</span>
         </div>
       ))}
     </div>
-    <div className="space-y-3">
-      <div className="flex justify-between text-[10px] text-gray-400"><span>業績佔比</span><span>由高至低</span></div>
-      {[60, 45, 30].map((w, i) => (
-        <div key={i} className="h-8 bg-gray-800/50 rounded flex items-center px-4">
-          <div style={{ width: `${w}%` }} className="h-2 bg-primary-500 rounded shadow-[0_0_10px_rgba(59,130,246,0.5)]"></div>
-        </div>
-      ))}
+
+    {/* Service Breakdown */}
+    <div className="space-y-4">
+      <div className="flex justify-between items-center text-base">
+        <span className="text-gray-900 font-medium">療程項目佔比</span>
+      </div>
+      <div className="space-y-4">
+        {[
+          { label: '徒手治療', value: 65, color: 'bg-primary-500' },
+          { label: '運動治療', value: 25, color: 'bg-primary-300' },
+          { label: '其他', value: 10, color: 'bg-gray-200' }
+        ].map((item, i) => (
+          <div key={i} className="space-y-2">
+            <div className="flex justify-between text-xs lg:text-sm font-medium text-gray-600">
+              <span>{item.label}</span>
+              <span>{item.value}%</span>
+            </div>
+            <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
+              <div style={{ width: `${item.value}%` }} className={`h-full ${item.color} rounded-full`}></div>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
-    <div className="pt-4 border-t border-white/5 flex gap-2">
-      {[1, 2, 3, 4, 5].map(i => <div key={i} className="flex-1 h-12 bg-gray-800 rounded-sm"></div>)}
+
+    {/* Practitioner Performance */}
+    <div className="space-y-5 pt-1">
+      <div className="text-base font-medium text-gray-900">醫師 / 治療師業績</div>
+      <div className="space-y-4">
+        {[
+          { name: '李醫師', amount: '$182,400', share: '$63,840' },
+          { name: '林治療師', amount: '$124,500', share: '$43,575' }
+        ].map((staff, i) => (
+          <div key={i} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-100">
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center text-primary-600 text-sm font-medium">
+                {staff.name[0]}
+              </div>
+              <div className="flex flex-col">
+                <span className="text-sm font-medium text-gray-900">{staff.name}</span>
+                <span className="text-xs text-gray-500 font-medium whitespace-nowrap">業績: {staff.amount}</span>
+              </div>
+            </div>
+            <div className="text-right">
+              <span className="text-sm font-medium text-primary-600 block">自動分潤</span>
+              <span className="text-xs text-gray-400 font-medium">{staff.share}</span>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   </div>
 );
@@ -976,8 +1019,8 @@ const LandingPage: React.FC = () => {
           title="財務管理與自動分潤"
           valueProp="數據決策，一鍵搞定繁瑣分潤。"
           features={[
-            "業績佣金自動結算，薪資不再算錯。",
-            "視覺化營收報表，掌握團隊表現。"
+            "視覺化營收報表，掌握團隊表現。",
+            "業績佣金自動結算，薪資不再算錯。"
           ]}
           imageSide="left"
           bgColor="bg-gray-50"
