@@ -26,12 +26,12 @@ const FeatureSection: React.FC<{
           return (
             <li
               key={index}
-              className={`group relative flex items-start transition-all duration-300 lg:-ml-4 lg:p-4 lg:rounded-2xl
+              className={`group relative flex items-center transition-all duration-300 lg:-ml-4 lg:p-4 lg:rounded-2xl
                 ${isActive ? 'opacity-100 lg:bg-primary-50 lg:translate-x-3' : (activeIndex === -1 ? 'opacity-100' : 'opacity-40 lg:opacity-60')}`}
               onMouseEnter={() => onHoverFeature?.(index)}
               onMouseLeave={() => onLeaveFeature?.()}
             >
-              <div className={`mt-0.5 lg:mt-1 flex-shrink-0 transition-colors duration-500 ${isActive || activeIndex === -1 ? 'text-primary-600' : 'text-gray-400'}`}>
+              <div className={`flex-shrink-0 transition-colors duration-500 ${isActive || activeIndex === -1 ? 'text-primary-600' : 'text-gray-400'}`}>
                 <div className={`flex h-5 w-5 lg:h-8 lg:w-8 items-center justify-center rounded-full transition-all duration-500 border-2 ${isActive || activeIndex === -1 ? 'bg-white border-primary-500 shadow-sm' : 'bg-gray-100 border-transparent'}`}>
                   <span className="text-[9px] lg:text-sm font-bold">{index + 1}</span>
                 </div>
