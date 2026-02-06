@@ -258,10 +258,10 @@ const SchedulingMock = ({ scenario }: { scenario: number }) => {
         {/* Categorical Headers */}
         <div className="p-2 border-b border-r border-gray-100 bg-gray-50/50"></div>
         <div className="col-span-2 p-2 border-b border-r border-blue-100 bg-blue-50/50 text-center">
-          <span className="text-[9px] font-black text-blue-600 uppercase tracking-widest">醫療團隊</span>
+          <span className="text-[12px] font-black text-blue-600 uppercase tracking-widest">醫療團隊</span>
         </div>
         <div className="col-span-2 p-2 border-b border-gray-100 bg-emerald-50/50 text-center">
-          <span className="text-[9px] font-black text-emerald-600 uppercase tracking-widest">空間資源</span>
+          <span className="text-[12px] font-black text-emerald-600 uppercase tracking-widest">空間資源</span>
         </div>
 
         {/* Header Row */}
@@ -271,7 +271,7 @@ const SchedulingMock = ({ scenario }: { scenario: number }) => {
             ${idx < 2 ? 'bg-blue-50/30 border-r border-blue-100' : 'bg-emerald-50/30 border-r border-emerald-100'}
             ${idx === 1 ? 'border-r-2 border-r-gray-200' : ''}`}
           >
-            <p className="text-[12px] font-bold text-gray-900 leading-tight">{res.name}</p>
+            <p className="text-[13px] font-bold text-gray-900 leading-tight">{res.name}</p>
           </div>
         ))}
 
@@ -279,7 +279,7 @@ const SchedulingMock = ({ scenario }: { scenario: number }) => {
         {timeSlots.map((time, timeIdx) => (
           <React.Fragment key={time}>
             <div className="p-4 border-b border-r border-gray-100 bg-gray-100/10 text-center flex items-start justify-center h-28">
-              <span className="text-[11px] font-bold text-gray-400 mt-1">{time}</span>
+              <span className="text-[12px] font-bold text-gray-400 mt-1">{time}</span>
             </div>
 
             {resources.map((res, resIdx) => (
@@ -294,7 +294,7 @@ const SchedulingMock = ({ scenario }: { scenario: number }) => {
                         ${resIdx === 1 ? 'bg-indigo-50 border-indigo-500' : 'bg-teal-50 border-teal-500'}`}
                     >
                       <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-bold text-gray-900 truncate">門診預約</span>
+                        <span className="text-[11px] font-bold text-gray-900 leading-tight">門診預約</span>
                       </div>
                     </div>
                   </div>
@@ -307,8 +307,7 @@ const SchedulingMock = ({ scenario }: { scenario: number }) => {
                       ${resIdx === 0 ? 'bg-blue-50 border-blue-500' : 'bg-emerald-50 border-emerald-500'}`}
                     >
                       <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-bold text-gray-900 truncate">門診預約</span>
-                        {resIdx === 2 && <span className="text-[8px] font-black text-emerald-600 animate-pulse">AUTO</span>}
+                        <span className="text-[11px] font-bold text-gray-900 leading-tight">門診預約</span>
                       </div>
                     </div>
                   </div>
@@ -392,7 +391,7 @@ const SchedulingMock = ({ scenario }: { scenario: number }) => {
                     <div className={`h-full w-full rounded-xl border-l-4 shadow-2xl p-3 flex flex-col justify-center text-white opacity-95
                       ${resIdx === 0 ? 'bg-blue-600 border-blue-700' : 'bg-emerald-600 border-emerald-700'}`}
                     >
-                      <span className="text-[10px] font-bold">同步移動</span>
+                      <span className="text-[11px] font-bold leading-tight">同步移動</span>
                       <div className="mt-2 h-1 w-full bg-white/20 rounded-full overflow-hidden">
                         <div className="h-full bg-white animate-[pulse_1.5s_infinite]" style={{ width: '60%' }}></div>
                       </div>
@@ -404,7 +403,7 @@ const SchedulingMock = ({ scenario }: { scenario: number }) => {
                 {scenario === 2 && resIdx === 2 && timeIdx === 0 && (
                   <>
                     <div className="absolute inset-x-2 inset-y-2 bg-purple-50 border-l-4 border-purple-200 rounded-xl p-3 opacity-40">
-                      <span className="text-[8px] font-bold text-gray-400">已佔用</span>
+                      <span className="text-[9px] font-bold text-gray-400">已佔用</span>
                     </div>
                     <div className={`absolute inset-x-2 inset-y-2 rounded-xl border-2 border-dashed flex items-center justify-center transition-all duration-300
                       ${showConflict ? 'bg-red-50 border-red-500 scale-105 z-20' : 'bg-transparent border-transparent'}`}
@@ -412,7 +411,7 @@ const SchedulingMock = ({ scenario }: { scenario: number }) => {
                       {showConflict && (
                         <div className="text-center p-2">
                           <div className="text-[20px] mb-1 animate-bounce">🚫</div>
-                          <span className="text-[9px] font-black text-red-600 uppercase tracking-tighter">時段衝突</span>
+                          <span className="text-[10px] font-black text-red-600 uppercase tracking-tighter leading-tight">時段衝突</span>
                         </div>
                       )}
                     </div>
