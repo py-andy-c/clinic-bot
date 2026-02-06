@@ -604,49 +604,27 @@ const MedicalRecordMock = ({ scenario }: { scenario: number }) => {
                 </div>
               </div>
             </div>
-            <div className="flex-1 overflow-y-auto bg-gray-50/30 relative">
-              {/* Timeline Connector Line */}
-              <div className="absolute left-8 top-0 bottom-0 w-px bg-gray-200"></div>
-
-              <div className="p-4 space-y-6 relative">
-                {[
-                  { date: '2024/02/06', type: '複診追蹤', doc: '陳醫師', tags: ['進度良好', '徒手治療'], active: true },
-                  { date: '2024/01/30', type: '病患表單', doc: '系統', tags: ['自評量表', '已完成'] },
-                  { date: '2024/01/23', type: '初診', doc: '王院長', tags: ['初診評估', '頸椎'] }
-                ].map((rec, i) => (
-                  <div key={i} className="flex gap-4 group cursor-pointer relative">
-                    {/* Timeline Dot */}
-                    <div className="relative flex flex-col items-center">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center z-10 shadow-sm border-2 ${rec.active ? 'bg-primary-600 border-primary-200' : 'bg-white border-gray-100 group-hover:border-primary-200'}`}>
-                        <span className={`text-[10px] ${rec.active ? 'text-white' : 'text-gray-400 group-hover:text-primary-600'}`}>
-                          {i === 1 ? '📄' : i === 2 ? '📌' : '🩺'}
-                        </span>
-                      </div>
+            <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50/50">
+              {[
+                { date: '2024/02/06', type: '物理治療', doc: '陳醫師', tags: ['肩頸痠痛', '徒手'] },
+                { date: '2024/01/30', type: '物理治療', doc: '陳醫師', tags: ['複診'] },
+                { date: '2024/01/23', type: '初診評估', doc: '王院長', tags: ['初診', '運動'] }
+              ].map((rec, i) => (
+                <div key={i} className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 hover:border-primary-200 transition-colors group cursor-pointer text-left">
+                  <div className="flex justify-between items-start mb-2 text-left">
+                    <div>
+                      <span className="text-[10px] font-black text-gray-400 block mb-1">{rec.date}</span>
+                      <span className="text-[13px] font-bold text-gray-900 leading-tight">{rec.type}</span>
                     </div>
-
-                    {/* Record Card */}
-                    <div className={`flex-1 bg-white rounded-2xl p-4 shadow-sm border transition-all duration-300 ${rec.active ? 'border-primary-200 shadow-primary-100/20 ring-4 ring-primary-50/50' : 'border-gray-100 group-hover:border-primary-200 hover:shadow-md'}`}>
-                      <div className="flex justify-between items-start mb-2">
-                        <div>
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="text-[10px] font-bold text-gray-400">{rec.date}</span>
-                            {rec.active && <span className="text-[9px] font-black bg-primary-100 text-primary-700 px-1.5 py-0.5 rounded-full animate-pulse">LATEST</span>}
-                          </div>
-                          <h4 className="text-[14px] font-black text-gray-900 leading-tight">{rec.type}</h4>
-                        </div>
-                        <div className="text-right">
-                          <span className="text-[10px] font-bold text-gray-500 block">{rec.doc}</span>
-                        </div>
-                      </div>
-                      <div className="flex gap-1.5 flex-wrap">
-                        {rec.tags.map(tag => (
-                          <span key={tag} className="text-[9px] font-bold text-primary-600/70 bg-primary-50 px-1.5 py-0.5 rounded-md">#{tag}</span>
-                        ))}
-                      </div>
-                    </div>
+                    <span className="text-[10px] font-bold text-gray-500 bg-gray-100 px-2 py-0.5 rounded text-left">{rec.doc}</span>
                   </div>
-                ))}
-              </div>
+                  <div className="flex gap-1.5 flex-wrap">
+                    {rec.tags.map(tag => (
+                      <span key={tag} className="text-[9px] font-bold text-primary-600 bg-primary-50 px-1.5 py-0.5 rounded text-left">#{tag}</span>
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         );
