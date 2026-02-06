@@ -196,11 +196,21 @@ const LineBookingMock = ({ scenario }: { scenario: number }) => {
 const SchedulingMock = ({ scenario }: { scenario: number }) => {
   const [dragProgress, setDragProgress] = React.useState(0);
   const [showConflict, setShowConflict] = React.useState(false);
+  const [autoState, setAutoState] = React.useState<'idle' | 'clicking' | 'created'>('idle');
 
   // Animation controller
   React.useEffect(() => {
     let interval: ReturnType<typeof setInterval> | undefined;
-    if (scenario === 1) { // Scenario 1: Linked Drag and Drop
+    if (scenario === 0) { // Scenario 0: Auto Allocation with Click
+      setAutoState('idle');
+      let step = 0;
+      interval = setInterval(() => {
+        step = (step + 1) % 40;
+        if (step < 10) setAutoState('idle');
+        else if (step < 20) setAutoState('clicking');
+        else setAutoState('created');
+      }, 150);
+    } else if (scenario === 1) { // Scenario 1: Linked Drag and Drop
       setDragProgress(0);
       let progress = 0;
       interval = setInterval(() => {
@@ -216,71 +226,114 @@ const SchedulingMock = ({ scenario }: { scenario: number }) => {
     } else {
       setDragProgress(0);
       setShowConflict(false);
+      setAutoState('idle');
     }
     return () => clearInterval(interval);
   }, [scenario]);
 
   const timeSlots = ['09:00', '10:00', '11:00', '12:00'];
   const resources = [
-    { name: '王治療師', type: 'person', color: 'blue' },
-    { name: '診間 A', type: 'room', color: 'emerald' },
-    { name: '儀器 X', type: 'gear', color: 'purple' }
+    { name: '王院長', type: '專科醫師', color: 'blue' },
+    { name: '陳醫師', type: '住院醫師', color: 'indigo' },
+    { name: '診間 A', type: 'ROOM', color: 'emerald' },
+    { name: '診間 B', type: 'ROOM', color: 'teal' }
   ];
 
   const getDragTransform = () => {
     if (scenario !== 1) return '';
-    // Moves vertically across time rows
     const yOffset = Math.sin(dragProgress * Math.PI) * 120;
     return `translateY(${yOffset}px)`;
   };
 
   return (
-    <div className="max-w-2xl mx-auto transform transition-all duration-700">
-      <div className="grid grid-cols-[60px_1fr_1fr_1fr] bg-white rounded-2xl overflow-hidden border border-gray-200 shadow-xl relative">
+    <div className="max-w-3xl mx-auto transform transition-all duration-700">
+      <div className="grid grid-cols-[60px_1fr_1fr_1fr_1fr] bg-white rounded-2xl overflow-hidden border border-gray-200 shadow-xl relative">
+        {/* Cursor Overlay for Scenario 0 */}
+        {scenario === 0 && (
+          <div
+            className={`absolute z-50 pointer-events-none transition-all duration-700 ease-in-out
+              ${autoState === 'idle' ? 'top-1/2 left-1/4 opacity-0' :
+                autoState === 'clicking' ? 'top-[164px] left-[140px] opacity-100 scale-90' :
+                  'top-[164px] left-[140px] opacity-0 scale-75'}`}
+          >
+            <div className="relative">
+              <svg className="w-8 h-8 text-primary-600 drop-shadow-lg" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M7 2l12 11.2l-5.8 0.5l3.3 7.3l-2.2 1l-3.2-7.4l-4.1 3.9z" />
+              </svg>
+              {autoState === 'clicking' && (
+                <div className="absolute top-0 left-0 w-8 h-8 rounded-full bg-primary-400/30 animate-ping"></div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Categorical Headers */}
+        <div className="p-2 border-b border-r border-gray-100 bg-gray-50/50"></div>
+        <div className="col-span-2 p-2 border-b border-r border-blue-100 bg-blue-50/50 text-center">
+          <span className="text-[9px] font-black text-blue-600 uppercase tracking-widest">醫療團隊</span>
+        </div>
+        <div className="col-span-2 p-2 border-b border-gray-100 bg-emerald-50/50 text-center">
+          <span className="text-[9px] font-black text-emerald-600 uppercase tracking-widest">空間資源</span>
+        </div>
+
         {/* Header Row */}
         <div className="p-4 border-b border-r border-gray-100 bg-gray-50/80"></div>
-        {resources.map((res) => (
-          <div key={res.name} className="p-4 border-b border-r border-gray-100 bg-gray-50/80 text-center">
+        {resources.map((res, idx) => (
+          <div key={res.name} className={`p-4 border-b border-gray-100 text-center flex items-center justify-center
+            ${idx < 2 ? 'bg-blue-50/30 border-r border-blue-100' : 'bg-emerald-50/30 border-r border-emerald-100'}
+            ${idx === 1 ? 'border-r-2 border-r-gray-200' : ''}`}
+          >
             <p className="text-[12px] font-bold text-gray-900 leading-tight">{res.name}</p>
-            <p className="text-[8px] text-gray-400 font-bold uppercase tracking-widest">{res.type}</p>
           </div>
         ))}
 
         {/* Time Rows */}
         {timeSlots.map((time, timeIdx) => (
           <React.Fragment key={time}>
-            {/* Time Label Column */}
             <div className="p-4 border-b border-r border-gray-100 bg-gray-100/10 text-center flex items-start justify-center h-28">
               <span className="text-[11px] font-bold text-gray-400 mt-1">{time}</span>
             </div>
 
-            {/* Resource Columns */}
             {resources.map((res, resIdx) => (
-              <div key={`${time}-${res.name}`} className="relative border-b border-r border-gray-50 bg-white h-28 group">
-                {/* Scenario 0: Auto Allocation (Appears at 10:00 for all) */}
-                {scenario === 0 && timeIdx === 1 && (
-                  <div className="absolute inset-x-2 inset-y-2 animate-in zoom-in-95 fade-in duration-1000">
+              <div key={`${time}-${res.name}`} className={`relative border-b border-white h-28 group
+                ${resIdx < 2 ? 'bg-blue-50/5 border-r border-blue-50/50' : 'bg-emerald-50/5 border-r border-emerald-50/50'}
+                ${resIdx === 1 ? 'border-r-2 border-r-gray-100' : ''}`}
+              >
+                {/* Visual Context: Existing Appointments */}
+                {((resIdx === 1 && timeIdx === 0) || (resIdx === 3 && timeIdx === 0)) && (
+                  <div className="absolute inset-x-2 inset-y-2">
                     <div className={`h-full w-full rounded-xl border-l-4 shadow-md p-3 flex flex-col justify-center
-                      ${resIdx === 0 ? 'bg-blue-50 border-blue-500' :
-                        resIdx === 1 ? 'bg-emerald-50 border-emerald-500' :
-                          'bg-purple-50 border-purple-500'}`}
+                        ${resIdx === 1 ? 'bg-indigo-50 border-indigo-500' : 'bg-teal-50 border-teal-500'}`}
                     >
-                      <span className="text-[10px] font-bold text-gray-900 truncate">物理治療</span>
-                      <span className="text-[8px] text-gray-500 font-medium">🔗 自動配給</span>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold text-gray-900 truncate">門診預約</span>
+                      </div>
                     </div>
                   </div>
                 )}
 
-                {/* Scenario 1: Linked Drag and Drop (Starting at 09:00) */}
-                {scenario === 1 && timeIdx === 0 && (
+                {/* Scenario 0: Auto Allocation (Practitioner Click & Room Auto-Fill) */}
+                {scenario === 0 && timeIdx === 1 && autoState === 'created' && (resIdx === 0 || resIdx === 2) && (
+                  <div className="absolute inset-x-2 inset-y-2 animate-in zoom-in-95 fade-in duration-500">
+                    <div className={`h-full w-full rounded-xl border-l-4 shadow-md p-3 flex flex-col justify-center transition-all duration-300
+                      ${resIdx === 0 ? 'bg-blue-50 border-blue-500' : 'bg-emerald-50 border-emerald-500'}`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold text-gray-900 truncate">門診預約</span>
+                        {resIdx === 2 && <span className="text-[8px] font-black text-emerald-600 animate-pulse">AUTO</span>}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Scenario 1: Linked Drag and Drop */}
+                {scenario === 1 && timeIdx === 0 && (resIdx === 0 || resIdx === 2) && (
                   <div
                     className="absolute inset-x-2 inset-y-2 z-10 transition-transform duration-75"
                     style={{ transform: getDragTransform() }}
                   >
                     <div className={`h-full w-full rounded-xl border-l-4 shadow-2xl p-3 flex flex-col justify-center text-white opacity-95
-                      ${resIdx === 0 ? 'bg-blue-600 border-blue-700' :
-                        resIdx === 1 ? 'bg-emerald-600 border-emerald-700' :
-                          'bg-purple-600 border-purple-700'}`}
+                      ${resIdx === 0 ? 'bg-blue-600 border-blue-700' : 'bg-emerald-600 border-emerald-700'}`}
                     >
                       <span className="text-[10px] font-bold">同步移動</span>
                       <div className="mt-2 h-1 w-full bg-white/20 rounded-full overflow-hidden">
@@ -290,14 +343,12 @@ const SchedulingMock = ({ scenario }: { scenario: number }) => {
                   </div>
                 )}
 
-                {/* Scenario 2: Conflict Prevention (Focus on Gear at 09:00) */}
+                {/* Scenario 2: Conflict Prevention */}
                 {scenario === 2 && resIdx === 2 && timeIdx === 0 && (
                   <>
-                    {/* Existing Booking */}
                     <div className="absolute inset-x-2 inset-y-2 bg-purple-50 border-l-4 border-purple-200 rounded-xl p-3 opacity-40">
                       <span className="text-[8px] font-bold text-gray-400">已佔用</span>
                     </div>
-                    {/* Conflict Attempt */}
                     <div className={`absolute inset-x-2 inset-y-2 rounded-xl border-2 border-dashed flex items-center justify-center transition-all duration-300
                       ${showConflict ? 'bg-red-50 border-red-500 scale-105 z-20' : 'bg-transparent border-transparent'}`}
                     >
@@ -309,11 +360,6 @@ const SchedulingMock = ({ scenario }: { scenario: number }) => {
                       )}
                     </div>
                   </>
-                )}
-
-                {/* Scenario 2: Other slots background (Visual context) */}
-                {scenario === 2 && resIdx < 2 && timeIdx === 0 && (
-                  <div className="absolute inset-x-2 inset-y-2 bg-gray-50 border-l-4 border-gray-200 rounded-xl p-3 opacity-20"></div>
                 )}
               </div>
             ))}
