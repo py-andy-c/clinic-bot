@@ -665,8 +665,8 @@ const MedicalRecordMock = ({ scenario }: { scenario: number }) => {
 const AutomationFlowMock = ({ scenario }: { scenario: number }) => {
   if (scenario === 0) {
     return (
-      <div className="bg-white rounded-3xl shadow-[0_20px_50px_-12px_rgba(0,0,0,0.15)] p-10 border border-gray-100 max-w-sm mx-auto relative animate-in fade-in slide-in-from-bottom-4 duration-700">
-        <div className="py-2 space-y-14 relative">
+      <div className="bg-white rounded-[2.5rem] shadow-[0_20px_50px_-12px_rgba(0,0,0,0.15)] p-10 border border-gray-100 max-w-[340px] mx-auto h-[480px] flex flex-col justify-center animate-in fade-in slide-in-from-bottom-4 duration-700">
+        <div className="py-2 space-y-12 relative flex flex-col justify-center h-full">
           {[
             { label: '療程結束', time: 'Trigger', color: 'bg-green-500', icon: '✅' },
             { label: '術後關懷訊息', time: '24 小時後', color: 'bg-primary-500', icon: '📱' },
@@ -678,7 +678,7 @@ const AutomationFlowMock = ({ scenario }: { scenario: number }) => {
                   {step.icon}
                 </div>
                 {i < arr.length - 1 && (
-                  <div className="absolute top-16 left-8 w-0.5 h-14 bg-gray-100 z-10" />
+                  <div className="absolute top-16 left-8 w-0.5 h-12 bg-gray-100 z-10" />
                 )}
               </div>
               <div className="relative z-20">
@@ -693,22 +693,22 @@ const AutomationFlowMock = ({ scenario }: { scenario: number }) => {
   }
 
   return (
-    <div className="bg-[#7494C0] rounded-[2.5rem] p-8 shadow-[0_30px_60px_-15px_rgba(0,0,0,0.3)] max-w-[320px] mx-auto h-[440px] flex flex-col animate-in fade-in slide-in-from-right-4 duration-700">
-      <div className="flex-1 flex flex-col justify-center space-y-6">
+    <div className="bg-[#7494C0] rounded-[2.5rem] p-8 shadow-[0_30px_60px_-15px_rgba(0,0,0,0.3)] max-w-[340px] mx-auto h-[480px] flex flex-col justify-center animate-in fade-in slide-in-from-right-4 duration-700">
+      <div className="flex flex-col justify-center space-y-8">
         {/* Date Label */}
         <div className="text-center">
           <span className="bg-black/10 text-white/80 text-xs px-4 py-1.5 rounded-full backdrop-blur-sm font-medium">2024年2月6日 14:00</span>
         </div>
 
         {/* Message Bubble */}
-        <div className="flex items-start gap-3">
+        <div className="flex items-start gap-4">
           <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-sm shadow-sm shrink-0 font-bold text-blue-600">診</div>
-          <div className="bg-white rounded-2xl rounded-tl-none p-5 shadow-xl border border-blue-50 relative">
+          <div className="bg-white rounded-2xl rounded-tl-none p-6 shadow-xl border border-blue-50 relative">
             <p className="text-[15px] text-gray-800 leading-relaxed">
               <span className="font-bold">王大明 先生您好：</span><br />
               感謝您今日來診，目前術後感覺如何呢？這裡為您準備了<span className="text-blue-600 font-bold underline">居家復健指引</span>，請參考影片進行練習：
             </p>
-            <div className="mt-4 aspect-video bg-gray-100 rounded-xl overflow-hidden relative group cursor-pointer border border-gray-100 shadow-inner">
+            <div className="mt-5 aspect-video bg-gray-100 rounded-xl overflow-hidden relative group cursor-pointer border border-gray-100 shadow-inner">
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="w-12 h-12 bg-black/40 rounded-full flex items-center justify-center text-white backdrop-blur-sm group-hover:bg-primary-600/80 transition-colors pl-1">
                   <svg className="w-6 h-6 fill-current" viewBox="0 0 24 24">
