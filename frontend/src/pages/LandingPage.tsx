@@ -289,7 +289,7 @@ const SchedulingMock = ({ scenario }: { scenario: number }) => {
               >
                 {/* Visual Context: Existing Appointments */}
                 {((resIdx === 1 && timeIdx === 0) || (resIdx === 3 && timeIdx === 0)) && (
-                  <div className="absolute inset-x-2 inset-y-2">
+                  <div className="absolute inset-x-2 inset-y-2 z-20">
                     <div className={`h-full w-full rounded-xl border-l-4 shadow-md p-3 flex flex-col justify-center
                         ${resIdx === 1 ? 'bg-indigo-50 border-indigo-500' : 'bg-teal-50 border-teal-500'}`}
                     >
@@ -399,14 +399,11 @@ const SchedulingMock = ({ scenario }: { scenario: number }) => {
                   </div>
                 )}
 
-                {/* Scenario 2: Conflict Prevention */}
-                {scenario === 2 && resIdx === 2 && timeIdx === 0 && (
+                {/* Scenario 2: Conflict Prevention - Attempting to book at 09:30 spanning into 10:00 slot */}
+                {scenario === 2 && resIdx === 3 && timeIdx === 0 && (
                   <>
-                    <div className="absolute inset-x-2 inset-y-2 bg-purple-50 border-l-4 border-purple-200 rounded-xl p-3 opacity-40">
-                      <span className="text-[9px] font-bold text-gray-400">已佔用</span>
-                    </div>
-                    <div className={`absolute inset-x-2 inset-y-2 rounded-xl border-2 border-dashed flex items-center justify-center transition-all duration-300
-                      ${showConflict ? 'bg-red-50 border-red-500 scale-105 z-20' : 'bg-transparent border-transparent'}`}
+                    <div className={`absolute left-2 right-2 top-14 h-24 z-30 rounded-xl border-2 border-dashed flex items-center justify-center transition-all duration-300
+                      ${showConflict ? 'bg-red-50 border-red-500 scale-105' : 'bg-transparent border-transparent'}`}
                     >
                       {showConflict && (
                         <div className="text-center p-2">
