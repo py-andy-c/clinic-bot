@@ -602,12 +602,12 @@ const MedicalRecordMock = ({ scenario }: { scenario: number }) => {
               }
             `}</style>
 
-            <div className="p-6 bg-gradient-to-r from-primary-600 to-primary-700 text-white shrink-0 shadow-lg z-20">
-              <div className="flex items-center gap-4">
-                <div className="w-16 h-16 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center text-3xl shadow-inner border border-white/20 text-left">👤</div>
+            <div className="p-3 bg-gradient-to-r from-primary-600 to-primary-700 text-white shrink-0 shadow-lg z-20">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center text-xl shadow-inner border border-white/20 text-left">👤</div>
                 <div>
-                  <h3 className="font-bold text-2xl leading-tight">王曉明</h3>
-                  <p className="text-sm text-primary-100 font-medium opacity-80 mt-1">病歷號: CLIN-2024-001</p>
+                  <h3 className="font-bold text-lg leading-tight">王曉明</h3>
+                  <p className="text-[10px] text-primary-100 font-medium opacity-80 mt-0.5">病歷號: CLIN-2024-001</p>
                 </div>
               </div>
             </div>
@@ -620,30 +620,25 @@ const MedicalRecordMock = ({ scenario }: { scenario: number }) => {
                 }}
               >
                 {[
-                  { date: '2024/02/06', type: '複診追蹤', doc: '陳醫師', tags: ['進度良好', '徒手治療'] },
-                  { date: '2024/01/30', type: '病患表單', doc: '系統', tags: ['自評量表', '已完成'] },
-                  { date: '2024/01/23', type: '初診', doc: '王院長', tags: ['初診評估', '頸椎'] },
-                  { date: '2023/12/15', type: '療程紀錄', doc: '陳醫師', tags: ['腰部放射痛', '緩解'] },
-                  { date: '2023/11/20', type: '複診追蹤', doc: '陳醫師', tags: ['活動度改善'] },
+                  { date: '2024/02/06', type: '複診追蹤', doc: '陳醫師' },
+                  { date: '2024/01/30', type: '病患表單', doc: '系統' },
+                  { date: '2024/01/23', type: '初診', doc: '王院長' },
+                  { date: '2023/12/15', type: '療程紀錄', doc: '陳醫師' },
+                  { date: '2023/11/20', type: '複診追蹤', doc: '陳醫師' },
                   // Duplicate for Loop
-                  { date: '2024/02/06', type: '複診追蹤', doc: '陳醫師', tags: ['進度良好', '徒手治療'] },
-                  { date: '2024/01/30', type: '病患表單', doc: '系統', tags: ['自評量表', '已完成'] },
-                  { date: '2024/01/23', type: '初診', doc: '王院長', tags: ['初診評估', '頸椎'] },
-                  { date: '2023/12/15', type: '療程紀錄', doc: '陳醫師', tags: ['腰部放射痛', '緩解'] },
-                  { date: '2023/11/20', type: '複診追蹤', doc: '陳醫師', tags: ['活動度改善'] },
+                  { date: '2024/02/06', type: '複診追蹤', doc: '陳醫師' },
+                  { date: '2024/01/30', type: '病患表單', doc: '系統' },
+                  { date: '2024/01/23', type: '初診', doc: '王院長' },
+                  { date: '2023/12/15', type: '療程紀錄', doc: '陳醫師' },
+                  { date: '2023/11/20', type: '複診追蹤', doc: '陳醫師' },
                 ].map((rec, i) => (
                   <div key={i} className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:border-primary-200 transition-colors group cursor-pointer text-left">
-                    <div className="flex justify-between items-start mb-4 text-left">
+                    <div className="flex justify-between items-start text-left">
                       <div>
-                        <span className="text-[13px] font-black text-gray-400 block mb-1.5">{rec.date}</span>
-                        <span className="text-[20px] font-black text-gray-900 leading-tight">{rec.type}</span>
+                        <span className="text-[14px] font-black text-gray-400 block mb-1.5">{rec.date}</span>
+                        <span className="text-[22px] font-black text-gray-900 leading-tight">{rec.type}</span>
                       </div>
-                      <span className="text-[12px] font-bold text-gray-500 bg-gray-100 px-3 py-1 rounded text-left">{rec.doc}</span>
-                    </div>
-                    <div className="flex gap-2 flex-wrap">
-                      {rec.tags.map(tag => (
-                        <span key={tag} className="text-[11px] font-bold text-primary-600 bg-primary-50 px-2 py-1 rounded text-left">#{tag}</span>
-                      ))}
+                      <span className="text-[13px] font-bold text-gray-500 bg-gray-100 px-3 py-1 rounded text-left shrink-0">{rec.doc}</span>
                     </div>
                   </div>
                 ))}
