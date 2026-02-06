@@ -737,9 +737,9 @@ const DigitalReceiptMock = () => (
         </div>
       </div>
       <div className="pt-1 flex justify-center">
-        <div className="w-10 h-10 sm:w-14 lg:w-20 lg:h-20 border-2 border-red-600 rounded flex items-center justify-center transform relative">
-          <div className="text-[8px] sm:text-[11px] lg:text-[14px] font-medium text-red-600 leading-tight text-center tracking-tighter">
-            健康診所<br />收訖章
+        <div className="w-16 h-16 sm:w-20 lg:w-24 lg:h-24 border-2 border-red-600 rounded flex items-center justify-center transform relative">
+          <div className="text-sm sm:text-base lg:text-xl font-bold text-red-600 leading-tight text-center tracking-tighter">
+            <span className="whitespace-nowrap">健康診所</span><br /><span className="whitespace-nowrap">收訖章</span>
           </div>
         </div>
       </div>
@@ -769,7 +769,7 @@ const DigitalReceiptMock = () => (
               </div>
             </div>
 
-            <div className="w-full bg-green-100 text-green-800 border-2 border-green-200 rounded-md sm:rounded-lg lg:rounded-xl py-2 sm:py-2.5 lg:py-3.5 text-center text-[10px] sm:text-sm lg:text-base font-medium transition-colors cursor-pointer hover:bg-green-200">
+            <div className="w-full bg-green-100 text-green-800 border-2 border-green-200 rounded-md sm:rounded-lg lg:rounded-xl py-2 sm:py-2.5 lg:py-3.5 text-center text-sm sm:text-base font-bold transition-colors cursor-pointer hover:bg-green-200">
               查看收據
             </div>
           </div>
