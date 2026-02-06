@@ -662,35 +662,68 @@ const MedicalRecordMock = ({ scenario }: { scenario: number }) => {
   );
 };
 
-const AutomationFlowMock = () => (
-  <div className="bg-white rounded-2xl shadow-[0_20px_50px_-12px_rgba(0,0,0,0.15)] p-8 border border-gray-100 max-w-md mx-auto relative">
-    <div className="space-y-12">
-      {[
-        { label: '療程結束', color: 'bg-green-500', icon: '✅' },
-        { label: '等待 24 小時', color: 'bg-amber-500', icon: '⏳' },
-        { label: '發送術後關懷', color: 'bg-primary-500', icon: '📱' }
-      ].map((step, i, arr) => (
-        <div key={step.label} className="relative">
-          <div className="flex items-center gap-6">
-            <div className={`w-12 h-12 ${step.color} rounded-2xl shadow-[0_8px_20px_-4px_rgba(0,0,0,0.2)] flex items-center justify-center text-xl`}>
-              {step.icon}
+const AutomationFlowMock = ({ scenario }: { scenario: number }) => {
+  if (scenario === 0) {
+    return (
+      <div className="bg-white rounded-3xl shadow-[0_20px_50px_-12px_rgba(0,0,0,0.15)] p-8 border border-gray-100 max-w-sm mx-auto relative animate-in fade-in slide-in-from-bottom-4 duration-700">
+        <div className="space-y-10 relative">
+          <div className="absolute left-6 top-6 bottom-6 w-0.5 bg-gray-100"></div>
+
+          {[
+            { label: '療程結束', time: 'Trigger', color: 'bg-green-500', icon: '✅' },
+            { label: '術後關懷訊息', time: '24 小時後', color: 'bg-primary-500', icon: '📱' },
+            { label: '滿意度與衛教', time: '7 天後', color: 'bg-primary-400', icon: '�' }
+          ].map((step, i) => (
+            <div key={i} className="flex items-center gap-6 relative z-10">
+              <div className={`w-12 h-12 ${step.color} rounded-2xl shadow-lg shadow-gray-200/50 flex items-center justify-center text-xl`}>
+                {step.icon}
+              </div>
+              <div>
+                <p className="text-[10px] font-black text-primary-600 uppercase tracking-widest mb-1">{step.time}</p>
+                <p className="text-base font-black text-gray-900">{step.label}</p>
+              </div>
             </div>
-            <div>
-              <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">STEP {i + 1}</p>
-              <p className="text-lg font-bold text-gray-900">{step.label}</p>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-[#7494C0] rounded-[2.5rem] p-6 shadow-[0_30px_60px_-15px_rgba(0,0,0,0.3)] max-w-[280px] mx-auto h-[400px] flex flex-col animate-in fade-in slide-in-from-right-4 duration-700">
+      <div className="flex-1 flex flex-col justify-center space-y-4">
+        {/* Date Label */}
+        <div className="text-center">
+          <span className="bg-black/10 text-white/80 text-[10px] px-3 py-1 rounded-full backdrop-blur-sm">2024年2月6日 14:00</span>
+        </div>
+
+        {/* Message Bubble */}
+        <div className="flex items-start gap-2">
+          <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-xs shadow-sm shrink-0 font-bold text-blue-600">診</div>
+          <div className="bg-white rounded-2xl rounded-tl-none p-4 shadow-xl border border-blue-50 relative">
+            <p className="text-[13px] text-gray-800 leading-relaxed">
+              <span className="font-bold">王大明 先生您好：</span><br />
+              感謝您今日來診，目前術後感覺如何呢？這裡為您準備了<span className="text-blue-600 font-bold underline">居家復健指引</span>，請參考影片進行練習：
+            </p>
+            <div className="mt-3 aspect-video bg-gray-100 rounded-lg overflow-hidden relative group cursor-pointer border border-gray-100 shadow-inner">
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="w-10 h-10 bg-black/40 rounded-full flex items-center justify-center text-white backdrop-blur-sm group-hover:bg-primary-600/80 transition-colors">▶️</div>
+              </div>
+              <div className="absolute bottom-0 inset-x-0 h-4 bg-black/20" />
             </div>
           </div>
-          {i < arr.length - 1 && (
-            <div className="absolute left-6 top-12 w-0.5 h-12 bg-gradient-to-b from-gray-200 to-transparent"></div>
-          )}
         </div>
-      ))}
+
+        {/* Reply Preview */}
+        <div className="flex justify-end pt-2">
+          <div className="bg-[#06C755] text-white rounded-2xl p-3 shadow-md max-w-[120px]">
+            <p className="text-[12px]">謝謝診所關心！</p>
+          </div>
+        </div>
+      </div>
     </div>
-    <div className="absolute top-4 right-4 bg-primary-50 text-primary-600 text-[10px] font-bold px-2 py-1 rounded">
-      AUTO-PILOT ON
-    </div>
-  </div>
-);
+  );
+};
 
 const DigitalReceiptMock = () => (
   <div className="flex items-center justify-center gap-8 h-[400px]">
@@ -779,6 +812,7 @@ const LandingPage: React.FC = () => {
   const [activeLineFeature, setActiveLineFeature] = React.useState(0);
   const [activeSchedulingFeature, setActiveSchedulingFeature] = React.useState(0);
   const [activeMedicalFeature, setActiveMedicalFeature] = React.useState(0);
+  const [activeCareFeature, setActiveCareFeature] = React.useState(0);
   const [isPaused, setIsPaused] = React.useState(false);
 
   React.useEffect(() => {
@@ -787,6 +821,7 @@ const LandingPage: React.FC = () => {
       setActiveLineFeature((prev) => (prev + 1) % 3);
       setActiveSchedulingFeature((prev) => (prev + 1) % 3);
       setActiveMedicalFeature((prev) => (prev + 1) % 3);
+      setActiveCareFeature((prev) => (prev + 1) % 2);
     }, 4500);
     return () => clearInterval(interval);
   }, [isPaused]);
@@ -886,12 +921,14 @@ const LandingPage: React.FC = () => {
           valueProp="自動化關懷，提升病患回診率。"
           features={[
             "根據項目定時，自動發送追蹤訊息。",
-            "客製化衛教與治療後關懷內容。",
-            "深度互動與關懷，提升病患黏著度。"
+            "客製化衛教與治療後關懷內容，提升病患黏著度。"
           ]}
           imageSide="left"
           bgColor="bg-gray-50"
-          mockup={<AutomationFlowMock />}
+          activeIndex={activeCareFeature}
+          onHoverFeature={(index) => handleHover(index, setActiveCareFeature)}
+          onLeaveFeature={() => setIsPaused(false)}
+          mockup={<AutomationFlowMock scenario={activeCareFeature} />}
         />
 
         {/* Section 5: 數位收據與結帳 */}
