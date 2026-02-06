@@ -55,10 +55,10 @@ const FeatureSection: React.FC<{
           {textContent}
 
           {/* Mockup - Edge-to-edge oriented for Mobile */}
-          <div className="w-full flex-1 relative mt-2 lg:mt-0">
+          <div className="w-full flex-1 relative mt-4 lg:mt-0">
             <div className="relative group mx-auto max-w-[320px] lg:max-w-none">
-              {/* Decorative background glow */}
-              <div className="absolute -inset-4 lg:-inset-8 bg-gradient-to-r from-primary-200 to-blue-200 rounded-[3rem] blur-2xl opacity-10 group-hover:opacity-40 transition-opacity duration-700"></div>
+              {/* Decorative background glow - removed top inset on mobile to avoid covering text */}
+              <div className="absolute -inset-x-4 -bottom-4 top-0 lg:-inset-8 bg-gradient-to-r from-primary-200 to-blue-200 rounded-[3rem] blur-2xl opacity-10 group-hover:opacity-40 transition-opacity duration-700"></div>
               <div key={activeIndex} className="relative transition-all duration-700 animate-in fade-in zoom-in-95 transform scale-85 sm:scale-95 lg:scale-100 origin-top">
                 {mockup}
               </div>
@@ -119,7 +119,7 @@ const LineBookingMock = ({ scenario }: { scenario: number }) => {
       case 1: // Reminder (Accuracy: Matches DEFAULT_REMINDER_MESSAGE)
         return (
           <div key="reminder" className="p-4 pt-4 space-y-4 animate-in fade-in slide-in-from-right-4 duration-700">
-            <div className="bg-white rounded-2xl p-5 shadow-lg border-t-4 border-amber-400 text-gray-700">
+            <div className="bg-white rounded-2xl p-5 shadow-[0_10px_25px_-5px_rgba(0,0,0,0.1)] border-t-4 border-amber-400 text-gray-700">
               <p className="text-sm leading-relaxed">
                 提醒您，您預約的<span className="font-bold">【物理治療】</span>預計於<span className="font-bold">【02/06 14:00】</span>開始，由<span className="font-bold">【王大明治療師】</span>為您服務。
               </p>
@@ -130,7 +130,7 @@ const LineBookingMock = ({ scenario }: { scenario: number }) => {
       case 2: // Vacancy (Accuracy: Matches batched slot display)
         return (
           <div key="vacancy" className="p-4 pt-4 space-y-4 animate-in fade-in slide-in-from-right-4 duration-700">
-            <div className="bg-white rounded-2xl p-5 shadow-lg border-t-4 border-primary-500 text-gray-700">
+            <div className="bg-white rounded-2xl p-5 shadow-[0_10px_25px_-5px_rgba(0,0,0,0.1)] border-t-4 border-primary-500 text-gray-700">
               <p className="text-sm font-bold mb-4">
                 【空位提醒】您關注的預約時段有新的空位了！
               </p>
@@ -154,7 +154,7 @@ const LineBookingMock = ({ scenario }: { scenario: number }) => {
   };
 
   return (
-    <div className="mx-auto w-[310px] h-[640px] bg-gray-900 rounded-[3.5rem] p-4 shadow-[0_0_80px_-15px_rgba(0,0,0,0.6)] border-[10px] border-gray-800 relative overflow-hidden transform group-hover:scale-[1.02] transition-transform duration-700">
+    <div className="mx-auto w-[310px] h-[640px] bg-gray-900 rounded-[3.5rem] p-4 shadow-[0_40px_80px_-15px_rgba(0,0,0,0.4)] border-[10px] border-gray-800 relative overflow-hidden transform group-hover:scale-[1.02] transition-transform duration-700">
       {/* Phone status bar */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-36 h-8 bg-gray-800 rounded-b-[2rem] z-30 flex items-center justify-center gap-2 font-mono text-[8px] text-gray-500 pt-1">
         <span>9:41</span>
@@ -188,7 +188,7 @@ const LineBookingMock = ({ scenario }: { scenario: number }) => {
           <div className="bg-white h-20 flex items-center px-6 gap-3 mt-auto shadow-2xl">
             <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-gray-400 font-bold transition-transform hover:scale-110">+</div>
             <div className="flex-1 h-10 bg-gray-100 rounded-full px-5 flex items-center text-xs text-gray-400 italic whitespace-nowrap truncate">請輸入訊息...</div>
-            <div className="w-10 h-10 rounded-full bg-primary-600 flex items-center justify-center shadow-lg shadow-primary-200">
+            <div className="w-10 h-10 rounded-full bg-primary-600 flex items-center justify-center shadow-lg shadow-primary-200/50">
               <svg className="w-5 h-5 text-white rotate-90" fill="currentColor" viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" /></svg>
             </div>
           </div>
@@ -252,7 +252,7 @@ const SchedulingMock = ({ scenario }: { scenario: number }) => {
 
   return (
     <div className="max-w-3xl mx-auto transform transition-all duration-700">
-      <div className="grid grid-cols-[60px_1fr_1fr_1fr_1fr] bg-white rounded-2xl overflow-hidden border border-gray-200 shadow-xl relative">
+      <div className="grid grid-cols-[60px_1fr_1fr_1fr_1fr] bg-white rounded-2xl overflow-hidden border border-gray-200 shadow-2xl shadow-gray-200/50 relative">
 
 
         {/* Categorical Headers */}
@@ -428,7 +428,7 @@ const SchedulingMock = ({ scenario }: { scenario: number }) => {
 };
 
 const MedicalRecordMock = () => (
-  <div className="bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden flex h-[400px]">
+  <div className="bg-white rounded-2xl shadow-[0_20px_50px_-12px_rgba(0,0,0,0.15)] border border-gray-100 overflow-hidden flex h-[400px]">
     <div className="w-1/3 bg-gray-50 border-r border-gray-100 p-4 space-y-4">
       <div className="h-10 bg-gray-200 rounded animate-pulse"></div>
       {[1, 2, 3, 4].map(i => (
@@ -466,7 +466,7 @@ const MedicalRecordMock = () => (
 );
 
 const AutomationFlowMock = () => (
-  <div className="bg-white rounded-2xl shadow-2xl p-8 border border-gray-100 max-w-md mx-auto relative">
+  <div className="bg-white rounded-2xl shadow-[0_20px_50px_-12px_rgba(0,0,0,0.15)] p-8 border border-gray-100 max-w-md mx-auto relative">
     <div className="space-y-12">
       {[
         { label: '療程結束', color: 'bg-green-500', icon: '✅' },
@@ -475,7 +475,7 @@ const AutomationFlowMock = () => (
       ].map((step, i, arr) => (
         <div key={step.label} className="relative">
           <div className="flex items-center gap-6">
-            <div className={`w-12 h-12 ${step.color} rounded-2xl shadow-lg flex items-center justify-center text-xl`}>
+            <div className={`w-12 h-12 ${step.color} rounded-2xl shadow-[0_8px_20px_-4px_rgba(0,0,0,0.2)] flex items-center justify-center text-xl`}>
               {step.icon}
             </div>
             <div>
@@ -496,8 +496,8 @@ const AutomationFlowMock = () => (
 );
 
 const DigitalReceiptMock = () => (
-  <div className="flex flex-col md:flex-row items-center gap-8 justify-center">
-    <div className="bg-white w-56 h-80 rounded shadow-xl border border-gray-200 p-6 space-y-4 transform -rotate-3 hover:rotate-0 transition-transform duration-500">
+  <div className="flex items-center justify-center gap-8 h-[400px]">
+    <div className="bg-white w-56 h-80 rounded shadow-[0_15px_35px_-10px_rgba(0,0,0,0.1)] border border-gray-200 p-6 space-y-4 transform -rotate-3 hover:rotate-0 transition-transform duration-500">
       <div className="text-center font-serif text-lg border-b border-gray-100 pb-2">CLINIC RECEIPT</div>
       <div className="space-y-2 text-[10px]">
         <div className="flex justify-between"><span>Physiotherapy</span><span>$1,200</span></div>
@@ -509,7 +509,7 @@ const DigitalReceiptMock = () => (
       <div className="w-16 h-16 bg-gray-100 mx-auto"></div>
       <div className="text-[8px] text-center text-gray-400">Thank you!</div>
     </div>
-    <div className="w-48 h-[360px] bg-gray-900 rounded-[2.5rem] p-2 border-4 border-gray-800 shadow-2xl relative overflow-hidden hidden sm:block">
+    <div className="w-48 h-[360px] bg-gray-900 rounded-[2.5rem] p-2 border-4 border-gray-800 shadow-[0_30px_60px_-15px_rgba(0,0,0,0.5)] relative overflow-hidden hidden sm:block">
       <div className="h-full w-full bg-[#7494C0] rounded-[2rem] p-3 pt-6 space-y-3">
         <div className="bg-white rounded-lg p-3 shadow-lg scale-90 translate-y-4">
           <p className="text-[10px] font-bold mb-1">您的電子收據已送達 🧾</p>
@@ -522,7 +522,7 @@ const DigitalReceiptMock = () => (
 );
 
 const FinancialDashboardMock = () => (
-  <div className="bg-[#111827] rounded-2xl shadow-2xl p-6 border border-gray-800 space-y-6">
+  <div className="bg-[#111827] rounded-2xl shadow-[0_20px_50px_-12px_rgba(0,0,0,0.3)] p-6 border border-gray-800 space-y-6">
     <div className="grid grid-cols-2 gap-4">
       {[
         { l: '月營收', v: '$1.2M', c: 'text-green-400' },
@@ -549,7 +549,7 @@ const FinancialDashboardMock = () => (
 );
 
 const AISetupMock = () => (
-  <div className="bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden">
+  <div className="bg-white rounded-2xl shadow-[0_20px_50px_-12px_rgba(0,0,0,0.15)] border border-gray-100 overflow-hidden">
     <div className="p-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
       <div className="flex items-center gap-2">
         <div className="w-6 h-6 bg-primary-600 rounded flex items-center justify-center text-[10px] text-white">AI</div>
@@ -637,9 +637,9 @@ const LandingPage: React.FC = () => {
           title="LINE 智能預約"
           valueProp="24/7 預約不打烊，極致簡單的病患旅程。"
           features={[
-            "30秒自動預約：在 LINE 上點選療程與時段即可完成。",
-            "診前自動提醒：系統自動發送訊息，有效降低爽約率。",
-            "空檔自動通知：時段釋出自動媒合候補，填補閒置人力。"
+            "30秒 Line 預約，降低預約門檻",
+            "診前自動提醒，有效降低爽約率。",
+            "空檔自動通知，填補閒置人力。"
           ]}
           imageSide="right"
           activeIndex={activeLineFeature}
@@ -653,9 +653,9 @@ const LandingPage: React.FC = () => {
           title="智慧排班與資源管理"
           valueProp="資源最佳化，徹底杜絕撞單與混亂。"
           features={[
-            "一鍵預約，萬全準備：預約瞬間自動鎖定診間與儀器，無需人工核對。",
-            "連動式拖拉排班：移動預約時，所有關聯資源同步更新，流程不中斷。",
-            "智能衝突斷路：實時偵測資源超收，從源頭阻斷排班錯誤。"
+            "一鍵預約鎖定資源，無需人工核對。",
+            "拖拉式排班，關聯資源同步更新。",
+            "智能偵測衝突，從源頭阻斷錯誤。"
           ]}
           imageSide="left"
           bgColor="bg-gray-50"
@@ -670,9 +670,9 @@ const LandingPage: React.FC = () => {
           title="專業病歷系統"
           valueProp="安全、便利、客製化的雲端病例系統。"
           features={[
-            "自定義病歷模板：診所自定義各情境的病例模板。",
-            "影像照片管理：雲端保存，安全又便利。",
-            "歷史數據快查：秒速調閱過往病歷紀錄，確保治療連續性。"
+            "診所自定義模板，符合多樣場景。",
+            "雲端照片管理，安全存取便利。",
+            "秒速調閱紀錄，確保治療連續性。"
           ]}
           imageSide="right"
           mockup={<MedicalRecordMock />}
@@ -683,9 +683,9 @@ const LandingPage: React.FC = () => {
           title="個案關懷與追蹤"
           valueProp="自動化關懷，提升病患回診率。"
           features={[
-            "術後／診後關懷：根據診療項目定時自動發送追蹤訊息。",
-            "客製化互動：根據不同的療程給予不同的衛教或關懷文字。",
-            "提升黏著度：讓病患感受專業溫暖，將初次就診轉化為穩定客源。"
+            "根據項目定時，自動發送追蹤訊息。",
+            "客製化衛教與治療後關懷內容。",
+            "深度互動與關懷，提升病患黏著度。"
           ]}
           imageSide="left"
           bgColor="bg-gray-50"
@@ -697,9 +697,9 @@ const LandingPage: React.FC = () => {
           title="數位收據與結帳"
           valueProp="數位化快速結帳，告別繁瑣手寫，提升行政效率。"
           features={[
-            "一鍵產製收據：結帳後即時生成數位收據。",
-            "作廢稽核機制：嚴緊的作廢流程與原因記錄，杜絕財務漏洞。",
-            "電子收據支援：提供 PDF 下載與 LINE 傳送，邁向無紙化診所。"
+            "一鍵生成收據，結帳效率倍增。",
+            "嚴謹作廢稽核，杜絕財務漏洞。",
+            "支援 PDF 與 LINE，全面無紙化。"
           ]}
           imageSide="right"
           mockup={<DigitalReceiptMock />}
@@ -710,8 +710,8 @@ const LandingPage: React.FC = () => {
           title="財務管理與自動分潤"
           valueProp="數據決策，一鍵搞定繁瑣分潤。"
           features={[
-            "自動分潤計算：根據項目自動統計人員業績與佣金，月底結薪不再算錯。",
-            "營收統計報表：視覺化呈現各項療程表現與團隊業績。"
+            "業績佣金自動結算，薪資不再算錯。",
+            "視覺化營收報表，掌握團隊表現。"
           ]}
           imageSide="left"
           bgColor="bg-gray-50"
@@ -723,9 +723,9 @@ const LandingPage: React.FC = () => {
           title="AI 智能客服"
           valueProp="24／7 全天在線，不再漏接任何訊息，不錯過潛在客源。"
           features={[
-            "知識庫可擴充：診所可自行上傳 FAQ、服務項目等資訊，讓 AI 成為專屬客服。",
-            "精準回覆原則：僅根據診所提供的資訊進行回覆。",
-            "專業嚴謹：嚴格過濾診斷建議，遇專業問題保持沉默或引進人工。"
+            "擴充專屬知識庫，化身專業客服。",
+            "僅根據診所提供資訊，精準回覆。",
+            "嚴格過濾診斷建議，隨時引進人工。"
           ]}
           imageSide="right"
           mockup={<AISetupMock />}
