@@ -193,30 +193,127 @@ const LineBookingMock = ({ scenario }: { scenario: number }) => {
   );
 };
 
-const SchedulingMock = () => (
-  <div className="bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden max-w-2xl mx-auto">
-    <div className="bg-gray-50 p-4 border-b border-gray-100 flex justify-between items-center text-xs font-medium text-gray-500">
-      <div className="flex gap-4">
-        <span className="text-primary-600">資源排班表</span>
-        <span>人力管理</span>
-        <span>診間負載</span>
-      </div>
-      <div className="bg-white border border-gray-200 px-2 py-1 rounded">2026/02/06</div>
-    </div>
-    <div className="p-4">
-      <div className="grid grid-cols-6 gap-px bg-gray-100 border border-gray-100 rounded overflow-hidden">
-        {['資源', '09:00', '10:00', '11:00', '12:00', '13:00'].map(h => (
-          <div key={h} className="bg-gray-50 p-2 text-[10px] text-center font-bold text-gray-400">{h}</div>
+const SchedulingMock = ({ scenario }: { scenario: number }) => {
+  const [dragProgress, setDragProgress] = React.useState(0);
+  const [showConflict, setShowConflict] = React.useState(false);
+
+  // Animation controller
+  React.useEffect(() => {
+    let interval: ReturnType<typeof setInterval> | undefined;
+    if (scenario === 1) { // Scenario 1: Linked Drag and Drop
+      setDragProgress(0);
+      let progress = 0;
+      interval = setInterval(() => {
+        progress += 0.02;
+        if (progress > 1) progress = 0;
+        setDragProgress(progress);
+      }, 50);
+    } else if (scenario === 2) { // Scenario 2: Conflict Prevention
+      setShowConflict(false);
+      interval = setInterval(() => {
+        setShowConflict(prev => !prev);
+      }, 800);
+    } else {
+      setDragProgress(0);
+      setShowConflict(false);
+    }
+    return () => clearInterval(interval);
+  }, [scenario]);
+
+  const timeSlots = ['09:00', '10:00', '11:00', '12:00'];
+  const resources = [
+    { name: '王治療師', type: 'person', color: 'blue' },
+    { name: '診間 A', type: 'room', color: 'emerald' },
+    { name: '儀器 X', type: 'gear', color: 'purple' }
+  ];
+
+  const getDragTransform = () => {
+    if (scenario !== 1) return '';
+    // Moves vertically across time rows
+    const yOffset = Math.sin(dragProgress * Math.PI) * 120;
+    return `translateY(${yOffset}px)`;
+  };
+
+  return (
+    <div className="max-w-2xl mx-auto transform transition-all duration-700">
+      <div className="grid grid-cols-[60px_1fr_1fr_1fr] bg-white rounded-2xl overflow-hidden border border-gray-200 shadow-xl relative">
+        {/* Header Row */}
+        <div className="p-4 border-b border-r border-gray-100 bg-gray-50/80"></div>
+        {resources.map((res) => (
+          <div key={res.name} className="p-4 border-b border-r border-gray-100 bg-gray-50/80 text-center">
+            <p className="text-[12px] font-bold text-gray-900 leading-tight">{res.name}</p>
+            <p className="text-[8px] text-gray-400 font-bold uppercase tracking-widest">{res.type}</p>
+          </div>
         ))}
-        {['王醫師', '陳醫師', '診間 A', '設備 X'].map((r, i) => (
-          <React.Fragment key={r}>
-            <div className="bg-white p-2 text-[10px] font-bold border-r border-b border-gray-100">{r}</div>
-            {[1, 2, 3, 4, 5].map(j => (
-              <div key={j} className="bg-white p-2 border-r border-b border-gray-100 relative">
-                {(i + j) % 3 === 0 && (
-                  <div className="absolute inset-1 rounded bg-primary-100 border-l-4 border-primary-500 p-1">
-                    <div className="text-[8px] text-primary-700 font-bold truncate">病患預約</div>
+
+        {/* Time Rows */}
+        {timeSlots.map((time, timeIdx) => (
+          <React.Fragment key={time}>
+            {/* Time Label Column */}
+            <div className="p-4 border-b border-r border-gray-100 bg-gray-100/10 text-center flex items-start justify-center h-28">
+              <span className="text-[11px] font-bold text-gray-400 mt-1">{time}</span>
+            </div>
+
+            {/* Resource Columns */}
+            {resources.map((res, resIdx) => (
+              <div key={`${time}-${res.name}`} className="relative border-b border-r border-gray-50 bg-white h-28 group">
+                {/* Scenario 0: Auto Allocation (Appears at 10:00 for all) */}
+                {scenario === 0 && timeIdx === 1 && (
+                  <div className="absolute inset-x-2 inset-y-2 animate-in zoom-in-95 fade-in duration-1000">
+                    <div className={`h-full w-full rounded-xl border-l-4 shadow-md p-3 flex flex-col justify-center
+                      ${resIdx === 0 ? 'bg-blue-50 border-blue-500' :
+                        resIdx === 1 ? 'bg-emerald-50 border-emerald-500' :
+                          'bg-purple-50 border-purple-500'}`}
+                    >
+                      <span className="text-[10px] font-bold text-gray-900 truncate">物理治療</span>
+                      <span className="text-[8px] text-gray-500 font-medium">🔗 自動配給</span>
+                    </div>
                   </div>
+                )}
+
+                {/* Scenario 1: Linked Drag and Drop (Starting at 09:00) */}
+                {scenario === 1 && timeIdx === 0 && (
+                  <div
+                    className="absolute inset-x-2 inset-y-2 z-10 transition-transform duration-75"
+                    style={{ transform: getDragTransform() }}
+                  >
+                    <div className={`h-full w-full rounded-xl border-l-4 shadow-2xl p-3 flex flex-col justify-center text-white opacity-95
+                      ${resIdx === 0 ? 'bg-blue-600 border-blue-700' :
+                        resIdx === 1 ? 'bg-emerald-600 border-emerald-700' :
+                          'bg-purple-600 border-purple-700'}`}
+                    >
+                      <span className="text-[10px] font-bold">同步移動</span>
+                      <div className="mt-2 h-1 w-full bg-white/20 rounded-full overflow-hidden">
+                        <div className="h-full bg-white animate-[pulse_1.5s_infinite]" style={{ width: '60%' }}></div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Scenario 2: Conflict Prevention (Focus on Gear at 09:00) */}
+                {scenario === 2 && resIdx === 2 && timeIdx === 0 && (
+                  <>
+                    {/* Existing Booking */}
+                    <div className="absolute inset-x-2 inset-y-2 bg-purple-50 border-l-4 border-purple-200 rounded-xl p-3 opacity-40">
+                      <span className="text-[8px] font-bold text-gray-400">已佔用</span>
+                    </div>
+                    {/* Conflict Attempt */}
+                    <div className={`absolute inset-x-2 inset-y-2 rounded-xl border-2 border-dashed flex items-center justify-center transition-all duration-300
+                      ${showConflict ? 'bg-red-50 border-red-500 scale-105 z-20' : 'bg-transparent border-transparent'}`}
+                    >
+                      {showConflict && (
+                        <div className="text-center p-2">
+                          <div className="text-[20px] mb-1 animate-bounce">🚫</div>
+                          <span className="text-[9px] font-black text-red-600 uppercase tracking-tighter">時段衝突</span>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+
+                {/* Scenario 2: Other slots background (Visual context) */}
+                {scenario === 2 && resIdx < 2 && timeIdx === 0 && (
+                  <div className="absolute inset-x-2 inset-y-2 bg-gray-50 border-l-4 border-gray-200 rounded-xl p-3 opacity-20"></div>
                 )}
               </div>
             ))}
@@ -224,8 +321,8 @@ const SchedulingMock = () => (
         ))}
       </div>
     </div>
-  </div>
-);
+  );
+};
 
 const MedicalRecordMock = () => (
   <div className="bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden flex h-[400px]">
@@ -380,12 +477,14 @@ const AISetupMock = () => (
 
 const LandingPage: React.FC = () => {
   const [activeLineFeature, setActiveLineFeature] = React.useState(0);
+  const [activeSchedulingFeature, setActiveSchedulingFeature] = React.useState(0);
   const [isPaused, setIsPaused] = React.useState(false);
 
   React.useEffect(() => {
     if (isPaused) return;
     const interval = setInterval(() => {
       setActiveLineFeature((prev) => (prev + 1) % 3);
+      setActiveSchedulingFeature((prev) => (prev + 1) % 3);
     }, 4500);
     return () => clearInterval(interval);
   }, [isPaused]);
@@ -447,13 +546,19 @@ const LandingPage: React.FC = () => {
           title="智慧排班與資源管理"
           valueProp="資源最佳化，徹底杜絕撞單與混亂。"
           features={[
-            "多維度排班：整合人力、診間、與儀器設備的綜合排班。",
-            "自動資源分配：預約時自動分配診間設備，防止設備／診間超收。",
-            "視覺化經營視角：一眼掌握全診所資源負荷狀況。"
+            "一鍵預約，萬全準備：預約瞬間自動鎖定診間與儀器，無需人工核對。",
+            "連動式拖拉排班：移動預約時，所有關聯資源同步更新，流程不中斷。",
+            "智能衝突斷路：實時偵測資源超收，從源頭阻斷排班錯誤。"
           ]}
           imageSide="left"
           bgColor="bg-gray-50"
-          mockup={<SchedulingMock />}
+          activeIndex={activeSchedulingFeature}
+          onHoverFeature={(index) => {
+            setActiveSchedulingFeature(index);
+            setIsPaused(true);
+          }}
+          onLeaveFeature={() => setIsPaused(false)}
+          mockup={<SchedulingMock scenario={activeSchedulingFeature} />}
         />
 
         {/* Section 3: 專業病歷系統 */}
