@@ -695,7 +695,8 @@ async def line_webhook(
             return {"status": "ok", "message": "Chat feature is disabled"}
 
         # Check AI schedule
-        if not is_ai_active_now(validated_settings.chat_settings.ai_reply_schedule):
+        if (validated_settings.chat_settings.ai_reply_schedule_enabled and 
+            not is_ai_active_now(validated_settings.chat_settings.ai_reply_schedule)):
             logger.info(
                 f"AI reply skipped due to schedule: clinic_id={clinic.id}, "
                 f"line_user_id={line_user_id}, time={taiwan_now()}"

@@ -206,23 +206,16 @@ const ChatSettings: React.FC<ChatSettingsProps> = ({
   const previousChatSettingsRef = useRef<ChatSettingsType | null>(null);
   const isInitialMountRef = useRef(true);
 
-  const [isScheduleEnabled, setIsScheduleEnabled] = useState(!!chatSettings.ai_reply_schedule);
-
-  // Sync isScheduleEnabled with form state when it changes from outside (e.g. reload/reset)
-  useEffect(() => {
-    setIsScheduleEnabled(!!chatSettings.ai_reply_schedule);
-  }, [!!chatSettings.ai_reply_schedule]);
+  const isScheduleEnabled = !!chatSettings.ai_reply_schedule_enabled;
 
   const handleToggleSchedule = (enabled: boolean) => {
-    setIsScheduleEnabled(enabled);
-    if (enabled) {
-      if (!chatSettings.ai_reply_schedule) {
-        setValue('chat_settings.ai_reply_schedule', {
-          mon: [], tue: [], wed: [], thu: [], fri: [], sat: [], sun: []
-        }, { shouldDirty: true });
-      }
-    } else {
-      setValue('chat_settings.ai_reply_schedule', null, { shouldDirty: true });
+    setValue('chat_settings.ai_reply_schedule_enabled', enabled, { shouldDirty: true });
+
+    // Initialize empty schedule if it's the first time enabling and it's null
+    if (enabled && !chatSettings.ai_reply_schedule) {
+      setValue('chat_settings.ai_reply_schedule', {
+        mon: [], tue: [], wed: [], thu: [], fri: [], sat: [], sun: []
+      }, { shouldDirty: true });
     }
   };
 
@@ -279,7 +272,7 @@ const ChatSettings: React.FC<ChatSettingsProps> = ({
   };
 
   // Type for string-only fields in ChatSettings (excludes chat_enabled which is boolean)
-  type StringChatSettingsField = Exclude<keyof ChatSettingsType, 'chat_enabled' | 'label_ai_replies' | 'ai_reply_schedule'>;
+  type StringChatSettingsField = Exclude<keyof ChatSettingsType, 'chat_enabled' | 'label_ai_replies' | 'ai_reply_schedule_enabled' | 'ai_reply_schedule'>;
 
   const renderField = (
     label: string,

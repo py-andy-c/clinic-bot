@@ -172,7 +172,8 @@ class ChatSettings(BaseModel):
     common_questions: Optional[str] = Field(default=None, max_length=10000, description="Frequently asked questions and answers")
     other_info: Optional[str] = Field(default=None, max_length=10000, description="Other information about the clinic")
     ai_guidance: Optional[str] = Field(default=None, max_length=10000, description="AI guidance instructions for the chatbot")
-    ai_reply_schedule: Optional[AIWeeklySchedule] = Field(default=None, description="Weekly schedule for AI replies. If None, AI is active 24/7 (if chat_enabled is True).")
+    ai_reply_schedule_enabled: bool = Field(default=False, description="Whether the AI reply schedule is enabled. If True, AI only replies during scheduled hours.")
+    ai_reply_schedule: Optional[AIWeeklySchedule] = Field(default=None, description="Weekly schedule for AI replies. Only used if ai_reply_schedule_enabled is True.")
 
 
 class ReceiptSettings(BaseModel):

@@ -130,8 +130,8 @@ export const ReceiptsSettingsFormSchema = z.object({
   }),
 });
 
-const validateAISchedule = (data: { ai_reply_schedule?: any }, ctx: z.RefinementCtx) => {
-  if (data.ai_reply_schedule) {
+const validateAISchedule = (data: { ai_reply_schedule_enabled?: boolean, ai_reply_schedule?: any }, ctx: z.RefinementCtx) => {
+  if (data.ai_reply_schedule_enabled && data.ai_reply_schedule) {
     const days = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
     days.forEach(day => {
       const periods: any[] = data.ai_reply_schedule![day];
@@ -181,6 +181,7 @@ export const ChatSettingsFormSchema = z.object({
     common_questions: z.string().nullable().optional(),
     other_info: z.string().nullable().optional(),
     ai_guidance: z.string().nullable().optional(),
+    ai_reply_schedule_enabled: z.boolean().optional().default(false),
     ai_reply_schedule: z.object({
       mon: z.array(z.object({ start_time: z.string(), end_time: z.string() })).default([]),
       tue: z.array(z.object({ start_time: z.string(), end_time: z.string() })).default([]),
@@ -228,6 +229,7 @@ export const ChatSettingsSchema = createValidatedSchema(
     common_questions: z.string().nullable().optional(),
     other_info: z.string().nullable().optional(),
     ai_guidance: z.string().nullable().optional(),
+    ai_reply_schedule_enabled: z.boolean().optional().default(false),
     ai_reply_schedule: z.object({
       mon: z.array(z.object({ start_time: z.string(), end_time: z.string() })).default([]),
       tue: z.array(z.object({ start_time: z.string(), end_time: z.string() })).default([]),
