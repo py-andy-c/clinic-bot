@@ -725,31 +725,40 @@ const AutomationFlowMock = ({ scenario }: { scenario: number }) => {
 };
 
 const DigitalReceiptMock = () => (
-  <div className="flex items-center justify-center gap-8 h-[400px]">
-    <div className="bg-white w-56 h-80 rounded shadow-[0_15px_35px_-10px_rgba(0,0,0,0.1)] border border-gray-200 p-6 space-y-4 transform -rotate-3 hover:rotate-0 transition-transform duration-500">
-      <div className="text-center font-bold text-lg border-b border-gray-100 pb-2 text-gray-800">收據</div>
-      <div className="space-y-2 text-[10px]">
-        <div className="flex justify-between"><span>治療費</span><span>$1,200</span></div>
-        <div className="flex justify-between"><span>材料費</span><span>$150</span></div>
-        <div className="border-t border-gray-100 pt-2 flex justify-between font-bold">
-          <span>總計</span><span>$1,350</span>
+  <div className="flex items-center justify-center gap-10 h-[400px]">
+    {/* Physical Receipt Card */}
+    <div className="bg-white w-64 h-[380px] rounded shadow-[0_20px_50px_-15px_rgba(0,0,0,0.15)] border border-gray-100 p-8 space-y-8 transform -rotate-2 hover:rotate-0 transition-transform duration-500">
+      <div className="text-center font-black text-3xl border-b-2 border-gray-100 pb-4 text-gray-900 tracking-tight">收據</div>
+      <div className="space-y-4 text-base">
+        <div className="flex justify-between text-gray-600 font-medium"><span>治療費</span><span className="font-bold text-gray-900">$1,200</span></div>
+        <div className="flex justify-between text-gray-600 font-medium"><span>材料費</span><span className="font-bold text-gray-900">$150</span></div>
+        <div className="border-t-2 border-gray-50 pt-4 flex justify-between items-baseline font-black">
+          <span className="text-lg">總計</span><span className="text-2xl text-primary-600">$1,350</span>
         </div>
       </div>
-      <div className="py-4 flex justify-center">
-        <div className="w-16 h-16 border-2 border-red-500/60 rounded flex items-center justify-center transform relative">
-          <div className="text-[10px] font-bold text-red-500/60 leading-tight text-center">
-            健康診所<br />專用章
+      <div className="pt-4 flex justify-center">
+        <div className="w-20 h-20 border-2 border-red-500/50 rounded-lg flex items-center justify-center transform relative">
+          <div className="text-[13px] font-black text-red-500/50 leading-tight text-center tracking-tighter">
+            健康診所<br />收訖章
           </div>
         </div>
       </div>
-      <div className="text-[8px] text-center text-gray-400">謝謝您的光臨！</div>
     </div>
-    <div className="w-48 h-[360px] bg-gray-900 rounded-[2.5rem] p-2 border-4 border-gray-800 shadow-[0_30px_60px_-15px_rgba(0,0,0,0.5)] relative overflow-hidden hidden sm:block">
-      <div className="h-full w-full bg-[#7494C0] rounded-[2rem] p-3 pt-6 space-y-3">
-        <div className="bg-white rounded-lg p-3 shadow-lg scale-90 translate-y-4">
-          <p className="text-[10px] font-bold mb-1">您的電子收據已送達 🧾</p>
-          <div className="h-1 bg-primary-600 rounded"></div>
-          <p className="text-[8px] text-gray-500 mt-2">點擊以下連結查看完整明細...</p>
+
+    {/* Mobile Digital Preview */}
+    <div className="w-56 h-[400px] bg-gray-900 rounded-[2.5rem] p-2.5 border-4 border-gray-800 shadow-[0_30px_60px_-15px_rgba(0,0,0,0.5)] relative overflow-hidden hidden md:block">
+      <div className="h-full w-full bg-[#7494C0] rounded-[2rem] p-4 pt-8 space-y-4">
+        <div className="bg-white rounded-xl p-4 shadow-xl animate-in slide-in-from-bottom-4 duration-1000">
+          <p className="text-sm font-black text-gray-900 mb-1.5 flex items-center gap-1.5">
+            <span className="text-xl">🧾</span> 您的電子收據已送達
+          </p>
+          <div className="h-1.5 bg-primary-500/30 rounded-full overflow-hidden">
+            <div className="h-full w-full bg-primary-600 animate-in slide-in-from-left duration-[1.5s]" />
+          </div>
+          <p className="text-[11px] text-gray-500 mt-3 font-medium">點擊以下連結查看完整明細內容與報稅用收據副本...</p>
+          <div className="mt-4 h-8 bg-primary-50 rounded-lg flex items-center justify-center">
+            <span className="text-[10px] font-black text-primary-600 uppercase tracking-widest">查看詳情</span>
+          </div>
         </div>
       </div>
     </div>
