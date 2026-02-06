@@ -533,32 +533,31 @@ const MedicalRecordMock = ({ scenario }: { scenario: number }) => {
               >
                 {[
                   {
-                    date: '2024年2月7日',
+                    date: '2024年1月10日',
                     photos: [
-                      { color: 'from-emerald-400 to-emerald-50', label: '穩定復原' },
-                      { color: 'from-blue-400 to-blue-50', label: '結案追蹤' }
+                      { color: 'from-slate-500 to-slate-200', label: 'X光' }
                     ]
                   },
                   {
                     date: '2024年1月24日',
                     photos: [
                       { color: 'from-amber-400 to-amber-50', label: '兩週追蹤' },
-                      { color: 'from-orange-400 to-orange-50', label: '局部緩解' },
-                      { color: 'from-amber-300 to-amber-100', label: '物理治療' }
+                      { color: 'from-orange-400 to-orange-50', label: '日常紀錄' },
+                      { color: 'from-amber-300 to-amber-100', label: '療程紀錄' }
                     ]
                   },
                   {
-                    date: '2024年1月10日',
+                    date: '2024年2月7日',
                     photos: [
-                      { color: 'from-red-400 to-red-50', label: '初次就診' }
+                      { color: 'from-emerald-400 to-emerald-50', label: '術後復原' },
+                      { color: 'from-blue-400 to-blue-50', label: '結案追蹤' }
                     ]
                   },
                   // Duplicate for Loop
                   {
-                    date: '2024年2月7日',
+                    date: '2024年1月10日',
                     photos: [
-                      { color: 'from-emerald-400 to-emerald-50', label: '穩定復原' },
-                      { color: 'from-blue-400 to-blue-50', label: '結案追蹤' }
+                      { color: 'from-slate-500 to-slate-200', label: 'X光' }
                     ]
                   }
                 ].map((group, i) => (
@@ -573,19 +572,12 @@ const MedicalRecordMock = ({ scenario }: { scenario: number }) => {
                     {/* Square Photo Grid */}
                     <div className="grid grid-cols-3 gap-2">
                       {group.photos.map((photo, j) => (
-                        <div key={j} className="aspect-square rounded-lg bg-gradient-to-br border border-gray-100 shadow-sm relative overflow-hidden group/item cursor-pointer hover:border-primary-300 transition-colors">
+                        <div key={j} className="aspect-square rounded-lg bg-gradient-to-br border border-gray-100 shadow-sm relative overflow-hidden cursor-default">
                           <div className={`absolute inset-0 bg-gradient-to-br ${photo.color}`}></div>
-                          {/* Annotation Badge matching actual UI */}
-                          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-1.5 translate-y-full group-hover/item:translate-y-0 transition-transform duration-300">
-                            <p className="text-[8px] text-white font-medium truncate">{photo.label}</p>
-                          </div>
-                          {/* Link Icon for linked medical record */}
-                          <div className="absolute top-1 right-1 opacity-0 group-hover/item:opacity-100 transition-opacity">
-                            <div className="bg-primary-600 text-white p-1 rounded-full scale-50">
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                              </svg>
-                            </div>
+
+                          {/* Caption footer - Always Visible */}
+                          <div className="absolute bottom-0 left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-gray-100 py-2.5 px-1">
+                            <p className="text-[13px] text-gray-900 font-black truncate text-center leading-none tracking-tight">{photo.label}</p>
                           </div>
                         </div>
                       ))}
