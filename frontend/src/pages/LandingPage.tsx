@@ -665,22 +665,25 @@ const MedicalRecordMock = ({ scenario }: { scenario: number }) => {
 const AutomationFlowMock = ({ scenario }: { scenario: number }) => {
   if (scenario === 0) {
     return (
-      <div className="bg-white rounded-3xl shadow-[0_20px_50px_-12px_rgba(0,0,0,0.15)] p-8 border border-gray-100 max-w-sm mx-auto relative animate-in fade-in slide-in-from-bottom-4 duration-700">
-        <div className="space-y-10 relative">
-          <div className="absolute left-6 top-6 bottom-6 w-0.5 bg-gray-100"></div>
-
+      <div className="bg-white rounded-3xl shadow-[0_20px_50px_-12px_rgba(0,0,0,0.15)] p-10 border border-gray-100 max-w-sm mx-auto relative animate-in fade-in slide-in-from-bottom-4 duration-700">
+        <div className="py-2 space-y-14 relative">
           {[
             { label: '療程結束', time: 'Trigger', color: 'bg-green-500', icon: '✅' },
             { label: '術後關懷訊息', time: '24 小時後', color: 'bg-primary-500', icon: '📱' },
-            { label: '滿意度與衛教', time: '7 天後', color: 'bg-primary-400', icon: '�' }
-          ].map((step, i) => (
-            <div key={i} className="flex items-center gap-6 relative z-10">
-              <div className={`w-12 h-12 ${step.color} rounded-2xl shadow-lg shadow-gray-200/50 flex items-center justify-center text-xl`}>
-                {step.icon}
+            { label: '滿意度與衛教', time: '7 天後', color: 'bg-primary-400', icon: '📊' }
+          ].map((step, i, arr) => (
+            <div key={i} className="flex items-center gap-8 relative">
+              <div className="relative flex-shrink-0">
+                <div className={`w-16 h-16 ${step.color} rounded-3xl shadow-lg shadow-gray-200/50 flex items-center justify-center text-3xl relative z-20`}>
+                  {step.icon}
+                </div>
+                {i < arr.length - 1 && (
+                  <div className="absolute top-16 left-8 w-0.5 h-14 bg-gray-100 z-10" />
+                )}
               </div>
-              <div>
-                <p className="text-[10px] font-black text-primary-600 uppercase tracking-widest mb-1">{step.time}</p>
-                <p className="text-base font-black text-gray-900">{step.label}</p>
+              <div className="relative z-20">
+                <p className="text-[13px] font-black text-primary-600 uppercase tracking-widest mb-1.5">{step.time}</p>
+                <p className="text-[22px] font-black text-gray-900 leading-tight">{step.label}</p>
               </div>
             </div>
           ))}
@@ -690,34 +693,27 @@ const AutomationFlowMock = ({ scenario }: { scenario: number }) => {
   }
 
   return (
-    <div className="bg-[#7494C0] rounded-[2.5rem] p-6 shadow-[0_30px_60px_-15px_rgba(0,0,0,0.3)] max-w-[280px] mx-auto h-[400px] flex flex-col animate-in fade-in slide-in-from-right-4 duration-700">
-      <div className="flex-1 flex flex-col justify-center space-y-4">
+    <div className="bg-[#7494C0] rounded-[2.5rem] p-8 shadow-[0_30px_60px_-15px_rgba(0,0,0,0.3)] max-w-[320px] mx-auto h-[440px] flex flex-col animate-in fade-in slide-in-from-right-4 duration-700">
+      <div className="flex-1 flex flex-col justify-center space-y-6">
         {/* Date Label */}
         <div className="text-center">
-          <span className="bg-black/10 text-white/80 text-[10px] px-3 py-1 rounded-full backdrop-blur-sm">2024年2月6日 14:00</span>
+          <span className="bg-black/10 text-white/80 text-xs px-4 py-1.5 rounded-full backdrop-blur-sm font-medium">2024年2月6日 14:00</span>
         </div>
 
         {/* Message Bubble */}
-        <div className="flex items-start gap-2">
-          <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-xs shadow-sm shrink-0 font-bold text-blue-600">診</div>
-          <div className="bg-white rounded-2xl rounded-tl-none p-4 shadow-xl border border-blue-50 relative">
-            <p className="text-[13px] text-gray-800 leading-relaxed">
+        <div className="flex items-start gap-3">
+          <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-sm shadow-sm shrink-0 font-bold text-blue-600">診</div>
+          <div className="bg-white rounded-2xl rounded-tl-none p-5 shadow-xl border border-blue-50 relative">
+            <p className="text-[15px] text-gray-800 leading-relaxed">
               <span className="font-bold">王大明 先生您好：</span><br />
               感謝您今日來診，目前術後感覺如何呢？這裡為您準備了<span className="text-blue-600 font-bold underline">居家復健指引</span>，請參考影片進行練習：
             </p>
-            <div className="mt-3 aspect-video bg-gray-100 rounded-lg overflow-hidden relative group cursor-pointer border border-gray-100 shadow-inner">
+            <div className="mt-4 aspect-video bg-gray-100 rounded-xl overflow-hidden relative group cursor-pointer border border-gray-100 shadow-inner">
               <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-10 h-10 bg-black/40 rounded-full flex items-center justify-center text-white backdrop-blur-sm group-hover:bg-primary-600/80 transition-colors">▶️</div>
+                <div className="w-12 h-12 bg-black/40 rounded-full flex items-center justify-center text-white backdrop-blur-sm group-hover:bg-primary-600/80 transition-colors">▶️</div>
               </div>
-              <div className="absolute bottom-0 inset-x-0 h-4 bg-black/20" />
+              <div className="absolute bottom-0 inset-x-0 h-5 bg-black/20" />
             </div>
-          </div>
-        </div>
-
-        {/* Reply Preview */}
-        <div className="flex justify-end pt-2">
-          <div className="bg-[#06C755] text-white rounded-2xl p-3 shadow-md max-w-[120px]">
-            <p className="text-[12px]">謝謝診所關心！</p>
           </div>
         </div>
       </div>
