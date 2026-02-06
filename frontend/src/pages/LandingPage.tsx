@@ -65,8 +65,8 @@ const LandingPage: React.FC = () => {
             <h1 className="text-4xl sm:text-5xl lg:text-7xl font-extrabold text-gray-900 tracking-tight mb-6">
               全方位診所資訊系統
             </h1>
-            <p className="text-xl sm:text-2xl text-gray-600 mb-10 leading-relaxed max-w-2xl mx-auto">
-              釋放行政人力，讓醫療團隊專注於臨床專業，
+            <p className="text-xl sm:text-2xl text-gray-600 mb-10 leading-relaxed max-w-4xl mx-auto px-4">
+              釋放行政人力，讓醫療團隊專注於臨床專業，<br className="hidden md:block" />
               同時提升病患體驗與回診率。
             </p>
             <div className="flex flex-col sm:flex-row items-center gap-4 justify-center">
