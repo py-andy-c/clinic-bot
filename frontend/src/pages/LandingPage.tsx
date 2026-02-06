@@ -430,15 +430,29 @@ const MedicalRecordMock = ({ scenario }: { scenario: number }) => {
   React.useEffect(() => {
     if (scenario !== 0) return;
     const interval = setInterval(() => {
-      setTemplateIndex(prev => (prev + 1) % 3);
-    }, 2000);
+      setTemplateIndex(prev => (prev + 1) % 2);
+    }, 2250);
     return () => clearInterval(interval);
   }, [scenario]);
 
   const templates = [
-    { title: '初診病歷', fields: ['患者主訴', '過往病史', '系統評估', '治療計畫'] },
-    { title: '複診追蹤', fields: ['疼痛分數 (VAS)', '活動度量測', '今日治療項目', '醫囑備註'] },
-    { title: '特約評估', fields: ['專屬量表 A', '功能性測試', '影像比對分析'] }
+    {
+      title: '初診病歷',
+      fields: [
+        { label: '患者主訴', type: 'textarea', placeholder: '描述主要不適...' },
+        { label: '疼痛評分 (VAS)', type: 'radio', options: ['1', '2', '3', '4', '5'] },
+        { label: '過往病史', type: 'checkbox', options: ['過敏', '手術', '慢性病'] }
+      ]
+    },
+    {
+      title: '複診追蹤',
+      fields: [
+        { label: '治療反饋', type: 'textarea', placeholder: '上次治療後狀況...' },
+        { label: '改善程度', type: 'radio', options: ['顯著', '穩定', '緩慢'] },
+        { label: '今日部位', type: 'checkbox', options: ['頸部', '背部', '腰部'] }
+      ]
+    },
+    { title: '特約評估', fields: [] } // For sidebar display only
   ];
 
   const renderContent = () => {
@@ -446,34 +460,52 @@ const MedicalRecordMock = ({ scenario }: { scenario: number }) => {
       case 0: // Templates
         return (
           <div key="templates" className="h-full flex flex-col animate-in fade-in slide-in-from-right-4 duration-500">
-            <div className="p-4 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
-              <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">模板切換示範</span>
-              <div className="flex gap-1">
-                {[0, 1, 2].map(i => (
-                  <div key={i} className={`h-1.5 w-4 rounded-full transition-all duration-300 ${i === templateIndex ? 'bg-primary-500 w-8' : 'bg-gray-200'}`} />
-                ))}
-              </div>
-            </div>
             <div className="flex flex-1 overflow-hidden">
               {/* Sidebar Tabs */}
-              <div className="w-1/3 border-r border-gray-100 bg-gray-50 p-2 space-y-2">
+              <div className="w-[110px] border-r border-gray-100 bg-gray-50 p-2 space-y-2">
                 {templates.map((t, i) => (
-                  <div key={i} className={`p-2 rounded-lg text-[10px] font-bold transition-all ${i === templateIndex ? 'bg-white shadow-sm text-primary-600 border border-primary-100' : 'text-gray-400'}`}>
+                  <div key={i} className={`p-2 rounded-lg text-[11px] font-bold transition-all ${i === templateIndex ? 'bg-white shadow-sm text-primary-600 border border-primary-100' : 'text-gray-400'}`}>
                     {t.title}
                   </div>
                 ))}
               </div>
               {/* Dynamic Form Content */}
-              <div className="flex-1 p-4 space-y-4">
+              <div className="flex-1 p-4 overflow-y-auto bg-white/50">
                 {templates[templateIndex] && (
-                  <div key={templateIndex} className="animate-in fade-in slide-in-from-bottom-2 duration-300 space-y-4">
-                    <p className="text-xs font-black text-gray-800 border-b border-gray-100 pb-2">{templates[templateIndex].title}</p>
+                  <div key={templateIndex} className="animate-in fade-in slide-in-from-bottom-2 duration-300 space-y-5">
+                    <p className="text-sm font-black text-gray-800 border-b border-gray-100 pb-2">{templates[templateIndex].title}</p>
                     {templates[templateIndex].fields.map((field, i) => (
-                      <div key={i} className="space-y-1">
-                        <div className="h-1.5 w-1/3 bg-gray-200 rounded animate-pulse" />
-                        <div className="h-8 w-full bg-white border border-gray-100 rounded-lg shadow-sm flex items-center px-3">
-                          <span className="text-[10px] text-gray-400 font-medium">{field}...</span>
-                        </div>
+                      <div key={i} className="space-y-2 text-left">
+                        <label className="text-xs font-bold text-gray-700 block">{field.label}</label>
+
+                        {field.type === 'textarea' && (
+                          <div className="h-16 w-full bg-gray-50 border border-gray-200 rounded-lg p-2">
+                            <div className="h-1.5 w-full bg-gray-200 rounded mb-1 animate-pulse" />
+                            <div className="h-1.5 w-2/3 bg-gray-200 rounded animate-pulse" />
+                          </div>
+                        )}
+
+                        {field.type === 'radio' && (
+                          <div className="flex gap-2">
+                            {field.options?.map(opt => (
+                              <div key={opt} className="flex items-center gap-1">
+                                <div className="w-3.5 h-3.5 rounded-full border border-gray-300 bg-white" />
+                                <span className="text-[11px] text-gray-400">{opt}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {field.type === 'checkbox' && (
+                          <div className="flex flex-wrap gap-x-3 gap-y-1">
+                            {field.options?.map(opt => (
+                              <div key={opt} className="flex items-center gap-1">
+                                <div className="w-3.5 h-3.5 rounded border border-gray-300 bg-white" />
+                                <span className="text-[11px] text-gray-400">{opt}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
