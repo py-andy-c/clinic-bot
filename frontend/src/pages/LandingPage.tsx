@@ -431,7 +431,7 @@ const MedicalRecordMock = ({ scenario }: { scenario: number }) => {
     if (scenario !== 0) return;
     const interval = setInterval(() => {
       setTemplateIndex(prev => (prev + 1) % 2);
-    }, 2250);
+    }, 2500);
     return () => clearInterval(interval);
   }, [scenario]);
 
@@ -822,7 +822,7 @@ const LandingPage: React.FC = () => {
       setActiveSchedulingFeature((prev) => (prev + 1) % 3);
       setActiveMedicalFeature((prev) => (prev + 1) % 3);
       setActiveCareFeature((prev) => (prev + 1) % 2);
-    }, 4500);
+    }, 5000);
     return () => clearInterval(interval);
   }, [isPaused]);
 
