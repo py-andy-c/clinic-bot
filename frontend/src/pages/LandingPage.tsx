@@ -745,19 +745,35 @@ const DigitalReceiptMock = () => (
       </div>
     </div>
 
-    {/* Mobile Digital Preview */}
-    <div className="w-56 h-[400px] bg-gray-900 rounded-[2.5rem] p-2.5 border-4 border-gray-800 shadow-[0_30px_60px_-15px_rgba(0,0,0,0.5)] relative overflow-hidden hidden md:block">
-      <div className="h-full w-full bg-[#7494C0] rounded-[2rem] p-4 pt-8 space-y-4">
-        <div className="bg-white rounded-xl p-4 shadow-xl animate-in slide-in-from-bottom-4 duration-1000">
-          <p className="text-sm font-black text-gray-900 mb-1.5 flex items-center gap-1.5">
-            <span className="text-xl">🧾</span> 您的電子收據已送達
-          </p>
-          <div className="h-1.5 bg-primary-500/30 rounded-full overflow-hidden">
-            <div className="h-full w-full bg-primary-600 animate-in slide-in-from-left duration-[1.5s]" />
-          </div>
-          <p className="text-[11px] text-gray-500 mt-3 font-medium">點擊以下連結查看完整明細內容與報稅用收據副本...</p>
-          <div className="mt-4 h-8 bg-primary-50 rounded-lg flex items-center justify-center">
-            <span className="text-[10px] font-black text-primary-600 uppercase tracking-widest">查看詳情</span>
+    {/* Mobile Digital Preview (LIFF) */}
+    <div className="w-56 h-[400px] bg-gray-900 rounded-[3rem] p-2.5 border-4 border-gray-800 shadow-[20px_40px_60px_-15px_rgba(0,0,0,0.5)] relative overflow-hidden hidden md:block">
+      <div className="h-full w-full bg-gray-50 rounded-[2.5rem] flex flex-col pt-10 overflow-hidden">
+        {/* LIFF Header */}
+        <div className="px-6 mb-6">
+          <h3 className="text-xl font-black text-gray-900">我的預約</h3>
+        </div>
+
+        <div className="px-4">
+          {/* Appointment Card - Production Style */}
+          <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
+            <div className="mb-4">
+              <h4 className="text-lg font-black text-gray-900 leading-tight">王大明</h4>
+              <p className="text-sm text-gray-500 font-medium">徒手治療</p>
+            </div>
+
+            <div className="space-y-3 mb-6">
+              <div className="flex items-center text-xs text-gray-600 font-medium">
+                <span className="mr-3 text-base opacity-60">👤</span> 李治療師
+              </div>
+              <div className="flex items-center text-xs text-gray-600 font-medium">
+                <span className="mr-3 text-base opacity-60">📅</span> 2/6 14:00 - 15:00
+              </div>
+            </div>
+
+            {/* Production Button Style */}
+            <div className="w-full bg-green-50 text-green-600 border border-green-200 rounded-xl py-3 text-center text-sm font-black cursor-pointer hover:bg-green-100 transition-colors">
+              查看收據
+            </div>
           </div>
         </div>
       </div>
