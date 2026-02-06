@@ -49,6 +49,7 @@ export function hasChatSettingsChanged(
     common_questions: normalizeString(prev.common_questions),
     other_info: normalizeString(prev.other_info),
     ai_guidance: normalizeString(prev.ai_guidance),
+    ai_reply_schedule: prev.ai_reply_schedule,
   };
 
   const normalizedCurrent: ChatSettings = {
@@ -66,6 +67,7 @@ export function hasChatSettingsChanged(
     common_questions: normalizeString(current.common_questions),
     other_info: normalizeString(current.other_info),
     ai_guidance: normalizeString(current.ai_guidance),
+    ai_reply_schedule: current.ai_reply_schedule,
   };
 
   // Use JSON.stringify for efficient deep comparison

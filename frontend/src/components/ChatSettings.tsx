@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useFormContext } from 'react-hook-form';
 import { ChatSettings as ChatSettingsType } from '../schemas/api';
 import { ChatTestModal } from './ChatTestModal';
+import AIScheduleEditor from './AIScheduleEditor';
 import { hasChatSettingsChanged } from '../utils/chatSettingsComparison';
 import { BaseModal } from './shared/BaseModal';
 import { ModalHeader, ModalBody } from './shared/ModalParts';
@@ -205,6 +206,34 @@ const ChatSettings: React.FC<ChatSettingsProps> = ({
   const previousChatSettingsRef = useRef<ChatSettingsType | null>(null);
   const isInitialMountRef = useRef(true);
 
+  const [isScheduleEnabled, setIsScheduleEnabled] = useState(!!chatSettings.ai_reply_schedule);
+
+  // Sync isScheduleEnabled with form state when it changes from outside (e.g. reload/reset)
+  useEffect(() => {
+    setIsScheduleEnabled(!!chatSettings.ai_reply_schedule);
+  }, [!!chatSettings.ai_reply_schedule]);
+
+  const handleToggleSchedule = (enabled: boolean) => {
+    setIsScheduleEnabled(enabled);
+    if (enabled) {
+      if (!chatSettings.ai_reply_schedule) {
+        // Pre-fill with default business hours: Mon-Fri 09:00-18:00
+        const defaultPeriod = [{ start_time: '09:00', end_time: '18:00' }];
+        setValue('chat_settings.ai_reply_schedule', {
+          mon: [...defaultPeriod],
+          tue: [...defaultPeriod],
+          wed: [...defaultPeriod],
+          thu: [...defaultPeriod],
+          fri: [...defaultPeriod],
+          sat: [],
+          sun: []
+        }, { shouldDirty: true });
+      }
+    } else {
+      setValue('chat_settings.ai_reply_schedule', null, { shouldDirty: true });
+    }
+  };
+
   // Listen for custom event to open test modal from header button
   useEffect(() => {
     const handleOpenTest = () => {
@@ -258,7 +287,7 @@ const ChatSettings: React.FC<ChatSettingsProps> = ({
   };
 
   // Type for string-only fields in ChatSettings (excludes chat_enabled which is boolean)
-  type StringChatSettingsField = Exclude<keyof ChatSettingsType, 'chat_enabled' | 'label_ai_replies'>;
+  type StringChatSettingsField = Exclude<keyof ChatSettingsType, 'chat_enabled' | 'label_ai_replies' | 'ai_reply_schedule'>;
 
   const renderField = (
     label: string,
@@ -356,6 +385,32 @@ const ChatSettings: React.FC<ChatSettingsProps> = ({
               />
               <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed"></div>
             </label>
+          </div>
+
+          <div className="space-y-4 pt-4 border-t border-gray-100">
+            <div className="flex items-center justify-between max-w-2xl">
+              <div className="flex items-center gap-2">
+                <label className="block text-sm font-medium text-gray-700">
+                  限制 AI 回覆時間
+                </label>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={isScheduleEnabled}
+                  onChange={(e) => handleToggleSchedule(e.target.checked)}
+                  disabled={!isClinicAdmin}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed"></div>
+              </label>
+            </div>
+
+            {isScheduleEnabled && (
+              <div className="pt-2">
+                <AIScheduleEditor disabled={!isClinicAdmin} />
+              </div>
+            )}
           </div>
         </div>
 

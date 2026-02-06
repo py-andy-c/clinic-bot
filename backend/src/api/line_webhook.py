@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 
 from core.database import get_db
 from models import Clinic, PractitionerLinkCode, User, LineAiReply, LineMessage
+from models.clinic import AIWeeklySchedule
 from services.line_service import LINEService
 from utils.datetime_utils import taiwan_now
 from services.line_user_service import LineUserService
@@ -31,6 +32,45 @@ logger = logging.getLogger(__name__)
 
 
 router = APIRouter()
+
+
+def is_ai_active_now(schedule: Optional[AIWeeklySchedule]) -> bool:
+    """
+    Check if AI should be active based on current time and weekly schedule.
+    
+    Args:
+        schedule: AI weekly schedule configuration
+        
+    Returns:
+        bool: True if AI should be active (or no schedule configured), False otherwise
+    """
+    if not schedule:
+        return True
+    
+    now = taiwan_now()
+    # 0 = Monday, 6 = Sunday
+    weekday = now.weekday()
+    current_time_str = now.strftime("%H:%M")
+    
+    # Map weekday number to field name
+    day_map = {0: 'mon', 1: 'tue', 2: 'wed', 3: 'thu', 4: 'fri', 5: 'sat', 6: 'sun'}
+    day_key = day_map.get(weekday)
+    
+    if not day_key:
+        return True # Should not happen
+        
+    periods = getattr(schedule, day_key, [])
+    # If schedule exists but no periods for today, it means NO AI today.
+    # Note: If ai_reply_schedule is not none, we respect it strictly.
+    # Empty list for a day means CLOSED for AI on that day.
+    if not periods:
+        return False
+        
+    for period in periods:
+        if period.start_time <= current_time_str < period.end_time:
+            return True
+            
+    return False
 
 
 async def _extract_webhook_data(
@@ -653,6 +693,15 @@ async def line_webhook(
             )
             # Return OK to LINE but don't process the message
             return {"status": "ok", "message": "Chat feature is disabled"}
+
+        # Check AI schedule
+        if not is_ai_active_now(validated_settings.chat_settings.ai_reply_schedule):
+            logger.info(
+                f"AI reply skipped due to schedule: clinic_id={clinic.id}, "
+                f"line_user_id={line_user_id}, time={taiwan_now()}"
+            )
+            # Return OK to LINE but don't process the message
+            return {"status": "ok", "message": "AI skipped due to schedule"}
 
         # Process regular message through AI agent
         # Regular messages require a reply_token to send responses

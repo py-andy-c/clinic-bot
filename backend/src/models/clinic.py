@@ -7,7 +7,7 @@ with its own LINE Official Account.
 """
 
 from datetime import datetime
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 import re
 
 from pydantic import BaseModel, Field, model_validator, field_validator
@@ -110,6 +110,52 @@ class ClinicInfoSettings(BaseModel):
     notifications_page_instructions: Optional[str] = Field(default=None, max_length=2000, description="Custom instructions displayed on the availability notifications (空位提醒) page in LIFF")
 
 
+class TimePeriod(BaseModel):
+    """A specific time period with start and end times in HH:MM format."""
+    start_time: str = Field(..., description="Start time in HH:MM format (24-hour)")
+    end_time: str = Field(..., description="End time in HH:MM format (24-hour)")
+
+    @field_validator('start_time', 'end_time')
+    @classmethod
+    def validate_time_format(cls, v: str) -> str:
+        if not re.match(r'^(0[0-9]|1[0-9]|2[0-3]):[0-5][0-9]$', v):
+            raise ValueError('Time must be in 24-hour format HH:MM')
+        return v
+    
+    @model_validator(mode='after')
+    def validate_period(self) -> 'TimePeriod':
+        if self.start_time >= self.end_time:
+             raise ValueError('start_time must be earlier than end_time')
+        return self
+
+
+class AIWeeklySchedule(BaseModel):
+    """Weekly schedule for AI replies."""
+    mon: List[TimePeriod] = Field(default_factory=list) # pyright: ignore[reportUnknownVariableType]
+    tue: List[TimePeriod] = Field(default_factory=list) # pyright: ignore[reportUnknownVariableType]
+    wed: List[TimePeriod] = Field(default_factory=list) # pyright: ignore[reportUnknownVariableType]
+    thu: List[TimePeriod] = Field(default_factory=list) # pyright: ignore[reportUnknownVariableType]
+    fri: List[TimePeriod] = Field(default_factory=list) # pyright: ignore[reportUnknownVariableType]
+    sat: List[TimePeriod] = Field(default_factory=list) # pyright: ignore[reportUnknownVariableType]
+    sun: List[TimePeriod] = Field(default_factory=list) # pyright: ignore[reportUnknownVariableType]
+
+    @model_validator(mode='after')
+    def validate_no_overlaps(self) -> 'AIWeeklySchedule':
+        for day in ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']:
+            periods: List[TimePeriod] = getattr(self, day)
+            if not periods:
+                continue
+            
+            # Sort periods by start_time
+            sorted_periods = sorted(periods, key=lambda p: p.start_time)
+            
+            for i in range(len(sorted_periods) - 1):
+                if sorted_periods[i].end_time > sorted_periods[i+1].start_time:
+                    raise ValueError(f'Overlapping time periods detected on {day}: {sorted_periods[i].start_time}-{sorted_periods[i].end_time} and {sorted_periods[i+1].start_time}-{sorted_periods[i+1].end_time}')
+        
+        return self
+
+
 class ChatSettings(BaseModel):
     """Schema for chat/chatbot settings."""
     chat_enabled: bool = Field(default=False, description="Whether the AI chatbot feature is enabled for this clinic")
@@ -126,6 +172,7 @@ class ChatSettings(BaseModel):
     common_questions: Optional[str] = Field(default=None, max_length=10000, description="Frequently asked questions and answers")
     other_info: Optional[str] = Field(default=None, max_length=10000, description="Other information about the clinic")
     ai_guidance: Optional[str] = Field(default=None, max_length=10000, description="AI guidance instructions for the chatbot")
+    ai_reply_schedule: Optional[AIWeeklySchedule] = Field(default=None, description="Weekly schedule for AI replies. If None, AI is active 24/7 (if chat_enabled is True).")
 
 
 class ReceiptSettings(BaseModel):
