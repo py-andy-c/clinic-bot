@@ -727,16 +727,22 @@ const AutomationFlowMock = ({ scenario }: { scenario: number }) => {
 const DigitalReceiptMock = () => (
   <div className="flex items-center justify-center gap-8 h-[400px]">
     <div className="bg-white w-56 h-80 rounded shadow-[0_15px_35px_-10px_rgba(0,0,0,0.1)] border border-gray-200 p-6 space-y-4 transform -rotate-3 hover:rotate-0 transition-transform duration-500">
-      <div className="text-center font-serif text-lg border-b border-gray-100 pb-2">CLINIC RECEIPT</div>
+      <div className="text-center font-bold text-lg border-b border-gray-100 pb-2 text-gray-800">收據</div>
       <div className="space-y-2 text-[10px]">
-        <div className="flex justify-between"><span>Physiotherapy</span><span>$1,200</span></div>
-        <div className="flex justify-between"><span>Consultation</span><span>$300</span></div>
+        <div className="flex justify-between"><span>治療費</span><span>$1,200</span></div>
+        <div className="flex justify-between"><span>材料費</span><span>$150</span></div>
         <div className="border-t border-gray-100 pt-2 flex justify-between font-bold">
-          <span>TOTAL</span><span>$1,500</span>
+          <span>總計</span><span>$1,350</span>
         </div>
       </div>
-      <div className="w-16 h-16 bg-gray-100 mx-auto"></div>
-      <div className="text-[8px] text-center text-gray-400">Thank you!</div>
+      <div className="py-4 flex justify-center">
+        <div className="w-16 h-16 border-2 border-red-500/60 rounded flex items-center justify-center transform relative">
+          <div className="text-[10px] font-bold text-red-500/60 leading-tight text-center">
+            健康診所<br />專用章
+          </div>
+        </div>
+      </div>
+      <div className="text-[8px] text-center text-gray-400">謝謝您的光臨！</div>
     </div>
     <div className="w-48 h-[360px] bg-gray-900 rounded-[2.5rem] p-2 border-4 border-gray-800 shadow-[0_30px_60px_-15px_rgba(0,0,0,0.5)] relative overflow-hidden hidden sm:block">
       <div className="h-full w-full bg-[#7494C0] rounded-[2rem] p-3 pt-6 space-y-3">
