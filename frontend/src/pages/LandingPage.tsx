@@ -727,16 +727,16 @@ const AutomationFlowMock = ({ scenario }: { scenario: number }) => {
 const DigitalReceiptMock = () => (
   <div className="flex items-center justify-center gap-10 h-[400px]">
     {/* Physical Receipt Card */}
-    <div className="bg-white w-64 h-[380px] rounded shadow-[0_20px_50px_-15px_rgba(0,0,0,0.15)] border border-gray-100 p-8 space-y-8 transform -rotate-2 hover:rotate-0 transition-transform duration-500">
+    <div className="bg-white w-64 h-[400px] rounded shadow-[0_20px_50px_-15px_rgba(0,0,0,0.15)] border border-gray-100 p-8 pb-12 space-y-6 transform -rotate-2 hover:rotate-0 transition-transform duration-500">
       <div className="text-center font-black text-3xl border-b-2 border-gray-100 pb-4 text-gray-900 tracking-tight">收據</div>
       <div className="space-y-4 text-base">
         <div className="flex justify-between text-gray-600 font-medium"><span>治療費</span><span className="font-bold text-gray-900">$1,200</span></div>
         <div className="flex justify-between text-gray-600 font-medium"><span>材料費</span><span className="font-bold text-gray-900">$150</span></div>
         <div className="border-t-2 border-gray-50 pt-4 flex justify-between items-baseline font-black">
-          <span className="text-lg">總計</span><span className="text-2xl text-primary-600">$1,350</span>
+          <span className="text-lg">總計</span><span className="text-base text-primary-600">$1,350</span>
         </div>
       </div>
-      <div className="pt-4 flex justify-center">
+      <div className="pt-2 flex justify-center">
         <div className="w-20 h-20 border-2 border-red-500/50 rounded-lg flex items-center justify-center transform relative">
           <div className="text-[13px] font-black text-red-500/50 leading-tight text-center tracking-tighter">
             健康診所<br />收訖章
