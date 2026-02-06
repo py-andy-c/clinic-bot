@@ -326,6 +326,57 @@ const SchedulingMock = ({ scenario }: { scenario: number }) => {
                   </div>
                 )}
 
+                {/* Scenario 0: Linking Animation in 陳醫師/10:00 cell */}
+                {scenario === 0 && timeIdx === 1 && resIdx === 1 && autoState === 'created' && (
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    {/* Horizontal connecting line with arrow */}
+                    <div className="relative w-full h-1 mx-1">
+                      {/* Line background */}
+                      <div
+                        className="absolute inset-0 rounded-full bg-gradient-to-r from-blue-400 via-primary-400 to-emerald-400"
+                        style={{
+                          animation: 'linkLineGrow 0.5s ease-out forwards',
+                          transformOrigin: 'left center',
+                          transform: 'scaleX(0)',
+                        }}
+                      />
+                      {/* Glow effect */}
+                      <div
+                        className="absolute inset-0 rounded-full bg-gradient-to-r from-blue-400 via-primary-400 to-emerald-400 blur-sm opacity-60"
+                        style={{
+                          animation: 'linkLineGrow 0.5s ease-out forwards',
+                          transformOrigin: 'left center',
+                          transform: 'scaleX(0)',
+                        }}
+                      />
+                      {/* Arrow head at the end */}
+                      <div
+                        className="absolute -right-2 top-1/2 -translate-y-1/2 text-emerald-500"
+                        style={{
+                          animation: 'linkArrowFade 0.5s ease-out forwards',
+                          opacity: 0,
+                        }}
+                      >
+                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z" />
+                        </svg>
+                      </div>
+                    </div>
+                    {/* Inline keyframes */}
+                    <style>{`
+                      @keyframes linkLineGrow {
+                        from { transform: scaleX(0); }
+                        to { transform: scaleX(1); }
+                      }
+                      @keyframes linkArrowFade {
+                        0% { opacity: 0; transform: translateY(-50%) translateX(-8px); }
+                        50% { opacity: 0; }
+                        100% { opacity: 1; transform: translateY(-50%) translateX(0); }
+                      }
+                    `}</style>
+                  </div>
+                )}
+
                 {/* Scenario 1: Linked Drag and Drop */}
                 {scenario === 1 && timeIdx === 0 && (resIdx === 0 || resIdx === 2) && (
                   <div
