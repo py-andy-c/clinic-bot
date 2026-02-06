@@ -6,9 +6,10 @@ This service uses OpenAI Agent SDK to generate AI-powered responses
 to patient inquiries, with conversation history stored in PostgreSQL.
 """
 
+import json
 import logging
 from datetime import timedelta
-from typing import Optional, List
+from typing import Optional, List, Any, Dict, cast
 
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncEngine, AsyncSession
 from sqlalchemy import text
@@ -183,24 +184,44 @@ def _format_message_with_quote(
         return message
 
 
-def _build_agent_instructions(clinic: Clinic, chat_settings_override: Optional[ChatSettings] = None) -> str:
+def _build_agent_instructions(
+    clinic: Clinic, 
+    chat_settings_override: Optional[ChatSettings] = None,
+    preferred_language: Optional[str] = None
+) -> str:
     """
     Build agent instructions with clinic context.
     
     Args:
         clinic: Clinic entity
         chat_settings_override: Optional ChatSettings to use instead of clinic's saved settings
+        preferred_language: Optional user preferred language ('zh-TW' or 'en')
         
     Returns:
         str: Complete agent instructions with clinic context
     """
     clinic_context = _build_clinic_context(clinic, chat_settings_override)
     clinic_name = clinic.effective_display_name
+    
+    # Map language codes to human-readable names for the prompt
+    lang_map: dict[str, str] = {
+        'zh-TW': 'Traditional Chinese (繁體中文)',
+        'en': 'English'
+    }
+    lang_name = lang_map.get(preferred_language or 'zh-TW', 'Traditional Chinese (繁體中文)')
 
-    return BASE_SYSTEM_PROMPT.format(clinic_name=clinic_name, clinic_context=clinic_context)
+    return BASE_SYSTEM_PROMPT.format(
+        clinic_name=clinic_name, 
+        clinic_context=clinic_context,
+        preferred_language_name=lang_name
+    )
 
 
-def _create_clinic_agent(clinic: Clinic, chat_settings_override: Optional[ChatSettings] = None) -> Agent:
+def _create_clinic_agent(
+    clinic: Clinic, 
+    chat_settings_override: Optional[ChatSettings] = None,
+    preferred_language: Optional[str] = None
+) -> Agent:
     """
     Create clinic-specific agent with clinic context in instructions.
     
@@ -209,22 +230,22 @@ def _create_clinic_agent(clinic: Clinic, chat_settings_override: Optional[ChatSe
     Args:
         clinic: Clinic entity
         chat_settings_override: Optional ChatSettings to use instead of clinic's saved settings
+        preferred_language: Optional user preferred language code
         
     Returns:
         Agent: Clinic-specific agent with context in instructions
     """
-    # Build instructions with clinic context
-    instructions = _build_agent_instructions(clinic, chat_settings_override)
+    # Build instructions with clinic context and language preference
+    instructions = _build_agent_instructions(clinic, chat_settings_override, preferred_language)
     
     # Create agent with clinic-specific instructions
     agent = Agent(
         name=f"Clinic Agent - {clinic.name}",
         instructions=instructions,
-        model="gpt-5-mini",
+        model="gpt-5-nano",
         model_settings=ModelSettings(
             reasoning=Reasoning(
-                effort="low",
-                summary="auto",
+                effort="minimal",
             ),
             verbosity="low"
         )  
@@ -234,7 +255,7 @@ def _create_clinic_agent(clinic: Clinic, chat_settings_override: Optional[ChatSe
 
 
 # Constants
-FALLBACK_ERROR_MESSAGE = "抱歉，我暫時無法處理您的訊息。請稍後再試，或直接聯繫診所。"
+FALLBACK_ERROR_MESSAGE = "抱歉，我暫時無法處理您的訊息。請稍後再試。"
 
 
 class ClinicAgentService:
@@ -252,7 +273,8 @@ class ClinicAgentService:
         clinic: Clinic,
         chat_settings_override: Optional[ChatSettings] = None,
         quoted_message_text: Optional[str] = None,
-        quoted_is_from_user: Optional[bool] = None
+        quoted_is_from_user: Optional[bool] = None,
+        preferred_language: Optional[str] = None
     ) -> str:
         """
         Process a message and generate AI response.
@@ -260,20 +282,17 @@ class ClinicAgentService:
         This unified method handles both actual LINE messages and test messages.
         For test mode, provide chat_settings_override to use unsaved settings.
         
-        Limits conversation history to the last 25 messages to manage
-        token usage and keep context relevant. Includes clinic-specific
-        context (name, address, phone, services) in the agent's knowledge.
+        Limits conversation history using time-based filtering. 
+        Includes clinic-specific context and user's language preference.
         
         Args:
-            session_id: Session ID for conversation continuity (format: "{clinic_id}-{line_user_id}" for LINE, "test-{clinic_id}-{user_id}" for tests)
+            session_id: Session ID for conversation continuity
             message: Message text
             clinic: Clinic entity
-            chat_settings_override: Optional ChatSettings to use instead of clinic's saved settings (for test mode)
-            quoted_message_text: Optional text content of quoted message. If None but quote was attempted,
-                                the AI will be informed that the user attempted to quote a message.
-            quoted_is_from_user: Optional bool indicating if quoted message was from user (True) or bot (False).
-                                None if unknown. Helps AI understand context (e.g., user quoting their own message
-                                vs. quoting bot's response).
+            chat_settings_override: Optional ChatSettings to use instead of clinic's saved settings
+            quoted_message_text: Optional text content of quoted message
+            quoted_is_from_user: Optional bool indicating if quoted message was from user
+            preferred_language: Optional user preferred language code ('zh-TW' or 'en')
             
         Returns:
             str: AI-generated response text
@@ -307,7 +326,11 @@ class ClinicAgentService:
             
             # Create clinic-specific agent with context in system prompt
             # Use chat_settings_override if provided (test mode), otherwise use clinic's saved settings
-            agent = _create_clinic_agent(clinic, chat_settings_override=chat_settings_override)
+            agent = _create_clinic_agent(
+                clinic, 
+                chat_settings_override=chat_settings_override,
+                preferred_language=preferred_language
+            )
             
             # Determine if this is a test mode based on session_id prefix
             is_test_mode = session_id.startswith("test-")
@@ -361,6 +384,63 @@ class ClinicAgentService:
             )
             # Return fallback message
             return FALLBACK_ERROR_MESSAGE
+
+    @staticmethod
+    async def has_session_answered(session_id: str) -> bool:
+        """
+        Check if an AI agent has ever successfully answered in this session.
+        (i.e., has an 'assistant' message that is not '[SILENCE]')
+        
+        Args:
+            session_id: Session ID to check
+            
+        Returns:
+            bool: True if session has had at least one non-silent answer
+        """
+        try:
+            engine = get_async_engine()
+            async with AsyncSession(engine) as async_session:
+                query = text("""
+                    SELECT message_data
+                    FROM agent_messages
+                    WHERE session_id = :session_id
+                """)
+                result = await async_session.execute(query, {"session_id": session_id})
+                rows = result.fetchall()
+                
+                for (message_data_str,) in rows:
+                    if not message_data_str:
+                        continue
+                    message_data = json.loads(message_data_str)
+                    if (message_data.get("role") == "assistant" and 
+                        message_data.get("type") == "message"):
+                        
+                        content = message_data.get("content")
+                        if not content:
+                            continue
+                            
+                        # Extract text content (can be string or list of dicts)
+                        text_content = ""
+                        if isinstance(content, str):
+                            text_content = content
+                        elif isinstance(content, list):
+                            # Handle structured content (e.g. [{'type': 'output_text', 'text': '...'}])
+                            content_list = cast(List[Any], content)
+                            text_parts: List[str] = []
+                            for part in content_list:
+                                if isinstance(part, dict):
+                                    part_dict = cast(Dict[str, Any], part)
+                                    text_val = part_dict.get("text")
+                                    if isinstance(text_val, str):
+                                        text_parts.append(text_val)
+                            text_content = "".join(text_parts)
+                        
+                        if text_content and text_content.strip() != "[SILENCE]":
+                            return True
+            return False
+        except Exception as e:
+            logger.warning(f"Error checking if session has answered for {session_id}: {e}")
+            return False
     
     @staticmethod
     async def _delete_test_session(session_id: str) -> None:

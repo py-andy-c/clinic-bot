@@ -36,6 +36,7 @@ export function hasChatSettingsChanged(
   // Normalize both objects for comparison
   const normalizedPrev: ChatSettings = {
     chat_enabled: prev.chat_enabled,
+    label_ai_replies: prev.label_ai_replies,
     clinic_description: normalizeString(prev.clinic_description),
     therapist_info: normalizeString(prev.therapist_info),
     treatment_details: normalizeString(prev.treatment_details),
@@ -48,10 +49,13 @@ export function hasChatSettingsChanged(
     common_questions: normalizeString(prev.common_questions),
     other_info: normalizeString(prev.other_info),
     ai_guidance: normalizeString(prev.ai_guidance),
+    ai_reply_schedule_enabled: prev.ai_reply_schedule_enabled,
+    ai_reply_schedule: prev.ai_reply_schedule,
   };
 
   const normalizedCurrent: ChatSettings = {
     chat_enabled: current.chat_enabled,
+    label_ai_replies: current.label_ai_replies,
     clinic_description: normalizeString(current.clinic_description),
     therapist_info: normalizeString(current.therapist_info),
     treatment_details: normalizeString(current.treatment_details),
@@ -64,6 +68,8 @@ export function hasChatSettingsChanged(
     common_questions: normalizeString(current.common_questions),
     other_info: normalizeString(current.other_info),
     ai_guidance: normalizeString(current.ai_guidance),
+    ai_reply_schedule_enabled: current.ai_reply_schedule_enabled,
+    ai_reply_schedule: current.ai_reply_schedule,
   };
 
   // Use JSON.stringify for efficient deep comparison

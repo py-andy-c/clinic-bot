@@ -20,6 +20,8 @@ from models import Clinic
 from models.clinic import ChatSettings as ChatSettingsModel
 from services.clinic_agent import ClinicAgentService
 
+from core.constants import AI_LABEL_LONG_THRESHOLD
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
@@ -129,6 +131,26 @@ async def test_chatbot(
             clinic=clinic,
             chat_settings_override=request.chat_settings
         )
+
+        # Handle silence fallback for Test Chat
+        # If AI decides to stay silent, check if this session has ever had a non-silent response
+        # If it has, send a polite fallback instead of truly staying silent
+        if response_text.strip() == "[SILENCE]":
+            has_answered = await ClinicAgentService.has_session_answered(session_id)
+            if has_answered:
+                response_text = "抱歉，我沒有這方面資訊。稍後再由診所人員回覆您喔！"
+                logger.info(
+                    f"Test AI decided [SILENCE] but session is active. Sending fallback: clinic_id={clinic.id}, "
+                    f"session_id={session_id}"
+                )
+
+        # Prepend AI label if enabled in provided settings
+        # Note: In test mode, we default to Chinese label as there's no specific LineUser
+        if response_text.strip() != "[SILENCE]" and request.chat_settings.label_ai_replies:
+            is_long = len(response_text) > AI_LABEL_LONG_THRESHOLD or "\n" in response_text
+            separator = "\n" if is_long else " "
+            label = f"[AI回覆]{separator}"
+            response_text = f"{label}{response_text}"
 
         return ChatTestResponse(
             response=response_text,

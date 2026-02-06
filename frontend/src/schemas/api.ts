@@ -130,9 +130,45 @@ export const ReceiptsSettingsFormSchema = z.object({
   }),
 });
 
+const validateAISchedule = (data: { ai_reply_schedule_enabled?: boolean, ai_reply_schedule?: any }, ctx: z.RefinementCtx) => {
+  if (data.ai_reply_schedule_enabled && data.ai_reply_schedule) {
+    const days = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
+    days.forEach(day => {
+      const periods: any[] = data.ai_reply_schedule![day];
+      if (!periods) return;
+
+      // 1. Validate start < end
+      periods.forEach((period, index) => {
+        if (period.start_time >= period.end_time) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: '開始時間必須早於結束時間',
+            path: ['ai_reply_schedule', day, index, 'start_time'],
+          });
+        }
+      });
+
+      // 2. Validate no overlaps
+      const sorted = [...periods].sort((a, b) => a.start_time.localeCompare(b.start_time));
+      for (let i = 0; i < sorted.length - 1; i++) {
+        if (sorted[i].end_time > sorted[i + 1].start_time) {
+          // Find original index for better error mapping
+          const originalIndex = periods.findIndex(p => p === sorted[i]);
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: '時段不可重疊',
+            path: ['ai_reply_schedule', day, originalIndex, 'end_time'],
+          });
+        }
+      }
+    });
+  }
+};
+
 export const ChatSettingsFormSchema = z.object({
   chat_settings: z.object({
     chat_enabled: z.boolean(),
+    label_ai_replies: z.boolean().optional().default(true),
     clinic_description: z.string().nullable().optional(),
     therapist_info: z.string().nullable().optional(),
     treatment_details: z.string().nullable().optional(),
@@ -145,7 +181,17 @@ export const ChatSettingsFormSchema = z.object({
     common_questions: z.string().nullable().optional(),
     other_info: z.string().nullable().optional(),
     ai_guidance: z.string().nullable().optional(),
-  }),
+    ai_reply_schedule_enabled: z.boolean().optional().default(false),
+    ai_reply_schedule: z.object({
+      mon: z.array(z.object({ start_time: z.string(), end_time: z.string() })).default([]),
+      tue: z.array(z.object({ start_time: z.string(), end_time: z.string() })).default([]),
+      wed: z.array(z.object({ start_time: z.string(), end_time: z.string() })).default([]),
+      thu: z.array(z.object({ start_time: z.string(), end_time: z.string() })).default([]),
+      fri: z.array(z.object({ start_time: z.string(), end_time: z.string() })).default([]),
+      sat: z.array(z.object({ start_time: z.string(), end_time: z.string() })).default([]),
+      sun: z.array(z.object({ start_time: z.string(), end_time: z.string() })).default([]),
+    }).nullable().optional(),
+  }).superRefine(validateAISchedule),
 });
 
 export const AppointmentsSettingsFormSchema = z.object({
@@ -170,6 +216,7 @@ export const AppointmentsSettingsFormSchema = z.object({
 export const ChatSettingsSchema = createValidatedSchema(
   z.object({
     chat_enabled: z.boolean(),
+    label_ai_replies: z.boolean().optional().default(true),
     clinic_description: z.string().nullable().optional(),
     therapist_info: z.string().nullable().optional(),
     treatment_details: z.string().nullable().optional(),
@@ -182,7 +229,17 @@ export const ChatSettingsSchema = createValidatedSchema(
     common_questions: z.string().nullable().optional(),
     other_info: z.string().nullable().optional(),
     ai_guidance: z.string().nullable().optional(),
-  }),
+    ai_reply_schedule_enabled: z.boolean().optional().default(false),
+    ai_reply_schedule: z.object({
+      mon: z.array(z.object({ start_time: z.string(), end_time: z.string() })).default([]),
+      tue: z.array(z.object({ start_time: z.string(), end_time: z.string() })).default([]),
+      wed: z.array(z.object({ start_time: z.string(), end_time: z.string() })).default([]),
+      thu: z.array(z.object({ start_time: z.string(), end_time: z.string() })).default([]),
+      fri: z.array(z.object({ start_time: z.string(), end_time: z.string() })).default([]),
+      sat: z.array(z.object({ start_time: z.string(), end_time: z.string() })).default([]),
+      sun: z.array(z.object({ start_time: z.string(), end_time: z.string() })).default([]),
+    }).nullable().optional(),
+  }).superRefine(validateAISchedule),
   'ChatSettingsSchema'
 );
 

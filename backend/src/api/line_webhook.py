@@ -10,7 +10,7 @@ AI agent and sends responses back to patients.
 import json
 import logging
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Request, HTTPException, status, Header, Depends
@@ -18,32 +18,59 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from core.database import get_db
-from models import Clinic, PractitionerLinkCode, User, LineAiReply
+from models import Clinic, PractitionerLinkCode, User, LineAiReply, LineMessage
+from models.clinic import AIWeeklySchedule
 from services.line_service import LINEService
 from utils.datetime_utils import taiwan_now
 from services.line_user_service import LineUserService
 from services.clinic_agent import ClinicAgentService
 from services.line_message_service import LineMessageService, QUOTE_ATTEMPTED_BUT_NOT_AVAILABLE
-from services.line_opt_out_service import (
-    normalize_message_text,
-    set_ai_opt_out,
-    clear_ai_opt_out,
-    is_ai_opted_out
-)
 from services.line_user_ai_disabled_service import is_ai_disabled
-from core.constants import (
-    OPT_OUT_COMMAND,
-    RE_ENABLE_COMMAND,
-    AI_OPT_OUT_DURATION_HOURS
-)
+from core.constants import AI_FALLBACK_EXPIRY_MINUTES, AI_LABEL_LONG_THRESHOLD
 
 logger = logging.getLogger(__name__)
 
-# Cache normalized commands for efficient comparison
-_NORMALIZED_OPT_OUT_COMMAND = normalize_message_text(OPT_OUT_COMMAND)
-_NORMALIZED_RE_ENABLE_COMMAND = normalize_message_text(RE_ENABLE_COMMAND)
 
 router = APIRouter()
+
+
+def is_ai_active_now(schedule: Optional[AIWeeklySchedule]) -> bool:
+    """
+    Check if AI should be active based on current time and weekly schedule.
+    
+    Args:
+        schedule: AI weekly schedule configuration
+        
+    Returns:
+        bool: True if AI should be active (or no schedule configured), False otherwise
+    """
+    if not schedule:
+        return True
+    
+    now = taiwan_now()
+    # 0 = Monday, 6 = Sunday
+    weekday = now.weekday()
+    current_time_str = now.strftime("%H:%M")
+    
+    # Map weekday number to field name
+    day_map = {0: 'mon', 1: 'tue', 2: 'wed', 3: 'thu', 4: 'fri', 5: 'sat', 6: 'sun'}
+    day_key = day_map.get(weekday)
+    
+    if not day_key:
+        return True # Should not happen
+        
+    periods = getattr(schedule, day_key, [])
+    # If schedule exists but no periods for today, it means NO AI today.
+    # Note: If ai_reply_schedule is not none, we respect it strictly.
+    # Empty list for a day means CLOSED for AI on that day.
+    if not periods:
+        return False
+        
+    for period in periods:
+        if period.start_time <= current_time_str < period.end_time:
+            return True
+            
+    return False
 
 
 async def _extract_webhook_data(
@@ -105,71 +132,6 @@ async def _extract_webhook_data(
     return clinic, line_service, body_str, payload
 
 
-def _handle_opt_out_command(
-    db: Session,
-    line_service: LINEService,
-    line_user_id: str,
-    reply_token: str,
-    clinic: Clinic
-) -> Dict[str, str]:
-    """Handle '人工回覆' command to opt out of AI replies."""
-    try:
-        set_ai_opt_out(db, line_user_id, clinic.id, hours=AI_OPT_OUT_DURATION_HOURS)
-
-        # Send confirmation message
-        opt_out_message = (
-            "好的，診所人員會盡快回覆您！\n\n"
-            f"AI回覆功能將在接下來{AI_OPT_OUT_DURATION_HOURS}小時關閉。如果要重新啟用AI回覆功能，請在聊天室說「重啟AI」。"
-        )
-        line_service.send_text_message(
-            line_user_id=line_user_id,
-            text=opt_out_message,
-            reply_token=reply_token
-        )
-
-        logger.info(
-            f"User opted out of AI replies: clinic_id={clinic.id}, "
-            f"line_user_id={line_user_id}"
-        )
-        return {"status": "ok", "message": "User opted out of AI replies"}
-    except Exception as e:
-        logger.exception(
-            f"Error setting opt-out for clinic_id={clinic.id}, "
-            f"line_user_id={line_user_id}: {e}"
-        )
-        return {"status": "ok", "message": "Opt-out processed (message may have failed)"}
-
-
-def _handle_re_enable_command(
-    db: Session,
-    line_service: LINEService,
-    line_user_id: str,
-    reply_token: str,
-    clinic: Clinic
-) -> Dict[str, str]:
-    """Handle '重啟AI' command to re-enable AI replies."""
-    try:
-        cleared = clear_ai_opt_out(db, line_user_id, clinic.id)
-
-        # Send confirmation message
-        re_enable_message = "AI回覆功能已重新啟用。"
-        line_service.send_text_message(
-            line_user_id=line_user_id,
-            text=re_enable_message,
-            reply_token=reply_token
-        )
-
-        logger.info(
-            f"User re-enabled AI replies: clinic_id={clinic.id}, "
-            f"line_user_id={line_user_id}, was_opted_out={cleared}"
-        )
-        return {"status": "ok", "message": "User re-enabled AI replies"}
-    except Exception as e:
-        logger.exception(
-            f"Error clearing opt-out for clinic_id={clinic.id}, "
-            f"line_user_id={line_user_id}: {e}"
-        )
-        return {"status": "ok", "message": "Re-enable processed (message may have failed)"}
 
 
 def _handle_follow_event(
@@ -433,12 +395,10 @@ async def _process_regular_message(
     reply_token: str,
     message_id: str | None,
     quoted_message_id: str | None,
-    clinic: Clinic
+    clinic: Clinic,
+    preferred_language: str | None = None
 ) -> Dict[str, str]:
     """Process regular message through AI agent and send response."""
-    # Start loading animation
-    line_service.start_loading_animation(line_user_id, loading_seconds=60)
-
     # Generate session ID
     session_id = f"{clinic.id}-{line_user_id}"
 
@@ -489,8 +449,48 @@ async def _process_regular_message(
         message=message_text,
         clinic=clinic,
         quoted_message_text=quoted_message_text,
-        quoted_is_from_user=quoted_is_from_user
+        quoted_is_from_user=quoted_is_from_user,
+        preferred_language=preferred_language
     )
+
+    # Check for silence token
+    if response_text.strip() == "[SILENCE]":
+        # Check for recent AI interaction (last 20 mins) to determine if conversation is active
+        # If active, send a polite fallback instead of truly staying silent
+        threshold_time = taiwan_now() - timedelta(minutes=AI_FALLBACK_EXPIRY_MINUTES)
+        
+        last_ai_msg = db.query(LineMessage).filter(
+            LineMessage.line_user_id == line_user_id,
+            LineMessage.clinic_id == clinic.id,
+            LineMessage.is_from_user == False,
+            LineMessage.created_at >= threshold_time
+        ).order_by(LineMessage.created_at.desc()).first()
+
+        if last_ai_msg:
+            # Send localized fallback message
+            if preferred_language == 'en':
+                response_text = "I'm sorry, I don't have this information. Our staff will get back to you later!"
+            else:
+                response_text = "抱歉，我沒有這方面資訊。稍後再由診所人員回覆您喔！"
+            
+            logger.info(
+                f"AI decided [SILENCE] but conversation is active. Sending fallback: clinic_id={clinic.id}, "
+                f"line_user_id={line_user_id}"
+            )
+            # Proceed to label and send logic below
+        else:
+            logger.info(
+                f"AI decided to remain silent: clinic_id={clinic.id}, "
+                f"line_user_id={line_user_id}"
+            )
+            return {"status": "ok", "message": "AI remained silent"}
+
+    # Prepend AI label if enabled in clinic settings
+    if clinic.get_validated_settings().chat_settings.label_ai_replies:
+        is_long = len(response_text) > AI_LABEL_LONG_THRESHOLD or "\n" in response_text
+        separator = "\n" if is_long else " "
+        label = ("[AI reply]" if preferred_language == 'en' else "[AI回覆]") + separator
+        response_text = f"{label}{response_text}"
 
     # Send response back to patient via LINE
     bot_message_id = line_service.send_text_message(
@@ -582,6 +582,7 @@ async def line_webhook(
     # Initialize context variables for error logging
     clinic_id = None
     line_user_id = None
+    line_user = None
 
     try:
         # Extract and validate webhook data
@@ -659,35 +660,6 @@ async def line_webhook(
             f"message={message_text[:30]}..."
         )
 
-        # Normalize message text for command matching
-        # Removes whitespace and common quote/parenthesis characters
-        normalized_message = normalize_message_text(message_text)
-
-        # Handle special commands FIRST (before any other processing)
-        # These commands work even if chat is disabled or user is opted out
-        # Note: These commands require a reply_token to send responses
-
-        # Command: "人工回覆" - Opt out of AI replies (case-insensitive)
-        if normalized_message == _NORMALIZED_OPT_OUT_COMMAND:
-            if not reply_token:
-                logger.warning("Opt-out command received but no reply_token available")
-                return {"status": "ok", "message": "Command received but cannot reply"}
-            # LineUser should already exist from the call at line 590
-            # If it doesn't exist, _handle_opt_out_command will handle the error gracefully
-            return _handle_opt_out_command(
-                db, line_service, line_user_id, reply_token, clinic
-            )
-
-        # Command: "重啟AI" - Re-enable AI replies (case-insensitive)
-        if normalized_message == _NORMALIZED_RE_ENABLE_COMMAND:
-            if not reply_token:
-                logger.warning("Re-enable command received but no reply_token available")
-                return {"status": "ok", "message": "Command received but cannot reply"}
-            # LineUser should already exist from the call at line 590
-            # If it doesn't exist, _handle_re_enable_command will handle the error gracefully
-            return _handle_re_enable_command(
-                db, line_service, line_user_id, reply_token, clinic
-            )
 
         # Command: "LINK-XXXXX" - Link practitioner LINE account
         # This command works even if user is opted out
@@ -701,16 +673,6 @@ async def line_webhook(
                 db, line_service, line_user_id, reply_token, message_text, clinic
             )
 
-        # Check if user is opted out (and not expired)
-        # If opted out, ignore the message - don't process, don't store
-        if is_ai_opted_out(db, line_user_id, clinic.id):
-            logger.info(
-                f"Message from opted-out user ignored: clinic_id={clinic.id}, "
-                f"line_user_id={line_user_id}, message={message_text[:30]}..."
-            )
-            # Return OK to LINE but don't process the message
-            # Messages during opt-out period are not stored in conversation history
-            return {"status": "ok", "message": "User opted out, message ignored"}
 
         # Check if AI is permanently disabled for this user
         # This is admin-controlled and persists until manually changed
@@ -732,6 +694,16 @@ async def line_webhook(
             # Return OK to LINE but don't process the message
             return {"status": "ok", "message": "Chat feature is disabled"}
 
+        # Check AI schedule
+        if (validated_settings.chat_settings.ai_reply_schedule_enabled and 
+            not is_ai_active_now(validated_settings.chat_settings.ai_reply_schedule)):
+            logger.info(
+                f"AI reply skipped due to schedule: clinic_id={clinic.id}, "
+                f"line_user_id={line_user_id}, time={taiwan_now()}"
+            )
+            # Return OK to LINE but don't process the message
+            return {"status": "ok", "message": "AI skipped due to schedule"}
+
         # Process regular message through AI agent
         # Regular messages require a reply_token to send responses
         if not reply_token:
@@ -739,7 +711,8 @@ async def line_webhook(
             return {"status": "ok", "message": "Message received but cannot reply"}
         return await _process_regular_message(
             db, line_service, line_user_id, message_text, reply_token,
-            message_id, quoted_message_id, clinic
+            message_id, quoted_message_id, clinic,
+            preferred_language=line_user.preferred_language if line_user else None
         )
 
     except HTTPException:

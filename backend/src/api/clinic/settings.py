@@ -327,9 +327,25 @@ class ClinicInfoSettings(BaseModel):
     notifications_page_instructions: Optional[str] = None
 
 
+class TimePeriod(BaseModel):
+    """A specific time period with start and end times in HH:MM format."""
+    start_time: str
+    end_time: str
+
+class AIWeeklySchedule(BaseModel):
+    """Weekly schedule for AI replies."""
+    mon: List[TimePeriod] = Field(default_factory=list) # pyright: ignore[reportUnknownVariableType]
+    tue: List[TimePeriod] = Field(default_factory=list) # pyright: ignore[reportUnknownVariableType]
+    wed: List[TimePeriod] = Field(default_factory=list) # pyright: ignore[reportUnknownVariableType]
+    thu: List[TimePeriod] = Field(default_factory=list) # pyright: ignore[reportUnknownVariableType]
+    fri: List[TimePeriod] = Field(default_factory=list) # pyright: ignore[reportUnknownVariableType]
+    sat: List[TimePeriod] = Field(default_factory=list) # pyright: ignore[reportUnknownVariableType]
+    sun: List[TimePeriod] = Field(default_factory=list) # pyright: ignore[reportUnknownVariableType]
+
 class ChatSettings(BaseModel):
     """Chat/chatbot settings for clinic."""
     chat_enabled: bool = False
+    label_ai_replies: bool = True
     clinic_description: Optional[str] = None
     therapist_info: Optional[str] = None
     treatment_details: Optional[str] = None
@@ -342,6 +358,8 @@ class ChatSettings(BaseModel):
     common_questions: Optional[str] = None
     other_info: Optional[str] = None
     ai_guidance: Optional[str] = None
+    ai_reply_schedule_enabled: bool = False
+    ai_reply_schedule: Optional[AIWeeklySchedule] = None
 
 
 class ReceiptSettings(BaseModel):
@@ -563,8 +581,10 @@ async def get_settings(
             # If there's any error, set to None
             liff_urls = None
         
-        # Convert validated settings to API response models (they have the same structure)
-        # This ensures type compatibility while maintaining automatic field inclusion
+        # Convert validated settings to API response models
+        chat_settings_model = ChatSettings.model_validate(validated_settings.chat_settings.model_dump())
+        logger.debug(f"Returning chat_settings for clinic {clinic_id}: {chat_settings_model.model_dump()}")
+        
         return SettingsResponse(
             clinic_id=clinic.id,
             clinic_name=clinic.name,
@@ -574,7 +594,7 @@ async def get_settings(
             notification_settings=NotificationSettings.model_validate(validated_settings.notification_settings.model_dump()),
             booking_restriction_settings=BookingRestrictionSettings.model_validate(validated_settings.booking_restriction_settings.model_dump()),
             clinic_info_settings=ClinicInfoSettings.model_validate(validated_settings.clinic_info_settings.model_dump()),
-            chat_settings=ChatSettings.model_validate(validated_settings.chat_settings.model_dump()),
+            chat_settings=chat_settings_model,
             receipt_settings=ReceiptSettings.model_validate(validated_settings.receipt_settings.model_dump() if hasattr(validated_settings, 'receipt_settings') else {"custom_notes": None, "show_stamp": False}),
             liff_urls=liff_urls
         )
@@ -891,6 +911,9 @@ async def update_settings(
             if section in settings:
                 # Update the section in the current settings
                 # Note: We do a simple override of the section for atomic consistency
+                logger.info(f"Updating settings section '{section}' for clinic {clinic_id}")
+                if section == "chat_settings":
+                    logger.debug(f"New chat_settings: {settings[section]}")
                 current_settings[section] = settings[section]
                 settings_changed = True
         
