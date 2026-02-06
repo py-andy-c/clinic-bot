@@ -57,8 +57,8 @@ const FeatureSection: React.FC<{
           {/* Mockup - Edge-to-edge oriented for Mobile */}
           <div className="w-full flex-1 relative mt-4 lg:mt-0">
             <div className="relative group mx-auto max-w-[320px] lg:max-w-none">
-              {/* Decorative background glow - removed top inset on mobile to avoid covering text */}
-              <div className="absolute -inset-x-4 -bottom-4 top-0 lg:-inset-8 bg-gradient-to-r from-primary-200 to-blue-200 rounded-[3rem] blur-2xl opacity-10 group-hover:opacity-40 transition-opacity duration-700"></div>
+              {/* Decorative background glow - Hidden on mobile to avoid overlapping with text */}
+              <div className="hidden lg:block absolute lg:-inset-8 bg-gradient-to-r from-primary-200 to-blue-200 rounded-[3rem] blur-2xl opacity-10 group-hover:opacity-40 transition-opacity duration-700"></div>
               <div key={activeIndex} className="relative transition-all duration-700 animate-in fade-in zoom-in-95 transform scale-85 sm:scale-95 lg:scale-100 origin-top">
                 {mockup}
               </div>
