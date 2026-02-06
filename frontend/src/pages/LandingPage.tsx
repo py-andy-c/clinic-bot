@@ -635,7 +635,7 @@ const LandingPage: React.FC = () => {
         {/* Section 1: LINE 智能預約 */}
         <FeatureSection
           title="LINE 智能預約"
-          valueProp="24/7 預約不打烊，極致簡單的病患旅程。"
+          valueProp="24/7 快速預約與自動提醒，最大化診所使用率"
           features={[
             "30秒 Line 預約，降低預約門檻",
             "診前自動提醒，有效降低爽約率。",
