@@ -9,22 +9,36 @@ const FeatureSection: React.FC<{
   imageSide: 'left' | 'right';
   mockup: React.ReactNode;
   bgColor?: string;
-}> = ({ title, valueProp, features, imageSide, mockup, bgColor = 'bg-white' }) => {
+  activeIndex?: number;
+  onHoverFeature?: (index: number) => void;
+  onLeaveFeature?: () => void;
+}> = ({ title, valueProp, features, imageSide, mockup, bgColor = 'bg-white', activeIndex = -1, onHoverFeature, onLeaveFeature }) => {
   const textContent = (
     <div className="flex-1 lg:py-12">
       <h2 className="text-3xl font-bold text-gray-900 mb-4">{title}</h2>
-      <p className="text-lg text-primary-600 font-medium mb-6 leading-relaxed">{valueProp}</p>
-      <ul className="space-y-4">
+      <p className="text-lg text-primary-600 font-medium mb-8 leading-relaxed">{valueProp}</p>
+      <ul className="space-y-6">
         {features.map((feature, index) => (
-          <li key={index} className="flex items-start">
-            <div className="mt-1 flex-shrink-0">
-              <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary-100 text-primary-600">
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                </svg>
+          <li
+            key={index}
+            className={`flex items-start transition-all duration-500 rounded-xl p-4 -ml-4 ${index === activeIndex ? 'bg-primary-50 translate-x-3' : 'opacity-60'}`}
+            onMouseEnter={() => onHoverFeature?.(index)}
+            onMouseLeave={() => onLeaveFeature?.()}
+          >
+            <div className={`mt-1 flex-shrink-0 transition-colors duration-500 ${index === activeIndex ? 'text-primary-600' : 'text-gray-400'}`}>
+              <div className={`flex h-8 w-8 items-center justify-center rounded-full transition-all duration-500 border-2 ${index === activeIndex ? 'bg-white border-primary-500 shadow-sm' : 'bg-gray-100 border-transparent'}`}>
+                {index === activeIndex ? (
+                  <span className="text-sm font-bold">{index + 1}</span>
+                ) : (
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                  </svg>
+                )}
               </div>
             </div>
-            <span className="ml-3 text-gray-700 leading-6 font-medium">{feature}</span>
+            <span className={`ml-4 text-base leading-7 font-semibold transition-colors duration-500 ${index === activeIndex ? 'text-gray-900' : 'text-gray-500'}`}>
+              {feature}
+            </span>
           </li>
         ))}
       </ul>
@@ -39,8 +53,10 @@ const FeatureSection: React.FC<{
           <div className="flex-1 w-full relative">
             <div className="relative group">
               {/* Decorative background glow */}
-              <div className="absolute -inset-4 bg-gradient-to-r from-primary-200 to-blue-200 rounded-3xl blur-2xl opacity-30 group-hover:opacity-50 transition-opacity duration-500"></div>
-              {mockup}
+              <div className="absolute -inset-8 bg-gradient-to-r from-primary-200 to-blue-200 rounded-[3rem] blur-3xl opacity-20 group-hover:opacity-40 transition-opacity duration-700"></div>
+              <div className="relative transition-all duration-700 animate-in fade-in zoom-in-95">
+                {mockup}
+              </div>
             </div>
           </div>
         </div>
@@ -51,41 +67,131 @@ const FeatureSection: React.FC<{
 
 // --- Mockup Components ---
 
-const LineBookingMock = () => (
-  <div className="mx-auto w-[280px] h-[560px] bg-gray-900 rounded-[3rem] p-3 shadow-2xl border-[6px] border-gray-800 relative overflow-hidden">
-    <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-6 bg-gray-800 rounded-b-2xl z-20"></div>
-    <div className="h-full w-full bg-[#7494C0] rounded-[2rem] overflow-hidden flex flex-col pt-8">
-      <div className="bg-white/10 backdrop-blur-md p-3 flex items-center gap-3 border-b border-white/10">
-        <div className="w-8 h-8 rounded-full bg-white/20"></div>
-        <div className="text-xs text-white font-bold">OO 診所官方帳號</div>
-      </div>
-      <div className="flex-1 p-4 space-y-4">
-        <div className="bg-white rounded-2xl p-3 shadow-sm max-w-[80%]">
-          <p className="text-[10px] text-gray-700">您好！請問想預約什麼時段？</p>
-        </div>
-        <div className="bg-white rounded-2xl shadow-lg border border-primary-100 overflow-hidden ml-auto max-w-[90%]">
-          <div className="bg-primary-50 px-3 py-2 border-b border-primary-100">
-            <p className="text-[10px] font-bold text-primary-700">🗓️ 選擇預約時段</p>
-          </div>
-          <div className="p-3 grid grid-cols-2 gap-2">
-            {['10:00', '11:30', '14:00', '15:30'].map(t => (
-              <div key={t} className={`text-[9px] py-1.5 text-center rounded border ${t === '10:00' ? 'border-primary-500 bg-primary-600 text-white' : 'border-gray-200 text-gray-600'}`}>
-                {t}
+const LineBookingMock = ({ scenario }: { scenario: number }) => {
+  const renderContent = () => {
+    switch (scenario) {
+      case 0: // LIFF Booking View (Accuracy: Real LIFF app is a webview)
+        return (
+          <div key="liff" className="h-full bg-white animate-in fade-in slide-in-from-bottom-2 duration-700 pt-8 rounded-t-[1.5rem] flex flex-col shadow-inner">
+            {/* LIFF Header */}
+            <div className="bg-white border-b border-gray-100 p-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-5 h-5 bg-gray-100 rounded-full flex items-center justify-center text-[10px]">✕</div>
+                <span className="text-sm font-bold text-gray-800">預約掛號</span>
               </div>
-            ))}
+              <div className="flex gap-1">
+                <div className="w-1 h-1 bg-gray-300 rounded-full"></div>
+                <div className="w-1 h-1 bg-gray-300 rounded-full"></div>
+                <div className="w-1 h-1 bg-gray-300 rounded-full"></div>
+              </div>
+            </div>
+            {/* Selection Grid */}
+            <div className="flex-1 p-5 overflow-y-auto">
+              <p className="text-xs font-bold text-gray-500 mb-4">選擇預約時段 - 02/06 (五)</p>
+              <div className="grid grid-cols-2 gap-3 mb-6">
+                {['09:00', '10:30', '14:00', '15:30'].map(t => (
+                  <div key={t} className={`p-4 rounded-xl border-2 text-center transition-all ${t === '14:00' ? 'border-primary-500 bg-primary-50 text-primary-600 font-bold' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+                    <div className="text-xs">{t}</div>
+                  </div>
+                ))}
+              </div>
+              <div className="bg-primary-50 p-4 rounded-xl border border-primary-100">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-[10px] text-primary-700 font-bold">已選時段</span>
+                  <span className="text-[10px] text-gray-600 font-bold">王大明 治療師</span>
+                </div>
+                <div className="text-sm font-bold text-primary-900">02/06 (五) 14:00 - 物理治療</div>
+              </div>
+            </div>
+            {/* Action Button */}
+            <div className="p-4 border-t border-gray-50 bg-white">
+              <button className="w-full bg-primary-600 text-white py-4 rounded-xl text-sm font-bold shadow-lg shadow-primary-200">
+                下一步
+              </button>
+            </div>
           </div>
-          <div className="p-2 border-t border-gray-50 flex justify-center">
-            <div className="text-[9px] text-primary-600 font-bold underline">查看更多時段</div>
+        );
+      case 1: // Reminder (Accuracy: Matches DEFAULT_REMINDER_MESSAGE)
+        return (
+          <div key="reminder" className="p-4 pt-4 space-y-4 animate-in fade-in slide-in-from-right-4 duration-700">
+            <div className="bg-white rounded-2xl p-5 shadow-lg border-t-4 border-amber-400 text-gray-700">
+              <p className="text-sm leading-relaxed">
+                提醒您，您預約的<span className="font-bold">【物理治療】</span>預計於<span className="font-bold">【02/06 14:00】</span>開始，由<span className="font-bold">【王大明治療師】</span>為您服務。
+              </p>
+              <p className="text-sm mt-3">請準時前往診所，期待為您服務！</p>
+            </div>
           </div>
-        </div>
+        );
+      case 2: // Vacancy (Accuracy: Matches batched slot display)
+        return (
+          <div key="vacancy" className="p-4 pt-4 space-y-4 animate-in fade-in slide-in-from-right-4 duration-700">
+            <div className="bg-white rounded-2xl p-5 shadow-lg border-t-4 border-primary-500 text-gray-700">
+              <p className="text-sm font-bold mb-4">
+                【空位提醒】您關注的預約時段有新的空位了！
+              </p>
+              <div className="space-y-1 mb-4 text-xs">
+                <p>預約類型：物理治療</p>
+                <p>治療師：不指定</p>
+              </div>
+              <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
+                <p className="text-xs font-bold mb-2 text-gray-700">可用時間：</p>
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">02/06 (五): 14:00, 15:30</p>
+                  <p className="text-sm font-medium">02/07 (六): 09:00, 10:30</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <div className="mx-auto w-[310px] h-[640px] bg-gray-900 rounded-[3.5rem] p-4 shadow-[0_0_80px_-15px_rgba(0,0,0,0.6)] border-[10px] border-gray-800 relative overflow-hidden transform group-hover:scale-[1.02] transition-transform duration-700">
+      {/* Phone status bar */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-36 h-8 bg-gray-800 rounded-b-[2rem] z-30 flex items-center justify-center gap-2 font-mono text-[8px] text-gray-500 pt-1">
+        <span>9:41</span>
+        <div className="w-12 h-1.5 bg-gray-900 rounded-full"></div>
+        <span>🔋</span>
       </div>
-      <div className="bg-white h-12 flex items-center px-4 gap-2">
-        <div className="flex-1 h-8 bg-gray-100 rounded-full px-3 flex items-center text-[10px] text-gray-400 italic">在此輸入訊息...</div>
-        <div className="w-8 h-8 rounded-full bg-primary-600"></div>
+
+      <div className={`h-full w-full rounded-[2.8rem] overflow-hidden flex flex-col transition-colors duration-1000 ${scenario === 0 ? 'bg-gray-100' : 'bg-gradient-to-b from-[#7494C0] to-[#5A7BA8]'}`}>
+        {/* LINE navigation - only show in Scenario 1 and 2 */}
+        {scenario !== 0 && (
+          <div className="bg-white/10 backdrop-blur-md p-5 pb-3 flex items-center justify-between border-b border-white/10 pt-12 text-white">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-white/20 border border-white/20 flex items-center justify-center">
+                <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-1 11h-4v4h-4v-4H6v-4h4V6h4v4h4v4z" />
+                </svg>
+              </div>
+              <div className="text-sm font-bold tracking-wide">健康診所</div>
+            </div>
+            <div className="w-6 h-6 rotate-90 opacity-60">⋮</div>
+          </div>
+        )}
+
+        {/* Main Interface Area */}
+        <div className="flex-1 overflow-hidden relative">
+          {renderContent()}
+        </div>
+
+        {/* Messenger Footer - only show in Scenario 1 and 2 */}
+        {scenario !== 0 && (
+          <div className="bg-white h-20 flex items-center px-6 gap-3 mt-auto shadow-2xl">
+            <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-gray-400 font-bold transition-transform hover:scale-110">+</div>
+            <div className="flex-1 h-10 bg-gray-100 rounded-full px-5 flex items-center text-xs text-gray-400 italic whitespace-nowrap truncate">請輸入訊息...</div>
+            <div className="w-10 h-10 rounded-full bg-primary-600 flex items-center justify-center shadow-lg shadow-primary-200">
+              <svg className="w-5 h-5 text-white rotate-90" fill="currentColor" viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" /></svg>
+            </div>
+          </div>
+        )}
       </div>
     </div>
-  </div>
-);
+  );
+};
 
 const SchedulingMock = () => (
   <div className="bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden max-w-2xl mx-auto">
@@ -273,6 +379,17 @@ const AISetupMock = () => (
 );
 
 const LandingPage: React.FC = () => {
+  const [activeLineFeature, setActiveLineFeature] = React.useState(0);
+  const [isPaused, setIsPaused] = React.useState(false);
+
+  React.useEffect(() => {
+    if (isPaused) return;
+    const interval = setInterval(() => {
+      setActiveLineFeature((prev) => (prev + 1) % 3);
+    }, 4500);
+    return () => clearInterval(interval);
+  }, [isPaused]);
+
   return (
     <div className="min-h-screen bg-white">
       <PublicHeader />
@@ -305,7 +422,7 @@ const LandingPage: React.FC = () => {
         </div>
       </section>
 
-      <div id="features">
+      <div id="features" className="divide-y divide-gray-100">
         {/* Section 1: LINE 智能預約 */}
         <FeatureSection
           title="LINE 智能預約"
@@ -313,11 +430,16 @@ const LandingPage: React.FC = () => {
           features={[
             "30秒自動預約：在 LINE 上點選療程與時段即可完成。",
             "診前自動提醒：系統自動發送訊息，有效降低爽約率。",
-            "個人預約管理：病患可隨時查看，減輕櫃檯回覆壓力。",
             "空檔自動通知：時段釋出自動媒合候補，填補閒置人力。"
           ]}
           imageSide="right"
-          mockup={<LineBookingMock />}
+          activeIndex={activeLineFeature}
+          onHoverFeature={(index) => {
+            setActiveLineFeature(index);
+            setIsPaused(true);
+          }}
+          onLeaveFeature={() => setIsPaused(false)}
+          mockup={<LineBookingMock scenario={activeLineFeature} />}
         />
 
         {/* Section 2: 智慧排班與資源管理 */}
