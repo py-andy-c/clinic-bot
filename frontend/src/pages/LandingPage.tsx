@@ -514,41 +514,90 @@ const MedicalRecordMock = ({ scenario }: { scenario: number }) => {
             </div>
           </div>
         );
-      case 1: // Photos Timeline
+      case 1: // Gallery Timeline (Vertical Scroll)
         return (
-          <div key="photos" className="h-full flex flex-col p-6 animate-in fade-in slide-in-from-right-4 duration-500">
-            <div className="flex items-center justify-between mb-6 border-b border-gray-100 pb-4">
-              <span className="text-xs font-black text-gray-800">影像進度比對 (物理治療)</span>
-              <span className="text-[10px] text-primary-600 font-bold bg-primary-50 px-2 py-1 rounded-full text-left">進步幅度: +35%</span>
-            </div>
-            <div className="flex-1 flex gap-4 overflow-x-auto pb-4 scrollbar-hide">
-              {[
-                { date: '01/10', label: '初次就診', improvement: '75%', color: 'from-red-400 to-red-100' },
-                { date: '01/24', label: '兩週追蹤', improvement: '45%', color: 'from-amber-400 to-amber-100' },
-                { date: '02/07', label: '穩定復原', improvement: '15%', color: 'from-emerald-400 to-emerald-100' }
-              ].map((item, i) => (
-                <div key={i} className="flex-shrink-0 w-44 space-y-3">
-                  <div className={`h-48 w-full rounded-2xl bg-gradient-to-b ${item.color} shadow-lg relative overflow-hidden group flex flex-col items-center justify-center border border-white`}>
-                    {/* SVG Progress Illustration */}
-                    <div className="relative w-20 h-32 flex items-center justify-center">
-                      <div className={`w-1 h-32 bg-white/40 rounded-full`} />
-                      <div
-                        className={`absolute w-1 h-32 bg-white rounded-full transition-all duration-1000`}
-                        style={{
-                          transform: `rotate(${item.improvement})`,
-                          boxShadow: '0 0 10px rgba(255,255,255,0.8)'
-                        }}
-                      />
+          <div key="photos" className="h-full flex flex-col pt-2 animate-in fade-in slide-in-from-right-4 duration-500 overflow-hidden relative">
+            <style>{`
+              @keyframes slowScrollGallery {
+                0% { transform: translateY(0); }
+                100% { transform: translateY(-60%); }
+              }
+            `}</style>
+
+            <div className="flex-1 px-4 sm:px-6">
+              <div
+                className="space-y-10"
+                style={{
+                  animation: 'slowScrollGallery 15s linear infinite'
+                }}
+              >
+                {[
+                  {
+                    date: '2024年2月7日',
+                    photos: [
+                      { color: 'from-emerald-400 to-emerald-50', label: '穩定復原' },
+                      { color: 'from-blue-400 to-blue-50', label: '結案追蹤' }
+                    ]
+                  },
+                  {
+                    date: '2024年1月24日',
+                    photos: [
+                      { color: 'from-amber-400 to-amber-50', label: '兩週追蹤' },
+                      { color: 'from-orange-400 to-orange-50', label: '局部緩解' },
+                      { color: 'from-amber-300 to-amber-100', label: '物理治療' }
+                    ]
+                  },
+                  {
+                    date: '2024年1月10日',
+                    photos: [
+                      { color: 'from-red-400 to-red-50', label: '初次就診' }
+                    ]
+                  },
+                  // Duplicate for Loop
+                  {
+                    date: '2024年2月7日',
+                    photos: [
+                      { color: 'from-emerald-400 to-emerald-50', label: '穩定復原' },
+                      { color: 'from-blue-400 to-blue-50', label: '結案追蹤' }
+                    ]
+                  }
+                ].map((group, i) => (
+                  <div key={i} className="space-y-4">
+                    {/* Date Header matching PatientGalleryPage */}
+                    <div className="flex items-center gap-3 border-b border-gray-100 pb-2">
+                      <div className="w-2 h-2 rounded-full bg-primary-600 shadow-[0_0_8px_rgba(37,99,235,0.4)]"></div>
+                      <h2 className="text-sm font-bold text-gray-900">{group.date}</h2>
+                      <span className="text-[10px] text-gray-400 font-medium">({group.photos.length} 張)</span>
                     </div>
-                    <div className="absolute top-2 left-2 px-2 py-0.5 bg-white/20 backdrop-blur-md rounded-md text-[9px] text-white font-bold">{item.date}</div>
+
+                    {/* Square Photo Grid */}
+                    <div className="grid grid-cols-3 gap-2">
+                      {group.photos.map((photo, j) => (
+                        <div key={j} className="aspect-square rounded-lg bg-gradient-to-br border border-gray-100 shadow-sm relative overflow-hidden group/item cursor-pointer hover:border-primary-300 transition-colors">
+                          <div className={`absolute inset-0 bg-gradient-to-br ${photo.color}`}></div>
+                          {/* Annotation Badge matching actual UI */}
+                          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-1.5 translate-y-full group-hover/item:translate-y-0 transition-transform duration-300">
+                            <p className="text-[8px] text-white font-medium truncate">{photo.label}</p>
+                          </div>
+                          {/* Link Icon for linked medical record */}
+                          <div className="absolute top-1 right-1 opacity-0 group-hover/item:opacity-100 transition-opacity">
+                            <div className="bg-primary-600 text-white p-1 rounded-full scale-50">
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                              </svg>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                  <div className="text-center">
-                    <p className="text-[11px] font-bold text-gray-800">{item.label}</p>
-                    <p className="text-[9px] text-gray-400 font-medium">VAS 指數: {5 - i * 2}/10</p>
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
+
+            {/* Fade overlays for smooth scrolling effect */}
+            <div className="absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-white via-white/80 to-transparent z-10 pointer-events-none" />
+            <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-white via-white/80 to-transparent z-10 pointer-events-none" />
           </div>
         );
       case 2: // History
