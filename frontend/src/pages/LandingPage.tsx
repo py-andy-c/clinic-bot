@@ -516,88 +516,126 @@ const MedicalRecordMock = ({ scenario }: { scenario: number }) => {
         );
       case 1: // Gallery Timeline (Vertical Scroll)
         return (
-          <div key="photos" className="h-full flex flex-col pt-2 animate-in fade-in slide-in-from-right-4 duration-500 overflow-hidden relative">
-            <style>{`
+          <div key="photos" className="h-full flex flex-col pt-2 animate-in fade-in slide-in-from-right-4 duration-500 overflow-hidden relative bg-[#020617]">
+             <style>{`
               @keyframes slowScrollGallery {
                 0% { transform: translateY(0); }
                 100% { transform: translateY(-60%); }
               }
+              .x-ray-grain {
+                background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.05'/%3E%3C/svg%3E");
+              }
             `}</style>
-
-            <div className="flex-1 px-4 sm:px-6">
-              <div
+            
+            <div className="flex-1 px-4 sm:px-6 x-ray-grain">
+              <div 
                 className="space-y-10"
-                style={{
+                style={{ 
                   animation: 'slowScrollGallery 15s linear infinite'
                 }}
               >
                 {[
-                  {
-                    date: '2024年2月7日',
+                  { 
+                    date: '2024年2月7日', 
                     photos: [
-                      { color: 'from-emerald-400 to-emerald-50', label: '穩定復原' },
-                      { color: 'from-blue-400 to-blue-50', label: '結案追蹤' }
+                      { type: 'spine', tint: 'emerald', label: '穩定復原', marker: 'L' },
+                      { type: 'shoulder', tint: 'blue', label: '結案追蹤', marker: 'R' }
                     ]
                   },
-                  {
-                    date: '2024年1月24日',
+                  { 
+                    date: '2024年1月24日', 
                     photos: [
-                      { color: 'from-amber-400 to-amber-50', label: '兩週追蹤' },
-                      { color: 'from-orange-400 to-orange-50', label: '局部緩解' },
-                      { color: 'from-amber-300 to-amber-100', label: '物理治療' }
+                      { type: 'hip', tint: 'amber', label: '兩週追蹤', marker: 'L' },
+                      { type: 'spine', tint: 'orange', label: '局部緩解', marker: 'L' },
+                      { type: 'shoulder', tint: 'amber', label: '物理治療', marker: 'R' }
                     ]
                   },
-                  {
-                    date: '2024年1月10日',
+                  { 
+                    date: '2024年1月10日', 
                     photos: [
-                      { color: 'from-red-400 to-red-50', label: '初次就診' }
+                      { type: 'spine', tint: 'red', label: '初次就診', marker: 'L' }
                     ]
                   },
                   // Duplicate for Loop
-                  {
-                    date: '2024年2月7日',
+                  { 
+                    date: '2024年2月7日', 
                     photos: [
-                      { color: 'from-emerald-400 to-emerald-50', label: '穩定復原' },
-                      { color: 'from-blue-400 to-blue-50', label: '結案追蹤' }
+                      { type: 'spine', tint: 'emerald', label: '穩定復原', marker: 'L' },
+                      { type: 'shoulder', tint: 'blue', label: '結案追蹤', marker: 'R' }
                     ]
                   }
                 ].map((group, i) => (
-                  <div key={i} className="space-y-4">
-                    {/* Date Header matching PatientGalleryPage */}
-                    <div className="flex items-center gap-3 border-b border-gray-100 pb-2">
-                      <div className="w-2 h-2 rounded-full bg-primary-600 shadow-[0_0_8px_rgba(37,99,235,0.4)]"></div>
-                      <h2 className="text-sm font-bold text-gray-900">{group.date}</h2>
-                      <span className="text-[10px] text-gray-400 font-medium">({group.photos.length} 張)</span>
+                  <div key={i} className="space-y-4 pt-4">
+                    <div className="flex items-center gap-3 border-b border-white/10 pb-2">
+                      <div className="w-2 h-2 rounded-full bg-primary-500 shadow-[0_0_8px_rgba(59,130,246,0.6)]"></div>
+                      <h2 className="text-sm font-bold text-white/90">{group.date}</h2>
+                      <span className="text-[10px] text-white/40 font-medium">({group.photos.length} 張)</span>
                     </div>
 
-                    {/* Square Photo Grid */}
-                    <div className="grid grid-cols-3 gap-2">
-                      {group.photos.map((photo, j) => (
-                        <div key={j} className="aspect-square rounded-lg bg-gradient-to-br border border-gray-100 shadow-sm relative overflow-hidden group/item cursor-pointer hover:border-primary-300 transition-colors">
-                          <div className={`absolute inset-0 bg-gradient-to-br ${photo.color}`}></div>
-                          {/* Annotation Badge matching actual UI */}
-                          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-1.5 translate-y-full group-hover/item:translate-y-0 transition-transform duration-300">
-                            <p className="text-[8px] text-white font-medium truncate">{photo.label}</p>
-                          </div>
-                          {/* Link Icon for linked medical record */}
-                          <div className="absolute top-1 right-1 opacity-0 group-hover/item:opacity-100 transition-opacity">
-                            <div className="bg-primary-600 text-white p-1 rounded-full scale-50">
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                              </svg>
+                    <div className="grid grid-cols-3 gap-3">
+                       {group.photos.map((photo, j) => (
+                         <div key={j} className="aspect-square rounded-xl bg-gradient-to-b from-[#1e293b] to-black border border-white/10 shadow-lg relative overflow-hidden group/item cursor-pointer hover:border-primary-500 transition-colors">
+                            {/* Medical Film Texture & Tint */}
+                            <div className={`absolute inset-0 opacity-20 bg-${photo.tint}-500 blur-2xl animate-pulse`}></div>
+                            <div className="absolute inset-0 x-ray-grain opacity-10"></div>
+                            
+                            {/* Anatomical SVG */}
+                            <div className="absolute inset-0 flex items-center justify-center p-4 py-8">
+                               {photo.type === 'spine' && (
+                                 <svg className="w-full h-full text-white/40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                                   <path d="M12 2C12 2 14 4 14 7C14 10 10 10 10 13C10 16 14 16 14 19C14 22 12 24 12 24" strokeLinecap="round"/>
+                                   <circle cx="12" cy="5" r="1.5" fill="currentColor"/>
+                                   <circle cx="12" cy="10" r="1.5" fill="currentColor"/>
+                                   <circle cx="12" cy="15" r="1.5" fill="currentColor"/>
+                                   <circle cx="12" cy="20" r="1.5" fill="currentColor"/>
+                                 </svg>
+                               )}
+                               {photo.type === 'shoulder' && (
+                                 <svg className="w-full h-full text-white/40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                                   <path d="M4 8C4 8 6 6 12 6C18 6 20 8 20 8" strokeLinecap="round"/>
+                                   <path d="M12 6V22" strokeLinecap="round"/>
+                                   <circle cx="12" cy="6" r="2" fill="currentColor"/>
+                                   <path d="M8 10L6 14" strokeLinecap="round"/>
+                                   <path d="M16 10L18 14" strokeLinecap="round"/>
+                                 </svg>
+                               )}
+                               {photo.type === 'hip' && (
+                                 <svg className="w-full h-full text-white/40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                                   <path d="M7 6C7 6 9 4 12 4C15 4 17 6 17 6" strokeLinecap="round"/>
+                                   <path d="M12 4V12M12 12L8 20M12 12L16 20" strokeLinecap="round"/>
+                                   <ellipse cx="12" cy="12" rx="3" ry="2" fill="currentColor" fillOpacity="0.2"/>
+                                 </svg>
+                               )}
                             </div>
-                          </div>
-                        </div>
-                      ))}
+
+                            {/* Corner Metadata (X-ray style) */}
+                            <div className="absolute top-1.5 left-2 text-[8px] font-mono text-white/30 truncate w-16 uppercase">ID:7H9X-42</div>
+                            <div className="absolute top-1 right-2 text-[10px] font-bold text-white/60">{photo.marker}</div>
+                            
+                            {/* Hover Annotation */}
+                            <div className="absolute bottom-0 left-0 right-0 bg-primary-600/90 backdrop-blur-md p-1.5 translate-y-full group-hover/item:translate-y-0 transition-transform duration-300">
+                               <p className="text-[8px] text-white font-bold truncate text-center uppercase tracking-tighter">{photo.label}</p>
+                            </div>
+
+                            {/* Link Icon for linked medical record */}
+                            <div className="absolute top-1 right-8 opacity-0 group-hover/item:opacity-100 transition-opacity">
+                               <div className="bg-primary-600 text-white p-1 rounded-full scale-50">
+                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                                 </svg>
+                               </div>
+                            </div>
+                         </div>
+                       ))}
                     </div>
                   </div>
                 ))}
               </div>
             </div>
-
+            
             {/* Fade overlays for smooth scrolling effect */}
-            <div className="absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-white via-white/80 to-transparent z-10 pointer-events-none" />
-            <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-white via-white/80 to-transparent z-10 pointer-events-none" />
+            <div className="absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-[#020617] via-[#020617]/80 to-transparent z-10 pointer-events-none" />
+            <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-[#020617] via-[#020617]/80 to-transparent z-10 pointer-events-none" />
           </div>
         );
       case 2: // History
