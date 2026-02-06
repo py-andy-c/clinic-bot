@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ClinicBot - 重新定義診所經營 | 智能自動化平台</title>
+    <style>
+        :root {
+            --bg: #030712;
+            --surface: #0f172a;
+            --primary: #38bdf8;
+            --secondary: #818cf8;
+            --accent: #c084fc;
+            --text-main: #f8fafc;
+            --text-dim: #94a3b8;
+            --glass: rgba(30, 41, 59, 0.7);
+            --border: rgba(255, 255, 255, 0.1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text-main);
+            overflow-x: hidden;
+            letter-spacing: -0.01em;
+        }
+
+        .container {
+            max-width: 1280px;
+            margin: 0 auto;
+            padding: 0 1.5rem;
+        }
+
+        /* Nav */
+        nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 2rem 0;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            background: linear-gradient(to right, var(--primary), var(--accent));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-decoration: none;
+        }
+
+        .nav-items {
+            display: flex;
+            gap: 2.5rem;
+            list-style: none;
+        }
+
+        .nav-items a {
+            color: var(--text-dim);
+            text-decoration: none;
+            font-size: 0.95rem;
+            transition: color 0.3s;
+        }
+
+        .nav-items a:hover {
+            color: var(--text-main);
+        }
+
+        .btn {
+            background: var(--text-main);
+            color: var(--bg);
+            padding: 0.6rem 1.4rem;
+            border-radius: 99px;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 0.9rem;
+            transition: transform 0.2s;
+        }
+
+        .btn:hover {
+            transform: scale(1.05);
+        }
+
+        /* Hero */
+        .hero {
+            padding: 8rem 0;
+            text-align: center;
+            position: relative;
+        }
+
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: -100px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, rgba(56, 189, 248, 0.15) 0%, transparent 70%);
+            z-index: -1;
+        }
+
+        .hero h1 {
+            font-size: 4.5rem;
+            line-height: 1.1;
+            margin-bottom: 2rem;
+            font-weight: 800;
+            background: linear-gradient(to bottom, #fff 40%, #94a3b8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .hero p {
+            font-size: 1.25rem;
+            color: var(--text-dim);
+            max-width: 700px;
+            margin: 0 auto 3rem;
+            line-height: 1.6;
+        }
+
+        /* Bento Grid */
+        .bento {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            grid-template-rows: repeat(2, 350px);
+            gap: 1.5rem;
+            margin-bottom: 8rem;
+        }
+
+        .bento-item {
+            background: var(--glass);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            backdrop-filter: blur(12px);
+            transition: border-color 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .bento-item:hover {
+            border-color: rgba(56, 189, 248, 0.5);
+        }
+
+        .bento-item h3 {
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+            z-index: 1;
+        }
+
+        .bento-item p {
+            font-size: 0.95rem;
+            color: var(--text-dim);
+            z-index: 1;
+        }
+
+        .bento-large {
+            grid-column: span 2;
+        }
+
+        .bento-tall {
+            grid-row: span 2;
+        }
+
+        .mock-ui-container {
+            position: absolute;
+            top: 2rem;
+            left: 2rem;
+            right: 2rem;
+            height: 180px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 12px;
+            border: 1px dashed var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-dim);
+            font-size: 0.8rem;
+            text-align: center;
+        }
+
+        /* AI Feature */
+        .ai-section {
+            padding: 6rem 0;
+            background: radial-gradient(circle at right, rgba(129, 140, 248, 0.1), transparent);
+        }
+
+        .ai-content {
+            display: flex;
+            align-items: center;
+            gap: 5rem;
+        }
+
+        .ai-text {
+            flex: 1;
+        }
+
+        .ai-text h2 {
+            font-size: 3rem;
+            margin-bottom: 2rem;
+        }
+
+        .ai-visual {
+            flex: 1.2;
+            height: 450px;
+            background: linear-gradient(135deg, var(--surface), #1e293b);
+            border-radius: 32px;
+            border: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        /* Stats */
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 2rem;
+            padding: 6rem 0;
+            border-top: 1px solid var(--border);
+        }
+
+        .stat-card h4 {
+            font-size: 3rem;
+            color: var(--primary);
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-card p {
+            color: var(--text-dim);
+        }
+
+        /* Final CTA */
+        .cta-section {
+            padding: 10rem 0;
+            text-align: center;
+            background: radial-gradient(circle at bottom, rgba(56, 189, 248, 0.1), transparent);
+        }
+
+        .cta-section h2 {
+            font-size: 3.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .btn-large {
+            padding: 1.2rem 3rem;
+            font-size: 1.1rem;
+            background: linear-gradient(to right, var(--primary), var(--secondary));
+            color: white;
+            border: none;
+        }
+
+        footer {
+            padding: 4rem 0;
+            border-top: 1px solid var(--border);
+            text-align: center;
+            color: var(--text-dim);
+            font-size: 0.9rem;
+        }
+
+        @media (max-width: 1024px) {
+            .bento {
+                grid-template-columns: repeat(2, 1fr);
+                grid-template-rows: auto;
+            }
+
+            .bento-tall {
+                grid-row: auto;
+            }
+
+            .hero h1 {
+                font-size: 3.5rem;
+            }
+
+            .ai-content {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <nav>
+            <a href="#" class="logo">ClinicBot.</a>
+            <ul class="nav-items">
+                <li><a href="#">功能</a></li>
+                <li><a href="#">解決方案</a></li>
+                <li><a href="#">定價</a></li>
+            </ul>
+            <a href="#" class="btn">立即試用</a>
+        </nav>
+    </div>
+
+    <header class="hero">
+        <div class="container">
+            <h1>診所經營的「大腦」<br>自動化與數位轉型的起點</h1>
+            <p>透過 AI 與全方位的營運自動化技術，釋放行政人力，讓醫療團隊回歸專業。我們不只是工具，更是您的數位經營夥伴。</p>
+            <a href="#" class="btn btn-large">預約專員演示</a>
+        </div>
+    </header>
+
+    <div class="container">
+        <div class="bento">
+            <div class="bento-item bento-large">
+                <div class="mock-ui-container">【智慧排班視覺化】<br>展示醫師、診間、療程儀器的 3D 衝突檢測與自動分配視圖</div>
+                <h3>智慧資源調度</h3>
+                <p>人力、儀器、診間三位一體，機器學習優化排班建議，完全杜絕空檔與衝堂。</p>
+            </div>
+            <div class="bento-item bento-tall">
+                <div class="mock-ui-container" style="height: 500px">【LINE 病患旅程】<br>展示從對話 -> 預約成功 -> 自動提醒 -> 到診報到 ->
+                    領取收據的流暢流程圖</div>
+                <h3>極致 LINE 體驗</h3>
+                <p>30 秒完成預約，訊息不再石沉大海。系統級自動化，讓病患對診所印象深刻。</p>
+            </div>
+            <div class="bento-item">
+                <div class="mock-ui-container">【電子收據 PDF】<br>展示手機上接收到的數位收據介面</div>
+                <h3>無紙化診所</h3>
+                <p>電子收據隨開隨傳，嚴密審核機制，營運零漏洞。</p>
+            </div>
+            <div class="bento-item">
+                <div class="mock-ui-container">【自動關懷訊息】<br>展示預測性的關懷與追蹤對話</div>
+                <h3>精準關懷</h3>
+                <p>AI 自動分析排程發送術後追蹤，將一次客轉化為忠誠客。</p>
+            </div>
+            <div class="bento-item bento-large">
+                <div class="mock-ui-container">【財務報表 Dashboard】<br>展示即時營收、人員分潤計算與熱門療程分析圖表</div>
+                <h3>數據驅動決策</h3>
+                <p>月底結算不再是噩夢。自動分潤、業績統計，一鍵產出對帳單。</p>
+            </div>
+        </div>
+
+        <section class="ai-section">
+            <div class="ai-content">
+                <div class="ai-text">
+                    <h2>AI 智能，<br>24/7 持續進化</h2>
+                    <p>不僅僅是回覆，而是理解。基於您診所的專屬知識庫，提供精準、客觀、專業的引導，讓每一則訊息都成為轉化機會。</p>
+                    <div class="btn" style="display:inline-block">深入了解 AI 核心</div>
+                </div>
+                <div class="ai-visual">
+                    【AI 知識庫介面】<br>背景為診所上傳文件與 FAQ 的動態視覺，前景展示 AI 針對複雜問題的精準回覆範例
+                </div>
+            </div>
+        </section>
+
+        <section class="stats">
+            <div class="stat-card">
+                <h4>+450%</h4>
+                <p>平均行政效率提升</p>
+            </div>
+            <div class="stat-card">
+                <h4>-60%</h4>
+                <p>診前爽約率下降</p>
+            </div>
+            <div class="stat-card">
+                <h4>10k+</h4>
+                <p>每日自動處理互動</p>
+            </div>
+        </section>
+    </div>
+
+    <section class="cta-section">
+        <div class="container">
+            <h2>邁向診所 2.0 時代</h2>
+            <p>不要讓瑣碎的行政工作拖慢了專業的腳步。立即加入數位轉型行列。</p>
+            <a href="#" class="btn btn-large">開始 14 天免費試用</a>
+        </div>
+    </section>
+
+    <footer>
+        <div class="container">
+            <p>&copy; 2026 ClinicBot Intelligent Platform. Built for the future of medicine.</p>
+        </div>
+    </footer>
+
+</body>
+
+</html>

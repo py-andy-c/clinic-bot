@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>診所小幫手 - 全方位診所營運自動化</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-dark: #1e40af;
+            --secondary: #64748b;
+            --accent: #10b981;
+            --background: #f8fafc;
+            --surface: #ffffff;
+            --text-main: #0f172a;
+            --text-muted: #475569;
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+            --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+            --glass: rgba(255, 255, 255, 0.7);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', 'Noto Sans TC', sans-serif;
+            background-color: var(--background);
+            color: var(--text-main);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 2rem;
+        }
+
+        header {
+            position: fixed;
+            top: 0;
+            width: 100%;
+            height: 80px;
+            background: var(--glass);
+            backdrop-filter: blur(10px);
+            z-index: 1000;
+            border-bottom: 1px solid rgba(226, 232, 240, 0.8);
+            display: flex;
+            align-items: center;
+        }
+
+        .nav-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 800;
+            color: var(--primary);
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 2rem;
+            list-style: none;
+        }
+
+        .nav-links a {
+            text-decoration: none;
+            color: var(--text-muted);
+            font-weight: 500;
+            transition: color 0.3s;
+        }
+
+        .nav-links a:hover {
+            color: var(--primary);
+        }
+
+        .cta-button {
+            background-color: var(--primary);
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.3s;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .cta-button:hover {
+            background-color: var(--primary-dark);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+        }
+
+        /* Hero Section */
+        .hero {
+            padding-top: 160px;
+            padding-bottom: 100px;
+            background: radial-gradient(circle at 10% 20%, rgba(37, 99, 235, 0.05) 0%, rgba(255, 255, 255, 0) 100%);
+            text-align: center;
+        }
+
+        .hero h1 {
+            font-size: 3.5rem;
+            font-weight: 800;
+            margin-bottom: 1.5rem;
+            line-height: 1.2;
+            letter-spacing: -0.02em;
+        }
+
+        .hero p {
+            font-size: 1.25rem;
+            color: var(--text-muted);
+            max-width: 800px;
+            margin: 0 auto 3rem;
+        }
+
+        .placeholder-dashboard {
+            width: 100%;
+            height: 600px;
+            background: #e2e8f0;
+            border-radius: 20px;
+            margin-top: 4rem;
+            box-shadow: var(--shadow-lg);
+            border: 1px solid rgba(0,0,0,0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #94a3b8;
+            font-weight: 600;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .placeholder-dashboard::after {
+            content: "【管理後台預覽】\n展示：視覺化經營視角 (區塊二)\n包含：診間佔用率、預約報表、即時營收報表";
+            white-space: pre-wrap;
+            text-align: center;
+            z-index: 1;
+        }
+
+        /* Features Section */
+        .features {
+            padding: 100px 0;
+            background-color: var(--surface);
+        }
+
+        .section-header {
+            text-align: center;
+            margin-bottom: 5rem;
+        }
+
+        .section-header h2 {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 2rem;
+        }
+
+        .feature-card {
+            padding: 2.5rem;
+            background: var(--background);
+            border-radius: 16px;
+            transition: all 0.3s;
+            border: 1px solid transparent;
+        }
+
+        .feature-card:hover {
+            background: white;
+            border-color: #e2e8f0;
+            transform: translateY(-5px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .icon {
+            width: 48px;
+            height: 48px;
+            background: var(--primary);
+            color: white;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 1.5rem;
+            font-size: 1.5rem;
+        }
+
+        .feature-card h3 {
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .feature-card ul {
+            list-style: none;
+            color: var(--text-muted);
+        }
+
+        .feature-card li {
+            position: relative;
+            padding-left: 1.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .feature-card li::before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: var(--accent);
+            font-weight: bold;
+        }
+
+        /* Mock UI Placeholders */
+        .placeholder-ui {
+            width: 100%;
+            background: #f1f5f9;
+            border-radius: 12px;
+            margin-top: 1.5rem;
+            padding: 1rem;
+            border: 1px dashed #cbd5e1;
+            font-size: 0.875rem;
+            color: #64748b;
+        }
+
+        footer {
+            background: #0f172a;
+            color: white;
+            padding: 80px 0 40px;
+        }
+
+        .footer-content {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 4rem;
+            margin-bottom: 4rem;
+        }
+
+        .footer-logo {
+            font-size: 1.5rem;
+            font-weight: 800;
+            margin-bottom: 1rem;
+            display: block;
+        }
+
+        .footer-bottom {
+            border-top: 1px solid rgba(255,255,255,0.1);
+            padding-top: 2rem;
+            text-align: center;
+            font-size: 0.875rem;
+            color: #94a3b8;
+        }
+
+        @media (max-width: 768px) {
+            .hero h1 { font-size: 2.5rem; }
+            .nav-links { display: none; }
+            .feature-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container nav-content">
+            <a href="#" class="logo">ClinicBot</a>
+            <ul class="nav-links">
+                <li><a href="#features">功能介紹</a></li>
+                <li><a href="#solutions">解決方案</a></li>
+                <li><a href="#testimonials">客戶見證</a></li>
+            </ul>
+            <a href="#" class="cta-button">免費試用</a>
+        </div>
+    </header>
+
+    <section class="hero">
+        <div class="container">
+            <h1>全方位診所資訊系統</h1>
+            <p>釋放行政人力，讓醫療團隊專注於臨床專業，同時提升病患體驗與回診率。從預約、病歷、追蹤到財務，一站式自動化管理。</p>
+            <div class="hero-actions">
+                <a href="#" class="cta-button" style="padding: 1rem 3rem; font-size: 1.1rem;">立即開始免費試用</a>
+            </div>
+            <div class="placeholder-dashboard">
+                <!-- Placeholder for Dashboard UI -->
+            </div>
+        </div>
+    </section>
+
+    <section id="features" class="features">
+        <div class="container">
+            <div class="section-header">
+                <h2>模組化功能，精準解決營運痛點</h2>
+                <p>針對診所管理者與行政人員設計的完整生態系</p>
+            </div>
+
+            <div class="feature-grid">
+                <!-- 區塊一：LINE 智能預約 -->
+                <div class="feature-card">
+                    <div class="icon">📅</div>
+                    <h3>LINE 智能預約</h3>
+                    <ul>
+                        <li>30秒自動預約</li>
+                        <li>診前自動提醒 (降低爽約率)</li>
+                        <li>空檔自動候補通知</li>
+                    </ul>
+                    <div class="placeholder-ui">
+                        【LINE 預約介面預覽】<br>
+                        展示：患者在 LINE 上選擇時段、收到提醒訊息的流暢體驗。
+                    </div>
+                </div>
+
+                <!-- 區塊二：智慧排班與資源管理 -->
+                <div class="feature-card">
+                    <div class="icon">🏗️</div>
+                    <h3>智慧排班與資源管理</h3>
+                    <ul>
+                        <li>人力、診間、儀器三位一體排班</li>
+                        <li>自動資源分配，防止撞單</li>
+                        <li>視覺化看板掌握全院負荷</li>
+                    </ul>
+                    <div class="placeholder-ui">
+                        【排班看板預覽】<br>
+                        展示：多軸排班表，一眼看清醫師、診間與儀器的分配。
+                    </div>
+                </div>
+
+                <!-- 區塊三：專業病歷系統 -->
+                <div class="feature-card">
+                    <div class="icon">📂</div>
+                    <h3>專業病歷系統</h3>
+                    <ul>
+                        <li>自定義病歷模板</li>
+                        <li>雲端影像照片管理</li>
+                        <li>歷史治療數據秒速快查</li>
+                    </ul>
+                    <div class="placeholder-ui">
+                        【電子病歷預覽】<br>
+                        展示：簡潔的病歷填寫介面與術前術後照片對比工具。
+                    </div>
+                </div>
+
+                <!-- 區塊四：個案關懷與追蹤 -->
+                <div class="feature-card">
+                    <div class="icon">💖</div>
+                    <h3>個案關懷與追蹤</h3>
+                    <ul>
+                        <li>術後／診後自動關懷訊息</li>
+                        <li>客製化衛教與互動</li>
+                        <li>大幅提升病患回訪黏著度</li>
+                    </ul>
+                    <div class="placeholder-ui">
+                        【自動關懷流程圖】<br>
+                        展示：根據不同療程觸發的自動訊息流規畫。
+                    </div>
+                </div>
+
+                <!-- 區塊五 & 六：財務與結帳 -->
+                <div class="feature-card">
+                    <div class="icon">💰</div>
+                    <h3>財務管理與自動分潤</h3>
+                    <ul>
+                        <li>數位收據一鍵產製</li>
+                        <li>自動計算佣金與人員業績</li>
+                        <li>視覺化營收與轉單報表</li>
+                    </ul>
+                    <div class="placeholder-ui">
+                        【財務報表預覽】<br>
+                        展示：月結分潤報表、各療程營收佔比餅圖。
+                    </div>
+                </div>
+
+                <!-- 區塊七：AI 智能客服 -->
+                <div class="feature-card">
+                    <div class="icon">🤖</div>
+                    <h3>AI 智能客服</h3>
+                    <ul>
+                        <li>24/7 全天候在線，不漏接訊息</li>
+                        <li>自定義診所知識庫 (FAQ)</li>
+                        <li>專業嚴謹回覆，過濾過度建議</li>
+                    </ul>
+                    <div class="placeholder-ui">
+                        【AI 對話視窗預覽】<br>
+                        展示：AI 專業回覆治療項目並引導至預約的過程。
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <div class="container">
+            <div class="footer-content">
+                <div>
+                    <span class="footer-logo">ClinicBot</span>
+                    <p>讓診所重拾醫療專業，營運交給我們。</p>
+                </div>
+                <div>
+                    <h4>產品功能</h4>
+                    <ul style="list-style: none; margin-top: 1rem; color: #94a3b8;">
+                        <li>智能預約</li>
+                        <li>電子病歷</li>
+                        <li>財務管理</li>
+                    </ul>
+                </div>
+                <div>
+                    <h4>關於我們</h4>
+                    <ul style="list-style: none; margin-top: 1rem; color: #94a3b8;">
+                        <li>團隊介紹</li>
+                        <li>服務協議</li>
+                        <li>隱私政策</li>
+                    </ul>
+                </div>
+                <div>
+                    <h4>聯絡我們</h4>
+                    <p style="margin-top: 1rem; color: #94a3b8;">support@clinicbot.ai</p>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2024 ClinicBot 診所小幫手. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>

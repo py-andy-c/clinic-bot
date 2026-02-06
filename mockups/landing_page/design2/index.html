@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ClinicBot | 打造有溫度的自動化診所</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Noto+Sans+TC:wght@300;400;500;700&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --primary: #6366f1;
+            /* Indigo */
+            --secondary: #f43f5e;
+            /* Rose */
+            --accent: #06b6d4;
+            /* Cyan */
+            --bg-gradient: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+            --card-glass: rgba(255, 255, 255, 0.4);
+            --text-heading: #1e293b;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Outfit', 'Noto Sans TC', sans-serif;
+            background: var(--bg-gradient);
+            color: #334155;
+            line-height: 1.7;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 0 1.5rem;
+        }
+
+        /* Abstract Background Decor */
+        .blob {
+            position: absolute;
+            width: 500px;
+            height: 500px;
+            background: radial-gradient(circle, rgba(99, 102, 241, 0.1) 0%, rgba(255, 255, 255, 0) 70%);
+            filter: blur(50px);
+            z-index: -1;
+        }
+
+        /* Hero */
+        .hero {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            position: relative;
+            padding: 120px 0;
+        }
+
+        .hero-content {
+            z-index: 10;
+        }
+
+        .pill {
+            display: inline-block;
+            padding: 0.5rem 1.25rem;
+            background: white;
+            border-radius: 999px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: var(--primary);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+            margin-bottom: 2rem;
+            border: 1px solid rgba(99, 102, 241, 0.1);
+        }
+
+        .hero h1 {
+            font-size: 4rem;
+            font-weight: 800;
+            color: var(--text-heading);
+            line-height: 1.1;
+            margin-bottom: 2rem;
+            background: linear-gradient(to right, #6366f1, #06b6d4);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .hero p {
+            font-size: 1.5rem;
+            color: #64748b;
+            max-width: 700px;
+            margin: 0 auto 3rem;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+            padding: 1rem 2.5rem;
+            border-radius: 12px;
+            font-weight: 700;
+            text-decoration: none;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            font-size: 1.125rem;
+        }
+
+        .btn-primary:hover {
+            transform: scale(1.05);
+            box-shadow: 0 20px 25px -5px rgba(99, 102, 241, 0.2);
+        }
+
+        /* Dynamic Feature Sections */
+        .section-title {
+            text-align: center;
+            margin-bottom: 6rem;
+        }
+
+        .section-title h2 {
+            font-size: 3rem;
+            color: var(--text-heading);
+        }
+
+        .feature-block {
+            display: flex;
+            align-items: center;
+            gap: 4rem;
+            margin-bottom: 8rem;
+        }
+
+        .feature-block:nth-child(even) {
+            flex-direction: row-reverse;
+        }
+
+        .feature-text {
+            flex: 1;
+        }
+
+        .feature-text h3 {
+            font-size: 2.25rem;
+            margin-bottom: 1.5rem;
+            color: var(--text-heading);
+        }
+
+        .feature-visual {
+            flex: 1.2;
+            background: var(--card-glass);
+            backdrop-filter: blur(20px);
+            border-radius: 30px;
+            height: 400px;
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.08);
+            position: relative;
+        }
+
+        .visual-label {
+            background: white;
+            padding: 1rem 1.5rem;
+            border-radius: 15px;
+            font-weight: 700;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05);
+            color: var(--primary);
+            position: absolute;
+            bottom: -20px;
+            right: -20px;
+        }
+
+        /* Cards for secondary features */
+        .grid-cards {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 2rem;
+            margin-bottom: 8rem;
+        }
+
+        .card {
+            background: white;
+            padding: 2.5rem;
+            border-radius: 24px;
+            transition: all 0.4s;
+            border: 1px solid #f1f5f9;
+        }
+
+        .card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 30px 60px -12px rgba(0, 0, 0, 0.1);
+        }
+
+        .card .icon-box {
+            width: 60px;
+            height: 60px;
+            border-radius: 20px;
+            margin-bottom: 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.75rem;
+        }
+
+        /* Glass Footer */
+        footer {
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(10px);
+            padding: 100px 0 50px;
+            border-top: 1px solid rgba(255, 255, 255, 0.5);
+        }
+
+        @media (max-width: 900px) {
+
+            .feature-block,
+            .feature-block:nth-child(even) {
+                flex-direction: column;
+                text-align: center;
+            }
+
+            .grid-cards {
+                grid-template-columns: 1fr;
+            }
+
+            .hero h1 {
+                font-size: 2.75rem;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="blob" style="top: 10%; left: 5%;"></div>
+    <div class="blob"
+        style="bottom: 20%; right: 10%; background: radial-gradient(circle, rgba(6, 182, 212, 0.1) 0%, rgba(255, 255, 255, 0) 70%);">
+    </div>
+
+    <section class="hero">
+        <div class="container hero-content">
+            <span class="pill">全新進化 V1.0 - 您的診所營運好幫手</span>
+            <h1>讓醫療回歸專業<br>讓營運全然自動</h1>
+            <p>全台首創結合 LINE 預約、電子病歷、與自動分潤的智慧系統。省下 80% 的行政瑣事，把時間留給更重要的病患。</p>
+            <div class="btn-group">
+                <a href="#" class="btn-primary">立即領取免費帳號</a>
+                <a href="#"
+                    style="padding: 1rem 2.5rem; font-weight: 700; color: #64748b; text-decoration: none;">查看成功案例 →</a>
+            </div>
+        </div>
+    </section>
+
+    <div class="container">
+        <!-- 區塊一：LINE 智能預約 -->
+        <section class="feature-block">
+            <div class="feature-text">
+                <span style="color: var(--primary); font-weight: 700; text-transform: uppercase;">Section 01</span>
+                <h3>24/7 預約不打烊<br>病患旅程極致簡單</h3>
+                <p>30秒內在 LINE 完成掛號，系統自動發送提醒訊息。支持空檔候補自動通知，填補閒置人力，爽約率大幅下降。</p>
+            </div>
+            <div class="feature-visual">
+                <span style="color: #94a3b8; text-align: center;">【LINE 病患預約旅程動態模擬】<br>展示：從點擊選單到預約成功的流暢動畫</span>
+                <div class="visual-label">LINE 預約模組</div>
+            </div>
+        </section>
+
+        <!-- 區塊二：資源排班 -->
+        <section class="feature-block">
+            <div class="feature-text">
+                <span style="color: var(--accent); font-weight: 700; text-transform: uppercase;">Section 02</span>
+                <h3>資源最佳化<br>徹底杜絕撞單混亂</h3>
+                <p>整合人力、診間與儀器設備。預約時自動檢查資源，視覺化管理介面讓你隨時掌握全診所負荷狀況。</p>
+            </div>
+            <div class="feature-visual" style="background: linear-gradient(135deg, #fff5f5 0%, #fff 100%);">
+                <span style="color: #94a3b8; text-align: center;">【管理端排班調度介面】<br>展示：拖拉式排班與警告衝突的高互動預覽</span>
+                <div class="visual-label">資源調度模組</div>
+            </div>
+        </section>
+
+        <!-- 區塊三 & 四：病歷與追蹤 -->
+        <div class="section-title">
+            <h2>更多強大功能</h2>
+        </div>
+
+        <div class="grid-cards">
+            <div class="card">
+                <div class="icon-box" style="background: #eef2ff; color: #6366f1;">📂</div>
+                <h4>專業電子病歷</h4>
+                <p>自定義模板、影像雲端保存。秒速調閱歷史，確保醫療連續性。</p>
+                <div
+                    style="background: #f8fafc; height: 100px; border-radius: 12px; margin-top: 1rem; border: 1px dashed #e2e8f0; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; color: #94a3b8; text-align: center;">
+                    【病歷模板編輯器預覽】
+                </div>
+            </div>
+            <div class="card">
+                <div class="icon-box" style="background: #fff1f2; color: #f43f5e;">💖</div>
+                <h4>自動關懷追蹤</h4>
+                <p>根據療程自動發送術後衛教，給病患最貼心的專業溫度。</p>
+                <div
+                    style="background: #f8fafc; height: 100px; border-radius: 12px; margin-top: 1rem; border: 1px dashed #e2e8f0; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; color: #94a3b8; text-align: center;">
+                    【關懷訊息排程介面預覽】
+                </div>
+            </div>
+            <div class="card">
+                <div class="icon-box" style="background: #ecfeff; color: #06b6d4;">💰</div>
+                <h4>財務與自動分潤</h4>
+                <p>數位收據支援。一鍵產出人員業績，月底算薪不再頭痛。</p>
+                <div
+                    style="background: #f8fafc; height: 100px; border-radius: 12px; margin-top: 1rem; border: 1px dashed #e2e8f0; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; color: #94a3b8; text-align: center;">
+                    【視覺化營收報表預覽】
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        <div class="container">
+            <h2 style="text-align: center; margin-bottom: 4rem;">準備好讓診所再上一層樓嗎？</h2>
+            <div style="text-align: center;">
+                <a href="#" class="btn-primary" style="padding: 1.5rem 4rem;">立即開始 14 天免費試用</a>
+            </div>
+            <div
+                style="margin-top: 6rem; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #e2e8f0; padding-top: 2rem;">
+                <span style="font-weight: 800; font-size: 1.5rem;">ClinicBot.</span>
+                <span style="color: #64748b;">© 2024 ClinicBot. All rights reserved.</span>
+            </div>
+        </div>
+    </footer>
+</body>
+
+</html>
