@@ -17,7 +17,7 @@ const FeatureSection: React.FC<{
     <div className="flex-1 lg:py-12">
       <h2 className="text-3xl font-bold text-gray-900 mb-4">{title}</h2>
       <p className="text-lg text-primary-600 font-medium mb-8 leading-relaxed">{valueProp}</p>
-      <ul className="space-y-6">
+      <ul className="hidden lg:block space-y-6">
         {features.map((feature, index) => (
           <li
             key={index}
@@ -54,8 +54,24 @@ const FeatureSection: React.FC<{
             <div className="relative group">
               {/* Decorative background glow */}
               <div className="absolute -inset-8 bg-gradient-to-r from-primary-200 to-blue-200 rounded-[3rem] blur-3xl opacity-20 group-hover:opacity-40 transition-opacity duration-700"></div>
-              <div className="relative transition-all duration-700 animate-in fade-in zoom-in-95">
+              <div key={activeIndex} className="relative transition-all duration-700 animate-in fade-in zoom-in-95">
                 {mockup}
+                {/* Mobile Caption Overlay - Option 2 */}
+                {activeIndex !== -1 && (
+                  <div
+                    key={activeIndex}
+                    className="lg:hidden absolute -bottom-4 left-1/2 -translate-x-1/2 w-[90%] bg-white/90 backdrop-blur-md rounded-2xl shadow-xl border border-gray-100 p-4 z-40 animate-in slide-in-from-bottom-4 duration-500"
+                  >
+                    <div className="flex gap-3 items-start">
+                      <div className="bg-primary-600 text-white w-5 h-5 rounded-full flex-shrink-0 flex items-center justify-center text-[10px] font-bold mt-0.5">
+                        {activeIndex + 1}
+                      </div>
+                      <p className="text-sm font-bold text-gray-900 leading-snug">
+                        {features[activeIndex]}
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -587,6 +603,13 @@ const LandingPage: React.FC = () => {
     return () => clearInterval(interval);
   }, [isPaused]);
 
+  const handleHover = (index: number, setter: (i: number) => void) => {
+    if (window.matchMedia('(hover: hover)').matches) {
+      setter(index);
+      setIsPaused(true);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-white">
       <PublicHeader />
@@ -631,10 +654,7 @@ const LandingPage: React.FC = () => {
           ]}
           imageSide="right"
           activeIndex={activeLineFeature}
-          onHoverFeature={(index) => {
-            setActiveLineFeature(index);
-            setIsPaused(true);
-          }}
+          onHoverFeature={(index) => handleHover(index, setActiveLineFeature)}
           onLeaveFeature={() => setIsPaused(false)}
           mockup={<LineBookingMock scenario={activeLineFeature} />}
         />
@@ -651,10 +671,7 @@ const LandingPage: React.FC = () => {
           imageSide="left"
           bgColor="bg-gray-50"
           activeIndex={activeSchedulingFeature}
-          onHoverFeature={(index) => {
-            setActiveSchedulingFeature(index);
-            setIsPaused(true);
-          }}
+          onHoverFeature={(index) => handleHover(index, setActiveSchedulingFeature)}
           onLeaveFeature={() => setIsPaused(false)}
           mockup={<SchedulingMock scenario={activeSchedulingFeature} />}
         />
