@@ -7,51 +7,270 @@ const FeatureSection: React.FC<{
   valueProp: string;
   features: string[];
   imageSide: 'left' | 'right';
-  placeholderDesc: string;
+  mockup: React.ReactNode;
   bgColor?: string;
-}> = ({ title, valueProp, features, imageSide, placeholderDesc, bgColor = 'bg-white' }) => {
+}> = ({ title, valueProp, features, imageSide, mockup, bgColor = 'bg-white' }) => {
   const textContent = (
-    <div className="flex-1">
+    <div className="flex-1 lg:py-12">
       <h2 className="text-3xl font-bold text-gray-900 mb-4">{title}</h2>
-      <p className="text-lg text-primary-600 font-medium mb-6">{valueProp}</p>
+      <p className="text-lg text-primary-600 font-medium mb-6 leading-relaxed">{valueProp}</p>
       <ul className="space-y-4">
         {features.map((feature, index) => (
           <li key={index} className="flex items-start">
-            <svg className="h-6 w-6 text-green-500 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-            <span className="text-gray-700">{feature}</span>
+            <div className="mt-1 flex-shrink-0">
+              <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary-100 text-primary-600">
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+            </div>
+            <span className="ml-3 text-gray-700 leading-6 font-medium">{feature}</span>
           </li>
         ))}
       </ul>
     </div>
   );
 
-  const imageContent = (
-    <div className="flex-1 w-full lg:max-w-xl">
-      <div className="bg-gray-100 border-2 border-dashed border-gray-300 rounded-2xl flex items-center justify-center aspect-video p-8 text-center group hover:border-primary-400 transition-colors">
-        <div className="space-y-2">
-          <svg className="mx-auto h-12 w-12 text-gray-400 group-hover:text-primary-500 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-          </svg>
-          <p className="text-sm font-medium text-gray-600">UI Mockup Placeholder</p>
-          <p className="text-xs text-gray-400 max-w-xs">{placeholderDesc}</p>
-        </div>
-      </div>
-    </div>
-  );
-
   return (
-    <section className={`${bgColor} py-16 md:py-24`}>
+    <section className={`${bgColor} py-20 md:py-32 overflow-hidden`}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className={`flex flex-col ${imageSide === 'left' ? 'lg:flex-row-reverse' : 'lg:flex-row'} items-center gap-12 lg:gap-20`}>
+        <div className={`flex flex-col ${imageSide === 'left' ? 'lg:flex-row-reverse' : 'lg:flex-row'} items-center gap-16 lg:gap-24`}>
           {textContent}
-          {imageContent}
+          <div className="flex-1 w-full relative">
+            <div className="relative group">
+              {/* Decorative background glow */}
+              <div className="absolute -inset-4 bg-gradient-to-r from-primary-200 to-blue-200 rounded-3xl blur-2xl opacity-30 group-hover:opacity-50 transition-opacity duration-500"></div>
+              {mockup}
+            </div>
+          </div>
         </div>
       </div>
     </section>
   );
 };
+
+// --- Mockup Components ---
+
+const LineBookingMock = () => (
+  <div className="mx-auto w-[280px] h-[560px] bg-gray-900 rounded-[3rem] p-3 shadow-2xl border-[6px] border-gray-800 relative overflow-hidden">
+    <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-6 bg-gray-800 rounded-b-2xl z-20"></div>
+    <div className="h-full w-full bg-[#7494C0] rounded-[2rem] overflow-hidden flex flex-col pt-8">
+      <div className="bg-white/10 backdrop-blur-md p-3 flex items-center gap-3 border-b border-white/10">
+        <div className="w-8 h-8 rounded-full bg-white/20"></div>
+        <div className="text-xs text-white font-bold">OO 診所官方帳號</div>
+      </div>
+      <div className="flex-1 p-4 space-y-4">
+        <div className="bg-white rounded-2xl p-3 shadow-sm max-w-[80%]">
+          <p className="text-[10px] text-gray-700">您好！請問想預約什麼時段？</p>
+        </div>
+        <div className="bg-white rounded-2xl shadow-lg border border-primary-100 overflow-hidden ml-auto max-w-[90%]">
+          <div className="bg-primary-50 px-3 py-2 border-b border-primary-100">
+            <p className="text-[10px] font-bold text-primary-700">🗓️ 選擇預約時段</p>
+          </div>
+          <div className="p-3 grid grid-cols-2 gap-2">
+            {['10:00', '11:30', '14:00', '15:30'].map(t => (
+              <div key={t} className={`text-[9px] py-1.5 text-center rounded border ${t === '10:00' ? 'border-primary-500 bg-primary-600 text-white' : 'border-gray-200 text-gray-600'}`}>
+                {t}
+              </div>
+            ))}
+          </div>
+          <div className="p-2 border-t border-gray-50 flex justify-center">
+            <div className="text-[9px] text-primary-600 font-bold underline">查看更多時段</div>
+          </div>
+        </div>
+      </div>
+      <div className="bg-white h-12 flex items-center px-4 gap-2">
+        <div className="flex-1 h-8 bg-gray-100 rounded-full px-3 flex items-center text-[10px] text-gray-400 italic">在此輸入訊息...</div>
+        <div className="w-8 h-8 rounded-full bg-primary-600"></div>
+      </div>
+    </div>
+  </div>
+);
+
+const SchedulingMock = () => (
+  <div className="bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden max-w-2xl mx-auto">
+    <div className="bg-gray-50 p-4 border-b border-gray-100 flex justify-between items-center text-xs font-medium text-gray-500">
+      <div className="flex gap-4">
+        <span className="text-primary-600">資源排班表</span>
+        <span>人力管理</span>
+        <span>診間負載</span>
+      </div>
+      <div className="bg-white border border-gray-200 px-2 py-1 rounded">2026/02/06</div>
+    </div>
+    <div className="p-4">
+      <div className="grid grid-cols-6 gap-px bg-gray-100 border border-gray-100 rounded overflow-hidden">
+        {['資源', '09:00', '10:00', '11:00', '12:00', '13:00'].map(h => (
+          <div key={h} className="bg-gray-50 p-2 text-[10px] text-center font-bold text-gray-400">{h}</div>
+        ))}
+        {['王醫師', '陳醫師', '診間 A', '設備 X'].map((r, i) => (
+          <React.Fragment key={r}>
+            <div className="bg-white p-2 text-[10px] font-bold border-r border-b border-gray-100">{r}</div>
+            {[1, 2, 3, 4, 5].map(j => (
+              <div key={j} className="bg-white p-2 border-r border-b border-gray-100 relative">
+                {(i + j) % 3 === 0 && (
+                  <div className="absolute inset-1 rounded bg-primary-100 border-l-4 border-primary-500 p-1">
+                    <div className="text-[8px] text-primary-700 font-bold truncate">病患預約</div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </React.Fragment>
+        ))}
+      </div>
+    </div>
+  </div>
+);
+
+const MedicalRecordMock = () => (
+  <div className="bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden flex h-[400px]">
+    <div className="w-1/3 bg-gray-50 border-r border-gray-100 p-4 space-y-4">
+      <div className="h-10 bg-gray-200 rounded animate-pulse"></div>
+      {[1, 2, 3, 4].map(i => (
+        <div key={i} className="space-y-2">
+          <div className="h-2 w-1/2 bg-gray-200 rounded"></div>
+          <div className="h-3 w-full bg-gray-100 rounded"></div>
+        </div>
+      ))}
+    </div>
+    <div className="flex-1 p-6 space-y-6">
+      <div className="flex justify-between">
+        <div className="space-y-1">
+          <div className="h-4 w-32 bg-gray-200 rounded"></div>
+          <div className="h-3 w-48 bg-gray-100 rounded"></div>
+        </div>
+        <div className="w-12 h-12 bg-primary-50 rounded-full"></div>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div className="h-32 bg-gray-50 rounded-xl border-2 border-dashed border-gray-200 flex items-center justify-center">
+          <span className="text-[10px] text-gray-400">影像上傳...</span>
+        </div>
+        <div className="space-y-2">
+          <div className="h-2 bg-gray-100 rounded"></div>
+          <div className="h-2 bg-gray-100 rounded"></div>
+          <div className="h-2 bg-gray-100 rounded w-2/3"></div>
+        </div>
+      </div>
+      <div className="h-20 bg-primary-50/50 rounded-xl p-4">
+        <div className="h-2 w-full bg-primary-200/50 rounded mb-2"></div>
+        <div className="h-2 w-full bg-primary-200/50 rounded mb-2"></div>
+        <div className="h-2 w-2/3 bg-primary-200/50 rounded"></div>
+      </div>
+    </div>
+  </div>
+);
+
+const AutomationFlowMock = () => (
+  <div className="bg-white rounded-2xl shadow-2xl p-8 border border-gray-100 max-w-md mx-auto relative">
+    <div className="space-y-12">
+      {[
+        { label: '療程結束', color: 'bg-green-500', icon: '✅' },
+        { label: '等待 24 小時', color: 'bg-amber-500', icon: '⏳' },
+        { label: '發送術後關懷', color: 'bg-primary-500', icon: '📱' }
+      ].map((step, i, arr) => (
+        <div key={step.label} className="relative">
+          <div className="flex items-center gap-6">
+            <div className={`w-12 h-12 ${step.color} rounded-2xl shadow-lg flex items-center justify-center text-xl`}>
+              {step.icon}
+            </div>
+            <div>
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">STEP {i + 1}</p>
+              <p className="text-lg font-bold text-gray-900">{step.label}</p>
+            </div>
+          </div>
+          {i < arr.length - 1 && (
+            <div className="absolute left-6 top-12 w-0.5 h-12 bg-gradient-to-b from-gray-200 to-transparent"></div>
+          )}
+        </div>
+      ))}
+    </div>
+    <div className="absolute top-4 right-4 bg-primary-50 text-primary-600 text-[10px] font-bold px-2 py-1 rounded">
+      AUTO-PILOT ON
+    </div>
+  </div>
+);
+
+const DigitalReceiptMock = () => (
+  <div className="flex flex-col md:flex-row items-center gap-8 justify-center">
+    <div className="bg-white w-56 h-80 rounded shadow-xl border border-gray-200 p-6 space-y-4 transform -rotate-3 hover:rotate-0 transition-transform duration-500">
+      <div className="text-center font-serif text-lg border-b border-gray-100 pb-2">CLINIC RECEIPT</div>
+      <div className="space-y-2 text-[10px]">
+        <div className="flex justify-between"><span>Physiotherapy</span><span>$1,200</span></div>
+        <div className="flex justify-between"><span>Consultation</span><span>$300</span></div>
+        <div className="border-t border-gray-100 pt-2 flex justify-between font-bold">
+          <span>TOTAL</span><span>$1,500</span>
+        </div>
+      </div>
+      <div className="w-16 h-16 bg-gray-100 mx-auto"></div>
+      <div className="text-[8px] text-center text-gray-400">Thank you!</div>
+    </div>
+    <div className="w-48 h-[360px] bg-gray-900 rounded-[2.5rem] p-2 border-4 border-gray-800 shadow-2xl relative overflow-hidden hidden sm:block">
+      <div className="h-full w-full bg-[#7494C0] rounded-[2rem] p-3 pt-6 space-y-3">
+        <div className="bg-white rounded-lg p-3 shadow-lg scale-90 translate-y-4">
+          <p className="text-[10px] font-bold mb-1">您的電子收據已送達 🧾</p>
+          <div className="h-1 bg-primary-600 rounded"></div>
+          <p className="text-[8px] text-gray-500 mt-2">點擊以下連結查看完整明細...</p>
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
+const FinancialDashboardMock = () => (
+  <div className="bg-[#111827] rounded-2xl shadow-2xl p-6 border border-gray-800 space-y-6">
+    <div className="grid grid-cols-2 gap-4">
+      {[
+        { l: '月營收', v: '$1.2M', c: 'text-green-400' },
+        { l: '成長率', v: '+24%', c: 'text-primary-400' }
+      ].map(s => (
+        <div key={s.l} className="bg-gray-800/50 p-4 rounded-xl border border-white/5">
+          <p className="text-[10px] text-gray-400 mb-1">{s.l}</p>
+          <p className={`text-xl font-bold ${s.c}`}>{s.v}</p>
+        </div>
+      ))}
+    </div>
+    <div className="space-y-3">
+      <div className="flex justify-between text-[10px] text-gray-400"><span>業績佔比</span><span>由高至低</span></div>
+      {[60, 45, 30].map((w, i) => (
+        <div key={i} className="h-8 bg-gray-800/50 rounded flex items-center px-4">
+          <div style={{ width: `${w}%` }} className="h-2 bg-primary-500 rounded shadow-[0_0_10px_rgba(59,130,246,0.5)]"></div>
+        </div>
+      ))}
+    </div>
+    <div className="pt-4 border-t border-white/5 flex gap-2">
+      {[1, 2, 3, 4, 5].map(i => <div key={i} className="flex-1 h-12 bg-gray-800 rounded-sm"></div>)}
+    </div>
+  </div>
+);
+
+const AISetupMock = () => (
+  <div className="bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden">
+    <div className="p-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
+      <div className="flex items-center gap-2">
+        <div className="w-6 h-6 bg-primary-600 rounded flex items-center justify-center text-[10px] text-white">AI</div>
+        <span className="text-xs font-bold">知識庫設定</span>
+      </div>
+      <div className="h-6 w-12 bg-primary-200 rounded-full flex items-center px-1">
+        <div className="w-4 h-4 bg-primary-600 rounded-full ml-auto"></div>
+      </div>
+    </div>
+    <div className="p-6 flex gap-6">
+      <div className="w-1/2 space-y-3">
+        <div className="text-[10px] text-gray-400 font-bold">已上傳文件</div>
+        {['FAQ.pdf', '服務項目.docx'].map(f => (
+          <div key={f} className="p-2 border border-gray-100 rounded text-[9px] flex items-center gap-2">
+            <span className="text-primary-500">📄</span> {f}
+          </div>
+        ))}
+        <div className="h-12 border-2 border-dashed border-gray-200 rounded flex items-center justify-center text-[9px] text-gray-400 italic">點此上傳更多...</div>
+      </div>
+      <div className="w-1/2 bg-gray-50 rounded-xl p-3 space-y-2 border border-gray-100">
+        <div className="text-[8px] text-gray-400 font-bold mb-2">AI 預覽</div>
+        <div className="bg-white p-2 rounded-lg rounded-bl-none text-[8px] border border-gray-100">請問你們的拔牙費用？</div>
+        <div className="bg-primary-600 text-white p-2 rounded-lg rounded-br-none text-[8px] ml-auto w-[90%]">您好！根據知識庫，我們的拔牙費用依難易度約為 $500 - $2,000...</div>
+      </div>
+    </div>
+  </div>
+);
 
 const LandingPage: React.FC = () => {
   return (
@@ -98,7 +317,7 @@ const LandingPage: React.FC = () => {
             "空檔自動通知：時段釋出自動媒合候補，填補閒置人力。"
           ]}
           imageSide="right"
-          placeholderDesc="LINE 畫面展示：使用者在 LINE 聊天室點選預約選單，顯示日期選擇器與時段確認按鈕。"
+          mockup={<LineBookingMock />}
         />
 
         {/* Section 2: 智慧排班與資源管理 */}
@@ -112,7 +331,7 @@ const LandingPage: React.FC = () => {
           ]}
           imageSide="left"
           bgColor="bg-gray-50"
-          placeholderDesc="管理後台畫面：精美的日曆視圖，結合了醫師、診間與設備的甘特圖式排班介面。"
+          mockup={<SchedulingMock />}
         />
 
         {/* Section 3: 專業病歷系統 */}
@@ -125,7 +344,7 @@ const LandingPage: React.FC = () => {
             "歷史數據快查：秒速調閱過往病歷紀錄，確保治療連續性。"
           ]}
           imageSide="right"
-          placeholderDesc="病歷編輯介面：顯示患者基本資料、左側歷史紀錄清單，以及右側包含圖片註解功能的病歷內容頁。"
+          mockup={<MedicalRecordMock />}
         />
 
         {/* Section 4: 個案關懷與追蹤 */}
@@ -139,7 +358,7 @@ const LandingPage: React.FC = () => {
           ]}
           imageSide="left"
           bgColor="bg-gray-50"
-          placeholderDesc="自動化流程介面：展示拖拉式的自動訊息排程工具，例如『診療後 24 小時發送關懷訊息』。"
+          mockup={<AutomationFlowMock />}
         />
 
         {/* Section 5: 數位收據與結帳 */}
@@ -152,7 +371,7 @@ const LandingPage: React.FC = () => {
             "電子收據支援：提供 PDF 下載與 LINE 傳送，邁向無紙化診所。"
           ]}
           imageSide="right"
-          placeholderDesc="結帳收據視圖：顯示診所數位收據樣貌，包含診療項目、金額、QR Code 以及手機端接收到的 LINE 收據預覽。"
+          mockup={<DigitalReceiptMock />}
         />
 
         {/* Section 6: 財務管理與自動分潤 */}
@@ -165,7 +384,7 @@ const LandingPage: React.FC = () => {
           ]}
           imageSide="left"
           bgColor="bg-gray-50"
-          placeholderDesc="數據報表介面：包含營收趨勢折線圖、療程佔比圓餅圖，以及醫師業績與分潤明細表。"
+          mockup={<FinancialDashboardMock />}
         />
 
         {/* Section 7: AI 智能客服 */}
@@ -178,7 +397,7 @@ const LandingPage: React.FC = () => {
             "專業嚴謹：嚴格過濾診斷建議，遇專業問題保持沉默或引進人工。"
           ]}
           imageSide="right"
-          placeholderDesc="AI 設定介面：展示診所上傳文件（PDF/Word）的功能區塊，以及 AI 在 LINE 上回覆患者諮詢的對話範例。"
+          mockup={<AISetupMock />}
         />
       </div>
 
