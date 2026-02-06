@@ -217,16 +217,8 @@ const ChatSettings: React.FC<ChatSettingsProps> = ({
     setIsScheduleEnabled(enabled);
     if (enabled) {
       if (!chatSettings.ai_reply_schedule) {
-        // Pre-fill with default business hours: Mon-Fri 09:00-18:00
-        const defaultPeriod = [{ start_time: '09:00', end_time: '18:00' }];
         setValue('chat_settings.ai_reply_schedule', {
-          mon: [...defaultPeriod],
-          tue: [...defaultPeriod],
-          wed: [...defaultPeriod],
-          thu: [...defaultPeriod],
-          fri: [...defaultPeriod],
-          sat: [],
-          sun: []
+          mon: [], tue: [], wed: [], thu: [], fri: [], sat: [], sun: []
         }, { shouldDirty: true });
       }
     } else {
