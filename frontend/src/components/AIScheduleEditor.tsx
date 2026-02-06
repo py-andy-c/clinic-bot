@@ -31,7 +31,7 @@ const DaySchedule: React.FC<DayScheduleProps> = ({ dayKey, label, disabled = fal
                 <h4 className="font-medium text-gray-900">{label}</h4>
                 <button
                     type="button"
-                    onClick={() => append({ start_time: '09:00', end_time: '18:00' })}
+                    onClick={() => append({ start_time: '', end_time: '' })}
                     disabled={disabled}
                     className="text-sm text-blue-600 hover:text-blue-800 disabled:opacity-50 font-medium"
                 >
