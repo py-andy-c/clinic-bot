@@ -710,9 +710,12 @@ const AutomationFlowMock = ({ scenario }: { scenario: number }) => {
             </p>
             <div className="mt-4 aspect-video bg-gray-100 rounded-xl overflow-hidden relative group cursor-pointer border border-gray-100 shadow-inner">
               <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-12 h-12 bg-black/40 rounded-full flex items-center justify-center text-white backdrop-blur-sm group-hover:bg-primary-600/80 transition-colors">▶️</div>
+                <div className="w-12 h-12 bg-black/40 rounded-full flex items-center justify-center text-white backdrop-blur-sm group-hover:bg-primary-600/80 transition-colors pl-1">
+                  <svg className="w-6 h-6 fill-current" viewBox="0 0 24 24">
+                    <path d="M8 5v14l11-7z" />
+                  </svg>
+                </div>
               </div>
-              <div className="absolute bottom-0 inset-x-0 h-5 bg-black/20" />
             </div>
           </div>
         </div>
