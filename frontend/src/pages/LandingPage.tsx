@@ -56,10 +56,10 @@ const FeatureSection: React.FC<{
 
           {/* Mockup - Edge-to-edge oriented for Mobile */}
           <div className="w-full flex-1 relative mt-4 lg:mt-0">
-            <div className="relative group mx-auto max-w-[320px] lg:max-w-none">
+            <div className="relative group mx-auto max-w-full lg:max-w-none">
               {/* Decorative background glow - Hidden on mobile to avoid overlapping with text */}
               <div className="hidden lg:block absolute lg:-inset-8 bg-gradient-to-r from-primary-200 to-blue-200 rounded-[3rem] blur-2xl opacity-10 group-hover:opacity-40 transition-opacity duration-700"></div>
-              <div key={activeIndex} className="relative transition-all duration-700 animate-in fade-in zoom-in-95 transform scale-85 sm:scale-95 lg:scale-100 origin-top">
+              <div key={activeIndex} className="relative transition-all duration-700 animate-in fade-in zoom-in-95 transform lg:scale-100 origin-top">
                 {mockup}
               </div>
             </div>
@@ -725,20 +725,20 @@ const AutomationFlowMock = ({ scenario }: { scenario: number }) => {
 };
 
 const DigitalReceiptMock = () => (
-  <div className="flex items-center justify-center gap-10 h-[400px]">
+  <div className="flex flex-row items-center justify-center gap-3 sm:gap-6 lg:gap-10 py-4 w-full">
     {/* Physical Receipt Card */}
-    <div className="bg-white w-64 h-[400px] rounded shadow-[0_20px_50px_-15px_rgba(0,0,0,0.15)] border border-gray-100 p-8 pb-12 space-y-6 transform -rotate-2 hover:rotate-0 transition-transform duration-500">
-      <div className="text-center font-black text-3xl border-b-2 border-gray-100 pb-4 text-gray-900 tracking-tight">收據</div>
-      <div className="space-y-4 text-base">
-        <div className="flex justify-between text-gray-600 font-medium"><span>治療費</span><span className="font-bold text-gray-900">$1,200</span></div>
-        <div className="flex justify-between text-gray-600 font-medium"><span>材料費</span><span className="font-bold text-gray-900">$150</span></div>
-        <div className="border-t-2 border-gray-50 pt-4 flex justify-between items-baseline font-black">
-          <span className="text-lg">總計</span><span className="text-base text-primary-600">$1,350</span>
+    <div className="bg-white w-[165px] sm:w-48 lg:w-64 h-[250px] sm:h-[320px] lg:h-[400px] rounded-xl sm:rounded-2xl lg:rounded-[2rem] shadow-[0_10px_30px_-10px_rgba(0,0,0,0.1)] lg:shadow-[0_20px_50px_-15px_rgba(0,0,0,0.15)] border border-gray-100 p-4 sm:p-6 lg:p-8 lg:pb-12 space-y-4 sm:space-y-4 lg:space-y-6 transform lg:-rotate-2 hover:rotate-0 transition-transform duration-500 shrink-0">
+      <div className="text-center text-lg sm:text-2xl lg:text-4xl border-b sm:border-b-2 border-gray-100 pb-2 lg:pb-4 text-gray-900 tracking-tight font-medium">收據</div>
+      <div className="space-y-2 lg:space-y-4 text-xs sm:text-base lg:text-lg">
+        <div className="flex justify-between text-gray-600 font-medium"><span>治療費</span><span className="text-gray-900 font-medium">$1,200</span></div>
+        <div className="flex justify-between text-gray-600 font-medium"><span>材料費</span><span className="text-gray-900 font-medium">$150</span></div>
+        <div className="border-t sm:border-t-2 border-gray-50 pt-2 lg:pt-4 flex justify-between items-baseline font-medium">
+          <span className="text-sm sm:text-lg lg:text-xl">總計</span><span className="text-base sm:text-lg lg:text-xl text-primary-600">$1,350</span>
         </div>
       </div>
-      <div className="pt-2 flex justify-center">
-        <div className="w-20 h-20 border-2 border-red-500/50 rounded-lg flex items-center justify-center transform relative">
-          <div className="text-[13px] font-black text-red-500/50 leading-tight text-center tracking-tighter">
+      <div className="pt-1 flex justify-center">
+        <div className="w-10 h-10 sm:w-14 lg:w-20 lg:h-20 border-2 border-red-600 rounded flex items-center justify-center transform relative">
+          <div className="text-[8px] sm:text-[11px] lg:text-[14px] font-medium text-red-600 leading-tight text-center tracking-tighter">
             健康診所<br />收訖章
           </div>
         </div>
@@ -746,32 +746,30 @@ const DigitalReceiptMock = () => (
     </div>
 
     {/* Mobile Digital Preview (LIFF) */}
-    <div className="w-56 h-[400px] bg-gray-900 rounded-[3rem] p-2.5 border-4 border-gray-800 shadow-[20px_40px_60px_-15px_rgba(0,0,0,0.5)] relative overflow-hidden hidden md:block">
-      <div className="h-full w-full bg-gray-50 rounded-[2.5rem] flex flex-col pt-10 overflow-hidden">
+    <div className="w-[155px] sm:w-44 lg:w-56 h-[250px] sm:h-[320px] lg:h-[400px] bg-gray-900 rounded-[1.5rem] sm:rounded-[2rem] lg:rounded-[3rem] p-1 sm:p-2 lg:p-2.5 border-2 sm:border-4 border-gray-800 shadow-[10px_20px_40px_-10px_rgba(0,0,0,0.3)] lg:shadow-[20px_40px_60px_-15px_rgba(0,0,0,0.5)] relative overflow-hidden shrink-0">
+      <div className="h-full w-full bg-gray-50 rounded-[1.2rem] sm:rounded-[1.5rem] lg:rounded-[2.5rem] flex flex-col pt-5 sm:pt-6 lg:pt-10 overflow-hidden">
         {/* LIFF Header */}
-        <div className="px-6 mb-6">
-          <h3 className="text-xl font-black text-gray-900">我的預約</h3>
+        <div className="px-3 sm:px-4 lg:px-6 mb-3 sm:mb-4 lg:mb-6">
+          <h3 className="text-sm sm:text-lg lg:text-2xl font-medium text-gray-900 leading-tight">我的預約</h3>
         </div>
 
-        <div className="px-4">
-          {/* Appointment Card - Production Style */}
-          <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
-            <div className="mb-4">
-              <h4 className="text-lg font-black text-gray-900 leading-tight">王大明</h4>
-              <p className="text-sm text-gray-500 font-medium">徒手治療</p>
+        <div className="px-2 sm:px-3 lg:px-4">
+          <div className="bg-white border border-gray-100 rounded-lg sm:rounded-xl lg:rounded-2xl p-3 sm:p-4 lg:p-6 shadow-sm">
+            <div className="mb-2 sm:mb-3 lg:mb-4">
+              <h4 className="text-xs sm:text-base lg:text-xl font-medium text-gray-900 leading-tight">王大明</h4>
+              <p className="text-[10px] sm:text-sm lg:text-base text-gray-500 font-medium whitespace-nowrap">一般門診</p>
             </div>
 
-            <div className="space-y-3 mb-6">
-              <div className="flex items-center text-xs text-gray-600 font-medium">
-                <span className="mr-3 text-base opacity-60">👤</span> 李治療師
+            <div className="space-y-1.5 sm:space-y-2 lg:space-y-3 mb-3 sm:mb-4 lg:mb-6">
+              <div className="flex items-center text-[10px] sm:text-sm lg:text-base text-gray-600 font-medium">
+                <span className="mr-2 sm:mr-2 lg:mr-3 text-sm sm:text-base lg:text-xl opacity-60">👤</span> 李醫師
               </div>
-              <div className="flex items-center text-xs text-gray-600 font-medium">
-                <span className="mr-3 text-base opacity-60">📅</span> 2/6 14:00 - 15:00
+              <div className="flex items-center text-[10px] sm:text-sm lg:text-base text-gray-600 font-medium">
+                <span className="mr-2 sm:mr-2 lg:mr-3 text-sm sm:text-base lg:text-xl opacity-60">📅</span> 2/6 14:00
               </div>
             </div>
 
-            {/* Production Button Style */}
-            <div className="w-full bg-green-50 text-green-600 border border-green-200 rounded-xl py-3 text-center text-sm font-black cursor-pointer hover:bg-green-100 transition-colors">
+            <div className="w-full bg-green-100 text-green-800 border-2 border-green-200 rounded-md sm:rounded-lg lg:rounded-xl py-2 sm:py-2.5 lg:py-3.5 text-center text-[10px] sm:text-sm lg:text-base font-medium transition-colors cursor-pointer hover:bg-green-200">
               查看收據
             </div>
           </div>
