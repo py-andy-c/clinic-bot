@@ -14,64 +14,71 @@ const FeatureSection: React.FC<{
   onLeaveFeature?: () => void;
 }> = ({ title, valueProp, features, imageSide, mockup, bgColor = 'bg-white', activeIndex = -1, onHoverFeature, onLeaveFeature }) => {
   const textContent = (
-    <div className="flex-1 lg:py-12">
-      <h2 className="text-3xl font-bold text-gray-900 mb-4">{title}</h2>
-      <p className="text-lg text-primary-600 font-medium mb-8 leading-relaxed">{valueProp}</p>
-      <ul className="hidden lg:block space-y-6">
-        {features.map((feature, index) => (
-          <li
-            key={index}
-            className={`flex items-start transition-all duration-500 rounded-xl p-4 -ml-4 ${index === activeIndex ? 'bg-primary-50 translate-x-3' : 'opacity-60'}`}
-            onMouseEnter={() => onHoverFeature?.(index)}
-            onMouseLeave={() => onLeaveFeature?.()}
-          >
-            <div className={`mt-1 flex-shrink-0 transition-colors duration-500 ${index === activeIndex ? 'text-primary-600' : 'text-gray-400'}`}>
-              <div className={`flex h-8 w-8 items-center justify-center rounded-full transition-all duration-500 border-2 ${index === activeIndex ? 'bg-white border-primary-500 shadow-sm' : 'bg-gray-100 border-transparent'}`}>
-                {index === activeIndex ? (
-                  <span className="text-sm font-bold">{index + 1}</span>
-                ) : (
-                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                  </svg>
+    <div className="w-full flex-1 lg:py-12">
+      <h2 className="text-2xl lg:text-3xl font-bold text-gray-900 mb-1 lg:mb-4 text-left">{title}</h2>
+      <p className="text-sm lg:text-lg text-primary-600 font-medium mb-3 lg:mb-8 leading-relaxed text-left">{valueProp}</p>
+
+      {/* Feature List - Static Full Text for Mobile */}
+      <ul className="w-full space-y-3 lg:space-y-6 text-left">
+        {features.map((feature, index) => {
+          const isActive = index === activeIndex;
+
+          return (
+            <li
+              key={index}
+              className={`group relative flex items-start transition-all duration-300 lg:-ml-4 lg:p-4 lg:rounded-2xl
+                ${isActive ? 'opacity-100 lg:bg-primary-50 lg:translate-x-3' : 'opacity-40 lg:opacity-60'}`}
+              onMouseEnter={() => onHoverFeature?.(index)}
+              onMouseLeave={() => onLeaveFeature?.()}
+            >
+              <div className={`mt-0.5 lg:mt-1 flex-shrink-0 transition-colors duration-500 ${isActive ? 'text-primary-600' : 'text-gray-400'}`}>
+                <div className={`flex h-5 w-5 lg:h-8 lg:w-8 items-center justify-center rounded-full transition-all duration-500 border-2 ${isActive ? 'bg-white border-primary-500 shadow-sm' : 'bg-gray-100 border-transparent'}`}>
+                  <span className="text-[9px] lg:text-sm font-bold">{index + 1}</span>
+                </div>
+              </div>
+              <div className="ml-3 lg:ml-4 flex-1">
+                <p className={`text-[14px] lg:text-base leading-snug lg:leading-7 transition-colors duration-500 ${isActive ? 'text-gray-900 font-bold' : 'text-gray-500 font-semibold'}`}>
+                  {feature}
+                </p>
+
+                {/* Progress Underline (Mobile only, shown when active) */}
+                {isActive && (
+                  <div className="lg:hidden mt-2 h-0.5 w-[30px] bg-primary-100 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-primary-600 rounded-full"
+                      style={{
+                        animation: 'progressFill 4.5s linear forwards'
+                      }}
+                    />
+                  </div>
                 )}
               </div>
-            </div>
-            <span className={`ml-4 text-base leading-7 font-semibold transition-colors duration-500 ${index === activeIndex ? 'text-gray-900' : 'text-gray-500'}`}>
-              {feature}
-            </span>
-          </li>
-        ))}
+            </li>
+          );
+        })}
       </ul>
     </div>
   );
 
   return (
-    <section className={`${bgColor} py-20 md:py-32 overflow-hidden`}>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className={`flex flex-col ${imageSide === 'left' ? 'lg:flex-row-reverse' : 'lg:flex-row'} items-center gap-16 lg:gap-24`}>
+    <section className={`${bgColor} py-6 lg:py-32 overflow-hidden`}>
+      <style>{`
+        @keyframes progressFill {
+          from { width: 0%; }
+          to { width: 100%; }
+        }
+      `}</style>
+      <div className="max-w-7xl mx-auto px-4 lg:px-8">
+        <div className={`flex flex-col ${imageSide === 'left' ? 'lg:flex-row-reverse' : 'lg:flex-row'} lg:items-center gap-4 lg:gap-24`}>
           {textContent}
-          <div className="flex-1 w-full relative">
-            <div className="relative group">
+
+          {/* Mockup - Edge-to-edge oriented for Mobile */}
+          <div className="w-full flex-1 relative mt-2 lg:mt-0">
+            <div className="relative group mx-auto max-w-[320px] lg:max-w-none">
               {/* Decorative background glow */}
-              <div className="absolute -inset-8 bg-gradient-to-r from-primary-200 to-blue-200 rounded-[3rem] blur-3xl opacity-20 group-hover:opacity-40 transition-opacity duration-700"></div>
-              <div key={activeIndex} className="relative transition-all duration-700 animate-in fade-in zoom-in-95">
+              <div className="absolute -inset-4 lg:-inset-8 bg-gradient-to-r from-primary-200 to-blue-200 rounded-[3rem] blur-2xl opacity-10 group-hover:opacity-40 transition-opacity duration-700"></div>
+              <div key={activeIndex} className="relative transition-all duration-700 animate-in fade-in zoom-in-95 transform scale-85 sm:scale-95 lg:scale-100 origin-top">
                 {mockup}
-                {/* Mobile Caption Overlay - Option 2 */}
-                {activeIndex !== -1 && (
-                  <div
-                    key={activeIndex}
-                    className="lg:hidden absolute -bottom-4 left-1/2 -translate-x-1/2 w-[90%] bg-white/90 backdrop-blur-md rounded-2xl shadow-xl border border-gray-100 p-4 z-40 animate-in slide-in-from-bottom-4 duration-500"
-                  >
-                    <div className="flex gap-3 items-start">
-                      <div className="bg-primary-600 text-white w-5 h-5 rounded-full flex-shrink-0 flex items-center justify-center text-[10px] font-bold mt-0.5">
-                        {activeIndex + 1}
-                      </div>
-                      <p className="text-sm font-bold text-gray-900 leading-snug">
-                        {features[activeIndex]}
-                      </p>
-                    </div>
-                  </div>
-                )}
               </div>
             </div>
           </div>
