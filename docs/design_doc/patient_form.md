@@ -66,6 +66,7 @@ This feature heavily reuses existing infrastructure to minimize new code:
 * If `max_photos = 0`: Hide the photo section and upload UI entirely on the patient side
 * **Clinic bypass**: Clinic users can bypass the photo limit when editing the medical record.
 * **Photo ownership**: Patient-uploaded photos and clinic-uploaded photos coexist on the same record. The patient's upload limit only applies to their *own* upload actions; photos already added by the clinic do not count against the patient's remaining quota for new uploads (i.e. if clinic adds 10 and limit is 5, patient can't add more, but doesn't need to delete clinic photos).
+* **Mixed Ownership Implementation**: The system distinguishes between sources using the `uploaded_by_patient_id` field on the `patient_photos` table. If this field is set, the photo is counted against the patient's per-template `max_photos` limit. If NULL, it is considered a clinic-added photo and is excluded from the patient's quota.
 * **Visibility**: Patients see all photos on the record (including clinic-added ones) unless the clinic specifically marks them as internal (out of scope for MVP).
 
 **Rationale**: Photo uploads add significant value for telehealth workflows. Per-template limits allow clinics to customize based on form purpose. Clinics may need to add photos for documentation without being restricted by patient limits.
@@ -163,6 +164,49 @@ Available placeholders (same as reminder/follow-up messages):
   * The patient (must match LINE user)
 
 **Rationale**: Reuses existing LIFF auth infrastructure while ensuring security.
+
+***
+
+## Frontend Architecture
+
+### State Management Strategy
+
+The Patient Form system uses **React Query** for all server state management to ensure consistent caching and real-time updates.
+
+*   **Query Keys**:
+    *   `['patientFormTemplates', clinicId]`: List of templates filtered by `template_type='patient_form'`.
+    *   `['patientFormSettings', appointmentTypeId]`: Configuration for a specific service item.
+    *   `['patientFormRequests', patientId]`: List of forms sent to a specific patient.
+    *   `['liff', 'patientForms']`: Patient-facing list of pending/submitted forms.
+    *   `['liff', 'patientForm', accessToken]`: Details and current values for a specific form.
+*   **Cache Invalidation**:
+    *   Updating a bundle invalidates `['patientFormSettings']`.
+    *   Submitting a form in LIFF invalidates `['liff', 'patientForms']` and `['liff', 'patientForm']`.
+    *   Manual sending invalidates `['patientFormRequests']`.
+
+### Component Architecture
+
+The implementation reuses the **Atomic Design** pattern established in the codebase.
+
+*   **Shared Components**:
+    *   `MedicalRecordDynamicForm`: The core engine for rendering fields and handling values. Reused for both Admin preview and LIFF filling.
+    *   `PlaceholderHelper`: Used in the message template editor to insert variables.
+*   **Admin Components**:
+    *   `PatientFormSettingsSection`: Manages the list of form events within the Service Item modal.
+    *   `PatientFormRequestsSection`: Displays the form history on the Patient Detail page.
+    *   `MedicalRecordTemplateEditorModal`: Enhanced to support `max_photos` and a "Preview" tab.
+*   **LIFF Components**:
+    *   `PatientFormsFlow`: Orchestrates the navigation for patients.
+    *   `PatientFormPage`: The mobile-optimized container for form filling and photo uploads.
+
+### User Interaction Flows
+
+1.  **Admin Configuration**: Admin opens Service Item → "患者表單" tab → Adds a template → Configures timing (e.g., "Immediate") → Saves bundle.
+2.  **Automatic Delivery**: Patient books appointment → Appointment confirmed → Scheduler creates `ScheduledLineMessage` → Worker sends LINE Flex Message with "填寫表單" button.
+3.  **Patient Filling**: Patient clicks LINE button → LIFF opens directly to the form → Patient fills values and uploads photos → Clicks "Submit" → Success screen.
+4.  **Clinic Review**: Practitioner opens Patient Detail → "患者表單" section → Sees "Submitted" status → Clicks to open the resulting Medical Record.
+
+***
 
 ### 9. Notification on Form Submission
 
@@ -819,24 +863,24 @@ When an associated appointment is cancelled:
 
 ### Phase 3: Clinic Admin Frontend (Week 2-3)
 
-* [ ] Convert template editor modal to full-screen (for both medical records and patient forms)
-* [ ] Add `max_photos` setting to template editor
-* [ ] Add form preview tab to template editor (reuse `MedicalRecordDynamicForm`)
-* [ ] Patient form templates page (copy and modify from medical record templates)
-* [ ] Service item modal - patient form settings section (mirror follow-up messages section)
-* [ ] Message template editor with validation and preview (reuse `PlaceholderHelper`)
-* [ ] Notification checkboxes UI
-* [ ] Patient detail page - patient forms section
+* [x] Convert template editor modal to full-screen (for both medical records and patient forms)
+* [x] Add `max_photos` setting to template editor
+* [x] Add form preview tab to template editor (reuse `MedicalRecordDynamicForm`)
+* [x] Patient form templates page (copy and modify from medical record templates)
+* [x] Service item modal - patient form settings section (mirror follow-up messages section)
+* [x] Message template editor with validation and preview (reuse `PlaceholderHelper`)
+* [x] Notification checkboxes UI
+* [x] Patient detail page - patient forms section
 
 ### Phase 4: Patient LIFF Interface (Week 3-4)
 
 * [x] LIFF API endpoints for form access/submission
-* [ ] LIFF home - patient forms menu item
-* [ ] Patient forms list page
-* [ ] Form fill page with dynamic form (reuse `MedicalRecordDynamicForm`)
-* [ ] Photo upload with limit from template (hide section if `max_photos = 0`)
-* [ ] Version conflict handling (reuse existing UI)
-* [ ] Success screen
+* [x] LIFF home - patient forms menu item
+* [x] Patient forms list page
+* [x] Form fill page with dynamic form (reuse `MedicalRecordDynamicForm`)
+* [x] Photo upload with limit from template (hide section if `max_photos = 0`)
+* [x] Version conflict handling (reuse existing UI)
+* [x] Success screen
 
 ### Phase 5: Polish & Testing (Week 4-5)
 
