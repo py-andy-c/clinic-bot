@@ -56,7 +56,47 @@ The `availability_exceptions` creation endpoint is **not idempotent**.
 * The service faithfully creates a new record for every valid request.
 * While overlapping exceptions are allowed by design, the system lacks logic to detect or prevent *identical* exceptions (same practitioner, date, and exact time window) created within a very short interval.
 
-## 5. Next Steps
+## 5. Resolution Strategy: Expanded Frontend UI Locking
 
-1. Add `isSubmitting` state to `AvailabilityPage.tsx` to disable buttons during API calls.
-2. Implement a server-side idempotency check or rate-limiting for identical exception creation.
+We have decided to implement a **comprehensive frontend-only fix** to address this and similar race conditions across the `AvailabilityPage`. This approach focuses on preventing accidental multi-interactions while maintaining system simplicity.
+
+### **Proposed Changes**
+
+1. **State Management**: Introduce a centralized `isSubmitting` state in `AvailabilityPage.tsx`.
+2. **Submission Locking**:
+   * **Form Submissions**: Wrap modal save actions in a lock check.
+   * **Drag-and-Drop (Silent Blocking)**: Disable all calendar drag interactions (e.g., `onDragStart`) while `isSubmitting` is true. This prevents "double-dragging" an event before the first move is confirmed by the server.
+   * **Action Expansion**: Apply the lock to all state-changing actions, including **Create Exception**, **Delete Exception**, and **Cancel Appointment**.
+3. **UI Feedback & Standardization**:
+   * Update `ExceptionModal` and `ConflictWarningModal` to provide visual loading feedback.
+   * **Standardize `ModalFooter`**: Update the core `ModalFooter` component to natively support a `loading` prop, ensuring all sub-modals can easily disable buttons and show spinners.
+
+***
+
+## 6. Rationale for Frontend-only Fix
+
+During the investigation, we considered backend idempotency and database-level constraints. However, we chose a frontend-only approach for the following reasons:
+
+* **Solving the Primary Problem**: The root cause is a UI race condition (double-clicking/double-dragging). Locking the UI directly addresses this "mechanical error" without touching the backend logic.
+* **Avoiding Over-engineering**: Backend idempotency keys or unique constraints add significant complexity to the database schema. For a flexibility-first feature like availability exceptions, this complexity is not justified.
+* **Preserving User Intent**: A frontend-only fix prevents *accidental* duplicates from a single click but still allows a user to intentionally create identical entries if they deliberately go through the full workflow twice.
+* **Zero Migration Risk**: This fix requires no database migrations or changes to existing production data.
+
+***
+
+## 7. Codebase Review & Preventative Recommendations
+
+A review of the codebase identified several other areas vulnerable to similar race conditions:
+
+| Component / File | Vulnerable Action | Status |
+| :--- | :--- | :--- |
+| `AvailabilityPage.tsx` | Drag-and-Drop Exception Move | **At Risk** |
+| `AvailabilityPage.tsx` | Cancel Appointment / Delete Exception | **At Risk** |
+| `SettingsServiceItemsPage.tsx` | Add Service Group (`handleAddGroup`) | **Vulnerable** |
+| `SettingsServiceItemsPage.tsx` | Reorder Items (`handleSaveItemOrder`) | **Vulnerable** |
+
+### **Preventative Recommendations for Reviewer:**
+
+* **Audit All POST/PUT Endpoints**: Check if the corresponding frontend handlers use a `loading` or `isSubmitting` state.
+* **Leverage Standardized Components**: Use the newly updated `ModalFooter` `loading` prop for all new modals to ensure consistent interaction locking.
+* **Adopt `SystemClinicsPage.tsx` Pattern**: Use the `creating`/`updating` state pattern found in `SystemClinicsPage.tsx` as the standard for all state-changing operations.
