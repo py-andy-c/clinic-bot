@@ -1287,12 +1287,12 @@ class NotificationService:
             # 3. Patient's Assigned Practitioner
             if request.notify_assigned_practitioner:
                 from models.patient_practitioner_assignment import PatientPractitionerAssignment
-                assignment = db.query(PatientPractitionerAssignment).filter(
+                assignments = db.query(PatientPractitionerAssignment).filter(
                     PatientPractitionerAssignment.patient_id == request.patient_id,  # type: ignore
                     PatientPractitionerAssignment.clinic_id == clinic.id,
                     PatientPractitionerAssignment.is_active == True  # type: ignore
-                ).first()
-                if assignment:
+                ).all()
+                for assignment in assignments:
                     assoc = db.query(UserClinicAssociation).filter(
                         UserClinicAssociation.user_id == assignment.practitioner_id,  # type: ignore
                         UserClinicAssociation.clinic_id == clinic.id,

@@ -4,7 +4,7 @@ Medical Record Template model.
 
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
-from sqlalchemy import String, Integer, Text, Boolean, TIMESTAMP, ForeignKey, Index
+from sqlalchemy import String, Integer, Text, Boolean, TIMESTAMP, ForeignKey, Index, CheckConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -46,4 +46,6 @@ class MedicalRecordTemplate(Base):
     __table_args__ = (
         Index("idx_medical_record_templates_clinic", "clinic_id"),
         Index("idx_medical_record_templates_deleted", "clinic_id", "is_deleted"),
+        CheckConstraint("template_type IN ('medical_record', 'patient_form')", name="check_template_type"),
+        CheckConstraint("max_photos >= 0 AND max_photos <= 20", name="check_max_photos"),
     )

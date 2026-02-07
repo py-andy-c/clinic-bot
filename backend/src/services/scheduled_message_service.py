@@ -584,25 +584,22 @@ class ScheduledMessageService:
                         channel_access_token=clinic.line_channel_access_token  # type: ignore
                     )
                     
-                    # Special handling for patient form to use template message with button
+                    # Special handling for patient form to use Flex Message with button
                     if scheduled.message_type == 'patient_form' and '{表單連結}' in scheduled.message_template:  # type: ignore
                         # Extract button text and URL from context
                         button_text = scheduled.message_context.get('flex_button_text', '填寫表單')  # type: ignore
                         form_url = context.get('表單連結')
                         
                         if form_url:
-                            # Split message into text before {表單連結} and after
-                            parts = scheduled.message_template.split('{表單連結}')  # type: ignore
-                            text_to_render = parts[0].strip()
-                            suffix_text = parts[1].strip() if len(parts) > 1 else ""
-                            
+                            # Replace {表單連結} with empty string in the template for the Flex body
+                            # We don't split anymore, we use the whole message as the body
                             resolved_text = MessageTemplateService.render_message(
-                                text_to_render,
+                                scheduled.message_template.replace('{表單連結}', '').strip(),  # type: ignore
                                 context
                             )
                             
-                            # Send template message
-                            line_service.send_template_message_with_button(
+                            # Send Flex message
+                            line_service.send_patient_form_message(
                                 line_user_id=scheduled.recipient_line_user_id,  # type: ignore
                                 text=resolved_text,
                                 button_label=button_text,
@@ -611,20 +608,6 @@ class ScheduledMessageService:
                                 clinic_id=scheduled.clinic_id,  # type: ignore
                                 labels=labels
                             )
-                            
-                            # If there is suffix text, send it as a separate follow-up message
-                            if suffix_text:
-                                resolved_suffix = MessageTemplateService.render_message(
-                                    suffix_text,
-                                    context
-                                )
-                                line_service.send_text_message(
-                                    line_user_id=scheduled.recipient_line_user_id,  # type: ignore
-                                    text=resolved_suffix,
-                                    labels=labels,
-                                    db=db,
-                                    clinic_id=scheduled.clinic_id  # type: ignore
-                                )
                         else:
                             # Fallback to normal text message if URL missing
                             resolved_text = MessageTemplateService.render_message(

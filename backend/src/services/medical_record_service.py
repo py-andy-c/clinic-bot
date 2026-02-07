@@ -244,6 +244,11 @@ class MedicalRecordService:
                 ).first()
                 if user_assoc:
                     updated_by_user_name = user_assoc.full_name
+            elif record.last_updated_by_patient_id:
+                # If updated by patient, show patient name
+                patient = db.query(Patient).filter(Patient.id == record.last_updated_by_patient_id).first()
+                if patient:
+                    updated_by_user_name = f"病患 {patient.full_name}"
             
             raise RecordVersionConflictError(
                 "Record has been modified by another user",

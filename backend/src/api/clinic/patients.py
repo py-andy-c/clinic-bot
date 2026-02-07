@@ -762,7 +762,7 @@ async def create_patient_form_request(
     if "{表單連結}" not in payload.message_template:
         raise HTTPException(status_code=400, detail="訊息範本必須包含 {表單連結}")
     
-    # Use template message with button if possible
+    # Use Flex Message with button
     line_service = LINEService(clinic.line_channel_secret, clinic.line_channel_access_token)
     labels = {
         'recipient_type': 'patient',
@@ -770,13 +770,13 @@ async def create_patient_form_request(
         'trigger_source': 'clinic_triggered'
     }
     
-    parts = payload.message_template.split('{表單連結}')
-    text_to_render = parts[0].strip()
-    suffix_text = parts[1].strip() if len(parts) > 1 else ""
+    # Replace {表單連結} with empty string for the Flex body
+    resolved_text = MessageTemplateService.render_message(
+        payload.message_template.replace('{表單連結}', '').strip(),  # type: ignore
+        context  # type: ignore
+    )
     
-    resolved_text = MessageTemplateService.render_message(text_to_render, context)  # type: ignore
-    
-    line_service.send_template_message_with_button(
+    line_service.send_patient_form_message(
         line_user_id=patient.line_user.line_user_id,
         text=resolved_text,
         button_label=payload.flex_button_text,
@@ -785,17 +785,6 @@ async def create_patient_form_request(
         clinic_id=clinic_id,
         labels=labels
     )
-    
-    # If there is suffix text, send it as a separate follow-up message
-    if suffix_text:
-        resolved_suffix = MessageTemplateService.render_message(suffix_text, context)  # type: ignore
-        line_service.send_text_message(
-            line_user_id=patient.line_user.line_user_id,
-            text=resolved_suffix,
-            labels=labels,
-            db=db,
-            clinic_id=clinic_id
-        )
     
     db.commit()
     db.refresh(request)

@@ -415,6 +415,13 @@ class PatientFormSettingBundleData(BaseModel):
     is_enabled: bool = True
     display_order: int = 0
 
+    @model_validator(mode='after')
+    def validate_template(self) -> 'PatientFormSettingBundleData':
+        """Ensure message template contains {表單連結} placeholder if enabled."""
+        if self.is_enabled and "{表單連結}" not in self.message_template:
+            raise ValueError("訊息範本必須包含 {表單連結} 預位符以產生表單按鈕")
+        return self
+
 
 class ServiceItemBundleAssociations(BaseModel):
     practitioner_ids: List[int] = []

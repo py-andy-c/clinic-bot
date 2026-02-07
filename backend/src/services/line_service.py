@@ -24,6 +24,8 @@ from linebot.v3.messaging.models import (
     TemplateMessage,
     ButtonsTemplate,
     URIAction,
+    FlexMessage,
+    FlexContainer,
 )
 from linebot.v3.messaging.api_client import ApiClient
 from linebot.v3.messaging.configuration import Configuration
@@ -546,6 +548,140 @@ class LINEService:
                 f"Clinic: {clinic_id}"
             )
             raise
+
+    def send_flex_message(
+        self,
+        line_user_id: str,
+        alt_text: str,
+        contents: dict[str, Any],
+        reply_token: Optional[str] = None,
+        db: Optional["Session"] = None,
+        clinic_id: Optional[int] = None,
+        labels: Optional[dict[str, str]] = None
+    ) -> Optional[str]:
+        """
+        Send Flex Message to LINE user.
+        
+        Args:
+            line_user_id: LINE user ID to send message to
+            alt_text: Alt text for the message (max 400 chars)
+            contents: Flex Message contents as a dictionary
+            reply_token: Optional reply token from webhook event.
+            db: Optional database session for tracking push messages.
+            clinic_id: Optional clinic ID for tracking push messages.
+            labels: Optional labels dictionary for tracking push messages.
+            
+        Returns:
+            LINE message ID if successful, None otherwise.
+        """
+        try:
+            # Type ignore: FlexContainer.from_dict is the standard way to create from dict
+            flex_container = FlexContainer.from_dict(contents)  # type: ignore[attr-defined]
+            flex_message = FlexMessage(altText=alt_text[:400], contents=flex_container, quickReply=None) # type: ignore
+            messages = [flex_message]
+            
+            if reply_token:
+                request = ReplyMessageRequest(
+                    replyToken=reply_token,
+                    messages=messages,
+                    notificationDisabled=False
+                )
+                response = self.api.reply_message(request)
+                logger.debug(f"Sent Flex reply message for user {line_user_id[:10]}...")
+            else:
+                request = PushMessageRequest(
+                    to=line_user_id,
+                    messages=messages,
+                    notificationDisabled=False,
+                    customAggregationUnits=None
+                )
+                response = self.api.push_message(request)
+                logger.debug(f"Sent Flex push message for user {line_user_id[:10]}...")
+            
+            # Extract message ID from response
+            message_id: Optional[str] = None
+            try:
+                if hasattr(response, 'sent_messages') and response.sent_messages:
+                    sent_messages_list = response.sent_messages  # type: ignore
+                    if sent_messages_list and len(sent_messages_list) > 0:  # type: ignore
+                        sent_msg = sent_messages_list[0]  # type: ignore
+                        message_id = getattr(sent_msg, 'id', None)  # type: ignore
+            except (AttributeError, IndexError, TypeError):
+                message_id = None
+            
+            # Track push message if conditions are met
+            self._track_push_message(
+                line_user_id=line_user_id,
+                message_id=message_id,
+                reply_token=reply_token,
+                db=db,
+                clinic_id=clinic_id,
+                labels=labels
+            )
+            
+            return message_id
+        except Exception as e:
+            logger.exception(f"Failed to send Flex Message to {line_user_id[:10]}...: {e}")
+            raise
+
+    def send_patient_form_message(
+        self,
+        line_user_id: str,
+        text: str,
+        button_label: str,
+        button_uri: str,
+        reply_token: Optional[str] = None,
+        db: Optional["Session"] = None,
+        clinic_id: Optional[int] = None,
+        labels: Optional[dict[str, str]] = None
+    ) -> Optional[str]:
+        """
+        Send a patient form message using Flex Message.
+        This combines the text and the button in a single message bubble.
+        """
+        # Define Flex Message structure
+        contents = {
+            "type": "bubble",
+            "body": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                    {
+                        "type": "text",
+                        "text": text,
+                        "wrap": True
+                    }
+                ]
+            },
+            "footer": {
+                "type": "box",
+                "layout": "vertical",
+                "spacing": "sm",
+                "contents": [
+                    {
+                        "type": "button",
+                        "style": "primary",
+                        "height": "sm",
+                        "action": {
+                            "type": "uri",
+                            "label": button_label,
+                            "uri": button_uri
+                        }
+                    }
+                ],
+                "flex": 0
+            }
+        }
+        
+        return self.send_flex_message(
+            line_user_id=line_user_id,
+            alt_text=text,
+            contents=contents,
+            reply_token=reply_token,
+            db=db,
+            clinic_id=clinic_id,
+            labels=labels
+        )
 
     def start_loading_animation(self, line_user_id: str, loading_seconds: int = 60) -> bool:
         """
