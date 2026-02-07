@@ -850,6 +850,7 @@ When an associated appointment is cancelled:
 * [x] Create `PatientFormSetting` model and CRUD service
 * [x] Create `PatientFormRequest` model and service
 * [x] Add message template validation (require `{表單連結}`)
+* [x] Backend refinements (race condition protection, optimized indexes, centralized validation)
 
 ### Phase 2: Scheduling & Notifications (Week 2)
 
