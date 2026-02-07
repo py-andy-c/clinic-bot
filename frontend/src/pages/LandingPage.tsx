@@ -844,35 +844,136 @@ const FinancialDashboardMock = () => (
   </div>
 );
 
-const AISetupMock = () => (
-  <div className="bg-white rounded-2xl shadow-[0_20px_50px_-12px_rgba(0,0,0,0.15)] border border-gray-100 overflow-hidden">
-    <div className="p-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
-      <div className="flex items-center gap-2">
-        <div className="w-6 h-6 bg-primary-600 rounded flex items-center justify-center text-[10px] text-white">AI</div>
-        <span className="text-xs font-bold">知識庫設定</span>
-      </div>
-      <div className="h-6 w-12 bg-primary-200 rounded-full flex items-center px-1">
-        <div className="w-4 h-4 bg-primary-600 rounded-full ml-auto"></div>
-      </div>
-    </div>
-    <div className="p-6 flex gap-6">
-      <div className="w-1/2 space-y-3">
-        <div className="text-[10px] text-gray-400 font-bold">已上傳文件</div>
-        {['FAQ.pdf', '服務項目.docx'].map(f => (
-          <div key={f} className="p-2 border border-gray-100 rounded text-[9px] flex items-center gap-2">
-            <span className="text-primary-500">📄</span> {f}
+const LINE_THEME = {
+  chatBackground: '#8eacda',
+  userBubble: '#6fe67c',
+};
+
+const AIChatMock = () => {
+  const [isScrolledToBottom, setIsScrolledToBottom] = React.useState(true);
+  const chatContainerRef = React.useRef<HTMLDivElement>(null);
+
+  const messages = [
+    { sender: 'user', text: '請問治療項目' },
+    { sender: 'bot', text: '本院提供以下治療項目：\n1. 徒手治療\n2. 運動治療\n3. 運動表現優化\n\n請問您想了解哪一項的細節？' },
+    { sender: 'user', text: '徒手治療' },
+    { sender: 'bot', text: '徒手治療是由物理治療師透過雙手，針對肌肉、關節、筋膜等軟組織進行放鬆與調整，能有效緩解疼痛並恢復關節活動度。適合落枕、五十肩、下背痛等症狀。\n\n需要幫您預約評估嗎？' }
+  ];
+
+  const checkScrollPosition = () => {
+    if (chatContainerRef.current) {
+      const { scrollTop, scrollHeight, clientHeight } = chatContainerRef.current;
+      const isAtBottom = scrollHeight - scrollTop - clientHeight < 10;
+      setIsScrolledToBottom(isAtBottom);
+    }
+  };
+
+  React.useEffect(() => {
+    const container = chatContainerRef.current;
+    if (!container) return;
+
+    checkScrollPosition();
+    container.addEventListener('scroll', checkScrollPosition);
+    window.addEventListener('resize', checkScrollPosition);
+    return () => {
+      container.removeEventListener('scroll', checkScrollPosition);
+      window.removeEventListener('resize', checkScrollPosition);
+    };
+  }, []);
+
+  const scrollToBottom = () => {
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTo({
+        top: chatContainerRef.current.scrollHeight,
+        behavior: 'smooth',
+      });
+    }
+  };
+
+  return (
+    <div className="bg-white rounded-2xl shadow-[0_20px_50px_-12px_rgba(0,0,0,0.15)] border border-gray-100 overflow-hidden max-w-sm mx-auto h-[500px] flex flex-col">
+      {/* LINE Header */}
+      <div className="bg-white border-b border-gray-200 px-4 py-3 flex items-center shadow-sm z-10">
+        <div className="flex items-center flex-1 min-w-0 gap-3">
+          <div className="text-gray-900 text-lg">←</div>
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center flex-shrink-0">
+              <svg className="w-5 h-5 text-gray-600" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="font-bold text-sm text-gray-900">健康診所 Line官方帳號</div>
           </div>
-        ))}
-        <div className="h-12 border-2 border-dashed border-gray-200 rounded flex items-center justify-center text-[9px] text-gray-400 italic">點此上傳更多...</div>
+        </div>
       </div>
-      <div className="w-1/2 bg-gray-50 rounded-xl p-3 space-y-2 border border-gray-100">
-        <div className="text-[8px] text-gray-400 font-bold mb-2">AI 預覽</div>
-        <div className="bg-white p-2 rounded-lg rounded-bl-none text-[8px] border border-gray-100">請問你們的拔牙費用？</div>
-        <div className="bg-primary-600 text-white p-2 rounded-lg rounded-br-none text-[8px] ml-auto w-[90%]">您好！根據知識庫，我們的拔牙費用依難易度約為 $500 - $2,000...</div>
+
+      {/* Chat Area */}
+      <div className="flex-1 relative overflow-hidden bg-[#8eacda]">
+        <div
+          ref={chatContainerRef}
+          className="p-4 space-y-4 overflow-y-auto h-full scroll-smooth"
+        >
+          {messages.map((message, index) => (
+            <div
+              key={index}
+              className={`flex items-end ${message.sender === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2 duration-500`}
+              style={{ animationDelay: `${index * 0.5}s`, animationFillMode: 'both' }}
+            >
+              {message.sender === 'bot' && (
+                <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center mr-2 flex-shrink-0 shadow-sm">
+                  <svg className="w-5 h-5 text-gray-600" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+                  </svg>
+                </div>
+              )}
+              <div
+                className={`max-w-[85%] rounded-2xl px-4 py-3 relative shadow-sm ${message.sender === 'user' ? 'text-gray-900' : 'bg-white text-gray-900'
+                  }`}
+                style={{
+                  backgroundColor: message.sender === 'user' ? LINE_THEME.userBubble : 'white',
+                  borderTopRightRadius: message.sender === 'user' ? '0' : '1rem',
+                  borderTopLeftRadius: message.sender === 'bot' ? '0' : '1rem',
+                  borderBottomRightRadius: '1rem',
+                  borderBottomLeftRadius: '1rem',
+                }}
+              >
+                <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.text}</p>
+              </div>
+            </div>
+          ))}
+          <div className="h-4"></div> {/* Spacer for bottom scroll */}
+        </div>
+
+        {/* Scroll Indicator */}
+        {!isScrolledToBottom && (
+          <div
+            className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-20 cursor-pointer"
+            onClick={scrollToBottom}
+          >
+            <div className="bg-gray-800/60 backdrop-blur-sm rounded-full p-2 shadow-lg animate-bounce text-white">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+              </svg>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Message Input Mock */}
+      <div className="bg-white p-3 border-t border-gray-200 flex items-center gap-3">
+        <div className="w-8 h-8 text-gray-400">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" /></svg>
+        </div>
+        <div className="flex-1 bg-gray-100 rounded-full h-9 flex items-center px-4 text-xs text-gray-400">
+          輸入訊息...
+        </div>
+        <div className="w-8 h-8 text-blue-500">
+          <svg viewBox="0 0 24 24" fill="currentColor" className="rotate-90"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" /></svg>
+        </div>
       </div>
     </div>
-  </div>
-);
+  );
+};
 
 const LandingPage: React.FC = () => {
   const [activeLineFeature, setActiveLineFeature] = React.useState(0);
@@ -1032,7 +1133,7 @@ const LandingPage: React.FC = () => {
             "嚴格過濾診斷建議，隨時引進人工。"
           ]}
           imageSide="right"
-          mockup={<AISetupMock />}
+          mockup={<AIChatMock />}
         />
       </div>
 
