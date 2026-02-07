@@ -1250,7 +1250,7 @@ class NotificationService:
 
             # Add link to admin panel
             from core.config import FRONTEND_URL
-            admin_url = f"{FRONTEND_URL}/clinic/patients/{request.patient_id}/forms"
+            admin_url = f"{FRONTEND_URL}/clinic/patients/{request.patient_id}"
             message += f"\n查看詳情：{admin_url}"
 
             # Collect recipients

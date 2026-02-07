@@ -32,6 +32,7 @@ from core.constants import (
 from models.line_user import LineUser
 from models.clinic import Clinic
 from models.patient import Patient
+from models.patient_form_request import PatientFormRequest
 from models.availability_notification import AvailabilityNotification
 from models.appointment_type import AppointmentType
 from models.user import User
@@ -2139,7 +2140,11 @@ async def submit_patient_form(
     """Submit a completed form."""
     line_user, clinic = line_user_clinic
     
-    request = PatientFormRequestService.get_request_by_token(db, access_token)
+    # Use with_for_update() to prevent race conditions (double submission)
+    request = db.query(PatientFormRequest).filter(
+        PatientFormRequest.access_token == access_token
+    ).with_for_update().first()
+    
     if not request or request.clinic_id != clinic.id:
         raise HTTPException(status_code=404, detail="表單不存在")
 

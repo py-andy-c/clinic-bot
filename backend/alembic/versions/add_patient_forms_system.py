@@ -32,10 +32,22 @@ def upgrade() -> None:
             op.add_column('medical_record_templates', sa.Column('max_photos', sa.Integer(), nullable=False, server_default='5'))
         
         # Add constraints if they don't exist
-        # Note: In some environments, constraints might need manual naming or check if they exist
-        # For simplicity in this migration, we'll just add them. 
-        # op.create_check_constraint('check_template_type', 'medical_record_templates', "template_type IN ('medical_record', 'patient_form')")
-        # op.create_check_constraint('check_max_photos', 'medical_record_templates', "max_photos >= 0 AND max_photos <= 20")
+        # We check for existence to ensure idempotency
+        existing_constraints = [c['name'] for c in inspector.get_check_constraints('medical_record_templates')]
+        
+        if 'check_template_type' not in existing_constraints:
+            op.create_check_constraint(
+                'check_template_type', 
+                'medical_record_templates', 
+                "template_type IN ('medical_record', 'patient_form')"
+            )
+        
+        if 'check_max_photos' not in existing_constraints:
+            op.create_check_constraint(
+                'check_max_photos', 
+                'medical_record_templates', 
+                "max_photos >= 0 AND max_photos <= 20"
+            )
 
     # 2. Create patient_form_settings
     if 'patient_form_settings' not in tables:
