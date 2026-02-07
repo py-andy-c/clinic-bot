@@ -683,8 +683,8 @@ const AutomationFlowMock = () => {
                 )}
               </div>
               <div className="relative z-20">
-                <p className="text-[10px] sm:text-xs lg:text-sm font-black text-primary-600 uppercase tracking-wider mb-0.5 lg:mb-1">{step.time}</p>
-                <p className="text-sm sm:text-lg lg:text-2xl font-black text-gray-900 leading-tight">{step.label}</p>
+                <p className="text-xs sm:text-sm lg:text-base font-black text-primary-600 uppercase tracking-wider mb-0.5 lg:mb-1">{step.time}</p>
+                <p className="text-base sm:text-xl lg:text-3xl font-black text-gray-900 leading-tight">{step.label}</p>
               </div>
             </div>
           ))}
@@ -692,12 +692,12 @@ const AutomationFlowMock = () => {
       </div>
 
       {/* Message Preview (Phone Style) */}
-      <div className="bg-[#7494C0] w-[155px] sm:w-44 lg:w-56 h-[250px] sm:h-[320px] lg:h-[400px] rounded-[1.5rem] sm:rounded-[2rem] lg:rounded-[3rem] p-3 sm:p-4 lg:p-6 shadow-[10px_20px_40px_-10px_rgba(0,0,0,0.3)] lg:shadow-[20px_40px_60px_-15px_rgba(0,0,0,0.5)] flex flex-col justify-center shrink-0 border-4 border-gray-800/20">
+      <div className="bg-[#7494C0] w-[155px] sm:w-44 lg:w-56 h-[250px] sm:h-[320px] lg:h-[400px] rounded-[1.5rem] sm:rounded-[2rem] lg:rounded-[3rem] p-2 sm:p-3 lg:p-4 shadow-[10px_20px_40px_-10px_rgba(0,0,0,0.3)] lg:shadow-[20px_40px_60px_-15px_rgba(0,0,0,0.5)] flex flex-col justify-center shrink-0 border-4 border-gray-800/20">
         <div className="flex flex-col justify-center h-full">
           {/* Message Bubble - Simplified without avatar/time */}
-          <div className="bg-white rounded-2xl rounded-tl-none p-4 sm:p-5 lg:p-6 shadow-lg border border-blue-50 relative w-full">
-            <p className="text-xs sm:text-sm lg:text-base text-gray-800 leading-relaxed mb-3">
-              <span className="font-bold text-sm sm:text-base lg:text-lg block mb-1">王先生您好：</span>
+          <div className="bg-white rounded-2xl rounded-tl-none p-3 sm:p-4 lg:p-4 shadow-lg border border-blue-50 relative w-full">
+            <p className="text-sm sm:text-base lg:text-lg text-gray-800 leading-relaxed mb-3">
+              <span className="font-bold text-base sm:text-lg lg:text-xl block mb-1">王先生您好：</span>
               術後感覺如何呢？請參考復健指引影片，有任何問題請聯繫診所！
             </p>
             <div className="aspect-video bg-gray-100 rounded-lg overflow-hidden relative group cursor-pointer border border-gray-100 shadow-inner">
