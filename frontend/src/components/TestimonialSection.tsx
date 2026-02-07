@@ -4,16 +4,20 @@ export const TestimonialSection = () => {
     return (
         <section className="bg-gradient-to-br from-primary-50 to-white py-24 border-y border-primary-100">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div className="flex flex-col lg:flex-row items-center gap-12 lg:gap-20">
+                <div className="flex flex-col-reverse lg:flex-row items-center gap-12 lg:gap-20">
                     <div className="lg:w-1/3">
                         <div className="aspect-[4/5] bg-primary-100 rounded-2xl overflow-hidden shadow-xl relative border border-primary-200">
-                            <div className="absolute inset-0 flex items-center justify-center text-primary-400">
-                                <span className="text-xl font-bold">羅士倫 院長照片</span>
-                            </div>
+                            <img
+                                src="/images/therapist_02.webp"
+                                alt="羅士倫 院長"
+                                className="w-full h-full object-cover"
+                            />
                         </div>
                         <div className="mt-6 text-center lg:text-left">
                             <h3 className="text-2xl font-bold text-gray-900">羅士倫 院長</h3>
-                            <p className="text-primary-600 font-medium mt-1">XXX 物理治療所</p>
+                            <div className="mt-2 flex justify-center lg:justify-start">
+                                <img src="/images/toss_logo_title.webp" alt="Toss Logo" className="h-8 object-contain opacity-80" />
+                            </div>
                         </div>
                     </div>
                     <div className="lg:w-2/3">
