@@ -501,76 +501,23 @@ async def liff_login(
         # Now get or create LINE user for this clinic using service method for race condition handling
         from services.line_user_service import LineUserService
         from services.line_service import LINEService
-        from sqlalchemy.exc import IntegrityError
-
+        
         # Create LINEService from clinic credentials (if available) for profile fetching
         # If credentials are missing, service will use provided display_name
-        line_service = None
-        if clinic.line_channel_secret and clinic.line_channel_access_token:
-            try:
-                line_service = LINEService(
-                    channel_secret=clinic.line_channel_secret,
-                    channel_access_token=clinic.line_channel_access_token
-                )
-            except ValueError:
-                # Invalid credentials - will use provided display_name instead
-                logger.warning(f"Invalid LINE credentials for clinic {clinic.id}, using provided display_name")
-                line_service = None
+        line_service = LINEService(
+            channel_secret=clinic.line_channel_secret or "",
+            channel_access_token=clinic.line_channel_access_token or ""
+        )
 
         # Use service method for proper race condition handling
-        try:
-            if line_service:
-                line_user = LineUserService.get_or_create_line_user(
-                    db=db,
-                    line_user_id=request.line_user_id,
-                    clinic_id=clinic.id,
-                    line_service=line_service,
-                    display_name=request.display_name,
-                    picture_url=request.picture_url
-                )
-            else:
-                # Fallback: create directly if LINEService unavailable (shouldn't happen in normal flow)
-                # Still handle race condition with IntegrityError
-                line_user = db.query(LineUser).filter_by(
-                    line_user_id=request.line_user_id,
-                    clinic_id=clinic.id
-                ).first()
-
-                if not line_user:
-                    line_user = LineUser(
-                        line_user_id=request.line_user_id,
-                        clinic_id=clinic.id,
-                        display_name=request.display_name,
-                        picture_url=request.picture_url
-                    )
-                    db.add(line_user)
-                    try:
-                        db.commit()
-                        db.refresh(line_user)
-                    except IntegrityError:
-                        # Race condition: another request created it
-                        db.rollback()
-                        line_user = db.query(LineUser).filter_by(
-                            line_user_id=request.line_user_id,
-                            clinic_id=clinic.id
-                        ).first()
-                        if not line_user:
-                            raise HTTPException(
-                                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                                detail="建立 LINE 使用者失敗"
-                            )
-        except IntegrityError:
-            # Race condition: another request created it
-            db.rollback()
-            line_user = db.query(LineUser).filter_by(
-                line_user_id=request.line_user_id,
-                clinic_id=clinic.id
-            ).first()
-            if not line_user:
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail="建立 LINE 使用者失敗"
-                )
+        line_user = LineUserService.get_or_create_line_user(
+            db=db,
+            line_user_id=request.line_user_id,
+            clinic_id=clinic.id,
+            line_service=line_service,
+            display_name=request.display_name,
+            picture_url=request.picture_url
+        )
 
         # Check if patient exists for this clinic
         patient = db.query(Patient).filter_by(
@@ -2091,33 +2038,42 @@ def list_patient_forms(
     line_user_clinic: tuple[LineUser, Clinic] = Depends(get_current_line_user_with_clinic),
     db: Session = Depends(get_db)
 ) -> Dict[str, List[PatientFormResponse]]:
-    """List pending and submitted patient forms for the current patient."""
+    """List pending and submitted patient forms for all patients associated with the LINE user."""
     line_user, clinic = line_user_clinic
     
-    if not line_user.patient_id:  # type: ignore
-        return {"forms": []}  # type: ignore
+    # Get all patient IDs for this LINE user at this clinic
+    patient_ids = [p.id for p in line_user.patients]
+    if not patient_ids:
+        return {"forms": []}
 
     try:
-        requests = PatientFormRequestService.list_patient_requests(
-            db=db,
-            clinic_id=clinic.id,  # type: ignore
-            patient_id=line_user.patient_id,  # type: ignore
-            limit=100
-        )
+        from models.patient_form_request import PatientFormRequest
+        all_requests: List[PatientFormRequest] = []
+        for patient_id in patient_ids:
+            requests = PatientFormRequestService.list_patient_requests(
+                db=db,
+                clinic_id=clinic.id,
+                patient_id=patient_id,
+                limit=50
+            )
+            all_requests.extend(requests)
+        
+        # Sort by sent_at descending
+        all_requests.sort(key=lambda r: r.sent_at, reverse=True)
         
         return {
             "forms": [
                 PatientFormResponse(
-                    id=r.id,  # type: ignore
-                    template_name=r.template.name,  # type: ignore
-                    status=r.status,  # type: ignore
-                    sent_at=r.sent_at,  # type: ignore
-                    submitted_at=r.submitted_at,  # type: ignore
-                    access_token=r.access_token,  # type: ignore
-                    medical_record_id=r.medical_record_id  # type: ignore
-                ) for r in requests
+                    id=r.id,
+                    template_name=r.template.name,
+                    status=r.status,
+                    sent_at=r.sent_at,
+                    submitted_at=r.submitted_at,
+                    access_token=r.access_token,
+                    medical_record_id=r.medical_record_id
+                ) for r in all_requests
             ]
-        }  # type: ignore
+        }
     except Exception as e:
         logger.exception(f"Error listing patient forms: {e}")
         raise HTTPException(
@@ -2136,21 +2092,26 @@ async def get_patient_form_details(
     line_user, clinic = line_user_clinic
     
     request = PatientFormRequestService.get_request_by_token(db, access_token)
-    if not request or request.clinic_id != clinic.id or request.patient_id != line_user.patient_id:  # type: ignore
+    if not request or request.clinic_id != clinic.id:
         raise HTTPException(status_code=404, detail="表單不存在")
+    
+    # Verify the patient belongs to this LINE user
+    patient_ids = {p.id for p in line_user.patients}
+    if request.patient_id not in patient_ids:
+        raise HTTPException(status_code=403, detail="您沒有權限存取此表單")
 
-    template = request.template  # type: ignore
+    template = request.template
     values = None
     version = 1
     
-    if request.medical_record_id:  # type: ignore
-        record = MedicalRecordService.get_record(db, request.medical_record_id, clinic.id)  # type: ignore
+    if request.medical_record_id:
+        record = MedicalRecordService.get_record(db, request.medical_record_id, clinic.id)
         if record:
             values = record.values
             version = record.version
 
     return PatientFormDetailResponse(
-        id=request.id,  # type: ignore
+        id=request.id,
         template={
             "id": template.id,
             "name": template.name,
@@ -2159,8 +2120,8 @@ async def get_patient_form_details(
             "max_photos": template.max_photos
         },
         values=values,
-        status=request.status,  # type: ignore
-        medical_record_id=request.medical_record_id,  # type: ignore
+        status=request.status,
+        medical_record_id=request.medical_record_id,
         version=version
     )
 
@@ -2176,35 +2137,40 @@ async def submit_patient_form(
     line_user, clinic = line_user_clinic
     
     request = PatientFormRequestService.get_request_by_token(db, access_token)
-    if not request or request.clinic_id != clinic.id or request.patient_id != line_user.patient_id:  # type: ignore
+    if not request or request.clinic_id != clinic.id:
         raise HTTPException(status_code=404, detail="表單不存在")
 
-    if request.status == 'submitted':  # type: ignore
+    # Verify the patient belongs to this LINE user
+    patient_ids = {p.id for p in line_user.patients}
+    if request.patient_id not in patient_ids:
+        raise HTTPException(status_code=403, detail="您沒有權限提交此表單")
+
+    if request.status == 'submitted':
         raise HTTPException(status_code=400, detail="表單已提交，請使用更新介面")
 
     try:
         # 1. Create medical record
-        if payload.photo_ids and len(payload.photo_ids) > request.template.max_photos:  # type: ignore
-            raise HTTPException(status_code=400, detail=f"照片數量超過上限 ({request.template.max_photos} 張)")  # type: ignore
+        if payload.photo_ids and len(payload.photo_ids) > request.template.max_photos:
+            raise HTTPException(status_code=400, detail=f"照片數量超過上限 ({request.template.max_photos} 張)")
 
         record = MedicalRecordService.create_record(
             db=db,
-            clinic_id=clinic.id,  # type: ignore
-            patient_id=line_user.patient_id,  # type: ignore
-            template_id=request.template_id,  # type: ignore
+            clinic_id=clinic.id,
+            patient_id=request.patient_id,
+            template_id=request.template_id,
             values=payload.values,
             photo_ids=payload.photo_ids,
-            appointment_id=request.appointment_id,  # type: ignore
+            appointment_id=request.appointment_id,
             source_type='patient',
-            last_updated_by_patient_id=line_user.patient_id,  # type: ignore
-            patient_form_request_id=request.id  # type: ignore
+            last_updated_by_patient_id=request.patient_id,
+            patient_form_request_id=request.id
         )
         
         # 2. Update request status
         PatientFormRequestService.update_request_status(
             db=db,
-            request_id=request.id,  # type: ignore
-            clinic_id=clinic.id,  # type: ignore
+            request_id=request.id,
+            clinic_id=clinic.id,
             status='submitted',
             medical_record_id=record.id
         )
@@ -2213,10 +2179,10 @@ async def submit_patient_form(
         from services.notification_service import NotificationService
         NotificationService.send_patient_form_submission_notification(
             db=db,
-            request=request,  # type: ignore
-            patient_name=line_user.patient.full_name,  # type: ignore
-            template_name=request.template.name,  # type: ignore
-            clinic=clinic  # type: ignore
+            request=request,
+            patient_name=request.patient.full_name,
+            template_name=request.template.name,
+            clinic=clinic
         )
         
         db.commit()
@@ -2239,26 +2205,31 @@ async def update_patient_form(
     line_user, clinic = line_user_clinic
     
     request = PatientFormRequestService.get_request_by_token(db, access_token)
-    if not request or request.clinic_id != clinic.id or request.patient_id != line_user.patient_id:  # type: ignore
+    if not request or request.clinic_id != clinic.id:
         raise HTTPException(status_code=404, detail="表單不存在")
 
-    if not request.medical_record_id:  # type: ignore
+    # Verify the patient belongs to this LINE user
+    patient_ids = {p.id for p in line_user.patients}
+    if request.patient_id not in patient_ids:
+        raise HTTPException(status_code=403, detail="您沒有權限更新此表單")
+
+    if not request.medical_record_id:
         raise HTTPException(status_code=400, detail="表單尚未提交")
 
     try:
         from services.medical_record_service import RecordVersionConflictError
         
-        if payload.photo_ids and len(payload.photo_ids) > request.template.max_photos:  # type: ignore
-            raise HTTPException(status_code=400, detail=f"照片數量超過上限 ({request.template.max_photos} 張)")  # type: ignore
+        if payload.photo_ids and len(payload.photo_ids) > request.template.max_photos:
+            raise HTTPException(status_code=400, detail=f"照片數量超過上限 ({request.template.max_photos} 張)")
 
         record = MedicalRecordService.update_record(
             db=db,
-            record_id=request.medical_record_id,  # type: ignore
-            clinic_id=clinic.id,  # type: ignore
+            record_id=request.medical_record_id,
+            clinic_id=clinic.id,
             version=version,
             values=payload.values,
             photo_ids=payload.photo_ids,
-            last_updated_by_patient_id=line_user.patient_id  # type: ignore
+            last_updated_by_patient_id=request.patient_id
         )
         
         db.commit()
@@ -2284,11 +2255,16 @@ async def upload_patient_form_photo(
     line_user, clinic = line_user_clinic
     
     request = PatientFormRequestService.get_request_by_token(db, access_token)
-    if not request or request.clinic_id != clinic.id or request.patient_id != line_user.patient_id:  # type: ignore
+    if not request or request.clinic_id != clinic.id:
         raise HTTPException(status_code=404, detail="表單不存在")
 
+    # Verify the patient belongs to this LINE user
+    patient_ids = {p.id for p in line_user.patients}
+    if request.patient_id not in patient_ids:
+        raise HTTPException(status_code=403, detail="您沒有權限上傳照片至此表單")
+
     # Check photo limit from template
-    template = request.template  # type: ignore
+    template = request.template
     max_photos = template.max_photos
     
     if max_photos == 0:
@@ -2296,46 +2272,25 @@ async def upload_patient_form_photo(
         
     # Count current photos (both pending and committed) linked to this request or its record
     photo_service = PatientPhotoService()
-    
-    # To prevent storage abuse, count all pending photos for this specific request
-    # plus any photos already linked to the medical record.
-    from models.patient_photo import PatientPhoto
-    from sqlalchemy import or_
-    
-    query = db.query(PatientPhoto).filter(
-        PatientPhoto.clinic_id == clinic.id,  # type: ignore
-        PatientPhoto.patient_id == line_user.patient_id,  # type: ignore
-        PatientPhoto.is_deleted == False,
-        PatientPhoto.uploaded_by_patient_id.isnot(None) # Only count photos uploaded by patients
+    current_count = photo_service.count_patient_form_photos(
+        db=db,
+        clinic_id=clinic.id,
+        patient_id=request.patient_id,
+        patient_form_request_id=request.id,
+        medical_record_id=request.medical_record_id
     )
-    
-    if request.medical_record_id:  # type: ignore
-        # If record exists, count photos linked to it OR pending photos for this request
-        query = query.filter(
-            or_(
-                PatientPhoto.medical_record_id == request.medical_record_id,  # type: ignore
-                (PatientPhoto.is_pending == True) & (PatientPhoto.patient_form_request_id == request.id) # type: ignore
-            )
-        )
-    else:
-        # If no record yet, just count pending photos for this request
-        query = query.filter(
-            (PatientPhoto.is_pending == True) & (PatientPhoto.patient_form_request_id == request.id) # type: ignore
-        )
-        
-    current_count = query.count()
         
     if current_count >= max_photos:
         raise HTTPException(status_code=400, detail=f"已達到照片數量上限 ({max_photos} 張)")
 
     try:
-        photo = photo_service.upload_photo(  # type: ignore
+        photo = photo_service.upload_photo(
             db=db,
-            clinic_id=clinic.id,  # type: ignore
-            patient_id=line_user.patient_id,  # type: ignore
+            clinic_id=clinic.id,
+            patient_id=request.patient_id,
             file=file,
-            uploaded_by_patient_id=line_user.patient_id,  # type: ignore
-            patient_form_request_id=request.id,  # type: ignore
+            uploaded_by_patient_id=request.patient_id,
+            patient_form_request_id=request.id,
             description=description,
             is_pending=True  # Always pending until form is submitted
         )
@@ -2343,9 +2298,9 @@ async def upload_patient_form_photo(
         db.commit()
         
         return PatientFormPhotoResponse(
-            id=photo.id,  # type: ignore
-            url=photo_service.get_photo_url(photo.storage_key),  # type: ignore
-            thumbnail_url=photo_service.get_photo_url(photo.thumbnail_key) if photo.thumbnail_key else None  # type: ignore
+            id=photo.id,
+            url=photo_service.get_photo_url(photo.storage_key),
+            thumbnail_url=photo_service.get_photo_url(photo.thumbnail_key) if photo.thumbnail_key else None
         )
     except Exception as e:
         db.rollback()

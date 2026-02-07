@@ -841,7 +841,7 @@ When an associated appointment is cancelled:
 
 * [x] Edge case handling and error messages
 * [x] Integration tests
-* [ ] Documentation updates
+* [x] Documentation updates
 * [x] Manual QA testing (Backend/API verified)
 
 ***

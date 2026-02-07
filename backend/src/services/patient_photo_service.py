@@ -354,3 +354,38 @@ class PatientPhotoService:
             PatientPhoto.medical_record_id == medical_record_id,
             PatientPhoto.is_deleted == False
         ).count()
+
+    def count_patient_form_photos(
+        self,
+        db: Session,
+        clinic_id: int,
+        patient_id: int,
+        patient_form_request_id: int,
+        medical_record_id: Optional[int] = None
+    ) -> int:
+        """
+        Count photos for a specific patient form request.
+        Includes both pending photos for this request and photos already linked to the record.
+        """
+        from sqlalchemy import or_
+        
+        query = db.query(PatientPhoto).filter(
+            PatientPhoto.clinic_id == clinic_id,
+            PatientPhoto.patient_id == patient_id,
+            PatientPhoto.is_deleted == False,
+            PatientPhoto.uploaded_by_patient_id.isnot(None)
+        )
+        
+        if medical_record_id:
+            query = query.filter(
+                or_(
+                    PatientPhoto.medical_record_id == medical_record_id,
+                    (PatientPhoto.is_pending == True) & (PatientPhoto.patient_form_request_id == patient_form_request_id)
+                )
+            )
+        else:
+            query = query.filter(
+                (PatientPhoto.is_pending == True) & (PatientPhoto.patient_form_request_id == patient_form_request_id)
+            )
+            
+        return query.count()

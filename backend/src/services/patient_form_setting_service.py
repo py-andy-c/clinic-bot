@@ -8,6 +8,16 @@ from models.medical_record_template import MedicalRecordTemplate
 
 class PatientFormSettingService:
     @staticmethod
+    def _validate_timing_params(timing_mode: str, hours_after: Optional[int], days_after: Optional[int], time_of_day: Optional[time]) -> None:
+        """Validate timing parameters based on timing mode."""
+        if timing_mode == 'hours_after':
+            if hours_after is None:
+                raise HTTPException(status_code=400, detail="hours_after is required for timing_mode='hours_after'")
+        elif timing_mode == 'specific_time':
+            if days_after is None or time_of_day is None:
+                raise HTTPException(status_code=400, detail="days_after and time_of_day are required for timing_mode='specific_time'")
+
+    @staticmethod
     def create_setting(
         db: Session,
         clinic_id: int,
@@ -28,6 +38,9 @@ class PatientFormSettingService:
         # Validate message template
         if "{表單連結}" not in message_template:
             raise HTTPException(status_code=400, detail="Message template must contain {表單連結}")
+
+        # Validate timing parameters
+        PatientFormSettingService._validate_timing_params(timing_mode, hours_after, days_after, time_of_day)
 
         # Verify template exists and belongs to clinic
         template = db.query(MedicalRecordTemplate).filter(
@@ -101,6 +114,13 @@ class PatientFormSettingService:
             ).first()
             if not template:
                 raise HTTPException(status_code=404, detail="Patient form template not found")
+
+        # Validate timing parameters if any are being updated
+        new_timing_mode = kwargs.get("timing_mode", setting.timing_mode)
+        new_hours_after = kwargs.get("hours_after", setting.hours_after)
+        new_days_after = kwargs.get("days_after", setting.days_after)
+        new_time_of_day = kwargs.get("time_of_day", setting.time_of_day)
+        PatientFormSettingService._validate_timing_params(new_timing_mode, new_hours_after, new_days_after, new_time_of_day)
 
         for key, value in kwargs.items():
             if hasattr(setting, key):

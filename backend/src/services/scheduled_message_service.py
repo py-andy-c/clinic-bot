@@ -325,12 +325,27 @@ class ScheduledMessageService:
                 LineUser.line_user_id == scheduled.recipient_line_user_id,  # type: ignore
                 LineUser.clinic_id == scheduled.clinic_id  # type: ignore
             ).first()
-            if not line_user or not line_user.patient_id:  # type: ignore
-                raise ValueError(f"Patient not found for LINE user {scheduled.recipient_line_user_id}")
+            if not line_user:
+                raise ValueError(f"LineUser not found for ID {scheduled.recipient_line_user_id}")
+
+            # Find patient. If appointment_id is available, use it to find the specific patient.
+            # Otherwise, use the first patient associated with this LINE user at this clinic.
+            patient = None
+            if appointment_id:
+                appointment = db.query(Appointment).filter(Appointment.calendar_event_id == appointment_id).first()
+                if appointment:
+                    patient = appointment.patient
             
-            patient = db.query(Patient).filter(Patient.id == line_user.patient_id).first()  # type: ignore
             if not patient:
-                raise ValueError(f"Patient {line_user.patient_id} not found")  # type: ignore
+                # Fallback to first patient for this LINE user
+                from models.patient import Patient
+                patient = db.query(Patient).filter(
+                    Patient.line_user_id == line_user.id,
+                    Patient.clinic_id == scheduled.clinic_id
+                ).first()
+
+            if not patient:
+                raise ValueError(f"Patient not found for LINE user {scheduled.recipient_line_user_id}")
 
             # Create the patient form request record
             from services.patient_form_request_service import PatientFormRequestService

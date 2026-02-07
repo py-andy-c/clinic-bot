@@ -1289,12 +1289,11 @@ class NotificationService:
                 from models.patient_practitioner_assignment import PatientPractitionerAssignment
                 assignments = db.query(PatientPractitionerAssignment).filter(
                     PatientPractitionerAssignment.patient_id == request.patient_id,  # type: ignore
-                    PatientPractitionerAssignment.clinic_id == clinic.id,
-                    PatientPractitionerAssignment.is_active == True  # type: ignore
+                    PatientPractitionerAssignment.clinic_id == clinic.id
                 ).all()
                 for assignment in assignments:
                     assoc = db.query(UserClinicAssociation).filter(
-                        UserClinicAssociation.user_id == assignment.practitioner_id,  # type: ignore
+                        UserClinicAssociation.user_id == assignment.user_id,  # type: ignore
                         UserClinicAssociation.clinic_id == clinic.id,
                         UserClinicAssociation.is_active == True,
                         UserClinicAssociation.line_user_id.isnot(None)
