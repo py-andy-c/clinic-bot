@@ -662,56 +662,48 @@ const MedicalRecordMock = ({ scenario }: { scenario: number }) => {
   );
 };
 
-const AutomationFlowMock = ({ scenario }: { scenario: number }) => {
-  if (scenario === 0) {
-    return (
-      <div className="bg-white rounded-[2.5rem] shadow-[0_20px_50px_-12px_rgba(0,0,0,0.15)] p-10 border border-gray-100 max-w-[340px] mx-auto h-[480px] flex flex-col justify-center animate-in fade-in slide-in-from-bottom-4 duration-700">
-        <div className="py-2 space-y-12 relative flex flex-col justify-center h-full">
+const AutomationFlowMock = () => {
+  return (
+    <div className="flex flex-row items-center justify-center gap-3 sm:gap-6 lg:gap-10 py-4 w-full">
+      {/* Sequence Card */}
+      <div className="bg-white w-[165px] sm:w-48 lg:w-64 h-[250px] sm:h-[320px] lg:h-[400px] rounded-xl sm:rounded-2xl lg:rounded-[2rem] shadow-[0_10px_30px_-10px_rgba(0,0,0,0.1)] lg:shadow-[0_20px_50px_-15px_rgba(0,0,0,0.15)] border border-gray-100 p-3 sm:p-5 lg:p-4 flex flex-col justify-center shrink-0">
+        <div className="space-y-5 sm:space-y-8 lg:space-y-10 relative flex flex-col justify-center h-full pl-1 sm:pl-2">
           {[
-            { label: '療程結束', time: 'Trigger', color: 'bg-green-500', icon: '✅' },
-            { label: '術後關懷訊息', time: '24 小時後', color: 'bg-primary-500', icon: '📱' },
-            { label: '滿意度與衛教', time: '7 天後', color: 'bg-primary-400', icon: '📊' }
+            { label: '療程結束', time: '觸發', color: 'bg-green-500', icon: '✅' },
+            { label: '術後關懷', time: '24h 後', color: 'bg-primary-500', icon: '📱' },
+            { label: '滿意度', time: '7天 後', color: 'bg-primary-400', icon: '📊' }
           ].map((step, i, arr) => (
-            <div key={i} className="flex items-center gap-8 relative">
+            <div key={i} className="flex items-center gap-4 sm:gap-5 lg:gap-4 relative">
               <div className="relative flex-shrink-0">
-                <div className={`w-16 h-16 ${step.color} rounded-3xl shadow-lg shadow-gray-200/50 flex items-center justify-center text-3xl relative z-20`}>
+                <div className={`w-10 h-10 sm:w-12 sm:h-12 lg:w-16 lg:h-16 ${step.color} rounded-xl sm:rounded-2xl lg:rounded-3xl shadow-md lg:shadow-lg shadow-gray-200/50 flex items-center justify-center text-lg sm:text-xl lg:text-3xl relative z-20`}>
                   {step.icon}
                 </div>
                 {i < arr.length - 1 && (
-                  <div className="absolute top-16 left-8 w-0.5 h-12 bg-gray-100 z-10" />
+                  <div className="absolute top-10 sm:top-12 lg:top-16 left-5 sm:left-6 lg:left-8 w-1 sm:w-1.5 h-6 sm:h-8 lg:h-10 bg-gray-100 z-10 -translate-x-1/2" />
                 )}
               </div>
               <div className="relative z-20">
-                <p className="text-[13px] font-black text-primary-600 uppercase tracking-widest mb-1.5">{step.time}</p>
-                <p className="text-[22px] font-black text-gray-900 leading-tight">{step.label}</p>
+                <p className="text-[10px] sm:text-xs lg:text-sm font-black text-primary-600 uppercase tracking-wider mb-0.5 lg:mb-1">{step.time}</p>
+                <p className="text-sm sm:text-lg lg:text-2xl font-black text-gray-900 leading-tight">{step.label}</p>
               </div>
             </div>
           ))}
         </div>
       </div>
-    );
-  }
 
-  return (
-    <div className="bg-[#7494C0] rounded-[2.5rem] p-8 shadow-[0_30px_60px_-15px_rgba(0,0,0,0.3)] max-w-[340px] mx-auto h-[480px] flex flex-col justify-center animate-in fade-in slide-in-from-right-4 duration-700">
-      <div className="flex flex-col justify-center space-y-8">
-        {/* Date Label */}
-        <div className="text-center">
-          <span className="bg-black/10 text-white/80 text-xs px-4 py-1.5 rounded-full backdrop-blur-sm font-medium">2024年2月6日 14:00</span>
-        </div>
-
-        {/* Message Bubble */}
-        <div className="flex items-start gap-4">
-          <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-sm shadow-sm shrink-0 font-bold text-blue-600">診</div>
-          <div className="bg-white rounded-2xl rounded-tl-none p-6 shadow-xl border border-blue-50 relative">
-            <p className="text-[15px] text-gray-800 leading-relaxed">
-              <span className="font-bold">王大明 先生您好：</span><br />
-              感謝您今日來診，目前術後感覺如何呢？這裡為您準備了<span className="text-blue-600 font-bold underline">居家復健指引</span>，請參考影片進行練習：
+      {/* Message Preview (Phone Style) */}
+      <div className="bg-[#7494C0] w-[155px] sm:w-44 lg:w-56 h-[250px] sm:h-[320px] lg:h-[400px] rounded-[1.5rem] sm:rounded-[2rem] lg:rounded-[3rem] p-3 sm:p-4 lg:p-6 shadow-[10px_20px_40px_-10px_rgba(0,0,0,0.3)] lg:shadow-[20px_40px_60px_-15px_rgba(0,0,0,0.5)] flex flex-col justify-center shrink-0 border-4 border-gray-800/20">
+        <div className="flex flex-col justify-center h-full">
+          {/* Message Bubble - Simplified without avatar/time */}
+          <div className="bg-white rounded-2xl rounded-tl-none p-4 sm:p-5 lg:p-6 shadow-lg border border-blue-50 relative w-full">
+            <p className="text-xs sm:text-sm lg:text-base text-gray-800 leading-relaxed mb-3">
+              <span className="font-bold text-sm sm:text-base lg:text-lg block mb-1">王先生您好：</span>
+              術後感覺如何呢？請參考復健指引影片，有任何問題請聯繫診所！
             </p>
-            <div className="mt-5 aspect-video bg-gray-100 rounded-xl overflow-hidden relative group cursor-pointer border border-gray-100 shadow-inner">
+            <div className="aspect-video bg-gray-100 rounded-lg overflow-hidden relative group cursor-pointer border border-gray-100 shadow-inner">
               <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-12 h-12 bg-black/40 rounded-full flex items-center justify-center text-white backdrop-blur-sm group-hover:bg-primary-600/80 transition-colors pl-1">
-                  <svg className="w-6 h-6 fill-current" viewBox="0 0 24 24">
+                <div className="w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12 bg-black/40 rounded-full flex items-center justify-center text-white backdrop-blur-sm pl-0.5">
+                  <svg className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 fill-current" viewBox="0 0 24 24">
                     <path d="M8 5v14l11-7z" />
                   </svg>
                 </div>
@@ -727,7 +719,7 @@ const AutomationFlowMock = ({ scenario }: { scenario: number }) => {
 const DigitalReceiptMock = () => (
   <div className="flex flex-row items-center justify-center gap-3 sm:gap-6 lg:gap-10 py-4 w-full">
     {/* Physical Receipt Card */}
-    <div className="bg-white w-[165px] sm:w-48 lg:w-64 h-[250px] sm:h-[320px] lg:h-[400px] rounded-xl sm:rounded-2xl lg:rounded-[2rem] shadow-[0_10px_30px_-10px_rgba(0,0,0,0.1)] lg:shadow-[0_20px_50px_-15px_rgba(0,0,0,0.15)] border border-gray-100 p-4 sm:p-6 lg:p-8 lg:pb-12 space-y-4 sm:space-y-4 lg:space-y-6 transform lg:-rotate-2 hover:rotate-0 transition-transform duration-500 shrink-0">
+    <div className="bg-white w-[165px] sm:w-48 lg:w-64 h-[250px] sm:h-[320px] lg:h-[400px] rounded-xl sm:rounded-2xl lg:rounded-[2rem] shadow-[0_10px_30px_-10px_rgba(0,0,0,0.1)] lg:shadow-[0_20px_50px_-15px_rgba(0,0,0,0.15)] border border-gray-100 p-4 sm:p-6 lg:p-8 lg:pb-12 space-y-4 sm:space-y-4 lg:space-y-6 shrink-0">
       <div className="text-center text-lg sm:text-2xl lg:text-4xl border-b sm:border-b-2 border-gray-100 pb-2 lg:pb-4 text-gray-900 tracking-tight font-medium">收據</div>
       <div className="space-y-2 lg:space-y-4 text-xs sm:text-base lg:text-lg">
         <div className="flex justify-between text-gray-600 font-medium"><span>治療費</span><span className="text-gray-900 font-medium">$1,200</span></div>
@@ -979,7 +971,6 @@ const LandingPage: React.FC = () => {
   const [activeLineFeature, setActiveLineFeature] = React.useState(0);
   const [activeSchedulingFeature, setActiveSchedulingFeature] = React.useState(0);
   const [activeMedicalFeature, setActiveMedicalFeature] = React.useState(0);
-  const [activeCareFeature, setActiveCareFeature] = React.useState(0);
   const [isPaused, setIsPaused] = React.useState(false);
 
   React.useEffect(() => {
@@ -988,7 +979,6 @@ const LandingPage: React.FC = () => {
       setActiveLineFeature((prev) => (prev + 1) % 3);
       setActiveSchedulingFeature((prev) => (prev + 1) % 3);
       setActiveMedicalFeature((prev) => (prev + 1) % 3);
-      setActiveCareFeature((prev) => (prev + 1) % 2);
     }, 5000);
     return () => clearInterval(interval);
   }, [isPaused]);
@@ -1092,10 +1082,7 @@ const LandingPage: React.FC = () => {
           ]}
           imageSide="left"
           bgColor="bg-gray-50"
-          activeIndex={activeCareFeature}
-          onHoverFeature={(index) => handleHover(index, setActiveCareFeature)}
-          onLeaveFeature={() => setIsPaused(false)}
-          mockup={<AutomationFlowMock scenario={activeCareFeature} />}
+          mockup={<AutomationFlowMock />}
         />
 
         {/* Section 5: 數位收據與結帳 */}
