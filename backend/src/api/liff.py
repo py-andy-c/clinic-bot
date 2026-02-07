@@ -2280,17 +2280,7 @@ async def upload_patient_form_photo(
         
     # Count current photos (both pending and committed) linked to this request or its record
     photo_service = PatientPhotoService()
-    current_count = photo_service.count_patient_form_photos(
-        db=db,
-        clinic_id=clinic.id,
-        patient_id=request.patient_id,
-        patient_form_request_id=request.id,
-        medical_record_id=request.medical_record_id
-    )
-        
-    if current_count >= max_photos:
-        raise HTTPException(status_code=400, detail=f"已達到照片數量上限 ({max_photos} 張)")
-
+    
     try:
         photo = photo_service.upload_photo(
             db=db,
@@ -2300,10 +2290,25 @@ async def upload_patient_form_photo(
             uploaded_by_patient_id=request.patient_id,
             patient_form_request_id=request.id,
             description=description,
-            is_pending=True  # Always pending until form is submitted
+            is_pending=True,  # Always pending until form is submitted
+            commit=False
         )
         
+        # Re-check photo limit after upload (to prevent race conditions)
+        # We use db.flush() inside upload_photo(commit=False) to ensure the photo is in the session
+        current_count = photo_service.count_patient_form_photos(
+            db=db,
+            clinic_id=clinic.id,
+            patient_id=request.patient_id,
+            patient_form_request_id=request.id,
+            medical_record_id=request.medical_record_id
+        )
+        
+        if current_count > max_photos:
+            raise HTTPException(status_code=400, detail=f"已達到照片數量上限 ({max_photos} 張)")
+
         db.commit()
+        db.refresh(photo)
         
         return PatientFormPhotoResponse(
             id=photo.id,
@@ -2312,6 +2317,8 @@ async def upload_patient_form_photo(
         )
     except Exception as e:
         db.rollback()
+        if isinstance(e, HTTPException):
+            raise e
         logger.exception(f"Error uploading patient form photo: {e}")
         raise HTTPException(status_code=500, detail="上傳照片失敗")
 

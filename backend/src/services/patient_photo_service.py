@@ -97,7 +97,8 @@ class PatientPhotoService:
         description: Optional[str] = None,
         medical_record_id: Optional[int] = None,
         patient_form_request_id: Optional[int] = None,
-        is_pending: Optional[bool] = None
+        is_pending: Optional[bool] = None,
+        commit: bool = True
     ) -> PatientPhoto:
         original_content = file.file.read()
         content_hash = self._calculate_content_hash(original_content)
@@ -143,8 +144,11 @@ class PatientPhotoService:
             )
             
             db.add(photo)
-            db.commit()
-            db.refresh(photo)
+            if commit:
+                db.commit()
+                db.refresh(photo)
+            else:
+                db.flush()
             return photo
 
         # Process Image (Compress/Resize)
@@ -193,8 +197,11 @@ class PatientPhotoService:
         )
         
         db.add(photo)
-        db.commit()
-        db.refresh(photo)
+        if commit:
+            db.commit()
+            db.refresh(photo)
+        else:
+            db.flush()
         return photo
 
     def update_photo(

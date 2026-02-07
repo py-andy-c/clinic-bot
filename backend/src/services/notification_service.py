@@ -1291,15 +1291,18 @@ class NotificationService:
                     PatientPractitionerAssignment.patient_id == request.patient_id,  # type: ignore
                     PatientPractitionerAssignment.clinic_id == clinic.id
                 ).all()
-                for assignment in assignments:
-                    assoc = db.query(UserClinicAssociation).filter(
-                        UserClinicAssociation.user_id == assignment.user_id,  # type: ignore
-                        UserClinicAssociation.clinic_id == clinic.id,
-                        UserClinicAssociation.is_active == True,
-                        UserClinicAssociation.line_user_id.isnot(None)
-                    ).first()
-                    if assoc:
-                        recipients[assoc.user_id] = assoc  # type: ignore
+                
+                if assignments:
+                    user_ids = [a.user_id for a in assignments if a.user_id]
+                    if user_ids:
+                        assocs = db.query(UserClinicAssociation).filter(
+                            UserClinicAssociation.user_id.in_(user_ids),
+                            UserClinicAssociation.clinic_id == clinic.id,
+                            UserClinicAssociation.is_active == True,
+                            UserClinicAssociation.line_user_id.isnot(None)
+                        ).all()
+                        for assoc in assocs:
+                            recipients[assoc.user_id] = assoc  # type: ignore
 
             if not recipients:
                 return False
