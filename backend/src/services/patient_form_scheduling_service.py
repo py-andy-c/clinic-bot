@@ -65,8 +65,12 @@ class PatientFormSchedulingService:
             
             # Auto-adjust if time is in past (for days_after=0 case)
             if scheduled_time < base_time:
-                # Move to next day at same time
-                scheduled_time = scheduled_time + timedelta(days=1)
+                if days_after == 0:
+                    # If same day and time passed, send immediately (base_time)
+                    return base_time
+                else:
+                    # Move to next day at same time
+                    scheduled_time = scheduled_time + timedelta(days=1)
             
             return scheduled_time
         

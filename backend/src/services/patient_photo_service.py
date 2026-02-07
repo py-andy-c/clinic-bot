@@ -93,6 +93,7 @@ class PatientPhotoService:
         patient_id: int,
         file: UploadFile,
         uploaded_by_user_id: Optional[int] = None,
+        uploaded_by_patient_id: Optional[int] = None,
         description: Optional[str] = None,
         medical_record_id: Optional[int] = None,
         is_pending: Optional[bool] = None
@@ -114,81 +115,6 @@ class PatientPhotoService:
             PatientPhoto.is_deleted == False
         ).first()
 
-        # Determine pending state: Pending if linked to record is deferred (wait, if medical_record_id is provided, it's NOT pending?
-        # Re-reading requirement: "If medical_record_id is provided: The photo is created with is_pending = true (Staged). It only becomes 'Active' when the record is saved."
-        # "If medical_record_id is NOT provided: The photo is created with is_pending = false (Active immediately in Gallery)."
-        
-        # Wait, if I provide medical_record_id, does it mean I am uploading it *into* a record form? 
-        # Yes. And it stays pending until the record is saved? 
-        # But if I pass medical_record_id, isn't the record already saved (or at least created)? 
-        # Ah, usually "Staged" means "I am creating a record, here is a photo I *want* to attach, but I haven't clicked 'Save Record' yet".
-        # But if I haven't clicked Save Record, I don't have a record ID yet!
-        # So `medical_record_id` would be None in the upload? 
-        # Or does the frontend send `medical_record_id` if it's adding to an *existing* record?
-        
-        # Let's check the design doc text again from the review:
-        # "If medical_record_id is provided: The photo is created with is_pending = true (Staged). It only becomes 'Active' when the record is saved."
-        # This implies `medical_record_id` might be passed? Or maybe they mean "uploaded in the context of creating a record".
-        # But if record doesn't exist, I can't pass ID.
-        # Maybe the review meant "uploaded with the INTENT of being in a record".
-        # But `POST /clinic/patients/:patientId/photos` has `medical_record_id?`.
-        
-        # Let's interpret strictly:
-        # 1. Upload to Gallery (Standalone): medical_record_id=None -> is_pending=False (Active).
-        # 2. Upload to New Record Form: medical_record_id=None (record doesn't exist) -> But I want it to be pending.
-        #    How do I distinguish "Gallery Upload" from "New Record Upload"?
-        #    The API design seems to rely on "If medical_record_id is NOT provided: Active".
-        #    This is dangerous for "New Record Upload". 
-        #    Maybe the frontend should not pass medical_record_id, but we need a flag?
-        #    Or maybe for New Record, the frontend uploads, gets ID, and sends it in `create_record(photo_ids=...)`.
-        #    If so, those photos should be PENDING until `create_record` claims them.
-        #    So default should be PENDING?
-        #    Review says: "Direct Gallery Uploads... should be is_pending=False".
-        #    So we need a way to say "This is a gallery upload".
-        #    Maybe a query param `is_gallery_upload=true`? Or just assume if medical_record_id is None AND it's not a specific "stage" endpoint...
-        
-        # Let's look at the feedback again.
-        # "If medical_record_id is NOT provided: The photo is created with is_pending = false (Active immediately in Gallery)."
-        # "If medical_record_id is provided: The photo is created with is_pending = true (Staged)." -> This seems backwards or implies adding to *existing* record?
-        # If I add to existing record, I want it active immediately usually? Or maybe I want to "Save" the edit.
-        
-        # Actually, let's look at the `create_record` flow. It takes `photo_ids`.
-        # Those photos must exist before `create_record` is called.
-        # So they are uploaded first. At that point `medical_record_id` is None.
-        # If default is `is_pending=False`, then they show up in gallery immediately.
-        # If user cancels creation, they stay in gallery. This might be "Okay" but maybe not ideal (orphaned).
-        # But if default is `is_pending=True`, they are hidden.
-        # Then `create_record` claims them and sets `is_pending=False`.
-        # This works for "New Record".
-        
-        # What about "Gallery Upload"?
-        # User goes to Gallery -> Click Upload.
-        # These should be `is_pending=False`.
-        # So we need a flag. `is_visible`? or `context="gallery"`?
-        # The review suggested: "If medical_record_id is NOT provided: The photo is created with is_pending = false".
-        # BUT that breaks the "New Record" flow (where we want them pending).
-        
-        # Wait, the review 2 says: "Current implementation... always sets is_pending=True... This means standalone gallery uploads will remain in a 'pending' state indefinitely."
-        # This implies the reviewer wants `is_pending=False` when I just upload.
-        # But then how do we handle "New Record" uploads?
-        # Maybe the "New Record" uploads *should* be visible in gallery immediately?
-        # Or maybe the reviewer missed the "New Record" flow nuance.
-        
-        # Let's compromise:
-        # I'll add an explicit `is_pending` parameter to `upload_photo`, defaulting to `False` (Active).
-        # Frontend can set it to `True` if it's uploading for a "New Record" form.
-        # BUT, the review explicitly said: "If medical_record_id is NOT provided: The photo is created with is_pending = false".
-        # This suggests the default behavior for "no record ID" is "Active".
-        # So for "New Record", the frontend might need to do something else?
-        # OR, maybe I should just stick to the Reviewer's explicit instruction.
-        # "If medical_record_id is provided: is_pending = true. If not provided: is_pending = false."
-        # This means for "New Record" (where ID is None), they are Active immediately.
-        # Is that bad? They show up in gallery before record is saved.
-        # If user cancels, they stay.
-        # Maybe that's the intended design for simplicity?
-        # "Patient-Centric": Photos belong to patient. Even if not linked to a record, they are valuable?
-        
-        # Okay, I will follow the Reviewer's logic exactly to satisfy the "Approval".
         # Determine pending state
         if is_pending is None:
             is_pending = True if medical_record_id else False
@@ -210,7 +136,8 @@ class PatientPhotoService:
                 size_bytes=len(original_content), # Storing original size for record keeping
                 description=description,
                 is_pending=is_pending,
-                uploaded_by_user_id=uploaded_by_user_id
+                uploaded_by_user_id=uploaded_by_user_id,
+                uploaded_by_patient_id=uploaded_by_patient_id
             )
             
             db.add(photo)
@@ -258,7 +185,8 @@ class PatientPhotoService:
             size_bytes=len(processed_content), # Stored size
             description=description,
             is_pending=is_pending,
-            uploaded_by_user_id=uploaded_by_user_id
+            uploaded_by_user_id=uploaded_by_user_id,
+            uploaded_by_patient_id=uploaded_by_patient_id
         )
         
         db.add(photo)

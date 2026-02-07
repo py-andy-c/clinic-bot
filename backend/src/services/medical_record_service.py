@@ -315,8 +315,10 @@ class MedicalRecordService:
 
         record.version += 1
         record.updated_by_user_id = updated_by_user_id
-        record.last_updated_by_user_id = updated_by_user_id
-        record.last_updated_by_patient_id = last_updated_by_patient_id
+        if updated_by_user_id is not None:
+            record.last_updated_by_user_id = updated_by_user_id
+        if last_updated_by_patient_id is not None:
+            record.last_updated_by_patient_id = last_updated_by_patient_id
         record.updated_at = datetime.now(timezone.utc)
         
         db.commit()

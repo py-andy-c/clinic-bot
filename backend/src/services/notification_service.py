@@ -1247,7 +1247,10 @@ class NotificationService:
                     formatted_time = format_datetime(start_datetime)
                     message += f"預約：{formatted_time}\n"
 
-            message += f"\n請至後台查看詳情。"
+            # Add link to admin panel
+            from core.config import FRONTEND_URL
+            admin_url = f"{FRONTEND_URL}/clinic/patients/{request.patient_id}/forms"
+            message += f"\n查看詳情：{admin_url}"
 
             # Collect recipients
             from models.user_clinic_association import UserClinicAssociation

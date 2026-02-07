@@ -2306,7 +2306,7 @@ async def upload_patient_form_photo(
         PatientPhoto.clinic_id == clinic.id,  # type: ignore
         PatientPhoto.patient_id == line_user.patient_id,  # type: ignore
         PatientPhoto.is_deleted == False,
-        PatientPhoto.uploaded_by_user_id.is_(None) # Only count photos uploaded by patients
+        PatientPhoto.uploaded_by_patient_id.isnot(None) # Only count photos uploaded by patients
     )
     
     if request.medical_record_id:  # type: ignore

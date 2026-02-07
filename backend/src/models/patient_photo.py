@@ -38,13 +38,15 @@ class PatientPhoto(Base):
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default='now()')
     updated_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP(timezone=True), nullable=True, onupdate=lambda: datetime.now(timezone.utc))
     uploaded_by_user_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("users.id"), nullable=True)
+    uploaded_by_patient_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("patients.id"), nullable=True)
     updated_by_user_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("users.id"), nullable=True)
 
     # Relationships
     clinic = relationship("Clinic")
-    patient = relationship("Patient")
+    patient = relationship("Patient", foreign_keys=[patient_id])
     medical_record = relationship("MedicalRecord", back_populates="photos")
     uploaded_by_user = relationship("User", foreign_keys=[uploaded_by_user_id])
+    uploaded_by_patient = relationship("Patient", foreign_keys=[uploaded_by_patient_id])
     updated_by_user = relationship("User", foreign_keys=[updated_by_user_id])
 
     __table_args__ = (
