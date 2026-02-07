@@ -2284,7 +2284,19 @@ async def upload_patient_form_photo(
     # Count current photos (both pending and committed) linked to this request or its record
     photo_service = PatientPhotoService()
     
+    # 1. Pre-upload check (to avoid unnecessary S3 uploads)
+    current_count_pre = photo_service.count_patient_form_photos(
+        db=db,
+        clinic_id=clinic.id,
+        patient_id=request.patient_id,
+        patient_form_request_id=request.id,
+        medical_record_id=request.medical_record_id
+    )
+    if current_count_pre >= max_photos:
+        raise HTTPException(status_code=400, detail=f"已達到照片數量上限 ({max_photos} 張)")
+
     try:
+        # 2. Upload photo (staged in session)
         photo = photo_service.upload_photo(
             db=db,
             clinic_id=clinic.id,

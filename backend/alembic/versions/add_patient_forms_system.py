@@ -120,19 +120,37 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
+    tables = inspector.get_table_names()
+
     # 1. Drop patient_form_requests
-    op.drop_table('patient_form_requests')
+    if 'patient_form_requests' in tables:
+        op.drop_table('patient_form_requests')
     
     # 2. Drop patient_form_settings
-    op.drop_table('patient_form_settings')
+    if 'patient_form_settings' in tables:
+        op.drop_table('patient_form_settings')
     
     # 3. Revert medical_record_templates
-    op.drop_index('idx_medical_record_templates_type', table_name='medical_record_templates')
-    op.drop_column('medical_record_templates', 'max_photos')
-    op.drop_column('medical_record_templates', 'template_type')
+    if 'medical_record_templates' in tables:
+        columns = [c['name'] for c in inspector.get_columns('medical_record_templates')]
+        indexes = [idx['name'] for idx in inspector.get_indexes('medical_record_templates')]
+        if 'idx_medical_record_templates_type' in indexes:
+            op.drop_index('idx_medical_record_templates_type', table_name='medical_record_templates')
+        if 'max_photos' in columns:
+            op.drop_column('medical_record_templates', 'max_photos')
+        if 'template_type' in columns:
+            op.drop_column('medical_record_templates', 'template_type')
     
     # 4. Revert medical_records
-    op.drop_column('medical_records', 'patient_form_request_id')
-    op.drop_column('medical_records', 'last_updated_by_patient_id')
-    op.drop_column('medical_records', 'last_updated_by_user_id')
-    op.drop_column('medical_records', 'source_type')
+    if 'medical_records' in tables:
+        columns = [c['name'] for c in inspector.get_columns('medical_records')]
+        if 'patient_form_request_id' in columns:
+            op.drop_column('medical_records', 'patient_form_request_id')
+        if 'last_updated_by_patient_id' in columns:
+            op.drop_column('medical_records', 'last_updated_by_patient_id')
+        if 'last_updated_by_user_id' in columns:
+            op.drop_column('medical_records', 'last_updated_by_user_id')
+        if 'source_type' in columns:
+            op.drop_column('medical_records', 'source_type')

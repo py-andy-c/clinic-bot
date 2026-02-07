@@ -1391,6 +1391,13 @@ def _sync_service_item_associations(
     q_pfs.delete(synchronize_session='fetch')
     
     for pfs_data in associations.patient_form_settings:
+        # Validate message template
+        if "{表單連結}" not in pfs_data.message_template:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="病患表單訊息範本必須包含 {表單連結}"
+            )
+
         if pfs_data.id:
             pfs = db.query(PatientFormSetting).filter(
                 PatientFormSetting.id == pfs_data.id,
