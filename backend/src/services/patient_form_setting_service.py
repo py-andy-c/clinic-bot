@@ -5,6 +5,7 @@ from fastapi import HTTPException
 
 from models.patient_form_setting import PatientFormSetting
 from models.medical_record_template import MedicalRecordTemplate
+from core.constants import PATIENT_FORM_TEMPLATE_TYPE
 
 class PatientFormSettingService:
     @staticmethod
@@ -46,7 +47,7 @@ class PatientFormSettingService:
         template = db.query(MedicalRecordTemplate).filter(
             MedicalRecordTemplate.id == template_id,
             MedicalRecordTemplate.clinic_id == clinic_id,
-            MedicalRecordTemplate.template_type == 'patient_form',
+            MedicalRecordTemplate.template_type == PATIENT_FORM_TEMPLATE_TYPE,
             MedicalRecordTemplate.is_deleted == False
         ).first()
         if not template:
@@ -109,7 +110,7 @@ class PatientFormSettingService:
             template = db.query(MedicalRecordTemplate).filter(
                 MedicalRecordTemplate.id == kwargs["template_id"],  # type: ignore
                 MedicalRecordTemplate.clinic_id == clinic_id,
-                MedicalRecordTemplate.template_type == 'patient_form',
+                MedicalRecordTemplate.template_type == PATIENT_FORM_TEMPLATE_TYPE,
                 MedicalRecordTemplate.is_deleted == False
             ).first()
             if not template:

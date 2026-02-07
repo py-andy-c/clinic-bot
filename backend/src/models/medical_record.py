@@ -9,6 +9,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from core.database import Base
+from core.constants import CLINIC_SOURCE_TYPE
 
 if TYPE_CHECKING:
     from models.patient_photo import PatientPhoto
@@ -34,7 +35,7 @@ class MedicalRecord(Base):
     # Actual values for the record
     values: Mapped[Dict[str, Any]] = mapped_column(JSONB, nullable=False)
     
-    source_type: Mapped[str] = mapped_column(String(20), server_default='clinic', nullable=False)
+    source_type: Mapped[str] = mapped_column(String(20), server_default=CLINIC_SOURCE_TYPE, nullable=False)
     last_updated_by_user_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("users.id"), nullable=True)
     last_updated_by_patient_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("patients.id"), nullable=True)
     patient_form_request_id: Mapped[Optional[int]] = mapped_column(

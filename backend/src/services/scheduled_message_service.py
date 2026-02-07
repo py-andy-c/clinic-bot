@@ -22,6 +22,11 @@ from models.line_user import LineUser  # type: ignore
 from services.message_template_service import MessageTemplateService
 from services.line_service import LINEService
 from services.patient_form_request_service import PatientFormRequestService  # type: ignore
+from core.constants import (
+    PATIENT_FORM_MESSAGE_TYPE,
+    PATIENT_FORM_STATUS_PENDING,
+    PATIENT_FORM_SOURCE_AUTO
+)
 from utils.datetime_utils import taiwan_now
 from utils.practitioner_helpers import get_practitioner_display_name_with_title
 from sqlalchemy import cast, String  # type: ignore
@@ -59,7 +64,7 @@ class ScheduledMessageService:
             base_labels['event_type'] = 'appointment_reminder'
         elif message_type == 'follow_up':
             base_labels['event_type'] = 'appointment_follow_up'
-        elif message_type == 'patient_form':
+        elif message_type == PATIENT_FORM_MESSAGE_TYPE:
             base_labels['event_type'] = 'patient_form_request'
         elif message_type == 'practitioner_daily':
             base_labels['event_type'] = 'practitioner_daily_notification'
@@ -131,7 +136,7 @@ class ScheduledMessageService:
             
             return True
         
-        elif scheduled.message_type == 'patient_form':
+        elif scheduled.message_type == PATIENT_FORM_MESSAGE_TYPE:
             # For patient form messages, check appointment (if linked)
             appointment_id = scheduled.message_context.get('appointment_id')  # type: ignore
             if appointment_id:
@@ -301,7 +306,7 @@ class ScheduledMessageService:
             
             return context
 
-        elif scheduled.message_type == 'patient_form':
+        elif scheduled.message_type == PATIENT_FORM_MESSAGE_TYPE:
             # Build context for patient form request
             from services.patient_form_request_service import PatientFormRequestService
             from models.patient import Patient
@@ -367,7 +372,7 @@ class ScheduledMessageService:
                 clinic_id=scheduled.clinic_id,  # type: ignore
                 patient_id=patient.id,  # type: ignore
                 template_id=template_id,  # type: ignore
-                request_source='auto',
+                request_source=PATIENT_FORM_SOURCE_AUTO,
                 appointment_id=appointment_id,  # type: ignore
                 patient_form_setting_id=patient_form_setting_id,  # type: ignore
                 notify_admin=notify_admin,
@@ -543,7 +548,7 @@ class ScheduledMessageService:
         while True:
             # Use SELECT FOR UPDATE SKIP LOCKED for concurrent scheduler support
             pending = db.query(ScheduledLineMessage).filter(
-                ScheduledLineMessage.status == 'pending',
+                ScheduledLineMessage.status == PATIENT_FORM_STATUS_PENDING,
                 ScheduledLineMessage.scheduled_send_time <= current_time
             ).with_for_update(skip_locked=True).limit(batch_size).all()
             
@@ -600,7 +605,7 @@ class ScheduledMessageService:
                     )
                     
                     # Special handling for patient form to use Flex Message with button
-                    if scheduled.message_type == 'patient_form' and '{表單連結}' in scheduled.message_template:  # type: ignore
+                    if scheduled.message_type == PATIENT_FORM_MESSAGE_TYPE and '{表單連結}' in scheduled.message_template:  # type: ignore
                         # Extract button text and URL from context
                         button_text = scheduled.message_context.get('flex_button_text', '填寫表單')  # type: ignore
                         form_url = context.get('表單連結')
@@ -661,7 +666,7 @@ class ScheduledMessageService:
                     if scheduled.retry_count < scheduled.max_retries:  # type: ignore
                         backoff_hours = 2 ** (scheduled.retry_count - 1)  # type: ignore
                         scheduled.scheduled_send_time = taiwan_now() + timedelta(hours=backoff_hours)  # type: ignore
-                        scheduled.status = 'pending'  # type: ignore
+                        scheduled.status = PATIENT_FORM_STATUS_PENDING  # type: ignore
                         logger.info(
                             f"Rescheduled message {scheduled.id} for retry {scheduled.retry_count}/"  # type: ignore
                             f"{scheduled.max_retries} at {scheduled.scheduled_send_time}"  # type: ignore

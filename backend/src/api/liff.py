@@ -25,6 +25,9 @@ from core.constants import (
     MAX_TIME_WINDOWS_PER_NOTIFICATION,
     MAX_NOTIFICATIONS_PER_USER,
     NOTIFICATION_DATE_RANGE_DAYS,
+    PATIENT_FORM_STATUS_PENDING,
+    PATIENT_FORM_STATUS_SUBMITTED,
+    PATIENT_FORM_SOURCE_TYPE
 )
 from models.line_user import LineUser
 from models.clinic import Clinic
@@ -2145,7 +2148,7 @@ async def submit_patient_form(
     if request.patient_id not in patient_ids:
         raise HTTPException(status_code=403, detail="您沒有權限提交此表單")
 
-    if request.status == 'submitted':
+    if request.status == PATIENT_FORM_STATUS_SUBMITTED:
         raise HTTPException(status_code=400, detail="表單已提交，請使用更新介面")
 
     try:
@@ -2161,7 +2164,7 @@ async def submit_patient_form(
             values=payload.values,
             photo_ids=payload.photo_ids,
             appointment_id=request.appointment_id,
-            source_type='patient',
+            source_type=PATIENT_FORM_SOURCE_TYPE,
             last_updated_by_patient_id=request.patient_id,
             patient_form_request_id=request.id
         )
@@ -2171,7 +2174,7 @@ async def submit_patient_form(
             db=db,
             request_id=request.id,
             clinic_id=clinic.id,
-            status='submitted',
+            status=PATIENT_FORM_STATUS_SUBMITTED,
             medical_record_id=record.id
         )
         

@@ -7,6 +7,12 @@ from fastapi import HTTPException
 from models.patient_form_request import PatientFormRequest
 from models.medical_record_template import MedicalRecordTemplate
 from models.patient import Patient
+from core.constants import (
+    PATIENT_FORM_STATUS_PENDING,
+    PATIENT_FORM_STATUS_SUBMITTED,
+    PATIENT_FORM_SOURCE_AUTO,
+    PATIENT_FORM_TEMPLATE_TYPE
+)
 
 class PatientFormRequestService:
     @staticmethod
@@ -21,10 +27,10 @@ class PatientFormRequestService:
         notify_admin: bool = False,
         notify_appointment_practitioner: bool = False,
         notify_assigned_practitioner: bool = False,
-        status: str = 'pending'
+        status: str = PATIENT_FORM_STATUS_PENDING
     ) -> PatientFormRequest:
         # For 'auto' requests, check if a pending request already exists to ensure idempotency
-        if request_source == 'auto' and appointment_id and patient_form_setting_id:
+        if request_source == PATIENT_FORM_SOURCE_AUTO and appointment_id and patient_form_setting_id:
             existing = db.query(PatientFormRequest).filter(
                 PatientFormRequest.appointment_id == appointment_id,
                 PatientFormRequest.patient_form_setting_id == patient_form_setting_id,
@@ -42,7 +48,7 @@ class PatientFormRequestService:
         template = db.query(MedicalRecordTemplate).filter(
             MedicalRecordTemplate.id == template_id,
             MedicalRecordTemplate.clinic_id == clinic_id,
-            MedicalRecordTemplate.template_type == 'patient_form',
+            MedicalRecordTemplate.template_type == PATIENT_FORM_TEMPLATE_TYPE,
             MedicalRecordTemplate.is_deleted == False
         ).first()
         if not template:
@@ -129,7 +135,7 @@ class PatientFormRequestService:
             raise HTTPException(status_code=404, detail="Request not found")
 
         request.status = status
-        if status == 'submitted':
+        if status == PATIENT_FORM_STATUS_SUBMITTED:
             request.submitted_at = datetime.now(timezone.utc)
             if medical_record_id:
                 request.medical_record_id = medical_record_id

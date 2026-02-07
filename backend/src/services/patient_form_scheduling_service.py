@@ -9,6 +9,12 @@ from sqlalchemy.orm import Session
 from sqlalchemy import cast, String
 
 from models import Appointment, ScheduledLineMessage, PatientFormSetting
+from core.constants import (
+    PATIENT_FORM_MESSAGE_TYPE,
+    PATIENT_FORM_STATUS_PENDING,
+    PATIENT_FORM_STATUS_SKIPPED,
+    PATIENT_FORM_SOURCE_AUTO
+)
 from utils.datetime_utils import taiwan_now, ensure_taiwan
 
 logger = logging.getLogger(__name__)
@@ -111,13 +117,13 @@ class PatientFormSchedulingService:
                         clinic_id=appointment.patient.clinic_id,  # type: ignore
                         patient_id=patient.id,  # type: ignore
                         template_id=setting.template_id,  # type: ignore
-                        request_source='auto',
+                        request_source=PATIENT_FORM_SOURCE_AUTO,
                         appointment_id=appointment.calendar_event_id,  # type: ignore
                         patient_form_setting_id=setting.id,  # type: ignore
                         notify_admin=setting.notify_admin,  # type: ignore
                         notify_appointment_practitioner=setting.notify_appointment_practitioner,  # type: ignore
                         notify_assigned_practitioner=setting.notify_assigned_practitioner,  # type: ignore
-                        status='skipped' # Explicitly mark as skipped
+                        status=PATIENT_FORM_STATUS_SKIPPED # Explicitly mark as skipped
                     )
                 except Exception as e:
                     logger.warning(f"Failed to create skipped request for patient {patient.id}: {e}") # type: ignore
@@ -171,7 +177,7 @@ class PatientFormSchedulingService:
                     recipient_type='patient',
                     recipient_line_user_id=line_user.line_user_id,  # type: ignore
                     clinic_id=appointment.patient.clinic_id,  # type: ignore
-                    message_type='patient_form',
+                    message_type=PATIENT_FORM_MESSAGE_TYPE,
                     message_template=setting.message_template,  # type: ignore
                     message_context={
                         'appointment_id': appointment.calendar_event_id,  # type: ignore
@@ -180,7 +186,7 @@ class PatientFormSchedulingService:
                         'flex_button_text': setting.flex_button_text  # type: ignore
                     },
                     scheduled_send_time=scheduled_time,
-                    status='pending'
+                    status=PATIENT_FORM_STATUS_PENDING
                 )
                 db.add(scheduled)
             except Exception as e:
@@ -196,11 +202,11 @@ class PatientFormSchedulingService:
     def cancel_pending_patient_forms(db: Session, appointment_id: int) -> None:
         """Cancel all pending patient forms for an appointment."""
         updated = db.query(ScheduledLineMessage).filter(
-            ScheduledLineMessage.message_type == 'patient_form',  # type: ignore
+            ScheduledLineMessage.message_type == PATIENT_FORM_MESSAGE_TYPE,  # type: ignore
             ScheduledLineMessage.status == 'pending',  # type: ignore
             cast(ScheduledLineMessage.message_context['appointment_id'].astext, String) == str(appointment_id)  # type: ignore
         ).update(
-            {'status': 'skipped'},
+            {'status': PATIENT_FORM_STATUS_SKIPPED},
             synchronize_session=False
         )
         

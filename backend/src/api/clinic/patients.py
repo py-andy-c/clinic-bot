@@ -42,6 +42,12 @@ from api.responses import (
 from typing import Any, Dict, List, Optional, Union, TYPE_CHECKING
 
 from sqlalchemy.orm import Session
+from core.constants import (
+    PATIENT_FORM_TEMPLATE_TYPE,
+    PATIENT_FORM_SOURCE_MANUAL,
+    PATIENT_FORM_STATUS_PENDING,
+    PATIENT_FORM_SOURCE_TYPE
+)
 from auth.dependencies import UserContext
 
 if TYPE_CHECKING:
@@ -757,7 +763,7 @@ async def create_patient_form_request(
     if not template:
         raise HTTPException(status_code=404, detail="找不到表單範本")
     
-    if template.template_type != 'patient_form':
+    if template.template_type != PATIENT_FORM_TEMPLATE_TYPE:
         raise HTTPException(status_code=400, detail="所選範本不是病患表單類型")
 
     # Validate appointment belongs to patient
@@ -776,7 +782,7 @@ async def create_patient_form_request(
         clinic_id=clinic_id,
         patient_id=patient_id,
         template_id=payload.template_id,
-        request_source='manual',
+        request_source=PATIENT_FORM_SOURCE_MANUAL,
         appointment_id=payload.appointment_id,
         notify_admin=payload.notify_admin,
         notify_appointment_practitioner=payload.notify_appointment_practitioner,
@@ -817,7 +823,7 @@ async def create_patient_form_request(
     # Use Flex Message with button
     line_service = LINEService(clinic.line_channel_secret, clinic.line_channel_access_token)
     labels = {
-        'recipient_type': 'patient',
+        'recipient_type': PATIENT_FORM_SOURCE_TYPE,
         'event_type': 'patient_form_request',
         'trigger_source': 'clinic_triggered'
     }

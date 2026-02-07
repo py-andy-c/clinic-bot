@@ -14,6 +14,10 @@ from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 
 from models import Appointment, ScheduledLineMessage, Clinic, CalendarEvent
+from core.constants import (
+    PATIENT_FORM_STATUS_PENDING,
+    PATIENT_FORM_STATUS_SKIPPED
+)
 from utils.datetime_utils import taiwan_now, ensure_taiwan
 
 logger = logging.getLogger(__name__)
@@ -143,7 +147,7 @@ class ReminderSchedulingService:
         # Check if reminder already scheduled (avoid duplicates)
         existing = db.query(ScheduledLineMessage).filter(
             ScheduledLineMessage.message_type == 'appointment_reminder',
-            ScheduledLineMessage.status == 'pending',
+            ScheduledLineMessage.status == PATIENT_FORM_STATUS_PENDING,
             ScheduledLineMessage.message_context['appointment_id'].astext == str(appointment.calendar_event_id)
         ).first()
         
@@ -162,7 +166,7 @@ class ReminderSchedulingService:
                 'appointment_id': appointment.calendar_event_id
             },
             scheduled_send_time=reminder_send_time,
-            status='pending'
+            status=PATIENT_FORM_STATUS_PENDING
         )
         db.add(scheduled)
         logger.debug(
@@ -192,10 +196,10 @@ class ReminderSchedulingService:
         
         updated = db.query(ScheduledLineMessage).filter(
             ScheduledLineMessage.message_type == 'appointment_reminder',
-            ScheduledLineMessage.status == 'pending',
+            ScheduledLineMessage.status == PATIENT_FORM_STATUS_PENDING,
             cast(ScheduledLineMessage.message_context['appointment_id'].astext, String) == str(appointment_id)
         ).update(
-            {'status': 'skipped'},
+            {'status': PATIENT_FORM_STATUS_SKIPPED},
             synchronize_session=False
         )
         

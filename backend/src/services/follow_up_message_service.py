@@ -12,6 +12,10 @@ from sqlalchemy.orm import Session
 from sqlalchemy import cast, String
 
 from models import Appointment, FollowUpMessage, ScheduledLineMessage
+from core.constants import (
+    PATIENT_FORM_STATUS_PENDING,
+    PATIENT_FORM_STATUS_SKIPPED
+)
 from utils.datetime_utils import taiwan_now, ensure_taiwan
 
 logger = logging.getLogger(__name__)
@@ -154,7 +158,7 @@ class FollowUpMessageService:
                         'follow_up_message_id': follow_up.id
                     },
                     scheduled_send_time=scheduled_time,
-                    status='pending'
+                    status=PATIENT_FORM_STATUS_PENDING
                 )
                 db.add(scheduled)
                 logger.debug(
@@ -192,10 +196,10 @@ class FollowUpMessageService:
         # Cast to string for comparison since JSONB stores numbers as strings in text extraction
         updated = db.query(ScheduledLineMessage).filter(
             ScheduledLineMessage.message_type == 'follow_up',
-            ScheduledLineMessage.status == 'pending',
+            ScheduledLineMessage.status == PATIENT_FORM_STATUS_PENDING,
             cast(ScheduledLineMessage.message_context['appointment_id'].astext, String) == str(appointment_id)
         ).update(
-            {'status': 'skipped'},
+            {'status': PATIENT_FORM_STATUS_SKIPPED},
             synchronize_session=False
         )
         

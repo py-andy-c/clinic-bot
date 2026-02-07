@@ -10,6 +10,7 @@ from models.patient_photo import PatientPhoto
 from models.patient import Patient
 from models.appointment import Appointment
 from models.user_clinic_association import UserClinicAssociation
+from core.constants import CLINIC_SOURCE_TYPE
 
 
 class RecordVersionConflictError(Exception):
@@ -34,7 +35,7 @@ class MedicalRecordService:
         photo_ids: Optional[List[int]] = None,
         appointment_id: Optional[int] = None,
         created_by_user_id: Optional[int] = None,
-        source_type: str = 'clinic',
+        source_type: str = CLINIC_SOURCE_TYPE,
         last_updated_by_patient_id: Optional[int] = None,
         patient_form_request_id: Optional[int] = None
     ) -> MedicalRecord:
@@ -260,6 +261,8 @@ class MedicalRecordService:
         values_changed = values is not MISSING and values != record.values
         appointment_changed = appointment_id is not MISSING and appointment_id != record.appointment_id
         
+        # Note: max_photos limit is intentionally ignored for clinic-side edits (updated_by_user_id is not None)
+        # as per design doc, to allow practitioners full control over the record.
         photos_changed = False
         current_photos = []
         if photo_ids is not MISSING:

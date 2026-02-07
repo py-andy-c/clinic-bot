@@ -7,6 +7,13 @@ from typing import Optional
 from sqlalchemy import Column, String, DateTime, ForeignKey, Enum, Text, Boolean, TIMESTAMP, CheckConstraint, func  # type: ignore
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 from core.database import Base
+from core.constants import (
+    PATIENT_FORM_STATUS_PENDING,
+    PATIENT_FORM_STATUS_SUBMITTED,
+    PATIENT_FORM_STATUS_SKIPPED,
+    PATIENT_FORM_SOURCE_AUTO,
+    PATIENT_FORM_SOURCE_MANUAL
+)
 from datetime import datetime
 from typing import Optional, TYPE_CHECKING
 
@@ -34,9 +41,11 @@ class PatientFormRequest(Base):
     notify_appointment_practitioner: Mapped[bool] = mapped_column(Boolean, server_default='false', default=False)
     notify_assigned_practitioner: Mapped[bool] = mapped_column(Boolean, server_default='false', default=False)
     
-    status: Mapped[str] = mapped_column(String(20), server_default='pending', default='pending')  # 'pending', 'submitted', 'skipped'
+    status: Mapped[str] = mapped_column(String(20), server_default=PATIENT_FORM_STATUS_PENDING, default=PATIENT_FORM_STATUS_PENDING)  # 'pending', 'submitted', 'skipped'
     access_token: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
     
+    # Circular FK: PatientFormRequest -> MedicalRecord (the result of submission)
+    # MedicalRecord -> PatientFormRequest (the source of the record for auditing)
     medical_record_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("medical_records.id", ondelete="SET NULL", name="fk_patient_form_requests_medical_record", use_alter=True), 
         nullable=True
@@ -57,6 +66,6 @@ class PatientFormRequest(Base):
     medical_record = relationship("MedicalRecord", foreign_keys=[medical_record_id])
 
     __table_args__ = (
-        CheckConstraint("request_source IN ('auto', 'manual')", name='check_request_source'),
-        CheckConstraint("status IN ('pending', 'submitted', 'skipped')", name='check_status'),
+        CheckConstraint(f"request_source IN ('{PATIENT_FORM_SOURCE_AUTO}', '{PATIENT_FORM_SOURCE_MANUAL}')", name='check_request_source'),
+        CheckConstraint(f"status IN ('{PATIENT_FORM_STATUS_PENDING}', '{PATIENT_FORM_STATUS_SUBMITTED}', '{PATIENT_FORM_STATUS_SKIPPED}')", name='check_status'),
     )

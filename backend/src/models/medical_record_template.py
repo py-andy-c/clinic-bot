@@ -9,6 +9,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from core.database import Base
+from core.constants import MEDICAL_RECORD_TEMPLATE_TYPE, PATIENT_FORM_TEMPLATE_TYPE
 
 class MedicalRecordTemplate(Base):
     """
@@ -24,7 +25,7 @@ class MedicalRecordTemplate(Base):
     # JSONB field for storing template structure (list of fields)
     fields: Mapped[List[Dict[str, Any]]] = mapped_column(JSONB, nullable=False)
     
-    template_type: Mapped[str] = mapped_column(String(20), server_default='medical_record', nullable=False)
+    template_type: Mapped[str] = mapped_column(String(20), server_default=MEDICAL_RECORD_TEMPLATE_TYPE, nullable=False)
     max_photos: Mapped[int] = mapped_column(Integer, server_default='5', nullable=False)
     
     version: Mapped[int] = mapped_column(Integer, server_default='1', nullable=False)
@@ -46,6 +47,6 @@ class MedicalRecordTemplate(Base):
     __table_args__ = (
         Index("idx_medical_record_templates_clinic", "clinic_id"),
         Index("idx_medical_record_templates_deleted", "clinic_id", "is_deleted"),
-        CheckConstraint("template_type IN ('medical_record', 'patient_form')", name="check_template_type"),
+        CheckConstraint(f"template_type IN ('{MEDICAL_RECORD_TEMPLATE_TYPE}', '{PATIENT_FORM_TEMPLATE_TYPE}')", name="check_template_type"),
         CheckConstraint("max_photos >= 0 AND max_photos <= 20", name="check_max_photos"),
     )

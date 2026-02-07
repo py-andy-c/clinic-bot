@@ -3,6 +3,7 @@ from models.appointment import Appointment
 from models.user import User
 from models.patient_form_request import PatientFormRequest
 from models.user_clinic_association import UserClinicAssociation
+from core.constants import PATIENT_FORM_SOURCE_TYPE, CLINIC_SOURCE_TYPE
 from utils.datetime_utils import format_datetime
 from datetime import datetime
 from enum import Enum
@@ -19,8 +20,8 @@ logger = logging.getLogger(__name__)
 
 
 class CancellationSource(Enum):
-    CLINIC = "clinic"
-    PATIENT = "patient"
+    CLINIC = CLINIC_SOURCE_TYPE
+    PATIENT = PATIENT_FORM_SOURCE_TYPE
 
 
 class NotificationService:
