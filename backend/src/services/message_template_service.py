@@ -430,3 +430,17 @@ class MessageTemplateService:
         
         return warnings
 
+    @staticmethod
+    def prepare_patient_form_message(message_template: str, context: Dict[str, Any]) -> str:
+        """
+        Prepare patient form message for Flex body.
+        
+        Removes the {表單連結} placeholder (which will be a button) 
+        and renders the rest of the message.
+        """
+        # Remove {表單連結} placeholder and surrounding whitespace
+        template_without_link = message_template.replace('{表單連結}', '').strip()
+        
+        # Render the message
+        return MessageTemplateService.render_message(template_without_link, context)
+

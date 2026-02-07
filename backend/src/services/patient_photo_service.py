@@ -373,9 +373,12 @@ class PatientPhotoService:
         """
         Count photos for a specific patient form request.
         Includes both pending photos for this request and photos already linked to the record.
+        
+        Note: We only count photos uploaded by the patient to enforce the template's max_photos limit.
         """
         from sqlalchemy import or_
         
+        # Base filters: not deleted, belongs to patient and clinic, uploaded by patient
         query = db.query(PatientPhoto).filter(
             PatientPhoto.clinic_id == clinic_id,
             PatientPhoto.patient_id == patient_id,
@@ -384,6 +387,8 @@ class PatientPhotoService:
         )
         
         if medical_record_id:
+            # If form already submitted, count photos linked to that record 
+            # PLUS any new pending photos for this request
             query = query.filter(
                 or_(
                     PatientPhoto.medical_record_id == medical_record_id,
@@ -391,6 +396,7 @@ class PatientPhotoService:
                 )
             )
         else:
+            # If not yet submitted, only count pending photos for this request
             query = query.filter(
                 (PatientPhoto.is_pending == True) & (PatientPhoto.patient_form_request_id == patient_form_request_id)
             )

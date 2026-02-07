@@ -613,8 +613,8 @@ class ScheduledMessageService:
                         if form_url:
                             # Replace {表單連結} with empty string in the template for the Flex body
                             # We don't split anymore, we use the whole message as the body
-                            resolved_text = MessageTemplateService.render_message(
-                                scheduled.message_template.replace('{表單連結}', '').strip(),  # type: ignore
+                            resolved_text = MessageTemplateService.prepare_patient_form_message(
+                                scheduled.message_template,  # type: ignore
                                 context
                             )
                             

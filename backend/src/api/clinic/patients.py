@@ -829,8 +829,8 @@ async def create_patient_form_request(
     }
     
     # Replace {表單連結} with empty string for the Flex body
-    resolved_text = MessageTemplateService.render_message(
-        payload.message_template.replace('{表單連結}', '').strip(),  # type: ignore
+    resolved_text = MessageTemplateService.prepare_patient_form_message(
+        payload.message_template,
         context  # type: ignore
     )
     
