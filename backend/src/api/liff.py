@@ -2184,6 +2184,9 @@ async def submit_patient_form(
 
     try:
         # 1. Create medical record
+        if payload.photo_ids and len(payload.photo_ids) > request.template.max_photos:  # type: ignore
+            raise HTTPException(status_code=400, detail=f"照片數量超過上限 ({request.template.max_photos} 張)")  # type: ignore
+
         record = MedicalRecordService.create_record(
             db=db,
             clinic_id=clinic.id,  # type: ignore
@@ -2245,6 +2248,9 @@ async def update_patient_form(
     try:
         from services.medical_record_service import RecordVersionConflictError
         
+        if payload.photo_ids and len(payload.photo_ids) > request.template.max_photos:  # type: ignore
+            raise HTTPException(status_code=400, detail=f"照片數量超過上限 ({request.template.max_photos} 張)")  # type: ignore
+
         record = MedicalRecordService.update_record(
             db=db,
             record_id=request.medical_record_id,  # type: ignore
@@ -2291,14 +2297,30 @@ async def upload_patient_form_photo(
     # Count current photos (both pending and committed) linked to this request or its record
     photo_service = PatientPhotoService()
     
-    # For MVP, we'll just check against photos already linked to the medical record if it exists
-    # or just allow the upload if it's still pending. The actual limit enforcement
-    # happens during submission/update when we check the total photo_ids.
-    # However, to prevent storage abuse, we can do a basic check here.
+    # To prevent storage abuse, count all pending photos for this patient
+    # plus any photos already linked to the medical record.
+    from models.patient_photo import PatientPhoto
+    from sqlalchemy import or_
     
-    current_count = 0
+    query = db.query(PatientPhoto).filter(
+        PatientPhoto.clinic_id == clinic.id,  # type: ignore
+        PatientPhoto.patient_id == line_user.patient_id,  # type: ignore
+        PatientPhoto.is_deleted == False
+    )
+    
     if request.medical_record_id:  # type: ignore
-        current_count = photo_service.count_record_photos(db, clinic.id, request.medical_record_id)  # type: ignore
+        # If record exists, count photos linked to it OR pending photos
+        query = query.filter(
+            or_(
+                PatientPhoto.medical_record_id == request.medical_record_id,  # type: ignore
+                PatientPhoto.is_pending == True
+            )
+        )
+    else:
+        # If no record yet, just count pending photos
+        query = query.filter(PatientPhoto.is_pending == True)
+        
+    current_count = query.count()
         
     if current_count >= max_photos:
         raise HTTPException(status_code=400, detail=f"已達到照片數量上限 ({max_photos} 張)")
