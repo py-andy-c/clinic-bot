@@ -2175,20 +2175,28 @@ async def submit_patient_form(
             medical_record_id=record.id
         )
         
-        # 3. Send notifications
-        from services.notification_service import NotificationService
-        NotificationService.send_patient_form_submission_notification(
-            db=db,
-            request=request,
-            patient_name=request.patient.full_name,
-            template_name=request.template.name,
-            clinic=clinic
-        )
-        
+        # Commit record creation and status update before sending notifications
         db.commit()
+        
+        # 3. Send notifications (outside the main transaction)
+        try:
+            from services.notification_service import NotificationService
+            NotificationService.send_patient_form_submission_notification(
+                db=db,
+                request=request,
+                patient_name=request.patient.full_name,
+                template_name=request.template.name,
+                clinic=clinic
+            )
+        except Exception as e:
+            # Log notification failure but don't fail the form submission
+            logger.error(f"Failed to send form submission notification: {e}")
+        
         return PatientFormSubmitResponse(success=True, medical_record_id=record.id)
     except Exception as e:
         db.rollback()
+        if isinstance(e, HTTPException):
+            raise e
         logger.exception(f"Error submitting patient form: {e}")
         raise HTTPException(status_code=500, detail="提交表單失敗")
 

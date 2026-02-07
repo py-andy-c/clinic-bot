@@ -56,6 +56,10 @@ class MedicalRecordResponse(BaseModel):
     updated_at: Any
     created_by_user_id: Optional[int] = None
     updated_by_user_id: Optional[int] = None
+    source_type: str = 'clinic'
+    last_updated_by_user_id: Optional[int] = None
+    last_updated_by_patient_id: Optional[int] = None
+    patient_form_request_id: Optional[int] = None
     photos: List[PatientPhotoResponse] = Field(default_factory=list)  # type: ignore[reportUnknownVariableType]
     
     # Enriched fields (populated manually by _enrich_record_with_photos)
@@ -104,6 +108,10 @@ def _enrich_record_with_photos(
         'updated_at': record.updated_at,
         'created_by_user_id': record.created_by_user_id,
         'updated_by_user_id': record.updated_by_user_id,
+        'source_type': record.source_type,
+        'last_updated_by_user_id': record.last_updated_by_user_id,
+        'last_updated_by_patient_id': record.last_updated_by_patient_id,
+        'patient_form_request_id': record.patient_form_request_id,
     }
     
     # Process photos

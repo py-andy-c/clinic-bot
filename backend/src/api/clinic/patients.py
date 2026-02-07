@@ -708,6 +708,34 @@ async def list_patient_form_requests(
     }
 
 
+@router.get("/patient-form-requests/{id}", response_model=PatientFormRequestResponse)
+async def get_patient_form_request(
+    id: int,
+    current_user: UserContext = Depends(require_authenticated),
+    db: Session = Depends(get_db)
+):
+    """Get details of a patient form request."""
+    clinic_id = ensure_clinic_access(current_user)
+    
+    request = PatientFormRequestService.get_request(db, id, clinic_id)
+    if not request:
+        raise HTTPException(status_code=404, detail="表單請求不存在")
+    
+    return PatientFormRequestResponse(
+        id=request.id,
+        clinic_id=request.clinic_id,
+        patient_id=request.patient_id,
+        template_id=request.template_id,
+        template_name=request.template.name,
+        appointment_id=request.appointment_id,
+        request_source=request.request_source,
+        status=request.status,
+        sent_at=request.sent_at,
+        submitted_at=request.submitted_at,
+        medical_record_id=request.medical_record_id
+    )
+
+
 @router.post("/{patient_id}/patient-form-requests", response_model=PatientFormRequestResponse)
 async def create_patient_form_request(
     patient_id: int,
@@ -731,6 +759,17 @@ async def create_patient_form_request(
     
     if template.template_type != 'patient_form':
         raise HTTPException(status_code=400, detail="所選範本不是病患表單類型")
+
+    # Validate appointment belongs to patient
+    if payload.appointment_id:
+        appt = db.query(Appointment).join(Patient).filter(
+            Appointment.calendar_event_id == payload.appointment_id,
+            Patient.clinic_id == clinic_id
+        ).first()
+        if not appt:
+            raise HTTPException(status_code=404, detail="預約不存在")
+        if appt.patient_id != patient_id:
+            raise HTTPException(status_code=400, detail="預約不屬於此病患")
 
     request = PatientFormRequestService.create_request(
         db=db,
