@@ -575,8 +575,9 @@ When a patient form is sent, the LINE message contains:
 
 The `{表單連結}` placeholder is converted to a LINE Flex Message button:
 
-* Button text: "填寫表單"
-* Action: Open LIFF URL with the access token
+* **Rendering Behavior**: The `{表單連結}` placeholder is removed from the message text body, and a separate clickable button is rendered in the Flex Message footer.
+* **Button text**: Customizable via `flex_button_text` (defaults to "填寫表單")
+* **Action**: Open LIFF URL with the access token
 
 ### Scheduling (Reuse ScheduledLineMessage)
 
