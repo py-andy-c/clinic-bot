@@ -863,31 +863,31 @@ When an associated appointment is cancelled:
 
 ### Phase 3: Clinic Admin Frontend (Week 2-3)
 
-* [x] Convert template editor modal to full-screen (for both medical records and patient forms)
-* [x] Add `max_photos` setting to template editor
-* [x] Add form preview tab to template editor (reuse `MedicalRecordDynamicForm`)
-* [x] Patient form templates page (copy and modify from medical record templates)
-* [x] Service item modal - patient form settings section (mirror follow-up messages section)
-* [x] Message template editor with validation and preview (reuse `PlaceholderHelper`)
-* [x] Notification checkboxes UI
-* [x] Patient detail page - patient forms section
+* [ ] Convert template editor modal to full-screen (for both medical records and patient forms)
+* [ ] Add `max_photos` setting to template editor
+* [ ] Add form preview tab to template editor (reuse `MedicalRecordDynamicForm`)
+* [ ] Patient form templates page (copy and modify from medical record templates)
+* [ ] Service item modal - patient form settings section (mirror follow-up messages section)
+* [ ] Message template editor with validation and preview (reuse `PlaceholderHelper`)
+* [ ] Notification checkboxes UI
+* [ ] Patient detail page - patient forms section
 
 ### Phase 4: Patient LIFF Interface (Week 3-4)
 
 * [x] LIFF API endpoints for form access/submission
-* [x] LIFF home - patient forms menu item
-* [x] Patient forms list page
-* [x] Form fill page with dynamic form (reuse `MedicalRecordDynamicForm`)
-* [x] Photo upload with limit from template (hide section if `max_photos = 0`)
-* [x] Version conflict handling (reuse existing UI)
-* [x] Success screen
+* [ ] LIFF home - patient forms menu item
+* [ ] Patient forms list page
+* [ ] Form fill page with dynamic form (reuse `MedicalRecordDynamicForm`)
+* [ ] Photo upload with limit from template (hide section if `max_photos = 0`)
+* [ ] Version conflict handling (reuse existing UI)
+* [ ] Success screen
 
 ### Phase 5: Polish & Testing (Week 4-5)
 
 * [x] Edge case handling and error messages
 * [x] Integration tests
 * [x] Documentation updates
-* [x] Manual QA testing (Backend/API verified)
+* [ ] Manual QA testing (Backend/API verified)
 
 ***
 
