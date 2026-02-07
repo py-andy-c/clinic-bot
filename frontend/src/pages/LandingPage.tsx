@@ -189,7 +189,7 @@ const LineBookingMock = ({ scenario }: { scenario: number }) => {
             <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-gray-400 font-bold transition-transform hover:scale-110">+</div>
             <div className="flex-1 h-10 bg-gray-100 rounded-full px-5 flex items-center text-xs text-gray-400 italic whitespace-nowrap truncate">請輸入訊息...</div>
             <div className="w-10 h-10 rounded-full bg-primary-600 flex items-center justify-center shadow-lg shadow-primary-200/50">
-              <svg className="w-5 h-5 text-white rotate-90" fill="currentColor" viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" /></svg>
+              <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" /></svg>
             </div>
           </div>
         )}
@@ -814,7 +814,7 @@ const FinancialDashboardMock = () => (
 
     {/* Practitioner Performance */}
     <div className="space-y-3 pt-1">
-      <div className="text-base font-medium text-gray-900">醫師 / 治療師業績</div>
+      <div className="text-base font-medium text-gray-900">人員業績</div>
       <div className="space-y-3">
         {[
           { name: '李醫師', amount: '$182,400', share: '$63,840' },
