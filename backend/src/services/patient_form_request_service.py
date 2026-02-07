@@ -34,7 +34,7 @@ class PatientFormRequestService:
             existing = db.query(PatientFormRequest).filter(
                 PatientFormRequest.appointment_id == appointment_id,
                 PatientFormRequest.patient_form_setting_id == patient_form_setting_id,
-                PatientFormRequest.status == status
+                PatientFormRequest.status == PATIENT_FORM_STATUS_PENDING
             ).first()
             if existing:
                 return existing

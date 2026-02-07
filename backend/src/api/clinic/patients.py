@@ -817,8 +817,11 @@ async def create_patient_form_request(
     context['表單連結'] = form_url  # type: ignore
     
     # Render and send
-    if "{表單連結}" not in payload.message_template:
-        raise HTTPException(status_code=400, detail="訊息範本必須包含 {表單連結}")
+    from services.message_template_service import MessageTemplateService as MTS
+    try:
+        MTS.validate_patient_form_template(payload.message_template)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     
     # Use Flex Message with button
     line_service = LINEService(clinic.line_channel_secret, clinic.line_channel_access_token)
@@ -829,7 +832,7 @@ async def create_patient_form_request(
     }
     
     # Replace {表單連結} with empty string for the Flex body
-    resolved_text = MessageTemplateService.prepare_patient_form_message(
+    resolved_text = MTS.prepare_patient_form_message(
         payload.message_template,
         context  # type: ignore
     )

@@ -418,8 +418,12 @@ class PatientFormSettingBundleData(BaseModel):
     @model_validator(mode='after')
     def validate_template(self) -> 'PatientFormSettingBundleData':
         """Ensure message template contains {表單連結} placeholder if enabled."""
-        if self.is_enabled and "{表單連結}" not in self.message_template:
-            raise ValueError("訊息範本必須包含 {表單連結} 預位符以產生表單按鈕")
+        if self.is_enabled:
+            from services.message_template_service import MessageTemplateService as MTS
+            try:
+                MTS.validate_patient_form_template(self.message_template)
+            except ValueError as e:
+                raise ValueError(str(e))
         return self
 
 
@@ -1392,10 +1396,13 @@ def _sync_service_item_associations(
     
     for pfs_data in associations.patient_form_settings:
         # Validate message template
-        if "{表單連結}" not in pfs_data.message_template:
+        from services.message_template_service import MessageTemplateService as MTS
+        try:
+            MTS.validate_patient_form_template(pfs_data.message_template)
+        except ValueError as e:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="病患表單訊息範本必須包含 {表單連結}"
+                detail=str(e)
             )
 
         if pfs_data.id:

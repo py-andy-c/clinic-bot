@@ -431,6 +431,20 @@ class MessageTemplateService:
         return warnings
 
     @staticmethod
+    def validate_patient_form_template(message_template: str) -> None:
+        """
+        Validate that a patient form message template contains the required placeholder.
+        
+        Args:
+            message_template: The message template to validate
+            
+        Raises:
+            ValueError: If the template doesn't contain {表單連結}
+        """
+        if "{表單連結}" not in message_template:
+            raise ValueError("訊息範本必須包含 {表單連結} 佔位符")
+
+    @staticmethod
     def prepare_patient_form_message(message_template: str, context: Dict[str, Any]) -> str:
         """
         Prepare patient form message for Flex body.
