@@ -96,6 +96,7 @@ class PatientPhotoService:
         uploaded_by_patient_id: Optional[int] = None,
         description: Optional[str] = None,
         medical_record_id: Optional[int] = None,
+        patient_form_request_id: Optional[int] = None,
         is_pending: Optional[bool] = None
     ) -> PatientPhoto:
         original_content = file.file.read()
@@ -137,7 +138,8 @@ class PatientPhotoService:
                 description=description,
                 is_pending=is_pending,
                 uploaded_by_user_id=uploaded_by_user_id,
-                uploaded_by_patient_id=uploaded_by_patient_id
+                uploaded_by_patient_id=uploaded_by_patient_id,
+                patient_form_request_id=patient_form_request_id
             )
             
             db.add(photo)
@@ -186,7 +188,8 @@ class PatientPhotoService:
             description=description,
             is_pending=is_pending,
             uploaded_by_user_id=uploaded_by_user_id,
-            uploaded_by_patient_id=uploaded_by_patient_id
+            uploaded_by_patient_id=uploaded_by_patient_id,
+            patient_form_request_id=patient_form_request_id
         )
         
         db.add(photo)

@@ -20,14 +20,15 @@ class PatientFormRequestService:
         patient_form_setting_id: Optional[int] = None,
         notify_admin: bool = False,
         notify_appointment_practitioner: bool = False,
-        notify_assigned_practitioner: bool = False
+        notify_assigned_practitioner: bool = False,
+        status: str = 'pending'
     ) -> PatientFormRequest:
         # For 'auto' requests, check if a pending request already exists to ensure idempotency
         if request_source == 'auto' and appointment_id and patient_form_setting_id:
             existing = db.query(PatientFormRequest).filter(
                 PatientFormRequest.appointment_id == appointment_id,
                 PatientFormRequest.patient_form_setting_id == patient_form_setting_id,
-                PatientFormRequest.status == 'pending'
+                PatientFormRequest.status == status
             ).first()
             if existing:
                 return existing
@@ -61,7 +62,7 @@ class PatientFormRequestService:
             notify_appointment_practitioner=notify_appointment_practitioner,
             notify_assigned_practitioner=notify_assigned_practitioner,
             access_token=access_token,
-            status='pending'
+            status=status
         )
         db.add(request)
         db.flush()

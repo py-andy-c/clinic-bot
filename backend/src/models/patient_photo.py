@@ -20,6 +20,7 @@ class PatientPhoto(Base):
     patient_id: Mapped[int] = mapped_column(Integer, ForeignKey("patients.id"), nullable=False)
     
     medical_record_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("medical_records.id", ondelete="CASCADE"), nullable=True)
+    patient_form_request_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("patient_form_requests.id", ondelete="SET NULL"), nullable=True)
     
     filename: Mapped[str] = mapped_column(String(255), nullable=False)
     storage_key: Mapped[str] = mapped_column(String(512), nullable=False)
@@ -45,6 +46,7 @@ class PatientPhoto(Base):
     clinic = relationship("Clinic")
     patient = relationship("Patient", foreign_keys=[patient_id])
     medical_record = relationship("MedicalRecord", back_populates="photos")
+    patient_form_request = relationship("PatientFormRequest")
     uploaded_by_user = relationship("User", foreign_keys=[uploaded_by_user_id])
     uploaded_by_patient = relationship("Patient", foreign_keys=[uploaded_by_patient_id])
     updated_by_user = relationship("User", foreign_keys=[updated_by_user_id])
@@ -54,6 +56,7 @@ class PatientPhoto(Base):
         Index("idx_patient_photos_patient", "patient_id"),
         Index("idx_patient_photos_medical_record", "medical_record_id"),
         Index("idx_patient_photos_patient_record", "patient_id", "medical_record_id"),
+        Index("idx_patient_photos_patient_form_request", "patient_form_request_id"),
         Index("idx_patient_photos_deleted", "clinic_id", "is_deleted"),
         Index("idx_patient_photos_dedup", "clinic_id", "content_hash"),
         Index("idx_patient_photos_created", "created_at"),

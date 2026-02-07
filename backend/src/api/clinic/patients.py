@@ -719,6 +719,19 @@ async def create_patient_form_request(
     clinic_id = ensure_clinic_access(current_user)
     
     # 1. Create the request record
+    from models.medical_record_template import MedicalRecordTemplate
+    template = db.query(MedicalRecordTemplate).filter(
+        MedicalRecordTemplate.id == payload.template_id,
+        MedicalRecordTemplate.clinic_id == clinic_id,
+        MedicalRecordTemplate.is_deleted == False
+    ).first()
+    
+    if not template:
+        raise HTTPException(status_code=404, detail="找不到表單範本")
+    
+    if template.template_type != 'patient_form':
+        raise HTTPException(status_code=400, detail="所選範本不是病患表單類型")
+
     request = PatientFormRequestService.create_request(
         db=db,
         clinic_id=clinic_id,

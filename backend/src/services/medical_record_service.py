@@ -256,10 +256,31 @@ class MedicalRecordService:
                 updated_by_user_name=updated_by_user_name
             )
 
+        # 1. Determine if anything changed
+        values_changed = values is not MISSING and values != record.values
+        appointment_changed = appointment_id is not MISSING and appointment_id != record.appointment_id
+        
+        photos_changed = False
+        current_photos = []
+        if photo_ids is not MISSING:
+            current_photos = db.query(PatientPhoto).filter(
+                PatientPhoto.medical_record_id == record_id,
+                PatientPhoto.clinic_id == clinic_id
+            ).all()
+            current_ids = {p.id for p in current_photos}
+            new_ids: set[int] = set(photo_ids) if photo_ids is not None else set()
+            if current_ids != new_ids:
+                photos_changed = True
+
+        # 2. Increment version if changed
+        if values_changed or appointment_changed or photos_changed:
+            record.version += 1
+            record.updated_at = datetime.now(timezone.utc)
+
+        # 3. Apply changes
         if values is not MISSING:
             record.values = values
         if appointment_id is not MISSING:
-            # Validate appointment if changing
             if appointment_id is not None and appointment_id != record.appointment_id:
                 appt = db.query(Appointment).filter(Appointment.calendar_event_id == appointment_id).first()
                 if not appt:
@@ -268,48 +289,41 @@ class MedicalRecordService:
                     raise HTTPException(status_code=400, detail="Appointment does not belong to this patient")
             record.appointment_id = appointment_id
             
-        # Handle Photo Updates
         if photo_ids is not MISSING:
-            # Get current photos
-            current_photos = db.query(PatientPhoto).filter(
-                PatientPhoto.medical_record_id == record_id,
-                PatientPhoto.clinic_id == clinic_id
-            ).all()
+            # We already fetched current_photos above if photo_ids is not MISSING
             current_ids = {p.id for p in current_photos}
             new_ids: set[int] = set(photo_ids) if photo_ids is not None else set()
             
-            # Unlink removed photos
-            ids_to_unlink = current_ids - new_ids
-            if ids_to_unlink:
-                db.query(PatientPhoto).filter(
-                    PatientPhoto.id.in_(ids_to_unlink)
-                ).update({
-                    "medical_record_id": None,
-                    # If unlinked, they become standalone gallery photos, so ensure they are active
-                    "is_pending": False 
-                }, synchronize_session=False)
-            
-            # Link new photos
-            ids_to_link = new_ids - current_ids
-            if ids_to_link:
-                # Verify existence and access
-                photos_to_link = db.query(PatientPhoto).filter(
-                    PatientPhoto.id.in_(ids_to_link),
-                    PatientPhoto.clinic_id == clinic_id,
-                    PatientPhoto.patient_id == record.patient_id
-                ).all()
+            if current_ids != new_ids:
+                # Unlink removed photos
+                ids_to_unlink = current_ids - new_ids
+                if ids_to_unlink:
+                    db.query(PatientPhoto).filter(
+                        PatientPhoto.id.in_(ids_to_unlink)
+                    ).update({
+                        "medical_record_id": None,
+                        "is_pending": False 
+                    }, synchronize_session=False)
                 
-                if len(photos_to_link) != len(ids_to_link):
-                    found_ids = {p.id for p in photos_to_link}
-                    missing = ids_to_link - found_ids
-                    raise HTTPException(status_code=404, detail=f"Photos not found, access denied, or belong to another patient: {missing}")
-                
-                for photo in photos_to_link:
-                    photo.medical_record_id = record_id
-                    photo.is_pending = False
+                # Link new photos
+                ids_to_link = new_ids - current_ids
+                if ids_to_link:
+                    photos_to_link = db.query(PatientPhoto).filter(
+                        PatientPhoto.id.in_(ids_to_link),
+                        PatientPhoto.clinic_id == clinic_id,
+                        PatientPhoto.patient_id == record.patient_id
+                    ).all()
+                    
+                    if len(photos_to_link) != len(ids_to_link):
+                        found_ids = {p.id for p in photos_to_link}
+                        missing = ids_to_link - found_ids
+                        raise HTTPException(status_code=404, detail=f"Photos not found, access denied, or belong to another patient: {missing}")
+                    
+                    for photo in photos_to_link:
+                        photo.medical_record_id = record_id
+                        photo.is_pending = False
             
-            # Ensure all currently linked photos are committed (not pending)
-            # This handles photos that were already linked from previous saves
+            # Ensure all currently linked photos are committed
             ids_to_keep = current_ids & new_ids
             if ids_to_keep:
                 db.query(PatientPhoto).filter(
@@ -318,13 +332,11 @@ class MedicalRecordService:
                     "is_pending": False
                 }, synchronize_session=False)
 
-        record.version += 1
         record.updated_by_user_id = updated_by_user_id
         if updated_by_user_id is not None:
             record.last_updated_by_user_id = updated_by_user_id
         if last_updated_by_patient_id is not None:
             record.last_updated_by_patient_id = last_updated_by_patient_id
-        record.updated_at = datetime.now(timezone.utc)
         
         db.commit()
         db.refresh(record)
@@ -413,17 +425,7 @@ class MedicalRecordService:
         if not record:
             return False
             
-        # Hard delete photos first (cascade would handle this if configured in DB, but explicit is safer for logic)
-        # Actually, let's rely on DB cascade if possible, but our model defines cascade on relationship?
-        # Model: medical_record_id ... ondelete="CASCADE"
-        # That means if MedicalRecord row is deleted, medical_record_id in Photo becomes NULL (or row deleted?)
-        # Let's check model definition.
-        # medical_record_id: Mapped[Optional[int]] = mapped_column(..., ForeignKey(..., ondelete="CASCADE"), ...)
-        # If I delete MedicalRecord, the Photo rows might NOT be deleted if it's just setting FK to null or if the DB constraint isn't "ON DELETE CASCADE" for the whole row.
-        # But we want to delete the photo rows entirely if we are hard deleting the record? 
-        # Wait, if a photo is reused (deduplication is at storage level, not row level), we can delete the row.
-        # Yes, delete the photo rows.
-        
+        # Hard delete photos first
         db.query(PatientPhoto).filter(
             PatientPhoto.medical_record_id == record_id,
             PatientPhoto.clinic_id == clinic_id

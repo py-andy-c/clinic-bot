@@ -85,6 +85,35 @@ class MessageTemplateService:
         return message
     
     @staticmethod
+    def build_patient_context(
+        patient: Patient,
+        clinic: Clinic
+    ) -> Dict[str, Any]:
+        """
+        Build context dict for patient-only messages (no appointment).
+        
+        Returns dict with Traditional Chinese keys matching placeholders:
+        - {病患姓名}: Patient's full name
+        - {診所名稱}: Clinic display name
+        - {診所地址}: Clinic address (if available)
+        - {診所電話}: Clinic phone (if available)
+        - All appointment-related placeholders are empty strings.
+        """
+        return {
+            "病患姓名": patient.full_name,
+            "服務項目": "",
+            "預約時間": "",
+            "預約結束時間": "",
+            "預約日期": "",
+            "預約時段": "",
+            "治療師姓名": "",
+            "診所名稱": clinic.effective_display_name or "",
+            "診所地址": clinic.address or "",
+            "診所電話": clinic.phone_number or "",
+            "病患備註": "",
+        }
+
+    @staticmethod
     def build_confirmation_context(
         appointment: Appointment,
         patient: Patient,

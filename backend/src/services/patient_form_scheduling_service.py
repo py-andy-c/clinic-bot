@@ -101,7 +101,32 @@ class PatientFormSchedulingService:
         patient = appointment.patient  # type: ignore
         line_user = patient.line_user  # type: ignore
         if not line_user:
-            logger.debug(f"Patient {patient.id} has no LINE user, skipping patient form scheduling")  # type: ignore
+            logger.debug(f"Patient {patient.id} has no LINE user, creating skipped form requests")  # type: ignore
+            # Create skipped requests for tracking
+            from services.patient_form_request_service import PatientFormRequestService
+            for setting in form_settings:
+                try:
+                    PatientFormRequestService.create_request(
+                        db=db,
+                        clinic_id=appointment.patient.clinic_id,  # type: ignore
+                        patient_id=patient.id,  # type: ignore
+                        template_id=setting.template_id,  # type: ignore
+                        request_source='auto',
+                        appointment_id=appointment.calendar_event_id,  # type: ignore
+                        patient_form_setting_id=setting.id,  # type: ignore
+                        notify_admin=setting.notify_admin,  # type: ignore
+                        notify_appointment_practitioner=setting.notify_appointment_practitioner,  # type: ignore
+                        notify_assigned_practitioner=setting.notify_assigned_practitioner,  # type: ignore
+                        status='skipped' # Explicitly mark as skipped
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to create skipped request for patient {patient.id}: {e}") # type: ignore
+            
+            try:
+                db.commit()
+            except Exception as e:
+                logger.exception(f"Failed to commit skipped patient forms for appointment {appointment.calendar_event_id}: {e}") # type: ignore
+                db.rollback()
             return
 
         # Calculate base times

@@ -2297,7 +2297,7 @@ async def upload_patient_form_photo(
     # Count current photos (both pending and committed) linked to this request or its record
     photo_service = PatientPhotoService()
     
-    # To prevent storage abuse, count all pending photos for this patient
+    # To prevent storage abuse, count all pending photos for this specific request
     # plus any photos already linked to the medical record.
     from models.patient_photo import PatientPhoto
     from sqlalchemy import or_
@@ -2310,16 +2310,18 @@ async def upload_patient_form_photo(
     )
     
     if request.medical_record_id:  # type: ignore
-        # If record exists, count photos linked to it OR pending photos
+        # If record exists, count photos linked to it OR pending photos for this request
         query = query.filter(
             or_(
                 PatientPhoto.medical_record_id == request.medical_record_id,  # type: ignore
-                PatientPhoto.is_pending == True
+                (PatientPhoto.is_pending == True) & (PatientPhoto.patient_form_request_id == request.id) # type: ignore
             )
         )
     else:
-        # If no record yet, just count pending photos
-        query = query.filter(PatientPhoto.is_pending == True)
+        # If no record yet, just count pending photos for this request
+        query = query.filter(
+            (PatientPhoto.is_pending == True) & (PatientPhoto.patient_form_request_id == request.id) # type: ignore
+        )
         
     current_count = query.count()
         
@@ -2333,6 +2335,7 @@ async def upload_patient_form_photo(
             patient_id=line_user.patient_id,  # type: ignore
             file=file,
             uploaded_by_patient_id=line_user.patient_id,  # type: ignore
+            patient_form_request_id=request.id,  # type: ignore
             description=description,
             is_pending=True  # Always pending until form is submitted
         )
