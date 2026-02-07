@@ -27,17 +27,17 @@ const FeatureSection: React.FC<{
             <li
               key={index}
               className={`group relative flex items-center transition-all duration-300 lg:-ml-4 lg:p-4 lg:rounded-2xl
-                ${isActive ? 'opacity-100 lg:bg-primary-50 lg:translate-x-3' : (activeIndex === -1 ? 'opacity-100' : 'opacity-40 lg:opacity-60')}`}
+                ${isActive ? 'opacity-100 lg:bg-primary-50 lg:translate-x-3' : 'opacity-100'}`}
               onMouseEnter={() => onHoverFeature?.(index)}
               onMouseLeave={() => onLeaveFeature?.()}
             >
-              <div className={`flex-shrink-0 transition-colors duration-500 ${isActive || activeIndex === -1 ? 'text-primary-600' : 'text-gray-400'}`}>
+              <div className={`flex-shrink-0 transition-colors duration-500 ${isActive || activeIndex === -1 ? 'text-primary-600' : 'text-gray-500'}`}>
                 <div className={`flex h-5 w-5 lg:h-8 lg:w-8 items-center justify-center rounded-full transition-all duration-500 border-2 ${isActive || activeIndex === -1 ? 'bg-white border-primary-500 shadow-sm' : 'bg-gray-100 border-transparent'}`}>
                   <span className="text-[9px] lg:text-sm font-bold">{index + 1}</span>
                 </div>
               </div>
               <div className="ml-3 lg:ml-4 flex-1">
-                <p className={`text-[14px] lg:text-base leading-snug lg:leading-7 transition-colors duration-500 ${isActive || activeIndex === -1 ? 'text-gray-900 font-bold' : 'text-gray-500 font-semibold'}`}>
+                <p className={`text-[14px] lg:text-base leading-snug lg:leading-7 transition-colors duration-500 ${isActive || activeIndex === -1 ? 'text-gray-900 font-bold' : 'text-gray-700 font-semibold'}`}>
                   {feature}
                 </p>
               </div>
@@ -1128,7 +1128,7 @@ const LandingPage: React.FC = () => {
           title="AI 智能客服"
           valueProp="24／7 全天在線，不再漏接任何訊息，不錯過潛在客源。"
           features={[
-            "自定義專屬知識庫，化身專業客服。",
+            "診所後台設定知識庫，化身專業客服",
             "僅根據診所提供資訊，精準回覆。",
             "嚴格不做診斷建議"
           ]}
