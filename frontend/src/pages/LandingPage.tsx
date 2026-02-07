@@ -968,7 +968,7 @@ const AIChatMock = () => {
           輸入訊息...
         </div>
         <div className="w-8 h-8 text-blue-500">
-          <svg viewBox="0 0 24 24" fill="currentColor" className="rotate-90"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" /></svg>
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" /></svg>
         </div>
       </div>
     </div>
@@ -1128,9 +1128,9 @@ const LandingPage: React.FC = () => {
           title="AI 智能客服"
           valueProp="24／7 全天在線，不再漏接任何訊息，不錯過潛在客源。"
           features={[
-            "擴充專屬知識庫，化身專業客服。",
+            "自定義專屬知識庫，化身專業客服。",
             "僅根據診所提供資訊，精準回覆。",
-            "嚴格過濾診斷建議，隨時引進人工。"
+            "嚴格不做診斷建議"
           ]}
           imageSide="right"
           mockup={<AIChatMock />}
