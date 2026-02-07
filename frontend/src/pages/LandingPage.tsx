@@ -1038,7 +1038,33 @@ const LandingPage: React.FC = () => {
           mockup={<LineBookingMock scenario={activeLineFeature} />}
         />
 
-        {/* Section 2: 智慧排班與資源管理 */}
+        {/* Section 2: AI 智能客服 */}
+        <FeatureSection
+          title="AI 智能客服"
+          valueProp="24／7 全天在線，不再漏接任何訊息，不錯過潛在客源。"
+          features={[
+            "診所後台設定知識庫，化身專業客服",
+            "僅根據診所提供資訊，精準回覆。",
+            "嚴格不做診斷建議"
+          ]}
+          imageSide="left"
+          bgColor="bg-gray-50"
+          mockup={<AIChatMock />}
+        />
+
+        {/* Section 3: 個案關懷與追蹤 */}
+        <FeatureSection
+          title="個案關懷與追蹤"
+          valueProp="自動化關懷，提升病患回診率。"
+          features={[
+            "根據項目定時，自動發送追蹤訊息。",
+            "客製化衛教與治療後關懷內容，提升病患黏著度。"
+          ]}
+          imageSide="right"
+          mockup={<AutomationFlowMock />}
+        />
+
+        {/* Section 4: 智慧排班與資源管理 */}
         <FeatureSection
           title="智慧排班與資源管理"
           valueProp="資源最佳化，杜絕撞單與混亂。"
@@ -1055,7 +1081,7 @@ const LandingPage: React.FC = () => {
           mockup={<SchedulingMock scenario={activeSchedulingFeature} />}
         />
 
-        {/* Section 3: 專業病歷系統 */}
+        {/* Section 5: 專業病歷系統 */}
         <FeatureSection
           title="專業病歷系統"
           valueProp="安全、便利、客製化的雲端病例系統。"
@@ -1071,31 +1097,6 @@ const LandingPage: React.FC = () => {
           mockup={<MedicalRecordMock scenario={activeMedicalFeature} />}
         />
 
-        {/* Section 4: 個案關懷與追蹤 */}
-        <FeatureSection
-          title="個案關懷與追蹤"
-          valueProp="自動化關懷，提升病患回診率。"
-          features={[
-            "根據項目定時，自動發送追蹤訊息。",
-            "客製化衛教與治療後關懷內容，提升病患黏著度。"
-          ]}
-          imageSide="left"
-          bgColor="bg-gray-50"
-          mockup={<AutomationFlowMock />}
-        />
-
-        {/* Section 5: 數位收據與結帳 */}
-        <FeatureSection
-          title="數位收據與結帳"
-          valueProp="數位化結帳，告別繁瑣手寫，提升行政效率。"
-          features={[
-            "一鍵生成收據，結帳效率倍增。",
-            "支援 PDF 與 LINE 傳送，全面無紙化。"
-          ]}
-          imageSide="right"
-          mockup={<DigitalReceiptMock />}
-        />
-
         {/* Section 6: 財務管理與自動分潤 */}
         <FeatureSection
           title="財務管理與自動分潤"
@@ -1109,17 +1110,16 @@ const LandingPage: React.FC = () => {
           mockup={<FinancialDashboardMock />}
         />
 
-        {/* Section 7: AI 智能客服 */}
+        {/* Section 7: 數位收據與結帳 */}
         <FeatureSection
-          title="AI 智能客服"
-          valueProp="24／7 全天在線，不再漏接任何訊息，不錯過潛在客源。"
+          title="數位收據與結帳"
+          valueProp="數位化結帳，告別繁瑣手寫，提升行政效率。"
           features={[
-            "診所後台設定知識庫，化身專業客服",
-            "僅根據診所提供資訊，精準回覆。",
-            "嚴格不做診斷建議"
+            "一鍵生成收據，結帳效率倍增。",
+            "支援 PDF 與 LINE 傳送，全面無紙化。"
           ]}
           imageSide="right"
-          mockup={<AIChatMock />}
+          mockup={<DigitalReceiptMock />}
         />
       </div>
 
@@ -1130,7 +1130,7 @@ const LandingPage: React.FC = () => {
       <section className="bg-white py-20 border-t border-gray-100">
         <div className="max-w-4xl mx-auto px-4 text-center">
           <h2 className="text-3xl font-bold text-gray-900 mb-6">準備好全面升級您的診所了嗎？</h2>
-          <p className="text-lg text-gray-600 mb-10">立即加入 100+ 診所的選擇，體驗自動化營運的力量。</p>
+
           <Link
             to="/free-trial"
             className="inline-block px-10 py-5 bg-primary-600 text-white text-xl font-bold rounded-xl hover:bg-primary-700 shadow-xl shadow-primary-200 transition-all transform hover:-translate-y-1"
