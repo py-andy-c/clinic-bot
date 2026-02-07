@@ -1,6 +1,8 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import PublicHeader from '../components/PublicHeader';
+import { LINE_THEME } from '../constants/lineTheme';
+import { TestimonialSection } from '../components/TestimonialSection';
 
 const FeatureSection: React.FC<{
   title: string;
@@ -836,10 +838,7 @@ const FinancialDashboardMock = () => (
   </div>
 );
 
-const LINE_THEME = {
-  chatBackground: '#8eacda',
-  userBubble: '#6fe67c',
-};
+
 
 const AIChatMock = () => {
   const [isScrolledToBottom, setIsScrolledToBottom] = React.useState(true);
@@ -1124,28 +1123,8 @@ const LandingPage: React.FC = () => {
         />
       </div>
 
-      {/* Customer Testimonial Section */}
-      <section className="bg-primary-900 py-20 text-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-3xl font-bold mb-16">各界專業診所的一致推薦</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="bg-white/10 backdrop-blur-sm rounded-2xl p-8 text-left border border-white/10">
-                <div className="flex items-center mb-6">
-                  <div className="w-12 h-12 bg-gray-300 rounded-full mr-4"></div>
-                  <div>
-                    <p className="font-bold">診所院長 {i}</p>
-                    <p className="text-sm text-primary-200">OO 牙醫診所</p>
-                  </div>
-                </div>
-                <p className="text-gray-300 italic leading-relaxed">
-                  「這是一個令人驚艷的系統。自從導入後，我們的行政效率提升了 40%，且病患對於 LINE 預約的便利性評價極高。作為管理者，我現在能對診所的營運狀況有更即時、更精確的掌握。」
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+      {/* Testimonials */}
+      <TestimonialSection />
 
       {/* Final CTA */}
       <section className="bg-white py-20 border-t border-gray-100">
