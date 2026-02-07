@@ -54,22 +54,30 @@ The `AvailabilityPage` component lacks **submission locking**.
 The `availability_exceptions` creation endpoint is **not idempotent**.
 
 * The service faithfully creates a new record for every valid request.
+* The service faithfully creates a new record for every valid request.
 * While overlapping exceptions are allowed by design, the system lacks logic to detect or prevent *identical* exceptions (same practitioner, date, and exact time window) created within a very short interval.
 
 ## 5. Resolution Strategy: Expanded Frontend UI Locking
 
 We have decided to implement a **comprehensive frontend-only fix** to address this and similar race conditions across the `AvailabilityPage`. This approach focuses on preventing accidental multi-interactions while maintaining system simplicity.
 
-### **Proposed Changes**
+### Proposed Changes
 
 1. **State Management**: Introduce a centralized `isSubmitting` state in `AvailabilityPage.tsx`.
 2. **Submission Locking**:
    * **Form Submissions**: Wrap modal save actions in a lock check.
-   * **Drag-and-Drop (Silent Blocking)**: Disable all calendar drag interactions (e.g., `onDragStart`) while `isSubmitting` is true. This prevents "double-dragging" an event before the first move is confirmed by the server.
    * **Action Expansion**: Apply the lock to all state-changing actions, including **Create Exception**, **Delete Exception**, and **Cancel Appointment**.
-3. **UI Feedback & Standardization**:
-   * Update `ExceptionModal` and `ConflictWarningModal` to provide visual loading feedback.
-   * **Standardize `ModalFooter`**: Update the core `ModalFooter` component to natively support a `loading` prop, ensuring all sub-modals can easily disable buttons and show spinners.
+   * **Duplicate Action Locking**: Add `isSubmitting` guards to secondary actions like `handleDuplicateAppointment` to ensure parity with primary mutation handlers.
+3. **Interaction Hardening (Calendar Grid)**:
+   * **Silent Blocking**: Pass the `isLoading` state to the `CalendarGrid` component.
+   * **Interaction Guard**: Update `handleDragStart`, `handleEventClick`, and `handleSlotClick` to silently return if `isLoading` is true. This prevents "double-dragging" or concurrent modal opens while an operation is in flight.
+4. **UI Feedback & Standardization**:
+   * **Component Upgrades**: Update `ExceptionModal` and `ConflictWarningModal` to use the shared `Button` component for visual loading feedback.
+   * **Standardize `ModalFooter`**: Update the core `ModalFooter` component to natively support a `loading` prop, ensuring all sub-modals can easily disable buttons and block interaction.
+5. **Verification**:
+   * **Test Suite Audit**: Run existing frontend unit tests to ensure no regressions in modal management or event handling logic.
+   * **Manual Race Condition Simulation**: Verify that rapid-fire clicks on "Save" or "Still Create" do not trigger multiple API requests.
+   * **Silent Blocking Verification**: Verify that dragging an event or clicking slots while another action is saving is ignored by the UI.
 
 ***
 
@@ -90,8 +98,9 @@ A review of the codebase identified several other areas vulnerable to similar ra
 
 | Component / File | Vulnerable Action | Status |
 | :--- | :--- | :--- |
-| `AvailabilityPage.tsx` | Drag-and-Drop Exception Move | **At Risk** |
-| `AvailabilityPage.tsx` | Cancel Appointment / Delete Exception | **At Risk** |
+| `AvailabilityPage.tsx` | Create/Confirm Exception | **Fixed** |
+| `AvailabilityPage.tsx` | Drag-and-Drop Exception Move | **Fixed** |
+| `AvailabilityPage.tsx` | Cancel Appointment / Delete Exception | **Fixed** |
 | `SettingsServiceItemsPage.tsx` | Add Service Group (`handleAddGroup`) | **Vulnerable** |
 | `SettingsServiceItemsPage.tsx` | Reorder Items (`handleSaveItemOrder`) | **Vulnerable** |
 

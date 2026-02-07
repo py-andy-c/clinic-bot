@@ -56,11 +56,12 @@ interface ModalFooterProps {
   className?: string;
   style?: React.CSSProperties;
   children: React.ReactNode;
+  loading?: boolean;
 }
 
-export const ModalFooter: React.FC<ModalFooterProps> = ({ className = '', style, children }) => {
+export const ModalFooter: React.FC<ModalFooterProps> = ({ className = '', style, children, loading = false }) => {
   return (
-    <div className={`px-6 py-3 border-t flex justify-end space-x-3 ${className}`} style={style}>
+    <div className={`px-6 py-3 border-t flex justify-end space-x-3 ${loading ? 'opacity-70 pointer-events-none' : ''} ${className}`} style={style}>
       {children}
     </div>
   );

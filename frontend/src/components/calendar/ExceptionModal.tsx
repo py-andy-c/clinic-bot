@@ -8,6 +8,7 @@ import React from 'react';
 import { BaseModal } from './BaseModal';
 import { ModalHeader, ModalBody, ModalFooter } from '../shared/ModalParts';
 import { TimeInput } from '../shared/TimeInput';
+import { Button } from '../shared/Button';
 
 export interface ExceptionData {
   date: string;
@@ -24,6 +25,7 @@ export interface ExceptionModalProps {
   onCreate: () => void;
   onExceptionDataChange: (data: ExceptionData) => void;
   onFullDayChange: (isFullDay: boolean) => void;
+  isLoading?: boolean;
 }
 
 export const ExceptionModal: React.FC<ExceptionModalProps> = React.memo(({
@@ -34,12 +36,13 @@ export const ExceptionModal: React.FC<ExceptionModalProps> = React.memo(({
   onCreate,
   onExceptionDataChange,
   onFullDayChange,
+  isLoading = false,
 }) => {
   return (
     <BaseModal
       onClose={onClose}
       aria-label="新增休診時段"
-     
+
     >
       <ModalHeader title="新增休診時段" showClose onClose={onClose} />
       <ModalBody>
@@ -123,21 +126,21 @@ export const ExceptionModal: React.FC<ExceptionModalProps> = React.memo(({
           </div>
         </div>
       </ModalBody>
-      <ModalFooter>
-        <button
+      <ModalFooter loading={isLoading}>
+        <Button
           onClick={onClose}
-          className="btn-secondary"
+          variant="secondary"
         >
           取消
-        </button>
-        <button
+        </Button>
+        <Button
           onClick={onCreate}
-          className="btn-primary"
+          variant="primary"
+          loading={isLoading}
         >
-          儲存休診時段
-        </button>
+          {isLoading ? '儲存中...' : '儲存休診時段'}
+        </Button>
       </ModalFooter>
     </BaseModal>
   );
 });
-
