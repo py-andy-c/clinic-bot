@@ -34,6 +34,15 @@ class MedicalRecord(Base):
     # Actual values for the record
     values: Mapped[Dict[str, Any]] = mapped_column(JSONB, nullable=False)
     
+    source_type: Mapped[str] = mapped_column(String(20), server_default='clinic', nullable=False)
+    last_updated_by_user_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("users.id"), nullable=True)
+    last_updated_by_patient_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("patients.id"), nullable=True)
+    patient_form_request_id: Mapped[Optional[int]] = mapped_column(
+        Integer, 
+        ForeignKey("patient_form_requests.id", name="fk_medical_records_patient_form_request", use_alter=True), 
+        nullable=True
+    )
+    
     version: Mapped[int] = mapped_column(Integer, server_default='1', nullable=False)
     
     is_deleted: Mapped[bool] = mapped_column(Boolean, server_default='false', nullable=False)
@@ -47,12 +56,15 @@ class MedicalRecord(Base):
 
     # Relationships
     clinic = relationship("Clinic")
-    patient = relationship("Patient") # We'll need to update Patient model to back_populate if needed
+    patient = relationship("Patient", foreign_keys=[patient_id]) # We'll need to update Patient model to back_populate if needed
     template = relationship("MedicalRecordTemplate")
     appointment = relationship("Appointment")
     
     created_by_user = relationship("User", foreign_keys=[created_by_user_id])
     updated_by_user = relationship("User", foreign_keys=[updated_by_user_id])
+    last_updated_by_user = relationship("User", foreign_keys=[last_updated_by_user_id])
+    last_updated_by_patient = relationship("Patient", foreign_keys=[last_updated_by_patient_id])
+    patient_form_request = relationship("PatientFormRequest", foreign_keys=[patient_form_request_id])
     
     photos: Mapped[list["PatientPhoto"]] = relationship("PatientPhoto", back_populates="medical_record", cascade="all, delete-orphan")
 

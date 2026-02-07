@@ -1,16 +1,19 @@
-# pyright: reportUnknownMemberType=false, reportMissingTypeStubs=false
+from models.clinic import Clinic
+from models.appointment import Appointment
+from models.user import User
+from models.patient_form_request import PatientFormRequest
+from models.user_clinic_association import UserClinicAssociation
+from utils.datetime_utils import format_datetime
 from datetime import datetime
 from enum import Enum
+from typing import List, Optional, TYPE_CHECKING, Any, Dict  # type: ignore
 from sqlalchemy.orm import Session
-import logging
-from typing import TYPE_CHECKING, Optional
-from models import Appointment, User, Clinic
-from utils.datetime_utils import format_datetime
 
 if TYPE_CHECKING:
-    from models.user_clinic_association import UserClinicAssociation
-    from models.patient import Patient
     from models.appointment_type import AppointmentType
+    from models.patient import Patient
+
+import logging
 
 logger = logging.getLogger(__name__)
 
@@ -1212,6 +1215,108 @@ class NotificationService:
 
         except Exception as e:
             logger.exception(f"Failed to send recurrent appointment unified notification: {e}")
+            return False
+
+    @staticmethod
+    def send_patient_form_submission_notification(
+        db: Session,
+        request: PatientFormRequest,
+        patient_name: str,
+        template_name: str,
+        clinic: Clinic
+    ) -> bool:
+        """
+        Send notification to clinic admins and practitioners about a patient form submission.
+        """
+        try:
+            # Build message
+            message = f"📋 病患表單已提交\n\n"
+            message += f"病患：{patient_name}\n"
+            message += f"表單：{template_name}\n"
+            
+            if request.appointment_id:
+                appointment = db.query(Appointment).filter(
+                    Appointment.calendar_event_id == request.appointment_id
+                ).first()
+                if appointment:
+                    from utils.datetime_utils import format_datetime
+                    start_datetime = datetime.combine(
+                        appointment.calendar_event.date,
+                        appointment.calendar_event.start_time
+                    )
+                    formatted_time = format_datetime(start_datetime)
+                    message += f"預約：{formatted_time}\n"
+
+            message += f"\n請至後台查看詳情。"
+
+            # Collect recipients
+            from models.user_clinic_association import UserClinicAssociation
+            recipients: Dict[int, Any] = {}
+
+            # 1. Clinic Admins
+            if request.notify_admin:
+                admins = db.query(UserClinicAssociation).filter(
+                    UserClinicAssociation.clinic_id == clinic.id,
+                    UserClinicAssociation.is_active == True,
+                    UserClinicAssociation.roles.contains(['admin']),
+                    UserClinicAssociation.line_user_id.isnot(None)
+                ).all()
+                for admin in admins:
+                    recipients[admin.user_id] = admin  # type: ignore
+
+            # 2. Appointment Practitioner
+            if request.notify_appointment_practitioner and request.appointment_id:
+                appointment = db.query(Appointment).filter(
+                    Appointment.calendar_event_id == request.appointment_id
+                ).first()
+                if appointment and appointment.calendar_event and appointment.calendar_event.user_id:
+                    # Check if practitioner is confirmed (not auto-assigned)
+                    if not appointment.is_auto_assigned:
+                        assoc = db.query(UserClinicAssociation).filter(
+                            UserClinicAssociation.user_id == appointment.calendar_event.user_id,
+                            UserClinicAssociation.clinic_id == clinic.id,
+                            UserClinicAssociation.is_active == True,
+                            UserClinicAssociation.line_user_id.isnot(None)
+                        ).first()
+                        if assoc:
+                            recipients[assoc.user_id] = assoc  # type: ignore
+
+            # 3. Patient's Assigned Practitioner
+            if request.notify_assigned_practitioner:
+                from models.patient_practitioner_assignment import PatientPractitionerAssignment
+                assignment = db.query(PatientPractitionerAssignment).filter(
+                    PatientPractitionerAssignment.patient_id == request.patient_id,  # type: ignore
+                    PatientPractitionerAssignment.clinic_id == clinic.id,
+                    PatientPractitionerAssignment.is_active == True  # type: ignore
+                ).first()
+                if assignment:
+                    assoc = db.query(UserClinicAssociation).filter(
+                        UserClinicAssociation.user_id == assignment.practitioner_id,  # type: ignore
+                        UserClinicAssociation.clinic_id == clinic.id,
+                        UserClinicAssociation.is_active == True,
+                        UserClinicAssociation.line_user_id.isnot(None)
+                    ).first()
+                    if assoc:
+                        recipients[assoc.user_id] = assoc  # type: ignore
+
+            if not recipients:
+                return False
+
+            # Send notifications
+            labels = {
+                'recipient_type': 'mixed',
+                'event_type': 'patient_form_submission',
+                'trigger_source': 'patient_triggered'
+            }
+            
+            success_count = NotificationService._send_notification_to_recipients(
+                db, clinic, message, list(recipients.values()), labels  # type: ignore
+            )
+            
+            return success_count > 0
+
+        except Exception as e:
+            logger.exception(f"Failed to send patient form submission notification: {e}")
             return False
 
     @staticmethod

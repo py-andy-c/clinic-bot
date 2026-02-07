@@ -47,9 +47,15 @@ class CancellationPreviewRequest(BaseModel):
 class MessagePreviewRequest(BaseModel):
     """Request model for appointment message preview."""
     appointment_type_id: Optional[int] = Field(None, description="Appointment type ID (optional for new items)")
-    message_type: Literal["patient_confirmation", "clinic_confirmation", "reminder", "recurrent_clinic_confirmation"] = Field(..., description="Message type")
+    message_type: Literal["patient_confirmation", "clinic_confirmation", "reminder", "recurrent_clinic_confirmation", "patient_form"] = Field(..., description="Message type")
     template: str = Field(..., description="Template to preview")
     appointment_type_name: Optional[str] = Field(None, description="Appointment type name (required if appointment_type_id is not provided)")
+
+
+class PatientFormPreviewRequest(BaseModel):
+    """Request model for patient form message preview."""
+    appointment_type_id: Optional[int] = Field(None, description="Appointment type ID")
+    message_template: str = Field(..., description="Template to preview")
 
 
 class ReceiptPreviewRequest(BaseModel):
@@ -143,7 +149,7 @@ async def generate_cancellation_preview(
             appointment_time=request.appointment_time,
             therapist_name=request.therapist_name,
             patient_name=request.patient_name,
-            source=CancellationSource.CLINIC,  # Always clinic-initiated for preview
+            source=CancellationSource.CLINIC,  # Use enum instead of string
             clinic=clinic,
             note=request.note
         )
@@ -319,6 +325,85 @@ async def preview_appointment_message(
         raise
     except Exception as e:
         logger.exception(f"Error generating appointment message preview: {e}")
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="無法產生預覽訊息"
+        )
+
+
+@router.post("/patient-form-settings/preview", summary="Preview patient form message")
+async def preview_patient_form_message(
+    request: PatientFormPreviewRequest,
+    current_user: UserContext = Depends(require_authenticated),
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """
+    Preview patient form message with actual context data.
+    """
+    try:
+        clinic_id = ensure_clinic_access(current_user)
+        if not clinic_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="使用者不屬於任何診所"
+            )
+        
+        clinic = db.query(Clinic).get(clinic_id)
+        if not clinic:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="診所不存在"
+            )
+        
+        # Validate template length
+        if len(request.message_template) > 3500:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="訊息模板長度超過限制"
+            )
+        
+        # Get appointment type if ID is provided
+        appointment_type = None
+        if request.appointment_type_id:
+            appointment_type = db.query(AppointmentType).filter(
+                AppointmentType.id == request.appointment_type_id,
+                AppointmentType.clinic_id == clinic_id,
+                AppointmentType.is_deleted == False
+            ).first()
+        
+        # Build preview context
+        context = MessageTemplateService.build_preview_context(
+            appointment_type=appointment_type,
+            current_user=current_user,
+            clinic=clinic,
+            db=db
+        )
+        
+        # Render message
+        preview_message = MessageTemplateService.render_message(request.message_template, context)
+        
+        # Extract used placeholders
+        used_placeholders = MessageTemplateService.extract_used_placeholders(request.message_template, context)
+        
+        # Validate placeholder completeness
+        completeness_warnings = MessageTemplateService.validate_placeholder_completeness(
+            request.message_template, context, clinic
+        )
+        
+        # Check for required {表單連結}
+        if "{表單連結}" not in request.message_template:
+            completeness_warnings.append("訊息範本必須包含 {表單連結}")
+            
+        return {
+            "preview_message": preview_message,
+            "used_placeholders": used_placeholders,
+            "completeness_warnings": completeness_warnings
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Error generating patient form message preview: {e}")
         raise HTTPException(
             status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法產生預覽訊息"

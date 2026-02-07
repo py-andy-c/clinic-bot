@@ -400,11 +400,28 @@ class FollowUpMessageBundleData(BaseModel):
     display_order: int = 0
 
 
+class PatientFormSettingBundleData(BaseModel):
+    id: Optional[int] = None
+    template_id: int
+    timing_mode: str
+    hours_after: Optional[int] = None
+    days_after: Optional[int] = None
+    time_of_day: Optional[str] = None
+    message_template: str
+    flex_button_text: str = "填寫表單"
+    notify_admin: bool = False
+    notify_appointment_practitioner: bool = False
+    notify_assigned_practitioner: bool = False
+    is_enabled: bool = True
+    display_order: int = 0
+
+
 class ServiceItemBundleAssociations(BaseModel):
     practitioner_ids: List[int] = []
     billing_scenarios: List[BillingScenarioBundleData] = []
     resource_requirements: List[ResourceRequirementBundleData] = []
     follow_up_messages: List[FollowUpMessageBundleData] = []
+    patient_form_settings: List[PatientFormSettingBundleData] = []
 
 
 class ServiceItemData(BaseModel):
@@ -1112,6 +1129,29 @@ def get_service_item_bundle(
                 FollowUpMessage.appointment_type_id == id
             ).all()
         ]
+
+        # Get patient form settings
+        from models.patient_form_setting import PatientFormSetting
+        patient_form_settings: List[PatientFormSettingBundleData] = [
+            PatientFormSettingBundleData(
+                id=pfs.id,
+                template_id=pfs.template_id,
+                timing_mode=pfs.timing_mode,
+                hours_after=pfs.hours_after,
+                days_after=pfs.days_after,
+                time_of_day=pfs.time_of_day.strftime("%H:%M") if pfs.time_of_day else None,
+                message_template=pfs.message_template,
+                flex_button_text=pfs.flex_button_text,
+                notify_admin=pfs.notify_admin,
+                notify_appointment_practitioner=pfs.notify_appointment_practitioner,
+                notify_assigned_practitioner=pfs.notify_assigned_practitioner,
+                is_enabled=pfs.is_enabled,
+                display_order=pfs.display_order
+            )
+            for pfs in db.query(PatientFormSetting).filter(
+                PatientFormSetting.appointment_type_id == id
+            ).all()
+        ]
         
         return ServiceItemBundleResponse(
             item=AppointmentTypeResponse(
@@ -1144,7 +1184,8 @@ def get_service_item_bundle(
                 practitioner_ids=practitioner_ids,
                 billing_scenarios=billing_scenarios,
                 resource_requirements=resource_requirements,
-                follow_up_messages=follow_up_messages
+                follow_up_messages=follow_up_messages,
+                patient_form_settings=patient_form_settings
             )
         )
     except HTTPException:
@@ -1330,6 +1371,66 @@ def _sync_service_item_associations(
                 display_order=fm_data.display_order
             )
             db.add(fm)
+
+    # 5. Patient Form Settings (Diff Sync)
+    from models.patient_form_setting import PatientFormSetting
+    incoming_pfs_ids = {pfs.id for pfs in associations.patient_form_settings if pfs.id}
+    q_pfs = db.query(PatientFormSetting).filter(
+        PatientFormSetting.appointment_type_id == appointment_type_id
+    )
+    if incoming_pfs_ids:
+        q_pfs = q_pfs.filter(PatientFormSetting.id.not_in(incoming_pfs_ids))
+        
+    q_pfs.delete(synchronize_session='fetch')
+    
+    for pfs_data in associations.patient_form_settings:
+        if pfs_data.id:
+            pfs = db.query(PatientFormSetting).filter(
+                PatientFormSetting.id == pfs_data.id,
+                PatientFormSetting.appointment_type_id == appointment_type_id
+            ).first()
+            if pfs:
+                pfs.template_id = pfs_data.template_id
+                pfs.timing_mode = pfs_data.timing_mode
+                pfs.hours_after = pfs_data.hours_after
+                pfs.days_after = pfs_data.days_after
+                
+                if pfs_data.time_of_day:
+                    h, m = map(int, pfs_data.time_of_day.split(':'))
+                    pfs.time_of_day = time(h, m)
+                else:
+                    pfs.time_of_day = None
+                    
+                pfs.message_template = pfs_data.message_template
+                pfs.flex_button_text = pfs_data.flex_button_text
+                pfs.notify_admin = pfs_data.notify_admin
+                pfs.notify_appointment_practitioner = pfs_data.notify_appointment_practitioner
+                pfs.notify_assigned_practitioner = pfs_data.notify_assigned_practitioner
+                pfs.is_enabled = pfs_data.is_enabled
+                pfs.display_order = pfs_data.display_order
+        else:
+            pfs_time = None
+            if pfs_data.time_of_day:
+                h, m = map(int, pfs_data.time_of_day.split(':'))
+                pfs_time = time(h, m)
+                
+            pfs = PatientFormSetting(
+                clinic_id=clinic_id,
+                appointment_type_id=appointment_type_id,
+                template_id=pfs_data.template_id,
+                timing_mode=pfs_data.timing_mode,
+                hours_after=pfs_data.hours_after,
+                days_after=pfs_data.days_after,
+                time_of_day=pfs_time,
+                message_template=pfs_data.message_template,
+                flex_button_text=pfs_data.flex_button_text,
+                notify_admin=pfs_data.notify_admin,
+                notify_appointment_practitioner=pfs_data.notify_appointment_practitioner,
+                notify_assigned_practitioner=pfs_data.notify_assigned_practitioner,
+                is_enabled=pfs_data.is_enabled,
+                display_order=pfs_data.display_order
+            )
+            db.add(pfs)
 
 
 @router.post("/service-items/bundle", summary="Create service item bundle")

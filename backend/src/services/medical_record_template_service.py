@@ -21,7 +21,9 @@ class MedicalRecordTemplateService:
         name: str,
         fields: List[Dict[str, Any]],
         description: Optional[str] = None,
-        created_by_user_id: Optional[int] = None
+        created_by_user_id: Optional[int] = None,
+        template_type: str = 'medical_record',
+        max_photos: int = 5
     ) -> MedicalRecordTemplate:
         # Ensure fields have stable IDs
         fields = _ensure_field_ids(fields)
@@ -33,6 +35,8 @@ class MedicalRecordTemplateService:
             description=description,
             created_by_user_id=created_by_user_id,
             updated_by_user_id=created_by_user_id,
+            template_type=template_type,
+            max_photos=max_photos,
             version=1
         )
         db.add(template)
@@ -56,24 +60,34 @@ class MedicalRecordTemplateService:
     def list_templates(
         db: Session,
         clinic_id: int,
+        template_type: Optional[str] = None,
         skip: int = 0,
         limit: int = 100
     ) -> List[MedicalRecordTemplate]:
-        return db.query(MedicalRecordTemplate).filter(
+        query = db.query(MedicalRecordTemplate).filter(
             MedicalRecordTemplate.clinic_id == clinic_id,
             MedicalRecordTemplate.is_deleted == False
-        ).offset(skip).limit(limit).all()
+        )
+        if template_type:
+            query = query.filter(MedicalRecordTemplate.template_type == template_type)
+        
+        return query.offset(skip).limit(limit).all()
 
     @staticmethod
     def count_templates(
         db: Session,
-        clinic_id: int
+        clinic_id: int,
+        template_type: Optional[str] = None
     ) -> int:
         """Get total count of non-deleted templates for a clinic."""
-        return db.query(MedicalRecordTemplate).filter(
+        query = db.query(MedicalRecordTemplate).filter(
             MedicalRecordTemplate.clinic_id == clinic_id,
             MedicalRecordTemplate.is_deleted == False
-        ).count()
+        )
+        if template_type:
+            query = query.filter(MedicalRecordTemplate.template_type == template_type)
+        
+        return query.count()
 
     @staticmethod
     def update_template(
@@ -84,7 +98,8 @@ class MedicalRecordTemplateService:
         name: Optional[str] = None,
         fields: Optional[List[Dict[str, Any]]] = None,
         description: Optional[str] = None,
-        updated_by_user_id: Optional[int] = None
+        updated_by_user_id: Optional[int] = None,
+        max_photos: Optional[int] = None
     ) -> MedicalRecordTemplate:
         template = MedicalRecordTemplateService.get_template(db, template_id, clinic_id)
         if not template:
@@ -100,6 +115,8 @@ class MedicalRecordTemplateService:
             template.fields = _ensure_field_ids(fields)
         if description is not None:
             template.description = description
+        if max_photos is not None:
+            template.max_photos = max_photos
             
         template.version += 1
         template.updated_by_user_id = updated_by_user_id

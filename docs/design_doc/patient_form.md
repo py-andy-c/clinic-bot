@@ -421,6 +421,16 @@ Templates already have full CRUD via `/clinic/medical-record-templates`. Extend:
 
 * **Description**: Delete a patient form setting
 
+#### `GET /clinic/service-items/:id/bundle` (Extended)
+
+* **Description**: Included `patient_form_settings` in the service item bundle response.
+* **Response**: `ServiceItemBundleResponse` now includes `associations.patient_form_settings`.
+
+#### `PUT /clinic/service-items/:id/bundle` (Extended)
+
+* **Description**: Support atomic synchronization of `patient_form_settings` within the service item bundle update.
+* **Request Body**: `ServiceItemBundleRequest` now accepts `associations.patient_form_settings` for diff-based sync.
+
 #### `POST /clinic/patient-form-settings/preview`
 
 * **Description**: Preview the message template with placeholders resolved
@@ -750,7 +760,7 @@ This provides more space for:
 When an associated appointment is cancelled:
 
 * **Decision**: Pending patient form requests remain active (patient can still fill them if desired)
-* The appointment association is preserved (via `ON DELETE SET NULL`, appointment\_id becomes NULL)
+* The appointment association is preserved (via `ON DELETE SET NULL`, appointment_id becomes NULL)
 * Clinics can manually manage pending forms from the patient detail page if needed
 
 **Future Enhancement**: Consider adding a `cancelled` status for forms that should no longer be filled, but this is out of scope for MVP.
@@ -786,53 +796,53 @@ When an associated appointment is cancelled:
 
 ### Phase 1: Database & Backend Foundation (Week 1-2)
 
-* \[ ] Database migrations for new tables and columns
-  * \[ ] `patient_form_settings` table
-  * \[ ] `patient_form_requests` table
-  * \[ ] `template_type` and `max_photos` columns on `medical_record_templates`
-  * \[ ] `source_type` and `patient_form_request_id` on `medical_records`
-* \[ ] Update `MedicalRecordTemplate` model and service with `template_type` and `max_photos`
-* \[ ] Create `PatientFormSetting` model and CRUD service
-* \[ ] Create `PatientFormRequest` model and service
-* \[ ] Add message template validation (require `{表單連結}`)
+* [x] Database migrations for new tables and columns
+  * [x] `patient_form_settings` table
+  * [x] `patient_form_requests` table
+  * [x] `template_type` and `max_photos` columns on `medical_record_templates`
+  * [x] `source_type` and `patient_form_request_id` on `medical_records`
+* [x] Update `MedicalRecordTemplate` model and service with `template_type` and `max_photos`
+* [x] Create `PatientFormSetting` model and CRUD service
+* [x] Create `PatientFormRequest` model and service
+* [x] Add message template validation (require `{表單連結}`)
 
 ### Phase 2: Scheduling & Notifications (Week 2)
 
-* \[ ] Integrate with `ScheduledLineMessage` for automatic sending (reuse existing infrastructure)
-* \[ ] Create `PatientFormSchedulingService` (mirror `FollowUpMessageService` pattern)
-* \[ ] Add scheduled message handling for `patient_form` type
-* \[ ] Handle appointment creation/edit/cancel flows
-* \[ ] Implement notification service for form submissions
-* \[ ] Handle practitioner confirmation check for notifications
-* \[ ] Implement recipient deduplication
+* [x] Integrate with `ScheduledLineMessage` for automatic sending (reuse existing infrastructure)
+* [x] Create `PatientFormSchedulingService` (mirror `FollowUpMessageService` pattern)
+* [x] Add scheduled message handling for `patient_form` type
+* [x] Handle appointment creation/edit/cancel flows
+* [x] Implement notification service for form submissions
+* [x] Handle practitioner confirmation check for notifications
+* [x] Implement recipient deduplication
 
 ### Phase 3: Clinic Admin Frontend (Week 2-3)
 
-* \[ ] Convert template editor modal to full-screen (for both medical records and patient forms)
-* \[ ] Add `max_photos` setting to template editor
-* \[ ] Add form preview tab to template editor (reuse `MedicalRecordDynamicForm`)
-* \[ ] Patient form templates page (copy and modify from medical record templates)
-* \[ ] Service item modal - patient form settings section (mirror follow-up messages section)
-* \[ ] Message template editor with validation and preview (reuse `PlaceholderHelper`)
-* \[ ] Notification checkboxes UI
-* \[ ] Patient detail page - patient forms section
+* [ ] Convert template editor modal to full-screen (for both medical records and patient forms)
+* [ ] Add `max_photos` setting to template editor
+* [ ] Add form preview tab to template editor (reuse `MedicalRecordDynamicForm`)
+* [ ] Patient form templates page (copy and modify from medical record templates)
+* [ ] Service item modal - patient form settings section (mirror follow-up messages section)
+* [ ] Message template editor with validation and preview (reuse `PlaceholderHelper`)
+* [ ] Notification checkboxes UI
+* [ ] Patient detail page - patient forms section
 
 ### Phase 4: Patient LIFF Interface (Week 3-4)
 
-* \[ ] LIFF API endpoints for form access/submission
-* \[ ] LIFF home - patient forms menu item
-* \[ ] Patient forms list page
-* \[ ] Form fill page with dynamic form (reuse `MedicalRecordDynamicForm`)
-* \[ ] Photo upload with limit from template (hide section if `max_photos = 0`)
-* \[ ] Version conflict handling (reuse existing UI)
-* \[ ] Success screen
+* [x] LIFF API endpoints for form access/submission
+* [ ] LIFF home - patient forms menu item
+* [ ] Patient forms list page
+* [ ] Form fill page with dynamic form (reuse `MedicalRecordDynamicForm`)
+* [ ] Photo upload with limit from template (hide section if `max_photos = 0`)
+* [ ] Version conflict handling (reuse existing UI)
+* [ ] Success screen
 
 ### Phase 5: Polish & Testing (Week 4-5)
 
-* \[ ] Edge case handling and error messages
-* \[ ] Integration tests
-* \[ ] Documentation updates
-* \[ ] Manual QA testing
+* [x] Edge case handling and error messages
+* [x] Integration tests
+* [ ] Documentation updates
+* [x] Manual QA testing (Backend/API verified)
 
 ***
 

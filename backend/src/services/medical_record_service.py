@@ -33,7 +33,10 @@ class MedicalRecordService:
         values: Dict[str, Any],
         photo_ids: Optional[List[int]] = None,
         appointment_id: Optional[int] = None,
-        created_by_user_id: Optional[int] = None
+        created_by_user_id: Optional[int] = None,
+        source_type: str = 'clinic',
+        last_updated_by_patient_id: Optional[int] = None,
+        patient_form_request_id: Optional[int] = None
     ) -> MedicalRecord:
         # Verify Patient belongs to Clinic
         patient = db.query(Patient).filter(Patient.id == patient_id).first()
@@ -74,6 +77,10 @@ class MedicalRecordService:
             appointment_id=appointment_id,
             created_by_user_id=created_by_user_id,
             updated_by_user_id=created_by_user_id,
+            source_type=source_type,
+            last_updated_by_user_id=created_by_user_id,
+            last_updated_by_patient_id=last_updated_by_patient_id,
+            patient_form_request_id=patient_form_request_id,
             version=1
         )
         db.add(record)
@@ -117,7 +124,8 @@ class MedicalRecordService:
             joinedload(MedicalRecord.appointment).joinedload(Appointment.calendar_event),
             joinedload(MedicalRecord.appointment).joinedload(Appointment.appointment_type),
             joinedload(MedicalRecord.created_by_user),
-            joinedload(MedicalRecord.updated_by_user)
+            joinedload(MedicalRecord.updated_by_user),
+            joinedload(MedicalRecord.patient)
         ).first()
 
     @staticmethod
@@ -163,7 +171,8 @@ class MedicalRecordService:
             joinedload(MedicalRecord.appointment).joinedload(Appointment.calendar_event),
             joinedload(MedicalRecord.appointment).joinedload(Appointment.appointment_type),
             joinedload(MedicalRecord.created_by_user),
-            joinedload(MedicalRecord.updated_by_user)
+            joinedload(MedicalRecord.updated_by_user),
+            joinedload(MedicalRecord.patient)
         )
         
         return query.order_by(desc(MedicalRecord.created_at)).offset(skip).limit(limit).all()
@@ -214,7 +223,8 @@ class MedicalRecordService:
         values: Any = MISSING,
         photo_ids: Any = MISSING,
         appointment_id: Any = MISSING,
-        updated_by_user_id: Optional[int] = None
+        updated_by_user_id: Optional[int] = None,
+        last_updated_by_patient_id: Optional[int] = None
     ) -> MedicalRecord:
         record = MedicalRecordService.get_record(db, record_id, clinic_id)
         if not record:
@@ -305,6 +315,8 @@ class MedicalRecordService:
 
         record.version += 1
         record.updated_by_user_id = updated_by_user_id
+        record.last_updated_by_user_id = updated_by_user_id
+        record.last_updated_by_patient_id = last_updated_by_patient_id
         record.updated_at = datetime.now(timezone.utc)
         
         db.commit()

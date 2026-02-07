@@ -1,5 +1,5 @@
 from typing import List, Dict, Any, Optional
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
@@ -13,12 +13,15 @@ class MedicalRecordTemplateCreate(BaseModel):
     name: str
     fields: List[Dict[str, Any]]
     description: Optional[str] = None
+    template_type: str = 'medical_record'
+    max_photos: int = 5
 
 class MedicalRecordTemplateUpdate(BaseModel):
     version: int
     name: Optional[str] = None
     fields: Optional[List[Dict[str, Any]]] = None
     description: Optional[str] = None
+    max_photos: Optional[int] = None
 
 class MedicalRecordTemplateResponse(BaseModel):
     id: int
@@ -26,6 +29,8 @@ class MedicalRecordTemplateResponse(BaseModel):
     name: str
     fields: List[Dict[str, Any]]
     description: Optional[str]
+    template_type: str
+    max_photos: int
     version: int
     created_at: Any
     updated_at: Optional[Any]
@@ -59,13 +64,16 @@ def create_template(
         name=template.name,
         fields=template.fields,
         description=template.description,
-        created_by_user_id=user.user_id
+        created_by_user_id=user.user_id,
+        template_type=template.template_type,
+        max_photos=template.max_photos
     )
 
 @router.get("", response_model=MedicalRecordTemplatesListResponse)
 def list_templates(
     user: UserContext = Depends(require_authenticated),
     db: Session = Depends(get_db),
+    type: Optional[str] = Query(None, alias="type"),
     skip: int = 0,
     limit: int = 100
 ):
@@ -75,12 +83,13 @@ def list_templates(
     clinic_id = user.active_clinic_id
     
     # Get total count before pagination
-    total = MedicalRecordTemplateService.count_templates(db=db, clinic_id=clinic_id)
+    total = MedicalRecordTemplateService.count_templates(db=db, clinic_id=clinic_id, template_type=type)
     
     # Get paginated templates
     templates = MedicalRecordTemplateService.list_templates(
         db=db,
         clinic_id=clinic_id,
+        template_type=type,
         skip=skip,
         limit=limit
     )
@@ -134,7 +143,8 @@ def update_template(
         name=update_data.name,
         fields=update_data.fields,
         description=update_data.description,
-        updated_by_user_id=user.user_id
+        updated_by_user_id=user.user_id,
+        max_photos=update_data.max_photos
     )
 
 @router.delete("/{template_id}")

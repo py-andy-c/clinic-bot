@@ -26,10 +26,14 @@ from services.appointment_type_service import AppointmentTypeService
 # Import follow_up_message_service here to avoid circular imports
 # (follow_up_message_service imports Appointment, but we need it here)
 from services.follow_up_message_service import FollowUpMessageService
+from services.patient_form_scheduling_service import PatientFormSchedulingService
 from utils.datetime_utils import taiwan_now, TAIWAN_TZ
 from utils.appointment_type_queries import get_appointment_type_by_id_with_soft_delete_check
 from utils.appointment_queries import filter_future_appointments
 from services.resource_service import ResourceService
+
+# Import NotificationService inside methods to avoid circular imports
+# from services.notification_service import NotificationService, CancellationSource
 
 logger = logging.getLogger(__name__)
 
@@ -301,6 +305,12 @@ class AppointmentService:
                 FollowUpMessageService.schedule_follow_up_messages(db, appointment)
             except Exception as e:
                 logger.exception(f"Failed to schedule follow-up messages for appointment {appointment.calendar_event_id}: {e}")
+                # Don't fail appointment creation if scheduling fails
+
+            try:
+                PatientFormSchedulingService.schedule_patient_forms(db, appointment)
+            except Exception as e:
+                logger.exception(f"Failed to schedule patient forms for appointment {appointment.calendar_event_id}: {e}")
                 # Don't fail appointment creation if scheduling fails
             
             try:
@@ -1050,6 +1060,12 @@ class AppointmentService:
         except Exception as e:
             logger.exception(f"Failed to cancel follow-up messages for appointment {appointment_id}: {e}")
             # Don't fail cancellation if follow-up message cancellation fails
+
+        try:
+            PatientFormSchedulingService.cancel_pending_patient_forms(db, appointment_id)
+        except Exception as e:
+            logger.exception(f"Failed to cancel patient forms for appointment {appointment_id}: {e}")
+            # Don't fail cancellation if patient form cancellation fails
         
         try:
             from services.reminder_scheduling_service import ReminderSchedulingService
@@ -1096,9 +1112,8 @@ class AppointmentService:
                 # Send patient cancellation notification
                 # Skip if patient cancelled themselves (they already know they cancelled)
                 if cancelled_by == 'clinic':
-                    cancellation_source = CancellationSource.CLINIC
                     NotificationService.send_appointment_cancellation(
-                        db, appointment, practitioner, cancellation_source, note=note
+                        db, appointment, practitioner, CancellationSource.CLINIC, note=note  # type: ignore
                     )
             except Exception as e:
                 # Log but don't fail - notification failure shouldn't block cancellation
@@ -1565,6 +1580,12 @@ class AppointmentService:
                 FollowUpMessageService.reschedule_follow_up_messages(db, appointment)
             except Exception as e:
                 logger.exception(f"Failed to reschedule follow-up messages for appointment {appointment.calendar_event_id}: {e}")
+                # Don't fail update if rescheduling fails
+
+            try:
+                PatientFormSchedulingService.reschedule_patient_forms(db, appointment)
+            except Exception as e:
+                logger.exception(f"Failed to reschedule patient forms for appointment {appointment.calendar_event_id}: {e}")
                 # Don't fail update if rescheduling fails
             
             try:

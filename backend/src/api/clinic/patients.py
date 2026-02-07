@@ -15,8 +15,16 @@ from sqlalchemy.orm import Session
 
 from core.database import get_db
 from auth.dependencies import require_authenticated, require_practitioner_or_admin, UserContext, ensure_clinic_access
-from models import PatientPractitionerAssignment
-from services import PatientService, AppointmentService, PatientPractitionerAssignmentService
+from models.patient import Patient
+from models.clinic import Clinic
+from models.appointment import Appointment
+from models.patient_practitioner_assignment import PatientPractitionerAssignment
+from services.patient_service import PatientService
+from services.appointment_service import AppointmentService
+from services.patient_practitioner_assignment_service import PatientPractitionerAssignmentService
+from services.message_template_service import MessageTemplateService
+from services.patient_form_request_service import PatientFormRequestService
+from api.clinic.appointments import PatientFormRequestResponse, PatientFormRequestCreate
 from api.clinic.shared import (
     validate_patient_name,
     validate_patient_name_optional,
@@ -31,6 +39,13 @@ from api.responses import (
     AppointmentListResponse,
     AppointmentListItem
 )
+from typing import Any, Dict, List, Optional, Union, TYPE_CHECKING
+
+from sqlalchemy.orm import Session
+from auth.dependencies import UserContext
+
+if TYPE_CHECKING:
+    pass
 
 logger = logging.getLogger(__name__)
 
@@ -638,7 +653,151 @@ async def get_patient_appointments(
     except Exception as e:
         logger.exception(f"Error getting appointments for patient {patient_id}: {e}")
         raise HTTPException(
-            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,  # Use http_status to avoid shadowing parameter
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法取得預約記錄"
         )
+
+
+# ===== Patient Form Requests Endpoints =====
+
+@router.get("/{patient_id}/patient-form-requests", response_model=Dict[str, Any])
+async def list_patient_form_requests(
+    patient_id: int,
+    status: Optional[str] = Query(None),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    current_user: UserContext = Depends(require_authenticated),
+    db: Session = Depends(get_db)
+):
+    """List patient form requests for a patient."""
+    clinic_id = ensure_clinic_access(current_user)
+    
+    requests = PatientFormRequestService.list_patient_requests(
+        db=db,
+        clinic_id=clinic_id,
+        patient_id=patient_id,
+        status=status,
+        skip=(page - 1) * page_size,
+        limit=page_size
+    )
+    
+    total = PatientFormRequestService.count_patient_requests(
+        db=db,
+        clinic_id=clinic_id,
+        patient_id=patient_id,
+        status=status
+    )
+    
+    return {
+        "requests": [
+            PatientFormRequestResponse(
+                id=r.id,
+                clinic_id=r.clinic_id,
+                patient_id=r.patient_id,
+                template_id=r.template_id,
+                template_name=r.template.name,
+                appointment_id=r.appointment_id,
+                request_source=r.request_source,
+                status=r.status,
+                sent_at=r.sent_at,
+                submitted_at=r.submitted_at,
+                medical_record_id=r.medical_record_id
+            ) for r in requests
+        ],
+        "total": total
+    }
+
+
+@router.post("/{patient_id}/patient-form-requests", response_model=PatientFormRequestResponse)
+async def create_patient_form_request(
+    patient_id: int,
+    payload: PatientFormRequestCreate,
+    current_user: UserContext = Depends(require_practitioner_or_admin),
+    db: Session = Depends(get_db)
+):
+    """Manually send a patient form."""
+    clinic_id = ensure_clinic_access(current_user)
+    
+    # 1. Create the request record
+    request = PatientFormRequestService.create_request(
+        db=db,
+        clinic_id=clinic_id,
+        patient_id=patient_id,
+        template_id=payload.template_id,
+        request_source='manual',
+        appointment_id=payload.appointment_id,
+        notify_admin=payload.notify_admin,
+        notify_appointment_practitioner=payload.notify_appointment_practitioner,
+        notify_assigned_practitioner=payload.notify_assigned_practitioner
+    )
+    
+    # 2. Send LINE message
+    patient = db.query(Patient).filter(Patient.id == patient_id).first()
+    if not patient or not patient.line_user:
+        raise HTTPException(status_code=400, detail="病患尚未綁定 LINE，無法發送表單")
+    
+    clinic = db.query(Clinic).get(clinic_id)
+    if not clinic or not clinic.liff_id:
+        raise HTTPException(status_code=500, detail="診所 LIFF 設定不完整")
+
+    from services.line_service import LINEService
+    
+    # Build context
+    context = MessageTemplateService.build_patient_context(patient, clinic)  # type: ignore
+    if payload.appointment_id:
+        appointment = db.query(Appointment).filter(Appointment.calendar_event_id == payload.appointment_id).first()
+        if appointment:
+            from utils.practitioner_helpers import get_practitioner_display_name_with_title
+            practitioner_name = "不指定"
+            if not appointment.is_auto_assigned:
+                practitioner_name = get_practitioner_display_name_with_title(db, appointment.calendar_event.user_id, clinic_id)
+            
+            apt_context = MessageTemplateService.build_confirmation_context(appointment, patient, practitioner_name, clinic)  # type: ignore
+            context.update(apt_context)  # type: ignore
+
+    form_url = f"https://liff.line.me/{clinic.liff_id}?mode=form&token={request.access_token}"
+    context['表單連結'] = form_url  # type: ignore
+    
+    # Render and send
+    if "{表單連結}" not in payload.message_template:
+        raise HTTPException(status_code=400, detail="訊息範本必須包含 {表單連結}")
+    
+    # Use template message with button if possible
+    line_service = LINEService(clinic.line_channel_secret, clinic.line_channel_access_token)
+    labels = {
+        'recipient_type': 'patient',
+        'event_type': 'patient_form_request',
+        'trigger_source': 'clinic_triggered'
+    }
+    
+    parts = payload.message_template.split('{表單連結}')
+    text_to_render = parts[0].strip()
+    resolved_text = MessageTemplateService.render_message(text_to_render, context)  # type: ignore
+    
+    line_service.send_template_message_with_button(
+        line_user_id=patient.line_user.line_user_id,
+        text=resolved_text,
+        button_label=payload.flex_button_text,
+        button_uri=form_url,
+        db=db,
+        clinic_id=clinic_id,
+        labels=labels
+    )
+    
+    db.commit()
+    db.refresh(request)
+    
+    return PatientFormRequestResponse(
+        id=request.id,
+        clinic_id=request.clinic_id,
+        patient_id=request.patient_id,
+        template_id=request.template_id,
+        template_name=request.template.name,
+        appointment_id=request.appointment_id,
+        request_source=request.request_source,
+        status=request.status,
+        sent_at=request.sent_at,
+        submitted_at=request.submitted_at,
+        medical_record_id=request.medical_record_id
+    )
 

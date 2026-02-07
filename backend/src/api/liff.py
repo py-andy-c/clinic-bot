@@ -14,7 +14,7 @@ import jwt
 from datetime import datetime, timedelta, timezone, date
 from typing import Optional, Dict, Any, List, Literal, Union
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File, Form
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, field_validator, model_validator
 from sqlalchemy.orm import Session, joinedload
@@ -26,13 +26,32 @@ from core.constants import (
     MAX_NOTIFICATIONS_PER_USER,
     NOTIFICATION_DATE_RANGE_DAYS,
 )
-from models import (
-    LineUser, Clinic, Patient, AvailabilityNotification, AppointmentType, User, Appointment, CalendarEvent
-)
+from models.line_user import LineUser
+from models.clinic import Clinic
+from models.patient import Patient
+from models.availability_notification import AvailabilityNotification
+from models.appointment_type import AppointmentType
+from models.user import User
+from models.appointment import Appointment
+from models.calendar_event import CalendarEvent
 from models.receipt import Receipt
-from services import PatientService, AppointmentService, AvailabilityService, PractitionerService, AppointmentTypeService
-from services import PatientPractitionerAssignmentService
-from models import UserClinicAssociation
+from services.patient_service import PatientService
+from services.appointment_service import AppointmentService
+from services.availability_service import AvailabilityService
+from services.practitioner_service import PractitionerService
+from services.appointment_type_service import AppointmentTypeService
+from services.medical_record_service import MedicalRecordService
+from services.medical_record_template_service import MedicalRecordTemplateService  # type: ignore
+from services.patient_form_request_service import PatientFormRequestService
+from services.patient_practitioner_assignment_service import PatientPractitionerAssignmentService
+from services.patient_photo_service import PatientPhotoService
+from models.user_clinic_association import UserClinicAssociation
+from typing import Optional, Dict, Any, List, Literal, Union, TYPE_CHECKING
+from sqlalchemy.orm import Session
+
+if TYPE_CHECKING:
+    pass
+
 from utils.phone_validator import validate_taiwanese_phone, validate_taiwanese_phone_optional
 from utils.datetime_utils import TAIWAN_TZ, taiwan_now, parse_datetime_to_taiwan, parse_date_string
 from utils.patient_validators import validate_gender_field
@@ -216,6 +235,46 @@ class LanguagePreferenceRequest(BaseModel):
 class LanguagePreferenceResponse(BaseModel):
     """Response model for language preference update."""
     preferred_language: str
+
+
+class PatientFormResponse(BaseModel):
+    """Response model for patient form list item."""
+    id: int
+    template_name: str
+    status: str
+    sent_at: datetime
+    submitted_at: Optional[datetime] = None
+    access_token: str
+    medical_record_id: Optional[int] = None
+
+
+class PatientFormDetailResponse(BaseModel):
+    """Response model for patient form details."""
+    id: int
+    template: Dict[str, Any]
+    values: Optional[Dict[str, Any]] = None
+    status: str
+    medical_record_id: Optional[int] = None
+    version: int = 1
+
+
+class PatientFormSubmitRequest(BaseModel):
+    """Request model for submitting patient form."""
+    values: Dict[str, Any]
+    photo_ids: Optional[List[int]] = None
+
+
+class PatientFormSubmitResponse(BaseModel):
+    """Response model for patient form submission."""
+    success: bool
+    medical_record_id: int
+
+
+class PatientFormPhotoResponse(BaseModel):
+    """Response model for patient form photo upload."""
+    id: int
+    url: str
+    thumbnail_url: Optional[str] = None
 
 
 class PatientCreateRequest(BaseModel):
@@ -2023,3 +2082,247 @@ async def update_language_preference(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="更新語言偏好失敗"
         )
+
+
+# ===== Patient Form Endpoints =====
+
+@router.get("/patient-forms", response_model=Dict[str, List[PatientFormResponse]])
+def list_patient_forms(
+    line_user_clinic: tuple[LineUser, Clinic] = Depends(get_current_line_user_with_clinic),
+    db: Session = Depends(get_db)
+) -> Dict[str, List[PatientFormResponse]]:
+    """List pending and submitted patient forms for the current patient."""
+    line_user, clinic = line_user_clinic
+    
+    if not line_user.patient_id:  # type: ignore
+        return {"forms": []}  # type: ignore
+
+    try:
+        requests = PatientFormRequestService.list_patient_requests(
+            db=db,
+            clinic_id=clinic.id,  # type: ignore
+            patient_id=line_user.patient_id,  # type: ignore
+            limit=100
+        )
+        
+        return {
+            "forms": [
+                PatientFormResponse(
+                    id=r.id,  # type: ignore
+                    template_name=r.template.name,  # type: ignore
+                    status=r.status,  # type: ignore
+                    sent_at=r.sent_at,  # type: ignore
+                    submitted_at=r.submitted_at,  # type: ignore
+                    access_token=r.access_token,  # type: ignore
+                    medical_record_id=r.medical_record_id  # type: ignore
+                ) for r in requests
+            ]
+        }  # type: ignore
+    except Exception as e:
+        logger.exception(f"Error listing patient forms: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="無法取得表單列表"
+        )
+
+
+@router.get("/patient-forms/{access_token}", response_model=PatientFormDetailResponse)
+async def get_patient_form_details(
+    access_token: str,
+    line_user_clinic: tuple[LineUser, Clinic] = Depends(get_current_line_user_with_clinic),
+    db: Session = Depends(get_db)
+):
+    """Get form details for filling."""
+    line_user, clinic = line_user_clinic
+    
+    request = PatientFormRequestService.get_request_by_token(db, access_token)
+    if not request or request.clinic_id != clinic.id or request.patient_id != line_user.patient_id:  # type: ignore
+        raise HTTPException(status_code=404, detail="表單不存在")
+
+    template = request.template  # type: ignore
+    values = None
+    version = 1
+    
+    if request.medical_record_id:  # type: ignore
+        record = MedicalRecordService.get_record(db, request.medical_record_id, clinic.id)  # type: ignore
+        if record:
+            values = record.values
+            version = record.version
+
+    return PatientFormDetailResponse(
+        id=request.id,  # type: ignore
+        template={
+            "id": template.id,
+            "name": template.name,
+            "description": template.description,
+            "fields": template.fields,
+            "max_photos": template.max_photos
+        },
+        values=values,
+        status=request.status,  # type: ignore
+        medical_record_id=request.medical_record_id,  # type: ignore
+        version=version
+    )
+
+
+@router.post("/patient-forms/{access_token}/submit", response_model=PatientFormSubmitResponse)
+async def submit_patient_form(
+    access_token: str,
+    payload: PatientFormSubmitRequest,
+    line_user_clinic: tuple[LineUser, Clinic] = Depends(get_current_line_user_with_clinic),
+    db: Session = Depends(get_db)
+):
+    """Submit a completed form."""
+    line_user, clinic = line_user_clinic
+    
+    request = PatientFormRequestService.get_request_by_token(db, access_token)
+    if not request or request.clinic_id != clinic.id or request.patient_id != line_user.patient_id:  # type: ignore
+        raise HTTPException(status_code=404, detail="表單不存在")
+
+    if request.status == 'submitted':  # type: ignore
+        raise HTTPException(status_code=400, detail="表單已提交，請使用更新介面")
+
+    try:
+        # 1. Create medical record
+        record = MedicalRecordService.create_record(
+            db=db,
+            clinic_id=clinic.id,  # type: ignore
+            patient_id=line_user.patient_id,  # type: ignore
+            template_id=request.template_id,  # type: ignore
+            values=payload.values,
+            photo_ids=payload.photo_ids,
+            appointment_id=request.appointment_id,  # type: ignore
+            source_type='patient',
+            last_updated_by_patient_id=line_user.patient_id,  # type: ignore
+            patient_form_request_id=request.id  # type: ignore
+        )
+        
+        # 2. Update request status
+        PatientFormRequestService.update_request_status(
+            db=db,
+            request_id=request.id,  # type: ignore
+            clinic_id=clinic.id,  # type: ignore
+            status='submitted',
+            medical_record_id=record.id
+        )
+        
+        # 3. Send notifications
+        from services.notification_service import NotificationService
+        NotificationService.send_patient_form_submission_notification(
+            db=db,
+            request=request,  # type: ignore
+            patient_name=line_user.patient.full_name,  # type: ignore
+            template_name=request.template.name,  # type: ignore
+            clinic=clinic  # type: ignore
+        )
+        
+        db.commit()
+        return PatientFormSubmitResponse(success=True, medical_record_id=record.id)
+    except Exception as e:
+        db.rollback()
+        logger.exception(f"Error submitting patient form: {e}")
+        raise HTTPException(status_code=500, detail="提交表單失敗")
+
+
+@router.put("/patient-forms/{access_token}", response_model=PatientFormSubmitResponse)
+async def update_patient_form(
+    access_token: str,
+    payload: PatientFormSubmitRequest,
+    version: int = Query(...),
+    line_user_clinic: tuple[LineUser, Clinic] = Depends(get_current_line_user_with_clinic),
+    db: Session = Depends(get_db)
+):
+    """Update a submitted form."""
+    line_user, clinic = line_user_clinic
+    
+    request = PatientFormRequestService.get_request_by_token(db, access_token)
+    if not request or request.clinic_id != clinic.id or request.patient_id != line_user.patient_id:  # type: ignore
+        raise HTTPException(status_code=404, detail="表單不存在")
+
+    if not request.medical_record_id:  # type: ignore
+        raise HTTPException(status_code=400, detail="表單尚未提交")
+
+    try:
+        from services.medical_record_service import RecordVersionConflictError
+        
+        record = MedicalRecordService.update_record(
+            db=db,
+            record_id=request.medical_record_id,  # type: ignore
+            clinic_id=clinic.id,  # type: ignore
+            version=version,
+            values=payload.values,
+            photo_ids=payload.photo_ids,
+            last_updated_by_patient_id=line_user.patient_id  # type: ignore
+        )
+        
+        db.commit()
+        return PatientFormSubmitResponse(success=True, medical_record_id=record.id)
+    except Exception as e:
+        from services.medical_record_service import RecordVersionConflictError
+        if isinstance(e, RecordVersionConflictError):
+            raise HTTPException(status_code=409, detail="表單已被他人修改，請重新整理")
+        db.rollback()
+        logger.exception(f"Error updating patient form: {e}")
+        raise HTTPException(status_code=500, detail="更新表單失敗")
+
+
+@router.post("/patient-forms/{access_token}/photos", response_model=PatientFormPhotoResponse)
+async def upload_patient_form_photo(
+    access_token: str,
+    file: UploadFile = File(...),
+    description: Optional[str] = Form(None),
+    line_user_clinic: tuple[LineUser, Clinic] = Depends(get_current_line_user_with_clinic),
+    db: Session = Depends(get_db)
+):
+    """Upload a photo for a patient form."""
+    line_user, clinic = line_user_clinic
+    
+    request = PatientFormRequestService.get_request_by_token(db, access_token)
+    if not request or request.clinic_id != clinic.id or request.patient_id != line_user.patient_id:  # type: ignore
+        raise HTTPException(status_code=404, detail="表單不存在")
+
+    # Check photo limit from template
+    template = request.template  # type: ignore
+    max_photos = template.max_photos
+    
+    if max_photos == 0:
+        raise HTTPException(status_code=400, detail="此表單不允許上傳照片")
+        
+    # Count current photos (both pending and committed) linked to this request or its record
+    photo_service = PatientPhotoService()
+    
+    # For MVP, we'll just check against photos already linked to the medical record if it exists
+    # or just allow the upload if it's still pending. The actual limit enforcement
+    # happens during submission/update when we check the total photo_ids.
+    # However, to prevent storage abuse, we can do a basic check here.
+    
+    current_count = 0
+    if request.medical_record_id:  # type: ignore
+        current_count = photo_service.count_record_photos(db, clinic.id, request.medical_record_id)  # type: ignore
+        
+    if current_count >= max_photos:
+        raise HTTPException(status_code=400, detail=f"已達到照片數量上限 ({max_photos} 張)")
+
+    try:
+        photo = photo_service.upload_photo(  # type: ignore
+            db=db,
+            clinic_id=clinic.id,  # type: ignore
+            patient_id=line_user.patient_id,  # type: ignore
+            file=file,
+            uploaded_by_patient_id=line_user.patient_id,  # type: ignore
+            description=description,
+            is_pending=True  # Always pending until form is submitted
+        )
+        
+        db.commit()
+        
+        return PatientFormPhotoResponse(
+            id=photo.id,  # type: ignore
+            url=photo_service.get_photo_url(photo.storage_key),  # type: ignore
+            thumbnail_url=photo_service.get_photo_url(photo.thumbnail_key) if photo.thumbnail_key else None  # type: ignore
+        )
+    except Exception as e:
+        db.rollback()
+        logger.exception(f"Error uploading patient form photo: {e}")
+        raise HTTPException(status_code=500, detail="上傳照片失敗")
+

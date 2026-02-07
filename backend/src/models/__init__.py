@@ -31,6 +31,8 @@ from .patient_practitioner_assignment import PatientPractitionerAssignment
 from .medical_record_template import MedicalRecordTemplate
 from .medical_record import MedicalRecord
 from .patient_photo import PatientPhoto
+from .patient_form_setting import PatientFormSetting
+from .patient_form_request import PatientFormRequest
 
 __all__ = [
     "Clinic",
@@ -64,4 +66,6 @@ __all__ = [
     "MedicalRecordTemplate",
     "MedicalRecord",
     "PatientPhoto",
+    "PatientFormSetting",
+    "PatientFormRequest",
 ]

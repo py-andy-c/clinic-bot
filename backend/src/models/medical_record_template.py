@@ -24,6 +24,9 @@ class MedicalRecordTemplate(Base):
     # JSONB field for storing template structure (list of fields)
     fields: Mapped[List[Dict[str, Any]]] = mapped_column(JSONB, nullable=False)
     
+    template_type: Mapped[str] = mapped_column(String(20), server_default='medical_record', nullable=False)
+    max_photos: Mapped[int] = mapped_column(Integer, server_default='5', nullable=False)
+    
     version: Mapped[int] = mapped_column(Integer, server_default='1', nullable=False)
     
     is_deleted: Mapped[bool] = mapped_column(Boolean, server_default='false', nullable=False)

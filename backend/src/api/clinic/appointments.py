@@ -19,6 +19,7 @@ from models import User, Clinic, AppointmentType, CalendarEvent, Appointment, Pa
 from services import AppointmentService, AppointmentTypeService
 from services.availability_service import AvailabilityService
 from services.notification_service import NotificationService
+from services.patient_form_setting_service import PatientFormSettingService
 from services.receipt_service import ReceiptService
 from services.resource_service import ResourceService
 from utils.datetime_utils import datetime_validator, parse_date_string, parse_datetime_to_taiwan, TAIWAN_TZ, format_datetime
@@ -684,6 +685,85 @@ class FailedOccurrence(BaseModel):
     error_message: str  # Human-readable error message
 
 
+class PatientFormSettingCreate(BaseModel):
+    template_id: int
+    timing_mode: str
+    message_template: str
+    hours_after: Optional[int] = None
+    days_after: Optional[int] = None
+    time_of_day: Optional[time] = None
+    flex_button_text: str = '填寫表單'
+    notify_admin: bool = False
+    notify_appointment_practitioner: bool = False
+    notify_assigned_practitioner: bool = False
+    is_enabled: bool = True
+    display_order: int = 0
+
+
+class PatientFormSettingUpdate(BaseModel):
+    template_id: Optional[int] = None
+    timing_mode: Optional[str] = None
+    message_template: Optional[str] = None
+    hours_after: Optional[int] = None
+    days_after: Optional[int] = None
+    time_of_day: Optional[time] = None
+    flex_button_text: Optional[str] = None
+    notify_admin: Optional[bool] = None
+    notify_appointment_practitioner: Optional[bool] = None
+    notify_assigned_practitioner: Optional[bool] = None
+    is_enabled: Optional[bool] = None
+    display_order: Optional[int] = None
+
+
+class PatientFormSettingResponse(BaseModel):
+    id: int
+    clinic_id: int
+    appointment_type_id: int
+    template_id: int
+    template_name: str
+    timing_mode: str
+    hours_after: Optional[int]
+    days_after: Optional[int]
+    time_of_day: Optional[time]
+    message_template: str
+    flex_button_text: str
+    notify_admin: bool
+    notify_appointment_practitioner: bool
+    notify_assigned_practitioner: bool
+    is_enabled: bool
+    display_order: int
+
+    class Config:
+        from_attributes = True
+
+
+class PatientFormRequestCreate(BaseModel):
+    template_id: int
+    appointment_id: Optional[int] = None
+    message_template: str
+    flex_button_text: str = '填寫表單'
+    notify_admin: bool = False
+    notify_appointment_practitioner: bool = False
+    notify_assigned_practitioner: bool = False
+
+
+class PatientFormRequestResponse(BaseModel):
+    id: int
+    clinic_id: int
+    patient_id: int
+    template_id: int
+    template_name: str
+    appointment_id: Optional[int]
+    request_source: str
+    status: str
+    sent_at: datetime
+    submitted_at: Optional[datetime]
+    medical_record_id: Optional[int]
+
+    class Config:
+        from_attributes = True
+
+
 class RecurringAppointmentCreateResponse(BaseModel):
     """Response model for recurring appointment creation."""
     success: bool
@@ -1051,8 +1131,8 @@ async def preview_edit_notification(
                 appointment=appointment,
                 old_practitioner=old_practitioner,
                 new_practitioner=new_practitioner,
-                old_start_time=old_start_time_for_preview,
-                new_start_time=new_start_time,
+                old_start_time=old_start_time_for_preview,  # type: ignore
+                new_start_time=new_start_time,  # type: ignore
                 note=request.note
             )
         
@@ -1540,4 +1620,138 @@ async def update_appointment_resources(
             status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法更新資源分配"
         )
+
+
+# ===== Patient Form Settings Endpoints =====
+
+@router.get("/appointment-types/{appointment_type_id}/patient-form-settings", response_model=Dict[str, List[PatientFormSettingResponse]])
+async def list_patient_form_settings(
+    appointment_type_id: int,
+    current_user: UserContext = Depends(require_authenticated),
+    db: Session = Depends(get_db)
+):
+    """List patient form settings for an appointment type."""
+    clinic_id = ensure_clinic_access(current_user)
+    
+    settings = PatientFormSettingService.list_settings_by_appointment_type(
+        db=db,
+        clinic_id=clinic_id,
+        appointment_type_id=appointment_type_id
+    )
+    
+    return {
+        "patient_form_settings": [
+            PatientFormSettingResponse(
+                id=s.id,
+                clinic_id=s.clinic_id,
+                appointment_type_id=s.appointment_type_id,
+                template_id=s.template_id,
+                template_name=s.template.name,
+                timing_mode=s.timing_mode,
+                hours_after=s.hours_after,
+                days_after=s.days_after,
+                time_of_day=s.time_of_day,
+                message_template=s.message_template,
+                flex_button_text=s.flex_button_text,
+                notify_admin=s.notify_admin,
+                notify_appointment_practitioner=s.notify_appointment_practitioner,
+                notify_assigned_practitioner=s.notify_assigned_practitioner,
+                is_enabled=s.is_enabled,
+                display_order=s.display_order
+            ) for s in settings
+        ]
+    }
+
+
+@router.post("/appointment-types/{appointment_type_id}/patient-form-settings", response_model=PatientFormSettingResponse)
+async def create_patient_form_setting(
+    appointment_type_id: int,
+    payload: PatientFormSettingCreate,
+    current_user: UserContext = Depends(require_admin_role),
+    db: Session = Depends(get_db)
+):
+    """Create a patient form setting."""
+    clinic_id = ensure_clinic_access(current_user)
+    
+    setting = PatientFormSettingService.create_setting(
+        db=db,
+        clinic_id=clinic_id,
+        appointment_type_id=appointment_type_id,
+        **payload.model_dump()
+    )
+    
+    # Re-fetch to get template name
+    db.refresh(setting)
+    
+    return PatientFormSettingResponse(
+        id=setting.id,
+        clinic_id=setting.clinic_id,
+        appointment_type_id=setting.appointment_type_id,
+        template_id=setting.template_id,
+        template_name=setting.template.name,
+        timing_mode=setting.timing_mode,
+        hours_after=setting.hours_after,
+        days_after=setting.days_after,
+        time_of_day=setting.time_of_day,
+        message_template=setting.message_template,
+        flex_button_text=setting.flex_button_text,
+        notify_admin=setting.notify_admin,
+        notify_appointment_practitioner=setting.notify_appointment_practitioner,
+        notify_assigned_practitioner=setting.notify_assigned_practitioner,
+        is_enabled=setting.is_enabled,
+        display_order=setting.display_order
+    )
+
+
+@router.put("/patient-form-settings/{setting_id}", response_model=PatientFormSettingResponse)
+async def update_patient_form_setting(
+    setting_id: int,
+    payload: PatientFormSettingUpdate,
+    current_user: UserContext = Depends(require_admin_role),
+    db: Session = Depends(get_db)
+):
+    """Update a patient form setting."""
+    clinic_id = ensure_clinic_access(current_user)
+    
+    setting = PatientFormSettingService.update_setting(
+        db=db,
+        setting_id=setting_id,
+        clinic_id=clinic_id,
+        **payload.model_dump(exclude_unset=True)  # type: ignore
+    )
+    
+    return PatientFormSettingResponse(
+        id=setting.id,
+        clinic_id=setting.clinic_id,
+        appointment_type_id=setting.appointment_type_id,
+        template_id=setting.template_id,
+        template_name=setting.template.name,
+        timing_mode=setting.timing_mode,
+        hours_after=setting.hours_after,
+        days_after=setting.days_after,
+        time_of_day=setting.time_of_day,
+        message_template=setting.message_template,
+        flex_button_text=setting.flex_button_text,
+        notify_admin=setting.notify_admin,
+        notify_appointment_practitioner=setting.notify_appointment_practitioner,
+        notify_assigned_practitioner=setting.notify_assigned_practitioner,
+        is_enabled=setting.is_enabled,
+        display_order=setting.display_order
+    )
+
+
+@router.delete("/patient-form-settings/{setting_id}")
+async def delete_patient_form_setting(
+    setting_id: int,
+    current_user: UserContext = Depends(require_admin_role),
+    db: Session = Depends(get_db)
+):
+    """Delete a patient form setting."""
+    clinic_id = ensure_clinic_access(current_user)
+    
+    if not PatientFormSettingService.delete_setting(db, setting_id, clinic_id):
+        raise HTTPException(status_code=404, detail="Setting not found")
+    
+    return {"success": True}
+
 

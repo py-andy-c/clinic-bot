@@ -22,7 +22,7 @@ class MessageTemplateService:
     # Available placeholders for standard appointment messages
     STANDARD_PLACEHOLDERS = [
         "病患姓名", "服務項目", "預約時間", "預約結束時間", "預約日期", "預約時段",
-        "治療師姓名", "診所名稱", "診所地址", "診所電話", "病患備註"
+        "治療師姓名", "診所名稱", "診所地址", "診所電話", "病患備註", "表單連結"
     ]
 
     # Available placeholders for consolidated recurrent appointment messages
@@ -348,6 +348,7 @@ class MessageTemplateService:
             "診所地址": clinic_address,
             "診所電話": clinic_phone,
             "病患備註": "",  # Empty for preview
+            "表單連結": "[填寫表單]", # Sample for preview
         }
     
     @staticmethod
