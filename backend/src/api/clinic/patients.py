@@ -772,6 +772,8 @@ async def create_patient_form_request(
     
     parts = payload.message_template.split('{表單連結}')
     text_to_render = parts[0].strip()
+    suffix_text = parts[1].strip() if len(parts) > 1 else ""
+    
     resolved_text = MessageTemplateService.render_message(text_to_render, context)  # type: ignore
     
     line_service.send_template_message_with_button(
@@ -783,6 +785,17 @@ async def create_patient_form_request(
         clinic_id=clinic_id,
         labels=labels
     )
+    
+    # If there is suffix text, send it as a separate follow-up message
+    if suffix_text:
+        resolved_suffix = MessageTemplateService.render_message(suffix_text, context)  # type: ignore
+        line_service.send_text_message(
+            line_user_id=patient.line_user.line_user_id,
+            text=resolved_suffix,
+            labels=labels,
+            db=db,
+            clinic_id=clinic_id
+        )
     
     db.commit()
     db.refresh(request)

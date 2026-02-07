@@ -593,8 +593,9 @@ class ScheduledMessageService:
                         if form_url:
                             # Split message into text before {表單連結} and after
                             parts = scheduled.message_template.split('{表單連結}')  # type: ignore
-                            # We'll use the first part as text, and render it
                             text_to_render = parts[0].strip()
+                            suffix_text = parts[1].strip() if len(parts) > 1 else ""
+                            
                             resolved_text = MessageTemplateService.render_message(
                                 text_to_render,
                                 context
@@ -610,6 +611,20 @@ class ScheduledMessageService:
                                 clinic_id=scheduled.clinic_id,  # type: ignore
                                 labels=labels
                             )
+                            
+                            # If there is suffix text, send it as a separate follow-up message
+                            if suffix_text:
+                                resolved_suffix = MessageTemplateService.render_message(
+                                    suffix_text,
+                                    context
+                                )
+                                line_service.send_text_message(
+                                    line_user_id=scheduled.recipient_line_user_id,  # type: ignore
+                                    text=resolved_suffix,
+                                    labels=labels,
+                                    db=db,
+                                    clinic_id=scheduled.clinic_id  # type: ignore
+                                )
                         else:
                             # Fallback to normal text message if URL missing
                             resolved_text = MessageTemplateService.render_message(

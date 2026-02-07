@@ -114,16 +114,17 @@ class PatientFormSchedulingService:
         
         for setting in form_settings:
             try:
-                # 'immediate' uses start time, others use end time
-                base_time = start_datetime if setting.timing_mode == 'immediate' else appointment_end_time  # type: ignore
-                
-                scheduled_time = PatientFormSchedulingService.calculate_scheduled_time(
-                    base_time,  # type: ignore
-                    setting.timing_mode,  # type: ignore
-                    setting.hours_after,  # type: ignore
-                    setting.days_after,  # type: ignore
-                    setting.time_of_day  # type: ignore
-                )
+                # 'immediate' uses current time, others use end time
+                if setting.timing_mode == 'immediate':  # type: ignore
+                    scheduled_time = taiwan_now() + timedelta(seconds=5) # Small buffer
+                else:
+                    scheduled_time = PatientFormSchedulingService.calculate_scheduled_time(
+                        appointment_end_time,  # type: ignore
+                        setting.timing_mode,  # type: ignore
+                        setting.hours_after,  # type: ignore
+                        setting.days_after,  # type: ignore
+                        setting.time_of_day  # type: ignore
+                    )
                 
                 # Validate scheduled time is not in past
                 current_time = taiwan_now()
