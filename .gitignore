@@ -218,9 +218,12 @@ load_test_env.sh
 .nuxt
 dist
 
-# Gatsby files
-.cache/
-public
+# Gatsby files or generic public folders
+/public
+/frontend/dist
+/frontend/.next
+/frontend/.nuxt
+!/frontend/public/
 
 # Storybook build outputs
 .out
