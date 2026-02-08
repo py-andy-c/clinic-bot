@@ -152,6 +152,19 @@ const PatientFormPage: React.FC<PatientFormPageProps> = ({ accessToken, onBack }
         return;
       }
 
+      // Scroll to first validation error if present
+      const firstErrorField = Object.keys(methods.formState.errors)[0];
+      if (firstErrorField) {
+        // Find the first invalid field and scroll to it
+        const errorElement = document.querySelector(`[name="values.${firstErrorField}"]`) ||
+                            document.querySelector('[aria-invalid="true"]');
+        if (errorElement) {
+          errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          // Focus the field for better UX
+          (errorElement as HTMLElement).focus?.();
+        }
+      }
+
       await alert(getErrorMessage(error), '提交失敗');
     }
   };

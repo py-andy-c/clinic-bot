@@ -132,15 +132,20 @@ class TestValidateRecordValues:
         errors = validate_record_values(template_fields, values)
         assert errors == []
 
-    def test_boolean_false_is_valid(self):
-        """Test that false is a valid value for boolean fields."""
+    def test_boolean_false_passes_defensively(self):
+        """Test that unexpected boolean values pass validation (defensive behavior).
+        
+        Note: Our system never produces boolean values for form fields (checkboxes use arrays).
+        This test verifies defensive behavior - we don't reject unexpected but potentially valid data.
+        If you see boolean values in production, investigate the data source.
+        """
         template_fields = [
             {'id': 'consent', 'label': 'Consent', 'required': True, 'type': 'checkbox'},
         ]
-        values = {'consent': False}
+        values = {'consent': False}  # Unexpected but not explicitly invalid
         
         errors = validate_record_values(template_fields, values)
-        assert errors == []
+        assert errors == []  # Defensive: don't reject unexpected data
 
     def test_field_with_unknown_label_uses_default(self):
         """Test that fields without labels use a default label in error messages."""

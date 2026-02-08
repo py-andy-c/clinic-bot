@@ -253,22 +253,25 @@ const MedicalRecordPage: React.FC = () => {
 
   // Watch current appointment selection for real-time UI updates
   const currentAppointmentId = methods.watch('appointment_id');
-  const values = methods.watch('values');
 
-  // Memoize the strict schema (only recreate when fields change, not on every value change)
-  const strictSchema = useMemo(
-    () => record?.template_snapshot?.fields
-      ? createDynamicSchema(record.template_snapshot.fields, true)
-      : null,
-    [record?.template_snapshot?.fields]
-  );
-
-  // Calculate validation warnings using the memoized schema (non-blocking)
-  const validationWarnings = useMemo(() => {
+  /**
+   * Calculate validation warnings for missing required fields.
+   * This is only called AFTER save succeeds to show non-blocking warnings.
+   * 
+   * Performance: By calculating on-demand instead of on every keystroke,
+   * we eliminate unnecessary validation during form editing.
+   */
+  const calculateValidationWarnings = useCallback((
+    fields: TemplateField[],
+    values: Record<string, any>,
+    appointmentId: number | null
+  ): Record<string, string> => {
     const warnings: Record<string, string> = {};
-    if (!strictSchema || !record?.template_snapshot?.fields) return warnings;
+    if (!fields) return warnings;
 
-    const result = strictSchema.safeParse({ values, appointment_id: currentAppointmentId });
+    // Create strict schema for validation
+    const strictSchema = createDynamicSchema(fields, true);
+    const result = strictSchema.safeParse({ values, appointment_id: appointmentId });
 
     if (result.success) return warnings; // All required fields are filled
 
@@ -277,7 +280,7 @@ const MedicalRecordPage: React.FC = () => {
       // Path is like ['values', 'field_id'] for nested fields
       if (issue.path[0] === 'values' && issue.path[1]) {
         const fieldId = issue.path[1] as string;
-        const field = record.template_snapshot.fields.find(f => f.id === fieldId);
+        const field = fields.find(f => f.id === fieldId);
         if (field) {
           warnings[fieldId] = field.label;
         }
@@ -285,7 +288,7 @@ const MedicalRecordPage: React.FC = () => {
     });
 
     return warnings;
-  }, [strictSchema, record?.template_snapshot?.fields, values, currentAppointmentId]);
+  }, []);
 
   // Resolve the appointment object to display (either from initial record or from loaded appointments list)
   const displayAppointment = useMemo(() => {
@@ -424,8 +427,15 @@ const MedicalRecordPage: React.FC = () => {
 
       setIsSelectAppointmentModalOpen(false); // Close modal if open
 
+      // Calculate validation warnings AFTER save succeeds (non-blocking)
+      const warnings = calculateValidationWarnings(
+        record.template_snapshot.fields,
+        data.values,
+        data.appointment_id ?? null
+      );
+      const missingFields = Object.values(warnings);
+
       // Show appropriate success message
-      const missingFields = Object.values(validationWarnings);
       if (photoUpdatesFailed) {
         await alert('病歷記錄已更新，但部分照片說明更新失敗。請再次點擊儲存以重試。', '部分成功');
       } else if (missingFields.length > 0) {
