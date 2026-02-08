@@ -222,8 +222,8 @@ export const MedicalRecordTemplateEditorModal: React.FC<MedicalRecordTemplateEdi
   const previewFields = watchedFields.map((f, i) => ({
     ...f,
     id: f.id || `preview-${i}`,
-    options: typeof f.options === 'string' 
-      ? f.options.split('\n').map(o => o.trim()).filter(Boolean) 
+    options: typeof f.options === 'string'
+      ? f.options.split('\n').map(o => o.trim()).filter(Boolean)
       : f.options
   }));
 
@@ -241,22 +241,20 @@ export const MedicalRecordTemplateEditorModal: React.FC<MedicalRecordTemplateEdi
               <button
                 type="button"
                 onClick={() => setActiveTab('edit')}
-                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-                  activeTab === 'edit'
+                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'edit'
                     ? 'border-primary-600 text-primary-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700'
-                }`}
+                  }`}
               >
                 編輯內容
               </button>
               <button
                 type="button"
                 onClick={() => setActiveTab('preview')}
-                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-                  activeTab === 'preview'
+                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'preview'
                     ? 'border-primary-600 text-primary-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700'
-                }`}
+                  }`}
               >
                 預覽表單
               </button>
@@ -280,28 +278,19 @@ export const MedicalRecordTemplateEditorModal: React.FC<MedicalRecordTemplateEdi
                               placeholder="例如：一般檢查、初診記錄"
                             />
                           </FormField>
-                          <FormField name="template_type" label="模板類型">
-                            <select
-                              {...methods.register('template_type')}
-                              disabled={isEdit}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-500"
-                            >
-                              <option value="medical_record">病歷模板</option>
-                              <option value="patient_form">患者表單</option>
-                            </select>
+
+                          <FormField
+                            name="max_photos"
+                            label="照片數量上限"
+                            description="病患填寫時可上傳的照片數量 (0-20)"
+                          >
+                            <FormInput
+                              name="max_photos"
+                              type="number"
+                              min={0}
+                              max={20}
+                            />
                           </FormField>
-          <FormField 
-            name="max_photos" 
-            label="照片數量上限"
-            description="病患填寫時可上傳的照片數量 (0-20)"
-          >
-            <FormInput
-              name="max_photos"
-              type="number"
-              min={0}
-              max={20}
-            />
-          </FormField>
                           <FormField name="description" label="模板說明">
                             <FormTextarea
                               name="description"
@@ -354,9 +343,9 @@ export const MedicalRecordTemplateEditorModal: React.FC<MedicalRecordTemplateEdi
                             <p className="mt-2 text-gray-600">{methods.watch('description')}</p>
                           )}
                         </div>
-                        
+
                         <MedicalRecordDynamicForm fields={previewFields as any} />
-                        
+
                         {methods.watch('max_photos') > 0 && (
                           <div className="mt-8 pt-8 border-t">
                             <h3 className="text-sm font-medium text-gray-700 mb-4">照片上傳 (上限 {methods.watch('max_photos')} 張)</h3>
