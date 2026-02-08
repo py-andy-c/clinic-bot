@@ -131,7 +131,10 @@ export const PatientFormRequestsSection: React.FC<PatientFormRequestsSectionProp
                   <div className="text-xs text-gray-500 mt-1">
                     發送於 {new Date(req.sent_at).toLocaleString('zh-TW')}
                     {req.status === 'pending' && (
-                      <span className={`ml-2 font-medium ${getDaysAgo(req.sent_at) >= 7 ? 'text-red-600' : 'text-amber-600'}`}>
+                      <span 
+                        className={`ml-2 font-medium ${getDaysAgo(req.sent_at) >= 7 ? 'text-red-600' : 'text-amber-600'}`}
+                        title={getDaysAgo(req.sent_at) >= 7 ? '此表單已發送超過 7 天' : ''}
+                      >
                         ({getDaysAgo(req.sent_at)} 天前)
                       </span>
                     )}

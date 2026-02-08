@@ -2096,7 +2096,7 @@ async def get_patient_form_details(
     
     request = PatientFormRequestService.get_request_by_token(db, access_token)
     if not request or request.clinic_id != clinic.id:
-        raise HTTPException(status_code=404, detail="表單不存在")
+        raise HTTPException(status_code=404, detail="找不到此表單")
     
     # Verify the patient belongs to this LINE user
     patient_ids = {p.id for p in line_user.patients}
@@ -2145,15 +2145,15 @@ async def submit_patient_form(
     ).with_for_update().first()
     
     if not request or request.clinic_id != clinic.id:
-        raise HTTPException(status_code=404, detail="表單不存在")
-
+        raise HTTPException(status_code=404, detail="找不到此表單")
+    
     # Verify the patient belongs to this LINE user
     patient_ids = {p.id for p in line_user.patients}
     if request.patient_id not in patient_ids:
         raise HTTPException(status_code=403, detail="您沒有權限提交此表單")
 
     if request.status == PATIENT_FORM_STATUS_SUBMITTED:
-        raise HTTPException(status_code=400, detail="表單已提交，請使用更新介面")
+        raise HTTPException(status_code=400, detail="此表單已提交，您可以查看或編輯已提交的內容")
 
     try:
         # 1. Create medical record
@@ -2188,6 +2188,8 @@ async def submit_patient_form(
         # 3. Send notifications (outside the main transaction)
         try:
             from services.notification_service import NotificationService
+            # Refetch request to ensure we have the latest state for notification
+            db.refresh(request)
             NotificationService.send_patient_form_submission_notification(
                 db=db,
                 request=request,
@@ -2198,7 +2200,7 @@ async def submit_patient_form(
         except Exception as e:
             # Log notification failure but don't fail the form submission
             logger.error(f"Failed to send form submission notification: {e}")
-        
+
         return PatientFormSubmitResponse(success=True, medical_record_id=record.id)
     except Exception as e:
         db.rollback()
@@ -2221,8 +2223,8 @@ async def update_patient_form(
     
     request = PatientFormRequestService.get_request_by_token(db, access_token)
     if not request or request.clinic_id != clinic.id:
-        raise HTTPException(status_code=404, detail="表單不存在")
-
+        raise HTTPException(status_code=404, detail="找不到此表單")
+    
     # Verify the patient belongs to this LINE user
     patient_ids = {p.id for p in line_user.patients}
     if request.patient_id not in patient_ids:
@@ -2271,8 +2273,8 @@ async def upload_patient_form_photo(
     
     request = PatientFormRequestService.get_request_by_token(db, access_token)
     if not request or request.clinic_id != clinic.id:
-        raise HTTPException(status_code=404, detail="表單不存在")
-
+        raise HTTPException(status_code=404, detail="找不到此表單")
+    
     # Verify the patient belongs to this LINE user
     patient_ids = {p.id for p in line_user.patients}
     if request.patient_id not in patient_ids:
@@ -2283,12 +2285,20 @@ async def upload_patient_form_photo(
     max_photos = template.max_photos
     
     if max_photos == 0:
-        raise HTTPException(status_code=400, detail="此表單不允許上傳照片")
+        raise HTTPException(status_code=400, detail="此範本不允許上傳照片")
         
     # Count current photos (both pending and committed) linked to this request or its record
     photo_service = PatientPhotoService()
     
     # 1. Pre-upload check (to avoid unnecessary S3 uploads)
+    # Use with_for_update() on the request to prevent race conditions
+    request = db.query(PatientFormRequest).filter(
+        PatientFormRequest.id == request.id
+    ).with_for_update().first()
+    
+    if not request:
+        raise HTTPException(status_code=404, detail="表單不存在")
+
     current_count_pre = photo_service.count_patient_form_photos(
         db=db,
         clinic_id=clinic.id,
@@ -2324,6 +2334,20 @@ async def upload_patient_form_photo(
         )
         
         if current_count > max_photos:
+            # Clean up S3 object if limit exceeded after upload
+            try:
+                photo_service.s3_client.delete_object(
+                    Bucket=photo_service.bucket,
+                    Key=photo.storage_key
+                )
+                if photo.thumbnail_key:
+                    photo_service.s3_client.delete_object(
+                        Bucket=photo_service.bucket,
+                        Key=photo.thumbnail_key
+                    )
+            except Exception as cleanup_err:
+                logger.error(f"Failed to clean up S3 object after limit exceeded: {cleanup_err}")
+                
             raise HTTPException(status_code=400, detail=f"已達到照片數量上限 ({max_photos} 張)")
 
         db.commit()
@@ -2354,8 +2378,8 @@ async def delete_patient_form_photo(
     
     request = PatientFormRequestService.get_request_by_token(db, access_token)
     if not request or request.clinic_id != clinic.id:
-        raise HTTPException(status_code=404, detail="表單不存在")
-
+        raise HTTPException(status_code=404, detail="找不到此表單")
+    
     # Verify the patient belongs to this LINE user
     patient_ids = {p.id for p in line_user.patients}
     if request.patient_id not in patient_ids:
@@ -2365,7 +2389,7 @@ async def delete_patient_form_photo(
     photo = photo_service.get_photo(db, photo_id, clinic.id)
     
     if not photo:
-        raise HTTPException(status_code=404, detail="照片不存在")
+        raise HTTPException(status_code=404, detail="找不到此照片")
         
     # Verify the photo belongs to this patient and is linked to this form request
     if photo.patient_id != request.patient_id or photo.patient_form_request_id != request.id:
@@ -2379,4 +2403,3 @@ async def delete_patient_form_photo(
         db.rollback()
         logger.exception(f"Error deleting patient form photo: {e}")
         raise HTTPException(status_code=500, detail="刪除照片失敗")
-

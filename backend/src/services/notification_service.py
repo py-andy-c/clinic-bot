@@ -1282,14 +1282,14 @@ class NotificationService:
                             UserClinicAssociation.is_active == True,
                             UserClinicAssociation.line_user_id.isnot(None)
                         ).first()
-                        if assoc:
-                            recipients[assoc.user_id] = assoc  # type: ignore
+                        if assoc and assoc.user_id not in recipients:
+                            recipients[assoc.user_id] = assoc
 
             # 3. Patient's Assigned Practitioner
             if request.notify_assigned_practitioner:
                 from models.patient_practitioner_assignment import PatientPractitionerAssignment
                 assignments = db.query(PatientPractitionerAssignment).filter(
-                    PatientPractitionerAssignment.patient_id == request.patient_id,  # type: ignore
+                    PatientPractitionerAssignment.patient_id == request.patient_id,
                     PatientPractitionerAssignment.clinic_id == clinic.id
                 ).all()
                 
@@ -1303,7 +1303,8 @@ class NotificationService:
                             UserClinicAssociation.line_user_id.isnot(None)
                         ).all()
                         for assoc in assocs:
-                            recipients[assoc.user_id] = assoc  # type: ignore
+                            if assoc.user_id not in recipients:
+                                recipients[assoc.user_id] = assoc
 
             if not recipients:
                 return False

@@ -108,7 +108,7 @@ def upgrade() -> None:
             sa.ForeignKeyConstraint(['template_id'], ['medical_record_templates.id']),
             sa.ForeignKeyConstraint(['appointment_id'], ['appointments.calendar_event_id'], ondelete='SET NULL'),
             sa.ForeignKeyConstraint(['patient_form_setting_id'], ['patient_form_settings.id'], ondelete='SET NULL'),
-            sa.ForeignKeyConstraint(['medical_record_id'], ['medical_records.id'], ondelete='SET NULL'),
+            sa.ForeignKeyConstraint(['medical_record_id'], ['medical_records.id'], ondelete='SET NULL', use_alter=True, name='fk_patient_form_requests_medical_record'),
             sa.CheckConstraint("request_source IN ('auto', 'manual')", name='check_request_source'),
             sa.CheckConstraint("status IN ('pending', 'submitted', 'skipped')", name='check_status')
         )
@@ -117,6 +117,7 @@ def upgrade() -> None:
         op.create_index('idx_patient_form_requests_appointment', 'patient_form_requests', ['appointment_id'])
         op.create_index('idx_patient_form_requests_token', 'patient_form_requests', ['access_token'])
         op.create_index('idx_patient_form_requests_status', 'patient_form_requests', ['clinic_id', 'status'])
+        op.create_index('idx_patient_form_requests_patient_status', 'patient_form_requests', ['patient_id', 'status', 'sent_at'])
 
     # 4. Modify medical_records
     if 'medical_records' in tables:
@@ -128,7 +129,8 @@ def upgrade() -> None:
         if 'last_updated_by_patient_id' not in columns:
             op.add_column('medical_records', sa.Column('last_updated_by_patient_id', sa.Integer(), sa.ForeignKey('patients.id'), nullable=True))
         if 'patient_form_request_id' not in columns:
-            op.add_column('medical_records', sa.Column('patient_form_request_id', sa.Integer(), sa.ForeignKey('patient_form_requests.id'), nullable=True))
+            op.add_column('medical_records', sa.Column('patient_form_request_id', sa.Integer(), sa.ForeignKey('patient_form_requests.id', use_alter=True, name='fk_medical_records_patient_form_request'), nullable=True))
+            op.create_index('idx_medical_records_patient_form_request', 'medical_records', ['patient_form_request_id'])
 
 
 def downgrade() -> None:

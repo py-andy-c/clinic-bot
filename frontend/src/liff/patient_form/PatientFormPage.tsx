@@ -3,6 +3,7 @@ import { useForm, FormProvider } from 'react-hook-form';
 import { useLiffPatientForm, useSubmitLiffPatientForm, useUpdateLiffPatientForm } from '../../hooks/usePatientForms';
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner';
 import { MedicalRecordDynamicForm } from '../../components/MedicalRecordDynamicForm';
+import ErrorBoundary from '../../components/ErrorBoundary';
 import { ErrorMessage } from '../components/StatusComponents';
 import { liffApiService } from '../../services/liffApi';
 import { useModal } from '../../contexts/ModalContext';
@@ -192,7 +193,9 @@ const PatientFormPage: React.FC<PatientFormPageProps> = ({ accessToken, onBack }
 
           <FormProvider {...methods}>
             <form onSubmit={methods.handleSubmit(onSubmit)} className="space-y-8">
-              <MedicalRecordDynamicForm fields={data.template.fields} />
+              <ErrorBoundary fallback={<ErrorMessage message="表單內容載入失敗，請聯繫診所" />}>
+                <MedicalRecordDynamicForm fields={data.template.fields} />
+              </ErrorBoundary>
 
               {data.template.max_photos > 0 && (
                 <div className="space-y-4 pt-6 border-t">

@@ -263,9 +263,15 @@ class MedicalRecordService:
         
         # Note: max_photos limit is intentionally ignored for clinic-side edits (updated_by_user_id is not None)
         # as per design doc, to allow practitioners full control over the record.
+        # However, we still enforce a system-wide absolute maximum to prevent abuse.
+        ABSOLUTE_MAX_PHOTOS = 50
+        
         photos_changed = False
         current_photos = []
         if photo_ids is not MISSING:
+            if photo_ids is not None and len(photo_ids) > ABSOLUTE_MAX_PHOTOS:
+                raise HTTPException(status_code=400, detail=f"照片數量超過系統上限 ({ABSOLUTE_MAX_PHOTOS} 張)")
+
             current_photos = db.query(PatientPhoto).filter(
                 PatientPhoto.medical_record_id == record_id,
                 PatientPhoto.clinic_id == clinic_id
