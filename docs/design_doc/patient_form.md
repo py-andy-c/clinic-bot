@@ -889,6 +889,7 @@ When an associated appointment is cancelled:
 * [x] Integration tests
 * [x] Documentation updates
 * [x] Manual QA testing (Backend/API verified, Frontend implemented)
+* [ ] E2E tests (Deferred to follow-up PRs)
 
 ***
 

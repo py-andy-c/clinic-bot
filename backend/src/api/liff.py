@@ -25,7 +25,6 @@ from core.constants import (
     MAX_TIME_WINDOWS_PER_NOTIFICATION,
     MAX_NOTIFICATIONS_PER_USER,
     NOTIFICATION_DATE_RANGE_DAYS,
-    PATIENT_FORM_STATUS_PENDING,
     PATIENT_FORM_STATUS_SUBMITTED,
     PATIENT_FORM_SOURCE_TYPE
 )
@@ -2341,4 +2340,43 @@ async def upload_patient_form_photo(
             raise e
         logger.exception(f"Error uploading patient form photo: {e}")
         raise HTTPException(status_code=500, detail="上傳照片失敗")
+
+
+@router.delete("/patient-forms/{access_token}/photos/{photo_id}")
+async def delete_patient_form_photo(
+    access_token: str,
+    photo_id: int,
+    line_user_clinic: tuple[LineUser, Clinic] = Depends(get_current_line_user_with_clinic),
+    db: Session = Depends(get_db)
+):
+    """Delete a photo from a patient form."""
+    line_user, clinic = line_user_clinic
+    
+    request = PatientFormRequestService.get_request_by_token(db, access_token)
+    if not request or request.clinic_id != clinic.id:
+        raise HTTPException(status_code=404, detail="表單不存在")
+
+    # Verify the patient belongs to this LINE user
+    patient_ids = {p.id for p in line_user.patients}
+    if request.patient_id not in patient_ids:
+        raise HTTPException(status_code=403, detail="您沒有權限刪除此表單的照片")
+
+    photo_service = PatientPhotoService()
+    photo = photo_service.get_photo(db, photo_id, clinic.id)
+    
+    if not photo:
+        raise HTTPException(status_code=404, detail="照片不存在")
+        
+    # Verify the photo belongs to this patient and is linked to this form request
+    if photo.patient_id != request.patient_id or photo.patient_form_request_id != request.id:
+        raise HTTPException(status_code=403, detail="您沒有權限刪除此照片")
+
+    try:
+        photo_service.delete_photo(db, photo_id, clinic.id)
+        db.commit()
+        return {"success": True}
+    except Exception as e:
+        db.rollback()
+        logger.exception(f"Error deleting patient form photo: {e}")
+        raise HTTPException(status_code=500, detail="刪除照片失敗")
 

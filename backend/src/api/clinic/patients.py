@@ -45,7 +45,6 @@ from sqlalchemy.orm import Session
 from core.constants import (
     PATIENT_FORM_TEMPLATE_TYPE,
     PATIENT_FORM_SOURCE_MANUAL,
-    PATIENT_FORM_STATUS_PENDING,
     PATIENT_FORM_SOURCE_TYPE
 )
 from auth.dependencies import UserContext

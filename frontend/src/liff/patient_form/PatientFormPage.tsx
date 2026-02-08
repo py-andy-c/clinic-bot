@@ -5,7 +5,6 @@ import { LoadingSpinner } from '../../components/shared/LoadingSpinner';
 import { MedicalRecordDynamicForm } from '../../components/MedicalRecordDynamicForm';
 import { ErrorMessage } from '../components/StatusComponents';
 import { liffApiService } from '../../services/liffApi';
-import { apiService } from '../../services/api';
 import { useModal } from '../../contexts/ModalContext';
 import { getErrorMessage } from '../../types/api';
 import { logger } from '../../utils/logger';
@@ -23,6 +22,7 @@ const PatientFormPage: React.FC<PatientFormPageProps> = ({ accessToken, onBack }
   const [isSuccess, setIsSuccess] = useState(false);
   const [photoIds, setPhotoIds] = useState<number[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [deletingPhotoId, setDeletingPhotoId] = useState<number | null>(null);
 
   const methods = useForm({
     defaultValues: {
@@ -43,7 +43,27 @@ const PatientFormPage: React.FC<PatientFormPageProps> = ({ accessToken, onBack }
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // Client-side validation
+    const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      await alert('僅支援 JPG、PNG、GIF、WebP 格式', '格式錯誤');
+      e.target.value = '';
+      return;
+    }
+
+    if (file.size > MAX_FILE_SIZE) {
+      await alert('檔案大小不可超過 10MB', '檔案過大');
+      e.target.value = '';
+      return;
+    }
+
     // Total photos on the record (clinic + patient)
+    // We count:
+    // 1. Photos already in the medical record (data.medical_record.photos)
+    // 2. New photos uploaded in this session but not yet in the record (photoIds not in record)
+    // This correctly implements the mixed ownership model from the design doc.
     const totalPhotoCount = (data?.medical_record?.photos?.length || 0) + photoIds.filter(id => 
       !data?.medical_record?.photos?.some(p => p.id === id)
     ).length;
@@ -62,16 +82,21 @@ const PatientFormPage: React.FC<PatientFormPageProps> = ({ accessToken, onBack }
       await alert(getErrorMessage(error), '上傳失敗');
     } finally {
       setIsUploading(false);
+      // Reset input value to allow uploading the same file again
+      e.target.value = '';
     }
   };
 
   const handleRemovePhoto = async (id: number) => {
+    setDeletingPhotoId(id);
     try {
-      await apiService.deletePatientPhoto(id);
+      await liffApiService.deletePatientFormPhoto(accessToken, id);
       setPhotoIds(prev => prev.filter(p => p !== id));
     } catch (error) {
       logger.error('Failed to delete photo:', error);
       await alert('刪除照片失敗，請稍後再試');
+    } finally {
+      setDeletingPhotoId(null);
     }
   };
 
@@ -138,7 +163,7 @@ const PatientFormPage: React.FC<PatientFormPageProps> = ({ accessToken, onBack }
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
       <div className="bg-white px-4 py-4 border-b sticky top-0 z-10 flex items-center">
-        <button onClick={onBack} className="p-2 -ml-2 text-gray-600">
+        <button onClick={onBack} className="p-2 -ml-2 text-gray-600" aria-label="返回列表">
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
@@ -176,19 +201,30 @@ const PatientFormPage: React.FC<PatientFormPageProps> = ({ accessToken, onBack }
                         <button
                           type="button"
                           onClick={() => handleConfirmDeletePhoto(id)}
-                          className="absolute top-1 right-1 bg-black/50 text-white p-1 rounded-full"
+                          className="absolute top-1 right-1 bg-black/50 text-white p-1 rounded-full disabled:opacity-50"
+                          disabled={deletingPhotoId === id}
+                          aria-label="刪除照片"
                         >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
+                          {deletingPhotoId === id ? (
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          ) : (
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          )}
                         </button>
                       </div>
                     ))}
                     
                     {photoIds.length < data.template.max_photos && (
-                      <label className="aspect-square border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center text-gray-400 active:bg-gray-50 active:border-primary-300 transition-colors">
+                      <label 
+                        className={`aspect-square border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center text-gray-400 transition-colors ${
+                          isUploading ? 'bg-gray-50 opacity-50 cursor-not-allowed' : 'active:bg-gray-50 active:border-primary-300 cursor-pointer'
+                        }`}
+                        aria-label="上傳照片"
+                      >
                         {isUploading ? (
-                          <LoadingSpinner />
+                          <LoadingSpinner size="sm" />
                         ) : (
                           <>
                             <svg className="w-8 h-8 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">

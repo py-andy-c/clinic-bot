@@ -421,6 +421,11 @@ class LiffApiService {
     });
     return response.data;
   }
+
+  async deletePatientFormPhoto(accessToken: string, photoId: number): Promise<{ success: boolean }> {
+    const response = await this.client.delete(`/liff/patient-forms/${accessToken}/photos/${photoId}`);
+    return response.data;
+  }
 }
 
 export const liffApiService = new LiffApiService();
