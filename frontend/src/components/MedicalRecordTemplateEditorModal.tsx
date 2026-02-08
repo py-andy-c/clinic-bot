@@ -41,7 +41,7 @@ const TemplateFieldSchema = z.object({
 const TemplateSchema = z.object({
   name: z.string().min(1, '模板名稱不可為空'),
   template_type: z.enum(['medical_record', 'patient_form']),
-  max_photos: z.number().min(0).max(20),
+  max_photos: z.coerce.number().min(0).max(20),
   description: z.string().optional(),
   fields: z.array(TemplateFieldSchema),
 });
