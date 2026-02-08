@@ -48,6 +48,7 @@ const MemberSignupPage = lazy(() => import('./pages/MemberSignupPage'));
 const NameConfirmationPage = lazy(() => import('./pages/NameConfirmationPage'));
 const ProfilePage = lazy(() => import('./pages/ProfilePage'));
 const LiffApp = lazy(() => import('./liff/LiffApp'));
+const LiffErrorScreen = lazy(() => import('./liff/LiffErrorScreen').then(m => ({ default: m.LiffErrorScreen })));
 
 const AppRoutes: React.FC = () => {
   const { isLoading } = useAuth();
@@ -65,7 +66,16 @@ const AppRoutes: React.FC = () => {
         <Route path="/contact" element={<ContactPage />} />
 
         {/* LIFF routes */}
-        <Route path="/liff/*" element={<ModalProvider><LiffApp /></ModalProvider>} />
+        <Route
+          path="/liff/*"
+          element={
+            <ErrorBoundary fallback={<LiffErrorScreen />}>
+              <ModalProvider>
+                <LiffApp />
+              </ModalProvider>
+            </ErrorBoundary>
+          }
+        />
 
         {/* Public signup routes */}
         <Route path="/signup/clinic" element={<ClinicSignupPage />} />

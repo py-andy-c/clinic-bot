@@ -13,11 +13,13 @@ import { Link } from 'react-router-dom';
 interface PatientFormRequestsSectionProps {
   patientId: number;
   clinicId: number | null;
+  patient?: any;
 }
 
 export const PatientFormRequestsSection: React.FC<PatientFormRequestsSectionProps> = ({
   patientId,
   clinicId,
+  patient,
 }) => {
   const { data: requests, isLoading } = usePatientFormRequests(clinicId, patientId);
   const { data: templates } = useMedicalRecordTemplates(clinicId, 'patient_form');
@@ -43,9 +45,21 @@ export const PatientFormRequestsSection: React.FC<PatientFormRequestsSectionProp
     return Math.floor(diffTime / (1000 * 60 * 60 * 24));
   };
 
+  const handleOpenModal = async () => {
+    if (!patient?.line_user_id) {
+      await alert('此病患尚未綁定 LINE 帳號，無法發送表單。', '無法發送');
+      return;
+    }
+    setIsModalOpen(true);
+  };
+
   const handleSend = async () => {
     if (!formData.template_id) {
       await alert('請選擇表單模板');
+      return;
+    }
+    if (!formData.message_template.includes('{表單連結}')) {
+      await alert('訊息內容必須包含 {表單連結} 變數');
       return;
     }
     try {
@@ -85,7 +99,7 @@ export const PatientFormRequestsSection: React.FC<PatientFormRequestsSectionProp
       <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50/50">
         <h3 className="text-lg font-semibold text-gray-900">患者表單</h3>
         <button
-          onClick={() => setIsModalOpen(true)}
+          onClick={handleOpenModal}
           className="btn btn-primary text-sm px-3 py-1.5"
         >
           + 發送表單
@@ -104,7 +118,9 @@ export const PatientFormRequestsSection: React.FC<PatientFormRequestsSectionProp
                   <div className="text-xs text-gray-500 mt-1">
                     發送於 {new Date(req.sent_at).toLocaleString('zh-TW')}
                     {req.status === 'pending' && (
-                      <span className="text-amber-600"> ({getDaysAgo(req.sent_at)} 天前)</span>
+                      <span className={`ml-2 font-medium ${getDaysAgo(req.sent_at) >= 7 ? 'text-red-600' : 'text-amber-600'}`}>
+                        ({getDaysAgo(req.sent_at)} 天前)
+                      </span>
                     )}
                     {req.submitted_at && ` • 提交於 ${new Date(req.submitted_at).toLocaleString('zh-TW')}`}
                   </div>

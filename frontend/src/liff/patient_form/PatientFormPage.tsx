@@ -5,6 +5,7 @@ import { LoadingSpinner } from '../../components/shared/LoadingSpinner';
 import { MedicalRecordDynamicForm } from '../../components/MedicalRecordDynamicForm';
 import { ErrorMessage } from '../components/StatusComponents';
 import { liffApiService } from '../../services/liffApi';
+import { apiService } from '../../services/api';
 import { useModal } from '../../contexts/ModalContext';
 import { getErrorMessage } from '../../types/api';
 import { logger } from '../../utils/logger';
@@ -42,13 +43,13 @@ const PatientFormPage: React.FC<PatientFormPageProps> = ({ accessToken, onBack }
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Count only patient-uploaded photos
-    const patientUploadedCount = data?.medical_record?.photos?.filter(
-      p => p.uploaded_by_patient_id !== null && p.uploaded_by_patient_id !== undefined
-    ).length || 0;
+    // Total photos on the record (clinic + patient)
+    const totalPhotoCount = (data?.medical_record?.photos?.length || 0) + photoIds.filter(id => 
+      !data?.medical_record?.photos?.some(p => p.id === id)
+    ).length;
 
-    if (patientUploadedCount >= (data?.template.max_photos || 0)) {
-      await alert(`最多只能上傳 ${data?.template.max_photos} 張照片`);
+    if (totalPhotoCount >= (data?.template.max_photos || 0)) {
+      await alert(`此表單照片已達上限 ${data?.template.max_photos} 張`);
       return;
     }
 
@@ -64,8 +65,14 @@ const PatientFormPage: React.FC<PatientFormPageProps> = ({ accessToken, onBack }
     }
   };
 
-  const handleRemovePhoto = (id: number) => {
-    setPhotoIds(prev => prev.filter(p => p !== id));
+  const handleRemovePhoto = async (id: number) => {
+    try {
+      await apiService.deletePatientPhoto(id);
+      setPhotoIds(prev => prev.filter(p => p !== id));
+    } catch (error) {
+      logger.error('Failed to delete photo:', error);
+      await alert('刪除照片失敗，請稍後再試');
+    }
   };
 
   const onSubmit = async (formData: any) => {
@@ -90,13 +97,11 @@ const PatientFormPage: React.FC<PatientFormPageProps> = ({ accessToken, onBack }
       
       // Handle version conflict (409)
       if (error?.response?.status === 409) {
-        const confirmed = await confirm(
-          '此表單已被他人更新，請重新載入最新版本後再試。',
-          '版本衝突'
+        await alert(
+          '抱歉，此表單已被更新。我們將重新載入最新版本。',
+          '表單已更新'
         );
-        if (confirmed) {
-          refetch();
-        }
+        refetch();
         return;
       }
       

@@ -336,6 +336,7 @@ const PatientDetailPage: React.FC = () => {
           <PatientFormRequestsSection
             patientId={patient.id}
             clinicId={activeClinicId ?? null}
+            patient={patient}
           />
         )}
       </div>

@@ -209,7 +209,8 @@ const SettingsAppointmentsPage: React.FC = () => {
                                         query: { name: '預約管理', description: '病患可查詢、取消預約' },
                                         settings: { name: '就診人管理', description: '病患可新增、刪除、修改就診人資訊' },
                                         notifications: { name: '空位提醒', description: '病患可設定提醒，當有符合條件的空位時會收到通知' },
-                                    }[mode as 'home' | 'book' | 'query' | 'settings' | 'notifications'] || { name: mode, description: '' };
+                                        patient_forms: { name: '填寫表單', description: '病患可填寫診所發送的各項表單' },
+                                    }[mode as 'home' | 'book' | 'query' | 'settings' | 'notifications' | 'patient_forms'] || { name: mode, description: '' };
 
                                     return (
                                         <div key={mode} className="bg-gray-50 rounded-lg p-2.5 border border-gray-200">
@@ -329,6 +330,7 @@ const SettingsAppointmentsPage: React.FC = () => {
                                                     query: { name: '預約管理', icon: '🔍' },
                                                     settings: { name: '就診人管理', icon: '👤' },
                                                     notifications: { name: '空位提醒', icon: '🔔' },
+                                                    patient_forms: { name: '填寫表單', icon: '📋' },
                                                 }[mode] || { name: mode, icon: '📌' };
 
                                                 return (

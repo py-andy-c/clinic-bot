@@ -178,7 +178,7 @@ export interface PatientFormRequest {
   created_at: string;
   updated_at: string;
   // Enriched
-  template_name?: string;
+  template_name: string;
 }
 
 export interface PatientPhotoUpdateRequest {
