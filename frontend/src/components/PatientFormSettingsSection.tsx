@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AppointmentType } from '../types';
 import { PatientFormSetting } from '../types/medicalRecord';
 import { apiService } from '../services/api';
@@ -12,6 +12,7 @@ import { isTemporaryServiceItemId } from '../utils/idUtils';
 import { logger } from '../utils/logger';
 import { useNumberInput } from '../hooks/useNumberInput';
 import { useMedicalRecordTemplates } from '../hooks/useMedicalRecordTemplates';
+import { usePatientFormSettings } from '../hooks/usePatientForms';
 import { useAuth } from '../hooks/useAuth';
 
 interface PatientFormSettingsSectionProps {
@@ -32,7 +33,11 @@ export const PatientFormSettingsSection: React.FC<PatientFormSettingsSectionProp
     const [patientFormSettings, setPatientFormSettings] = useState<PatientFormSetting[]>(
         appointmentType.patient_form_settings || []
     );
-    const [loading, setLoading] = useState(false);
+    
+    const { data: fetchedSettings, isLoading: loading } = usePatientFormSettings(
+        !isNewItem && appointmentType.id && appointmentType.patient_form_settings === undefined ? appointmentType.id : null
+    );
+
     const [editingSetting, setEditingSetting] = useState<PatientFormSetting | null>(null);
     const [isNewSetting, setIsNewSetting] = useState(false);
     
@@ -73,32 +78,19 @@ export const PatientFormSettingsSection: React.FC<PatientFormSettingsSectionProp
         { fallback: 0, parseFn: 'parseInt', min: 0 }
     );
 
-    const loadSettings = useCallback(async () => {
-        if (isNewItem || !appointmentType.id) return;
-        if (appointmentType.patient_form_settings !== undefined) return;
-
-        setLoading(true);
-        try {
-            const response = await apiService.getPatientFormSettings(appointmentType.id);
-            const settings = response.patient_form_settings.sort((a, b) => a.display_order - b.display_order);
-            setPatientFormSettings(settings);
-            onUpdate({ ...appointmentType, patient_form_settings: settings });
-        } catch (error: any) {
-            logger.error('Failed to load patient form settings:', error);
-            setPatientFormSettings([]);
-            onUpdate({ ...appointmentType, patient_form_settings: [] });
-        } finally {
-            setLoading(false);
+    useEffect(() => {
+        if (fetchedSettings) {
+            const sorted = [...fetchedSettings].sort((a, b) => a.display_order - b.display_order);
+            setPatientFormSettings(sorted);
+            onUpdate({ ...appointmentType, patient_form_settings: sorted });
         }
-    }, [isNewItem, appointmentType, onUpdate]);
+    }, [fetchedSettings, appointmentType, onUpdate]);
 
     useEffect(() => {
-        if (!isNewItem && appointmentType.id && appointmentType.patient_form_settings === undefined) {
-            loadSettings();
-        } else if (appointmentType.patient_form_settings !== undefined) {
+        if (appointmentType.patient_form_settings !== undefined) {
             setPatientFormSettings(appointmentType.patient_form_settings);
         }
-    }, [appointmentType.id, appointmentType.patient_form_settings, isNewItem, loadSettings]);
+    }, [appointmentType.patient_form_settings]);
 
     const updateStagedSettings = (settings: PatientFormSetting[]) => {
         setPatientFormSettings(settings);
@@ -221,11 +213,24 @@ export const PatientFormSettingsSection: React.FC<PatientFormSettingsSectionProp
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    <button onClick={() => handlePreview(setting)} className="text-xs text-primary-600">預覽</button>
-                                    <button onClick={() => handleEditSetting(setting)} className="text-xs text-primary-600">編輯</button>
+                                    <button 
+                                        onClick={() => handlePreview(setting)} 
+                                        className="text-xs text-primary-600"
+                                        aria-label="預覽訊息"
+                                    >
+                                        預覽
+                                    </button>
+                                    <button 
+                                        onClick={() => handleEditSetting(setting)} 
+                                        className="text-xs text-primary-600"
+                                        aria-label="編輯設定"
+                                    >
+                                        編輯
+                                    </button>
                                     <button 
                                         onClick={() => updateStagedSettings(patientFormSettings.filter(s => s.id !== setting.id))}
                                         className="text-xs text-red-600"
+                                        aria-label="刪除設定"
                                     >
                                         刪除
                                     </button>

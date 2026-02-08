@@ -76,3 +76,11 @@ export function useUpdateLiffPatientForm(accessToken: string) {
     },
   });
 }
+
+export function usePatientFormSettings(appointmentTypeId: number | null) {
+  return useQuery({
+    queryKey: ['patient-form-settings', appointmentTypeId],
+    queryFn: () => apiService.getPatientFormSettings(appointmentTypeId!).then(res => res.patient_form_settings),
+    enabled: !!appointmentTypeId,
+  });
+}

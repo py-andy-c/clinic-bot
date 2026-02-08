@@ -38,6 +38,7 @@ export const PatientFormRequestsSection: React.FC<PatientFormRequestsSectionProp
     notify_appointment_practitioner: true,
     notify_assigned_practitioner: false,
   });
+  const [messageError, setMessageError] = useState<string | null>(null);
 
   const getDaysAgo = (dateString: string): number => {
     const sentDate = new Date(dateString);
@@ -52,6 +53,17 @@ export const PatientFormRequestsSection: React.FC<PatientFormRequestsSectionProp
       return;
     }
     setIsModalOpen(true);
+    setMessageError(null);
+  };
+
+  const handleMessageChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const value = e.target.value;
+    setFormData({ ...formData, message_template: value });
+    if (!value.includes('{表單連結}')) {
+      setMessageError('訊息內容必須包含 {表單連結} 變數');
+    } else {
+      setMessageError(null);
+    }
   };
 
   const handleSend = async () => {
@@ -192,10 +204,11 @@ export const PatientFormRequestsSection: React.FC<PatientFormRequestsSectionProp
               <label className="block text-sm font-medium text-gray-700 mb-1">訊息內容</label>
               <textarea
                 value={formData.message_template}
-                onChange={e => setFormData({ ...formData, message_template: e.target.value })}
+                onChange={handleMessageChange}
                 rows={4}
-                className="w-full border-gray-300 rounded-lg text-sm"
+                className={`w-full border-gray-300 rounded-lg text-sm ${messageError ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : ''}`}
               />
+              {messageError && <p className="text-red-500 text-xs mt-1">{messageError}</p>}
             </div>
             <div className="space-y-2">
               <label className="block text-sm font-medium text-gray-700">通知對象</label>
@@ -217,7 +230,7 @@ export const PatientFormRequestsSection: React.FC<PatientFormRequestsSectionProp
           </ModalBody>
           <ModalFooter>
             <button onClick={() => setIsModalOpen(false)} className="btn-secondary">取消</button>
-            <button onClick={handleSend} disabled={createMutation.isPending} className="btn-primary">
+            <button onClick={handleSend} disabled={createMutation.isPending || !!messageError} className="btn-primary">
               {createMutation.isPending ? '發送中...' : '確認發送'}
             </button>
           </ModalFooter>

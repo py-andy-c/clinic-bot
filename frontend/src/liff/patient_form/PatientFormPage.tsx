@@ -9,6 +9,9 @@ import { useModal } from '../../contexts/ModalContext';
 import { getErrorMessage } from '../../types/api';
 import { logger } from '../../utils/logger';
 
+export const MAX_PATIENT_PHOTO_SIZE = 10 * 1024 * 1024; // 10MB
+export const ALLOWED_PATIENT_PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+
 interface PatientFormPageProps {
   accessToken: string;
   onBack: () => void;
@@ -23,7 +26,7 @@ const PatientFormPage: React.FC<PatientFormPageProps> = ({ accessToken, onBack }
   const [photoIds, setPhotoIds] = useState<number[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadingCount, setUploadingCount] = useState(0);
-  const [deletingPhotoId, setDeletingPhotoId] = useState<number | null>(null);
+  const [deletingPhotoIds, setDeletingPhotoIds] = useState<Set<number>>(new Set());
 
   const methods = useForm({
     defaultValues: {
@@ -45,16 +48,13 @@ const PatientFormPage: React.FC<PatientFormPageProps> = ({ accessToken, onBack }
     if (!file) return;
 
     // Client-side validation
-    const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-    const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
-
-    if (!ALLOWED_TYPES.includes(file.type)) {
+    if (!ALLOWED_PATIENT_PHOTO_TYPES.includes(file.type)) {
       await alert('僅支援 JPG、PNG、GIF、WebP 格式', '格式錯誤');
       e.target.value = '';
       return;
     }
 
-    if (file.size > MAX_FILE_SIZE) {
+    if (file.size > MAX_PATIENT_PHOTO_SIZE) {
       await alert('檔案大小不可超過 10MB', '檔案過大');
       e.target.value = '';
       return;
@@ -95,7 +95,7 @@ const PatientFormPage: React.FC<PatientFormPageProps> = ({ accessToken, onBack }
   };
 
   const handleRemovePhoto = async (id: number) => {
-    setDeletingPhotoId(id);
+    setDeletingPhotoIds(prev => new Set(prev).add(id));
     try {
       await liffApiService.deletePatientFormPhoto(accessToken, id);
       setPhotoIds(prev => prev.filter(p => p !== id));
@@ -103,7 +103,11 @@ const PatientFormPage: React.FC<PatientFormPageProps> = ({ accessToken, onBack }
       logger.error('Failed to delete photo:', error);
       await alert('刪除照片失敗，請稍後再試');
     } finally {
-      setDeletingPhotoId(null);
+      setDeletingPhotoIds(prev => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
     }
   };
 
@@ -206,15 +210,16 @@ const PatientFormPage: React.FC<PatientFormPageProps> = ({ accessToken, onBack }
                             src={`${import.meta.env.VITE_API_BASE_URL}/clinic/patient-photos/${id}/file`} 
                             alt={photo?.description || `上傳的照片 ${index + 1}`}
                             className="w-full h-full object-cover"
+                            loading="lazy"
                           />
                           <button
                             type="button"
                             onClick={() => handleConfirmDeletePhoto(id)}
                             className="absolute top-1 right-1 bg-black/50 text-white p-1 rounded-full disabled:opacity-50"
-                            disabled={deletingPhotoId === id}
+                            disabled={deletingPhotoIds.has(id)}
                             aria-label="刪除照片"
                           >
-                            {deletingPhotoId === id ? (
+                            {deletingPhotoIds.has(id) ? (
                               <LoadingSpinner size="sm" />
                             ) : (
                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
