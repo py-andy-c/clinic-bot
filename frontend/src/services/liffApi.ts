@@ -376,6 +376,51 @@ class LiffApiService {
     const response = await this.client.put('/liff/language-preference', { language });
     return response.data;
   }
+
+  // Patient Forms
+  async getPatientForms(): Promise<{ forms: import('../types/medicalRecord').PatientFormRequest[] }> {
+    const response = await this.client.get('/liff/patient-forms');
+    return response.data;
+  }
+
+  async getPatientForm(accessToken: string): Promise<{
+    template: import('../types/medicalRecord').MedicalRecordTemplate;
+    values: Record<string, any>;
+    medical_record?: import('../types/medicalRecord').MedicalRecord;
+    request: import('../types/medicalRecord').PatientFormRequest;
+  }> {
+    const response = await this.client.get(`/liff/patient-forms/${accessToken}`);
+    return response.data;
+  }
+
+  async submitPatientForm(accessToken: string, data: {
+    values: Record<string, any>;
+    photo_ids?: number[];
+  }): Promise<{ success: boolean; medical_record_id: number }> {
+    const response = await this.client.post(`/liff/patient-forms/${accessToken}/submit`, data);
+    return response.data;
+  }
+
+  async updatePatientForm(accessToken: string, data: {
+    values: Record<string, any>;
+    photo_ids?: number[];
+    version: number;
+  }): Promise<{ success: boolean; medical_record_id: number }> {
+    const response = await this.client.put(`/liff/patient-forms/${accessToken}`, data);
+    return response.data;
+  }
+
+  async uploadPatientFormPhoto(accessToken: string, file: File, description?: string): Promise<import('../types/medicalRecord').PatientPhoto> {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (description) {
+      formData.append('description', description);
+    }
+    const response = await this.client.post(`/liff/patient-forms/${accessToken}/photos`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+    return response.data;
+  }
 }
 
 export const liffApiService = new LiffApiService();

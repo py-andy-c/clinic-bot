@@ -50,6 +50,7 @@ export const MessageSettingsSection: React.FC<MessageSettingsSectionProps> = ({
     clinic_confirmation: null,
     reminder: null,
     recurrent_clinic_confirmation: null,
+    patient_form: null,
   });
 
   // Check if this is a new item (temporary ID)
@@ -94,10 +95,13 @@ export const MessageSettingsSection: React.FC<MessageSettingsSectionProps> = ({
         case 'recurrent_clinic_confirmation':
           message = DEFAULT_RECURRENT_CLINIC_CONFIRMATION_MESSAGE;
           break;
+        case 'patient_form':
+          message = '';
+          break;
       }
     }
 
-    return { toggle, message };
+    return { toggle, message: message || '' };
   };
 
   const patientConfirmation = getMessageField('patient_confirmation');

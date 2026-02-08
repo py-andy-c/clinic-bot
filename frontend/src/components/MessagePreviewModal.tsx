@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { BaseModal } from './shared/BaseModal';
 import { ModalHeader, ModalBody } from './shared/ModalParts';
 import { apiService } from '../services/api';
-import { LoadingSpinner } from './shared';
+import { LoadingSpinner } from './shared/LoadingSpinner';
 import { MessageType } from '../constants/messageTemplates';
 
 interface MessagePreviewModalProps {
@@ -47,13 +47,21 @@ export const MessagePreviewModal: React.FC<MessagePreviewModalProps> = ({
         setLoading(true);
         setError(null);
         try {
-            const result = await apiService.previewAppointmentMessage({
-                ...(appointmentTypeId ? { appointment_type_id: appointmentTypeId } : {}),
-                ...(appointmentTypeName ? { appointment_type_name: appointmentTypeName } : {}),
-                message_type: messageType,
-                template,
-            });
-            setPreview(result);
+            if (messageType === 'patient_form') {
+                const result = await apiService.previewPatientFormMessage({
+                    appointment_type_id: appointmentTypeId || 0,
+                    message_template: template,
+                });
+                setPreview(result);
+            } else {
+                const result = await apiService.previewAppointmentMessage({
+                    ...(appointmentTypeId ? { appointment_type_id: appointmentTypeId } : {}),
+                    ...(appointmentTypeName ? { appointment_type_name: appointmentTypeName } : {}),
+                    message_type: messageType,
+                    template,
+                });
+                setPreview(result);
+            }
         } catch (err: any) {
             setError(err?.response?.data?.detail || '無法載入預覽');
         } finally {

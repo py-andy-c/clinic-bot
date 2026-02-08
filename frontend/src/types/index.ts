@@ -203,6 +203,8 @@ export interface AppointmentType {
   notes_instructions?: string | null | undefined;
   // Follow-up messages (staged changes)
   follow_up_messages?: FollowUpMessage[];
+  // Patient form settings (staged changes)
+  patient_form_settings?: import('./medicalRecord').PatientFormSetting[];
 }
 
 export interface FollowUpMessage {
@@ -639,6 +641,7 @@ export interface ServiceItemBundleAssociations {
   billing_scenarios: BillingScenarioBundleData[];
   resource_requirements: ResourceRequirementBundleData[];
   follow_up_messages: FollowUpMessageBundleData[];
+  patient_form_settings: import('./medicalRecord').PatientFormSetting[];
 }
 
 export interface ServiceItemBundleRequest {

@@ -471,6 +471,7 @@ export const ServiceItemBundleSchema = z.object({
 
   // Staged associations (for validation only, not part of AppointmentType strictly)
   follow_up_messages: z.array(FollowUpMessageBundleSchema).optional(),
+  patient_form_settings: z.array(z.any()).optional(),
   practitioner_ids: z.array(z.number()).optional(),
   billing_scenarios: z.array(BillingScenarioBundleSchema).optional(),
   resource_requirements: z.array(ResourceRequirementBundleSchema).optional(),

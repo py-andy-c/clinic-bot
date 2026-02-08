@@ -10,8 +10,8 @@ import { logger } from '../utils/logger';
 export const medicalRecordTemplateKeys = {
   all: (clinicId: number | null) => ['medical-record-templates', clinicId] as const,
   lists: (clinicId: number | null) => [...medicalRecordTemplateKeys.all(clinicId), 'list'] as const,
-  list: (clinicId: number | null, filters?: Record<string, any>) => 
-    [...medicalRecordTemplateKeys.lists(clinicId), filters] as const,
+  list: (clinicId: number | null, type?: string) => 
+    [...medicalRecordTemplateKeys.lists(clinicId), type] as const,
   details: (clinicId: number | null) => [...medicalRecordTemplateKeys.all(clinicId), 'detail'] as const,
   detail: (clinicId: number | null, id: number) => 
     [...medicalRecordTemplateKeys.details(clinicId), id] as const,
@@ -20,11 +20,16 @@ export const medicalRecordTemplateKeys = {
 /**
  * Hook to fetch list of medical record templates
  */
-export function useMedicalRecordTemplates(clinicId: number | null | undefined) {
+export function useMedicalRecordTemplates(
+  clinicId: number | null | undefined,
+  type?: import('../types/medicalRecord').MedicalRecordTemplateType
+) {
   return useQuery({
-    queryKey: medicalRecordTemplateKeys.list(clinicId ?? null),
+    queryKey: medicalRecordTemplateKeys.list(clinicId ?? null, type),
     queryFn: async () => {
-      const response = await apiService.listMedicalRecordTemplates();
+      const params: any = {};
+      if (type) params.type = type;
+      const response = await apiService.listMedicalRecordTemplates(params);
       return response.templates;
     },
     enabled: !!clinicId,

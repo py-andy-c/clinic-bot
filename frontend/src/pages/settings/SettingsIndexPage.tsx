@@ -49,6 +49,13 @@ const settingCards: SettingCard[] = [
     adminOnly: true,
   },
   {
+    name: '患者表單模板',
+    path: 'patient-form-templates',
+    icon: '📋',
+    description: '管理發送給病患填寫的表單模板',
+    adminOnly: true,
+  },
+  {
     name: '收據設定',
     path: 'receipts',
     icon: '🧾',

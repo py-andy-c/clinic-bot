@@ -4,8 +4,9 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { BaseModal } from './shared/BaseModal';
 import { ModalHeader, ModalBody, ModalFooter } from './shared/ModalParts';
-import { LoadingSpinner } from './shared';
+import { LoadingSpinner } from './shared/LoadingSpinner';
 import { FormInput, FormTextarea, FormField } from './forms';
+import { MedicalRecordDynamicForm } from './MedicalRecordDynamicForm';
 import {
   useMedicalRecordTemplate,
   useCreateMedicalRecordTemplate,
@@ -20,6 +21,7 @@ import { logger } from '../utils/logger';
 
 interface MedicalRecordTemplateEditorModalProps {
   templateId: number | null; // null for new template
+  defaultType?: import('../types/medicalRecord').MedicalRecordTemplateType;
   onClose: () => void;
 }
 
@@ -38,6 +40,8 @@ const TemplateFieldSchema = z.object({
 // Template schema
 const TemplateSchema = z.object({
   name: z.string().min(1, '模板名稱不可為空'),
+  template_type: z.enum(['medical_record', 'patient_form']),
+  max_photos: z.number().min(0).max(20),
   description: z.string().optional(),
   fields: z.array(TemplateFieldSchema),
 });
@@ -56,11 +60,13 @@ const FIELD_TYPE_OPTIONS: { value: TemplateFieldType; label: string }[] = [
 
 export const MedicalRecordTemplateEditorModal: React.FC<MedicalRecordTemplateEditorModalProps> = ({
   templateId,
+  defaultType = 'medical_record',
   onClose,
 }) => {
   const { user } = useAuth();
   const activeClinicId = user?.active_clinic_id;
   const { alert, confirm } = useModal();
+  const [activeTab, setActiveTab] = React.useState<'edit' | 'preview'>('edit');
 
   const isEdit = templateId !== null;
   const { data: template, isLoading } = useMedicalRecordTemplate(
@@ -74,6 +80,8 @@ export const MedicalRecordTemplateEditorModal: React.FC<MedicalRecordTemplateEdi
     resolver: zodResolver(TemplateSchema),
     defaultValues: {
       name: '',
+      template_type: defaultType,
+      max_photos: 5,
       description: '',
       fields: [],
     },
@@ -105,6 +113,8 @@ export const MedicalRecordTemplateEditorModal: React.FC<MedicalRecordTemplateEdi
     if (template && isEdit) {
       methods.reset({
         name: template.name,
+        template_type: template.template_type,
+        max_photos: template.max_photos,
         description: template.description || '',
         fields: template.fields.map((field, index) => ({
           ...field,
@@ -167,6 +177,7 @@ export const MedicalRecordTemplateEditorModal: React.FC<MedicalRecordTemplateEdi
           data: {
             version: template.version,
             name: data.name,
+            max_photos: data.max_photos,
             description: data.description,
             fields: data.fields.map((field, index) => ({
               ...field,
@@ -183,6 +194,8 @@ export const MedicalRecordTemplateEditorModal: React.FC<MedicalRecordTemplateEdi
         // Create new template
         await createMutation.mutateAsync({
           name: data.name,
+          template_type: data.template_type,
+          max_photos: data.max_photos,
           description: data.description,
           fields: data.fields.map((field, index) => ({
             label: field.label,
@@ -205,91 +218,190 @@ export const MedicalRecordTemplateEditorModal: React.FC<MedicalRecordTemplateEdi
 
   const isSaving = createMutation.isPending || updateMutation.isPending;
 
+  const watchedFields = methods.watch('fields');
+  const previewFields = watchedFields.map((f, i) => ({
+    ...f,
+    id: f.id || `preview-${i}`,
+    options: typeof f.options === 'string' 
+      ? f.options.split('\n').map(o => o.trim()).filter(Boolean) 
+      : f.options
+  }));
+
   return (
-    <BaseModal onClose={handleClose}>
+    <BaseModal onClose={handleClose} fullScreen>
       <FormProvider {...methods}>
         <form onSubmit={methods.handleSubmit(onSubmit)} className="flex flex-col flex-1 min-h-0">
-          <ModalHeader
-            title={isEdit ? '編輯病歷模板' : '新增病歷模板'}
-            onClose={handleClose}
-            showClose
-          />
+          <div className="flex flex-col flex-1 min-h-0">
+            <ModalHeader
+              title={isEdit ? '編輯模板' : '新增模板'}
+              onClose={handleClose}
+              showClose
+            />
+            <div className="bg-white border-b flex px-6">
+              <button
+                type="button"
+                onClick={() => setActiveTab('edit')}
+                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                  activeTab === 'edit'
+                    ? 'border-primary-600 text-primary-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                編輯內容
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('preview')}
+                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                  activeTab === 'preview'
+                    ? 'border-primary-600 text-primary-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                預覽表單
+              </button>
+            </div>
 
-          <ModalBody>
-            {isLoading ? (
-              <div className="flex justify-center items-center py-12">
-                <LoadingSpinner size="lg" />
-              </div>
-            ) : (
-              <div className="space-y-6">
-                {/* Basic Info */}
-                <div className="space-y-4">
-                  <FormField name="name" label="模板名稱">
-                    <FormInput
-                      name="name"
-                      placeholder="例如：一般檢查、初診記錄"
-                    />
-                  </FormField>
-                  <FormField name="description" label="模板說明">
-                    <FormTextarea
-                      name="description"
-                      placeholder="描述此模板的用途（選填）"
-                      rows={2}
-                    />
-                  </FormField>
+            <ModalBody className="bg-gray-50">
+              {isLoading ? (
+                <div className="flex justify-center items-center py-12">
+                  <LoadingSpinner size="lg" />
                 </div>
+              ) : (
+                <div className="w-full h-full">
+                  {activeTab === 'edit' ? (
+                    <div key="edit-content" className="max-w-4xl mx-auto w-full grid grid-cols-1 md:grid-cols-3 gap-6 py-6">
+                      <div className="md:col-span-1 space-y-6">
+                        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 space-y-4">
+                          <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">基本設定</h3>
+                          <FormField name="name" label="模板名稱">
+                            <FormInput
+                              name="name"
+                              placeholder="例如：一般檢查、初診記錄"
+                            />
+                          </FormField>
+                          <FormField name="template_type" label="模板類型">
+                            <select
+                              {...methods.register('template_type')}
+                              disabled={isEdit}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-500"
+                            >
+                              <option value="medical_record">病歷模板</option>
+                              <option value="patient_form">患者表單</option>
+                            </select>
+                          </FormField>
+          <FormField 
+            name="max_photos" 
+            label="照片數量上限"
+            description="病患填寫時可上傳的照片數量 (0-20)"
+          >
+            <FormInput
+              name="max_photos"
+              type="number"
+              min={0}
+              max={20}
+            />
+          </FormField>
+                          <FormField name="description" label="模板說明">
+                            <FormTextarea
+                              name="description"
+                              placeholder="描述此模板的用途（選填）"
+                              rows={3}
+                            />
+                          </FormField>
+                        </div>
+                      </div>
 
-                {/* Fields Section */}
-                <div className="border-t pt-6">
-                  <div className="mb-4">
-                    <h3 className="text-lg font-semibold text-gray-900">表單欄位</h3>
-                  </div>
+                      <div className="md:col-span-2 space-y-4">
+                        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                          <div className="flex items-center justify-between mb-6">
+                            <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">表單欄位</h3>
+                            <span className="text-xs text-gray-500">{fields.length} 個欄位</span>
+                          </div>
 
-                  <div className="space-y-4">
-                    {fields.map((field, index) => (
-                      <FieldEditor
-                        key={field.id}
-                        index={index}
-                        field={field}
-                        onRemove={() => handleRemoveField(index)}
-                        onMoveUp={() => handleMoveField(index, 'up')}
-                        onMoveDown={() => handleMoveField(index, 'down')}
-                        canMoveUp={index > 0}
-                        canMoveDown={index < fields.length - 1}
-                      />
-                    ))}
+                          <div className="space-y-4">
+                            {fields.map((field, index) => (
+                              <FieldEditor
+                                key={field.id}
+                                index={index}
+                                field={field}
+                                onRemove={() => handleRemoveField(index)}
+                                onMoveUp={() => handleMoveField(index, 'up')}
+                                onMoveDown={() => handleMoveField(index, 'down')}
+                                canMoveUp={index > 0}
+                                canMoveDown={index < fields.length - 1}
+                              />
+                            ))}
 
-                    <button
-                      type="button"
-                      onClick={handleAddField}
-                      className="w-full py-4 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 hover:text-primary-600 hover:border-primary-500 hover:bg-primary-50 transition-all flex items-center justify-center gap-2 group"
-                    >
-                      <span className="text-2xl group-hover:scale-110 transition-transform">+</span>
-                      <span className="font-medium">新增欄位</span>
-                    </button>
-                  </div>
+                            <button
+                              type="button"
+                              onClick={handleAddField}
+                              className="w-full py-4 border-2 border-dashed border-gray-300 rounded-xl text-gray-500 hover:text-primary-600 hover:border-primary-500 hover:bg-primary-50 transition-all flex items-center justify-center gap-2 group"
+                            >
+                              <span className="text-2xl group-hover:scale-110 transition-transform">+</span>
+                              <span className="font-medium">新增欄位</span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div key="preview-content" className="max-w-2xl mx-auto w-full py-12">
+                      <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-200">
+                        <div className="mb-8 border-b pb-6">
+                          <h1 className="text-2xl font-bold text-gray-900">{methods.watch('name') || '未命名模板'}</h1>
+                          {methods.watch('description') && (
+                            <p className="mt-2 text-gray-600">{methods.watch('description')}</p>
+                          )}
+                        </div>
+                        
+                        <MedicalRecordDynamicForm fields={previewFields as any} />
+                        
+                        {methods.watch('max_photos') > 0 && (
+                          <div className="mt-8 pt-8 border-t">
+                            <h3 className="text-sm font-medium text-gray-700 mb-4">照片上傳 (上限 {methods.watch('max_photos')} 張)</h3>
+                            <div className="grid grid-cols-3 gap-4">
+                              <div className="aspect-square border-2 border-dashed border-gray-300 rounded-xl flex items-center justify-center text-gray-400">
+                                <span className="text-2xl">+</span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="mt-12">
+                          <button
+                            type="button"
+                            className="w-full py-3 bg-primary-600 text-white rounded-xl font-semibold shadow-lg shadow-primary-200"
+                            disabled
+                          >
+                            提交表單 (預覽模式)
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
-            )}
-          </ModalBody>
+              )}
+            </ModalBody>
 
-          <ModalFooter>
-            <button
-              type="button"
-              onClick={handleClose}
-              className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-              disabled={isSaving}
-            >
-              取消
-            </button>
-            <button
-              type="submit"
-              className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={isSaving}
-            >
-              {isSaving ? '儲存中...' : '儲存'}
-            </button>
-          </ModalFooter>
+            <ModalFooter>
+              <button
+                type="button"
+                onClick={handleClose}
+                className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                disabled={isSaving}
+              >
+                取消
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={isSaving}
+              >
+                {isSaving ? '儲存中...' : '儲存'}
+              </button>
+            </ModalFooter>
+          </div>
         </form>
       </FormProvider>
     </BaseModal>

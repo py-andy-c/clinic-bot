@@ -21,8 +21,9 @@ import { CreateAppointmentModal } from '../components/calendar/CreateAppointment
 import { PatientMedicalRecordsSection } from '../components/PatientMedicalRecordsSection';
 import { RecentPhotosRibbon } from '../components/RecentPhotosRibbon';
 import { CreateMedicalRecordDialog } from '../components/CreateMedicalRecordDialog';
+import { PatientFormRequestsSection } from '../components/PatientFormRequestsSection';
 
-type TabType = 'info' | 'appointments' | 'records' | 'photos';
+type TabType = 'info' | 'appointments' | 'records' | 'photos' | 'forms';
 
 const PatientDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -257,6 +258,15 @@ const PatientDetailPage: React.FC = () => {
           >
             照片
           </button>
+          <button
+            onClick={() => setActiveTab('forms')}
+            className={`py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${activeTab === 'forms'
+              ? 'border-blue-500 text-blue-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+          >
+            患者表單
+          </button>
         </nav>
       </div>
 
@@ -319,6 +329,13 @@ const PatientDetailPage: React.FC = () => {
             triggerUpload={showPhotoUpload}
             onUploadComplete={() => setShowPhotoUpload(false)}
             hideUploadButton={true}
+          />
+        )}
+
+        {activeTab === 'forms' && (
+          <PatientFormRequestsSection
+            patientId={patient.id}
+            clinicId={activeClinicId ?? null}
           />
         )}
       </div>

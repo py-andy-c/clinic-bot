@@ -43,6 +43,10 @@ export const PLACEHOLDERS = {
   standard: [
     { key: '{預約時間}', label: '預約時間', description: '格式化的日期時間（例如：12/25 (三) 1:30 PM）' },
     { key: '{預約結束時間}', label: '預約結束時間', description: '格式化的結束日期時間（例如：12/25 (三) 2:30 PM）' },
+    { key: '{預約日期}', label: '預約日期', description: '預約日期（例如：12/25）' },
+  ],
+  patient_form: [
+    { key: '{表單連結}', label: '表單連結', description: '病患填寫表單的專屬連結（必填）' },
   ],
   recurrent: [
     { key: '{預約數量}', label: '預約數量', description: '總預約次數' },
@@ -50,13 +54,14 @@ export const PLACEHOLDERS = {
   ],
 } as const;
 
-export type MessageType = 'patient_confirmation' | 'clinic_confirmation' | 'reminder' | 'recurrent_clinic_confirmation';
+export type MessageType = 'patient_confirmation' | 'clinic_confirmation' | 'reminder' | 'recurrent_clinic_confirmation' | 'patient_form';
 
 export const MESSAGE_TYPE_LABELS: Record<MessageType, string> = {
   patient_confirmation: '預約確認訊息（病患自行預約）',
   clinic_confirmation: '預約確認訊息（診所建立單次預約）',
   reminder: '提醒訊息',
   recurrent_clinic_confirmation: '預約確認訊息（診所建立重複預約）',
+  patient_form: '患者表單訊息',
 };
 
 export const MESSAGE_TYPE_DESCRIPTIONS: Record<MessageType, string> = {
@@ -64,5 +69,6 @@ export const MESSAGE_TYPE_DESCRIPTIONS: Record<MessageType, string> = {
   clinic_confirmation: '當診所人員建立單次預約時發送',
   reminder: '預約前發送的提醒',
   recurrent_clinic_confirmation: '當診所人員建立重複預約（多時段）時發送',
+  patient_form: '發送患者表單時的訊息',
 };
 

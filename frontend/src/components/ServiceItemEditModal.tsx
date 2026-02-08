@@ -27,6 +27,7 @@ import {
 } from '../constants/messageTemplates';
 import { MessageSettingsSection } from './MessageSettingsSection';
 import { FollowUpMessagesSection } from './FollowUpMessagesSection';
+import { PatientFormSettingsSection } from './PatientFormSettingsSection';
 import { ResourceRequirementsSection } from './ResourceRequirementsSection';
 import { FormInput } from './forms/FormInput';
 import { generateTemporaryId } from '../utils/idUtils';
@@ -120,6 +121,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
       billing_scenarios: [],
       resource_requirements: [],
       follow_up_messages: [],
+      patient_form_settings: [],
     }
   });
 
@@ -183,6 +185,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
         })),
         resource_requirements: requirements,
         follow_up_messages: bundle.associations.follow_up_messages,
+        patient_form_settings: bundle.associations.patient_form_settings,
       };
 
       reset(formData);
@@ -212,6 +215,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
         billing_scenarios: [],
         resource_requirements: [],
         follow_up_messages: [],
+        patient_form_settings: [],
       };
       reset(newItem);
     }
@@ -241,6 +245,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
     billing_scenarios: any[];
     resource_requirements: any[];
     follow_up_messages: any[];
+    patient_form_settings: any[];
     created_at: string;
     updated_at: string;
   }
@@ -255,6 +260,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
     // Explicitly set these to satisfy the proxy interface and resolve type conflicts
     resource_requirements: formValues.resource_requirements || [],
     follow_up_messages: formValues.follow_up_messages || [],
+    patient_form_settings: formValues.patient_form_settings || [],
     practitioner_ids: formValues.practitioner_ids || [],
     billing_scenarios: formValues.billing_scenarios || [],
   };
@@ -313,6 +319,12 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
             };
             if (msg.id && msg.id > 0) fm.id = msg.id;
             return fm;
+          }),
+          patient_form_settings: (data.patient_form_settings || []).map(s => {
+            const setting = { ...s };
+            if (setting.id && setting.id > 0) return setting;
+            const { id: _id, ...rest } = setting;
+            return rest;
           })
         }
       };
@@ -815,6 +827,20 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                       onUpdate={onUpdateLocalItem}
                       disabled={!isClinicAdmin}
                       clinicInfoAvailability={clinicInfoAvailability || {}}
+                    />
+                  </section>
+
+                  <section className="bg-white rounded-xl md:rounded-2xl p-4 md:p-6 shadow-sm border border-gray-100">
+                    <div className="mb-4 md:mb-6">
+                      <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                        <span className="w-1.5 h-6 bg-rose-500 rounded-full"></span>
+                        患者表單設定
+                      </h3>
+                    </div>
+                    <PatientFormSettingsSection
+                      appointmentType={appointmentTypeProxy}
+                      onUpdate={onUpdateLocalItem}
+                      disabled={!isClinicAdmin}
                     />
                   </section>
                 </div>

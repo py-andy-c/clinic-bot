@@ -70,6 +70,7 @@ export const PlaceholderHelper: React.FC<PlaceholderHelperProps> = ({
   const allPlaceholders = [
     ...PLACEHOLDERS.common,
     ...(messageType === 'recurrent_clinic_confirmation' ? PLACEHOLDERS.recurrent : PLACEHOLDERS.standard),
+    ...(messageType === 'patient_form' ? PLACEHOLDERS.patient_form : []),
   ];
 
   const handleInsert = (placeholder: string) => {

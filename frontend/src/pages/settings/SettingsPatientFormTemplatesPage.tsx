@@ -10,13 +10,13 @@ import { MedicalRecordTemplateEditorModal } from '../../components/MedicalRecord
 import { getErrorMessage } from '../../types/api';
 import { logger } from '../../utils/logger';
 
-const SettingsMedicalRecordTemplatesPage: React.FC = () => {
+const SettingsPatientFormTemplatesPage: React.FC = () => {
   const [editingTemplateId, setEditingTemplateId] = useState<number | null | undefined>(undefined);
   const { isClinicAdmin, user } = useAuth();
   const activeClinicId = user?.active_clinic_id;
   const { alert, confirm } = useModal();
 
-  const { data: templates, isLoading } = useMedicalRecordTemplates(activeClinicId ?? null, 'medical_record' as MedicalRecordTemplateType);
+  const { data: templates, isLoading } = useMedicalRecordTemplates(activeClinicId ?? null, 'patient_form' as MedicalRecordTemplateType);
   const deleteTemplateMutation = useDeleteMedicalRecordTemplate(activeClinicId ?? null);
 
   const handleAddTemplate = () => {
@@ -29,8 +29,8 @@ const SettingsMedicalRecordTemplatesPage: React.FC = () => {
 
   const handleDeleteTemplate = async (template: MedicalRecordTemplate) => {
     const confirmed = await confirm(
-      `確定要刪除「${template.name}」模板嗎？此動作不可復原。`,
-      '刪除病歷模板'
+      `確定要刪除「${template.name}」患者表單模板嗎？此動作不可復原。`,
+      '刪除患者表單'
     );
     if (!confirmed) return;
 
@@ -59,10 +59,9 @@ const SettingsMedicalRecordTemplatesPage: React.FC = () => {
     <div className="max-w-6xl mx-auto">
       <SettingsBackButton />
       
-      <PageHeader title="病歷模板" />
+      <PageHeader title="患者表單模板" />
 
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-        {/* Header with Add Button */}
         <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
           <h3 className="text-lg font-semibold text-gray-900">模板列表</h3>
           {isClinicAdmin && (
@@ -70,16 +69,15 @@ const SettingsMedicalRecordTemplatesPage: React.FC = () => {
               onClick={handleAddTemplate}
               className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
             >
-              + 新增模板
+              + 新增表單
             </button>
           )}
         </div>
 
-        {/* Templates List */}
         {!templates || templates.length === 0 ? (
           <div className="px-6 py-12 text-center">
             <div className="text-gray-400 text-5xl mb-4">📋</div>
-            <p className="text-gray-600 mb-4">尚未建立任何病歷模板</p>
+            <p className="text-gray-600 mb-4">尚未建立任何患者表單模板</p>
             {isClinicAdmin && (
               <button
                 onClick={handleAddTemplate}
@@ -108,6 +106,7 @@ const SettingsMedicalRecordTemplatesPage: React.FC = () => {
                     )}
                     <div className="flex items-center gap-4 mt-2 text-sm text-gray-500">
                       <span>{template.fields.length} 個欄位</span>
+                      <span>照片上限: {template.max_photos}</span>
                       <span>版本 {template.version}</span>
                       <span>
                         建立於 {new Date(template.created_at).toLocaleDateString('zh-TW')}
@@ -139,11 +138,10 @@ const SettingsMedicalRecordTemplatesPage: React.FC = () => {
         )}
       </div>
 
-      {/* Template Editor Modal */}
       {editingTemplateId !== undefined && (
         <MedicalRecordTemplateEditorModal
           templateId={editingTemplateId}
-          defaultType="medical_record"
+          defaultType="patient_form"
           onClose={handleCloseModal}
         />
       )}
@@ -151,4 +149,4 @@ const SettingsMedicalRecordTemplatesPage: React.FC = () => {
   );
 };
 
-export default SettingsMedicalRecordTemplatesPage;
+export default SettingsPatientFormTemplatesPage;

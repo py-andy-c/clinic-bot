@@ -1495,6 +1495,7 @@ export class ApiService {
     page?: number;
     pageSize?: number;
     include_deleted?: boolean;
+    type?: import('../types/medicalRecord').MedicalRecordTemplateType;
   }): Promise<import('../types/medicalRecord').MedicalRecordTemplatesListResponse> {
     const response = await this.client.get('/clinic/medical-record-templates', { params });
     return response.data;
@@ -1567,6 +1568,92 @@ export class ApiService {
 
   async hardDeleteMedicalRecord(recordId: number): Promise<{ success: boolean }> {
     const response = await this.client.delete(`/clinic/medical-records/${recordId}/hard`);
+    return response.data;
+  }
+
+  // Patient Form Settings APIs
+  async getPatientFormSettings(appointmentTypeId: number): Promise<{ patient_form_settings: import('../types/medicalRecord').PatientFormSetting[] }> {
+    const response = await this.client.get(`/clinic/appointment-types/${appointmentTypeId}/patient-form-settings`);
+    return response.data;
+  }
+
+  async previewPatientFormMessage(data: {
+    appointment_type_id: number;
+    message_template: string;
+  }): Promise<{
+    preview_message: string;
+    used_placeholders: Record<string, string>;
+    completeness_warnings?: string[];
+  }> {
+    const response = await this.client.post('/clinic/patient-form-settings/preview', data);
+    return response.data;
+  }
+
+  // Patient Form Request APIs
+  async getPatientFormRequests(patientId: number, params?: {
+    status?: string;
+    page?: number;
+    page_size?: number;
+  }): Promise<{ requests: import('../types/medicalRecord').PatientFormRequest[]; total: number }> {
+    const response = await this.client.get(`/clinic/patients/${patientId}/patient-form-requests`, { params });
+    return response.data;
+  }
+
+  async createPatientFormRequest(patientId: number, data: {
+    template_id: number;
+    appointment_id?: number | null;
+    message_template: string;
+    flex_button_text?: string;
+    notify_admin?: boolean;
+    notify_appointment_practitioner?: boolean;
+    notify_assigned_practitioner?: boolean;
+  }): Promise<import('../types/medicalRecord').PatientFormRequest> {
+    const response = await this.client.post(`/clinic/patients/${patientId}/patient-form-requests`, data);
+    return response.data;
+  }
+
+  // LIFF Patient Form APIs
+  async getLiffPatientForms(): Promise<{ forms: import('../types/medicalRecord').PatientFormRequest[] }> {
+    const response = await this.client.get('/liff/patient-forms');
+    return response.data;
+  }
+
+  async getLiffPatientForm(accessToken: string): Promise<{
+    template: import('../types/medicalRecord').MedicalRecordTemplate;
+    values: Record<string, any>;
+    medical_record?: import('../types/medicalRecord').MedicalRecord;
+    request: import('../types/medicalRecord').PatientFormRequest;
+  }> {
+    const response = await this.client.get(`/liff/patient-forms/${accessToken}`);
+    return response.data;
+  }
+
+  async submitLiffPatientForm(accessToken: string, data: {
+    values: Record<string, any>;
+    photo_ids?: number[];
+  }): Promise<{ success: boolean; medical_record_id: number }> {
+    const response = await this.client.post(`/liff/patient-forms/${accessToken}/submit`, data);
+    return response.data;
+  }
+
+  async updateLiffPatientForm(accessToken: string, data: {
+    values: Record<string, any>;
+    photo_ids?: number[];
+    version: number;
+  }): Promise<{ success: boolean; medical_record_id: number }> {
+    const response = await this.client.put(`/liff/patient-forms/${accessToken}`, data);
+    return response.data;
+  }
+
+  async uploadLiffPatientPhoto(accessToken: string, file: File, description?: string): Promise<import('../types/medicalRecord').PatientPhoto> {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (description) {
+      formData.append('description', description);
+    }
+    const response = await this.client.post(`/liff/patient-forms/${accessToken}/photos`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
     return response.data;
   }
 
