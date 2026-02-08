@@ -52,6 +52,7 @@ interface CalendarGridProps {
   canEditEvent?: (event: CalendarEvent) => boolean;
   onEventReschedule?: (event: CalendarEvent, newInfo: { start: Date; end: Date; practitionerId?: number | undefined }) => void;
   onExceptionMove?: (event: CalendarEvent, newInfo: { start: Date; end: Date; practitionerId?: number | undefined }) => void;
+  isLoading?: boolean;
 }
 
 
@@ -74,14 +75,15 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
   canEditEvent,
   onEventReschedule,
   onExceptionMove,
+  isLoading = false,
 }) => {
   const handleEventClick = useCallback((event: CalendarEvent) => {
-    if (wasDraggingRef.current) {
+    if (wasDraggingRef.current || isLoading) {
       wasDraggingRef.current = false;
       return;
     }
     onEventClick?.(event);
-  }, [onEventClick]);
+  }, [onEventClick, isLoading]);
 
   const [slotMenu, setSlotMenu] = useState<{
     visible: boolean;
@@ -244,6 +246,7 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
     practitionerId: number | undefined,
     event: React.MouseEvent<HTMLDivElement>
   ) => {
+    if (isLoading) return;
     const slotDate = createTimeSlotDate(baseDate, hour, minute);
     const slotInfo: { start: Date; end: Date; practitionerId?: number } = {
       start: slotDate,
@@ -487,6 +490,7 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
     dragOffset: { x: number; y: number } = { x: 0, y: 0 },
     dragInitialSize: { width: number; height: number } = { width: 120, height: 40 }
   ) => {
+    if (isLoading) return;
     wasDraggingRef.current = false;
     // Interaction with an event should close any open slot menus (FABs)
     setSlotMenu(prev => ({ ...prev, visible: false }));
@@ -525,7 +529,7 @@ const CalendarGrid: React.FC<CalendarGridProps> = ({
         dragInitialSize,
       });
     }
-  }, [canEditEvent]);
+  }, [canEditEvent, isLoading]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (!dragState.event) return;

@@ -66,6 +66,7 @@ const AvailabilityPage: React.FC = () => {
   const { user, isLoading: authLoading, isAuthenticated, isClinicUser, hasRole, isPractitioner } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
 
   // Reset initial load state when clinic changes
@@ -284,7 +285,7 @@ const AvailabilityPage: React.FC = () => {
 
   // Handle delete availability exception
   const handleDeleteException = useCallback(async () => {
-    if (!selectedEvent || !selectedEvent.resource.exception_id) return;
+    if (!selectedEvent || !selectedEvent.resource.exception_id || isSubmitting) return;
 
     // Security check: Ensure user has permission to delete this exception
     if (!canEditEvent(selectedEvent)) {
@@ -292,6 +293,7 @@ const AvailabilityPage: React.FC = () => {
       return;
     }
 
+    setIsSubmitting(true);
     try {
       await apiService.deleteAvailabilityException(user!.user_id, selectedEvent.resource.exception_id);
 
@@ -305,12 +307,14 @@ const AvailabilityPage: React.FC = () => {
       logger.error('Failed to delete availability exception:', error);
       const errorMessage = getErrorMessage(error);
       await alert(`刪除休診時段失敗：${errorMessage}`, '錯誤');
+    } finally {
+      setIsSubmitting(false);
     }
-  }, [selectedEvent, canEditEvent, user, queryClient, alert]);
+  }, [selectedEvent, canEditEvent, user, queryClient, alert, isSubmitting]);
 
   // Handle duplicate appointment from EventModal (following patient detail page pattern)
   const handleDuplicateAppointment = useCallback(async () => {
-    if (!selectedEvent) return;
+    if (!selectedEvent || isSubmitting) return;
 
     // Security check: Ensure user can duplicate this appointment
     // All visible appointments can be duplicated (no ownership check needed)
@@ -345,7 +349,7 @@ const AvailabilityPage: React.FC = () => {
     setIsCreateModalOpen(true);
     setIsEventModalOpen(false);
     setSelectedEvent(null); // Close EventModal
-  }, [selectedEvent, user]);
+  }, [selectedEvent, user, isSubmitting]);
 
   // Handle cancellation note submission
   const handleCancellationNoteSubmit = useCallback(async () => {
@@ -384,8 +388,9 @@ const AvailabilityPage: React.FC = () => {
 
   // Handle final confirmation to delete/cancel appointment
   const handleConfirmDelete = useCallback(async () => {
-    if (!deletingAppointment || !deletingAppointment.resource.calendar_event_id) return;
+    if (!deletingAppointment || !deletingAppointment.resource.calendar_event_id || isSubmitting) return;
 
+    setIsSubmitting(true);
     try {
       // Note: cancelClinicAppointment API uses calendar_event_id despite parameter name
       await apiService.cancelClinicAppointment(
@@ -411,8 +416,10 @@ const AvailabilityPage: React.FC = () => {
       const errorMessage = getErrorMessage(error);
       await alert(`取消預約失敗：${errorMessage}`, '錯誤');
       // Stay on preview step so user can retry or go back
+    } finally {
+      setIsSubmitting(false);
     }
-  }, [deletingAppointment, cancellationNote, alert]);
+  }, [deletingAppointment, cancellationNote, alert, isSubmitting, user?.active_clinic_id]);
 
   // URL parameter handling for deep linking
   useEffect(() => {
@@ -730,12 +737,13 @@ const AvailabilityPage: React.FC = () => {
   }, [canEditEvent, alert]);
 
   const handleExceptionMove = useCallback(async (event: CalendarEvent, newInfo: { start: Date; end: Date; practitionerId?: number | undefined }) => {
-    if (!event.resource.exception_id) return;
+    if (!event.resource.exception_id || isSubmitting) return;
     if (!canEditEvent(event)) {
       alert("您沒有權限修改此休診時段");
       return;
     }
 
+    setIsSubmitting(true);
     const startMoment = moment(newInfo.start).tz('Asia/Taipei');
     const endMoment = moment(newInfo.end).tz('Asia/Taipei');
 
@@ -798,15 +806,15 @@ const AvailabilityPage: React.FC = () => {
       logger.error('Failed to delete old exception during move:', deleteError);
       const errorMessage = getErrorMessage(deleteError);
       await alert(`更新失敗（無法刪除原時段）：${errorMessage}`, '錯誤');
+    } finally {
+      setIsSubmitting(false);
     }
-  }, [user, queryClient, alert, canEditEvent]);
+  }, [canEditEvent, user, queryClient, alert, isSubmitting]);
 
-  const handleConflictWarningConfirm = async () => {
-    if (!user?.user_id) {
-      await alert('無法建立休診時段：用戶未認證', '錯誤');
-      return;
-    }
+  const handleConflictWarningConfirm = useCallback(async () => {
+    if (isSubmitting || !user?.user_id) return;
 
+    setIsSubmitting(true);
     try {
       // Force create the exception
       const requestData: AvailabilityExceptionRequest = {
@@ -845,13 +853,79 @@ const AvailabilityPage: React.FC = () => {
     } catch (error) {
       const errorMessage = getErrorMessage(error);
       await alert(`建立休診時段失敗：${errorMessage}`, '錯誤');
+    } finally {
+      setIsSubmitting(false);
     }
-  };
+  }, [user, isSubmitting, exceptionData, isFullDay, queryClient, alert]);
 
-  const handleConflictWarningCancel = () => {
+  const handleConflictWarningCancel = useCallback(() => {
     setIsConflictWarningModalOpen(false);
     setConflictAppointments([]);
-  };
+  }, []);
+
+  const handleCreateExceptionSubmit = useCallback(async () => {
+    if (isSubmitting || !user?.user_id) return;
+
+    setIsSubmitting(true);
+    try {
+      // Prepare the exception request data
+      const requestData: AvailabilityExceptionRequest = {
+        date: exceptionData.date,
+        start_time: isFullDay ? null : exceptionData.startTime,
+        end_time: isFullDay ? null : exceptionData.endTime,
+        force: false, // First attempt - check for conflicts
+      };
+
+      // Call the API to create the exception for the selected practitioner
+      let response;
+      try {
+        response = await apiService.createAvailabilityException(exceptionData.practitionerId, requestData);
+      } catch (error: any) {
+        // Handle 409 Conflict response as successful conflict detection
+        if (error.response?.status === 409 && error.response?.data) {
+          response = error.response.data;
+        } else {
+          // Re-throw other errors
+          throw error;
+        }
+      }
+
+      // Check if response indicates conflicts (409 status)
+      if ('success' in response && response.success === false && response.conflicts) {
+        // Show conflict warning modal
+        setConflictAppointments(response.conflicts);
+        setIsConflictWarningModalOpen(true);
+        return;
+      }
+
+      // Check if response indicates success with warnings (force=true case)
+      if ('warning' in response && response.warning === true) {
+        // Close both modals
+        setIsExceptionModalOpen(false);
+        setIsConflictWarningModalOpen(false);
+
+        // Invalidate calendar events cache to refresh the view
+        invalidateCalendarEventsForAppointment(queryClient, user?.active_clinic_id);
+
+        await alert('休診時段已建立');
+        return;
+      }
+
+      // No conflicts - exception created successfully
+      // Close the modal
+      setIsExceptionModalOpen(false);
+
+      // Invalidate calendar events cache to refresh the view
+      invalidateCalendarEventsForAppointment(queryClient, user?.active_clinic_id);
+
+      await alert('休診時段已建立');
+    } catch (error) {
+      const errorMessage = getErrorMessage(error);
+      await alert(`建立休診時段失敗：${errorMessage}`, '錯誤');
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [user, isSubmitting, exceptionData, isFullDay, queryClient, alert]);
 
   // Show loading spinner during initial load, but not for subsequent event fetches after initial load is complete
   if (loading || practitionersLoading || (eventsLoading && !initialLoadComplete)) {
@@ -918,6 +992,7 @@ const AvailabilityPage: React.FC = () => {
             onEventReschedule={handleEventReschedule}
             onExceptionMove={handleExceptionMove}
             canEditEvent={canEditEvent}
+            isLoading={isSubmitting}
             onHeaderClick={(date) => {
               // Atomically update state, URL, and storage to ensure consistency
               const newView = CalendarViews.DAY;
@@ -1147,69 +1222,8 @@ const AvailabilityPage: React.FC = () => {
           isFullDay={isFullDay}
           practitioners={practitioners.map(p => ({ id: p.id, name: p.full_name || p.email }))}
           onClose={() => setIsExceptionModalOpen(false)}
-          onCreate={async () => {
-            if (!user?.user_id) {
-              await alert('無法建立休診時段：用戶未認證', '錯誤');
-              return;
-            }
-
-            try {
-              // Prepare the exception request data
-              const requestData: AvailabilityExceptionRequest = {
-                date: exceptionData.date,
-                start_time: isFullDay ? null : exceptionData.startTime,
-                end_time: isFullDay ? null : exceptionData.endTime,
-                force: false, // First attempt - check for conflicts
-              };
-
-              // Call the API to create the exception for the selected practitioner
-              let response;
-              try {
-                response = await apiService.createAvailabilityException(exceptionData.practitionerId, requestData);
-              } catch (error: any) {
-                // Handle 409 Conflict response as successful conflict detection
-                if (error.response?.status === 409 && error.response?.data) {
-                  response = error.response.data;
-                } else {
-                  // Re-throw other errors
-                  throw error;
-                }
-              }
-
-              // Check if response indicates conflicts (409 status)
-              if ('success' in response && response.success === false && response.conflicts) {
-                // Show conflict warning modal
-                setConflictAppointments(response.conflicts);
-                setIsConflictWarningModalOpen(true);
-                return;
-              }
-
-              // Check if response indicates success with warnings (force=true case)
-              if ('warning' in response && response.warning === true) {
-                // Close both modals
-                setIsExceptionModalOpen(false);
-                setIsConflictWarningModalOpen(false);
-
-                // Invalidate calendar events cache to refresh the view
-                invalidateCalendarEventsForAppointment(queryClient, user?.active_clinic_id);
-
-                await alert('休診時段已建立');
-                return;
-              }
-
-              // No conflicts - exception created successfully
-              // Close the modal
-              setIsExceptionModalOpen(false);
-
-              // Invalidate calendar events cache to refresh the view
-              invalidateCalendarEventsForAppointment(queryClient, user?.active_clinic_id);
-
-              await alert('休診時段已建立');
-            } catch (error) {
-              const errorMessage = getErrorMessage(error);
-              await alert(`建立休診時段失敗：${errorMessage}`, '錯誤');
-            }
-          }}
+          isLoading={isSubmitting}
+          onCreate={handleCreateExceptionSubmit}
           onExceptionDataChange={setExceptionData}
           onFullDayChange={setIsFullDay}
         />
@@ -1222,6 +1236,7 @@ const AvailabilityPage: React.FC = () => {
           onCancel={handleConflictWarningCancel}
           formatTimeString={formatTimeString}
           formatAppointmentDateOnly={formatAppointmentDateOnly}
+          isLoading={isSubmitting}
         />
       )}
 

@@ -8,6 +8,7 @@
 import React from 'react';
 import { BaseModal } from './BaseModal';
 import { ModalHeader, ModalBody, ModalFooter } from '../shared/ModalParts';
+import { Button } from '../shared/Button';
 
 export interface ConflictAppointment {
   calendar_event_id: number;
@@ -24,6 +25,7 @@ export interface ConflictWarningModalProps {
   onCancel: () => void;
   formatTimeString: (timeStr: string) => string;
   formatAppointmentDateOnly: (date: string | Date) => string;
+  isLoading?: boolean;
 }
 
 export const ConflictWarningModal: React.FC<ConflictWarningModalProps> = React.memo(({
@@ -32,12 +34,13 @@ export const ConflictWarningModal: React.FC<ConflictWarningModalProps> = React.m
   onCancel,
   formatTimeString,
   formatAppointmentDateOnly,
+  isLoading = false,
 }) => {
   return (
     <BaseModal
       onClose={onCancel}
       aria-label="建立休診時段將與現有預約衝突"
-     
+
     >
       <ModalHeader title="建立休診時段將與現有預約衝突" showClose onClose={onCancel} />
       <ModalBody>
@@ -61,19 +64,21 @@ export const ConflictWarningModal: React.FC<ConflictWarningModalProps> = React.m
           ))}
         </div>
       </ModalBody>
-      <ModalFooter>
-        <button
+      <ModalFooter loading={isLoading}>
+        <Button
           onClick={onCancel}
-          className="btn-secondary"
+          variant="secondary"
         >
           取消
-        </button>
-        <button
+        </Button>
+        <Button
           onClick={onConfirm}
-          className="btn-primary-yellow"
+          variant="primary"
+          style={{ backgroundColor: '#eab308', color: '#000' }} // Custom yellow as per existing btn-primary-yellow
+          loading={isLoading}
         >
-          仍要建立
-        </button>
+          {isLoading ? '建立中...' : '仍要建立'}
+        </Button>
       </ModalFooter>
     </BaseModal>
   );
