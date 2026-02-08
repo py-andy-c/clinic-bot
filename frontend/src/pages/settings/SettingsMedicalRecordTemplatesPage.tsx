@@ -90,7 +90,7 @@ const SettingsMedicalRecordTemplatesPage: React.FC = () => {
             )}
           </div>
         ) : (
-          <div className="divide-y divide-gray-200">
+          <div>
             {templates.map((template) => (
               <ActionableCard
                 key={template.id}
@@ -135,7 +135,7 @@ const SettingsMedicalRecordTemplatesPage: React.FC = () => {
                     label: `建立於 ${new Date(template.created_at).toLocaleDateString('zh-TW')}`
                   }
                 ]}
-                className="!border-0 !rounded-none border-b border-gray-100 last:border-b-0 py-5"
+                className="shadow-none border-0 border-b border-gray-200 last:border-b-0 rounded-none py-5"
               />
             ))}
           </div>

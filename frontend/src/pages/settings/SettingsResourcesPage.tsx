@@ -70,7 +70,7 @@ const SettingsResourcesPage: React.FC = () => {
             </div>
 
             <div className="bg-white md:rounded-xl md:border md:border-gray-100 md:shadow-sm overflow-hidden">
-                <div className="divide-y divide-gray-100">
+                <div>
                     {resourceTypes.length === 0 ? (
                         <div className="text-center py-12 text-gray-500">
                             尚未設定任何設備資源
@@ -102,7 +102,7 @@ const SettingsResourcesPage: React.FC = () => {
                                         label: `${type.resource_count} 個資源`
                                     }
                                 ]}
-                                className="!border-0 !rounded-none border-b border-gray-100 last:border-b-0 py-5"
+                                className="shadow-none border-0 border-b border-gray-200 last:border-b-0 rounded-none py-5"
                             />
                         ))
                     )}
