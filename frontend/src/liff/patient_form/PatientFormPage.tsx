@@ -22,6 +22,7 @@ const PatientFormPage: React.FC<PatientFormPageProps> = ({ accessToken, onBack }
   const [isSuccess, setIsSuccess] = useState(false);
   const [photoIds, setPhotoIds] = useState<number[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadingCount, setUploadingCount] = useState(0);
   const [deletingPhotoId, setDeletingPhotoId] = useState<number | null>(null);
 
   const methods = useForm({
@@ -61,18 +62,23 @@ const PatientFormPage: React.FC<PatientFormPageProps> = ({ accessToken, onBack }
 
     // Total photos on the record (clinic + patient)
     // We count:
-    // 1. Photos already in the medical record (data.medical_record.photos)
+    // 1. Patient-uploaded photos already in the medical record (those with uploaded_by_patient_id)
     // 2. New photos uploaded in this session but not yet in the record (photoIds not in record)
-    // This correctly implements the mixed ownership model from the design doc.
-    const totalPhotoCount = (data?.medical_record?.photos?.length || 0) + photoIds.filter(id => 
+    // 3. In-flight uploads (uploadingCount)
+    // This correctly implements the mixed ownership model from the design doc:
+    // "The patient's upload limit only applies to their own upload actions; photos already added by the clinic do not count"
+    const patientPhotoCount = (data?.medical_record?.photos?.filter(p => 
+      p.uploaded_by_patient_id !== null && p.uploaded_by_patient_id !== undefined
+    ).length || 0) + photoIds.filter(id => 
       !data?.medical_record?.photos?.some(p => p.id === id)
-    ).length;
+    ).length + uploadingCount;
 
-    if (totalPhotoCount >= (data?.template.max_photos || 0)) {
-      await alert(`此表單照片已達上限 ${data?.template.max_photos} 張`);
+    if (patientPhotoCount >= (data?.template.max_photos || 0)) {
+      await alert(`您已達照片上傳上限 ${data?.template.max_photos} 張`);
       return;
     }
 
+    setUploadingCount(prev => prev + 1);
     setIsUploading(true);
     try {
       const photo = await liffApiService.uploadPatientFormPhoto(accessToken, file);
@@ -81,6 +87,7 @@ const PatientFormPage: React.FC<PatientFormPageProps> = ({ accessToken, onBack }
       logger.error('Photo upload failed:', error);
       await alert(getErrorMessage(error), '上傳失敗');
     } finally {
+      setUploadingCount(prev => prev - 1);
       setIsUploading(false);
       // Reset input value to allow uploading the same file again
       e.target.value = '';
@@ -191,30 +198,33 @@ const PatientFormPage: React.FC<PatientFormPageProps> = ({ accessToken, onBack }
                   </h3>
                   
                   <div className="grid grid-cols-3 gap-3">
-                    {photoIds.map(id => (
-                      <div key={id} className="relative aspect-square bg-gray-100 rounded-xl overflow-hidden group">
-                        <img 
-                          src={`${import.meta.env.VITE_API_BASE_URL}/clinic/patient-photos/${id}/file`} 
-                          alt="Uploaded" 
-                          className="w-full h-full object-cover"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleConfirmDeletePhoto(id)}
-                          className="absolute top-1 right-1 bg-black/50 text-white p-1 rounded-full disabled:opacity-50"
-                          disabled={deletingPhotoId === id}
-                          aria-label="刪除照片"
-                        >
-                          {deletingPhotoId === id ? (
-                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                          ) : (
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                          )}
-                        </button>
-                      </div>
-                    ))}
+                    {photoIds.map((id, index) => {
+                      const photo = data?.medical_record?.photos?.find(p => p.id === id);
+                      return (
+                        <div key={id} className="relative aspect-square bg-gray-100 rounded-xl overflow-hidden group">
+                          <img 
+                            src={`${import.meta.env.VITE_API_BASE_URL}/clinic/patient-photos/${id}/file`} 
+                            alt={photo?.description || `上傳的照片 ${index + 1}`}
+                            className="w-full h-full object-cover"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleConfirmDeletePhoto(id)}
+                            className="absolute top-1 right-1 bg-black/50 text-white p-1 rounded-full disabled:opacity-50"
+                            disabled={deletingPhotoId === id}
+                            aria-label="刪除照片"
+                          >
+                            {deletingPhotoId === id ? (
+                              <LoadingSpinner size="sm" />
+                            ) : (
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            )}
+                          </button>
+                        </div>
+                      );
+                    })}
                     
                     {photoIds.length < data.template.max_photos && (
                       <label 

@@ -9,6 +9,7 @@ import { useModal } from '../contexts/ModalContext';
 import { getErrorMessage } from '../types/api';
 import { logger } from '../utils/logger';
 import { Link } from 'react-router-dom';
+import { DEFAULT_PATIENT_FORM_MESSAGE } from '../constants/messageTemplates';
 
 interface PatientFormRequestsSectionProps {
   patientId: number;
@@ -25,13 +26,13 @@ export const PatientFormRequestsSection: React.FC<PatientFormRequestsSectionProp
   const { data: templates } = useMedicalRecordTemplates(clinicId, 'patient_form');
   const { data: appointmentsData } = usePatientAppointments(patientId);
   const createMutation = useCreatePatientFormRequest(clinicId, patientId);
-  const { alert } = useModal();
+  const { alert, confirm } = useModal();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState({
     template_id: 0,
     appointment_id: null as number | null,
-    message_template: '親愛的 {病患姓名}，請填寫以下表單：\n\n{表單連結}\n\n謝謝！',
+    message_template: DEFAULT_PATIENT_FORM_MESSAGE,
     flex_button_text: '填寫表單',
     notify_admin: false,
     notify_appointment_practitioner: true,
@@ -80,7 +81,7 @@ export const PatientFormRequestsSection: React.FC<PatientFormRequestsSectionProp
       await createMutation.mutateAsync({
         template_id: req.template_id,
         appointment_id: req.appointment_id || null,
-        message_template: '親愛的 {病患姓名}，請填寫以下表單：\n\n{表單連結}\n\n謝謝！',
+        message_template: DEFAULT_PATIENT_FORM_MESSAGE,
         notify_admin: req.notify_admin,
         notify_appointment_practitioner: req.notify_appointment_practitioner,
         notify_assigned_practitioner: req.notify_assigned_practitioner,

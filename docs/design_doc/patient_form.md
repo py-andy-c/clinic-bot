@@ -891,6 +891,12 @@ When an associated appointment is cancelled:
 * [x] Manual QA testing (Backend/API verified, Frontend implemented)
 * [ ] E2E tests (Deferred to follow-up PRs)
 
+### Design Decisions & Deviations
+
+1. **Placeholder Field Removal**: During implementation, the `placeholder` field for dynamic form fields was removed as it was deemed redundant with the `description` field and simplified the UI.
+2. **Photo Limit Logic**: The photo upload limit for patients only counts patient-uploaded photos. Clinic-added photos do not count against the patient's quota, allowing for a mixed ownership model where both parties can contribute to the medical record.
+3. **E2E Tests**: E2E tests have been deferred to a follow-up PR to focus on core functionality and manual QA for the initial release.
+
 ***
 
 ## Summary

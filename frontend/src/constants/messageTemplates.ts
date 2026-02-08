@@ -27,6 +27,12 @@ export const DEFAULT_RECURRENT_CLINIC_CONFIRMATION_MESSAGE = `{病患姓名}，�
 
 期待為您服務！`;
 
+export const DEFAULT_PATIENT_FORM_MESSAGE = `親愛的 {病患姓名}，請填寫以下表單：
+
+{表單連結}
+
+謝謝！`;
+
 /**
  * Available placeholders for each message type
  */
