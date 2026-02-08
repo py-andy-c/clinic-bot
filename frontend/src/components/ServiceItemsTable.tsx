@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { AppointmentType, ServiceTypeGroup } from '../types';
+import { ActionableCard } from './shared';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { useMobileSortable } from '../hooks/useMobileSortable';
 
@@ -7,8 +8,6 @@ import { useMobileSortable } from '../hooks/useMobileSortable';
 const DRAG_OPACITY = 0.6;
 const DRAG_BORDER_WIDTH = 4;
 const ICON_SIZE = 5;
-const GAP_SIZE = 3;
-const BUTTON_SIZE = 5;
 const DROP_INDICATOR_COLOR = 'blue-400';
 
 // Preload empty image for drag ghost
@@ -130,16 +129,83 @@ export const ServiceItemsTable: React.FC<ServiceItemsTableProps> = ({
           const practitionerCount = practitionerAssignments[appointmentType.id]?.length || 0;
 
           return (
-            <div
+            <ActionableCard
               key={appointmentType.id}
+              title={appointmentType.name || '未命名服務項目'}
+              badge={appointmentType.service_type_group_id ? (
+                <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded ml-1">
+                  {groupName}
+                </span>
+              ) : null}
+              leading={isClinicAdmin && (
+                <div
+                  className="text-gray-400 touch-none select-none flex items-center"
+                  onTouchStart={isMobile && !disabled ? (e) => handleTouchStart(e, appointmentType.id) : undefined}
+                  style={{ touchAction: 'none' }}
+                >
+                  <svg className={`w-${ICON_SIZE} h-${ICON_SIZE}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
+                  </svg>
+                </div>
+              )}
+              actions={isClinicAdmin ? [
+                {
+                  label: '編輯',
+                  onClick: (e: React.MouseEvent) => {
+                    e.stopPropagation();
+                    onEdit(appointmentType);
+                  },
+                  variant: 'secondary'
+                },
+                {
+                  label: '刪除',
+                  onClick: (e: React.MouseEvent) => {
+                    e.stopPropagation();
+                    onDelete(appointmentType);
+                  },
+                  variant: 'danger',
+                  disabled: disabled
+                }
+              ] : []}
+              metadata={[
+                {
+                  icon: (
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  ),
+                  label: `時長: ${formatDuration(appointmentType.duration_minutes, appointmentType.scheduling_buffer_minutes)}`
+                },
+                {
+                  icon: (
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                  ),
+                  label: `${practitionerCount} 位治療師`
+                }
+              ]}
+              className={`${draggedItemId === appointmentType.id
+                ? `bg-blue-50 border-2 border-dashed border-blue-300 shadow-inner`
+                : dropTargetId === appointmentType.id
+                  ? dropPosition === 'above'
+                    ? `border-t-${DRAG_BORDER_WIDTH} border-t-${DROP_INDICATOR_COLOR}`
+                    : `border-b-${DRAG_BORDER_WIDTH} border-b-${DROP_INDICATOR_COLOR}`
+                  : ''
+                }`}
+              style={{
+                ...(isMobile && draggedItemId === appointmentType.id && dragOffset
+                  ? { transform: `translateY(${dragOffset.y}px)`, zIndex: 1000, position: 'relative' as const, touchAction: 'none' }
+                  : {}),
+                ...(draggedItemId === appointmentType.id ? { opacity: DRAG_OPACITY } : {})
+              }}
               data-item-id={appointmentType.id}
               draggable={isClinicAdmin && !isMobile && !disabled}
               onDragStart={isClinicAdmin && !isMobile && onDragStart ? (e) => {
                 // Hide the default drag ghost
                 e.dataTransfer.setDragImage(EMPTY_DRAG_IMAGE, 0, 0);
-                
+
                 // Set custom data type to prevent browser from showing default "globe" or "link" icons
-                // We use a custom MIME type that is not text/plain or text/uri-list
                 e.dataTransfer.setData('application/x-clinic-dnd', appointmentType.id.toString());
                 e.dataTransfer.effectAllowed = 'move';
 
@@ -148,74 +214,15 @@ export const ServiceItemsTable: React.FC<ServiceItemsTableProps> = ({
               onDragOver={isClinicAdmin && !isMobile ? (e) => handleDragOver(e, appointmentType.id) : undefined}
               onDragLeave={isClinicAdmin && !isMobile ? handleDragLeave : undefined}
               onDragEnd={isClinicAdmin && !isMobile ? () => {
-                // Clear drop indicators
                 setDropTargetId(null);
                 setDropPosition(null);
                 if (onDragEnd) onDragEnd();
               } : undefined}
-              onClick={isClinicAdmin ? () => onEdit(appointmentType) : undefined}
-              onTouchMove={isMobile && isClinicAdmin && !disabled ? handleTouchMove : undefined}
-              onTouchEnd={isMobile && isClinicAdmin && !disabled ? handleTouchEnd : undefined}
-              className={`bg-white border border-gray-200 rounded-lg p-4 shadow-sm transition-all duration-200 ${draggedItemId === appointmentType.id
-                ? `bg-blue-50 border-2 border-dashed border-blue-300 shadow-inner`
-                : dropTargetId === appointmentType.id
-                  ? dropPosition === 'above'
-                    ? `border-t-${DRAG_BORDER_WIDTH} border-t-${DROP_INDICATOR_COLOR}`
-                    : `border-b-${DRAG_BORDER_WIDTH} border-b-${DROP_INDICATOR_COLOR}`
-                  : 'hover:shadow-md'
-                }`}
-              style={{
-                ...(isMobile && draggedItemId === appointmentType.id && dragOffset
-                  ? { transform: `translateY(${dragOffset.y}px)`, zIndex: 1000, position: 'relative' as const }
-                  : {}),
-                ...(draggedItemId === appointmentType.id ? { opacity: DRAG_OPACITY } : {})
-              }}
-            >
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    {isClinicAdmin && (
-                      <div
-                        className="text-gray-400 touch-none select-none flex items-center"
-                        onTouchStart={isMobile && !disabled ? (e) => handleTouchStart(e, appointmentType.id) : undefined}
-                        style={{ touchAction: 'none' }}
-                      >
-                        <svg className={`w-${ICON_SIZE} h-${ICON_SIZE}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
-                        </svg>
-                      </div>
-                    )}
-                    <h3 className="font-medium text-gray-900 text-sm">
-                      {appointmentType.name || '未命名服務項目'}
-                    </h3>
-                    {appointmentType.service_type_group_id && (
-                      <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">
-                        {groupName}
-                      </span>
-                    )}
-                  </div>
-                  <div className={`flex flex-wrap gap-${GAP_SIZE} text-xs text-gray-500`}>
-                    <span>時長: {formatDuration(appointmentType.duration_minutes, appointmentType.scheduling_buffer_minutes)}</span>
-                    <span>•</span>
-                    <span>{practitionerCount} 位治療師</span>
-                  </div>
-                </div>
-                {isClinicAdmin && (
-                  <button
-                    disabled={disabled}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onDelete(appointmentType);
-                    }}
-                    className="p-2 text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50"
-                  >
-                    <svg className={`w-${BUTTON_SIZE} h-${BUTTON_SIZE}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </button>
-                )}
-              </div>
-            </div>
+              {...(isMobile && isClinicAdmin && !disabled ? {
+                onTouchMove: handleTouchMove,
+                onTouchEnd: handleTouchEnd
+              } : {})}
+            />
           );
         })}
       </div>
@@ -248,7 +255,7 @@ export const ServiceItemsTable: React.FC<ServiceItemsTableProps> = ({
           </tr>
         </thead>
         <tbody className="bg-white divide-y divide-gray-200">
-          {appointmentTypes.map((appointmentType) => {
+          {appointmentTypes.map((appointmentType: AppointmentType) => {
             const groupName = getGroupName(appointmentType.service_type_group_id);
             const practitionerCount = practitionerAssignments[appointmentType.id]?.length || 0;
 
@@ -260,7 +267,7 @@ export const ServiceItemsTable: React.FC<ServiceItemsTableProps> = ({
                 onDragStart={isClinicAdmin && !isMobile && onDragStart ? (e) => {
                   // Hide the default drag ghost
                   e.dataTransfer.setDragImage(EMPTY_DRAG_IMAGE, 0, 0);
-                  
+
                   // Set custom data type to prevent browser from showing default "globe" or "link" icons
                   // We use a custom MIME type that is not text/plain or text/uri-list
                   e.dataTransfer.setData('application/x-clinic-dnd', appointmentType.id.toString());

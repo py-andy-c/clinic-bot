@@ -1,13 +1,8 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { LoadingSpinner, ErrorMessage, SearchInput, PaginationControls } from '../components/shared';
-import { Patient } from '../types';
-import { useAuth } from '../hooks/useAuth';
-import { usePatients, useClinicSettings, usePractitioners } from '../hooks/queries';
-import { useCreateAppointmentOptimistic } from '../hooks/queries/useAvailabilitySlots';
-import { useHighlightRow } from '../hooks/useHighlightRow';
-import PageHeader from '../components/PageHeader';
 import { useDebouncedSearch } from '../utils/searchUtils';
+import { useIsMobile } from '../hooks/useIsMobile';
+import { ActionableCard, LoadingSpinner, ErrorMessage, SearchInput, PaginationControls } from '../components/shared';
 import { PatientCreationModal } from '../components/PatientCreationModal';
 import { PatientCreationSuccessModal } from '../components/PatientCreationSuccessModal';
 import { CreateAppointmentModal } from '../components/calendar/CreateAppointmentModal';
@@ -16,6 +11,12 @@ import { logger } from '../utils/logger';
 import { getErrorMessage } from '../types/api';
 import { extractAppointmentDateTime } from '../utils/timezoneUtils';
 import { EMPTY_ARRAY } from '../utils/constants';
+import { Patient, Practitioner } from '../types';
+import { usePatients, usePractitioners, useClinicSettings } from '../hooks/queries';
+import { useHighlightRow } from '../hooks/useHighlightRow';
+import { useCreateAppointmentOptimistic } from '../hooks/queries/useAvailabilitySlots';
+import PageHeader from '../components/PageHeader';
+import { useAuth } from '../hooks/useAuth';
 
 // Component to handle profile picture with fallback on error
 const ProfilePictureWithFallback: React.FC<{
@@ -54,6 +55,7 @@ const ProfilePictureWithFallback: React.FC<{
 };
 
 const PatientsPage: React.FC = () => {
+  const isMobile = useIsMobile();
   const navigate = useNavigate();
   const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -223,8 +225,10 @@ const PatientsPage: React.FC = () => {
   const patientNameFromQuery = searchParams.get('patientName');
   const targetPatientId = useMemo(() => {
     if (!patientNameFromQuery || patients.length === 0) return null;
-    const matchingPatients = patients.filter(p =>
-      p.full_name.toLowerCase().includes(patientNameFromQuery.toLowerCase())
+    const term = patientNameFromQuery.toLowerCase();
+    const matchingPatients = patients.filter((p: Patient) =>
+      p.full_name.toLowerCase().includes(term) ||
+      (p.phone_number && p.phone_number.includes(term))
     );
     const firstPatient = matchingPatients[0];
     return firstPatient ? firstPatient.id.toString() : null;
@@ -332,7 +336,7 @@ const PatientsPage: React.FC = () => {
                 >
                   <option value="" disabled hidden>負責人員</option>
                   <option value="">全部</option>
-                  {practitioners.map((practitioner) => (
+                  {practitioners.map((practitioner: Practitioner) => (
                     <option key={practitioner.id} value={practitioner.id}>
                       {practitioner.full_name}
                     </option>
@@ -355,96 +359,178 @@ const PatientsPage: React.FC = () => {
               </div>
             ) : (
               <>
-                <div className="overflow-x-auto relative">
-                  <table className="w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-2 py-2 md:px-6 md:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 z-10 bg-gray-50" style={{ minWidth: '80px' }}>
-                          病患姓名
-                        </th>
-                        <th className="px-2 py-2 md:px-6 md:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '90px' }}>
-                          手機號碼
-                        </th>
-                        <th className="px-2 py-2 md:px-6 md:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '100px' }}>
-                          LINE 使用者
-                        </th>
-                        <th className="px-2 py-2 md:px-6 md:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style={{ minWidth: '75px' }}>
-                          操作
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {patients.map((patient) => (
-                        <tr
-                          key={patient.id}
-                          data-patient-id={patient.id}
-                          onClick={() => navigate(`/admin/clinic/patients/${patient.id}`)}
-                          className={`group hover:bg-gray-50 transition-colors cursor-pointer ${highlightedPatientId === patient.id.toString() ? 'bg-blue-50' : ''
-                            }`}
-                        >
-                          <td className={`px-2 py-2 md:px-6 md:py-4 sticky left-0 z-10 transition-colors ${highlightedPatientId === patient.id.toString()
-                            ? 'bg-blue-50 group-hover:bg-blue-50'
-                            : 'bg-white group-hover:bg-gray-50'
-                            }`} style={{ minWidth: '80px' }}>
-                            <div className="flex items-center gap-1 md:gap-2">
-                              <span className="text-sm font-medium text-blue-600 hover:text-blue-800 truncate max-w-[60px] md:max-w-none">
-                                {patient.full_name}
-                              </span>
-                              {patient.is_deleted && (
-                                <span
-                                  className="text-amber-500 flex-shrink-0"
-                                  title="此病患已自行刪除帳號。病患無法自行預約，但診所仍可查看、編輯此病患資料，並為其安排預約。"
-                                >
-                                  ⚠️
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="px-2 py-2 md:px-6 md:py-4 whitespace-nowrap text-sm text-gray-500" style={{ minWidth: '90px' }}>
-                            {patient.phone_number || '-'}
-                          </td>
-                          <td className="px-2 py-2 md:px-6 md:py-4 text-sm" style={{ minWidth: '100px' }}>
-                            {patient.line_user_id ? (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  const lineUserId = patient.line_user_id;
-                                  if (lineUserId) {
-                                    navigate(`/admin/clinic/line-users?lineUserId=${encodeURIComponent(lineUserId)}`);
-                                  }
-                                }}
-                                className="flex items-center gap-1 md:gap-2 text-sm text-blue-600 hover:text-blue-800 hover:underline font-medium w-full"
+                {isMobile ? (
+                  <div className="space-y-4">
+                    {patients.map((patient: Patient) => (
+                      <ActionableCard
+                        key={patient.id}
+                        title={
+                          <div className="flex items-center gap-2">
+                            <span>{patient.full_name}</span>
+                            {patient.is_deleted && (
+                              <span
+                                className="text-amber-500 text-sm"
+                                title="此病患已自行刪除帳號。病患無法自行預約，但診所仍可查看、編輯此病患資料，並為其安排預約。"
                               >
-                                <ProfilePictureWithFallback
-                                  src={patient.line_user_picture_url}
-                                  alt={patient.line_user_display_name || 'LINE user'}
-                                  size="small"
-                                />
-                                <span className="truncate max-w-[60px] md:max-w-none">{patient.line_user_display_name || '未設定名稱'}</span>
-                              </button>
-                            ) : (
-                              <span className="text-sm text-gray-500">-</span>
+                                ⚠️
+                              </span>
                             )}
-                          </td>
-                          <td className="px-2 py-2 md:px-6 md:py-4 whitespace-nowrap text-sm" style={{ minWidth: '75px' }}>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                // Open appointment modal with pre-selected patient
-                                setSelectedPatientIdForAppointment(patient.id);
-                                setSelectedPatientNameForAppointment(patient.full_name);
-                                setIsAppointmentModalOpen(true);
-                              }}
-                              className="text-blue-600 hover:text-blue-800 font-medium"
-                            >
-                              新增預約
-                            </button>
-                          </td>
+                          </div>
+                        }
+                        leading={
+                          <ProfilePictureWithFallback
+                            src={patient.line_user_picture_url}
+                            alt={patient.line_user_display_name || patient.full_name}
+                            size="medium"
+                          />
+                        }
+                        metadata={[
+                          {
+                            icon: (
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                              </svg>
+                            ),
+                            label: patient.phone_number || '未設定電話'
+                          },
+                          ...(patient.line_user_display_name ? [
+                            {
+                              icon: (
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                                </svg>
+                              ),
+                              label: (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const lineUserId = patient.line_user_id;
+                                    if (lineUserId) {
+                                      navigate(`/admin/clinic/line-users?lineUserId=${encodeURIComponent(lineUserId)}`);
+                                    }
+                                  }}
+                                  className="text-blue-600 hover:text-blue-800 hover:underline font-medium text-left"
+                                >
+                                  {patient.line_user_display_name}
+                                </button>
+                              )
+                            }
+                          ] : [])
+                        ]}
+                        actions={[
+                          {
+                            label: '查看',
+                            onClick: () => navigate(`/admin/clinic/patients/${patient.id}`),
+                            variant: 'secondary'
+                          },
+                          {
+                            label: '預約',
+                            onClick: () => {
+                              setSelectedPatientIdForAppointment(patient.id);
+                              setSelectedPatientNameForAppointment(patient.full_name);
+                              setIsAppointmentModalOpen(true);
+                            },
+                            variant: 'primary'
+                          }
+                        ]}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto relative">
+                    <table className="w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-2 py-2 md:px-6 md:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 z-10 bg-gray-50" style={{ minWidth: '80px' }}>
+                            病患姓名
+                          </th>
+                          <th className="px-2 py-2 md:px-6 md:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '90px' }}>
+                            手機號碼
+                          </th>
+                          <th className="px-2 py-2 md:px-6 md:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '100px' }}>
+                            LINE 使用者
+                          </th>
+                          <th className="px-2 py-2 md:px-6 md:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style={{ minWidth: '150px' }}>
+                            操作
+                          </th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {patients.map((patient: Patient) => (
+                          <tr
+                            key={patient.id}
+                            data-patient-id={patient.id}
+                            className={`group hover:bg-gray-50 transition-colors ${highlightedPatientId === patient.id.toString() ? 'bg-blue-50' : ''
+                              }`}
+                          >
+                            <td className={`px-2 py-2 md:px-6 md:py-4 sticky left-0 z-10 transition-colors ${highlightedPatientId === patient.id.toString()
+                              ? 'bg-blue-50 group-hover:bg-blue-50'
+                              : 'bg-white group-hover:bg-gray-50'
+                              }`} style={{ minWidth: '80px' }}>
+                              <div className="flex items-center gap-1 md:gap-2">
+                                <span className="text-sm font-medium text-gray-900 truncate max-w-[60px] md:max-w-none">
+                                  {patient.full_name}
+                                </span>
+                                {patient.is_deleted && (
+                                  <span
+                                    className="text-amber-500 flex-shrink-0"
+                                    title="此病患已自行刪除帳號。病患無法自行預約，但診所仍可查看、編輯此病患資料，並為其安排預約。"
+                                  >
+                                    ⚠️
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-2 py-2 md:px-6 md:py-4 whitespace-nowrap text-sm text-gray-500" style={{ minWidth: '90px' }}>
+                              {patient.phone_number || '-'}
+                            </td>
+                            <td className="px-2 py-2 md:px-6 md:py-4 text-sm" style={{ minWidth: '100px' }}>
+                              {patient.line_user_id ? (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const lineUserId = patient.line_user_id;
+                                    if (lineUserId) {
+                                      navigate(`/admin/clinic/line-users?lineUserId=${encodeURIComponent(lineUserId)}`);
+                                    }
+                                  }}
+                                  className="flex items-center gap-1 md:gap-2 text-sm text-blue-600 hover:text-blue-800 hover:underline font-medium"
+                                >
+                                  <ProfilePictureWithFallback
+                                    src={patient.line_user_picture_url}
+                                    alt={patient.line_user_display_name || 'LINE user'}
+                                    size="small"
+                                  />
+                                  <span className="truncate max-w-[100px] md:max-w-none">{patient.line_user_display_name || '未設定名稱'}</span>
+                                </button>
+                              ) : (
+                                <span className="text-sm text-gray-500">-</span>
+                              )}
+                            </td>
+                            <td className="px-2 py-2 md:px-6 md:py-4 whitespace-nowrap text-sm text-center space-x-2" style={{ minWidth: '150px' }}>
+                              <button
+                                onClick={() => navigate(`/admin/clinic/patients/${patient.id}`)}
+                                className="px-2 py-1 text-blue-600 hover:bg-blue-50 rounded-md font-medium transition-colors"
+                              >
+                                查看
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setSelectedPatientIdForAppointment(patient.id);
+                                  setSelectedPatientNameForAppointment(patient.full_name);
+                                  setIsAppointmentModalOpen(true);
+                                }}
+                                className="px-2 py-1 text-teal-600 hover:bg-teal-50 rounded-md font-medium transition-colors"
+                              >
+                                預約
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
                 {totalPages > 1 && (
                   <div className="mt-2 pt-2 md:mt-4 md:pt-4 border-t border-gray-200">
                     <PaginationControls

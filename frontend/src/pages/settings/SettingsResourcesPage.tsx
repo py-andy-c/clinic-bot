@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../hooks/useAuth';
-import { LoadingSpinner } from '../../components/shared';
+import { ActionableCard, LoadingSpinner } from '../../components/shared';
 import SettingsBackButton from '../../components/SettingsBackButton';
 import PageHeader from '../../components/PageHeader';
 import { useModal } from '../../contexts/ModalContext';
@@ -77,33 +77,33 @@ const SettingsResourcesPage: React.FC = () => {
                         </div>
                     ) : (
                         resourceTypes.map((type: ResourceType) => (
-                            <div
+                            <ActionableCard
                                 key={type.id}
-                                className="p-4 md:p-6 flex items-center hover:bg-gray-50 transition-colors"
-                            >
-                                <div className="flex-1">
-                                    <h3 className="text-lg font-semibold text-gray-900">{type.name}</h3>
-                                </div>
-                                <div className="flex-1 text-center">
-                                    <span className="text-sm text-gray-500">{type.resource_count} 個資源</span>
-                                </div>
-                                <div className="flex items-center space-x-2 justify-end flex-1">
-                                    <button
-                                        onClick={() => setEditingResourceType(type.id)}
-                                        className="p-2 text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
-                                    >
-                                        編輯
-                                    </button>
-                                    {isClinicAdmin && (
-                                        <button
-                                            onClick={() => handleDelete(type)}
-                                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                        >
-                                            刪除
-                                        </button>
-                                    )}
-                                </div>
-                            </div>
+                                title={type.name}
+                                actions={[
+                                    {
+                                        label: '編輯',
+                                        onClick: () => setEditingResourceType(type.id),
+                                        variant: 'secondary'
+                                    },
+                                    ...(isClinicAdmin ? [{
+                                        label: '刪除',
+                                        onClick: () => handleDelete(type),
+                                        variant: 'danger' as const
+                                    }] : [])
+                                ]}
+                                metadata={[
+                                    {
+                                        icon: (
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                                            </svg>
+                                        ),
+                                        label: `${type.resource_count} 個資源`
+                                    }
+                                ]}
+                                className="!border-0 !rounded-none border-b border-gray-100 last:border-b-0 py-5"
+                            />
                         ))
                     )}
                 </div>

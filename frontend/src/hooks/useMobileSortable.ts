@@ -21,7 +21,7 @@ export const useMobileSortable = ({
   const touchStartIdRef = useRef<number | null>(null);
   const [dragOffset, setDragOffset] = useState<{ y: number } | null>(null);
   const lastSwapTimeRef = useRef<number>(0);
-  
+
   // Keep refs in sync with callbacks to avoid stale closures in event handlers
   const onMoveRef = useRef(onMove);
   const onDragEndRef = useRef(onDragEnd);
@@ -55,8 +55,8 @@ export const useMobileSortable = ({
       ...e,
       dataTransfer: {
         effectAllowed: 'move',
-        setDragImage: () => {},
-        setData: () => {}, // Mock setData to prevent crash
+        setDragImage: () => { },
+        setData: () => { }, // Mock setData to prevent crash
       },
     } as unknown as React.DragEvent;
 
@@ -66,9 +66,12 @@ export const useMobileSortable = ({
   const handleTouchMove = (e: React.TouchEvent) => {
     if (!touchStartIdRef.current || !onMoveRef.current) return;
 
-    e.preventDefault();
     const touch = e.touches[0];
     if (!touch) return;
+
+    if (e.cancelable) {
+      e.preventDefault();
+    }
 
     const currentY = touch.clientY;
     const startY = touchStartYRef.current || 0;
@@ -81,7 +84,7 @@ export const useMobileSortable = ({
 
     if (itemElement) {
       const targetId = parseInt(itemElement.getAttribute(dataAttribute) || '0', 10);
-      
+
       const now = Date.now();
       if (now - lastSwapTimeRef.current < delay) {
         return;
@@ -96,11 +99,9 @@ export const useMobileSortable = ({
     }
   };
 
-  const handleTouchEnd = (e: React.TouchEvent) => {
+  const handleTouchEnd = (_e: React.TouchEvent) => {
     if (!touchStartIdRef.current) return;
 
-    e.preventDefault();
-    
     // Clean up
     touchStartYRef.current = null;
     touchStartIdRef.current = null;

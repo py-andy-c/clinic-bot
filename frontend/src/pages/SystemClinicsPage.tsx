@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { logger } from '../utils/logger';
-import { LoadingSpinner, ErrorMessage } from '../components/shared';
+import { ActionableCard, LoadingSpinner, ErrorMessage } from '../components/shared';
 import { BaseModal } from '../components/shared/BaseModal';
 import { ModalHeader, ModalBody, ModalFooter } from '../components/shared/ModalParts';
 import { useModal } from '../contexts/ModalContext';
 import moment from 'moment-timezone';
-import { Link, useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { apiService } from '../services/api';
 import { ClinicCreateData } from '../types';
 import { useSystemClinics, useClinicDetails } from '../hooks/queries';
@@ -14,6 +14,7 @@ import { useQueryClient } from '@tanstack/react-query';
 
 const SystemClinicsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const { alert } = useModal();
   const queryClient = useQueryClient();
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -422,10 +423,10 @@ const SystemClinicsPage: React.FC = () => {
                   ) : (
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getHealthStatusColor(selectedClinic.subscription_status)}`}>
                       {selectedClinic.subscription_status === 'trial' ? '試用' :
-                       selectedClinic.subscription_status === 'active' ? '啟用' :
-                       selectedClinic.subscription_status === 'past_due' ? '逾期' :
-                       selectedClinic.subscription_status === 'canceled' ? '已取消' :
-                       selectedClinic.subscription_status}
+                        selectedClinic.subscription_status === 'active' ? '啟用' :
+                          selectedClinic.subscription_status === 'past_due' ? '逾期' :
+                            selectedClinic.subscription_status === 'canceled' ? '已取消' :
+                              selectedClinic.subscription_status}
                     </span>
                   )}
                 </dd>
@@ -501,9 +502,9 @@ const SystemClinicsPage: React.FC = () => {
                     <dt className="text-sm font-medium text-gray-500 truncate">整合狀態</dt>
                     <dd className={`text-lg font-medium ${getHealthStatusColor(clinicHealth.line_integration_status)}`}>
                       {clinicHealth.line_integration_status === 'healthy' ? '正常' :
-                       clinicHealth.line_integration_status === 'warning' ? '警告' :
-                       clinicHealth.line_integration_status === 'error' ? '錯誤' :
-                       clinicHealth.line_integration_status}
+                        clinicHealth.line_integration_status === 'warning' ? '警告' :
+                          clinicHealth.line_integration_status === 'error' ? '錯誤' :
+                            clinicHealth.line_integration_status}
                     </dd>
                   </dl>
                 </div>
@@ -569,11 +570,11 @@ const SystemClinicsPage: React.FC = () => {
                 <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
                   <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getWebhookStatusColor(clinicHealth.webhook_status)}`}>
                     {clinicHealth.webhook_status === 'very_active' ? '非常活躍' :
-                     clinicHealth.webhook_status === 'active' ? '活躍' :
-                     clinicHealth.webhook_status === 'moderate' ? '中等' :
-                     clinicHealth.webhook_status === 'inactive' ? '不活躍' :
-                     clinicHealth.webhook_status === 'stale' ? '過時' :
-                     clinicHealth.webhook_status}
+                      clinicHealth.webhook_status === 'active' ? '活躍' :
+                        clinicHealth.webhook_status === 'moderate' ? '中等' :
+                          clinicHealth.webhook_status === 'inactive' ? '不活躍' :
+                            clinicHealth.webhook_status === 'stale' ? '過時' :
+                              clinicHealth.webhook_status}
                   </span>
                   <span className="ml-2">過去 24 小時內 {clinicHealth.webhook_count_24h} 個 webhooks</span>
                 </dd>
@@ -650,8 +651,8 @@ const SystemClinicsPage: React.FC = () => {
                             selectedClinic.settings.booking_restriction_settings.booking_restriction_type === 'same_day_disallowed'
                               ? '預約前至少需幾小時 (已從舊設定遷移)'
                               : selectedClinic.settings.booking_restriction_settings.booking_restriction_type === 'minimum_hours_required'
-                              ? '預約前至少需幾小時'
-                              : selectedClinic.settings.booking_restriction_settings.booking_restriction_type || 'N/A'
+                                ? '預約前至少需幾小時'
+                                : selectedClinic.settings.booking_restriction_settings.booking_restriction_type || 'N/A'
                           }
                         </div>
                         {selectedClinic.settings.booking_restriction_settings.minimum_booking_hours_ahead && (
@@ -878,45 +879,38 @@ const SystemClinicsPage: React.FC = () => {
       {/* Clinics Grid */}
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {clinics?.map((clinic) => (
-          <div key={clinic.id} className="bg-white overflow-hidden shadow rounded-lg">
-            <div className="p-6">
-              <div className="flex items-center">
-                <div className="flex-shrink-0">
-                  <span className="text-3xl">🏥</span>
-                </div>
-                <div className="ml-4 flex-1">
-                  <h3 className="text-lg font-medium text-gray-900">{clinic.name}</h3>
-                  <p className="text-sm text-gray-500">Channel: {clinic.line_channel_id}</p>
-                </div>
-              </div>
-
-              <div className="mt-4 flex items-center justify-between">
-                <div className="text-sm text-gray-600">
-                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getHealthStatusColor(clinic.subscription_status)}`}>
-                    {clinic.subscription_status}
-                  </span>
-                </div>
-                <div className="text-sm text-gray-600">
-                  {clinic.webhook_count_24h || 0} webhooks
-                </div>
-              </div>
-
-              <div className="mt-6 flex space-x-3">
-                <Link
-                  to={`/admin/system/clinics/${clinic.id}`}
-                  className="flex-1 bg-primary-600 py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 text-center"
-                >
-                  View Details
-                </Link>
-                <button
-                  onClick={() => handleGenerateSignupLink(clinic.id)}
-                  className="flex-1 bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-                >
-                  Signup Link
-                </button>
-              </div>
-            </div>
-          </div>
+          <ActionableCard
+            key={clinic.id}
+            title={clinic.name}
+            description={`Channel: ${clinic.line_channel_id}`}
+            leading={<span className="text-3xl">🏥</span>}
+            metadata={[
+              {
+                label: clinic.subscription_status,
+                variant: clinic.subscription_status === 'active' ? 'success' : clinic.subscription_status === 'trial' ? 'info' : 'warning'
+              },
+              {
+                icon: (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                ),
+                label: `${clinic.webhook_count_24h || 0} webhooks`
+              }
+            ]}
+            actions={[
+              {
+                label: 'View Details',
+                onClick: () => navigate(`/admin/system/clinics/${clinic.id}`),
+                variant: 'secondary'
+              },
+              {
+                label: 'Signup Link',
+                onClick: () => handleGenerateSignupLink(clinic.id),
+                variant: 'secondary'
+              }
+            ]}
+          />
         ))}
       </div>
 
@@ -983,7 +977,7 @@ const CreateClinicModal: React.FC<CreateClinicModalProps> = ({ onClose, onSubmit
   return (
     <BaseModal onClose={onClose} aria-label="Create New Clinic">
       <ModalHeader title="Create New Clinic" showClose onClose={onClose} />
-      
+
       <ModalBody>
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>

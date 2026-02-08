@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect } from "react";
 import { usePatientAppointments } from "../../hooks/queries";
 import { apiService } from '../../services/api';
-import { LoadingSpinner, ErrorMessage } from "../shared";
+import { LoadingSpinner, ErrorMessage, ActionableCard } from "../shared";
 import moment from "moment-timezone";
 import { formatAppointmentTimeRange } from "../../utils/calendarUtils";
 import { renderStatusBadge } from "../../utils/appointmentStatus";
@@ -553,59 +553,41 @@ export const PatientAppointmentsList: React.FC<
       ) : (
         <div className="space-y-4">
           {displayAppointments.map((appointment) => (
-            <div
+            <ActionableCard
               key={appointment.id}
               onClick={() => handleAppointmentClick(appointment)}
-              className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 cursor-pointer transition-colors"
-            >
-              <div className="flex justify-between items-start mb-2 gap-2">
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-medium text-gray-900">
-                    {appointment.event_name}
-                  </h3>
-                  <p className="text-sm text-gray-600 mt-1">
-                    {formatAppointmentTimeRange(
-                      new Date(appointment.start_time),
-                      new Date(appointment.end_time),
-                    )}
-                  </p>
-                </div>
-                <div className="flex-shrink-0 flex items-center gap-2">
-                  {renderStatusBadge(appointment.status) && (
-                    <div className="flex-shrink-0">
-                      {renderStatusBadge(appointment.status)}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="mt-2 space-y-1">
-                <div className="flex items-center text-sm text-gray-600">
-                  <svg
-                    className="w-4 h-4 mr-2"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-                    />
-                  </svg>
-                  {appointment.practitioner_name}
-                </div>
-
-                {appointment.notes && (
-                  <div className="text-sm text-gray-600 mt-2">
-                    <span className="font-medium">病患備註：</span>
-                    {appointment.notes}
+              title={appointment.event_name}
+              description={formatAppointmentTimeRange(
+                new Date(appointment.start_time),
+                new Date(appointment.end_time),
+              )}
+              badge={
+                renderStatusBadge(appointment.status) && (
+                  <div className="flex-shrink-0">
+                    {renderStatusBadge(appointment.status)}
                   </div>
-                )}
-
-              </div>
-            </div>
+                )
+              }
+              metadata={[
+                {
+                  icon: (
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                  ),
+                  label: appointment.practitioner_name
+                },
+                ...(appointment.notes ? [{
+                  label: (
+                    <span className="text-gray-600">
+                      <span className="font-medium">病患備註：</span>
+                      {appointment.notes}
+                    </span>
+                  )
+                }] : [])
+              ]}
+              className="hover:bg-gray-50 transition-colors"
+            />
           ))}
         </div>
       )}

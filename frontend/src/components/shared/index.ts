@@ -16,3 +16,5 @@ export { ConflictPopover } from './ConflictPopover';
 export { ConflictWarningButton } from './ConflictWarningButton';
 export { WarningPopover } from './WarningPopover';
 export { TimeInput } from './TimeInput';
+export { ActionableCard } from './ActionableCard';
+export type { CardAction, CardMetadataItem } from './ActionableCard';
