@@ -29,9 +29,45 @@ import { apiService } from '../services/api';
 
 /**
  * Generate dynamic Zod schema based on template fields.
- * Modified to mark ALL fields as optional regardless of template's required flag.
+ * 
+ * This function creates a Zod validation schema that adapts to the template structure
+ * and enforces different validation rules based on the context (patient vs clinic).
+ * 
+ * @param fields - Template fields to generate schema from
+ * @param strictMode - Controls validation enforcement:
+ *   - `true`: Strict validation for patient-facing forms (LIFF)
+ *     - Required fields must be filled before submission
+ *     - Empty strings, whitespace, empty arrays, null, and NaN are rejected
+ *     - Zero (0) is valid for number fields
+ *   - `false`: Loose validation for clinic-side forms
+ *     - All fields are optional/nullable
+ *     - Allows "create empty, edit later" workflow
+ * 
+ * @returns Zod schema object with nested `values` field
+ * 
+ * @remarks
+ * **Data Type Handling**:
+ * - Text fields: Strings with whitespace trimming
+ * - Number fields: Numbers (including 0), rejects NaN
+ * - Checkbox fields: **Always arrays**, never booleans
+ *   - Empty array `[]` fails validation in strict mode
+ *   - Defensive: converts unexpected booleans to empty arrays
+ * 
+ * **Performance**: 
+ * - This function is expensive (iterates all fields, builds Zod schemas)
+ * - Should be memoized separately from validation to avoid recreation on every keystroke
+ * - See usage in MedicalRecordPage where schema is memoized by fields, not values
+ * 
+ * @example
+ * ```typescript
+ * // Patient form (strict)
+ * const schema = createDynamicSchema(template.fields, true);
+ * 
+ * // Clinic form (loose)
+ * const schema = createDynamicSchema(template.fields, false);
+ * ```
  */
-const createDynamicSchema = (fields: TemplateField[] | undefined) => {
+export const createDynamicSchema = (fields: TemplateField[] | undefined, strictMode: boolean = false) => {
   if (!fields || fields.length === 0) {
     return z.object({
       values: z.record(z.any()),
@@ -42,41 +78,93 @@ const createDynamicSchema = (fields: TemplateField[] | undefined) => {
 
   fields.forEach((field) => {
     const fieldId = field.id;
-
-    // All fields are optional for validation purposes
     let fieldSchema: z.ZodTypeAny;
 
+    // Build schema based on field type and strict mode
     switch (field.type) {
       case 'text':
       case 'textarea':
       case 'dropdown':
       case 'radio':
       case 'date':
-        fieldSchema = z.string()
-          .transform(val => (val === '' ? null : val))
-          .nullable()
-          .optional();
+        // Use preprocess to handle empty strings and whitespace
+        if (strictMode && field.required) {
+          fieldSchema = z.preprocess(
+            (val) => {
+              if (val === null || val === undefined) return undefined;
+              if (typeof val === 'string') {
+                const trimmed = val.trim();
+                return trimmed === '' ? undefined : trimmed;
+              }
+              return val;
+            },
+            z.string({ required_error: '此欄位為必填' }).min(1, '此欄位為必填')
+          );
+        } else {
+          fieldSchema = z.preprocess(
+            (val) => {
+              if (val === null || val === undefined) return null;
+              if (typeof val === 'string' && val.trim() === '') return null;
+              return val;
+            },
+            z.string().nullable().optional()
+          );
+        }
         break;
+
       case 'number':
-        fieldSchema = z.union([
-          z.number(),
-          z.string().transform(val => val === '' ? undefined : Number(val)),
-          z.null()
-        ]).optional();
+        // Use preprocess to handle string-to-number conversion and validation
+        if (strictMode && field.required) {
+          fieldSchema = z.preprocess(
+            (val) => {
+              if (val === null || val === undefined || val === '') return undefined;
+              const num = Number(val);
+              return isNaN(num) ? undefined : num;
+            },
+            z.number({
+              required_error: '此欄位為必填',
+              invalid_type_error: '請輸入有效數字'
+            })
+          );
+        } else {
+          fieldSchema = z.preprocess(
+            (val) => {
+              if (val === null || val === undefined || val === '') return undefined;
+              const num = Number(val);
+              return isNaN(num) ? undefined : num;
+            },
+            z.number({ invalid_type_error: '請輸入有效數字' }).optional()
+          );
+        }
         break;
+
       case 'checkbox':
-        fieldSchema = z.preprocess(
-          (val) => {
-            if (Array.isArray(val)) return val;
-            if (val === null || val === undefined) return [];
-            if (typeof val === 'boolean') return [];
-            return [String(val)];
-          },
-          z.array(z.string())
-        ).optional();
+        // Preprocess to ensure array format
+        if (strictMode && field.required) {
+          fieldSchema = z.preprocess(
+            (val) => {
+              if (Array.isArray(val)) return val;
+              if (val === null || val === undefined) return [];
+              if (typeof val === 'boolean') return [];
+              return [String(val)];
+            },
+            z.array(z.string()).min(1, '此欄位為必填')
+          );
+        } else {
+          fieldSchema = z.preprocess(
+            (val) => {
+              if (Array.isArray(val)) return val;
+              if (val === null || val === undefined) return [];
+              if (typeof val === 'boolean') return [];
+              return [String(val)];
+            },
+            z.array(z.string()).optional()
+          );
+        }
         break;
+
       default:
-        fieldSchema = z.any().optional();
+        fieldSchema = z.any();
     }
 
     valuesShape[fieldId] = fieldSchema;
@@ -165,6 +253,39 @@ const MedicalRecordPage: React.FC = () => {
 
   // Watch current appointment selection for real-time UI updates
   const currentAppointmentId = methods.watch('appointment_id');
+  const values = methods.watch('values');
+
+  // Memoize the strict schema (only recreate when fields change, not on every value change)
+  const strictSchema = useMemo(
+    () => record?.template_snapshot?.fields
+      ? createDynamicSchema(record.template_snapshot.fields, true)
+      : null,
+    [record?.template_snapshot?.fields]
+  );
+
+  // Calculate validation warnings using the memoized schema (non-blocking)
+  const validationWarnings = useMemo(() => {
+    const warnings: Record<string, string> = {};
+    if (!strictSchema || !record?.template_snapshot?.fields) return warnings;
+
+    const result = strictSchema.safeParse({ values, appointment_id: currentAppointmentId });
+
+    if (result.success) return warnings; // All required fields are filled
+
+    // Extract field labels from Zod errors
+    result.error.issues.forEach(issue => {
+      // Path is like ['values', 'field_id'] for nested fields
+      if (issue.path[0] === 'values' && issue.path[1]) {
+        const fieldId = issue.path[1] as string;
+        const field = record.template_snapshot.fields.find(f => f.id === fieldId);
+        if (field) {
+          warnings[fieldId] = field.label;
+        }
+      }
+    });
+
+    return warnings;
+  }, [strictSchema, record?.template_snapshot?.fields, values, currentAppointmentId]);
 
   // Resolve the appointment object to display (either from initial record or from loaded appointments list)
   const displayAppointment = useMemo(() => {
@@ -252,6 +373,8 @@ const MedicalRecordPage: React.FC = () => {
         photo_ids: selectedPhotoIds,
       };
 
+
+
       // Save medical record first
       await updateMutation.mutateAsync({
         recordId: record.id,
@@ -261,15 +384,15 @@ const MedicalRecordPage: React.FC = () => {
       // Save photo description updates with better error handling
       let photoUpdatesFailed = false;
       const failedPhotoIds: number[] = [];
-      
+
       if (Object.keys(photoUpdates).length > 0) {
         const photoUpdatePromises = Object.entries(photoUpdates).map(([photoIdStr, updates]) => {
           const photoId = parseInt(photoIdStr, 10);
           return { photoId, promise: apiService.updatePatientPhoto(photoId, updates) };
         });
-        
+
         const results = await Promise.allSettled(photoUpdatePromises.map(p => p.promise));
-        
+
         results.forEach((result, index) => {
           if (result.status === 'rejected') {
             photoUpdatesFailed = true;
@@ -285,7 +408,7 @@ const MedicalRecordPage: React.FC = () => {
       // Reset states after successful save
       methods.reset(methods.getValues()); // Use raw values for cleaner reset
       setInitialPhotoIds([...selectedPhotoIds]); // Reset photo state
-      
+
       // Only clear successful photo updates, keep failed ones for retry
       if (photoUpdatesFailed) {
         const failedUpdates: Record<number, Partial<PatientPhoto>> = {};
@@ -298,12 +421,19 @@ const MedicalRecordPage: React.FC = () => {
       } else {
         setPhotoUpdates({}); // Clear all if everything succeeded
       }
-      
+
       setIsSelectAppointmentModalOpen(false); // Close modal if open
-      
+
       // Show appropriate success message
+      const missingFields = Object.values(validationWarnings);
       if (photoUpdatesFailed) {
         await alert('病歷記錄已更新，但部分照片說明更新失敗。請再次點擊儲存以重試。', '部分成功');
+      } else if (missingFields.length > 0) {
+        const missingList = missingFields.map(label => `• ${label}`).join('\n');
+        await alert(
+          `病歷記錄已成功更新\n\n注意：尚有 ${missingFields.length} 個必填欄位未填寫：\n${missingList}`,
+          '更新成功'
+        );
       } else {
         await alert('病歷記錄已成功更新', '更新成功');
       }
@@ -365,15 +495,15 @@ const MedicalRecordPage: React.FC = () => {
       // Save photo description updates with better error handling
       let photoUpdatesFailed = false;
       const failedPhotoIds: number[] = [];
-      
+
       if (Object.keys(photoUpdates).length > 0) {
         const photoUpdatePromises = Object.entries(photoUpdates).map(([photoIdStr, updates]) => {
           const photoId = parseInt(photoIdStr, 10);
           return { photoId, promise: apiService.updatePatientPhoto(photoId, updates) };
         });
-        
+
         const results = await Promise.allSettled(photoUpdatePromises.map(p => p.promise));
-        
+
         results.forEach((result, index) => {
           if (result.status === 'rejected') {
             photoUpdatesFailed = true;
@@ -389,7 +519,7 @@ const MedicalRecordPage: React.FC = () => {
       // Show appropriate success message
       if (photoUpdatesFailed) {
         await alert('病歷記錄已強制儲存，但部分照片說明更新失敗。請再次點擊儲存以重試。', '部分成功');
-        
+
         // Only clear successful photo updates, keep failed ones for retry
         const failedUpdates: Record<number, Partial<PatientPhoto>> = {};
         failedPhotoIds.forEach(photoId => {
@@ -402,7 +532,7 @@ const MedicalRecordPage: React.FC = () => {
         await alert('病歷記錄已強制儲存', '儲存成功');
         setPhotoUpdates({}); // Clear all if everything succeeded
       }
-      
+
       setConflictState(null);
       methods.reset(conflictState.userChanges);
     } catch (forceSaveError) {
@@ -565,7 +695,9 @@ const MedicalRecordPage: React.FC = () => {
                   <div className="max-w-none">
                     {record.template_snapshot?.fields && (
                       <div className="grid grid-cols-1 gap-x-8 gap-y-10">
-                        <MedicalRecordDynamicForm fields={record.template_snapshot.fields} />
+                        <MedicalRecordDynamicForm
+                          fields={record.template_snapshot.fields}
+                        />
                       </div>
                     )}
                   </div>

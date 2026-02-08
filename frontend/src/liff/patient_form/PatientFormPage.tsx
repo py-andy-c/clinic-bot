@@ -1,5 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useForm, FormProvider } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { createDynamicSchema } from '../../pages/MedicalRecordPage';
 import { useLiffPatientForm, useSubmitLiffPatientForm, useUpdateLiffPatientForm } from '../../hooks/usePatientForms';
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner';
 import { MedicalRecordDynamicForm } from '../../components/MedicalRecordDynamicForm';
@@ -29,10 +31,18 @@ const PatientFormPage: React.FC<PatientFormPageProps> = ({ accessToken, onBack }
   const [uploadingCount, setUploadingCount] = useState(0);
   const [deletingPhotoIds, setDeletingPhotoIds] = useState<Set<number>>(new Set());
 
+  // Generate dynamic schema with strict mode enabled for patient forms
+  const dynamicSchema = useMemo(
+    () => createDynamicSchema(data?.template.fields, true),
+    [data?.template.fields]
+  );
+
   const methods = useForm({
+    resolver: zodResolver(dynamicSchema),
     defaultValues: {
       values: {},
-    }
+    },
+    mode: 'onSubmit' // Validate on submit
   });
 
   useEffect(() => {
@@ -68,9 +78,9 @@ const PatientFormPage: React.FC<PatientFormPageProps> = ({ accessToken, onBack }
     // 3. In-flight uploads (uploadingCount)
     // This correctly implements the mixed ownership model from the design doc:
     // "The patient's upload limit only applies to their own upload actions; photos already added by the clinic do not count"
-    const patientPhotoCount = (data?.medical_record?.photos?.filter(p => 
+    const patientPhotoCount = (data?.medical_record?.photos?.filter(p =>
       p.uploaded_by_patient_id !== null && p.uploaded_by_patient_id !== undefined
-    ).length || 0) + photoIds.filter(id => 
+    ).length || 0) + photoIds.filter(id =>
       !data?.medical_record?.photos?.some(p => p.id === id)
     ).length + uploadingCount;
 
@@ -131,7 +141,7 @@ const PatientFormPage: React.FC<PatientFormPageProps> = ({ accessToken, onBack }
       setIsSuccess(true);
     } catch (error: any) {
       logger.error('Form submission failed:', error);
-      
+
       // Handle version conflict (409)
       if (error?.response?.status === 409) {
         await alert(
@@ -141,7 +151,7 @@ const PatientFormPage: React.FC<PatientFormPageProps> = ({ accessToken, onBack }
         refetch();
         return;
       }
-      
+
       await alert(getErrorMessage(error), '提交失敗');
     }
   };
@@ -203,14 +213,14 @@ const PatientFormPage: React.FC<PatientFormPageProps> = ({ accessToken, onBack }
                     <span>照片上傳</span>
                     <span className="text-xs font-normal text-gray-500">{photoIds.length} / {data.template.max_photos}</span>
                   </h3>
-                  
+
                   <div className="grid grid-cols-3 gap-3">
                     {photoIds.map((id, index) => {
                       const photo = data?.medical_record?.photos?.find(p => p.id === id);
                       return (
                         <div key={id} className="relative aspect-square bg-gray-100 rounded-xl overflow-hidden group">
-                          <img 
-                            src={`${import.meta.env.VITE_API_BASE_URL}/clinic/patient-photos/${id}/file`} 
+                          <img
+                            src={`${import.meta.env.VITE_API_BASE_URL}/clinic/patient-photos/${id}/file`}
                             alt={photo?.description || `上傳的照片 ${index + 1}`}
                             className="w-full h-full object-cover"
                             loading="lazy"
@@ -233,12 +243,11 @@ const PatientFormPage: React.FC<PatientFormPageProps> = ({ accessToken, onBack }
                         </div>
                       );
                     })}
-                    
+
                     {photoIds.length < data.template.max_photos && (
-                      <label 
-                        className={`aspect-square border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center text-gray-400 transition-colors ${
-                          isUploading ? 'bg-gray-50 opacity-50 cursor-not-allowed' : 'active:bg-gray-50 active:border-primary-300 cursor-pointer'
-                        }`}
+                      <label
+                        className={`aspect-square border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center text-gray-400 transition-colors ${isUploading ? 'bg-gray-50 opacity-50 cursor-not-allowed' : 'active:bg-gray-50 active:border-primary-300 cursor-pointer'
+                          }`}
                         aria-label="上傳照片"
                       >
                         {isUploading ? (

@@ -16,7 +16,13 @@ export const MedicalRecordDynamicForm: React.FC<MedicalRecordDynamicFormProps> =
 
   const renderField = (field: TemplateField) => {
     const fieldName = `values.${field.id}`;
-    const label = field.required ? `${field.label} *` : field.label;
+    const label = field.required ? (
+      <span>
+        {field.label} <span className="text-red-500">*</span>
+      </span>
+    ) : (
+      field.label
+    );
 
     switch (field.type) {
       case 'text':

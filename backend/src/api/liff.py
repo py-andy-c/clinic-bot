@@ -48,6 +48,7 @@ from services.medical_record_template_service import MedicalRecordTemplateServic
 from services.patient_form_request_service import PatientFormRequestService
 from services.patient_practitioner_assignment_service import PatientPractitionerAssignmentService
 from services.patient_photo_service import PatientPhotoService
+from utils.template_validation import validate_record_values
 from models.user_clinic_association import UserClinicAssociation
 from typing import Optional, Dict, Any, List, Literal, Union, TYPE_CHECKING
 from sqlalchemy.orm import Session
@@ -2160,6 +2161,11 @@ async def submit_patient_form(
         if payload.photo_ids and len(payload.photo_ids) > request.template.max_photos:
             raise HTTPException(status_code=400, detail=f"照片數量超過上限 ({request.template.max_photos} 張)")
 
+        # Validate required fields
+        validation_errors = validate_record_values(request.template.fields, payload.values)
+        if validation_errors:
+            raise HTTPException(status_code=400, detail="; ".join(validation_errors))
+
         record = MedicalRecordService.create_record(
             db=db,
             clinic_id=clinic.id,
@@ -2238,6 +2244,11 @@ async def update_patient_form(
         
         if payload.photo_ids and len(payload.photo_ids) > request.template.max_photos:
             raise HTTPException(status_code=400, detail=f"照片數量超過上限 ({request.template.max_photos} 張)")
+
+        # Validate required fields
+        validation_errors = validate_record_values(request.template.fields, payload.values)
+        if validation_errors:
+            raise HTTPException(status_code=400, detail="; ".join(validation_errors))
 
         record = MedicalRecordService.update_record(
             db=db,
