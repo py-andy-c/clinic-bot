@@ -966,6 +966,144 @@ const AIChatMock = () => {
   );
 };
 
+const HeroVisual = () => {
+  return (
+    <div className="relative w-full h-[500px] flex items-center justify-center perspective-1000">
+      <style>{`
+        @keyframes float {
+          0%, 100% { transform: translateY(0) rotate(-12deg); }
+          50% { transform: translateY(-20px) rotate(-10deg); }
+        }
+        @keyframes float-delayed {
+          0%, 100% { transform: translateY(0) rotate(12deg); }
+          50% { transform: translateY(-15px) rotate(14deg); }
+        }
+        @keyframes float-extreme {
+          0%, 100% { transform: translateY(0) rotate(-5deg); }
+          50% { transform: translateY(-25px) rotate(-8deg); }
+        }
+        @keyframes slow-spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+        @keyframes glow-pulse {
+          0%, 100% { opacity: 0.3; transform: scale(1); }
+          50% { opacity: 0.6; transform: scale(1.1); }
+        }
+        .perspective-1000 { perspective: 1000px; }
+      `}</style>
+
+      {/* Background Glows */}
+      <div className="absolute w-[400px] h-[400px] bg-primary-200/20 rounded-full blur-[100px] animate-[glow-pulse_8s_infinite]"></div>
+      <div className="absolute w-[300px] h-[300px] bg-blue-200/20 rounded-full blur-[80px] -bottom-20 -right-20 animate-[glow-pulse_10s_infinite_1s]"></div>
+
+      {/* Main Isometric Container */}
+      <div className="relative w-full max-w-lg transform-gpu preserve-3d">
+
+        {/* Decorative Rings */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] border border-primary-100/50 rounded-full animate-[slow-spin_20s_linear_infinite]"></div>
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[320px] h-[320px] border border-blue-100/30 rounded-full animate-[slow-spin_15s_linear_infinite_reverse]"></div>
+
+        {/* Card 1: Scheduling (Glassmorphism) */}
+        <div
+          className="absolute -top-32 -left-12 w-64 bg-white/40 backdrop-blur-xl border border-white/40 rounded-3xl shadow-2xl p-5 z-20"
+          style={{ animation: 'float 6s ease-in-out infinite' }}
+        >
+          <div className="flex items-center gap-1.5 mb-4">
+            <div className="w-2.5 h-2.5 rounded-full bg-red-400/60"></div>
+            <div className="w-2.5 h-2.5 rounded-full bg-amber-400/60"></div>
+            <div className="w-2.5 h-2.5 rounded-full bg-emerald-400/60"></div>
+          </div>
+          <div className="space-y-3">
+            <div className="h-3 w-2/3 bg-primary-600/20 rounded-full"></div>
+            <div className="grid grid-cols-4 gap-2">
+              {[...Array(12)].map((_, i) => (
+                <div key={i} className={`h-6 rounded-lg ${i === 2 || i === 9 ? 'bg-primary-500/30 border border-primary-500/50 shadow-[0_0_10px_rgba(37,99,235,0.2)]' : 'bg-white/20'}`}></div>
+              ))}
+            </div>
+          </div>
+          <div className="mt-4 flex justify-between items-center">
+            <div className="h-2 w-12 bg-gray-200 rounded-full"></div>
+            <div className="w-6 h-6 rounded-full bg-primary-50 flex items-center justify-center">
+              <div className="w-3 h-3 text-primary-600">
+                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Card 2: AI Interaction bubble */}
+        <div
+          className="absolute top-0 -right-16 w-56 bg-white/70 backdrop-blur-md border border-white/60 rounded-3xl shadow-xl p-4 z-30"
+          style={{ animation: 'float-delayed 7s ease-in-out infinite' }}
+        >
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-8 h-8 rounded-2xl bg-gradient-to-tr from-[#06C755] to-emerald-400 flex items-center justify-center shadow-lg shadow-emerald-200/50">
+              <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12c0 1.54.36 2.98.97 4.29L1 23l6.71-1.97C9.02 21.64 10.46 22 12 22c5.52 0 10-4.48 10-10S17.52 2 12 2z" /></svg>
+            </div>
+            <div>
+              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">AI Agent</p>
+              <div className="flex gap-0.5 mt-0.5">
+                {[...Array(3)].map((_, i) => <div key={i} className="w-1 h-1 bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: `${i * 0.2}s` }}></div>)}
+              </div>
+            </div>
+          </div>
+          <div className="space-y-2">
+            <div className="h-2 w-full bg-gray-100 rounded-full"></div>
+            <div className="h-2 w-3/4 bg-gray-100 rounded-full"></div>
+          </div>
+        </div>
+
+        {/* Card 3: Dashboard/Stats */}
+        <div
+          className="absolute -bottom-20 -left-4 w-60 bg-white/80 backdrop-blur-xl border border-white/20 rounded-[2.5rem] shadow-2xl p-6 z-20"
+          style={{ animation: 'float-extreme 8s ease-in-out infinite' }}
+        >
+          <div className="flex items-center justify-between mb-6">
+            <span className="text-[11px] font-black text-primary-600 uppercase tracking-widest">診所成長</span>
+            <div className="px-2 py-1 bg-emerald-50 rounded-lg">
+              <span className="text-[10px] font-bold text-emerald-600">+12.4%</span>
+            </div>
+          </div>
+          <div className="flex items-end gap-2 h-20 mb-4">
+            {[40, 70, 45, 90, 60, 100].map((h, i) => (
+              <div
+                key={i}
+                className="flex-1 bg-gradient-to-t from-primary-600/80 to-primary-400/40 rounded-t-lg transition-all hover:opacity-80"
+                style={{ height: `${h}%` }}
+              ></div>
+            ))}
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <p className="text-[9px] text-gray-400 font-bold uppercase">預約數</p>
+              <p className="text-sm font-black text-gray-900">1,280</p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-[9px] text-gray-400 font-bold uppercase">回診率</p>
+              <p className="text-sm font-black text-gray-900">84%</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Central Hub Icon */}
+        <div className="relative z-10 mx-auto w-40 h-40 bg-white rounded-[3rem] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.1)] flex items-center justify-center overflow-hidden border border-gray-100">
+          <div className="absolute inset-0 bg-gradient-to-br from-primary-50 via-white to-blue-50"></div>
+          <div className="relative w-20 h-20 bg-primary-600 rounded-[1.5rem] shadow-2xl shadow-primary-200 flex items-center justify-center transform hover:scale-110 transition-transform duration-500">
+            <svg className="w-10 h-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+            </svg>
+          </div>
+          {/* Decorative small orbs */}
+          <div className="absolute top-4 left-4 w-2 h-2 rounded-full bg-primary-200"></div>
+          <div className="absolute bottom-8 right-6 w-3 h-3 rounded-full bg-blue-100"></div>
+        </div>
+
+      </div>
+    </div>
+  );
+};
+
 const LandingPage: React.FC = () => {
   const [activeLineFeature, setActiveLineFeature] = React.useState(0);
   const [activeSchedulingFeature, setActiveSchedulingFeature] = React.useState(0);
@@ -994,30 +1132,38 @@ const LandingPage: React.FC = () => {
       <PublicHeader />
 
       {/* Hero Section */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-blue-50 to-white py-20 lg:py-32">
+      <section className="relative overflow-hidden bg-gradient-to-br from-blue-50 to-white pt-20 pb-32 lg:pt-32 lg:pb-48">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-          <div className="text-center max-w-4xl mx-auto">
-            <h1 className="text-4xl sm:text-5xl lg:text-7xl font-extrabold text-gray-900 tracking-tight mb-6">
-              全方位診所資訊系統
-            </h1>
-            <p className="text-xl sm:text-2xl text-gray-600 mb-10 leading-relaxed max-w-4xl mx-auto px-4">
-              釋放行政人力，讓醫療團隊專注於臨床專業，<br className="hidden md:block" />
-              同時提升病患體驗與回診率。
-            </p>
-            <div className="flex flex-col sm:flex-row items-center gap-4 justify-center">
-              <Link
-                to="/free-trial"
-                className="w-full sm:w-auto px-12 py-4 bg-primary-600 text-white text-lg font-semibold rounded-xl hover:bg-primary-700 shadow-lg shadow-primary-200 transition-all transform hover:-translate-y-1"
-              >
-                免費開始試用
-              </Link>
+          <div className="grid lg:grid-cols-2 items-center gap-16 lg:gap-24">
+            <div className="text-center lg:text-left order-2 lg:order-1">
+              <h1 className="text-5xl sm:text-6xl lg:text-8xl font-black text-gray-900 tracking-tighter leading-[0.9] mb-8">
+                全方位<br />
+                <span className="text-primary-600">數位診所</span><br />
+                作業系統
+              </h1>
+              <p className="text-xl sm:text-2xl text-gray-600 mb-12 leading-relaxed max-w-2xl mx-auto lg:mx-0">
+                釋放行政人力，讓醫療團隊專注於臨床專業，<br className="hidden md:block" />
+                同時提升病患體驗與回診率。
+              </p>
+              <div className="flex flex-col sm:flex-row items-center gap-6 justify-center lg:justify-start">
+                <Link
+                  to="/free-trial"
+                  className="w-full sm:w-auto px-12 py-5 bg-primary-600 text-white text-xl font-black rounded-2xl hover:bg-primary-700 shadow-2xl shadow-primary-200 transition-all transform hover:-translate-y-1 active:scale-95"
+                >
+                  開始免費體驗
+                </Link>
+              </div>
+            </div>
+
+            <div className="order-1 lg:order-2 relative lg:h-[600px] flex items-center justify-center">
+              <HeroVisual />
             </div>
           </div>
         </div>
 
         {/* Abstract background element */}
-        <div className="absolute top-0 right-0 -translate-y-1/4 translate-x-1/4 hidden lg:block">
-          <div className="w-[600px] h-[600px] bg-primary-50 rounded-full blur-3xl opacity-50"></div>
+        <div className="absolute top-0 right-0 -translate-y-1/4 translate-x-1/4 hidden lg:block pointer-events-none">
+          <div className="w-[800px] h-[800px] bg-primary-50 rounded-full blur-[120px] opacity-60"></div>
         </div>
       </section>
 
