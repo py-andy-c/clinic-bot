@@ -122,6 +122,7 @@ export const ActionableCard: React.FC<ActionableCardProps> = ({
                         {actions.map((action, index) => (
                             <button
                                 key={`${action.label}-${index}`}
+                                type="button"
                                 onClick={action.onClick}
                                 disabled={action.disabled || action.isLoading}
                                 className={getActionStyles(action.variant)}
