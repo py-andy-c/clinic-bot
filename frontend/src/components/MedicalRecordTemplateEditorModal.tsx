@@ -206,89 +206,132 @@ export const MedicalRecordTemplateEditorModal: React.FC<MedicalRecordTemplateEdi
   const isSaving = createMutation.isPending || updateMutation.isPending;
 
   return (
-    <BaseModal onClose={handleClose}>
+    <BaseModal
+      onClose={handleClose}
+      aria-label={isEdit ? '編輯病歷模板' : '新增病歷模板'}
+      showCloseButton={false}
+      fullScreen={true}
+    >
       <FormProvider {...methods}>
-        <form onSubmit={methods.handleSubmit(onSubmit)} className="flex flex-col flex-1 min-h-0">
+        <form onSubmit={methods.handleSubmit(onSubmit)} className="flex flex-col h-full bg-gray-50/50">
           <ModalHeader
             title={isEdit ? '編輯病歷模板' : '新增病歷模板'}
             onClose={handleClose}
             showClose
           />
 
-          <ModalBody>
+          <ModalBody className="p-0">
             {isLoading ? (
-              <div className="flex justify-center items-center py-12">
+              <div className="flex justify-center items-center h-64">
                 <LoadingSpinner size="lg" />
               </div>
             ) : (
-              <div className="space-y-6">
-                {/* Basic Info */}
-                <div className="space-y-4">
-                  <FormField name="name" label="模板名稱">
-                    <FormInput
-                      name="name"
-                      placeholder="例如：一般檢查、初診記錄"
-                    />
-                  </FormField>
-                  <FormField name="description" label="模板說明">
-                    <FormTextarea
-                      name="description"
-                      placeholder="描述此模板的用途（選填）"
-                      rows={2}
-                    />
-                  </FormField>
-                </div>
+              <div className="p-4 md:p-8">
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-8 max-w-7xl mx-auto w-full">
+                  {/* Left Column: Basic Info - Spans 4 columns on LG */}
+                  <div className="lg:col-span-4 space-y-6">
+                    <section className="bg-white rounded-xl md:rounded-2xl p-5 md:p-6 shadow-sm border border-gray-100">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-5 flex items-center gap-2">
+                        <span className="w-1.5 h-6 bg-blue-500 rounded-full"></span>
+                        基本資訊
+                      </h3>
+                      <div className="space-y-5">
+                        <FormField name="name" label="模板名稱">
+                          <FormInput
+                            name="name"
+                            placeholder="例如：一般檢查、初診記錄"
+                            className="w-full"
+                          />
+                        </FormField>
+                        <FormField name="description" label="模板說明">
+                          <FormTextarea
+                            name="description"
+                            placeholder="描述此模板的用途（選填）"
+                            rows={4}
+                            className="w-full"
+                          />
+                        </FormField>
+                      </div>
+                    </section>
 
-                {/* Fields Section */}
-                <div className="border-t pt-6">
-                  <div className="mb-4">
-                    <h3 className="text-lg font-semibold text-gray-900">表單欄位</h3>
+                    <div className="hidden lg:block bg-blue-50 rounded-xl p-5 border border-blue-100">
+                      <h4 className="text-sm font-semibold text-blue-900 mb-2 flex items-center gap-2">
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        小提示
+                      </h4>
+                      <p className="text-xs text-blue-700 leading-relaxed">
+                        您可以在右側新增不同類型的欄位。建議將相關的欄位放在一起，病歷記錄時會更流暢。
+                      </p>
+                    </div>
                   </div>
 
-                  <div className="space-y-4">
-                    {fields.map((field, index) => (
-                      <FieldEditor
-                        key={field.id}
-                        index={index}
-                        field={field}
-                        onRemove={() => handleRemoveField(index)}
-                        onMoveUp={() => handleMoveField(index, 'up')}
-                        onMoveDown={() => handleMoveField(index, 'down')}
-                        canMoveUp={index > 0}
-                        canMoveDown={index < fields.length - 1}
-                      />
-                    ))}
+                  {/* Right Column: Fields Section - Spans 8 columns on LG */}
+                  <div className="lg:col-span-8 space-y-6">
+                    <section className="bg-white rounded-xl md:rounded-2xl p-5 md:p-6 shadow-sm border border-gray-100">
+                      <div className="flex items-center justify-between mb-6">
+                        <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                          <span className="w-1.5 h-6 bg-purple-500 rounded-full"></span>
+                          表單欄位
+                        </h3>
+                        <span className="text-xs font-medium px-2.5 py-1 bg-gray-100 text-gray-600 rounded-full">
+                          共 {fields.length} 個欄位
+                        </span>
+                      </div>
 
-                    <button
-                      type="button"
-                      onClick={handleAddField}
-                      className="w-full py-4 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 hover:text-primary-600 hover:border-primary-500 hover:bg-primary-50 transition-all flex items-center justify-center gap-2 group"
-                    >
-                      <span className="text-2xl group-hover:scale-110 transition-transform">+</span>
-                      <span className="font-medium">新增欄位</span>
-                    </button>
+                      <div className="space-y-4">
+                        {fields.map((field, index) => (
+                          <FieldEditor
+                            key={field.id}
+                            index={index}
+                            field={field}
+                            onRemove={() => handleRemoveField(index)}
+                            onMoveUp={() => handleMoveField(index, 'up')}
+                            onMoveDown={() => handleMoveField(index, 'down')}
+                            canMoveUp={index > 0}
+                            canMoveDown={index < fields.length - 1}
+                          />
+                        ))}
+
+                        <button
+                          type="button"
+                          onClick={handleAddField}
+                          className="w-full py-6 border-2 border-dashed border-gray-200 rounded-xl text-gray-500 hover:text-blue-600 hover:border-blue-300 hover:bg-blue-50/50 transition-all flex flex-col items-center justify-center gap-2 group"
+                        >
+                          <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center group-hover:bg-blue-100 transition-colors">
+                            <span className="text-2xl group-hover:scale-110 transition-transform">+</span>
+                          </div>
+                          <span className="font-semibold">新增欄位</span>
+                          <span className="text-xs text-gray-400 font-normal">點擊此處為您的模板添加新的資料項目</span>
+                        </button>
+                      </div>
+                    </section>
                   </div>
                 </div>
               </div>
             )}
           </ModalBody>
 
-          <ModalFooter>
-            <button
-              type="button"
-              onClick={handleClose}
-              className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-              disabled={isSaving}
-            >
-              取消
-            </button>
-            <button
-              type="submit"
-              className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={isSaving}
-            >
-              {isSaving ? '儲存中...' : '儲存'}
-            </button>
+          <ModalFooter className="bg-white border-t border-gray-200">
+            <div className="max-w-7xl mx-auto w-full flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={handleClose}
+                className="px-6 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                disabled={isSaving}
+              >
+                取消
+              </button>
+              <button
+                type="submit"
+                className="px-8 py-2.5 text-sm font-semibold bg-primary-600 text-white rounded-lg hover:bg-primary-700 shadow-sm shadow-primary-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                disabled={isSaving}
+              >
+                {isSaving && <LoadingSpinner size="sm" className="!border-white" />}
+                {isSaving ? '儲存中...' : '儲存模板'}
+              </button>
+            </div>
           </ModalFooter>
         </form>
       </FormProvider>
@@ -321,46 +364,51 @@ const FieldEditor: React.FC<FieldEditorProps> = ({
   const needsOptions = ['dropdown', 'radio', 'checkbox'].includes(fieldType);
 
   return (
-    <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+    <div className="group border border-gray-200 rounded-xl p-4 md:p-5 bg-white hover:border-blue-200 hover:shadow-md transition-all">
       {/* Hidden input to preserve field ID during updates */}
       <input type="hidden" {...register(`fields.${index}.id`)} />
 
-      <div className="flex items-start gap-4">
-        {/* Move buttons */}
-        <div className="flex flex-col gap-1">
+      <div className="flex items-start gap-3 md:gap-5">
+        {/* Move buttons - Column version for desktop, row for mobile? No, let's keep it consistent but nicer */}
+        <div className="flex flex-col gap-1 mt-1">
           <button
             type="button"
             onClick={onMoveUp}
             disabled={!canMoveUp}
-            className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-30 disabled:cursor-not-allowed"
+            className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
             title="上移"
           >
-            ↑
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+            </svg>
           </button>
           <button
             type="button"
             onClick={onMoveDown}
             disabled={!canMoveDown}
-            className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-30 disabled:cursor-not-allowed"
+            className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
             title="下移"
           >
-            ↓
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
           </button>
         </div>
 
         {/* Field content */}
-        <div className="flex-1 space-y-3">
-          <div className="grid grid-cols-2 gap-3">
+        <div className="flex-1 space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <FormField name={`fields.${index}.label`} label="欄位名稱">
               <FormInput
                 name={`fields.${index}.label`}
                 placeholder="例如：體重、血壓"
+                className="w-full"
               />
             </FormField>
             <FormField name={`fields.${index}.type`} label="欄位類型">
               <select
                 {...register(`fields.${index}.type`)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-sm"
               >
                 {FIELD_TYPE_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>
@@ -371,49 +419,50 @@ const FieldEditor: React.FC<FieldEditorProps> = ({
             </FormField>
           </div>
 
-          {/* Deprecated Placeholder UI - removed per design decision */}
-          {/* <FormField name={`fields.${index}.placeholder`} label="提示文字（選填）">
-            <FormInput
-              name={`fields.${index}.placeholder`}
-              placeholder="例如：請輸入數值"
-            />
-          </FormField> */}
-
-          <FormField name={`fields.${index}.description`} label="欄位說明（選填）">
-            <FormInput
-              name={`fields.${index}.description`}
-              placeholder="例如：請填寫收縮壓與舒張壓"
-            />
-          </FormField>
-
-          {needsOptions && (
-            <FormField name={`fields.${index}.options`} label="選項（每行一個）">
-              <FormTextarea
-                name={`fields.${index}.options`}
-                placeholder="選項1&#10;選項2&#10;選項3"
-                rows={3}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <FormField name={`fields.${index}.description`} label="欄位說明（選填）">
+              <FormInput
+                name={`fields.${index}.description`}
+                placeholder="例如：請填寫收縮壓與舒張壓"
+                className="w-full"
               />
             </FormField>
-          )}
+            <div className="flex items-end pb-2">
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  {...register(`fields.${index}.required`)}
+                  className="w-4 h-4 border-gray-300 rounded text-blue-600 focus:ring-blue-500 transition-colors"
+                />
+                <span className="text-sm font-medium text-gray-700">必填欄位</span>
+              </label>
+            </div>
+          </div>
 
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              {...register(`fields.${index}.required`)}
-              className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-            />
-            <span className="text-sm text-gray-700">必填欄位</span>
-          </label>
+          {needsOptions && (
+            <div className="pt-2">
+              <FormField name={`fields.${index}.options`} label="選項設定 (每行一個選項)">
+                <FormTextarea
+                  name={`fields.${index}.options`}
+                  placeholder="選項 1&#10;選項 2&#10;選項 3"
+                  rows={3}
+                  className="w-full text-sm font-mono"
+                />
+              </FormField>
+            </div>
+          )}
         </div>
 
         {/* Remove button */}
         <button
           type="button"
           onClick={onRemove}
-          className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+          className="mt-1 p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all opacity-40 group-hover:opacity-100"
           title="刪除欄位"
         >
-          ✕
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          </svg>
         </button>
       </div>
     </div>
