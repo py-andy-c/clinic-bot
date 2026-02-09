@@ -161,7 +161,7 @@ export const CreateMedicalRecordDialog: React.FC<CreateMedicalRecordDialogProps>
             ) : (
               <div className="space-y-6">
                 {/* Template Selector */}
-                <FormField name="template_id" label="病歷模板 *">
+                <FormField name="template_id" label={<>病歷模板 <span className="text-red-500">*</span></>}>
                   <select
                     {...methods.register('template_id', { valueAsNumber: true })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
