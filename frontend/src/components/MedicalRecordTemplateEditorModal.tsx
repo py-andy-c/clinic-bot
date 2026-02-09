@@ -213,25 +213,25 @@ export const MedicalRecordTemplateEditorModal: React.FC<MedicalRecordTemplateEdi
       fullScreen={true}
     >
       <FormProvider {...methods}>
-        <form onSubmit={methods.handleSubmit(onSubmit)} className="flex flex-col h-full bg-gray-50/50">
+        <form onSubmit={methods.handleSubmit(onSubmit)} className="flex flex-col h-full bg-white md:bg-gray-50/50">
           <ModalHeader
             title={isEdit ? '編輯病歷模板' : '新增病歷模板'}
             onClose={handleClose}
             showClose
           />
 
-          <ModalBody className="p-0">
+          <ModalBody className="!p-0 bg-white md:bg-transparent">
             {isLoading ? (
               <div className="flex justify-center items-center h-64">
                 <LoadingSpinner size="lg" />
               </div>
             ) : (
-              <div className="p-4 md:p-8">
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-8 max-w-7xl mx-auto w-full">
+              <div className="p-0 md:p-8">
+                <div className="grid grid-cols-1 lg:grid-cols-12 md:gap-8 max-w-7xl mx-auto w-full">
                   {/* Left Column: Basic Info - Spans 4 columns on LG */}
-                  <div className="lg:col-span-4 space-y-6">
-                    <section className="bg-white rounded-xl md:rounded-2xl p-5 md:p-6 shadow-sm border border-gray-100">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-5 flex items-center gap-2">
+                  <div className="lg:col-span-4 space-y-0 md:space-y-6">
+                    <section className="bg-white md:rounded-2xl p-5 md:p-6 md:shadow-sm border-b md:border border-gray-100 border-x-0">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                         <span className="w-1.5 h-6 bg-blue-500 rounded-full"></span>
                         基本資訊
                       </h3>
@@ -268,8 +268,8 @@ export const MedicalRecordTemplateEditorModal: React.FC<MedicalRecordTemplateEdi
                   </div>
 
                   {/* Right Column: Fields Section - Spans 8 columns on LG */}
-                  <div className="lg:col-span-8 space-y-6">
-                    <section className="bg-white rounded-xl md:rounded-2xl p-5 md:p-6 shadow-sm border border-gray-100">
+                  <div className="lg:col-span-8 space-y-0 md:space-y-6">
+                    <section className="bg-white md:rounded-2xl p-5 md:p-6 md:shadow-sm border-b md:border border-gray-100 border-x-0">
                       <div className="flex items-center justify-between mb-6">
                         <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
                           <span className="w-1.5 h-6 bg-purple-500 rounded-full"></span>
@@ -294,17 +294,19 @@ export const MedicalRecordTemplateEditorModal: React.FC<MedicalRecordTemplateEdi
                           />
                         ))}
 
-                        <button
-                          type="button"
-                          onClick={handleAddField}
-                          className="w-full py-6 border-2 border-dashed border-gray-200 rounded-xl text-gray-500 hover:text-blue-600 hover:border-blue-300 hover:bg-blue-50/50 transition-all flex flex-col items-center justify-center gap-2 group"
-                        >
-                          <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center group-hover:bg-blue-100 transition-colors">
-                            <span className="text-2xl group-hover:scale-110 transition-transform">+</span>
-                          </div>
-                          <span className="font-semibold">新增欄位</span>
-                          <span className="text-xs text-gray-400 font-normal">點擊此處為您的模板添加新的資料項目</span>
-                        </button>
+                        <div className="px-4 md:px-0">
+                          <button
+                            type="button"
+                            onClick={handleAddField}
+                            className="w-full py-6 border-2 border-dashed border-gray-200 rounded-xl text-gray-500 hover:text-blue-600 hover:border-blue-300 hover:bg-blue-50/50 transition-all flex flex-col items-center justify-center gap-2 group"
+                          >
+                            <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center group-hover:bg-blue-100 transition-colors">
+                              <span className="text-2xl group-hover:scale-110 transition-transform">+</span>
+                            </div>
+                            <span className="font-semibold">新增欄位</span>
+                            <span className="text-xs text-gray-400 font-normal">點擊此處為您的模板添加新的資料項目</span>
+                          </button>
+                        </div>
                       </div>
                     </section>
                   </div>
@@ -364,7 +366,7 @@ const FieldEditor: React.FC<FieldEditorProps> = ({
   const needsOptions = ['dropdown', 'radio', 'checkbox'].includes(fieldType);
 
   return (
-    <div className="group border border-gray-200 rounded-xl p-4 md:p-5 bg-white hover:border-blue-200 hover:shadow-md transition-all">
+    <div className="group border-b md:border border-gray-200 md:rounded-xl p-5 md:p-5 bg-white md:hover:border-blue-200 md:hover:shadow-md transition-all">
       {/* Hidden input to preserve field ID during updates */}
       <input type="hidden" {...register(`fields.${index}.id`)} />
 
