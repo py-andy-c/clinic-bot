@@ -39,7 +39,7 @@ const FeatureSection: React.FC<{
 }> = ({ title, valueProp, features, imageSide, mockup, bgColor = 'bg-white', autoFlip = false }) => {
   const [activeIndex, setActiveIndex] = React.useState(0);
   const [isPaused, setIsPaused] = React.useState(false);
-  const [sectionRef, isInView] = useInView({ threshold: 0.1 });
+  const [sectionRef, isInView] = useInView({ threshold: 0.5 });
 
   React.useEffect(() => {
     if (!autoFlip || !isInView || isPaused) return;
