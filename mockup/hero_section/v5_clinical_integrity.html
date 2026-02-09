@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hero V5: Clinical Integrity</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            50: '#eff6ff', 100: '#dbeafe', 200: '#bfdbfe', 300: '#93c5fd', 400: '#60a5fa', 500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8', 800: '#1e40af', 900: '#1e3a8a',
+                        },
+                    },
+                }
+            }
+        }
+    </script>
+    <style>
+        @keyframes stack-float {
+            0% {
+                transform: perspective(1000px) rotateX(15deg) rotateY(-10deg) translateZ(0) translateY(0);
+            }
+
+            50% {
+                transform: perspective(1000px) rotateX(15deg) rotateY(-10deg) translateZ(100px) translateY(-30px);
+            }
+
+            100% {
+                transform: perspective(1000px) rotateX(15deg) rotateY(-10deg) translateZ(0) translateY(0);
+            }
+        }
+
+        @keyframes pulse-ring {
+            0% {
+                transform: scale(0.8);
+                opacity: 0;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
+
+            100% {
+                transform: scale(1.5);
+                opacity: 0;
+            }
+        }
+
+        .preserve-3d {
+            transform-style: preserve-3d;
+        }
+
+        .hero-stack {
+            transform: perspective(1000px) rotateX(15deg) rotateY(-10deg);
+        }
+    </style>
+</head>
+
+<body class="bg-slate-50 min-h-screen flex items-center justify-center overflow-hidden font-sans">
+
+    <!-- Background Grid -->
+    <div class="absolute inset-0 opacity-[0.05]"
+        style="background-image: radial-gradient(#2563eb 1px, transparent 1px); background-size: 30px 30px;"></div>
+
+    <div class="relative w-full max-w-6xl h-full flex items-center justify-center px-20">
+
+        <!-- Main Content Area -->
+        <div class="relative w-[600px] h-[450px] preserve-3d flex items-center justify-center">
+
+            <!-- Layer 1: Bottom Layer -->
+            <div
+                class="absolute inset-0 bg-white/40 border border-gray-200 rounded-[3rem] shadow-lg transform translate-z-[-200px] translate-y-[-60px] blur-[3px]">
+            </div>
+
+            <!-- Layer 2: Middle Layer -->
+            <div
+                class="absolute inset-0 bg-white/70 border border-gray-100 rounded-[3rem] shadow-xl transform translate-z-[-100px] translate-y-[-30px] blur-[1px]">
+            </div>
+
+            <!-- Layer 3: Top Layer (Active) -->
+            <div
+                class="relative w-full h-full bg-white border border-gray-100 rounded-[3.5rem] shadow-[0_60px_120px_-20px_rgba(0,0,0,0.15)] p-12 flex flex-col justify-between animate-[stack-float_8s_ease-in-out_infinite] z-20">
+
+                <div class="flex justify-between items-start">
+                    <div class="flex gap-6 items-center">
+                        <div
+                            class="w-16 h-16 bg-primary-50 rounded-[1.5rem] flex items-center justify-center text-primary-600 shadow-inner">
+                            <svg class="w-9 h-9" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                            </svg>
+                        </div>
+                        <div>
+                            <h4 class="text-2xl font-black text-gray-900 leading-none">王曉明 <span
+                                    class="text-sm font-bold text-gray-300 ml-3 tracking-widest">#CLIN-2402</span></h4>
+                            <div class="mt-2 flex items-center gap-3">
+                                <span class="text-xs font-black text-primary-600 uppercase tracking-widest">複診追蹤</span>
+                                <div class="w-1 h-1 bg-gray-300 rounded-full"></div>
+                                <span class="text-xs font-bold text-gray-400 uppercase tracking-widest">物理治療 : 徒手</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex flex-col items-end gap-1">
+                        <div
+                            class="px-5 py-2 bg-emerald-50 text-emerald-600 rounded-2xl text-[10px] font-black uppercase tracking-widest border border-emerald-100/50 shadow-sm">
+                            Cloud Protected</div>
+                        <span class="text-[9px] font-black text-gray-300 uppercase tracking-widest mr-2">LAST UPDATE: 2M
+                            AGO</span>
+                    </div>
+                </div>
+
+                <!-- Mid-Section: Diagnostics -->
+                <div class="space-y-10">
+                    <div>
+                        <div class="flex justify-between items-baseline mb-3">
+                            <p class="text-xs font-black text-gray-900 uppercase tracking-widest">主訴與治療進程</p>
+                            <span class="text-[10px] font-bold text-gray-300">PROGRESSIVE ANALYSIS</span>
+                        </div>
+                        <div class="space-y-3">
+                            <div
+                                class="h-3 w-full bg-slate-50 flex items-center px-4 rounded-full border border-gray-100">
+                                <div
+                                    class="h-[3px] w-full bg-primary-600 rounded-full opacity-60 animate-[pulse_2s_infinite]">
+                                </div>
+                            </div>
+                            <div
+                                class="h-3 w-3/4 bg-slate-50 flex items-center px-4 rounded-full border border-gray-100">
+                                <div class="h-[3px] w-5/6 bg-primary-400 rounded-full opacity-40"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-4 gap-4">
+                        <div
+                            class="aspect-square bg-slate-50 rounded-[1.5rem] border border-gray-100 shadow-sm flex flex-col items-center justify-center gap-2 group hover:bg-white hover:border-primary-200 transition-all cursor-pointer">
+                            <svg class="w-7 h-7 text-gray-300 group-hover:text-primary-500 transition-colors"
+                                fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                            <span
+                                class="text-[9px] font-black text-gray-400 tracking-tighter uppercase group-hover:text-primary-600">PHOTO-1</span>
+                        </div>
+                        <div
+                            class="aspect-square bg-slate-50 rounded-[1.5rem] border border-gray-100 shadow-sm flex flex-col items-center justify-center gap-2 group hover:bg-white hover:border-primary-200 transition-all cursor-pointer">
+                            <svg class="w-7 h-7 text-gray-300 group-hover:text-primary-500 transition-colors"
+                                fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                            </svg>
+                            <span
+                                class="text-[9px] font-black text-gray-400 tracking-tighter uppercase group-hover:text-primary-600">RECORDS</span>
+                        </div>
+                        <div
+                            class="aspect-square rounded-[1.5rem] border-2 border-dashed border-gray-200 flex flex-col items-center justify-center gap-2 hover:bg-primary-50 hover:border-primary-300 transition-all cursor-pointer group">
+                            <span class="text-3xl text-gray-300 font-light group-hover:text-primary-400">+</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex justify-between items-center pt-8 border-t border-gray-100">
+                    <div class="flex gap-2">
+                        {[1, 2, 3, 4].map(i => <div key={i} class="w-2.5 h-2.5 rounded-full bg-slate-100"></div>)}
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <div class="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>
+                        <span class="text-[11px] font-black text-gray-400 uppercase tracking-[0.2em]">Clinical Workspace
+                            Encrypted</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Floating Extra Action Card -->
+            <div
+                class="absolute -top-16 -right-24 w-64 bg-white rounded-[2rem] shadow-[0_40px_80px_-20px_rgba(0,0,0,0.15)] p-6 z-30 border border-gray-50 flex items-center gap-5 transform -rotate-3 scale-110">
+                <div
+                    class="w-14 h-14 bg-amber-50 rounded-2xl flex items-center justify-center text-amber-500 shadow-inner">
+                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                            d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </div>
+                <div>
+                    <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">自動追蹤回報</p>
+                    <p class="text-sm font-black text-gray-900 leading-none tracking-tighter">系統將在預定時段<br />自動關懷病患</p>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+</body>
+
+</html>

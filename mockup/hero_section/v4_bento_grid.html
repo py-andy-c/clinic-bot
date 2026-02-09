@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hero V4: Modular Bento</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            50: '#eff6ff', 100: '#dbeafe', 200: '#bfdbfe', 300: '#93c5fd', 400: '#60a5fa', 500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8', 800: '#1e40af', 900: '#1e3a8a',
+                        },
+                    },
+                }
+            }
+        }
+    </script>
+    <style>
+        .bento-card {
+            background: white;
+            border-radius: 2.5rem;
+            border: 1px solid #f1f5f9;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
+            padding: 2rem;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .bento-card:hover {
+            transform: translateY(-8px) scale(1.02);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.1);
+            border-color: #e2e8f0;
+        }
+
+        @keyframes float {
+
+            0%,
+            100% {
+                transform: translateY(0);
+            }
+
+            50% {
+                transform: translateY(-10px);
+            }
+        }
+    </style>
+</head>
+
+<body class="bg-slate-50 min-h-screen flex items-center justify-center p-12 font-sans overflow-y-auto">
+
+    <div class="grid grid-cols-6 grid-rows-4 gap-6 w-full max-w-6xl h-[800px]">
+
+        <!-- Main Feature: Booking (Large) -->
+        <div
+            class="col-span-3 row-span-2 bg-gradient-to-br from-primary-600 to-primary-800 rounded-[3.5rem] p-10 text-white relative overflow-hidden shadow-2xl shadow-primary-200/50 hover:scale-[1.02] transition-transform duration-500">
+            <div class="relative z-10 flex flex-col h-full justify-between">
+                <div>
+                    <h3 class="text-3xl font-black mb-4 leading-tight tracking-tighter">LINE 智能預約系統</h3>
+                    <p class="text-primary-100 text-lg leading-relaxed max-w-[320px] font-medium opacity-80">
+                        極速預約流程，系統自動即時同步，行政效率提昇 300%。</p>
+                </div>
+                <div class="flex gap-4">
+                    <div
+                        class="w-16 h-16 bg-white/10 backdrop-blur-md rounded-2xl flex flex-col items-center justify-center border border-white/20">
+                        <span class="text-[10px] uppercase font-black opacity-60 mb-1">MON</span>
+                        <span class="text-xl font-black">24</span>
+                    </div>
+                    <div
+                        class="flex-1 bg-white/10 backdrop-blur-md rounded-2xl flex items-center justify-between px-6 border border-white/20">
+                        <span class="text-sm font-black">14:00 徒手治療</span>
+                        <div class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
+                    </div>
+                </div>
+            </div>
+            <!-- Abstract Background Graphic -->
+            <div class="absolute -bottom-20 -right-20 w-80 h-80 bg-white/10 rounded-full blur-[80px]"></div>
+        </div>
+
+        <!-- Feature: Financials (Wide) -->
+        <div class="bento-card col-span-3 row-span-1 flex items-center justify-between">
+            <div class="flex items-center gap-6">
+                <div
+                    class="w-16 h-16 bg-emerald-50 rounded-[1.5rem] flex items-center justify-center text-emerald-600 shadow-inner">
+                    <svg class="w-9 h-9" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                    </svg>
+                </div>
+                <div>
+                    <p class="text-sm font-black text-gray-400 uppercase tracking-[0.2em] mb-1">今日診所營收</p>
+                    <p class="text-3xl font-black text-gray-900 tracking-tighter">$48,500</p>
+                </div>
+            </div>
+            <div class="text-right">
+                <span
+                    class="text-xs font-black text-emerald-600 bg-emerald-100/50 px-3 py-1.5 rounded-full uppercase tracking-tighter">Growth
+                    +12.4%</span>
+            </div>
+        </div>
+
+        <!-- Feature: AI Status (Small Square) -->
+        <div class="bento-card col-span-1 row-span-1 flex flex-col items-center justify-center text-center">
+            <div
+                class="w-14 h-14 bg-[#06C755] rounded-2xl flex items-center justify-center text-white mb-3 shadow-lg shadow-green-100">
+                <svg class="w-7 h-7" fill="currentColor" viewBox="0 0 24 24">
+                    <path
+                        d="M12 2C6.48 2 2 6.48 2 12c0 1.54.36 2.98.97 4.29L1 23l6.71-1.97C9.02 21.64 10.46 22 12 22c5.52 0 10-4.48 10-10S17.52 2 12 2z" />
+                </svg>
+            </div>
+            <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest">AI Agent Online</span>
+        </div>
+
+        <!-- Feature: Conflict Detection (Wide) -->
+        <div class="bento-card col-span-2 row-span-1 flex items-center gap-5">
+            <div
+                class="w-12 h-12 bg-rose-50 rounded-full flex items-center justify-center text-rose-500 shadow-inner relative">
+                <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <div
+                    class="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 rounded-full border-2 border-white animate-ping">
+                </div>
+            </div>
+            <div>
+                <p class="text-sm font-black text-gray-900 leading-tight">智慧偵測時段衝突</p>
+                <p class="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">Resource Safety</p>
+            </div>
+        </div>
+
+        <!-- Feature: Medical Records (Vertical) -->
+        <div class="bento-card col-span-2 row-span-2 flex flex-col justify-between bg-gray-50 border-none shadow-none">
+            <div>
+                <p class="text-[11px] font-black text-primary-600 uppercase tracking-[0.3em] mb-6">全雲端病歷系統</p>
+                <div class="space-y-5">
+                    <div class="flex items-center gap-4">
+                        <div
+                            class="w-12 h-12 bg-white rounded-xl shadow-sm flex items-center justify-center text-gray-300">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path
+                                    d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                        </div>
+                        <div class="flex-1 space-y-2">
+                            <div class="h-2 w-full bg-gray-200 rounded-full"></div>
+                            <div class="h-2 w-3/4 bg-gray-200 rounded-full"></div>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <div
+                            class="w-12 h-12 bg-white rounded-xl shadow-sm flex items-center justify-center text-gray-300">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                        </div>
+                        <div class="flex-1 space-y-2">
+                            <div class="h-2 w-5/6 bg-gray-200 rounded-full"></div>
+                            <div class="h-2 w-1/2 bg-gray-200 rounded-full"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div
+                class="pt-6 border-t border-gray-200 flex justify-between items-center text-[10px] font-black text-gray-400">
+                <span>ENCRYPTED STORAGE</span>
+                <span class="text-primary-600">調閱紀錄 (12K+)</span>
+            </div>
+        </div>
+
+        <!-- Feature: Success Loop (Main) -->
+        <div
+            class="col-span-4 row-span-2 bg-emerald-500 rounded-[3.5rem] p-12 text-white relative flex items-center justify-between shadow-2xl hover:scale-[1.01] transition-transform duration-500 overflow-hidden">
+            <div class="relative z-10 w-2/3">
+                <h3 class="text-4xl font-black mb-4 tracking-tighter leading-none">提升 25% 回診率</h3>
+                <p class="text-emerald-50 text-lg leading-relaxed font-medium opacity-90">
+                    建立病患與診所的數位強連結。自動化關懷系統，打造極致醫療旅程，讓病患持續回歸。</p>
+                <div
+                    class="mt-10 inline-flex items-center gap-2 bg-emerald-400/30 px-5 py-2 rounded-full text-xs font-black uppercase tracking-widest border border-white/20">
+                    Patient Retention Engine
+                </div>
+            </div>
+            <div
+                class="w-48 h-48 bg-white/10 backdrop-blur-xl rounded-[4rem] border border-white/20 flex items-center justify-center relative">
+                <div
+                    class="w-28 h-28 bg-white rounded-[2.5rem] shadow-[0_20px_40px_-10px_rgba(0,0,0,0.2)] flex items-center justify-center text-emerald-600 animate-[float_4s_ease-in-out_infinite]">
+                    <svg class="w-14 h-14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                </div>
+                <!-- Mini Orbitals -->
+                <div class="absolute -top-4 -right-4 w-12 h-12 bg-emerald-400/40 rounded-full blur-xl animate-pulse">
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+</body>
+
+</html>
