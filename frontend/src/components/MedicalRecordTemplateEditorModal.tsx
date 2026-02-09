@@ -39,6 +39,7 @@ const TemplateFieldSchema = z.object({
 const TemplateSchema = z.object({
   name: z.string().min(1, '模板名稱不可為空'),
   description: z.string().optional(),
+  is_patient_form: z.boolean(),
   fields: z.array(TemplateFieldSchema),
 });
 
@@ -75,6 +76,7 @@ export const MedicalRecordTemplateEditorModal: React.FC<MedicalRecordTemplateEdi
     defaultValues: {
       name: '',
       description: '',
+      is_patient_form: false,
       fields: [],
     },
   });
@@ -106,6 +108,7 @@ export const MedicalRecordTemplateEditorModal: React.FC<MedicalRecordTemplateEdi
       methods.reset({
         name: template.name,
         description: template.description || '',
+        is_patient_form: template.is_patient_form,
         fields: template.fields.map((field, index) => ({
           ...field,
           // Convert options array to newline-separated string for textarea
@@ -168,6 +171,7 @@ export const MedicalRecordTemplateEditorModal: React.FC<MedicalRecordTemplateEdi
             version: template.version,
             name: data.name,
             description: data.description,
+            is_patient_form: data.is_patient_form,
             fields: data.fields.map((field, index) => ({
               ...field,
               id: field.id || '', // Backend will generate ID if empty
@@ -184,6 +188,7 @@ export const MedicalRecordTemplateEditorModal: React.FC<MedicalRecordTemplateEdi
         await createMutation.mutateAsync({
           name: data.name,
           description: data.description,
+          is_patient_form: data.is_patient_form,
           fields: data.fields.map((field, index) => ({
             label: field.label,
             type: field.type,
@@ -251,6 +256,23 @@ export const MedicalRecordTemplateEditorModal: React.FC<MedicalRecordTemplateEdi
                             className="w-full"
                           />
                         </FormField>
+                        <div className="pt-2">
+                          <label className="flex items-center gap-3 cursor-pointer select-none group">
+                            <input
+                              type="checkbox"
+                              {...methods.register('is_patient_form')}
+                              className="w-5 h-5 border-gray-300 rounded text-blue-600 focus:ring-blue-500 transition-colors"
+                            />
+                            <div className="flex flex-col">
+                              <span className="text-sm font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">
+                                開放病患填寫
+                              </span>
+                              <span className="text-xs text-gray-500">
+                                開啟後，此模板可作為病患表單發送給病患填寫。
+                              </span>
+                            </div>
+                          </label>
+                        </div>
                       </div>
                     </section>
 

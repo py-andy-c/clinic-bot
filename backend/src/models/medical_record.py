@@ -34,6 +34,14 @@ class MedicalRecord(Base):
     # Actual values for the record
     values: Mapped[Dict[str, Any]] = mapped_column(JSONB, nullable=False)
     
+    # Timestamp when the patient last edited this form (None if never edited by patient)
+    # Used to track patient activity on patient-facing forms sent via Line
+    patient_last_edited_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
+    
+    # Whether the patient has submitted this form (vs. still in draft state)
+    # Only applicable for records created from patient forms (is_patient_form=True templates)
+    is_submitted: Mapped[bool] = mapped_column(Boolean, server_default='false', nullable=False)
+    
     version: Mapped[int] = mapped_column(Integer, server_default='1', nullable=False)
     
     is_deleted: Mapped[bool] = mapped_column(Boolean, server_default='false', nullable=False)

@@ -49,6 +49,8 @@ class MedicalRecordResponse(BaseModel):
     template_snapshot: Dict[str, Any]
     values: Dict[str, Any]
     appointment_id: Optional[int]
+    patient_last_edited_at: Optional[datetime] = None
+    is_submitted: bool = False
     version: int
     is_deleted: bool
     deleted_at: Optional[Any]
@@ -97,6 +99,8 @@ def _enrich_record_with_photos(
         'template_snapshot': record.template_snapshot,
         'values': record.values,
         'appointment_id': record.appointment_id,
+        'patient_last_edited_at': record.patient_last_edited_at,
+        'is_submitted': record.is_submitted,
         'version': record.version,
         'is_deleted': record.is_deleted,
         'deleted_at': record.deleted_at,

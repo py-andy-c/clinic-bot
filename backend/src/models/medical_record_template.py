@@ -24,6 +24,10 @@ class MedicalRecordTemplate(Base):
     # JSONB field for storing template structure (list of fields)
     fields: Mapped[List[Dict[str, Any]]] = mapped_column(JSONB, nullable=False)
     
+    # Flag indicating if this template can be sent to patients for completion via Line
+    # When True, this template can be used to create patient-facing forms
+    is_patient_form: Mapped[bool] = mapped_column(Boolean, server_default='false', nullable=False)
+    
     version: Mapped[int] = mapped_column(Integer, server_default='1', nullable=False)
     
     is_deleted: Mapped[bool] = mapped_column(Boolean, server_default='false', nullable=False)

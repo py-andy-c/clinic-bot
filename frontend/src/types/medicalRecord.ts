@@ -28,6 +28,7 @@ export interface MedicalRecordTemplate {
   name: string;
   description?: string;
   fields: TemplateField[];
+  is_patient_form: boolean;
   version: number;
   is_deleted: boolean;
   deleted_at?: string;
@@ -41,6 +42,7 @@ export interface MedicalRecordTemplateCreateRequest {
   name: string;
   description?: string | undefined;
   fields: Omit<TemplateField, 'id'>[]; // Frontend doesn't provide IDs
+  is_patient_form?: boolean;
 }
 
 export interface MedicalRecordTemplateUpdateRequest {
@@ -48,6 +50,7 @@ export interface MedicalRecordTemplateUpdateRequest {
   name?: string | undefined;
   description?: string | undefined;
   fields?: TemplateField[]; // Must include existing IDs for persistent fields
+  is_patient_form?: boolean;
 }
 
 export interface MedicalRecordTemplatesListResponse {
@@ -89,6 +92,8 @@ export interface MedicalRecord {
     fields: TemplateField[];
   };
   values: Record<string, any>;
+  patient_last_edited_at?: string;
+  is_submitted: boolean;
   version: number;
   is_deleted: boolean;
   deleted_at?: string;
