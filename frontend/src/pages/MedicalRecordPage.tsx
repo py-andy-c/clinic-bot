@@ -301,9 +301,28 @@ const MedicalRecordPage: React.FC = () => {
 
       setIsSelectAppointmentModalOpen(false); // Close modal if open
 
-      // Show appropriate success message
+      // Check for missing required fields to show a warning
+      const missingRequiredFields = (record.template_snapshot.fields || [])
+        .filter(field => {
+          if (!field.required) return false;
+          const value = data.values[field.id];
+
+          if (field.type === 'checkbox') {
+            return !Array.isArray(value) || value.length === 0;
+          }
+
+          return value === null || value === undefined || value === '';
+        })
+        .map(field => field.label);
+
+      // Show appropriate success/warning message
       if (photoUpdatesFailed) {
         await alert('病歷記錄已更新，但部分照片說明更新失敗。請再次點擊儲存以重試。', '部分成功');
+      } else if (missingRequiredFields.length > 0) {
+        await alert(
+          `病歷記錄已成功儲存，但下列必填欄位尚未填寫：\n\n${missingRequiredFields.map(label => `• ${label}`).join('\n')}`,
+          '⚠️ 儲存成功'
+        );
       } else {
         await alert('病歷記錄已成功更新', '更新成功');
       }
