@@ -69,7 +69,7 @@ class MedicalRecordService:
             patient_id=patient_id,
             template_id=template_id,
             template_name=template.name,
-            template_snapshot={"name": template.name, "fields": template.fields},
+            template_snapshot={"name": template.name, "description": template.description, "fields": template.fields},
             values=values,
             appointment_id=appointment_id,
             created_by_user_id=created_by_user_id,

@@ -85,6 +85,7 @@ export interface MedicalRecord {
   appointment_id?: number;
   template_snapshot: {
     name: string;
+    description?: string;
     fields: TemplateField[];
   };
   values: Record<string, any>;

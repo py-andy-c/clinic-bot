@@ -261,15 +261,15 @@ const MedicalRecordPage: React.FC = () => {
       // Save photo description updates with better error handling
       let photoUpdatesFailed = false;
       const failedPhotoIds: number[] = [];
-      
+
       if (Object.keys(photoUpdates).length > 0) {
         const photoUpdatePromises = Object.entries(photoUpdates).map(([photoIdStr, updates]) => {
           const photoId = parseInt(photoIdStr, 10);
           return { photoId, promise: apiService.updatePatientPhoto(photoId, updates) };
         });
-        
+
         const results = await Promise.allSettled(photoUpdatePromises.map(p => p.promise));
-        
+
         results.forEach((result, index) => {
           if (result.status === 'rejected') {
             photoUpdatesFailed = true;
@@ -285,7 +285,7 @@ const MedicalRecordPage: React.FC = () => {
       // Reset states after successful save
       methods.reset(methods.getValues()); // Use raw values for cleaner reset
       setInitialPhotoIds([...selectedPhotoIds]); // Reset photo state
-      
+
       // Only clear successful photo updates, keep failed ones for retry
       if (photoUpdatesFailed) {
         const failedUpdates: Record<number, Partial<PatientPhoto>> = {};
@@ -298,9 +298,9 @@ const MedicalRecordPage: React.FC = () => {
       } else {
         setPhotoUpdates({}); // Clear all if everything succeeded
       }
-      
+
       setIsSelectAppointmentModalOpen(false); // Close modal if open
-      
+
       // Show appropriate success message
       if (photoUpdatesFailed) {
         await alert('病歷記錄已更新，但部分照片說明更新失敗。請再次點擊儲存以重試。', '部分成功');
@@ -365,15 +365,15 @@ const MedicalRecordPage: React.FC = () => {
       // Save photo description updates with better error handling
       let photoUpdatesFailed = false;
       const failedPhotoIds: number[] = [];
-      
+
       if (Object.keys(photoUpdates).length > 0) {
         const photoUpdatePromises = Object.entries(photoUpdates).map(([photoIdStr, updates]) => {
           const photoId = parseInt(photoIdStr, 10);
           return { photoId, promise: apiService.updatePatientPhoto(photoId, updates) };
         });
-        
+
         const results = await Promise.allSettled(photoUpdatePromises.map(p => p.promise));
-        
+
         results.forEach((result, index) => {
           if (result.status === 'rejected') {
             photoUpdatesFailed = true;
@@ -389,7 +389,7 @@ const MedicalRecordPage: React.FC = () => {
       // Show appropriate success message
       if (photoUpdatesFailed) {
         await alert('病歷記錄已強制儲存，但部分照片說明更新失敗。請再次點擊儲存以重試。', '部分成功');
-        
+
         // Only clear successful photo updates, keep failed ones for retry
         const failedUpdates: Record<number, Partial<PatientPhoto>> = {};
         failedPhotoIds.forEach(photoId => {
@@ -402,7 +402,7 @@ const MedicalRecordPage: React.FC = () => {
         await alert('病歷記錄已強制儲存', '儲存成功');
         setPhotoUpdates({}); // Clear all if everything succeeded
       }
-      
+
       setConflictState(null);
       methods.reset(conflictState.userChanges);
     } catch (forceSaveError) {
@@ -471,9 +471,16 @@ const MedicalRecordPage: React.FC = () => {
           {/* Record Title & Metadata Block */}
           <div className="px-5 py-6 md:px-12 md:pt-12 md:pb-10 bg-gray-50/5 border-b border-gray-100">
             <div className="flex justify-between items-start mb-10">
-              <h1 className="text-2xl md:text-3xl lg:text-4xl font-extrabold text-blue-900 tracking-tight">
-                {record.template_snapshot.name}
-              </h1>
+              <div className="flex flex-col gap-2">
+                <h1 className="text-2xl md:text-3xl lg:text-4xl font-extrabold text-blue-900 tracking-tight">
+                  {record.template_snapshot.name}
+                </h1>
+                {record.template_snapshot.description && (
+                  <p className="text-sm md:text-base text-gray-500 max-w-2xl">
+                    {record.template_snapshot.description}
+                  </p>
+                )}
+              </div>
               <div className="text-right no-print">
                 <button
                   onClick={methods.handleSubmit(onSubmit)}
