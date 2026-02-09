@@ -83,7 +83,7 @@ The frontend currently expects some fields at the top level and others in `.sett
    * Switch `liff.py` from the deprecated `PractitionerResponse` to `PractitionerPublicResponse`.
    * Ensure the UI receives the backend-calculated `display_name` to simplify future frontend title logic.
 
-### Phase 4: Frontend Update
+### Phase 4: Frontend Update (Completed ✅)
 
 1. Update `MembersPage.tsx` and `SettingsAppointmentsPage.tsx` to access fields via `.settings` (e.g., `p.settings.patient_booking_allowed` instead of `p.patient_booking_allowed`).
 

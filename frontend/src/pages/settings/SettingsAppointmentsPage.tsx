@@ -54,7 +54,7 @@ const SettingsAppointmentsPage: React.FC = () => {
             const practitioners = practitionersData.map(p => ({
                 id: p.id,
                 full_name: p.full_name,
-                patient_booking_allowed: p.patient_booking_allowed ?? true,
+                patient_booking_allowed: p.settings?.patient_booking_allowed ?? p.patient_booking_allowed ?? true,
             }));
 
             reset({
@@ -121,7 +121,7 @@ const SettingsAppointmentsPage: React.FC = () => {
             // 2. Save practitioner settings if changed
             const changedPractitioners = data.practitioners.filter(current => {
                 const practitioner = practitionersData?.find(p => p.id === current.id);
-                const originalBookingAllowed = practitioner?.patient_booking_allowed ?? true;
+                const originalBookingAllowed = practitioner?.settings?.patient_booking_allowed ?? practitioner?.patient_booking_allowed ?? true;
                 return current.patient_booking_allowed !== originalBookingAllowed;
             });
 

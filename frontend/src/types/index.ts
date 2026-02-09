@@ -85,19 +85,33 @@ export interface User {
   created_at: string;
   updated_at: string;
   last_login_at?: string;
-  patient_booking_allowed?: boolean;  // Only set for practitioners, available to all users for read-only access
-  step_size_minutes?: number | null; // Only set for practitioners if they have an override
+
+  // Unified practitioner data
+  practitioner_data?: Practitioner | null;
+  // DEPRECATED fields - kept for backward compatibility
+  patient_booking_allowed?: boolean;
+  step_size_minutes?: number | null;
 }
 
 // Member type (alias for User in clinic context)
 export type Member = User;
 
 // Practitioner types
+export interface PractitionerSettings {
+  patient_booking_allowed: boolean;
+  step_size_minutes: number | null;
+  compact_schedule_enabled?: boolean;
+}
+
 export interface Practitioner {
   id: number;
   full_name: string;
+  display_name: string;
   picture_url?: string;
   offered_types: number[];
+  roles?: UserRole[];
+  settings: PractitionerSettings;
+  // DEPRECATED - use settings.patient_booking_allowed
   patient_booking_allowed?: boolean;
 }
 

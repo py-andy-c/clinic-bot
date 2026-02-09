@@ -16,6 +16,7 @@ import { SchedulingConflictResponse } from '../../types';
 interface SimplePractitioner {
   id: number;
   full_name: string;
+  display_name?: string;
 }
 import { useTranslation } from 'react-i18next';
 
@@ -106,9 +107,10 @@ export const PractitionerSelectionModal: React.FC<PractitionerSelectionModalProp
     }
 
     const queryLower = debouncedSearchQuery.toLowerCase().trim();
-    return practitioners.filter(practitioner =>
-      practitioner.full_name.toLowerCase().includes(queryLower)
-    );
+    return practitioners.filter(practitioner => {
+      const name = practitioner.display_name || practitioner.full_name;
+      return name.toLowerCase().includes(queryLower);
+    });
   }, [practitioners, debouncedSearchQuery]);
 
   // Handle practitioner selection
@@ -139,7 +141,7 @@ export const PractitionerSelectionModal: React.FC<PractitionerSelectionModalProp
       onClose={onClose}
       fullScreen={isMobile}
       aria-label={title}
-     
+
     >
       <ModalHeader title={title} showClose onClose={onClose} />
       <ModalBody className="py-2">
@@ -163,7 +165,7 @@ export const PractitionerSelectionModal: React.FC<PractitionerSelectionModalProp
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-sm text-gray-900">{practitioner.full_name}</span>
+                    <span className="text-sm text-gray-900">{practitioner.display_name || practitioner.full_name}</span>
                     {isAssigned(practitioner) && (
                       <span className="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-medium">
                         {t('practitioner.assignedPractitioner')}
