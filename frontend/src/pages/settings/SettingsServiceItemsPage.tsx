@@ -183,13 +183,14 @@ const SettingsServiceItemsPage: React.FC = () => {
     e.dataTransfer.setData('application/x-clinic-dnd', itemId.toString());
   }, [activeClinicId, queryClient]);
 
-  const handleMoveServiceItem = useCallback(async (draggedId: number, targetId: number) => {
+  const handleMoveServiceItem = useCallback((draggedId: number, targetId: number) => {
     const queryKey = ['settings', 'clinic', activeClinicId];
 
     // 1. Cancel any outgoing refetches to avoid overwriting our optimistic state
-    await queryClient.cancelQueries({ queryKey });
+    // Fire and forget, don't await
+    queryClient.cancelQueries({ queryKey }).catch(console.error);
 
-    // 2. Optimistically update local cache
+    // 2. Optimistically update local cache synchronously
     queryClient.setQueryData<ClinicSettings | undefined>(queryKey, (old) => {
       if (!old || !old.appointment_types) return old;
 
@@ -295,11 +296,11 @@ const SettingsServiceItemsPage: React.FC = () => {
     groupDragSnapshotRef.current = queryClient.getQueryData<ServiceTypeGroupsData>(queryKey) || null;
   }, [activeClinicId, queryClient]);
 
-  const handleMoveGroup = useCallback(async (draggedId: number, targetId: number) => {
+  const handleMoveGroup = useCallback((draggedId: number, targetId: number) => {
     const queryKey = ['settings', 'service-type-groups', activeClinicId];
 
     // 1. Cancel any outgoing refetches
-    await queryClient.cancelQueries({ queryKey });
+    queryClient.cancelQueries({ queryKey }).catch(console.error);
 
     // 3. Optimistically update local cache
     queryClient.setQueryData<ServiceTypeGroupsData | undefined>(queryKey, (old) => {
