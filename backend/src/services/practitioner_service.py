@@ -115,10 +115,21 @@ class PractitionerService:
                 # Internal display: just name without title
                 display_name = association.full_name if association else practitioner.email
 
+            # Get patient_booking_allowed flag from settings
+            patient_booking_allowed = True
+            if association:
+                try:
+                    settings = association.get_validated_settings()
+                    patient_booking_allowed = settings.patient_booking_allowed
+                except (ValidationError, ValueError):
+                    # Default to True for backward compatibility
+                    pass
+
             result.append({
                 'id': practitioner.id,
                 'full_name': display_name,
-                'offered_types': offered_types
+                'offered_types': offered_types,
+                'patient_booking_allowed': patient_booking_allowed
             })
 
         return result

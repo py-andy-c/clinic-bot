@@ -34,6 +34,7 @@ class PractitionerListItemResponse(BaseModel):
     id: int
     full_name: str
     offered_types: List[int]
+    patient_booking_allowed: bool
 
 
 class PractitionerListResponse(BaseModel):
@@ -102,7 +103,8 @@ async def list_practitioners(
             PractitionerListItemResponse(
                 id=p['id'],
                 full_name=p['full_name'],
-                offered_types=p.get('offered_types', [])
+                offered_types=p.get('offered_types', []),
+                patient_booking_allowed=p.get('patient_booking_allowed', True)
             )
             for p in practitioners_data
         ]
