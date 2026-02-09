@@ -520,18 +520,7 @@ const MedicalRecordPage: React.FC = () => {
                     <span className="font-bold text-gray-900">{patient.phone_number}</span>
                   </div>
                 )}
-                {record.created_at && (
-                  <div className="flex items-center gap-3">
-                    <span className="text-gray-500 font-bold uppercase tracking-wider text-sm">診次日期</span>
-                    <span className="font-bold text-gray-900">
-                      {new Date(record.created_at).toLocaleDateString('zh-TW', {
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric'
-                      })}
-                    </span>
-                  </div>
-                )}
+
               </div>
 
               {/* Appointment Context Row */}
