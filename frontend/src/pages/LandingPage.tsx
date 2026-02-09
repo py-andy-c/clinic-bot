@@ -36,7 +36,8 @@ const FeatureSection: React.FC<{
   mockup: React.ReactNode | ((activeIndex: number, isInView: boolean) => React.ReactNode);
   bgColor?: string;
   autoFlip?: boolean;
-}> = ({ title, valueProp, features, imageSide, mockup, bgColor = 'bg-white', autoFlip = false }) => {
+  id?: string;
+}> = ({ title, valueProp, features, imageSide, mockup, bgColor = 'bg-white', autoFlip = false, id }) => {
   const [activeIndex, setActiveIndex] = React.useState(0);
   const [isPaused, setIsPaused] = React.useState(false);
   const [sectionRef, isInView] = useInView({ threshold: 0.5 });
@@ -48,6 +49,25 @@ const FeatureSection: React.FC<{
     }, 5000);
     return () => clearInterval(interval);
   }, [autoFlip, isInView, isPaused, features.length]);
+
+  // Reset logic for smooth "storytelling" entry
+  React.useEffect(() => {
+    if (isInView && autoFlip) {
+      setActiveIndex(0);
+    }
+  }, [isInView, autoFlip]);
+
+  // Handle explicit jump resets
+  React.useEffect(() => {
+    if (!id || !autoFlip) return;
+    const handleJump = (e: any) => {
+      if (e.detail === id) {
+        setActiveIndex(0);
+      }
+    };
+    window.addEventListener('feature-jump', handleJump);
+    return () => window.removeEventListener('feature-jump', handleJump);
+  }, [id, autoFlip]);
 
   const handleHover = (index: number) => {
     if (window.matchMedia('(hover: hover)').matches) {
@@ -81,7 +101,7 @@ const FeatureSection: React.FC<{
               <div className={`flex-shrink-0 transition-colors duration-500 ${isActive ? 'text-primary-600' : 'text-gray-500'}`}>
                 <div className={`relative flex h-5 w-5 lg:h-8 lg:w-8 items-center justify-center rounded-full transition-all duration-500 ${isActive ? (autoFlip ? 'bg-white' : 'bg-white border-2 border-primary-500 shadow-sm') : 'bg-gray-100 border-2 border-transparent'}`}>
                   {isActive && autoFlip && isInView && !isPaused && (
-                    <svg className="absolute inset-0 w-full h-full -rotate-90 pointer-events-none overflow-visible">
+                    <svg key={activeIndex} className="absolute inset-0 w-full h-full -rotate-90 pointer-events-none overflow-visible">
                       {/* Track (Light Blue) */}
                       <circle
                         cx="50%"
@@ -126,7 +146,7 @@ const FeatureSection: React.FC<{
   );
 
   return (
-    <section ref={sectionRef as React.RefObject<HTMLElement>} className={`${bgColor} py-6 lg:py-32 overflow-hidden`}>
+    <section id={id} ref={sectionRef as React.RefObject<HTMLElement>} className={`${bgColor} py-6 lg:py-32 overflow-hidden`}>
       <div className="max-w-7xl mx-auto px-4 lg:px-8">
         <div className={`flex flex-col ${imageSide === 'left' ? 'lg:flex-row-reverse' : 'lg:flex-row'} lg:items-center gap-4 lg:gap-24`}>
           {textContent}
@@ -1274,13 +1294,91 @@ const HeroVisual = () => {
   );
 };
 
+const VerticalDotNav = () => {
+  const [activeSection, setActiveSection] = React.useState('hero');
+
+  const navItems = [
+    { id: 'hero', label: '首頁' },
+    { id: 'scheduling', label: '智能預約' },
+    { id: 'aichat', label: 'AI 客服' },
+    { id: 'automation', label: '自動關懷' },
+    { id: 'resource', label: '管理排班' },
+    { id: 'emr', label: '雲端病歷' },
+    { id: 'financial', label: '財務分潤' },
+    { id: 'receipt', label: '數位收據' },
+  ];
+
+  React.useEffect(() => {
+    const observers = navItems.map(item => {
+      const el = document.getElementById(item.id);
+      if (!el) return null;
+
+      const observer = new IntersectionObserver(([entry]) => {
+        if (entry && entry.isIntersecting) {
+          setActiveSection(item.id);
+        }
+      }, { threshold: 0.5, rootMargin: '-10% 0px -10% 0px' });
+
+      observer.observe(el);
+      return observer;
+    });
+
+    return () => observers.forEach(o => o?.disconnect());
+  }, []);
+
+  const scrollToSection = (id: string) => {
+    const element = document.getElementById(id);
+    if (element) {
+      window.dispatchEvent(new CustomEvent('feature-jump', { detail: id }));
+      const offset = 80;
+      const elementPosition = element.getBoundingClientRect().top;
+      const offsetPosition = elementPosition + window.pageYOffset - offset;
+
+      window.scrollTo({
+        top: offsetPosition,
+        behavior: 'smooth'
+      });
+    }
+  };
+
+  return (
+    <div className="fixed right-4 lg:right-12 top-1/2 -translate-y-1/2 z-50 flex flex-col gap-3 lg:gap-4">
+      {navItems.map((item) => {
+        const isActive = activeSection === item.id;
+        return (
+          <button
+            key={item.id}
+            onClick={() => scrollToSection(item.id)}
+            className="group relative flex items-center justify-end"
+          >
+            {/* Label */}
+            <span className={`mr-4 px-3 py-1.5 rounded-lg bg-gray-900/80 text-white text-[10px] font-black uppercase tracking-widest backdrop-blur-md transition-all duration-300 pointer-events-none whitespace-nowrap hidden lg:block
+              ${isActive ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-4 group-hover:opacity-100 group-hover:translate-x-0'}`}
+            >
+              {item.label}
+            </span>
+
+            {/* Dot */}
+            <div className={`transition-all duration-500 rounded-full border-2 
+              ${isActive
+                ? 'w-2 h-6 lg:w-3 lg:h-8 bg-primary-600 border-primary-600 shadow-[0_0_15px_rgba(37,99,235,0.4)]'
+                : 'w-2 h-2 lg:w-3 lg:h-3 bg-gray-200 border-transparent hover:border-primary-400 lg:group-hover:scale-110'}`}
+            />
+          </button>
+        );
+      })}
+    </div>
+  );
+};
+
 const LandingPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-white">
       <PublicHeader />
+      <VerticalDotNav />
 
       {/* Hero Section */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-blue-50 to-white pt-20 pb-24 lg:pt-32 lg:pb-32">
+      <section id="hero" className="relative overflow-hidden bg-gradient-to-br from-blue-50 to-white pt-20 pb-24 lg:pt-32 lg:pb-32">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <div className="grid lg:grid-cols-[1.1fr_0.9fr] items-center gap-16 lg:gap-24">
             <div className="text-center lg:text-left">
@@ -1318,6 +1416,7 @@ const LandingPage: React.FC = () => {
       <div id="features" className="divide-y divide-gray-100">
         {/* Section 1: LINE 智能預約 */}
         <FeatureSection
+          id="scheduling"
           title="LINE 智能預約"
           valueProp="24/7 快速預約與自動提醒，最大化診所使用率"
           features={[
@@ -1332,6 +1431,7 @@ const LandingPage: React.FC = () => {
 
         {/* Section 2: AI 智能客服 */}
         <FeatureSection
+          id="aichat"
           title="AI 智能客服"
           valueProp="24／7 全天在線，不再漏接任何訊息，不錯過潛在客源。"
           features={[
@@ -1346,6 +1446,7 @@ const LandingPage: React.FC = () => {
 
         {/* Section 3: 個案關懷與追蹤 */}
         <FeatureSection
+          id="automation"
           title="個案關懷與追蹤"
           valueProp="自動化關懷，提升病患回診率。"
           features={[
@@ -1358,6 +1459,7 @@ const LandingPage: React.FC = () => {
 
         {/* Section 4: 智慧排班與資源管理 */}
         <FeatureSection
+          id="resource"
           title="智慧排班與資源管理"
           valueProp="資源最佳化，杜絕撞單與混亂。"
           features={[
@@ -1373,6 +1475,7 @@ const LandingPage: React.FC = () => {
 
         {/* Section 5: 專業病歷系統 */}
         <FeatureSection
+          id="emr"
           title="專業病歷系統"
           valueProp="安全、便利、客製化的雲端病例系統。"
           features={[
@@ -1387,6 +1490,7 @@ const LandingPage: React.FC = () => {
 
         {/* Section 6: 財務管理與自動分潤 */}
         <FeatureSection
+          id="financial"
           title="財務管理與自動分潤"
           valueProp="數據決策，一鍵搞定繁瑣分潤。"
           features={[
@@ -1400,6 +1504,7 @@ const LandingPage: React.FC = () => {
 
         {/* Section 7: 數位收據與結帳 */}
         <FeatureSection
+          id="receipt"
           title="數位收據與結帳"
           valueProp="數位化結帳，告別繁瑣手寫，提升行政效率。"
           features={[
