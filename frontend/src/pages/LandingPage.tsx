@@ -4,17 +4,62 @@ import PublicHeader from '../components/PublicHeader';
 import { LINE_THEME } from '../constants/lineTheme';
 import { TestimonialSection } from '../components/TestimonialSection';
 
+// --- Hooks ---
+const useInView = (options?: IntersectionObserverInit) => {
+  const ref = React.useRef<HTMLElement>(null);
+  const [isInView, setIsInView] = React.useState(false);
+
+  React.useEffect(() => {
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry) {
+        setIsInView(entry.isIntersecting);
+      }
+    }, options);
+
+    if (ref.current) {
+      observer.observe(ref.current);
+    }
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [options]);
+
+  return [ref, isInView] as const;
+};
+
 const FeatureSection: React.FC<{
   title: string;
   valueProp: string;
   features: string[];
   imageSide: 'left' | 'right';
-  mockup: React.ReactNode;
+  mockup: React.ReactNode | ((activeIndex: number, isInView: boolean) => React.ReactNode);
   bgColor?: string;
-  activeIndex?: number;
-  onHoverFeature?: (index: number) => void;
-  onLeaveFeature?: () => void;
-}> = ({ title, valueProp, features, imageSide, mockup, bgColor = 'bg-white', activeIndex = -1, onHoverFeature, onLeaveFeature }) => {
+  autoFlip?: boolean;
+}> = ({ title, valueProp, features, imageSide, mockup, bgColor = 'bg-white', autoFlip = false }) => {
+  const [activeIndex, setActiveIndex] = React.useState(0);
+  const [isPaused, setIsPaused] = React.useState(false);
+  const [sectionRef, isInView] = useInView({ threshold: 0.1 });
+
+  React.useEffect(() => {
+    if (!autoFlip || !isInView || isPaused) return;
+    const interval = setInterval(() => {
+      setActiveIndex((prev) => (prev + 1) % features.length);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [autoFlip, isInView, isPaused, features.length]);
+
+  const handleHover = (index: number) => {
+    if (window.matchMedia('(hover: hover)').matches) {
+      setActiveIndex(index);
+      setIsPaused(true);
+    }
+  };
+
+  const handleLeave = () => {
+    setIsPaused(false);
+  };
+
   const textContent = (
     <div className="w-full flex-1 lg:py-12">
       <h2 className="text-2xl lg:text-3xl font-bold text-gray-900 mb-1 lg:mb-4 text-left">{title}</h2>
@@ -23,23 +68,23 @@ const FeatureSection: React.FC<{
       {/* Feature List - Static Full Text for Mobile */}
       <ul className="w-full space-y-3 lg:space-y-6 text-left">
         {features.map((feature, index) => {
-          const isActive = index === activeIndex;
+          const isActive = index === activeIndex || !autoFlip;
 
           return (
             <li
               key={index}
               className={`group relative flex items-center transition-all duration-300 lg:-ml-4 lg:p-4 lg:rounded-2xl
-                ${isActive ? 'opacity-100 lg:bg-primary-50 lg:translate-x-3' : 'opacity-100'}`}
-              onMouseEnter={() => onHoverFeature?.(index)}
-              onMouseLeave={() => onLeaveFeature?.()}
+                ${isActive && autoFlip ? 'opacity-100 lg:bg-primary-50 lg:translate-x-3' : 'opacity-100'}`}
+              onMouseEnter={() => handleHover(index)}
+              onMouseLeave={handleLeave}
             >
-              <div className={`flex-shrink-0 transition-colors duration-500 ${isActive || activeIndex === -1 ? 'text-primary-600' : 'text-gray-500'}`}>
-                <div className={`flex h-5 w-5 lg:h-8 lg:w-8 items-center justify-center rounded-full transition-all duration-500 border-2 ${isActive || activeIndex === -1 ? 'bg-white border-primary-500 shadow-sm' : 'bg-gray-100 border-transparent'}`}>
+              <div className={`flex-shrink-0 transition-colors duration-500 ${isActive ? 'text-primary-600' : 'text-gray-500'}`}>
+                <div className={`flex h-5 w-5 lg:h-8 lg:w-8 items-center justify-center rounded-full transition-all duration-500 border-2 ${isActive ? 'bg-white border-primary-500 shadow-sm' : 'bg-gray-100 border-transparent'}`}>
                   <span className="text-[9px] lg:text-sm font-bold">{index + 1}</span>
                 </div>
               </div>
               <div className="ml-3 lg:ml-4 flex-1">
-                <p className={`text-[14px] lg:text-base leading-snug lg:leading-7 transition-colors duration-500 ${isActive || activeIndex === -1 ? 'text-gray-900 font-bold' : 'text-gray-700 font-semibold'}`}>
+                <p className={`text-[14px] lg:text-base leading-snug lg:leading-7 transition-colors duration-500 ${isActive ? 'text-gray-900 font-bold' : 'text-gray-700 font-semibold'}`}>
                   {feature}
                 </p>
               </div>
@@ -51,7 +96,7 @@ const FeatureSection: React.FC<{
   );
 
   return (
-    <section className={`${bgColor} py-6 lg:py-32 overflow-hidden`}>
+    <section ref={sectionRef as React.RefObject<HTMLElement>} className={`${bgColor} py-6 lg:py-32 overflow-hidden`}>
       <div className="max-w-7xl mx-auto px-4 lg:px-8">
         <div className={`flex flex-col ${imageSide === 'left' ? 'lg:flex-row-reverse' : 'lg:flex-row'} lg:items-center gap-4 lg:gap-24`}>
           {textContent}
@@ -62,7 +107,7 @@ const FeatureSection: React.FC<{
               {/* Decorative background glow - Hidden on mobile to avoid overlapping with text */}
               <div className="hidden lg:block absolute lg:-inset-8 bg-gradient-to-r from-primary-200 to-blue-200 rounded-[3rem] blur-2xl opacity-10 group-hover:opacity-40 transition-opacity duration-700"></div>
               <div key={activeIndex} className="relative transition-all duration-700 animate-in fade-in zoom-in-95 transform lg:scale-100 origin-top">
-                {mockup}
+                {typeof mockup === 'function' ? mockup(activeIndex, isInView) : mockup}
               </div>
             </div>
           </div>
@@ -71,6 +116,7 @@ const FeatureSection: React.FC<{
     </section>
   );
 };
+
 
 // --- Mockup Components ---
 
@@ -200,13 +246,14 @@ const LineBookingMock = ({ scenario }: { scenario: number }) => {
   );
 };
 
-const SchedulingMock = ({ scenario }: { scenario: number }) => {
+const SchedulingMock = ({ scenario, isVisible }: { scenario: number; isVisible?: boolean }) => {
   const [dragProgress, setDragProgress] = React.useState(0);
   const [showConflict, setShowConflict] = React.useState(false);
   const [autoState, setAutoState] = React.useState<'idle' | 'clicking' | 'created'>('idle');
 
   // Animation controller
   React.useEffect(() => {
+    if (!isVisible) return;
     let interval: ReturnType<typeof setInterval> | undefined;
     if (scenario === 0) { // Scenario 0: Auto Allocation with Click
       setAutoState('idle');
@@ -236,7 +283,7 @@ const SchedulingMock = ({ scenario }: { scenario: number }) => {
       setAutoState('idle');
     }
     return () => clearInterval(interval);
-  }, [scenario]);
+  }, [scenario, isVisible]);
 
   const timeSlots = ['09:00', '10:00', '11:00', '12:00'];
   const resources = [
@@ -425,17 +472,17 @@ const SchedulingMock = ({ scenario }: { scenario: number }) => {
   );
 };
 
-const MedicalRecordMock = ({ scenario }: { scenario: number }) => {
+const MedicalRecordMock = ({ scenario, isVisible }: { scenario: number; isVisible?: boolean }) => {
   const [templateIndex, setTemplateIndex] = React.useState(0);
 
   // Internal auto-switch for templates in scenario 0
   React.useEffect(() => {
-    if (scenario !== 0) return;
+    if (scenario !== 0 || !isVisible) return;
     const interval = setInterval(() => {
       setTemplateIndex(prev => (prev + 1) % 2);
     }, 2500);
     return () => clearInterval(interval);
-  }, [scenario]);
+  }, [scenario, isVisible]);
 
   const templates = [
     {
@@ -840,7 +887,8 @@ const FinancialDashboardMock = () => (
 
 
 
-const AIChatMock = () => {
+const AIChatMock = ({ isVisible }: { isVisible?: boolean }) => {
+  const [hasBeenVisible, setHasBeenVisible] = React.useState(false);
   const [isScrolledToBottom, setIsScrolledToBottom] = React.useState(true);
   const chatContainerRef = React.useRef<HTMLDivElement>(null);
 
@@ -858,6 +906,10 @@ const AIChatMock = () => {
       setIsScrolledToBottom(isAtBottom);
     }
   };
+
+  React.useEffect(() => {
+    if (isVisible) setHasBeenVisible(true);
+  }, [isVisible]);
 
   React.useEffect(() => {
     const container = chatContainerRef.current;
@@ -904,7 +956,7 @@ const AIChatMock = () => {
           ref={chatContainerRef}
           className="p-4 space-y-4 overflow-y-auto h-full scroll-smooth"
         >
-          {messages.map((message, index) => (
+          {hasBeenVisible && messages.map((message, index) => (
             <div
               key={index}
               className={`flex items-end ${message.sender === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2 duration-500`}
@@ -1189,28 +1241,6 @@ const HeroVisual = () => {
 };
 
 const LandingPage: React.FC = () => {
-  const [activeLineFeature, setActiveLineFeature] = React.useState(0);
-  const [activeSchedulingFeature, setActiveSchedulingFeature] = React.useState(0);
-  const [activeMedicalFeature, setActiveMedicalFeature] = React.useState(0);
-  const [isPaused, setIsPaused] = React.useState(false);
-
-  React.useEffect(() => {
-    if (isPaused) return;
-    const interval = setInterval(() => {
-      setActiveLineFeature((prev) => (prev + 1) % 3);
-      setActiveSchedulingFeature((prev) => (prev + 1) % 3);
-      setActiveMedicalFeature((prev) => (prev + 1) % 3);
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [isPaused]);
-
-  const handleHover = (index: number, setter: (i: number) => void) => {
-    if (window.matchMedia('(hover: hover)').matches) {
-      setter(index);
-      setIsPaused(true);
-    }
-  };
-
   return (
     <div className="min-h-screen bg-white">
       <PublicHeader />
@@ -1262,10 +1292,8 @@ const LandingPage: React.FC = () => {
             "空檔自動通知，填補閒置人力。"
           ]}
           imageSide="right"
-          activeIndex={activeLineFeature}
-          onHoverFeature={(index) => handleHover(index, setActiveLineFeature)}
-          onLeaveFeature={() => setIsPaused(false)}
-          mockup={<LineBookingMock scenario={activeLineFeature} />}
+          autoFlip={true}
+          mockup={(activeIndex) => <LineBookingMock scenario={activeIndex} />}
         />
 
         {/* Section 2: AI 智能客服 */}
@@ -1279,7 +1307,7 @@ const LandingPage: React.FC = () => {
           ]}
           imageSide="left"
           bgColor="bg-gray-50"
-          mockup={<AIChatMock />}
+          mockup={(_, isInView) => <AIChatMock isVisible={isInView} />}
         />
 
         {/* Section 3: 個案關懷與追蹤 */}
@@ -1305,10 +1333,8 @@ const LandingPage: React.FC = () => {
           ]}
           imageSide="left"
           bgColor="bg-gray-50"
-          activeIndex={activeSchedulingFeature}
-          onHoverFeature={(index) => handleHover(index, setActiveSchedulingFeature)}
-          onLeaveFeature={() => setIsPaused(false)}
-          mockup={<SchedulingMock scenario={activeSchedulingFeature} />}
+          autoFlip={true}
+          mockup={(activeIndex, isInView) => <SchedulingMock scenario={activeIndex} isVisible={isInView} />}
         />
 
         {/* Section 5: 專業病歷系統 */}
@@ -1321,10 +1347,8 @@ const LandingPage: React.FC = () => {
             "秒速調閱紀錄，確保治療連續性。"
           ]}
           imageSide="right"
-          activeIndex={activeMedicalFeature}
-          onHoverFeature={(index) => handleHover(index, setActiveMedicalFeature)}
-          onLeaveFeature={() => setIsPaused(false)}
-          mockup={<MedicalRecordMock scenario={activeMedicalFeature} />}
+          autoFlip={true}
+          mockup={(activeIndex, isInView) => <MedicalRecordMock scenario={activeIndex} isVisible={isInView} />}
         />
 
         {/* Section 6: 財務管理與自動分潤 */}
@@ -1351,6 +1375,7 @@ const LandingPage: React.FC = () => {
           imageSide="right"
           mockup={<DigitalReceiptMock />}
         />
+
       </div>
 
       {/* Testimonials */}
