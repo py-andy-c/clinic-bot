@@ -968,135 +968,144 @@ const AIChatMock = () => {
 
 const HeroVisual = () => {
   return (
-    <div className="relative w-full h-[500px] flex items-center justify-center perspective-1000">
+    <div className="relative w-full h-[500px] lg:h-[600px] flex items-center justify-center perspective-1000 scale-75 lg:scale-90 xl:scale-100 lg:-translate-x-12">
       <style>{`
-        @keyframes float {
-          0%, 100% { transform: translateY(0) rotate(-12deg); }
-          50% { transform: translateY(-20px) rotate(-10deg); }
+        @keyframes float-v8 {
+          0%, 100% { transform: translateY(0) rotate(-10deg); }
+          50% { transform: translateY(-20px) rotate(-8deg); }
         }
-        @keyframes float-delayed {
-          0%, 100% { transform: translateY(0) rotate(12deg); }
-          50% { transform: translateY(-15px) rotate(14deg); }
+        @keyframes float-delayed-v8 {
+          0%, 100% { transform: translateY(0) rotate(10deg); }
+          50% { transform: translateY(-15px) rotate(12deg); }
         }
-        @keyframes float-extreme {
+        @keyframes float-extreme-v8 {
           0%, 100% { transform: translateY(0) rotate(-5deg); }
           50% { transform: translateY(-25px) rotate(-8deg); }
         }
-        @keyframes slow-spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
+        @keyframes float-subtle-v8 {
+          0%, 100% { transform: translateY(0) rotate(5deg); }
+          50% { transform: translateY(-12px) rotate(3deg); }
         }
-        @keyframes glow-pulse {
+        @keyframes glow-pulse-v8 {
           0%, 100% { opacity: 0.3; transform: scale(1); }
           50% { opacity: 0.6; transform: scale(1.1); }
         }
         .perspective-1000 { perspective: 1000px; }
+        .preserve-3d { transform-style: preserve-3d; }
       `}</style>
 
       {/* Background Glows */}
-      <div className="absolute w-[400px] h-[400px] bg-primary-200/20 rounded-full blur-[100px] animate-[glow-pulse_8s_infinite]"></div>
-      <div className="absolute w-[300px] h-[300px] bg-blue-200/20 rounded-full blur-[80px] -bottom-20 -right-20 animate-[glow-pulse_10s_infinite_1s]"></div>
+      <div className="absolute w-[400px] lg:w-[500px] h-[400px] lg:h-[500px] bg-primary-200/20 rounded-full blur-[100px] animate-[glow-pulse-v8_8s_infinite]"></div>
+      <div className="absolute w-[300px] lg:w-[400px] h-[300px] lg:h-[400px] bg-blue-200/20 rounded-full blur-[80px] -bottom-20 -right-20 animate-[glow-pulse-v8_10s_infinite_1s]"></div>
 
       {/* Main Isometric Container */}
-      <div className="relative w-full max-w-lg transform-gpu preserve-3d">
+      <div className="relative w-full max-w-[280px] lg:max-w-md preserve-3d">
 
-        {/* Decorative Rings */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] border border-primary-100/50 rounded-full animate-[slow-spin_20s_linear_infinite]"></div>
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[320px] h-[320px] border border-blue-100/30 rounded-full animate-[slow-spin_15s_linear_infinite_reverse]"></div>
-
-        {/* Card 1: Scheduling (Glassmorphism) */}
+        {/* Card 1: Scheduling */}
         <div
-          className="absolute -top-32 -left-12 w-64 bg-white/40 backdrop-blur-xl border border-white/40 rounded-3xl shadow-2xl p-5 z-20"
-          style={{ animation: 'float 6s ease-in-out infinite' }}
+          className="absolute -top-32 lg:-top-48 -left-12 lg:-left-24 w-48 lg:w-64 bg-white/50 backdrop-blur-xl border border-white/40 rounded-[2rem] lg:rounded-[2.5rem] shadow-2xl p-6 lg:p-8 z-20"
+          style={{ animation: 'float-v8 6s ease-in-out infinite' }}
         >
-          <div className="flex items-center gap-1.5 mb-4">
-            <div className="w-2.5 h-2.5 rounded-full bg-red-400/60"></div>
-            <div className="w-2.5 h-2.5 rounded-full bg-amber-400/60"></div>
-            <div className="w-2.5 h-2.5 rounded-full bg-emerald-400/60"></div>
+          <div className="flex items-center gap-2 mb-4 lg:mb-6">
+            <div className="w-1.5 lg:w-2 h-1.5 lg:h-2 rounded-full bg-primary-500 animate-pulse"></div>
+            <span className="text-xs lg:text-sm font-black text-primary-600 uppercase tracking-[0.2em] leading-none">今日排程</span>
           </div>
-          <div className="space-y-3">
-            <div className="h-3 w-2/3 bg-primary-600/20 rounded-full"></div>
-            <div className="grid grid-cols-4 gap-2">
-              {[...Array(12)].map((_, i) => (
-                <div key={i} className={`h-6 rounded-lg ${i === 2 || i === 9 ? 'bg-primary-500/30 border border-primary-500/50 shadow-[0_0_10px_rgba(37,99,235,0.2)]' : 'bg-white/20'}`}></div>
-              ))}
+          <div className="space-y-4 lg:space-y-6">
+            <div className="flex gap-2 h-1 lg:h-1.5 opacity-40">
+              <div className="flex-[2] bg-primary-200 rounded-full"></div>
+              <div className="flex-[3] bg-gray-200 rounded-full"></div>
+              <div className="flex-[1] bg-primary-300 rounded-full"></div>
             </div>
-          </div>
-          <div className="mt-4 flex justify-between items-center">
-            <div className="h-2 w-12 bg-gray-200 rounded-full"></div>
-            <div className="w-6 h-6 rounded-full bg-primary-50 flex items-center justify-center">
-              <div className="w-3 h-3 text-primary-600">
-                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
-              </div>
+            <div className="bg-primary-600 rounded-xl lg:rounded-2xl p-3 lg:p-4 shadow-xl shadow-primary-200/50 flex items-center justify-between">
+              <span className="text-[10px] lg:text-sm text-white font-black whitespace-nowrap">預約已確認</span>
+              <svg className="w-3 lg:w-4 h-3 lg:h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
+              </svg>
             </div>
           </div>
         </div>
 
-        {/* Card 2: AI Interaction bubble */}
+        {/* Card 2: AI Agent */}
         <div
-          className="absolute top-0 -right-16 w-56 bg-white/70 backdrop-blur-md border border-white/60 rounded-3xl shadow-xl p-4 z-30"
-          style={{ animation: 'float-delayed 7s ease-in-out infinite' }}
+          className="absolute top-4 lg:top-8 -right-20 lg:-right-32 w-48 lg:w-64 bg-white/80 backdrop-blur-md border border-white/60 rounded-[2rem] lg:rounded-[2.5rem] shadow-xl p-5 lg:p-6 z-30"
+          style={{ animation: 'float-delayed-v8 7s ease-in-out infinite' }}
         >
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-8 h-8 rounded-2xl bg-gradient-to-tr from-[#06C755] to-emerald-400 flex items-center justify-center shadow-lg shadow-emerald-200/50">
-              <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12c0 1.54.36 2.98.97 4.29L1 23l6.71-1.97C9.02 21.64 10.46 22 12 22c5.52 0 10-4.48 10-10S17.52 2 12 2z" /></svg>
+          <div className="flex items-center gap-2 lg:gap-3 mb-3 lg:mb-4">
+            <div className="w-7 lg:w-9 h-7 lg:h-9 rounded-xl lg:rounded-2xl bg-[#06C755] flex items-center justify-center text-white shadow-lg">
+              <svg className="w-4 lg:w-5 h-4 lg:h-5" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 2C6.48 2 2 6.48 2 12c0 1.54.36 2.98.97 4.29L1 23l6.71-1.97C9.02 21.64 10.46 22 12 22c5.52 0 10-4.48 10-10S17.52 2 12 2z" />
+              </svg>
+            </div>
+            <span className="text-[10px] lg:text-xs font-black text-gray-400 uppercase tracking-widest leading-none">AI 客服助理</span>
+          </div>
+          <div className="space-y-1.5 lg:space-y-2">
+            <div className="h-1 lg:h-1.5 w-full bg-gray-100 rounded-full"></div>
+            <div className="h-1 lg:h-1.5 w-2/3 bg-gray-100 rounded-full opacity-60"></div>
+          </div>
+        </div>
+
+        {/* Card 3: EMR */}
+        <div
+          className="absolute top-4 lg:top-8 -left-28 lg:-left-44 w-48 lg:w-64 bg-white/90 backdrop-blur-xl border border-white/50 rounded-[2rem] lg:rounded-[2.5rem] shadow-2xl p-5 lg:p-6 z-20"
+          style={{ animation: 'float-subtle-v8 9s ease-in-out infinite' }}
+        >
+          <div className="flex items-center gap-3 lg:gap-4 mb-3 lg:mb-4">
+            <div className="w-8 lg:w-10 h-8 lg:h-10 bg-primary-100 rounded-lg lg:rounded-xl flex items-center justify-center text-primary-600 shadow-inner">
+              <svg className="w-5 lg:w-6 h-5 lg:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
             </div>
             <div>
-              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">AI Agent</p>
-              <div className="flex gap-0.5 mt-0.5">
-                {[...Array(3)].map((_, i) => <div key={i} className="w-1 h-1 bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: `${i * 0.2}s` }}></div>)}
-              </div>
+              <p className="text-[11px] lg:text-sm font-black text-gray-900 leading-none">雲端病歷</p>
+              <p className="text-[9px] lg:text-xs font-bold text-gray-400 mt-1 uppercase tracking-widest leading-none">王小明 #2402</p>
             </div>
           </div>
-          <div className="space-y-2">
-            <div className="h-2 w-full bg-gray-100 rounded-full"></div>
-            <div className="h-2 w-3/4 bg-gray-100 rounded-full"></div>
+          <div className="h-1 lg:h-1.5 w-full bg-gray-100 rounded-full opacity-30"></div>
+        </div>
+
+        {/* Card 4: Dashboard/Stats */}
+        <div
+          className="absolute -bottom-28 lg:-bottom-40 -left-12 lg:-left-20 w-48 lg:w-64 bg-white/90 backdrop-blur-xl border border-white/20 rounded-[2rem] lg:rounded-[2.5rem] shadow-2xl p-6 lg:p-8 z-20"
+          style={{ animation: 'float-extreme-v8 8s ease-in-out infinite' }}
+        >
+          <div className="flex items-center justify-between mb-4 lg:mb-6 text-emerald-600">
+            <span className="text-[10px] lg:text-xs font-black uppercase tracking-widest">營收成長</span>
+            <span className="text-sm lg:text-lg font-black">+18%</span>
+          </div>
+          <div className="flex items-end gap-2 lg:gap-3 h-12 lg:h-16">
+            <div className="flex-1 bg-emerald-500/10 rounded-t-lg h-[40%]"></div>
+            <div className="flex-1 bg-emerald-500/20 rounded-t-lg h-[60%]"></div>
+            <div className="flex-1 bg-emerald-500/40 rounded-t-lg h-[45%]"></div>
+            <div className="flex-1 bg-emerald-500 rounded-t-lg h-[100%]"></div>
           </div>
         </div>
 
-        {/* Card 3: Dashboard/Stats */}
+        {/* Card 5: Auto-care */}
         <div
-          className="absolute -bottom-20 -left-4 w-60 bg-white/80 backdrop-blur-xl border border-white/20 rounded-[2.5rem] shadow-2xl p-6 z-20"
-          style={{ animation: 'float-extreme 8s ease-in-out infinite' }}
+          className="absolute -bottom-20 lg:-bottom-32 -right-12 lg:-right-24 w-48 lg:w-64 bg-white/90 backdrop-blur-xl border border-white/40 rounded-[2rem] lg:rounded-[2.5rem] shadow-2xl p-5 lg:p-7 z-30"
+          style={{ animation: 'float-v8 7s ease-in-out infinite' }}
         >
-          <div className="flex items-center justify-between mb-6">
-            <span className="text-[11px] font-black text-primary-600 uppercase tracking-widest">診所成長</span>
-            <div className="px-2 py-1 bg-emerald-50 rounded-lg">
-              <span className="text-[10px] font-bold text-emerald-600">+12.4%</span>
+          <div className="flex items-center gap-2 lg:gap-3 mb-3 lg:mb-4">
+            <div className="w-7 lg:w-9 h-7 lg:h-9 bg-rose-500 rounded-xl lg:rounded-2xl flex items-center justify-center shadow-lg shadow-rose-100">
+              <svg className="w-4 lg:w-5 h-4 lg:h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+              </svg>
             </div>
+            <span className="text-[10px] lg:text-xs font-black text-rose-500/60 uppercase tracking-widest leading-none">自動關懷</span>
           </div>
-          <div className="flex items-end gap-2 h-20 mb-4">
-            {[40, 70, 45, 90, 60, 100].map((h, i) => (
-              <div
-                key={i}
-                className="flex-1 bg-gradient-to-t from-primary-600/80 to-primary-400/40 rounded-t-lg transition-all hover:opacity-80"
-                style={{ height: `${h}%` }}
-              ></div>
-            ))}
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <p className="text-[9px] text-gray-400 font-bold uppercase">預約數</p>
-              <p className="text-sm font-black text-gray-900">1,280</p>
-            </div>
-            <div className="space-y-1">
-              <p className="text-[9px] text-gray-400 font-bold uppercase">回診率</p>
-              <p className="text-sm font-black text-gray-900">84%</p>
-            </div>
+          <div className="flex gap-1 lg:gap-2">
+            <div className="w-2 lg:w-3 h-2 lg:h-3 rounded-full bg-rose-500 animate-pulse"></div>
+            <div className="w-2 lg:w-3 h-2 lg:h-3 rounded-full bg-rose-200"></div>
+            <div className="w-2 lg:w-3 h-2 lg:h-3 rounded-full bg-rose-100"></div>
           </div>
         </div>
 
         {/* Central Hub Icon */}
-        <div className="relative z-10 mx-auto w-40 h-40 bg-white rounded-[3rem] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.1)] flex items-center justify-center overflow-hidden border border-gray-100">
-          <div className="absolute inset-0 bg-gradient-to-br from-primary-50 via-white to-blue-50"></div>
-          <div className="relative w-20 h-20 bg-primary-600 rounded-[1.5rem] shadow-2xl shadow-primary-200 flex items-center justify-center transform hover:scale-110 transition-transform duration-500">
-            <svg className="w-10 h-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-            </svg>
+        <div className="relative z-10 mx-auto w-24 lg:w-32 h-24 lg:h-32 bg-white rounded-[2.5rem] lg:rounded-[3rem] shadow-[0_30px_70px_-15px_rgba(0,0,0,0.1)] flex items-center justify-center border-2 lg:border-4 border-white overflow-hidden transform hover:scale-105 transition-transform duration-700">
+          <img src="/assets/images/practitioner.png" alt="Practitioner" className="w-full h-full object-cover" />
+          <div className="absolute bottom-1.5 lg:bottom-2 right-1.5 lg:right-2 w-5 lg:w-6 h-5 lg:h-6 bg-emerald-500 rounded-full border-2 lg:border-2 border-white flex items-center justify-center shadow-lg">
+            <div className="w-1.5 lg:w-2 h-1.5 lg:h-2 bg-white rounded-full animate-pulse"></div>
           </div>
-          {/* Decorative small orbs */}
-          <div className="absolute top-4 left-4 w-2 h-2 rounded-full bg-primary-200"></div>
-          <div className="absolute bottom-8 right-6 w-3 h-3 rounded-full bg-blue-100"></div>
         </div>
 
       </div>
@@ -1132,10 +1141,10 @@ const LandingPage: React.FC = () => {
       <PublicHeader />
 
       {/* Hero Section */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-blue-50 to-white pt-20 pb-32 lg:pt-32 lg:pb-48">
+      <section className="relative overflow-hidden bg-gradient-to-br from-blue-50 to-white pt-20 pb-32 lg:pt-32 lg:pb-32">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-          <div className="grid lg:grid-cols-2 items-center gap-16 lg:gap-24">
-            <div className="text-center lg:text-left order-2 lg:order-1">
+          <div className="grid lg:grid-cols-[1.1fr_0.9fr] items-center gap-16 lg:gap-24">
+            <div className="text-center lg:text-left">
               <h1 className="text-5xl sm:text-6xl lg:text-8xl font-black text-gray-900 tracking-tighter leading-[0.9] mb-8">
                 全方位<br />
                 <span className="text-primary-600">數位診所</span><br />
@@ -1155,7 +1164,7 @@ const LandingPage: React.FC = () => {
               </div>
             </div>
 
-            <div className="order-1 lg:order-2 relative lg:h-[600px] flex items-center justify-center">
+            <div className="relative">
               <HeroVisual />
             </div>
           </div>
