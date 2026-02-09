@@ -4,7 +4,7 @@
 
 **Implementation Date**: February 3, 2026
 
----
+***
 
 ## 1. Goal
 
@@ -37,6 +37,7 @@ The primary objective is to professionalize medical documentation within the sys
 * **Removal Confirmation**: Clicking the X button shows a custom modal confirmation before removing the photo. ✅
 * **Staged Synchronization**: Photos uploaded to a medical record are initially marked as `is_pending = true`. They are only fully committed/linked when the user clicks the main **"Save"** button for the medical record. This ensures the Appendix remains perfectly in sync with the record's text content. ✅
 * **Unsaved Changes Detection**: Photo selection changes AND description edits trigger the unsaved changes warning system, preventing accidental data loss. ✅
+* **Post-Save Integrity Check**: After saving, the system performs a final validation of all required fields (including non-photo fields) and displays a "Success with Warning" modal if items are missing. ✅
 
 ### 2.2 Patient Detail Page (Overview) ✅ **IMPLEMENTED**
 
@@ -59,9 +60,9 @@ The primary objective is to professionalize medical documentation within the sys
 * **All Photos Displayed**: Shows both linked and unlinked photos (complete photo history). ✅
 * **Thumbnail Display**: Shows thumbnails only (no progressive loading to full images for performance with large photo collections). ✅
 * **Action Buttons**: Each photo has three action buttons on hover:
-  - **View** (eye icon): Opens full-screen lightbox viewer. ✅
-  - **Edit** (pencil icon): Opens PhotoEditModal to edit photo description with metadata display. ✅
-  - **Delete** (trash icon): Shows custom modal confirmation. If photo is linked to medical record, warns user it will be removed from the record. ✅
+  * **View** (eye icon): Opens full-screen lightbox viewer. ✅
+  * **Edit** (pencil icon): Opens PhotoEditModal to edit photo description with metadata display. ✅
+  * **Delete** (trash icon): Shows custom modal confirmation. If photo is linked to medical record, warns user it will be removed from the record. ✅
 * **Full-Screen Viewer**: Clicking view button or photo opens the lightbox with keyboard navigation. ✅
 * **Status Badges**: Photos linked to medical records show a "已連結" badge in top-right corner. ✅
 * **Responsive Grid**: 2-5 columns depending on screen size. ✅
@@ -85,10 +86,10 @@ The primary objective is to professionalize medical documentation within the sys
 ### 3.3 Backend Metadata ✅ **IMPLEMENTED**
 
 * The `list_photos` API returns an object structure: `{ items: List[Photo], total: int }`.
-* **Implementation**: 
-  - Service layer returns `Tuple[List[PatientPhoto], int]`
-  - API layer returns `PatientPhotosListResponse` model with `items` and `total` fields
-  - Frontend hooks handle paginated response structure
+* **Implementation**:
+  * Service layer returns `Tuple[List[PatientPhoto], int]`
+  * API layer returns `PatientPhotosListResponse` model with `items` and `total` fields
+  * Frontend hooks handle paginated response structure
 
 ## 4. Implementation Plan
 
@@ -119,17 +120,17 @@ The primary objective is to professionalize medical documentation within the sys
   * Added `useCountRecordPhotos` hook for auto-suggestion
 * **Components**: ✅
   * **`MedicalRecordPhotoSelector.tsx`**: Complete refactor
-    - Removed "unlinked photos" collection logic
-    - Enforced single-file upload (removed `multiple` attribute)
-    - Added photo annotation modal with preview
-    - Auto-suggests description as "附圖 X" using `visiblePhotos.length`
-    - Changed label from "附加照片" to "附錄"
-    - Simplified state management (single file instead of batch)
-    - **Vertical list layout** with full-width images
-    - **Progressive loading**: Thumbnails first, then full images
-    - **Professional document style**: Descriptions above, buttons below, no overlays
-    - **Original aspect ratio**: Images maintain natural proportions (max-width: 800px)
-    - Enter key handling for quick upload confirmation
+    * Removed "unlinked photos" collection logic
+    * Enforced single-file upload (removed `multiple` attribute)
+    * Added photo annotation modal with preview
+    * Auto-suggests description as "附圖 X" using `visiblePhotos.length`
+    * Changed label from "附加照片" to "附錄"
+    * Simplified state management (single file instead of batch)
+    * **Vertical list layout** with full-width images
+    * **Progressive loading**: Thumbnails first, then full images
+    * **Professional document style**: Descriptions above, buttons below, no overlays
+    * **Original aspect ratio**: Images maintain natural proportions (max-width: 800px)
+    * Enter key handling for quick upload confirmation
   * **`PatientPhotoGallery.tsx`**: Updated to handle paginated response
 * **Routing**: ⏳ Gallery page routing deferred to future phase
 * **Tests**: ✅ All frontend tests passing
@@ -137,34 +138,34 @@ The primary objective is to professionalize medical documentation within the sys
 ### 4.3 Phase 2: Patient Gallery (February 3, 2026) ✅ **COMPLETED**
 
 * **Recent Photos Ribbon**: ✅
-  - Created `RecentPhotosRibbon.tsx` component
-  - Shows last 6 photos with responsive grid (2-6 columns)
-  - Section title: "照片" (Photos)
-  - "查看全部" (View All) link with total photo count
-  - Auto-hides if no photos exist
-  - Integrated into `PatientDetailPage.tsx` after Medical Records section
-  - Matches section styling with edge-to-edge design on mobile
+  * Created `RecentPhotosRibbon.tsx` component
+  * Shows last 6 photos with responsive grid (2-6 columns)
+  * Section title: "照片" (Photos)
+  * "查看全部" (View All) link with total photo count
+  * Auto-hides if no photos exist
+  * Integrated into `PatientDetailPage.tsx` after Medical Records section
+  * Matches section styling with edge-to-edge design on mobile
 
 * **Dedicated Gallery Page**: ✅
-  - Created `PatientGalleryPage.tsx` at `/admin/clinic/patients/:id/gallery`
-  - Timeline view with date grouping (newest first)
-  - Each date section shows photo count
-  - Shows all photos (both linked and unlinked to medical records)
-  - Three action buttons per photo: View, Edit, Delete
-  - Hover overlay with circular white buttons
-  - Responsive grid layout (2-5 columns)
-  - Full-screen lightbox integration
-  - Photo edit modal for description updates
-  - Status badges for linked photos ("已連結")
-  - Back navigation to patient detail
+  * Created `PatientGalleryPage.tsx` at `/admin/clinic/patients/:id/gallery`
+  * Timeline view with date grouping (newest first)
+  * Each date section shows photo count
+  * Shows all photos (both linked and unlinked to medical records)
+  * Three action buttons per photo: View, Edit, Delete
+  * Hover overlay with circular white buttons
+  * Responsive grid layout (2-5 columns)
+  * Full-screen lightbox integration
+  * Photo edit modal for description updates
+  * Status badges for linked photos ("已連結")
+  * Back navigation to patient detail
 
 * **Routing**: ✅
-  - Added route in `App.tsx`
-  - Lazy loading for performance
+  * Added route in `App.tsx`
+  * Lazy loading for performance
 
 * **Tests**: ✅
-  - All frontend tests passing
-  - TypeScript compilation successful
+  * All frontend tests passing
+  * TypeScript compilation successful
 
 ## 5. Success Metrics
 
@@ -173,11 +174,12 @@ The primary objective is to professionalize medical documentation within the sys
 * **Performance**: The Patient Detail page load time is optimized via the `limit=6` ribbon and paginated full gallery. ✅ **ACHIEVED**
 * **User Experience**: Centralized photo management with timeline view for complete clinical history. ✅ **ACHIEVED**
 
----
+***
 
 ## 6. Implementation Summary
 
 ### Files Modified (13)
+
 1. `backend/src/services/patient_photo_service.py` - Pagination and counting logic
 2. `backend/src/api/clinic/patient_photos.py` - API response structure and count endpoint
 3. `backend/tests/integration/test_medical_record_features.py` - Updated for paginated response
@@ -196,25 +198,29 @@ The primary objective is to professionalize medical documentation within the sys
 16. `docs/design_doc/medical_record_photo_appendix.md` - Updated documentation
 
 ### Files Created (4)
+
 1. `backend/tests/unit/test_patient_photo_service.py` - Comprehensive unit tests
 2. `backend/tests/integration/test_patient_photos_api.py` - Comprehensive API integration tests
 3. `frontend/src/components/RecentPhotosRibbon.tsx` - Recent photos component for patient detail page
 4. `frontend/src/pages/PatientGalleryPage.tsx` - Dedicated gallery page with timeline view
 
 ### Files Deleted (1)
+
 1. `frontend/src/components/PatientPhotoGallery.tsx` - Deprecated component (replaced by RecentPhotosRibbon and PatientGalleryPage)
 
 ### Test Coverage
-- ✅ All backend tests passing (unit + integration)
-- ✅ All frontend tests passing
-- ✅ Comprehensive test coverage for new functionality:
-  - Pagination logic
-  - Stable ordering
-  - Photo counting
-  - API endpoints
-  - Filtering behavior
+
+* ✅ All backend tests passing (unit + integration)
+* ✅ All frontend tests passing
+* ✅ Comprehensive test coverage for new functionality:
+  * Pagination logic
+  * Stable ordering
+  * Photo counting
+  * API endpoints
+  * Filtering behavior
 
 ### Key Changes
+
 1. **Backend**: Changed from `List[PatientPhoto]` to `Tuple[List[PatientPhoto], int]` for pagination support
 2. **Frontend**: Transformed from grid layout with overlays to vertical list with professional document styling
 3. **UX**: Changed from "附加照片" (attached photos) to "附錄" (appendix) terminology
@@ -242,7 +248,9 @@ The primary objective is to professionalize medical documentation within the sys
 25. **Patient Detail Upload**: Added upload button to RecentPhotosRibbon for quick photo uploads from patient detail page
 
 ### Next Steps
+
 All planned features have been implemented. Future enhancements could include:
+
 1. Batch photo description updates API endpoint for better performance
 2. Photo tagging/categorization system
 3. Advanced search and filtering in gallery
