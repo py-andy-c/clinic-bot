@@ -968,146 +968,221 @@ const AIChatMock = () => {
 
 const HeroVisual = () => {
   return (
-    <div className="relative w-full h-[500px] lg:h-[600px] flex items-center justify-center perspective-1000 scale-75 lg:scale-90 xl:scale-100 lg:-translate-x-12">
-      <style>{`
-        @keyframes float-v8 {
-          0%, 100% { transform: translateY(0) rotate(-10deg); }
-          50% { transform: translateY(-20px) rotate(-8deg); }
-        }
-        @keyframes float-delayed-v8 {
-          0%, 100% { transform: translateY(0) rotate(10deg); }
-          50% { transform: translateY(-15px) rotate(12deg); }
-        }
-        @keyframes float-extreme-v8 {
-          0%, 100% { transform: translateY(0) rotate(-5deg); }
-          50% { transform: translateY(-25px) rotate(-8deg); }
-        }
-        @keyframes float-subtle-v8 {
-          0%, 100% { transform: translateY(0) rotate(5deg); }
-          50% { transform: translateY(-12px) rotate(3deg); }
-        }
-        @keyframes glow-pulse-v8 {
-          0%, 100% { opacity: 0.3; transform: scale(1); }
-          50% { opacity: 0.6; transform: scale(1.1); }
-        }
-        .perspective-1000 { perspective: 1000px; }
-        .preserve-3d { transform-style: preserve-3d; }
-      `}</style>
-
-      {/* Background Glows */}
-      <div className="absolute w-[400px] lg:w-[500px] h-[400px] lg:h-[500px] bg-primary-200/20 rounded-full blur-[100px] animate-[glow-pulse-v8_8s_infinite]"></div>
-      <div className="absolute w-[300px] lg:w-[400px] h-[300px] lg:h-[400px] bg-blue-200/20 rounded-full blur-[80px] -bottom-20 -right-20 animate-[glow-pulse-v8_10s_infinite_1s]"></div>
-
-      {/* Main Isometric Container */}
-      <div className="relative w-full max-w-[280px] lg:max-w-md preserve-3d">
-
-        {/* Card 1: Scheduling */}
-        <div
-          className="absolute -top-32 lg:-top-48 -left-12 lg:-left-24 w-48 lg:w-64 bg-white/50 backdrop-blur-xl border border-white/40 rounded-[2rem] lg:rounded-[2.5rem] shadow-2xl p-6 lg:p-8 z-20"
-          style={{ animation: 'float-v8 6s ease-in-out infinite' }}
-        >
-          <div className="flex items-center gap-2 mb-4 lg:mb-6">
-            <div className="w-1.5 lg:w-2 h-1.5 lg:h-2 rounded-full bg-primary-500 animate-pulse"></div>
-            <span className="text-xs lg:text-sm font-black text-primary-600 uppercase tracking-[0.2em] leading-none">今日排程</span>
-          </div>
-          <div className="space-y-4 lg:space-y-6">
-            <div className="flex gap-2 h-1 lg:h-1.5 opacity-40">
-              <div className="flex-[2] bg-primary-200 rounded-full"></div>
-              <div className="flex-[3] bg-gray-200 rounded-full"></div>
-              <div className="flex-[1] bg-primary-300 rounded-full"></div>
+    <div className="w-full flex items-center justify-center">
+      {/* Mobile View: Clean Aligned Grid */}
+      <div className="lg:hidden w-full max-w-[400px] px-4 space-y-4">
+        {/* Hub */}
+        <div className="flex justify-center mb-6">
+          <div className="relative w-28 h-28 bg-white rounded-[2.5rem] shadow-xl flex items-center justify-center border-4 border-white overflow-hidden">
+            <img src="/assets/images/practitioner.png" alt="Practitioner" className="w-full h-full object-cover" />
+            <div className="absolute bottom-2 right-2 w-6 h-6 bg-emerald-500 rounded-full border-2 border-white flex items-center justify-center shadow-lg">
+              <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></div>
             </div>
-            <div className="bg-primary-600 rounded-xl lg:rounded-2xl p-3 lg:p-4 shadow-xl shadow-primary-200/50 flex items-center justify-between">
-              <span className="text-[10px] lg:text-sm text-white font-black whitespace-nowrap">預約已確認</span>
-              <svg className="w-3 lg:w-4 h-3 lg:h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          {/* Card 1: Scheduling */}
+          <div className="col-span-2 bg-white rounded-3xl p-5 shadow-lg border border-gray-50">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-2 h-2 rounded-full bg-primary-500"></div>
+              <span className="text-xs font-black text-primary-600 uppercase tracking-widest">今日排程</span>
+            </div>
+            <div className="flex items-center justify-between bg-primary-600 rounded-xl p-3 text-white">
+              <span className="text-xs font-black">預約已確認</span>
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
               </svg>
             </div>
           </div>
-        </div>
 
-        {/* Card 2: AI Agent */}
-        <div
-          className="absolute top-4 lg:top-8 -right-20 lg:-right-32 w-48 lg:w-64 bg-white/80 backdrop-blur-md border border-white/60 rounded-[2rem] lg:rounded-[2.5rem] shadow-xl p-5 lg:p-6 z-30"
-          style={{ animation: 'float-delayed-v8 7s ease-in-out infinite' }}
-        >
-          <div className="flex items-center gap-2 lg:gap-3 mb-3 lg:mb-4">
-            <div className="w-7 lg:w-9 h-7 lg:h-9 rounded-xl lg:rounded-2xl bg-[#06C755] flex items-center justify-center text-white shadow-lg">
-              <svg className="w-4 lg:w-5 h-4 lg:h-5" fill="currentColor" viewBox="0 0 24 24">
+          {/* Card 2: AI */}
+          <div className="bg-white rounded-3xl p-5 shadow-lg border border-gray-50 flex flex-col justify-between">
+            <div className="w-9 h-9 rounded-2xl bg-[#06C755] flex items-center justify-center text-white shadow-lg mb-3">
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M12 2C6.48 2 2 6.48 2 12c0 1.54.36 2.98.97 4.29L1 23l6.71-1.97C9.02 21.64 10.46 22 12 22c5.52 0 10-4.48 10-10S17.52 2 12 2z" />
               </svg>
             </div>
-            <span className="text-[10px] lg:text-xs font-black text-gray-400 uppercase tracking-widest leading-none">AI 客服助理</span>
+            <span className="text-[10px] font-black text-gray-400 uppercase tracking-tighter">AI 客服</span>
           </div>
-          <div className="space-y-1.5 lg:space-y-2">
-            <div className="h-1 lg:h-1.5 w-full bg-gray-100 rounded-full"></div>
-            <div className="h-1 lg:h-1.5 w-2/3 bg-gray-100 rounded-full opacity-60"></div>
-          </div>
-        </div>
 
-        {/* Card 3: EMR */}
-        <div
-          className="absolute top-4 lg:top-8 -left-28 lg:-left-44 w-48 lg:w-64 bg-white/90 backdrop-blur-xl border border-white/50 rounded-[2rem] lg:rounded-[2.5rem] shadow-2xl p-5 lg:p-6 z-20"
-          style={{ animation: 'float-subtle-v8 9s ease-in-out infinite' }}
-        >
-          <div className="flex items-center gap-3 lg:gap-4 mb-3 lg:mb-4">
-            <div className="w-8 lg:w-10 h-8 lg:h-10 bg-primary-100 rounded-lg lg:rounded-xl flex items-center justify-center text-primary-600 shadow-inner">
-              <svg className="w-5 lg:w-6 h-5 lg:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          {/* Card 3: EMR */}
+          <div className="bg-white rounded-3xl p-5 shadow-lg border border-gray-50 flex flex-col justify-between">
+            <div className="w-9 h-9 bg-primary-100 rounded-xl flex items-center justify-center text-primary-600 mb-3">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
               </svg>
             </div>
-            <div>
-              <p className="text-[11px] lg:text-sm font-black text-gray-900 leading-none">雲端病歷</p>
-              <p className="text-[9px] lg:text-xs font-bold text-gray-400 mt-1 uppercase tracking-widest leading-none">王小明 #2402</p>
+            <span className="text-[10px] font-black text-gray-400 uppercase tracking-tighter">雲端病歷</span>
+          </div>
+
+          {/* Card 4: Stats */}
+          <div className="bg-white rounded-3xl p-5 shadow-lg border border-gray-50">
+            <div className="flex items-center justify-between mb-3 text-emerald-600">
+              <span className="text-[10px] font-black uppercase">營收</span>
+              <span className="text-sm font-black">+18%</span>
+            </div>
+            <div className="flex items-end gap-1.5 h-8">
+              <div className="flex-1 bg-emerald-500/10 rounded-t-sm h-[40%]"></div>
+              <div className="flex-1 bg-emerald-500/20 rounded-t-sm h-[60%]"></div>
+              <div className="flex-1 bg-emerald-500 rounded-t-sm h-[100%]"></div>
             </div>
           </div>
-          <div className="h-1 lg:h-1.5 w-full bg-gray-100 rounded-full opacity-30"></div>
-        </div>
 
-        {/* Card 4: Dashboard/Stats */}
-        <div
-          className="absolute -bottom-28 lg:-bottom-40 -left-12 lg:-left-20 w-48 lg:w-64 bg-white/90 backdrop-blur-xl border border-white/20 rounded-[2rem] lg:rounded-[2.5rem] shadow-2xl p-6 lg:p-8 z-20"
-          style={{ animation: 'float-extreme-v8 8s ease-in-out infinite' }}
-        >
-          <div className="flex items-center justify-between mb-4 lg:mb-6 text-emerald-600">
-            <span className="text-[10px] lg:text-xs font-black uppercase tracking-widest">營收成長</span>
-            <span className="text-sm lg:text-lg font-black">+18%</span>
-          </div>
-          <div className="flex items-end gap-2 lg:gap-3 h-12 lg:h-16">
-            <div className="flex-1 bg-emerald-500/10 rounded-t-lg h-[40%]"></div>
-            <div className="flex-1 bg-emerald-500/20 rounded-t-lg h-[60%]"></div>
-            <div className="flex-1 bg-emerald-500/40 rounded-t-lg h-[45%]"></div>
-            <div className="flex-1 bg-emerald-500 rounded-t-lg h-[100%]"></div>
-          </div>
-        </div>
-
-        {/* Card 5: Auto-care */}
-        <div
-          className="absolute -bottom-20 lg:-bottom-32 -right-12 lg:-right-24 w-48 lg:w-64 bg-white/90 backdrop-blur-xl border border-white/40 rounded-[2rem] lg:rounded-[2.5rem] shadow-2xl p-5 lg:p-7 z-30"
-          style={{ animation: 'float-v8 7s ease-in-out infinite' }}
-        >
-          <div className="flex items-center gap-2 lg:gap-3 mb-3 lg:mb-4">
-            <div className="w-7 lg:w-9 h-7 lg:h-9 bg-rose-500 rounded-xl lg:rounded-2xl flex items-center justify-center shadow-lg shadow-rose-100">
-              <svg className="w-4 lg:w-5 h-4 lg:h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          {/* Card 5: Auto-care */}
+          <div className="bg-white rounded-3xl p-5 shadow-lg border border-gray-50 flex items-center gap-3">
+            <div className="w-9 h-9 bg-rose-500 rounded-2xl flex items-center justify-center shadow-lg text-white">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
               </svg>
             </div>
-            <span className="text-[10px] lg:text-xs font-black text-rose-500/60 uppercase tracking-widest leading-none">自動關懷</span>
-          </div>
-          <div className="flex gap-1 lg:gap-2">
-            <div className="w-2 lg:w-3 h-2 lg:h-3 rounded-full bg-rose-500 animate-pulse"></div>
-            <div className="w-2 lg:w-3 h-2 lg:h-3 rounded-full bg-rose-200"></div>
-            <div className="w-2 lg:w-3 h-2 lg:h-3 rounded-full bg-rose-100"></div>
+            <span className="text-[10px] font-black text-gray-400 uppercase">自動關懷</span>
           </div>
         </div>
+      </div>
 
-        {/* Central Hub Icon */}
-        <div className="relative z-10 mx-auto w-24 lg:w-32 h-24 lg:h-32 bg-white rounded-[2.5rem] lg:rounded-[3rem] shadow-[0_30px_70px_-15px_rgba(0,0,0,0.1)] flex items-center justify-center border-2 lg:border-4 border-white overflow-hidden transform hover:scale-105 transition-transform duration-700">
-          <img src="/assets/images/practitioner.png" alt="Practitioner" className="w-full h-full object-cover" />
-          <div className="absolute bottom-1.5 lg:bottom-2 right-1.5 lg:right-2 w-5 lg:w-6 h-5 lg:h-6 bg-emerald-500 rounded-full border-2 lg:border-2 border-white flex items-center justify-center shadow-lg">
-            <div className="w-1.5 lg:w-2 h-1.5 lg:h-2 bg-white rounded-full animate-pulse"></div>
+      {/* Desktop View: Existing Isometric Cluster */}
+      <div className="hidden lg:flex relative w-full h-[600px] items-center justify-center perspective-1000 scale-90 xl:scale-100 lg:-translate-x-12">
+        <style>{`
+          @keyframes float-v8 {
+            0%, 100% { transform: translateY(0) rotate(-10deg); }
+            50% { transform: translateY(-20px) rotate(-8deg); }
+          }
+          @keyframes float-delayed-v8 {
+            0%, 100% { transform: translateY(0) rotate(10deg); }
+            50% { transform: translateY(-15px) rotate(12deg); }
+          }
+          @keyframes float-extreme-v8 {
+            0%, 100% { transform: translateY(0) rotate(-5deg); }
+            50% { transform: translateY(-25px) rotate(-8deg); }
+          }
+          @keyframes float-subtle-v8 {
+            0%, 100% { transform: translateY(0) rotate(5deg); }
+            50% { transform: translateY(-12px) rotate(3deg); }
+          }
+          @keyframes glow-pulse-v8 {
+            0%, 100% { opacity: 0.3; transform: scale(1); }
+            50% { opacity: 0.6; transform: scale(1.1); }
+          }
+          .perspective-1000 { perspective: 1000px; }
+          .preserve-3d { transform-style: preserve-3d; }
+        `}</style>
+
+        {/* Background Glows */}
+        <div className="absolute w-[500px] h-[500px] bg-primary-200/20 rounded-full blur-[100px] animate-[glow-pulse-v8_8s_infinite]"></div>
+        <div className="absolute w-[400px] h-[400px] bg-blue-200/20 rounded-full blur-[80px] -bottom-20 -right-20 animate-[glow-pulse-v8_10s_infinite_1s]"></div>
+
+        {/* Main Isometric Container */}
+        <div className="relative w-full max-w-md preserve-3d">
+
+          {/* Card 1: Scheduling */}
+          <div
+            className="absolute -top-48 -left-24 w-64 bg-white/50 backdrop-blur-xl border border-white/40 rounded-[2.5rem] shadow-2xl p-8 z-20"
+            style={{ animation: 'float-v8 6s ease-in-out infinite' }}
+          >
+            <div className="flex items-center gap-2 mb-6">
+              <div className="w-2 h-2 rounded-full bg-primary-500 animate-pulse"></div>
+              <span className="text-sm font-black text-primary-600 uppercase tracking-[0.2em] leading-none">今日排程</span>
+            </div>
+            <div className="space-y-6">
+              <div className="flex gap-2 h-1.5 opacity-40">
+                <div className="flex-[2] bg-primary-200 rounded-full"></div>
+                <div className="flex-[3] bg-gray-200 rounded-full"></div>
+                <div className="flex-[1] bg-primary-300 rounded-full"></div>
+              </div>
+              <div className="bg-primary-600 rounded-2xl p-4 shadow-xl shadow-primary-200/50 flex items-center justify-between">
+                <span className="text-sm text-white font-black whitespace-nowrap">預約已確認</span>
+                <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+            </div>
           </div>
-        </div>
 
+          {/* Card 2: AI Agent */}
+          <div
+            className="absolute top-8 -right-32 w-64 bg-white/80 backdrop-blur-md border border-white/60 rounded-[2.5rem] shadow-xl p-6 z-30"
+            style={{ animation: 'float-delayed-v8 7s ease-in-out infinite' }}
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-9 h-9 rounded-2xl bg-[#06C755] flex items-center justify-center text-white shadow-lg">
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 2C6.48 2 2 6.48 2 12c0 1.54.36 2.98.97 4.29L1 23l6.71-1.97C9.02 21.64 10.46 22 12 22c5.52 0 10-4.48 10-10S17.52 2 12 2z" />
+                </svg>
+              </div>
+              <span className="text-xs font-black text-gray-400 uppercase tracking-widest leading-none">AI 客服助理</span>
+            </div>
+            <div className="space-y-2">
+              <div className="h-1.5 w-full bg-gray-100 rounded-full"></div>
+              <div className="h-1.5 w-2/3 bg-gray-100 rounded-full opacity-60"></div>
+            </div>
+          </div>
+
+          {/* Card 3: EMR */}
+          <div
+            className="absolute top-8 -left-44 w-64 bg-white/90 backdrop-blur-xl border border-white/50 rounded-[2.5rem] shadow-2xl p-6 z-20"
+            style={{ animation: 'float-subtle-v8 9s ease-in-out infinite' }}
+          >
+            <div className="flex items-center gap-4 mb-4">
+              <div className="w-10 h-10 bg-primary-100 rounded-xl flex items-center justify-center text-primary-600 shadow-inner">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-sm font-black text-gray-900 leading-none">雲端病歷</p>
+                <p className="text-xs font-bold text-gray-400 mt-1 uppercase tracking-widest leading-none">王小明 #2402</p>
+              </div>
+            </div>
+            <div className="h-1.5 w-full bg-gray-100 rounded-full opacity-30"></div>
+          </div>
+
+          {/* Card 4: Dashboard/Stats */}
+          <div
+            className="absolute -bottom-40 -left-20 w-64 bg-white/90 backdrop-blur-xl border border-white/20 rounded-[2.5rem] shadow-2xl p-8 z-20"
+            style={{ animation: 'float-extreme-v8 8s ease-in-out infinite' }}
+          >
+            <div className="flex items-center justify-between mb-6 text-emerald-600">
+              <span className="text-xs font-black uppercase tracking-widest">營收成長</span>
+              <span className="text-lg font-black">+18%</span>
+            </div>
+            <div className="flex items-end gap-3 h-16">
+              <div className="flex-1 bg-emerald-500/10 rounded-t-lg h-[40%]"></div>
+              <div className="flex-1 bg-emerald-500/20 rounded-t-lg h-[60%]"></div>
+              <div className="flex-1 bg-emerald-500/40 rounded-t-lg h-[45%]"></div>
+              <div className="flex-1 bg-emerald-500 rounded-t-lg h-[100%]"></div>
+            </div>
+          </div>
+
+          {/* Card 5: Auto-care */}
+          <div
+            className="absolute -bottom-32 -right-24 w-64 bg-white/90 backdrop-blur-xl border border-white/40 rounded-[2.5rem] shadow-2xl p-7 z-30"
+            style={{ animation: 'float-v8 7s ease-in-out infinite' }}
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-9 h-9 bg-rose-500 rounded-2xl flex items-center justify-center shadow-lg shadow-rose-100">
+                <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                </svg>
+              </div>
+              <span className="text-xs font-black text-rose-500/60 uppercase tracking-widest leading-none">自動關懷</span>
+            </div>
+            <div className="flex gap-2">
+              <div className="w-3 h-3 rounded-full bg-rose-500 animate-pulse"></div>
+              <div className="w-3 h-3 rounded-full bg-rose-200"></div>
+              <div className="w-3 h-3 rounded-full bg-rose-100"></div>
+            </div>
+          </div>
+
+          {/* Central Hub Icon */}
+          <div className="relative z-10 mx-auto w-32 h-32 bg-white rounded-[3rem] shadow-[0_30px_70px_-15px_rgba(0,0,0,0.1)] flex items-center justify-center border-4 border-white overflow-hidden transform hover:scale-105 transition-transform duration-700">
+            <img src="/assets/images/practitioner.png" alt="Practitioner" className="w-full h-full object-cover" />
+            <div className="absolute bottom-2 right-2 w-6 h-6 bg-emerald-500 rounded-full border-2 border-white flex items-center justify-center shadow-lg">
+              <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
+            </div>
+          </div>
+
+        </div>
       </div>
     </div>
   );
@@ -1141,7 +1216,7 @@ const LandingPage: React.FC = () => {
       <PublicHeader />
 
       {/* Hero Section */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-blue-50 to-white pt-20 pb-32 lg:pt-32 lg:pb-32">
+      <section className="relative overflow-hidden bg-gradient-to-br from-blue-50 to-white pt-20 pb-24 lg:pt-32 lg:pb-32">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <div className="grid lg:grid-cols-[1.1fr_0.9fr] items-center gap-16 lg:gap-24">
             <div className="text-center lg:text-left">
