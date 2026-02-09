@@ -10,6 +10,8 @@ from typing import List, Optional, Dict, Any
 
 from pydantic import BaseModel
 
+from models.user_clinic_association import PractitionerSettings
+
 
 class PatientResponse(BaseModel):
     """Response model for patient information."""
@@ -92,11 +94,27 @@ class ServiceTypeGroupListResponse(BaseModel):
     groups: List[ServiceTypeGroupResponse]
 
 
-class PractitionerResponse(BaseModel):
-    """Response model for practitioner information."""
+class PractitionerPublicResponse(BaseModel):
+    """Data safe for public/patient display (e.g. for LIFF)."""
     id: int
     full_name: str
+    display_name: str  # e.g. "羅安迪 院長" - formatted by backend
     offered_types: List[int]
+
+
+class PractitionerFullResponse(PractitionerPublicResponse):
+    """Data for clinic staff/admin dashboard (includes roles and settings)."""
+    roles: List[str]
+    settings: PractitionerSettings
+
+
+class PractitionerResponse(PractitionerPublicResponse):
+    """
+    Response model for practitioner information.
+    DEPRECATED: Use PractitionerPublicResponse or PractitionerFullResponse.
+    Kept for backward compatibility with endpoints not yet updated.
+    """
+    pass
 
 
 class PractitionerListResponse(BaseModel):

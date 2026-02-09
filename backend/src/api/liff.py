@@ -915,10 +915,15 @@ async def list_practitioners(
             # Not restricting or no patient_id, show all practitioners
             practitioners_data = all_practitioners_data
 
-        # Convert dicts to response objects
+        # Convert objects to response objects
         practitioners = [
-            PractitionerResponse(**practitioner)
-            for practitioner in practitioners_data
+            PractitionerResponse(
+                id=p.id,
+                full_name=p.full_name,
+                display_name=p.display_name,
+                offered_types=p.offered_types
+            )
+            for p in practitioners_data
         ]
 
         return PractitionerListResponse(practitioners=practitioners)

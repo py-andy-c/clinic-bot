@@ -61,12 +61,12 @@ The frontend currently expects some fields at the top level and others in `.sett
 
 ## 3. Implementation Plan
 
-### Phase 1: Model Update
+### Phase 1: Model Update (Completed ✅)
 
 1. Update `backend/src/api/responses.py` with `PractitionerPublicResponse` and `PractitionerFullResponse`.
 2. Ensure `PractitionerSettings` has all necessary fields (already matches DB structure).
 
-### Phase 2: Service Layer
+### Phase 2: Service Layer (Completed ✅)
 
 1. Refactor `PractitionerService.list_practitioners_for_clinic` to return `List[PractitionerFullResponse]`.
 2. Centralize the `display_name` formatting logic here.

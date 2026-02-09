@@ -6,15 +6,16 @@ between different API endpoints (LIFF, clinic admin, practitioner calendar).
 """
 
 import logging
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Optional
 
 from fastapi import HTTPException, status
-from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from models import User, AppointmentType, PractitionerAppointmentTypes, UserClinicAssociation
 from utils.query_helpers import filter_by_role
 from utils.appointment_type_queries import get_active_appointment_types_for_practitioner
+from utils.practitioner_helpers import get_practitioner_display_name_with_title
+from api.responses import PractitionerFullResponse
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +34,7 @@ class PractitionerService:
         clinic_id: int,
         appointment_type_id: Optional[int] = None,
         for_patient_booking: bool = False
-    ) -> List[Dict[str, Any]]:
+    ) -> List[PractitionerFullResponse]:
         """
         List all practitioners for a clinic, optionally filtered by appointment type.
 
@@ -79,23 +80,17 @@ class PractitionerService:
         association_lookup = {a.user_id: a for a in associations}
 
         # Format response
-        result: List[Dict[str, Any]] = []
+        result: List[PractitionerFullResponse] = []
         for practitioner in practitioners:
             # Get association for this clinic
             association = association_lookup.get(practitioner.id)
+            if not association:
+                continue
             
             # Filter out practitioners who don't allow patient bookings if for_patient_booking is True
-            if for_patient_booking and association:
-                try:
-                    settings = association.get_validated_settings()
-                    if not settings.patient_booking_allowed:
-                        continue  # Skip this practitioner
-                except (ValidationError, ValueError) as e:
-                    # If settings validation fails, log and default to allowing booking (backward compatibility)
-                    logger.warning(
-                        f"Settings validation failed for practitioner {practitioner.id} "
-                        f"in clinic {clinic_id}: {e}. Defaulting to allowing patient booking."
-                    )
+            settings = association.get_validated_settings()
+            if for_patient_booking and not settings.patient_booking_allowed:
+                continue  # Skip this practitioner
             
             offered_types = [
                 pat.appointment_type_id
@@ -103,46 +98,32 @@ class PractitionerService:
                 if not pat.is_deleted
             ]
 
-            # Get practitioner display name
-            # For patient-facing displays (LIFF), include title; for internal displays, just name
-            if for_patient_booking and association:
-                # Patient-facing: include title for external display
-                from utils.practitioner_helpers import get_practitioner_display_name_with_title
-                display_name = get_practitioner_display_name_with_title(
-                    db, practitioner.id, clinic_id
-                )
-            else:
-                # Internal display: just name without title
-                display_name = association.full_name if association else practitioner.email
+            # Get practitioner display names
+            # Canonical name
+            full_name = association.full_name
+            # Formatted display name for patient-facing use
+            display_name = get_practitioner_display_name_with_title(db, practitioner.id, clinic_id)
 
-            # Get patient_booking_allowed flag from settings
-            patient_booking_allowed = True
-            if association:
-                try:
-                    settings = association.get_validated_settings()
-                    patient_booking_allowed = settings.patient_booking_allowed
-                except (ValidationError, ValueError):
-                    # Default to True for backward compatibility
-                    pass
-
-            result.append({
-                'id': practitioner.id,
-                'full_name': display_name,
-                'offered_types': offered_types,
-                'patient_booking_allowed': patient_booking_allowed
-            })
+            result.append(PractitionerFullResponse(
+                id=practitioner.id,
+                full_name=full_name,
+                display_name=display_name,
+                offered_types=offered_types,
+                roles=association.roles or [],
+                settings=settings
+            ))
 
         return result
 
     @staticmethod
     def filter_practitioners_by_assigned(
         db: Session,
-        all_practitioners_data: List[Dict[str, Any]],
+        all_practitioners_data: List[PractitionerFullResponse],
         patient_id: int,
         clinic_id: int,
         appointment_type_id: Optional[int] = None,
         restrict_to_assigned: bool = True
-    ) -> List[Dict[str, Any]]:
+    ) -> List[PractitionerFullResponse]:
         """
         Filter practitioners by assigned practitioners for a patient.
         
@@ -234,13 +215,13 @@ class PractitionerService:
                 # Filter to assigned practitioners
                 return [
                     p for p in all_practitioners_data
-                    if p['id'] in assigned_practitioner_ids
+                    if p.id in assigned_practitioner_ids
                 ]
             else:
                 # No appointment type filter, filter to assigned practitioners
                 return [
                     p for p in all_practitioners_data
-                    if p['id'] in assigned_practitioner_ids
+                    if p.id in assigned_practitioner_ids
                 ]
         else:
             # No assigned practitioners, show all practitioners

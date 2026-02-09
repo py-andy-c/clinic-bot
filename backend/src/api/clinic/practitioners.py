@@ -101,10 +101,10 @@ async def list_practitioners(
         # Build response
         practitioner_list = [
             PractitionerListItemResponse(
-                id=p['id'],
-                full_name=p['full_name'],
-                offered_types=p.get('offered_types', []),
-                patient_booking_allowed=p.get('patient_booking_allowed', True)
+                id=p.id,
+                full_name=p.full_name,
+                offered_types=p.offered_types,
+                patient_booking_allowed=p.settings.patient_booking_allowed
             )
             for p in practitioners_data
         ]
