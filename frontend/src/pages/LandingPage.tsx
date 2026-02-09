@@ -79,7 +79,26 @@ const FeatureSection: React.FC<{
               onMouseLeave={handleLeave}
             >
               <div className={`flex-shrink-0 transition-colors duration-500 ${isActive ? 'text-primary-600' : 'text-gray-500'}`}>
-                <div className={`flex h-5 w-5 lg:h-8 lg:w-8 items-center justify-center rounded-full transition-all duration-500 border-2 ${isActive ? 'bg-white border-primary-500 shadow-sm' : 'bg-gray-100 border-transparent'}`}>
+                <div className={`relative flex h-5 w-5 lg:h-8 lg:w-8 items-center justify-center rounded-full transition-all duration-500 border-2 ${isActive ? (autoFlip ? 'bg-white border-primary-100' : 'bg-white border-primary-500 shadow-sm') : 'bg-gray-100 border-transparent'}`}>
+                  {index === activeIndex && autoFlip && isInView && !isPaused && (
+                    <svg className="absolute inset-0 w-full h-full -rotate-90 pointer-events-none overflow-visible">
+                      <circle
+                        cx="50%"
+                        cy="50%"
+                        r="calc(50% - 1px)"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        pathLength="100"
+                        strokeDasharray="100"
+                        strokeDashoffset="0"
+                        className="text-primary-600"
+                        style={{
+                          animation: 'circular-deplete-v8 5s linear forwards'
+                        }}
+                      />
+                    </svg>
+                  )}
                   <span className="text-[9px] lg:text-sm font-bold">{index + 1}</span>
                 </div>
               </div>
@@ -1115,6 +1134,10 @@ const HeroVisual = () => {
           @keyframes glow-pulse-v8 {
             0%, 100% { opacity: 0.3; transform: scale(1); }
             50% { opacity: 0.6; transform: scale(1.1); }
+          }
+          @keyframes circular-deplete-v8 {
+            from { stroke-dashoffset: 0; }
+            to { stroke-dashoffset: 100; }
           }
           .perspective-1000 { perspective: 1000px; }
           .preserve-3d { transform-style: preserve-3d; }
