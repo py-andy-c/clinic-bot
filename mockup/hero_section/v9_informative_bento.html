@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hero V9: Informative Bento</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            50: '#eff6ff', 100: '#dbeafe', 200: '#bfdbfe', 300: '#93c5fd', 400: '#60a5fa', 500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8', 800: '#1e40af', 900: '#1e3a8a',
+                        },
+                    },
+                }
+            }
+        }
+    </script>
+    <style>
+        .bento-card {
+            background: white;
+            border-radius: 2.5rem;
+            border: 1px solid #f1f5f9;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
+            padding: 2rem;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .bento-card:hover {
+            transform: translateY(-8px) scale(1.02);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.1);
+            border-color: #e2e8f0;
+        }
+
+        @keyframes float {
+
+            0%,
+            100% {
+                transform: translateY(0);
+            }
+
+            50% {
+                transform: translateY(-10px);
+            }
+        }
+
+        @keyframes pulse-soft {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.6;
+            }
+        }
+    </style>
+</head>
+
+<body class="bg-[#f8fafc] min-h-screen flex items-center justify-center p-12 font-sans overflow-y-auto">
+
+    <div class="grid grid-cols-6 grid-rows-4 gap-6 w-full max-w-6xl h-[850px]">
+
+        <!-- Main Feature: LINE Booking (Large) -->
+        <div
+            class="col-span-3 row-span-2 bg-gradient-to-br from-primary-600 to-primary-800 rounded-[3.5rem] p-10 text-white relative overflow-hidden shadow-2xl shadow-primary-200/50 hover:scale-[1.02] transition-transform duration-500">
+            <div class="relative z-10 flex flex-col h-full justify-between">
+                <div>
+                    <div
+                        class="inline-flex items-center gap-2 bg-white/20 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest mb-6 border border-white/10">
+                        24/7 Smart Booking
+                    </div>
+                    <h3 class="text-4xl font-black mb-4 leading-tight tracking-tighter">LINE 智能客服</h3>
+                    <p class="text-primary-100 text-lg leading-relaxed max-w-[320px] font-medium opacity-80">
+                        病患自主預約，系統自動即時同步，節省診所端 80% 通話時間。</p>
+                </div>
+                <!-- Abstract Chat Snippet -->
+                <div class="space-y-3">
+                    <div
+                        class="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/20 flex items-center justify-between">
+                        <span class="text-sm font-black">14:00 預約已確認</span>
+                        <div class="w-5 h-5 bg-emerald-400 rounded-full flex items-center justify-center shadow-lg">
+                            <svg class="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="4"
+                                    d="M5 13l4 4L19 7" />
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Abstract Background Graphic -->
+            <div class="absolute -bottom-20 -right-20 w-80 h-80 bg-white/10 rounded-full blur-[80px]"></div>
+        </div>
+
+        <!-- Feature: Financials (Wide) -->
+        <div class="bento-card col-span-3 row-span-1 flex items-center justify-between p-8">
+            <div class="flex items-center gap-6">
+                <div
+                    class="w-16 h-16 bg-emerald-50 rounded-[1.8rem] flex items-center justify-center text-emerald-600 shadow-inner border border-emerald-100/50">
+                    <span class="text-2xl font-black">$</span>
+                </div>
+                <div>
+                    <p class="text-xs font-black text-gray-400 uppercase tracking-[0.25em] mb-1">今日診所營收</p>
+                    <p class="text-4xl font-black text-gray-900 tracking-tighter">$48,500</p>
+                </div>
+            </div>
+            <div class="text-right">
+                <span
+                    class="text-xs font-black text-emerald-600 bg-emerald-50 px-4 py-2 rounded-full border border-emerald-100 uppercase tracking-tighter ring-1 ring-emerald-500/20">
+                    Growth +12.4%
+                </span>
+            </div>
+        </div>
+
+        <!-- Feature: Practitioner (Human Center - MISSING COMPONENT ADDED) -->
+        <div class="bento-card col-span-2 row-span-1 flex items-center gap-4 p-6 overflow-hidden relative">
+            <div
+                class="relative w-14 h-14 rounded-2xl overflow-hidden border-2 border-primary-100 shadow-sm flex-shrink-0">
+                <img src="../../frontend/public/assets/images/practitioner.png" alt="Doctor"
+                    class="w-full h-full object-cover">
+            </div>
+            <div class="flex-1">
+                <p class="text-sm font-black text-gray-900 leading-none">羅院長</p>
+                <p
+                    class="text-[10px] font-bold text-emerald-600 mt-1 uppercase tracking-widest flex items-center gap-1.5">
+                    <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
+                    正在門診中
+                </p>
+            </div>
+        </div>
+
+        <!-- Feature: AI Status (Small Square) -->
+        <div
+            class="bento-card col-span-1 row-span-1 flex flex-col items-center justify-center text-center p-6 border-none bg-gray-50/50 shadow-none">
+            <div
+                class="w-14 h-14 bg-[#06C755] rounded-2xl flex items-center justify-center text-white mb-3 shadow-lg shadow-green-200">
+                <svg class="w-7 h-7" fill="currentColor" viewBox="0 0 24 24">
+                    <path
+                        d="M12 2C6.48 2 2 6.48 2 12c0 1.54.36 2.98.97 4.29L1 23l6.71-1.97C9.02 21.64 10.46 22 12 22c5.52 0 10-4.48 10-10S17.52 2 12 2z" />
+                </svg>
+            </div>
+            <span class="text-[9px] font-black text-gray-400 uppercase tracking-widest leading-none">AI
+                Agent<br />Online</span>
+        </div>
+
+        <!-- Feature: Medical Records (Vertical) -->
+        <div
+            class="bento-card col-span-2 row-span-2 flex flex-col justify-between bg-white border border-gray-100 shadow-xl shadow-gray-200/20">
+            <div>
+                <div class="flex items-center gap-3 mb-8">
+                    <div
+                        class="w-10 h-10 bg-primary-100 rounded-xl flex items-center justify-center text-primary-600 shadow-inner">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                        </svg>
+                    </div>
+                    <div>
+                        <p class="text-sm font-black text-gray-900 leading-none">雲端病歷</p>
+                        <p class="text-[10px] font-bold text-gray-400 mt-1 uppercase tracking-widest">王小明 #2402</p>
+                    </div>
+                </div>
+                <div class="space-y-4">
+                    <div class="h-2 w-full bg-gray-50 rounded-full border border-gray-100"></div>
+                    <div class="h-2 w-3/4 bg-gray-50 rounded-full border border-gray-100 opacity-60"></div>
+                    <div class="h-2 w-5/6 bg-gray-50 rounded-full border border-gray-100 opacity-40"></div>
+                </div>
+            </div>
+            <div
+                class="pt-6 border-t border-gray-50 flex justify-between items-center text-[10px] font-black text-emerald-500 bg-emerald-50/30 -mx-8 -mb-8 p-6 rounded-b-[2.5rem]">
+                <span class="uppercase tracking-widest">系統同步完成</span>
+                <div class="w-2 h-2 bg-emerald-500 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.5)]"></div>
+            </div>
+        </div>
+
+        <!-- Feature: Auto-care / Success Loop (Main - MISSING COMPONENT ADDED) -->
+        <div
+            class="col-span-4 row-span-2 bg-rose-500 rounded-[3.5rem] p-12 text-white relative flex items-center justify-between shadow-2xl hover:scale-[1.01] transition-transform duration-500 overflow-hidden">
+            <div class="relative z-10 w-2/3">
+                <div class="flex items-center gap-3 mb-6">
+                    <div
+                        class="w-10 h-10 bg-white/20 rounded-2xl flex items-center justify-center border border-white/20 shadow-lg">
+                        <svg class="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                                d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                        </svg>
+                    </div>
+                    <span class="text-sm font-black text-rose-100 uppercase tracking-[0.25em]">自動化關懷系統</span>
+                </div>
+                <h3 class="text-4xl font-black mb-4 tracking-tighter leading-none">打造診所品牌黏著度</h3>
+                <p class="text-rose-50 text-lg leading-relaxed font-medium opacity-90 max-w-sm">
+                    建立病患回訪循環。系統自動發送術後關懷，實現極致醫療體驗，讓病患持續回診。</p>
+            </div>
+            <div
+                class="w-56 h-56 bg-white/10 backdrop-blur-xl rounded-[4rem] border border-white/20 flex flex-col items-center justify-center relative scale-110 -mr-8">
+                <div class="text-5xl font-black mb-2">+34%</div>
+                <div class="text-[10px] font-black uppercase tracking-[0.3em] opacity-60">回診成長率</div>
+                <!-- Pulsing heart indicator -->
+                <div class="absolute top-6 left-6 w-3 h-3 bg-rose-300 rounded-full animate-ping opacity-60"></div>
+            </div>
+        </div>
+
+    </div>
+
+</body>
+
+</html>
