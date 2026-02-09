@@ -19,7 +19,8 @@ from services import PractitionerService, AppointmentTypeService
 from utils.appointment_type_queries import count_active_appointment_types_for_practitioner
 from utils.datetime_utils import taiwan_now
 from api.responses import (
-    AppointmentTypeResponse, PractitionerAppointmentTypesResponse, PractitionerStatusResponse
+    AppointmentTypeResponse, PractitionerAppointmentTypesResponse, PractitionerStatusResponse,
+    PractitionerFullResponse, PractitionerListResponse
 )
 
 logger = logging.getLogger(__name__)
@@ -29,17 +30,6 @@ router = APIRouter()
 
 # ===== Request/Response Models =====
 
-class PractitionerListItemResponse(BaseModel):
-    """Response model for practitioner list item."""
-    id: int
-    full_name: str
-    offered_types: List[int]
-    patient_booking_allowed: bool
-
-
-class PractitionerListResponse(BaseModel):
-    """Response model for practitioner list."""
-    practitioners: List[PractitionerListItemResponse]
 
 
 class PractitionerAppointmentTypesUpdateRequest(BaseModel):
@@ -98,19 +88,7 @@ async def list_practitioners(
             appointment_type_id=appointment_type_id  # Filter by appointment type if provided
         )
 
-        # Build response
-        practitioner_list = [
-            PractitionerListItemResponse(
-                id=p.id,
-                full_name=p.full_name,
-                offered_types=p.offered_types,
-                patient_booking_allowed=p.settings.patient_booking_allowed
-            )
-            for p in practitioners_data
-        ]
-
-        response = PractitionerListResponse(practitioners=practitioner_list)
-        return response
+        return PractitionerListResponse(practitioners=practitioners_data)
 
     except HTTPException:
         raise

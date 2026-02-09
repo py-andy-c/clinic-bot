@@ -71,11 +71,17 @@ The frontend currently expects some fields at the top level and others in `.sett
 1. Refactor `PractitionerService.list_practitioners_for_clinic` to return `List[PractitionerFullResponse]`.
 2. Centralize the `display_name` formatting logic here.
 
-### Phase 3: API Alignment
+### Phase 3: API Alignment (Backend) (Completed ✅)
 
-1. Update `/clinic/members` to use the unified nested structure for practitioner roles.
-2. Update `/clinic/practitioners` to use the unified model.
-3. Update `/liff/practitioners` to use `PractitionerPublicResponse` (strips sensitive settings).
+1. **Refactor Team Management (`/members`)**:
+   * Update `backend/src/api/clinic/members.py` to use `PractitionerService` for members with the `practitioner` role.
+   * Unify the response structure so that practitioners in the member list have the same nested `.settings` object as the specialized practitioner list.
+2. **Standardize Specialized APIs**:
+   * Delete local `PractitionerListItemResponse` and `PractitionerListResponse` in `practitioners.py`.
+   * Update `list_practitioners` endpoint to return `PractitionerFullResponse` directly from the service.
+3. **LIFF Clean-up**:
+   * Switch `liff.py` from the deprecated `PractitionerResponse` to `PractitionerPublicResponse`.
+   * Ensure the UI receives the backend-calculated `display_name` to simplify future frontend title logic.
 
 ### Phase 4: Frontend Update
 

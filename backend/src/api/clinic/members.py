@@ -18,7 +18,8 @@ from core.config import FRONTEND_URL
 from auth.dependencies import require_admin_role, require_authenticated, UserContext, ensure_clinic_access
 from models import User, SignupToken, UserClinicAssociation
 from utils.datetime_utils import taiwan_now
-from api.responses import MemberResponse, MemberListResponse
+from api.responses import MemberResponse, MemberListResponse, PractitionerFullResponse
+from utils.practitioner_helpers import get_practitioner_display_name_with_title
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +65,10 @@ async def list_members(
         if not current_user.has_role("admin"):
             query = query.filter(UserClinicAssociation.is_active == True)
         
-        query = query.options(joinedload(User.clinic_associations))  # Eager load associations for name lookup
+        query = query.options(
+            joinedload(User.clinic_associations),
+            joinedload(User.practitioner_appointment_types)
+        )  # Eager load for performance
         
         members_with_associations = query.all()
         
@@ -80,6 +84,7 @@ async def list_members(
             )
             
             # Get settings for practitioners (available to all users for read-only access)
+            practitioner_data = None
             patient_booking_allowed = None
             step_size_minutes = None
             if association and 'practitioner' in (association.roles or []):
@@ -87,6 +92,22 @@ async def list_members(
                     settings = association.get_validated_settings()
                     patient_booking_allowed = settings.patient_booking_allowed
                     step_size_minutes = settings.step_size_minutes
+
+                    # Populate unified practitioner data
+                    offered_types = [
+                        pat.appointment_type_id
+                        for pat in member.practitioner_appointment_types
+                        if not pat.is_deleted
+                    ]
+                    display_name = get_practitioner_display_name_with_title(db, member.id, clinic_id)
+                    practitioner_data = PractitionerFullResponse(
+                        id=member.id,
+                        full_name=association.full_name,
+                        display_name=display_name,
+                        offered_types=offered_types,
+                        roles=association.roles or [],
+                        settings=settings
+                    )
                 except Exception:
                     # If settings validation fails, default to None
                     pass
@@ -98,6 +119,7 @@ async def list_members(
                 roles=association.roles if association else [],
                 is_active=association.is_active if association else False,
                 created_at=member.created_at,
+                practitioner_data=practitioner_data,
                 patient_booking_allowed=patient_booking_allowed,
                 step_size_minutes=step_size_minutes
             ))
@@ -189,7 +211,10 @@ async def update_member_roles(
             User.id == user_id,
             UserClinicAssociation.clinic_id == clinic_id,
             UserClinicAssociation.is_active == True
-        ).options(joinedload(User.clinic_associations)).first()
+        ).options(
+            joinedload(User.clinic_associations),
+            joinedload(User.practitioner_appointment_types)
+        ).first()
 
         if not member:
             raise HTTPException(
@@ -242,13 +267,43 @@ async def update_member_roles(
         db.commit()
         db.refresh(association)
 
+        # Prepare practitioner data if relevant
+        practitioner_data = None
+        patient_booking_allowed = None
+        step_size_minutes = None
+        if 'practitioner' in (association.roles or []):
+            try:
+                settings = association.get_validated_settings()
+                patient_booking_allowed = settings.patient_booking_allowed
+                step_size_minutes = settings.step_size_minutes
+                
+                offered_types = [
+                    pat.appointment_type_id
+                    for pat in member.practitioner_appointment_types
+                    if not pat.is_deleted
+                ]
+                display_name = get_practitioner_display_name_with_title(db, member.id, clinic_id)
+                practitioner_data = PractitionerFullResponse(
+                    id=member.id,
+                    full_name=association.full_name,
+                    display_name=display_name,
+                    offered_types=offered_types,
+                    roles=association.roles or [],
+                    settings=settings
+                )
+            except Exception:
+                pass
+
         return MemberResponse(
             id=member.id,
             email=member.email,
             full_name=association.full_name,
             roles=association.roles or [],
             is_active=association.is_active,
-            created_at=member.created_at
+            created_at=member.created_at,
+            practitioner_data=practitioner_data,
+            patient_booking_allowed=patient_booking_allowed,
+            step_size_minutes=step_size_minutes
         )
 
     except HTTPException:

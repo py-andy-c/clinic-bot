@@ -41,7 +41,7 @@ from utils.liff_token import validate_token_format, validate_liff_id_format
 from api.responses import (
     PatientResponse, PatientCreateResponse, PatientListResponse,
     AppointmentTypeResponse, AppointmentTypeListResponse,
-    PractitionerResponse, PractitionerListResponse,
+    PractitionerPublicResponse, PractitionerListResponse,
     AvailabilityResponse, AvailabilitySlot,
     AppointmentResponse, AppointmentListResponse, AppointmentListItem
 )
@@ -917,7 +917,7 @@ async def list_practitioners(
 
         # Convert objects to response objects
         practitioners = [
-            PractitionerResponse(
+            PractitionerPublicResponse(
                 id=p.id,
                 full_name=p.full_name,
                 display_name=p.display_name,
@@ -926,6 +926,9 @@ async def list_practitioners(
             for p in practitioners_data
         ]
 
+        # Note: PractitionerListResponse uses List[PractitionerResponse] in its definition,
+        # but PractitionerResponse inherits from PractitionerPublicResponse and has no extra fields.
+        # This is type-safe.
         return PractitionerListResponse(practitioners=practitioners)
 
     except HTTPException:

@@ -6,7 +6,7 @@ multiple API endpoints to ensure consistency and reduce duplication.
 """
 
 from datetime import datetime, date
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Union, Sequence
 
 from pydantic import BaseModel
 
@@ -119,7 +119,7 @@ class PractitionerResponse(PractitionerPublicResponse):
 
 class PractitionerListResponse(BaseModel):
     """Response model for listing practitioners."""
-    practitioners: List[PractitionerResponse]
+    practitioners: Sequence[Union[PractitionerFullResponse, PractitionerPublicResponse, PractitionerResponse]]
 
 
 class AvailabilitySlot(BaseModel):
@@ -283,8 +283,11 @@ class MemberResponse(BaseModel):
     roles: List[str]
     is_active: bool
     created_at: datetime
-    patient_booking_allowed: Optional[bool] = None  # Only set for practitioners, available to all users for read-only access
-    step_size_minutes: Optional[int] = None  # Only set for practitioners if they have an override
+    # Unified practitioner data (replaces individual fields below)
+    practitioner_data: Optional[PractitionerFullResponse] = None
+    # DEPRECATED fields - kept for backward compatibility during Phase 4 migration
+    patient_booking_allowed: Optional[bool] = None
+    step_size_minutes: Optional[int] = None
 
 
 class MemberListResponse(BaseModel):
