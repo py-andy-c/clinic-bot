@@ -1382,7 +1382,7 @@ const LandingPage: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <div className="grid lg:grid-cols-[1.1fr_0.9fr] items-center gap-16 lg:gap-24">
             <div className="text-center lg:text-left">
-              <h1 className="text-5xl sm:text-6xl lg:text-8xl font-black text-gray-900 tracking-tighter leading-[1.1] lg:leading-[0.9] mb-8">
+              <h1 className="text-5xl sm:text-6xl lg:text-8xl font-black text-gray-900 tracking-tighter leading-[1.1] lg:leading-[0.98] mb-8">
                 全方位<br />
                 <span className="text-primary-600">數位診所</span><br />
                 作業系統
