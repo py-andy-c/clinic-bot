@@ -204,7 +204,7 @@ const Step3SelectPractitioner: React.FC = () => {
                     </div>
                   )}
                   <div>
-                    <h3 className="font-medium text-gray-900">{practitioner.full_name}</h3>
+                    <h3 className="font-medium text-gray-900">{practitioner.display_name}</h3>
                     {isAssigned && (
                       <p className="text-sm text-primary-600 font-medium">{t('practitioner.assignedPractitioner')}</p>
                     )}

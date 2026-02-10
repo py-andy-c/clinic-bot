@@ -333,25 +333,19 @@ class NotificationService:
         clinic = appointment.patient.clinic
 
         # Get practitioner names from associations
-        from models.user_clinic_association import UserClinicAssociation
+        from utils.practitioner_helpers import get_practitioner_display_name_with_title
 
         old_practitioner_name: str | None = None
         if old_practitioner:
-            association = db.query(UserClinicAssociation).filter(
-                UserClinicAssociation.user_id == old_practitioner.id,
-                UserClinicAssociation.clinic_id == clinic.id,
-                UserClinicAssociation.is_active == True
-            ).first()
-            old_practitioner_name = association.full_name if association else old_practitioner.email
+            old_practitioner_name = get_practitioner_display_name_with_title(
+                db, old_practitioner.id, clinic.id
+            )
 
         new_practitioner_name: str | None = None
         if new_practitioner:
-            association = db.query(UserClinicAssociation).filter(
-                UserClinicAssociation.user_id == new_practitioner.id,
-                UserClinicAssociation.clinic_id == clinic.id,
-                UserClinicAssociation.is_active == True
-            ).first()
-            new_practitioner_name = association.full_name if association else new_practitioner.email
+            new_practitioner_name = get_practitioner_display_name_with_title(
+                db, new_practitioner.id, clinic.id
+            )
 
         # Format datetimes
         old_formatted = format_datetime(old_start_time)

@@ -89,7 +89,7 @@ const Step7Success: React.FC = () => {
       const appointmentData = {
         id: Date.now(), // Temporary ID for ICS generation
         appointment_type_name: appointmentType.name,
-        practitioner_name: isAutoAssigned ? t('practitioner.notSpecified') : (practitioner?.full_name || t('success.practitionerPending')),
+        practitioner_name: isAutoAssigned ? t('practitioner.notSpecified') : (practitioner?.display_name || t('success.practitionerPending')),
         patient_name: patient.full_name,
         start_time: startDateTimeTaiwan.format(), // Taiwan time with +08:00
         end_time: endDateTimeTaiwan.format(), // Taiwan time with +08:00
@@ -133,7 +133,7 @@ const Step7Success: React.FC = () => {
           id: createdAppointment.appointment_id,
           appointment_type_name: appointmentType.name,
           // For auto-assigned appointments, use "不指定" instead of practitioner name
-          practitioner_name: isAutoAssigned ? t('practitioner.notSpecified') : (practitioner?.full_name || t('success.practitionerPending')),
+          practitioner_name: isAutoAssigned ? t('practitioner.notSpecified') : (practitioner?.display_name || t('success.practitionerPending')),
           patient_name: patient.full_name,
           start_time: createdAppointment.start_time,
           end_time: createdAppointment.end_time,
@@ -202,7 +202,7 @@ const Step7Success: React.FC = () => {
               <span className="text-gray-600">{t('success.practitioner')}</span>
               <span className="font-medium">
                 {/* For auto-assigned appointments, always show "不指定" (patient doesn't see practitioner name) */}
-                {isAutoAssigned ? t('success.notSpecified') : (practitioner?.full_name || t('success.notSpecified'))}
+                {isAutoAssigned ? t('success.notSpecified') : (practitioner?.display_name || t('success.notSpecified'))}
               </span>
             </div>
           )}

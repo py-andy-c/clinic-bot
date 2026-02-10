@@ -107,7 +107,7 @@ const Step2SelectPractitioner: React.FC = () => {
                   </div>
                 )}
                 <div>
-                  <h3 className="font-medium text-gray-900">{practitioner.full_name}</h3>
+                  <h3 className="font-medium text-gray-900">{practitioner.display_name}</h3>
                 </div>
               </div>
               <div className="text-primary-600">

@@ -182,7 +182,7 @@ const Step6Confirmation: React.FC = () => {
               <span className="text-gray-600">{t('confirmation.practitioner')}</span>
               <span className="font-medium">
                 {/* For auto-assigned appointments, always show "不指定" (patient doesn't see practitioner name) */}
-                {practitionerId === null || isAutoAssigned ? t('confirmation.notSpecified') : (practitioner?.full_name || t('confirmation.notSpecified'))}
+                {practitionerId === null || isAutoAssigned ? t('confirmation.notSpecified') : (practitioner?.display_name || t('confirmation.notSpecified'))}
               </span>
             </div>
           )}
