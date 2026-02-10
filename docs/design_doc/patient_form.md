@@ -145,7 +145,11 @@ Patients should be able to upload photos while filling out the form.
    * Added `is_submitted` and `patient_last_edited_at` to records.
    * Updated management API and frontend types.
    * Added "Open for patient completion" toggle in template editor.
-2. **Phase 2**: Backend "Send Form" endpoint and Line messaging integration.
+2. **Phase 2**: Backend "Send Form" endpoint and Line messaging integration. ✅ **(Completed)**
+   * Implemented `POST /clinics/{clinic_id}/patients/{patient_id}/medical-records/send-form`.
+   * Added `send_patient_form` logic in `MedicalRecordService`.
+   * Integrated `LINEService` to send template messages with LIFF buttons.
+   * Added comprehensive integration tests.
 3. **Phase 3**: Clinic UI - "發送病患表單" button and dialog.
 4. **Phase 4**: Patient UI - LIFF form editor.
 5. **Phase 5**: Testing and Polish.

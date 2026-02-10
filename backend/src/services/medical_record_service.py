@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from sqlalchemy import desc
 from sqlalchemy.orm import Session, joinedload
 from fastapi import HTTPException
+import os
 
 from models.medical_record import MedicalRecord
 from models.medical_record_template import MedicalRecordTemplate
@@ -10,6 +11,9 @@ from models.patient_photo import PatientPhoto
 from models.patient import Patient
 from models.appointment import Appointment
 from models.user_clinic_association import UserClinicAssociation
+from models.line_user import LineUser
+from models.clinic import Clinic
+from services.line_service import LINEService
 
 
 class RecordVersionConflictError(Exception):
@@ -33,7 +37,8 @@ class MedicalRecordService:
         values: Dict[str, Any],
         photo_ids: Optional[List[int]] = None,
         appointment_id: Optional[int] = None,
-        created_by_user_id: Optional[int] = None
+        created_by_user_id: Optional[int] = None,
+        commit: bool = True
     ) -> MedicalRecord:
         # Verify Patient belongs to Clinic
         patient = db.query(Patient).filter(Patient.id == patient_id).first()
@@ -98,8 +103,9 @@ class MedicalRecordService:
                 photo.medical_record_id = record.id
                 photo.is_pending = False
         
-        db.commit()
-        db.refresh(record)
+        if commit:
+            db.commit()
+            db.refresh(record)
         return record
 
     @staticmethod
@@ -413,3 +419,104 @@ class MedicalRecordService:
         db.delete(record)
         db.commit()
         return True
+
+    @staticmethod
+    def send_patient_form(
+        db: Session,
+        clinic_id: int,
+        patient_id: int,
+        template_id: int,
+        created_by_user_id: int,
+        appointment_id: Optional[int] = None,
+        message_override: Optional[str] = None
+    ) -> MedicalRecord:
+        # 1. Verify patient and Line linkage
+        patient = db.query(Patient).filter(
+            Patient.id == patient_id, 
+            Patient.clinic_id == clinic_id
+        ).first()
+        
+        if not patient:
+            raise HTTPException(status_code=404, detail="Patient not found")
+            
+        if not patient.line_user_id:
+            raise HTTPException(status_code=400, detail="Patient is not linked to a LINE user")
+            
+        line_user = db.query(LineUser).filter(LineUser.id == patient.line_user_id).first()
+        if not line_user:
+             raise HTTPException(status_code=404, detail="Linked LINE user not found")
+
+        # 2. Verify template
+        template = db.query(MedicalRecordTemplate).filter(
+            MedicalRecordTemplate.id == template_id,
+            MedicalRecordTemplate.clinic_id == clinic_id
+        ).first()
+        
+        if not template:
+            raise HTTPException(status_code=404, detail="Template not found")
+        
+        if not template.is_patient_form:
+            raise HTTPException(status_code=400, detail="Template is not a patient form")
+
+        # 3. Create Record (NO COMMIT)
+        record = MedicalRecordService.create_record(
+            db=db,
+            clinic_id=clinic_id,
+            patient_id=patient_id,
+            template_id=template_id,
+            values={},  # Empty values for patient to fill
+            appointment_id=appointment_id,
+            created_by_user_id=created_by_user_id,
+            commit=False
+        )
+
+        try:
+            # 4. Construct LIFF URL using utility
+            # We use path-based routing for the record ID
+            # This requires generate_liff_url to support the path argument
+            from utils.liff_token import generate_liff_url
+            
+            clinic = db.query(Clinic).filter(Clinic.id == clinic_id).first()
+            if not clinic:
+                raise HTTPException(status_code=404, detail="Clinic not found")
+                
+            # Use generate_liff_url utility which handles shared/dedicated LIFF and tokens
+            try:
+                liff_url = generate_liff_url(
+                    clinic=clinic,
+                    mode="form", # Use specific mode for forms if needed, or default
+                    path=f"records/{record.id}"
+                )
+            except ValueError as e:
+                # Map utility errors to HTTPException
+                raise HTTPException(status_code=500, detail=str(e))
+            
+            # 5. Send Message
+            line_service = LINEService(clinic.line_channel_secret, clinic.line_channel_access_token)
+            
+            # Default message in Traditional Chinese
+            default_message = f"請填寫{template.name}表單。\n\nPlease fill out the {template.name} form."
+            text_message = message_override or default_message
+            
+            line_service.send_template_message_with_button(
+                line_user_id=line_user.line_user_id,
+                text=text_message,
+                button_label="填寫表單 (Fill Form)",
+                button_uri=liff_url,
+                clinic_id=clinic_id,
+                labels={
+                    "event_type": "patient_form_request", 
+                    "recipient_type": "patient", 
+                    "trigger_source": "clinic_triggered"
+                }
+            )
+            
+            # 6. Commit on success
+            db.commit()
+            db.refresh(record)
+            return record
+            
+        except Exception as e:
+            # Rollback transaction on failure (cleans up record and any potential photo links)
+            db.rollback()
+            raise HTTPException(status_code=500, detail=f"Failed to send LINE message: {str(e)}")
