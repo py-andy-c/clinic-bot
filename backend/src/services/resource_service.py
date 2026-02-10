@@ -138,27 +138,36 @@ class ResourceService:
             allocated_resource_ids = {a.resource_id for a in allocations}
             global_unavailable_resource_ids.extend(list(allocated_resource_ids))
 
-            # 3. Check Availability & Conflicts
+            # Determine which validation mode to use:
+            # 1. Selection Mode: User provided an explicit list of resources (even if empty []).
+            #    We validate if THIS selection meets the requirements.
+            # 2. Slot Availability Mode: User provided no selection (None).
+            #    We validate if the clinic has ANY available resources to satisfy the requirements.
             
-            # Case A: Specific resources selected for this type
-            if resource_type_id in selected_resources_by_type:
-                selected_for_this_type = selected_resources_by_type[resource_type_id]
+            selection_is_provided = selected_resource_ids is not None
+
+            if selection_is_provided:
+                # Case A: Selection Mode - User explicitly picked (or skipped) these resources
+                selected_for_this_type = selected_resources_by_type.get(resource_type_id, [])
                 
-                # Check Quantity (if this type is required)
+                # 1. Quantity Validation: Check if the selection meets the requirement
                 if required_qty > 0 and len(selected_for_this_type) < required_qty:
                     is_available = False
                     selection_insufficient_warnings.append({
+                        "resource_type_id": resource_type_id,
                         "resource_type_name": resource_type_name,
                         "required_quantity": required_qty,
                         "selected_quantity": len(selected_for_this_type)
                     })
 
-                # Check Conflicts (for ALL selected resources of this type)
+                # 2. Conflict Validation: Check for double bookings on selected resources
                 for allocation in allocations:
                     if allocation.resource_id in selected_for_this_type:
                         is_available = False
                         resource_conflict_warnings.append({
+                            "resource_id": allocation.resource_id,
                             "resource_name": resource_map.get(allocation.resource_id, "未知資源"),
+                            "resource_type_id": resource_type_id,
                             "resource_type_name": resource_type_name,
                             "conflicting_appointment": {
                                 "practitioner_name": allocation.practitioner_name,
@@ -166,19 +175,19 @@ class ResourceService:
                                 "end_time": allocation.CalendarEvent.end_time.strftime('%H:%M')
                             }
                         })
-
-            # Case B: No specific resources selected for this type, but it is required
-            # (General capacity check)
+            
             elif required_qty > 0:
-                # Check if there are enough available resources to meet the requirement
+                # Case B: Slot Availability Mode - No selection yet (e.g. patient booking)
+                # Check if there are enough available resources globally to meet the requirement
                 available_count = len([rid for rid in all_resource_ids if rid not in allocated_resource_ids])
                 
                 if available_count < required_qty:
                     is_available = False
                     selection_insufficient_warnings.append({
+                        "resource_type_id": resource_type_id,
                         "resource_type_name": resource_type_name,
                         "required_quantity": required_qty,
-                        "selected_quantity": available_count  # In this context, "selected" means "available"
+                        "selected_quantity": available_count  # Available count acts as "potential" selection
                     })
 
         return {

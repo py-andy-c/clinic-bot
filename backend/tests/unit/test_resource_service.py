@@ -617,3 +617,128 @@ class TestResourceService:
         conflict = result['resource_conflict_warnings'][0]
         assert conflict['resource_name'] == "Room A"
         assert conflict['conflicting_appointment']['practitioner_name'] == "Dr. Test"
+
+    def test_check_resource_availability_empty_selection_warning(self, db_session: Session):
+        """Test that explicit empty selection triggers warning even if resources are available globally."""
+        # Create clinic and appointment type
+        clinic = Clinic(
+            name="Test Clinic",
+            line_channel_id="test_channel",
+            line_channel_secret="test_secret",
+            line_channel_access_token="test_token"
+        )
+        db_session.add(clinic)
+        db_session.commit()
+
+        appointment_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="Physical Therapy",
+            duration_minutes=60
+        )
+        db_session.add(appointment_type)
+        db_session.commit()
+
+        # Create resource type and resources
+        resource_type = ResourceType(
+            clinic_id=clinic.id,
+            name="治療室"
+        )
+        db_session.add(resource_type)
+        db_session.commit()
+
+        resource1 = Resource(
+            resource_type_id=resource_type.id,
+            clinic_id=clinic.id,
+            name="治療室1"
+        )
+        db_session.add(resource1)
+        db_session.commit()
+
+        # Create requirement (needs 1 room)
+        requirement = AppointmentResourceRequirement(
+            appointment_type_id=appointment_type.id,
+            resource_type_id=resource_type.id,
+            quantity=1
+        )
+        db_session.add(requirement)
+        db_session.commit()
+
+        # Check availability with EMPTY list (explicit selection of nothing)
+        start_time = datetime(2025, 1, 28, 10, 0)
+        end_time = datetime(2025, 1, 28, 11, 0)
+        
+        result = ResourceService.check_resource_availability(
+            db=db_session,
+            appointment_type_id=appointment_type.id,
+            clinic_id=clinic.id,
+            start_time=start_time,
+            end_time=end_time,
+            selected_resource_ids=[]  # Explicit empty selection (Case A)
+        )
+
+        assert result['is_available'] is False
+        assert len(result['selection_insufficient_warnings']) == 1
+        assert result['selection_insufficient_warnings'][0]['selected_quantity'] == 0
+        assert result['selection_insufficient_warnings'][0]['required_quantity'] == 1
+
+    def test_check_resource_availability_none_selection_global_check(self, db_session: Session):
+        """Test that None selection uses global capacity check (patient booking flow)."""
+        # Create clinic and appointment type
+        clinic = Clinic(
+            name="Test Clinic",
+            line_channel_id="test_channel",
+            line_channel_secret="test_secret",
+            line_channel_access_token="test_token"
+        )
+        db_session.add(clinic)
+        db_session.commit()
+
+        appointment_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="Physical Therapy",
+            duration_minutes=60
+        )
+        db_session.add(appointment_type)
+        db_session.commit()
+
+        # Create resource type and resources
+        resource_type = ResourceType(
+            clinic_id=clinic.id,
+            name="治療室"
+        )
+        db_session.add(resource_type)
+        db_session.commit()
+
+        resource1 = Resource(
+            resource_type_id=resource_type.id,
+            clinic_id=clinic.id,
+            name="治療室1"
+        )
+        db_session.add(resource1)
+        db_session.commit()
+
+        # Create requirement (needs 1 room)
+        requirement = AppointmentResourceRequirement(
+            appointment_type_id=appointment_type.id,
+            resource_type_id=resource_type.id,
+            quantity=1
+        )
+        db_session.add(requirement)
+        db_session.commit()
+
+        # Check availability with None (Case B)
+        start_time = datetime(2025, 1, 28, 10, 0)
+        end_time = datetime(2025, 1, 28, 11, 0)
+        
+        result = ResourceService.check_resource_availability(
+            db=db_session,
+            appointment_type_id=appointment_type.id,
+            clinic_id=clinic.id,
+            start_time=start_time,
+            end_time=end_time,
+            selected_resource_ids=None  # Implicit selection (Case B)
+        )
+
+        # Should be available because resource1 is free globally
+        assert result['is_available'] is True
+        assert len(result['selection_insufficient_warnings']) == 0
