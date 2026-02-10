@@ -467,6 +467,9 @@ const RevenueDistributionPage: React.FC = () => {
             <table className="divide-y divide-gray-200" style={{ minWidth: '1200px' }}>
               <thead className="bg-gray-50">
                 <tr>
+                  <th className="px-2 md:px-4 py-2 md:py-3 text-center text-xs font-medium text-gray-500 uppercase whitespace-nowrap" style={{ minWidth: '50px' }}>
+                    #
+                  </th>
                   <SortableTableHeader
                     column="receipt_number"
                     currentSort={currentSort}
@@ -562,18 +565,22 @@ const RevenueDistributionPage: React.FC = () => {
               <tbody className="bg-white divide-y divide-gray-200">
                 {items.length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="px-2 md:px-4 py-2 md:py-3 text-center text-xs md:text-sm text-gray-500">
+                    <td colSpan={11} className="px-2 md:px-4 py-2 md:py-3 text-center text-xs md:text-sm text-gray-500">
                       目前沒有符合條件的資料
                     </td>
                   </tr>
                 ) : (
                   items.map((item, index) => {
                     const isOverwritten = item.billing_scenario === '其他';
+                    const rowNumber = (currentPage - 1) * page_size + index + 1;
                     return (
                       <tr
                         key={`${item.receipt_id}-${index}`}
                         className={isOverwritten ? 'bg-yellow-100' : ''}
                       >
+                        <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-500 text-center whitespace-nowrap">
+                          {rowNumber}
+                        </td>
                         <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm font-medium text-gray-900 whitespace-nowrap">
                           {item.receipt_number}
                         </td>
