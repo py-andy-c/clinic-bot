@@ -159,7 +159,7 @@ const RevenueDistributionPage: React.FC = () => {
     end_date: endDate,
     show_overwritten_only: showOverwrittenOnly,
     page,
-    page_size: 20,
+    page_size: 200,
     sort_by: currentSort.column,
     sort_order: currentSort.direction || 'desc',
   };

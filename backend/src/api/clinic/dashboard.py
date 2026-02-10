@@ -420,7 +420,7 @@ async def get_revenue_distribution(
     service_type_group_id: Optional[Union[int, str]] = Query(None, description="Optional service type group ID to filter by, or '-1' for ungrouped"),
     show_overwritten_only: bool = Query(False, description="Only show items with overwritten billing scenario"),
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
-    page_size: int = Query(20, ge=1, le=100, description="Items per page"),
+    page_size: int = Query(200, ge=1, le=500, description="Items per page"),
     sort_by: str = Query('date', description="Column to sort by"),
     sort_order: str = Query('desc', regex='^(asc|desc)$', description="Sort order"),
     current_user: UserContext = Depends(require_clinic_user),

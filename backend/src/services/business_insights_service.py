@@ -136,7 +136,7 @@ class RevenueDistributionService:
         service_type_group_id: Optional[Union[int, str]] = None,
         show_overwritten_only: bool = False,
         page: int = 1,
-        page_size: int = 20,
+        page_size: int = 200,
         sort_by: str = 'date',
         sort_order: str = 'desc'
     ) -> Dict[str, Any]:

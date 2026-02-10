@@ -498,7 +498,7 @@ class RevenueDistributionEngine:
         receipts: List[Receipt],
         filters: DashboardFilters,
         page: int = 1,
-        page_size: int = 20,
+        page_size: int = 200,
         sort_by: str = 'date',
         sort_order: str = 'desc'
     ) -> Dict[str, Any]:
