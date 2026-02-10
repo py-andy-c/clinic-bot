@@ -211,8 +211,11 @@ class ResourceService:
         """
         Allocate resources for an appointment.
 
-        This method acts as a 'dumb' linker, respecting the frontend's choices.
-        It does NOT auto-allocate missing resources or enforce requirement quantities.
+        Supports two modes:
+        1. Manual Mode: If selected_resource_ids is provided as a List (e.g. from clinic admin),
+           it allocates those specific resources.
+        2. Auto Mode: If selected_resource_ids is None (e.g. from LIFF booking),
+           it automatically finds and allocates available resources based on requirements.
 
         Args:
             db: Database session
@@ -221,33 +224,101 @@ class ResourceService:
             start_time: Appointment start datetime
             end_time: Appointment end datetime
             clinic_id: Clinic ID
-            selected_resource_ids: List of resource IDs selected by frontend
-            exclude_calendar_event_id: (Unused in this new pattern, kept for signature consistency)
+            selected_resource_ids: List of resource IDs selected, or None for auto-allocation
+            exclude_calendar_event_id: Event ID to exclude from availability checks (usually self)
 
         Returns:
             List of allocated resource IDs
+
+        Raises:
+            ValueError: If requirements cannot be met in auto-allocation mode.
         """
         allocated_resource_ids: List[int] = []
 
-        if not selected_resource_ids:
+        # Mode A: Manual Allocation (User/Frontend provided specific IDs)
+        if selected_resource_ids is not None:
+            # Validate provided resources exist, belong to the clinic, and aren't deleted
+            # Note: We don't check availability here for manual mode - this is intentional 
+            # to allow manual overrides that were already warned about in the frontend.
+            valid_resources = db.query(Resource).filter(
+                Resource.id.in_(selected_resource_ids),
+                Resource.clinic_id == clinic_id,
+                Resource.is_deleted == False
+            ).all()
+
+            for resource in valid_resources:
+                allocation = AppointmentResourceAllocation(
+                    appointment_id=appointment_id,
+                    resource_id=resource.id
+                )
+                db.add(allocation)
+                allocated_resource_ids.append(resource.id)
+
             return allocated_resource_ids
 
-        # Validate provided resources exist, belong to the clinic, and aren't deleted
-        # Note: We don't check availability here - this is intentional to allow manual overrides
-        # that were already warned about in the frontend.
-        valid_resources = db.query(Resource).filter(
-            Resource.id.in_(selected_resource_ids),
-            Resource.clinic_id == clinic_id,
-            Resource.is_deleted == False
+        # Mode B: Auto Allocation (e.g. LIFF booking or Admin skipped selection)
+        # 1. Fetch requirements for the appointment type
+        requirements = db.query(AppointmentResourceRequirement).filter(
+            AppointmentResourceRequirement.appointment_type_id == appointment_type_id
         ).all()
 
-        for resource in valid_resources:
-            allocation = AppointmentResourceAllocation(
-                appointment_id=appointment_id,
-                resource_id=resource.id
+        if not requirements:
+            return allocated_resource_ids
+
+        # 2. For each requirement, find available resources
+        for req in requirements:
+            # Get all active resources of this type in the clinic
+            all_resources = db.query(Resource).filter(
+                Resource.resource_type_id == req.resource_type_id,
+                Resource.clinic_id == clinic_id,
+                Resource.is_deleted == False
+            ).all()
+            all_resource_ids = [r.id for r in all_resources]
+
+            if not all_resource_ids:
+                if req.quantity > 0:
+                    raise ValueError(f"No resources found for required type ID {req.resource_type_id}")
+                continue
+
+            # Find allocated resources during this time slot
+            allocated_query = db.query(AppointmentResourceAllocation.resource_id).join(
+                CalendarEvent, AppointmentResourceAllocation.appointment_id == CalendarEvent.id
+            ).join(
+                Appointment, CalendarEvent.id == Appointment.calendar_event_id
+            ).filter(
+                AppointmentResourceAllocation.resource_id.in_(all_resource_ids),
+                CalendarEvent.clinic_id == clinic_id,
+                CalendarEvent.date == start_time.date(),
+                CalendarEvent.start_time < end_time.time(),
+                CalendarEvent.end_time > start_time.time(),
+                Appointment.status == 'confirmed'
             )
-            db.add(allocation)
-            allocated_resource_ids.append(resource.id)
+
+            # Exclude self if provided (important for rescheduling)
+            check_exclude_id = exclude_calendar_event_id or appointment_id
+            allocated_query = allocated_query.filter(CalendarEvent.id != check_exclude_id)
+
+            allocated_resource_ids_in_slot = {r[0] for r in allocated_query.all()}
+            
+            # Identify available resources (greedy: pick first N)
+            available_resources = [rid for rid in all_resource_ids if rid not in allocated_resource_ids_in_slot]
+            
+            if len(available_resources) < req.quantity:
+                # Race condition: unavailability detected during allocation
+                raise ValueError(
+                    f"Insufficient resources for type {req.resource_type_id}. "
+                    f"Required: {req.quantity}, Available: {len(available_resources)}"
+                )
+
+            # Pick the first N available resources
+            for i in range(req.quantity):
+                res_id = available_resources[i]
+                allocation = AppointmentResourceAllocation(
+                    appointment_id=appointment_id,
+                    resource_id=res_id
+                )
+                db.add(allocation)
+                allocated_resource_ids.append(res_id)
 
         return allocated_resource_ids
 

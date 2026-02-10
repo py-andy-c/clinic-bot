@@ -328,8 +328,8 @@ class TestResourceService:
         assert result['is_available'] is False
         assert len(result['selection_insufficient_warnings']) == 1
 
-    def test_allocate_resources_no_auto_allocate(self, db_session: Session):
-        """Test that automatic resource allocation no longer happens (design change)."""
+    def test_allocate_resources_auto_allocate(self, db_session: Session):
+        """Test that automatic resource allocation happens for LIFF bookings (None selection)."""
         # Create clinic and appointment type
         clinic = Clinic(
             name="Test Clinic",
@@ -392,7 +392,7 @@ class TestResourceService:
         db_session.add(calendar_event)
         db_session.commit()
 
-        # Allocate resources with None (should NOT auto-allocate)
+        # Allocate resources with None (should NOW auto-allocate)
         start_time = datetime(2025, 1, 28, 10, 0)
         end_time = datetime(2025, 1, 28, 11, 0)
         
@@ -406,13 +406,88 @@ class TestResourceService:
             selected_resource_ids=None
         )
 
-        assert len(allocated_ids) == 0  # Changed from 1 to 0
+        assert len(allocated_ids) == 1
+        assert allocated_ids[0] == resource1.id
 
-        # Verify no allocation exists
+        # Verify allocation exists
         allocation = db_session.query(AppointmentResourceAllocation).filter(
             AppointmentResourceAllocation.appointment_id == calendar_event.id
         ).first()
-        assert allocation is None
+        assert allocation is not None
+        assert allocation.resource_id == resource1.id
+
+    def test_allocate_resources_auto_allocate_failure(self, db_session: Session):
+        """Test that automatic resource allocation fails if resources are unavailable."""
+        # Create clinic and appointment type
+        clinic = Clinic(
+            name="Test Clinic",
+            line_channel_id="test_channel",
+            line_channel_secret="test_secret",
+            line_channel_access_token="test_token"
+        )
+        db_session.add(clinic)
+        db_session.commit()
+
+        appointment_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="Physical Therapy",
+            duration_minutes=60
+        )
+        db_session.add(appointment_type)
+        db_session.commit()
+
+        # Create resource type and resources
+        resource_type = ResourceType(
+            clinic_id=clinic.id,
+            name="治療室"
+        )
+        db_session.add(resource_type)
+        db_session.commit()
+
+        # NO resources created for this type
+
+        # Create requirement (needs 1 room)
+        requirement = AppointmentResourceRequirement(
+            appointment_type_id=appointment_type.id,
+            resource_type_id=resource_type.id,
+            quantity=1
+        )
+        db_session.add(requirement)
+        db_session.commit()
+
+        # Create calendar event
+        user = User(
+            email="test@example.com",
+            google_subject_id="test_subject"
+        )
+        db_session.add(user)
+        db_session.commit()
+
+        calendar_event = CalendarEvent(
+            user_id=user.id,
+            clinic_id=clinic.id,
+            event_type='appointment',
+            date=date(2025, 1, 28),
+            start_time=time(10, 0),
+            end_time=time(11, 0)
+        )
+        db_session.add(calendar_event)
+        db_session.commit()
+
+        # Attempt to allocate resources with None (should fail with ValueError)
+        start_time = datetime(2025, 1, 28, 10, 0)
+        end_time = datetime(2025, 1, 28, 11, 0)
+        
+        with pytest.raises(ValueError, match="No resources found"):
+            ResourceService.allocate_resources(
+                db=db_session,
+                appointment_id=calendar_event.id,
+                appointment_type_id=appointment_type.id,
+                start_time=start_time,
+                end_time=end_time,
+                clinic_id=clinic.id,
+                selected_resource_ids=None
+            )
 
     def test_allocate_resources_with_selection(self, db_session: Session):
         """Test resource allocation with selected resource IDs."""

@@ -275,20 +275,16 @@ class AppointmentService:
 
             # Allocate resources for the appointment
             from services.resource_service import ResourceService
-            try:
-                ResourceService.allocate_resources(
-                    db=db,
-                    appointment_id=calendar_event.id,
-                    appointment_type_id=appointment_type_id,
-                    start_time=start_time,
-                    end_time=end_time,
-                    clinic_id=clinic_id,
-                    selected_resource_ids=selected_resource_ids,
-                    exclude_calendar_event_id=None  # No exclusion needed for new appointments
-                )
-            except Exception as e:
-                logger.warning(f"Failed to allocate resources for appointment {calendar_event.id}: {e}")
-                # Continue without resource allocation (graceful degradation)
+            ResourceService.allocate_resources(
+                db=db,
+                appointment_id=calendar_event.id,
+                appointment_type_id=appointment_type_id,
+                start_time=start_time,
+                end_time=end_time,
+                clinic_id=clinic_id,
+                selected_resource_ids=selected_resource_ids,
+                exclude_calendar_event_id=None  # No exclusion needed for new appointments
+            )
 
             db.commit()
             db.refresh(appointment)
@@ -2335,9 +2331,13 @@ class AppointmentService:
         # Re-allocate resources if time, appointment type, or resources changed
         if time_actually_changed or appointment_type_actually_changed or resources_changed:
             
-            # If we are re-allocating due to time/type change but NO new selection was provided, 
-            # we must fetch the existing IDs to preserve them.
-            if resource_ids_to_allocate is None:
+            # If we are re-allocating but NO new selection was provided (resource_ids_to_allocate is None):
+            # 1. Admin Mode (apply_booking_constraints=False): Fetch existing IDs to preserve them.
+            #    This triggers "Manual Mode" in allocate_resources, allowing overrides/conflicts if needed.
+            # 2. Patient Mode (apply_booking_constraints=True): Leave as None.
+            #    This triggers "Auto-Allocation Mode" in allocate_resources, which strictly enforces availability
+            #    and finds *any* available resource to prevent double-booking.
+            if resource_ids_to_allocate is None and not apply_booking_constraints:
                 current_allocations = db.query(AppointmentResourceAllocation).filter(
                     AppointmentResourceAllocation.appointment_id == appointment_id
                 ).all()
@@ -2354,22 +2354,18 @@ class AppointmentService:
             new_end_time = normalized_start_time + timedelta(minutes=duration_minutes)
             
             # Allocate new resources
-            try:
-                ResourceService.allocate_resources(
-                    db=db,
-                    appointment_id=appointment_id,
-                    appointment_type_id=appointment_type_id_to_use,
-                    start_time=normalized_start_time,
-                    end_time=new_end_time,
-                    clinic_id=clinic_id,
-                    selected_resource_ids=resource_ids_to_allocate,
-                    exclude_calendar_event_id=appointment_id
-                )
-                # Flush to ensure new allocations are visible to subsequent queries
-                db.flush()
-            except Exception as e:
-                logger.warning(f"Failed to re-allocate resources for appointment {appointment_id}: {e}")
-                # Continue without resource allocation (graceful degradation)
+            ResourceService.allocate_resources(
+                db=db,
+                appointment_id=appointment_id,
+                appointment_type_id=appointment_type_id_to_use,
+                start_time=normalized_start_time,
+                end_time=new_end_time,
+                clinic_id=clinic_id,
+                selected_resource_ids=resource_ids_to_allocate,
+                exclude_calendar_event_id=appointment_id
+            )
+            # Flush to ensure new allocations are visible to subsequent queries
+            db.flush()
 
         logger.info(f"Updated appointment {appointment_id}")
 
