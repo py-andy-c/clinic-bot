@@ -98,7 +98,7 @@ def _get_test_db_url():
         should_block = True
         fail_reason = "URL pattern matches production/railway naming."
 
-    if should_block and not os.getenv("ALLOW_DANGEROUS_TEST_CLEANUP") == "true":
+    if should_block:
         error_msg = (
             "\n"
             "🛑 STOP! CRITICAL SAFETY BREACH DETECTED 🛑\n\n"
@@ -107,7 +107,6 @@ def _get_test_db_url():
             "The test suite is attempting to connect to a database that does not meet safety criteria.\n"
             "Destructive operations (drop_all) are strictly blocked to prevent data loss.\n\n"
             "REQUIRED FIX: Ensure your test database name contains the word 'test'.\n"
-            "EMERGENCY OVERRIDE: Set ALLOW_DANGEROUS_TEST_CLEANUP=true.\n"
         )
         import sys
         sys.stderr.write(error_msg)
