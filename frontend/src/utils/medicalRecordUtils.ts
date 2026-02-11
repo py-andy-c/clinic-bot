@@ -1,5 +1,6 @@
-import { MedicalRecord } from '../types/medicalRecord';
+import { MedicalRecord, TemplateField } from '../types/medicalRecord';
 import { formatDateOnly } from './calendarUtils';
+import { z } from 'zod';
 
 /**
  * Checks if a medical record is empty (no values or all values are empty)
@@ -153,4 +154,61 @@ export const selectDefaultAppointment = (
     }
 
     return null;
+};
+
+/**
+ * Generate dynamic Zod schema based on template fields.
+ * Validates medical record values based on their field types.
+ * 
+ * @param fields - The template fields to generate schema for
+ * @returns A Zod schema for the values object
+ */
+export const createMedicalRecordDynamicSchema = (
+    fields: TemplateField[] | undefined
+): z.ZodObject<any> | z.ZodRecord<z.ZodString, z.ZodAny> => {
+    if (!fields || fields.length === 0) {
+        return z.record(z.any());
+    }
+
+    const valuesShape: Record<string, z.ZodTypeAny> = {};
+    fields.forEach((field) => {
+        const fieldId = field.id;
+        let fieldSchema: z.ZodTypeAny;
+
+        switch (field.type) {
+            case 'text':
+            case 'textarea':
+            case 'dropdown':
+            case 'radio':
+            case 'date':
+                fieldSchema = z.string()
+                    .transform(val => (val === '' ? null : val))
+                    .nullable()
+                    .optional();
+                break;
+            case 'number':
+                fieldSchema = z.union([
+                    z.number(),
+                    z.string().transform(val => val === '' ? undefined : Number(val)),
+                    z.null()
+                ]).optional();
+                break;
+            case 'checkbox':
+                fieldSchema = z.preprocess(
+                    (val) => {
+                        if (Array.isArray(val)) return val;
+                        if (val === null || val === undefined) return [];
+                        if (typeof val === 'boolean') return [];
+                        return [String(val)];
+                    },
+                    z.array(z.string())
+                ).optional();
+                break;
+            default:
+                fieldSchema = z.any().optional();
+        }
+        valuesShape[fieldId] = fieldSchema;
+    });
+
+    return z.object(valuesShape);
 };

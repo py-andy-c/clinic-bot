@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useForm, FormProvider } from 'react-hook-form';
+import { FieldValues, useForm, FormProvider, SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useQueryClient } from '@tanstack/react-query';
@@ -23,74 +23,19 @@ import { getErrorMessage } from '../types/api';
 import { logger } from '../utils/logger';
 import { AxiosError } from 'axios';
 import { getGenderLabel } from '../utils/genderUtils';
-import { TemplateField, PatientPhoto } from '../types/medicalRecord';
+import { PatientPhoto } from '../types/medicalRecord';
 import { formatAppointmentTimeRange } from '../utils/calendarUtils';
 import { apiService } from '../services/api';
+import { createMedicalRecordDynamicSchema } from '../utils/medicalRecordUtils';
 
 /**
  * Generate dynamic Zod schema based on template fields.
  * Modified to mark ALL fields as optional regardless of template's required flag.
  */
-const createDynamicSchema = (fields: TemplateField[] | undefined) => {
-  if (!fields || fields.length === 0) {
-    return z.object({
-      values: z.record(z.any()),
-    });
-  }
-
-  const valuesShape: Record<string, z.ZodTypeAny> = {};
-
-  fields.forEach((field) => {
-    const fieldId = field.id;
-
-    // All fields are optional for validation purposes
-    let fieldSchema: z.ZodTypeAny;
-
-    switch (field.type) {
-      case 'text':
-      case 'textarea':
-      case 'dropdown':
-      case 'radio':
-      case 'date':
-        fieldSchema = z.string()
-          .transform(val => (val === '' ? null : val))
-          .nullable()
-          .optional();
-        break;
-      case 'number':
-        fieldSchema = z.union([
-          z.number(),
-          z.string().transform(val => val === '' ? undefined : Number(val)),
-          z.null()
-        ]).optional();
-        break;
-      case 'checkbox':
-        fieldSchema = z.preprocess(
-          (val) => {
-            if (Array.isArray(val)) return val;
-            if (val === null || val === undefined) return [];
-            if (typeof val === 'boolean') return [];
-            return [String(val)];
-          },
-          z.array(z.string())
-        ).optional();
-        break;
-      default:
-        fieldSchema = z.any().optional();
-    }
-
-    valuesShape[fieldId] = fieldSchema;
-  });
-
-  return z.object({
-    values: z.object(valuesShape),
-    appointment_id: z.number().nullable().optional(),
-  });
-};
 
 type RecordFormData = {
   values: Record<string, any>;
-  appointment_id?: number | null;
+  appointment_id?: number | null | undefined;
 };
 
 /**
@@ -147,7 +92,10 @@ const MedicalRecordPage: React.FC = () => {
 
   // Generate dynamic schema based on template fields
   const dynamicSchema = useMemo(
-    () => createDynamicSchema(record?.template_snapshot?.fields),
+    () => z.object({
+      values: createMedicalRecordDynamicSchema(record?.template_snapshot?.fields),
+      appointment_id: z.number().nullable().optional(),
+    }),
     [record?.template_snapshot?.fields]
   );
 
@@ -236,7 +184,8 @@ const MedicalRecordPage: React.FC = () => {
     navigate(`/admin/clinic/patients/${patientId}`);
   };
 
-  const onSubmit = async (data: RecordFormData) => {
+  const onSubmit: SubmitHandler<FieldValues> = async (formData) => {
+    const data = formData as RecordFormData;
     if (!record) return;
 
     try {

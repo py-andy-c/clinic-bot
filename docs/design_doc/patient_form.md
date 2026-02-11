@@ -62,7 +62,13 @@ Fundamentally, a patient form is a variant of a **Medical Record Template**. It 
    * Implemented photo upload and management within the LIFF form.
    * Added `form` mode to LIFF application routing.
    * Handled form state persistence (Draft/Submitted) and concurrency.
-5. **Phase 5**: Testing and Polish. (Next)
+5. **Phase 5**: Testing and Polish. ✅ **(Completed)**
+   * Extracted shared validation logic into `src/utils/medicalRecordUtils.ts`.
+   * Added comprehensive unit tests for `PatientMedicalRecordPage.tsx` covering error handling (409 conflicts) and validation.
+   * Added unit tests for `LiffMedicalRecordPhotoSelector.tsx`.
+   * Added tests for `createMedicalRecordDynamicSchema` utility.
+   * Addressed TypeScript strict type checking errors by refining `RecordFormData` and schema definitions.
+   * Verified all tests pass including backend integration tests.
 
 ## API Design
 

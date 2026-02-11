@@ -2,7 +2,8 @@ import { describe, it, expect, vi } from 'vitest';
 import {
     isMedicalRecordEmpty,
     getMedicalRecordStatus,
-    selectDefaultAppointment
+    selectDefaultAppointment,
+    createMedicalRecordDynamicSchema
 } from '../medicalRecordUtils';
 import { MedicalRecord } from '../../types/medicalRecord';
 
@@ -160,6 +161,40 @@ describe('medicalRecordUtils', () => {
                 { id: 21, status: 'confirmed', start_time: '2026-02-20T10:00:00Z', end_time: '2026-02-20T11:00:00Z' }
             ];
             expect(selectDefaultAppointment(onlyFuture)).toBe(20);
+        });
+        describe('createMedicalRecordDynamicSchema', () => {
+            it('should return a record schema when no fields provided', () => {
+                const schema = createMedicalRecordDynamicSchema(undefined);
+                const result = schema.safeParse({ q1: 'test' });
+                expect(result.success).toBe(true);
+            });
+
+            it('should validate text fields', () => {
+                const fields = [{ id: 'q1', type: 'text', label: 'Q1' }] as any;
+                const schema = createMedicalRecordDynamicSchema(fields);
+
+                expect(schema.safeParse({ q1: 'hello' }).success).toBe(true);
+                expect(schema.safeParse({ q1: null }).success).toBe(true);
+                expect(schema.safeParse({ q1: '' }).data.q1).toBe(null);
+            });
+
+            it('should validate number fields', () => {
+                const fields = [{ id: 'q1', type: 'number', label: 'Q1' }] as any;
+                const schema = createMedicalRecordDynamicSchema(fields);
+
+                expect(schema.safeParse({ q1: 123 }).success).toBe(true);
+                expect(schema.safeParse({ q1: '123' }).data.q1).toBe(123);
+                expect(schema.safeParse({ q1: '' }).data.q1).toBe(undefined);
+            });
+
+            it('should validate checkbox fields', () => {
+                const fields = [{ id: 'q1', type: 'checkbox', label: 'Q1' }] as any;
+                const schema = createMedicalRecordDynamicSchema(fields);
+
+                expect(schema.safeParse({ q1: ['a', 'b'] }).success).toBe(true);
+                expect(schema.safeParse({ q1: 'a' }).data.q1).toEqual(['a']);
+                expect(schema.safeParse({ q1: null }).data.q1).toEqual([]);
+            });
         });
     });
 });

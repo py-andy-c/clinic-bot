@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { useForm, FormProvider } from 'react-hook-form';
+import { FieldValues, useForm, FormProvider } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { LoadingSpinner, ErrorMessage } from '../../components/shared';
@@ -10,61 +10,12 @@ import { useLiffMedicalRecord, useLiffUpdateMedicalRecord } from '../hooks/medic
 import { TemplateField } from '../../types/medicalRecord';
 import { logger } from '../../utils/logger';
 import { useModal } from '../../contexts/ModalContext';
+import { createMedicalRecordDynamicSchema } from '../../utils/medicalRecordUtils';
 
-const createDynamicSchema = (fields: TemplateField[] | undefined) => {
-    if (!fields || fields.length === 0) {
-        return z.object({
-            values: z.record(z.any()),
-        });
-    }
-
-    const valuesShape: Record<string, z.ZodTypeAny> = {};
-    fields.forEach((field) => {
-        const fieldId = field.id;
-        let fieldSchema: z.ZodTypeAny;
-
-        switch (field.type) {
-            case 'text':
-            case 'textarea':
-            case 'dropdown':
-            case 'radio':
-            case 'date':
-                fieldSchema = z.string()
-                    .transform(val => (val === '' ? null : val))
-                    .nullable()
-                    .optional();
-                break;
-            case 'number':
-                fieldSchema = z.union([
-                    z.number(),
-                    z.string().transform(val => val === '' ? undefined : Number(val)),
-                    z.null()
-                ]).optional();
-                break;
-            case 'checkbox':
-                fieldSchema = z.preprocess(
-                    (val) => {
-                        if (Array.isArray(val)) return val;
-                        if (val === null || val === undefined) return [];
-                        return [String(val)];
-                    },
-                    z.array(z.string())
-                ).optional();
-                break;
-            default:
-                fieldSchema = z.any().optional();
-        }
-        valuesShape[fieldId] = fieldSchema;
-    });
-
-    return z.object({
-        values: z.object(valuesShape),
-    });
-};
 
 type RecordFormData = {
     values: Record<string, any>;
-};
+} & FieldValues;
 
 const PatientMedicalRecordPage: React.FC = () => {
     const [searchParams] = useSearchParams();
@@ -81,7 +32,9 @@ const PatientMedicalRecordPage: React.FC = () => {
     const [isSuccess, setIsSuccess] = useState(false);
 
     const dynamicSchema = useMemo(
-        () => createDynamicSchema(record?.template_snapshot?.fields),
+        () => z.object({
+            values: createMedicalRecordDynamicSchema(record?.template_snapshot?.fields),
+        }),
         [record?.template_snapshot?.fields]
     );
 
