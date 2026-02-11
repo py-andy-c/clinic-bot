@@ -26,13 +26,7 @@ import {
   ServiceItemBundleResponse,
   ServiceItemBundleRequest,
   ResourceTypeBundleResponse,
-  ResourceTypeBundleRequest
-} from '../types';
-import {
-  validateClinicSettings,
-  ClinicSettings
-} from '../schemas/api';
-import {
+  ResourceTypeBundleRequest,
   DefaultScheduleResponse,
   MonthlyCalendarData,
   DailyCalendarData,
@@ -45,8 +39,26 @@ import {
   ResourceType,
   Resource,
   ResourceRequirement,
-  ResourceAvailabilityResponse
+  ResourceAvailabilityResponse,
+  MedicalRecordTemplatesListResponse,
+  PatientPhotosListResponse,
+  PatientPhoto,
+  PatientPhotoUpdateRequest,
+  MedicalRecordsListResponse
 } from '../types';
+import {
+  MedicalRecord,
+  MedicalRecordCreateRequest,
+  MedicalRecordUpdateRequest,
+  SendPatientFormRequest,
+  MedicalRecordTemplate,
+  MedicalRecordTemplateCreateRequest,
+  MedicalRecordTemplateUpdateRequest,
+} from '../types/medicalRecord';
+import {
+  validateClinicSettings,
+  ClinicSettings
+} from '../schemas/api';
 
 /**
  * Redirect to login page utility.
@@ -1495,27 +1507,27 @@ export class ApiService {
     page?: number;
     pageSize?: number;
     include_deleted?: boolean;
-  }): Promise<import('../types/medicalRecord').MedicalRecordTemplatesListResponse> {
+  }): Promise<MedicalRecordTemplatesListResponse> {
     const response = await this.client.get('/clinic/medical-record-templates', { params });
     return response.data;
   }
 
-  async getMedicalRecordTemplate(templateId: number): Promise<import('../types/medicalRecord').MedicalRecordTemplate> {
+  async getMedicalRecordTemplate(templateId: number): Promise<MedicalRecordTemplate> {
     const response = await this.client.get(`/clinic/medical-record-templates/${templateId}`);
     return response.data;
   }
 
   async createMedicalRecordTemplate(
-    data: import('../types/medicalRecord').MedicalRecordTemplateCreateRequest
-  ): Promise<import('../types/medicalRecord').MedicalRecordTemplate> {
+    data: MedicalRecordTemplateCreateRequest
+  ): Promise<MedicalRecordTemplate> {
     const response = await this.client.post('/clinic/medical-record-templates', data);
     return response.data;
   }
 
   async updateMedicalRecordTemplate(
     templateId: number,
-    data: import('../types/medicalRecord').MedicalRecordTemplateUpdateRequest
-  ): Promise<import('../types/medicalRecord').MedicalRecordTemplate> {
+    data: MedicalRecordTemplateUpdateRequest
+  ): Promise<MedicalRecordTemplate> {
     const response = await this.client.put(`/clinic/medical-record-templates/${templateId}`, data);
     return response.data;
   }
@@ -1529,28 +1541,36 @@ export class ApiService {
   async listPatientMedicalRecords(
     patientId: number,
     params?: { skip?: number; limit?: number; include_deleted?: boolean; appointment_id?: number; status?: 'active' | 'deleted' | 'all' }
-  ): Promise<import('../types/medicalRecord').MedicalRecordsListResponse> {
+  ): Promise<MedicalRecordsListResponse> {
     const response = await this.client.get(`/clinic/patients/${patientId}/medical-records`, { params });
     return response.data;
   }
 
-  async getMedicalRecord(recordId: number): Promise<import('../types/medicalRecord').MedicalRecord> {
+  async getMedicalRecord(recordId: number): Promise<MedicalRecord> {
     const response = await this.client.get(`/clinic/medical-records/${recordId}`);
     return response.data;
   }
 
   async createMedicalRecord(
     patientId: number,
-    data: import('../types/medicalRecord').MedicalRecordCreateRequest
-  ): Promise<import('../types/medicalRecord').MedicalRecord> {
+    data: MedicalRecordCreateRequest
+  ): Promise<MedicalRecord> {
     const response = await this.client.post(`/clinic/patients/${patientId}/medical-records`, data);
+    return response.data;
+  }
+
+  async sendPatientForm(
+    patientId: number,
+    data: SendPatientFormRequest
+  ): Promise<MedicalRecord> {
+    const response = await this.client.post(`/clinic/patients/${patientId}/medical-records/send-form`, data);
     return response.data;
   }
 
   async updateMedicalRecord(
     recordId: number,
-    data: import('../types/medicalRecord').MedicalRecordUpdateRequest
-  ): Promise<import('../types/medicalRecord').MedicalRecord> {
+    data: MedicalRecordUpdateRequest
+  ): Promise<MedicalRecord> {
     const response = await this.client.put(`/clinic/medical-records/${recordId}`, data);
     return response.data;
   }
@@ -1560,7 +1580,7 @@ export class ApiService {
     return response.data;
   }
 
-  async restoreMedicalRecord(recordId: number): Promise<import('../types/medicalRecord').MedicalRecord> {
+  async restoreMedicalRecord(recordId: number): Promise<MedicalRecord> {
     const response = await this.client.post(`/clinic/medical-records/${recordId}/restore`);
     return response.data;
   }
@@ -1579,7 +1599,7 @@ export class ApiService {
       medical_record_id?: number;
       unlinked_only?: boolean;
     }
-  ): Promise<import('../types/medicalRecord').PatientPhotosListResponse> {
+  ): Promise<PatientPhotosListResponse> {
     const response = await this.client.get(`/clinic/patient-photos`, {
       params: { patient_id: patientId, ...params }
     });
@@ -1602,7 +1622,7 @@ export class ApiService {
       is_pending?: boolean;
       onUploadProgress?: (progressEvent: any) => void;
     }
-  ): Promise<import('../types/medicalRecord').PatientPhoto> {
+  ): Promise<PatientPhoto> {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('patient_id', patientId.toString());
@@ -1633,8 +1653,8 @@ export class ApiService {
 
   async updatePatientPhoto(
     photoId: number,
-    data: import('../types/medicalRecord').PatientPhotoUpdateRequest
-  ): Promise<import('../types/medicalRecord').PatientPhoto> {
+    data: PatientPhotoUpdateRequest
+  ): Promise<PatientPhoto> {
     const response = await this.client.put(`/clinic/patient-photos/${photoId}`, data);
     return response.data;
   }
@@ -1647,7 +1667,7 @@ export class ApiService {
   async attachPhotosToRecord(
     recordId: number,
     photoIds: number[]
-  ): Promise<import('../types/medicalRecord').PatientPhoto[]> {
+  ): Promise<PatientPhoto[]> {
     const response = await this.client.post(`/clinic/patient-photos/attach`, {
       record_id: recordId,
       photo_ids: photoIds,

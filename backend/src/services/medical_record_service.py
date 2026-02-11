@@ -430,68 +430,102 @@ class MedicalRecordService:
         appointment_id: Optional[int] = None,
         message_override: Optional[str] = None
     ) -> MedicalRecord:
-        # 1. Verify patient and Line linkage
+        # 1. Verify Clinic
+        clinic = db.query(Clinic).filter(Clinic.id == clinic_id).first()
+        if not clinic:
+            raise HTTPException(
+                status_code=404, 
+                detail={"error_code": "CLINIC_NOT_FOUND", "message": "Clinic not found"}
+            )
+
+        # 2. Verify Patient and Line linkage
         patient = db.query(Patient).filter(
             Patient.id == patient_id, 
             Patient.clinic_id == clinic_id
         ).first()
         
         if not patient:
-            raise HTTPException(status_code=404, detail="Patient not found")
+            raise HTTPException(
+                status_code=404, 
+                detail={"error_code": "PATIENT_NOT_FOUND", "message": "Patient not found"}
+            )
             
         if not patient.line_user_id:
-            raise HTTPException(status_code=400, detail="Patient is not linked to a LINE user")
+            raise HTTPException(
+                status_code=400, 
+                detail={
+                    "error_code": "PATIENT_NOT_LINKED",
+                    "message": "Patient is not linked to a LINE user"
+                }
+            )
             
         line_user = db.query(LineUser).filter(LineUser.id == patient.line_user_id).first()
         if not line_user:
-             raise HTTPException(status_code=404, detail="Linked LINE user not found")
+             raise HTTPException(
+                 status_code=404, 
+                 detail={"error_code": "LINE_USER_NOT_FOUND", "message": "Linked LINE user not found"}
+             )
 
-        # 2. Verify template
+        # 3. Verify Template
         template = db.query(MedicalRecordTemplate).filter(
             MedicalRecordTemplate.id == template_id,
             MedicalRecordTemplate.clinic_id == clinic_id
         ).first()
         
         if not template:
-            raise HTTPException(status_code=404, detail="Template not found")
+            raise HTTPException(
+                status_code=404, 
+                detail={"error_code": "TEMPLATE_NOT_FOUND", "message": "Template not found"}
+            )
         
         if not template.is_patient_form:
-            raise HTTPException(status_code=400, detail="Template is not a patient form")
+            raise HTTPException(
+                status_code=400, 
+                detail={
+                    "error_code": "TEMPLATE_NOT_PATIENT_FORM",
+                    "message": "Template is not a patient form"
+                }
+            )
 
-        # 3. Create Record (NO COMMIT)
-        record = MedicalRecordService.create_record(
-            db=db,
-            clinic_id=clinic_id,
-            patient_id=patient_id,
-            template_id=template_id,
-            values={},  # Empty values for patient to fill
-            appointment_id=appointment_id,
-            created_by_user_id=created_by_user_id,
-            commit=False
-        )
-
+        # Wrap the transaction and Line message sending in a single try/except block
         try:
-            # 4. Construct LIFF URL using utility
-            # We use path-based routing for the record ID
-            # This requires generate_liff_url to support the path argument
+            # Start of Transactional Work
+            
+            # 4. Create Record (NO COMMIT)
+            record = MedicalRecordService.create_record(
+                db=db,
+                clinic_id=clinic_id,
+                patient_id=patient_id,
+                template_id=template_id,
+                values={},  # Empty values for patient to fill
+                appointment_id=appointment_id,
+                created_by_user_id=created_by_user_id,
+                commit=False
+            )
+            
+            # Flush to get record.id for LIFF URL
+            db.flush()
+
+            # 5. Construct LIFF URL using utility
             from utils.liff_token import generate_liff_url
             
-            clinic = db.query(Clinic).filter(Clinic.id == clinic_id).first()
-            if not clinic:
-                raise HTTPException(status_code=404, detail="Clinic not found")
-                
-            # Use generate_liff_url utility which handles shared/dedicated LIFF and tokens
             try:
                 liff_url = generate_liff_url(
                     clinic=clinic,
-                    mode="form", # Use specific mode for forms if needed, or default
+                    mode="form",
                     path=f"records/{record.id}"
                 )
             except ValueError as e:
-                # Map utility errors to HTTPException
-                raise HTTPException(status_code=500, detail=str(e))
+                # Don't rollback here - let outer handler do it
+                raise HTTPException(
+                    status_code=500, 
+                    detail={
+                        "error_code": "LIFF_NOT_CONFIGURED",
+                        "message": str(e)
+                    }
+                )
             
-            # 5. Send Message
+            # 6. Send Message
             line_service = LINEService(clinic.line_channel_secret, clinic.line_channel_access_token)
             
             # Default message in Traditional Chinese
@@ -511,12 +545,22 @@ class MedicalRecordService:
                 }
             )
             
-            # 6. Commit on success
+            # 7. Final Commit on success
             db.commit()
             db.refresh(record)
             return record
             
-        except Exception as e:
-            # Rollback transaction on failure (cleans up record and any potential photo links)
+        except HTTPException:
+            # Re-raise HTTPExceptions directly after rollback
             db.rollback()
-            raise HTTPException(status_code=500, detail=f"Failed to send LINE message: {str(e)}")
+            raise
+        except Exception as e:
+            # Rollback transaction on failure (cleans up record)
+            db.rollback()
+            raise HTTPException(
+                status_code=500, 
+                detail={
+                    "error_code": "LINE_SEND_FAILED",
+                    "message": f"Failed to send LINE message: {str(e)}"
+                }
+            )

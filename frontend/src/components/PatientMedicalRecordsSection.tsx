@@ -11,9 +11,11 @@ import { useModal } from '../contexts/ModalContext';
 import { LoadingSpinner } from './shared';
 import { MedicalRecord } from '../types/medicalRecord';
 import { CreateMedicalRecordDialog } from './CreateMedicalRecordDialog';
+import { SendPatientFormDialog } from './SendPatientFormDialog';
 import { formatAppointmentDateTime } from '../utils/calendarUtils';
 import { getErrorMessage } from '../types/api';
 import { logger } from '../utils/logger';
+import { getMedicalRecordStatus } from '../utils/medicalRecordUtils';
 import { MEDICAL_RECORD_RETENTION_DAYS } from '../constants/medicalRecords';
 
 interface PatientMedicalRecordsSectionProps {
@@ -31,6 +33,7 @@ export const PatientMedicalRecordsSection: React.FC<PatientMedicalRecordsSection
   const { confirm, alert } = useModal();
   const [showDeleted, setShowDeleted] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [showSendFormDialog, setShowSendFormDialog] = useState(false);
 
   // Fetch active records
   const { data: activeData, isLoading: isLoadingActive, error: activeError } = usePatientMedicalRecords(
@@ -59,6 +62,11 @@ export const PatientMedicalRecordsSection: React.FC<PatientMedicalRecordsSection
     setShowCreateDialog(false);
     // Navigate to the full-page editor
     navigate(`/admin/clinic/patients/${patientId}/records/${recordId}`);
+  };
+
+  const handleSendFormSuccess = (_recordId: number) => {
+    setShowSendFormDialog(false);
+    // Refresh is handled by useSendPatientForm mutation invalidating the list
   };
 
   const handleOpen = (recordId: number) => {
@@ -131,11 +139,20 @@ export const PatientMedicalRecordsSection: React.FC<PatientMedicalRecordsSection
     <>
       <div className="bg-white -mx-4 sm:mx-0 sm:rounded-lg shadow-none sm:shadow-md border-b sm:border-none border-gray-200 p-4 sm:p-6 mb-0 sm:mb-6">
         {!hideCreateButton && (
-          <div className="flex justify-end items-center mb-4">
+          <div className="flex justify-end items-center mb-4 gap-3">
+            <button
+              type="button"
+              onClick={() => setShowSendFormDialog(true)}
+              className="px-4 py-2 text-primary-600 bg-primary-50 border border-primary-200 rounded-lg hover:bg-primary-100 transition-colors"
+              aria-label="發送病患表單給此病患"
+            >
+              發送病患表單
+            </button>
             <button
               type="button"
               onClick={handleCreate}
               className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+              aria-label="建立新病歷記錄"
             >
               新增病歷
             </button>
@@ -202,6 +219,15 @@ export const PatientMedicalRecordsSection: React.FC<PatientMedicalRecordsSection
             onSuccess={handleCreateSuccess}
           />
         )}
+
+        {/* Send Form Dialog */}
+        {showSendFormDialog && (
+          <SendPatientFormDialog
+            patientId={patientId}
+            onClose={() => setShowSendFormDialog(false)}
+            onSuccess={handleSendFormSuccess}
+          />
+        )}
       </div>
     </>
   );
@@ -218,18 +244,15 @@ interface MedicalRecordCardProps {
 
 const MedicalRecordCard: React.FC<MedicalRecordCardProps> = ({
   record,
-  isDeleted,
   onOpen,
   onDelete,
   onRestore,
   onHardDelete,
 }) => {
-  // Check if record is empty (no values or all values are empty)
-  const isEmpty = !record.values || Object.keys(record.values).length === 0 ||
-    Object.values(record.values).every(v => v === '' || v === null || v === undefined);
+  const isDeletedLocally = record.is_deleted;
 
   // Calculate permanent deletion date for soft-deleted records
-  const permanentDeletionDate = isDeleted && record.deleted_at
+  const permanentDeletionDate = isDeletedLocally && record.deleted_at
     ? new Date(new Date(record.deleted_at).getTime() + MEDICAL_RECORD_RETENTION_DAYS * 24 * 60 * 60 * 1000)
     : null;
 
@@ -240,8 +263,8 @@ const MedicalRecordCard: React.FC<MedicalRecordCardProps> = ({
 
   return (
     <div
-      onClick={!isDeleted ? onOpen : undefined}
-      className={`p-4 border rounded-lg transition-all duration-200 ${isDeleted
+      onClick={!isDeletedLocally ? onOpen : undefined}
+      className={`p-4 border rounded-lg transition-all duration-200 ${isDeletedLocally
         ? 'bg-gray-50 border-gray-300'
         : 'bg-white border-gray-200 hover:border-primary-400 hover:shadow-md cursor-pointer'
         }`}
@@ -252,16 +275,23 @@ const MedicalRecordCard: React.FC<MedicalRecordCardProps> = ({
             <h4 className="font-semibold text-gray-900 text-lg">
               {record.template_snapshot.name}
             </h4>
-            {!isDeleted && isEmpty && (
-              <span className="px-2 py-0.5 text-xs bg-gray-100 text-gray-500 font-medium rounded-full">
-                空
-              </span>
-            )}
+            {!isDeletedLocally && (() => {
+              const status = getMedicalRecordStatus(record);
+              return (
+                <span
+                  className={`px-2 py-0.5 text-xs font-medium rounded-full ${status.className}`}
+                  role="status"
+                  aria-label={status.ariaLabel}
+                >
+                  {status.label}
+                </span>
+              );
+            })()}
           </div>
         </div>
 
         <div className="flex gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
-          {isDeleted ? (
+          {isDeletedLocally ? (
             <>
               <button
                 type="button"
@@ -338,7 +368,7 @@ const MedicalRecordCard: React.FC<MedicalRecordCardProps> = ({
         )}
 
         {/* Deletion Info */}
-        {isDeleted && record.deleted_at && (
+        {isDeletedLocally && record.deleted_at && (
           <>
             <div className="flex items-start gap-2 text-gray-500">
               <svg className="w-4 h-4 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

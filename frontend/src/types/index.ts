@@ -703,4 +703,5 @@ export interface ResourceTypeBundleResponse {
   resources: Resource[];
 }
 
+export * from './medicalRecord';
 export * from './api';

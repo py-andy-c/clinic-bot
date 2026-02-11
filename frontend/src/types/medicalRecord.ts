@@ -137,3 +137,9 @@ export interface PatientPhotoUpdateRequest {
   description?: string;
   medical_record_id?: number;
 }
+
+export interface SendPatientFormRequest {
+  template_id: number;
+  appointment_id?: number;
+  message_override?: string;
+}

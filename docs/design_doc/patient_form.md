@@ -34,6 +34,31 @@ Fundamentally, a patient form is a variant of a **Medical Record Template**. It 
 
 * No immediate changes needed, but ensure `uploaded_by_user_id` can be NULL for patient-uploaded photos.
 
+## Implementation Phases
+
+1. **Phase 1**: Backend schema changes and template settings update. ✅ **(Completed)**
+   * Added `is_patient_form` to templates.
+   * Added `is_submitted` and `patient_last_edited_at` to records.
+   * Updated management API and frontend types.
+   * Added "Open for patient completion" toggle in template editor.
+2. **Phase 2**: Backend "Send Form" endpoint and Line messaging integration. ✅ **(Completed)**
+   * Implemented `POST /clinics/{clinic_id}/patients/{patient_id}/medical-records/send-form`.
+   * Added `send_patient_form` logic in `MedicalRecordService`.
+   * Integrated `LINEService` to send template messages with LIFF buttons.
+   * Added comprehensive integration tests.
+3. **Phase 3**: Clinic UI - "發送病患表單" button and dialog. ✅ **(Completed)**
+   * Implemented `SendPatientFormDialog` with template filtering and appointment selection.
+   * Added `sendPatientForm` to `ApiService` and `useSendPatientForm` hook.
+   * Integrated "發送病患表單" button in `PatientMedicalRecordsSection`.
+   * Added record status indicators ("填寫中", "已提交", "診所建立", "空") to medical record cards with improved priority logic.
+   * Added Line link status check to prevent sending forms to unlinked patients.
+   * Improved smart default appointment selection logic with interaction tracking.
+   * Added comprehensive unit tests for the new dialog and hooks.
+   * **Note**: E2E tests for the full flow have been deferred to a follow-up PR (Task #PF-E2E).
+   * **Note on API contract**: Transitioned to structured error responses for specific error types to support localized/rich frontend error states.
+4. **Phase 4**: Patient UI - LIFF form editor.
+5. **Phase 5**: Testing and Polish.
+
 ## API Design
 
 ### 1. Management API (Clinic Side)
@@ -138,18 +163,67 @@ Patients should be able to upload photos while filling out the form.
 * **Access Control**: Medical records are sensitive. The LIFF API must strictly enforce that a `LineUser` can only access records belonging to their associated `Patient` profiles.
 * **No Token Expiry**: There is **no expiration time** for the form link. Once sent, the patient can access and edit the form indefinitely (or until the clinic manually deletes it). This ensures patients can always refer back to or update their information if needed.
 
-## Implementation Phases
+## API Error Handling
 
-1. **Phase 1**: Backend schema changes and template settings update. ✅ **(Completed)**
-   * Added `is_patient_form` to templates.
-   * Added `is_submitted` and `patient_last_edited_at` to records.
-   * Updated management API and frontend types.
-   * Added "Open for patient completion" toggle in template editor.
-2. **Phase 2**: Backend "Send Form" endpoint and Line messaging integration. ✅ **(Completed)**
-   * Implemented `POST /clinics/{clinic_id}/patients/{patient_id}/medical-records/send-form`.
-   * Added `send_patient_form` logic in `MedicalRecordService`.
-   * Integrated `LINEService` to send template messages with LIFF buttons.
-   * Added comprehensive integration tests.
-3. **Phase 3**: Clinic UI - "發送病患表單" button and dialog.
-4. **Phase 4**: Patient UI - LIFF form editor.
-5. **Phase 5**: Testing and Polish.
+Starting with Phase 3, the Patient Form related endpoints transition to a **structured error response format**. This allows the frontend to provide specific, localized feedback based on machine-readable error codes.
+
+**Format**:
+
+```json
+{
+  "detail": {
+    "error_code": "CODE_NAME",
+    "message": "Human readable message"
+  }
+}
+```
+
+**Common Error Codes**:
+
+* `PATIENT_NOT_LINKED` (400): Patient has no associated `line_user_id`.
+* `TEMPLATE_NOT_PATIENT_FORM` (400): Attempted to send a template that is not marked as `is_patient_form`.
+* `LIFF_NOT_CONFIGURED` (500): The clinic or system is missing required LIFF settings (e.g., missing `liff_id`).
+* `LINE_SEND_FAILED` (500): Technical failure when communicating with Line API.
+* `PATIENT_NOT_FOUND` (404)
+* `TEMPLATE_NOT_FOUND` (404)
+* `CLINIC_NOT_FOUND` (404)
+* `LINE_USER_NOT_FOUND` (404)
+
+**Standard**: All new endpoints in the Patient Form module MUST use this structured format. Existing endpoints will be migrated as they are touched for feature updates.
+
+## Medical Record Status Logic
+
+The status badge shown on medical record cards follows a strict priority order to provide the most relevant information to clinic staff:
+
+1. **Submitted (`is_submitted: true`)**: "病患已提交" (Green). High priority. Note: If a record is submitted but has no values (edge case), it is still marked as submitted.
+2. **Editing (`patient_last_edited_at: Date`)**: "病患填寫中" (Yellow). Indicates the patient has opened the link but not yet clicked "Submit".
+3. **Empty (`values: {}`)**: "空" (Gray). No data has been entered yet (either by clinic or patient).
+4. **Clinic Created**: "診所建立" (Blue). The default state for records created and filled by staff.
+
+**Atomicity**: The "Send Form" operation is atomic. If the Line message fails to send or the LIFF URL cannot be generated, the `MedicalRecord` creation is rolled back, ensuring no "orphaned" empty records are created in the database.
+
+## Testing Strategy
+
+### Unit & Integration Tests
+
+* **Backend**: Integration tests in `test_send_patient_form.py` cover all error codes and the success path (Line message mock).
+* **Frontend**:
+  * `medicalRecordUtils.test.ts`: Comprehensive tests for status priority and default appointment selection.
+  * `SendPatientFormDialog.test.tsx`: Tests for template filtering, default selection logic, and error handling.
+
+### E2E Tests (Task #PF-E2E)
+
+A dedicated E2E test suite using Playwright will be implemented in Phase 5 to cover:
+
+1. **Happy Path**: Send form → Patient receives message → LIFF filling → Submission.
+2. **Blocking Scenarios**: Prevent sending to unlinked patients.
+3. **Smart Defaults**: Verify appointment selection and user-override persistence.
+4. **Status Updates**: Real-time updates of status badges in the patient profile.
+
+**Tracking**: Task #PF-E2E is tracked for implementation in Phase 5. Deployment to production will be blocked until these tests are complete to ensure full flow reliability.
+
+## Future Considerations
+
+* **Rate Limiting**: Implement rate limiting on the `send-form` endpoint to prevent accidental or malicious spamming of patients.
+* **Audit Logging**: Record an audit entry when a patient form is sent, including the staff member who initiated it and the exact message content.
+* **Clinic Edit After Submission**: Handle cases where clinic staff edits a record previously submitted by a patient.
