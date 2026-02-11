@@ -226,7 +226,10 @@ class MedicalRecordService:
     ) -> MedicalRecord:
         record = MedicalRecordService.get_record(db, record_id, clinic_id)
         if not record:
-            raise HTTPException(status_code=404, detail="Record not found")
+            raise HTTPException(
+                status_code=404, 
+                detail={"error_code": "RECORD_NOT_FOUND", "message": "Record not found"}
+            )
         
         if record.version != version:
             # Refresh record to get latest state including relationships
@@ -256,9 +259,15 @@ class MedicalRecordService:
             if appointment_id is not None and appointment_id != record.appointment_id:
                 appt = db.query(Appointment).filter(Appointment.calendar_event_id == appointment_id).first()
                 if not appt:
-                    raise HTTPException(status_code=404, detail="Appointment not found")
+                    raise HTTPException(
+                        status_code=404, 
+                        detail={"error_code": "APPOINTMENT_NOT_FOUND", "message": "Appointment not found"}
+                    )
                 if appt.patient_id != record.patient_id:
-                    raise HTTPException(status_code=400, detail="Appointment does not belong to this patient")
+                    raise HTTPException(
+                        status_code=400, 
+                        detail={"error_code": "INVALID_APPOINTMENT", "message": "Appointment does not belong to this patient"}
+                    )
             record.appointment_id = appointment_id
         if is_submitted is not MISSING:
             record.is_submitted = is_submitted
@@ -294,7 +303,7 @@ class MedicalRecordService:
                     PatientPhoto.id.in_(ids_to_link),
                     PatientPhoto.clinic_id == clinic_id,
                     PatientPhoto.patient_id == record.patient_id
-                ).all()
+                ).with_for_update().all()
                 
                 if len(photos_to_link) != len(ids_to_link):
                     found_ids = {p.id for p in photos_to_link}

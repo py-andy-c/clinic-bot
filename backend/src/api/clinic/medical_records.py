@@ -296,7 +296,10 @@ def get_record(
     clinic_id = user.active_clinic_id
     record = MedicalRecordService.get_record(db, record_id, clinic_id)
     if not record:
-        raise HTTPException(status_code=404, detail="Record not found")
+        raise HTTPException(
+            status_code=404, 
+            detail={"error_code": "RECORD_NOT_FOUND", "message": "Record not found"}
+        )
     
     # Batch fetch user names
     user_ids = [uid for uid in [record.created_by_user_id, record.updated_by_user_id] if uid]
@@ -379,7 +382,10 @@ def delete_record(
         deleted_by_user_id=user.user_id
     )
     if not success:
-        raise HTTPException(status_code=404, detail="Record not found")
+        raise HTTPException(
+            status_code=404, 
+            detail={"error_code": "RECORD_NOT_FOUND", "message": "Record not found"}
+        )
     return {"status": "success"}
 
 @router.post("/medical-records/{record_id}/restore", response_model=MedicalRecordResponse)
@@ -400,7 +406,10 @@ def restore_record(
         clinic_id=clinic_id
     )
     if not record:
-        raise HTTPException(status_code=404, detail="Record not found or not deleted")
+        raise HTTPException(
+            status_code=404, 
+            detail={"error_code": "RECORD_NOT_FOUND", "message": "Record not found or not deleted"}
+        )
     
     # Batch fetch user names
     user_ids = [uid for uid in [record.created_by_user_id, record.updated_by_user_id] if uid]
@@ -425,5 +434,8 @@ def hard_delete_record(
         clinic_id=clinic_id
     )
     if not success:
-        raise HTTPException(status_code=404, detail="Record not found")
+        raise HTTPException(
+            status_code=404, 
+            detail={"error_code": "RECORD_NOT_FOUND", "message": "Record not found"}
+        )
     return {"status": "success"}
