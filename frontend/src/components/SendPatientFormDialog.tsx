@@ -163,7 +163,7 @@ export const SendPatientFormDialog: React.FC<SendPatientFormDialogProps> = ({
     const sendMutation = useSendPatientForm(user?.active_clinic_id!, patientId);
 
     const [hasUserInteracted, setHasUserInteracted] = useState(false);
-    const isInitialMount = useRef(true);
+    const hasAppliedDefault = useRef(false);
 
     // Filter templates to only show patient forms
     const patientFormTemplates = useMemo(() => {
@@ -188,12 +188,12 @@ export const SendPatientFormDialog: React.FC<SendPatientFormDialogProps> = ({
 
     // Sync smart default appointment when data loads, unless user has interacted
     // This prevents overriding user selections if they change the field before
-    // the default is applied, or if the appointments data refetches later
-    // Uses isInitialMount ref to ensure default is only applied once on mount/load
+    // the default is applied, or if the appointments data refetches later.
+    // hasAppliedDefault ensures the default is only applied automatically ONCE.
     useEffect(() => {
-        if (isInitialMount.current && defaultAppointmentValue !== null && !hasUserInteracted) {
+        if (!hasAppliedDefault.current && defaultAppointmentValue !== null && !hasUserInteracted) {
             methods.setValue('appointment_id', defaultAppointmentValue);
-            isInitialMount.current = false;
+            hasAppliedDefault.current = true;
         }
     }, [defaultAppointmentValue, hasUserInteracted, methods]);
 

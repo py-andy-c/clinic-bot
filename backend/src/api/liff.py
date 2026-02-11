@@ -11,10 +11,12 @@ All endpoints require JWT authentication from LIFF login flow.
 
 import logging
 import jwt
-from datetime import datetime, timedelta, timezone, date
 from typing import Optional, Dict, Any, List, Literal, Union
+from datetime import datetime, timedelta, timezone, date
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import (
+    APIRouter, Depends, HTTPException, status, Query, Form, File, UploadFile
+)
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, field_validator, model_validator
 from sqlalchemy.orm import Session, joinedload
@@ -27,16 +29,16 @@ from core.constants import (
     NOTIFICATION_DATE_RANGE_DAYS,
 )
 from models import (
-    LineUser, Clinic, Patient, AvailabilityNotification, AppointmentType, User, Appointment, CalendarEvent
+    LineUser, Clinic, Patient, AvailabilityNotification, AppointmentType, User, Appointment, CalendarEvent, MedicalRecord
 )
 from models.receipt import Receipt
-from services import PatientService, AppointmentService, AvailabilityService, PractitionerService, AppointmentTypeService
+from services import PatientService, AppointmentService, AvailabilityService, PractitionerService, AppointmentTypeService, MedicalRecordService, PatientPhotoService
+from services.medical_record_service import MISSING
 from services import PatientPractitionerAssignmentService
 from models import UserClinicAssociation
 from utils.phone_validator import validate_taiwanese_phone, validate_taiwanese_phone_optional
 from utils.datetime_utils import TAIWAN_TZ, taiwan_now, parse_datetime_to_taiwan, parse_date_string
 from utils.patient_validators import validate_gender_field
-# get_practitioner_display_name removed - use get_practitioner_display_name_with_title for patient-facing displays
 from utils.liff_token import validate_token_format, validate_liff_id_format
 from api.responses import (
     PatientResponse, PatientCreateResponse, PatientListResponse,
@@ -216,6 +218,38 @@ class LanguagePreferenceRequest(BaseModel):
 class LanguagePreferenceResponse(BaseModel):
     """Response model for language preference update."""
     preferred_language: str
+
+
+class PatientPhotoResponse(BaseModel):
+    """Response model for patient photo."""
+    id: int
+    filename: str
+    content_type: str
+    size_bytes: int
+    created_at: datetime
+    url: Optional[str] = None
+    thumbnail_url: Optional[str] = None
+
+
+class PatientMedicalRecordResponse(BaseModel):
+    """Response model for a medical record in LIFF (patient facing)."""
+    id: int
+    patient_id: int
+    template_name: str
+    template_snapshot: Dict[str, Any]
+    values: Dict[str, Any]
+    is_submitted: bool
+    patient_last_edited_at: Optional[datetime] = None
+    photos: List[PatientPhotoResponse] = []
+    version: int
+
+
+class UpdatePatientMedicalRecordRequest(BaseModel):
+    """Request model for updating a medical record in LIFF."""
+    values: Dict[str, Any]
+    is_submitted: bool = False
+    version: int  # For concurrency control
+    photo_ids: Optional[List[int]] = None
 
 
 class PatientCreateRequest(BaseModel):
@@ -2000,6 +2034,240 @@ async def delete_notification(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="刪除提醒失敗"
         )
+
+
+@router.get("/medical-records/{record_id}", response_model=PatientMedicalRecordResponse)
+async def get_patient_medical_record(
+    record_id: int,
+    line_user_clinic: tuple[LineUser, Clinic] = Depends(get_current_line_user_with_clinic),
+    db: Session = Depends(get_db)
+):
+    """
+    Get a medical record for a patient (patient facing).
+    
+    Verifies that the record belongs to one of the patients associated with the LINE user.
+    """
+    line_user, clinic = line_user_clinic
+    
+    # Get record
+    record = MedicalRecordService.get_record(db, record_id, clinic.id)
+    if not record:
+        raise HTTPException(
+            status_code=404,
+            detail={"error_code": "RECORD_NOT_FOUND", "message": "紀錄不存在"}
+        )
+        
+    # Security check: Record belongs to a patient owned by the line user
+    if record.patient.line_user_id != line_user.id:
+        raise HTTPException(
+            status_code=403,
+            detail={"error_code": "ACCESS_DENIED", "message": "您沒有權限查看此紀錄"}
+        )
+        
+    photo_service = PatientPhotoService()
+    photos: list[PatientPhotoResponse] = []
+    for photo in record.photos:
+        photo_resp = PatientPhotoResponse(
+            id=photo.id,
+            filename=photo.filename,
+            content_type=photo.content_type,
+            size_bytes=photo.size_bytes,
+            created_at=photo.created_at,
+            url=photo_service.get_photo_url(photo.storage_key),
+            thumbnail_url=photo_service.get_photo_url(photo.thumbnail_key) if photo.thumbnail_key else None
+        )
+        photos.append(photo_resp)
+        
+    return PatientMedicalRecordResponse(
+        id=record.id,
+        patient_id=record.patient_id,
+        template_name=record.template_name,
+        template_snapshot=record.template_snapshot,
+        values=record.values,
+        is_submitted=record.is_submitted,
+        patient_last_edited_at=record.patient_last_edited_at,
+        photos=photos,
+        version=record.version
+    )
+
+
+@router.put("/medical-records/{record_id}", response_model=PatientMedicalRecordResponse)
+async def update_patient_medical_record(
+    record_id: int,
+    request: UpdatePatientMedicalRecordRequest,
+    line_user_clinic: tuple[LineUser, Clinic] = Depends(get_current_line_user_with_clinic),
+    db: Session = Depends(get_db)
+):
+    """
+    Update a medical record (patient facing).
+    
+    Verifies permission and updates values, is_submitted, and patient_last_edited_at.
+    """
+    line_user, clinic = line_user_clinic
+    
+    # Get record first for security check
+    record = MedicalRecordService.get_record(db, record_id, clinic.id)
+    if not record:
+        raise HTTPException(
+            status_code=404,
+            detail={"error_code": "RECORD_NOT_FOUND", "message": "紀錄不存在"}
+        )
+        
+    # Security check
+    if record.patient.line_user_id != line_user.id:
+        raise HTTPException(
+            status_code=403,
+            detail={"error_code": "ACCESS_DENIED", "message": "您沒有權限修改此紀錄"}
+        )
+        
+    # Update record
+    from services.medical_record_service import RecordVersionConflictError
+    try:
+        updated_record = MedicalRecordService.update_record(
+            db=db,
+            record_id=record_id,
+            clinic_id=clinic.id,
+            version=request.version,
+            values=request.values,
+            photo_ids=request.photo_ids if request.photo_ids is not None else MISSING,
+            is_submitted=request.is_submitted,
+            patient_last_edited_at=taiwan_now()
+        )
+    except RecordVersionConflictError as e:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"error_code": "RECORD_MODIFIED", "message": str(e)}
+        )
+    
+    photo_service = PatientPhotoService()
+    photos: list[PatientPhotoResponse] = []
+    for photo in updated_record.photos:
+        photo_resp = PatientPhotoResponse(
+            id=photo.id,
+            filename=photo.filename,
+            content_type=photo.content_type,
+            size_bytes=photo.size_bytes,
+            created_at=photo.created_at,
+            url=photo_service.get_photo_url(photo.storage_key),
+            thumbnail_url=photo_service.get_photo_url(photo.thumbnail_key) if photo.thumbnail_key else None
+        )
+        photos.append(photo_resp)
+        
+    return PatientMedicalRecordResponse(
+        id=updated_record.id,
+        patient_id=updated_record.patient_id,
+        template_name=updated_record.template_name,
+        template_snapshot=updated_record.template_snapshot,
+        values=updated_record.values,
+        is_submitted=updated_record.is_submitted,
+        patient_last_edited_at=updated_record.patient_last_edited_at,
+        photos=photos,
+        version=updated_record.version
+    )
+
+
+@router.post("/patient-photos", response_model=PatientPhotoResponse)
+async def upload_patient_photo(
+    patient_id: int = Form(...),
+    medical_record_id: Optional[int] = Form(None),
+    file: UploadFile = File(...),
+    line_user_clinic: tuple[LineUser, Clinic] = Depends(get_current_line_user_with_clinic),
+    db: Session = Depends(get_db)
+):
+    """
+    Upload a photo from LIFF.
+    
+    Verifies that the patient belongs to the LINE user.
+    """
+    line_user, clinic = line_user_clinic
+    
+    # Security check: Does this patient belong to the Line user?
+    patient = db.query(Patient).filter(
+        Patient.id == patient_id,
+        Patient.clinic_id == clinic.id,
+        Patient.line_user_id == line_user.id
+    ).first()
+    
+    if not patient:
+        raise HTTPException(
+            status_code=403,
+            detail={"error_code": "ACCESS_DENIED", "message": "您沒有權限為此病患上傳照片"}
+        )
+        
+    # If medical_record_id is provided, verify it belongs to the patient
+    if medical_record_id:
+        record = db.query(MedicalRecord).filter(
+            MedicalRecord.id == medical_record_id,
+            MedicalRecord.patient_id == patient_id,
+            MedicalRecord.clinic_id == clinic.id
+        ).first()
+        if not record or record.patient.line_user_id != line_user.id:
+            raise HTTPException(
+                status_code=404,
+                detail={"error_code": "RECORD_NOT_FOUND", "message": "紀錄不存在"}
+            )
+
+    photo_service = PatientPhotoService()
+    photo = photo_service.upload_photo(
+        db=db,
+        clinic_id=clinic.id,
+        patient_id=patient_id,
+        file=file,
+        medical_record_id=medical_record_id,
+        # Photos uploaded for a medical record are created as pending.
+        # They become non-pending when the medical record is saved/submitted.
+        # Photos uploaded without a record_id (e.g., gallery) are active immediately.
+        is_pending=True if medical_record_id else False
+    )
+    
+    return PatientPhotoResponse(
+        id=photo.id,
+        filename=photo.filename,
+        content_type=photo.content_type,
+        size_bytes=photo.size_bytes,
+        created_at=photo.created_at,
+        url=photo_service.get_photo_url(photo.storage_key),
+        thumbnail_url=photo_service.get_photo_url(photo.thumbnail_key) if photo.thumbnail_key else None
+    )
+
+
+@router.delete("/patient-photos/{photo_id}")
+async def delete_patient_photo(
+    photo_id: int,
+    line_user_clinic: tuple[LineUser, Clinic] = Depends(get_current_line_user_with_clinic),
+    db: Session = Depends(get_db)
+):
+    """
+    Delete a photo.
+    
+    Verifies that the photo belongs to a patient owned by the LINE user.
+    """
+    line_user, clinic = line_user_clinic
+    
+    photo_service = PatientPhotoService()
+    photo = photo_service.get_photo(db, photo_id, clinic.id)
+    
+    if not photo:
+        raise HTTPException(
+            status_code=404,
+            detail={"error_code": "PHOTO_NOT_FOUND", "message": "照片不存在"}
+        )
+        
+    # Security check
+    if photo.patient.line_user_id != line_user.id:
+        raise HTTPException(
+            status_code=403,
+            detail={"error_code": "ACCESS_DENIED", "message": "您沒有權限刪除此照片"}
+        )
+        
+    success = photo_service.delete_photo(db, photo_id, clinic.id)
+    if not success:
+        raise HTTPException(
+            status_code=500,
+            detail={"error_code": "INTERNAL_ERROR", "message": "刪除失敗"}
+        )
+        
+    return {"success": True}
 
 
 @router.put("/language-preference", response_model=LanguagePreferenceResponse)

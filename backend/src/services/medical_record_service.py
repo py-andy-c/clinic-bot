@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from sqlalchemy import desc
 from sqlalchemy.orm import Session, joinedload
 from fastapi import HTTPException
-import os
+
 
 from models.medical_record import MedicalRecord
 from models.medical_record_template import MedicalRecordTemplate
@@ -220,6 +220,8 @@ class MedicalRecordService:
         values: Any = MISSING,
         photo_ids: Any = MISSING,
         appointment_id: Any = MISSING,
+        is_submitted: Any = MISSING,
+        patient_last_edited_at: Any = MISSING,
         updated_by_user_id: Optional[int] = None
     ) -> MedicalRecord:
         record = MedicalRecordService.get_record(db, record_id, clinic_id)
@@ -258,6 +260,10 @@ class MedicalRecordService:
                 if appt.patient_id != record.patient_id:
                     raise HTTPException(status_code=400, detail="Appointment does not belong to this patient")
             record.appointment_id = appointment_id
+        if is_submitted is not MISSING:
+            record.is_submitted = is_submitted
+        if patient_last_edited_at is not MISSING:
+            record.patient_last_edited_at = patient_last_edited_at
             
         # Handle Photo Updates
         if photo_ids is not MISSING:
@@ -487,10 +493,8 @@ class MedicalRecordService:
                 }
             )
 
-        # Wrap the transaction and Line message sending in a single try/except block
+        # Wrap the transactional operations
         try:
-            # Start of Transactional Work
-            
             # 4. Create Record (NO COMMIT)
             record = MedicalRecordService.create_record(
                 db=db,
@@ -516,7 +520,7 @@ class MedicalRecordService:
                     path=f"records/{record.id}"
                 )
             except ValueError as e:
-                # Don't rollback here - let outer handler do it
+                # Wrap ValueError from LIFF configuration as structured error
                 raise HTTPException(
                     status_code=500, 
                     detail={
@@ -551,11 +555,11 @@ class MedicalRecordService:
             return record
             
         except HTTPException:
-            # Re-raise HTTPExceptions directly after rollback
+            # Atomic rollback for any structured errors raised
             db.rollback()
             raise
         except Exception as e:
-            # Rollback transaction on failure (cleans up record)
+            # Atomic rollback for any unexpected errors (e.g. LINE API connection)
             db.rollback()
             raise HTTPException(
                 status_code=500, 

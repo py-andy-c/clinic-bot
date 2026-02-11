@@ -56,8 +56,13 @@ Fundamentally, a patient form is a variant of a **Medical Record Template**. It 
    * Added comprehensive unit tests for the new dialog and hooks.
    * **Note**: E2E tests for the full flow have been deferred to a follow-up PR (Task #PF-E2E).
    * **Note on API contract**: Transitioned to structured error responses for specific error types to support localized/rich frontend error states.
-4. **Phase 4**: Patient UI - LIFF form editor.
-5. **Phase 5**: Testing and Polish.
+4. **Phase 4**: Patient UI - LIFF form editor. ✅ **(Completed)**
+   * Implemented LIFF-specific API endpoints for medical records and photos.
+   * Created `PatientMedicalRecordPage` for LIFF with dynamic form rendering.
+   * Implemented photo upload and management within the LIFF form.
+   * Added `form` mode to LIFF application routing.
+   * Handled form state persistence (Draft/Submitted) and concurrency.
+5. **Phase 5**: Testing and Polish. (Next)
 
 ## API Design
 
@@ -108,6 +113,13 @@ Fundamentally, a patient form is a variant of a **Medical Record Template**. It 
   }
   ```
 * **Logic**: Updates the record and records the submission status.
+* **Error Handling**: Uses `RECORD_MODIFIED` (409) if the record version indicates it was edited elsewhere.
+
+#### Photo Management
+
+* `POST /liff/patient-photos`: Upload a photo (staged as pending).
+* `DELETE /liff/patient-photos/{photo_id}`: Remove an uploaded photo.
+* **Security**: Enforces patient ownership of photos and associated records.
 
 ## Frontend Design
 
@@ -156,6 +168,7 @@ Patients should be able to upload photos while filling out the form.
 
 * The LIFF page will have a photo upload button.
 * Uploaded photos will be associated with the `patient_id`, `clinic_id`, and `medical_record_id`.
+* **Staging Behavior**: Photos uploaded within a medical record context are created in a **pending** state (`is_pending=true`). They only become active and visible in general patient galleries once the medical record is successfully saved or submitted. Deleting a photo during the LIFF session removes the record association and soft-deletes the photo.
 * Clinic staff will see these photos immediately in the medical record view.
 
 ## Security & Privacy
@@ -188,6 +201,7 @@ Starting with Phase 3, the Patient Form related endpoints transition to a **stru
 * `TEMPLATE_NOT_FOUND` (404)
 * `CLINIC_NOT_FOUND` (404)
 * `LINE_USER_NOT_FOUND` (404)
+* `RECORD_MODIFIED` (409): The record has been modified by another user (clinic staff or the patient in another tab). Requires a refresh to newest version.
 
 **Standard**: All new endpoints in the Patient Form module MUST use this structured format. Existing endpoints will be migrated as they are touched for feature updates.
 
