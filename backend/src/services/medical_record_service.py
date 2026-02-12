@@ -119,6 +119,7 @@ class MedicalRecordService:
             MedicalRecord.clinic_id == clinic_id,
             MedicalRecord.is_deleted == False
         ).options(
+            joinedload(MedicalRecord.patient),
             joinedload(MedicalRecord.photos),
             joinedload(MedicalRecord.appointment).joinedload(Appointment.calendar_event),
             joinedload(MedicalRecord.appointment).joinedload(Appointment.appointment_type),

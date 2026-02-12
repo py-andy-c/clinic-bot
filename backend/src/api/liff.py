@@ -236,6 +236,7 @@ class PatientMedicalRecordResponse(BaseModel):
     """Response model for a medical record in LIFF (patient facing)."""
     id: int
     patient_id: int
+    patient_name: str
     template_name: str
     template_snapshot: Dict[str, Any]
     values: Dict[str, Any]
@@ -2090,6 +2091,7 @@ async def get_patient_medical_record(
     return PatientMedicalRecordResponse(
         id=record.id,
         patient_id=record.patient_id,
+        patient_name=record.patient.full_name,
         template_name=record.template_name,
         template_snapshot=record.template_snapshot,
         values=record.values,
@@ -2167,6 +2169,7 @@ async def update_patient_medical_record(
     return PatientMedicalRecordResponse(
         id=updated_record.id,
         patient_id=updated_record.patient_id,
+        patient_name=updated_record.patient.full_name,
         template_name=updated_record.template_name,
         template_snapshot=updated_record.template_snapshot,
         values=updated_record.values,

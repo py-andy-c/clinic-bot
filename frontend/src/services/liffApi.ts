@@ -143,6 +143,7 @@ export interface PatientPhotoResponse {
 export interface PatientMedicalRecordResponse {
   id: number;
   patient_id: number;
+  patient_name: string;
   template_name: string;
   template_snapshot: any;
   values: any;
