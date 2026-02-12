@@ -143,9 +143,9 @@ def generate_liff_url(clinic: Clinic, mode: str = "book", path: Optional[str] = 
     # Clinic-specific LIFF app (has liff_id registered)
     if clinic.liff_id:
         base_url = f"https://liff.line.me/{clinic.liff_id}"
-        if path:
-             base_url = f"{base_url}/{path.lstrip('/')}"
         params = {"mode": mode}
+        if path:
+            params["path"] = path
         # Note: No clinic_token needed - liff_id identifies the clinic
     else:
         # Shared LIFF app (uses token-based identification)
@@ -159,13 +159,12 @@ def generate_liff_url(clinic: Clinic, mode: str = "book", path: Optional[str] = 
             raise ValueError("LIFF_ID not configured for shared LIFF app")
 
         base_url = f"https://liff.line.me/{LIFF_ID}"
-        if path:
-             base_url = f"{base_url}/{path.lstrip('/')}"
-
         params = {
             "mode": mode,
             "clinic_token": clinic.liff_access_token,
         }
+        if path:
+            params["path"] = path
 
     query_string = "&".join([f"{k}={v}" for k, v in params.items()])
     return f"{base_url}?{query_string}"

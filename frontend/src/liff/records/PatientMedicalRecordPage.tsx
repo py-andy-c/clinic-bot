@@ -8,10 +8,9 @@ import { MedicalRecordDynamicForm } from '../../components/MedicalRecordDynamicF
 import { LiffMedicalRecordPhotoSelector } from './LiffMedicalRecordPhotoSelector';
 import { useLiffMedicalRecord, useLiffUpdateMedicalRecord } from '../hooks/medicalRecordHooks';
 import { TemplateField } from '../../types/medicalRecord';
-import { logger } from '../../utils/logger';
-import { useModal } from '../../contexts/ModalContext';
 import { createMedicalRecordDynamicSchema } from '../../utils/medicalRecordUtils';
-
+import { useModal } from '../../contexts/ModalContext';
+import { logger } from '../../utils/logger';
 
 type RecordFormData = {
     values: Record<string, any>;
@@ -21,7 +20,22 @@ const PatientMedicalRecordPage: React.FC = () => {
     const [searchParams] = useSearchParams();
     const { alert } = useModal();
     const pathParam = searchParams.get('path') || '';
-    const recordId = parseInt(pathParam.split('/').pop() || '', 10);
+
+    const recordId = useMemo(() => {
+        if (pathParam) {
+            const id = parseInt(pathParam.split('/').pop() || '', 10);
+            if (!isNaN(id)) return id;
+        }
+
+        // Fallback: Check pathname (e.g. /records/123)
+        const pathSegments = window.location.pathname.split('/');
+        const lastSegment = pathSegments.pop();
+        if (lastSegment && !isNaN(parseInt(lastSegment, 10))) {
+            return parseInt(lastSegment, 10);
+        }
+
+        return NaN;
+    }, [pathParam]);
 
     const { data: record, isLoading: loadingRecord, error: recordError } = useLiffMedicalRecord(
         isNaN(recordId) ? null : recordId
