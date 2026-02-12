@@ -111,7 +111,7 @@ const AppointmentSelector: React.FC<{ appointments: any[]; setHasUserInteracted:
         <FormField name="appointment_id" label="關聯預約 (選填)">
             <select
                 {...register('appointment_id', {
-                    setValueAs: (v) => v === '' ? null : parseInt(v),
+                    setValueAs: (v) => !v ? null : parseInt(v),
                     onChange: () => setHasUserInteracted(true)
                 })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"

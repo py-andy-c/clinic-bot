@@ -46,7 +46,11 @@ export const CreateMedicalRecordDialog: React.FC<CreateMedicalRecordDialogProps>
   const { alert } = useModal();
   const isAdmin = hasRole?.('admin');
 
-  const { data: templates, isLoading: loadingTemplates } = useMedicalRecordTemplates(activeClinicId ?? null);
+  const { data: allTemplates, isLoading: loadingTemplates } = useMedicalRecordTemplates(activeClinicId ?? null);
+  const templates = useMemo(() => {
+    return allTemplates?.filter(t => !t.is_patient_form) || [];
+  }, [allTemplates]);
+
   const { data: appointments } = usePatientAppointments(patientId);
   const createMutation = useCreateMedicalRecord(activeClinicId ?? null, patientId);
 
@@ -179,7 +183,7 @@ export const CreateMedicalRecordDialog: React.FC<CreateMedicalRecordDialogProps>
                 <FormField name="appointment_id" label="關聯預約 (選填)">
                   <select
                     {...methods.register('appointment_id', {
-                      setValueAs: (v) => v === '' ? null : parseInt(v)
+                      setValueAs: (v) => !v ? null : parseInt(v)
                     })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                   >
@@ -231,6 +235,6 @@ export const CreateMedicalRecordDialog: React.FC<CreateMedicalRecordDialogProps>
           </ModalFooter>
         </form>
       </FormProvider>
-    </BaseModal>
+    </BaseModal >
   );
 };
