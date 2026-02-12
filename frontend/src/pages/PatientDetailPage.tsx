@@ -21,6 +21,7 @@ import { CreateAppointmentModal } from '../components/calendar/CreateAppointment
 import { PatientMedicalRecordsSection } from '../components/PatientMedicalRecordsSection';
 import { RecentPhotosRibbon } from '../components/RecentPhotosRibbon';
 import { CreateMedicalRecordDialog } from '../components/CreateMedicalRecordDialog';
+import { SendPatientFormDialog } from '../components/SendPatientFormDialog';
 
 type TabType = 'info' | 'appointments' | 'records' | 'photos';
 
@@ -37,6 +38,7 @@ const PatientDetailPage: React.FC = () => {
   const [isEditingPractitioners, setIsEditingPractitioners] = useState(false);
   const [isAppointmentModalOpen, setIsAppointmentModalOpen] = useState(false);
   const [isCreateRecordModalOpen, setIsCreateRecordModalOpen] = useState(false);
+  const [isSendFormModalOpen, setIsSendFormModalOpen] = useState(false);
   const appointmentsListRefetchRef = useRef<(() => Promise<void>) | null>(null);
 
   const patientId = id ? parseInt(id, 10) : undefined;
@@ -131,6 +133,22 @@ const PatientDetailPage: React.FC = () => {
       );
     }
 
+    // Always show "發送表單" button if user has permission (as it's a common entry action)
+    if (canEdit) {
+      buttons.push(
+        <button
+          key="send-form"
+          onClick={() => setIsSendFormModalOpen(true)}
+          className="px-3 py-2 text-primary-600 bg-primary-50 border border-primary-200 rounded-lg hover:bg-primary-100 transition-colors whitespace-nowrap flex items-center gap-1 text-sm font-medium"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+          </svg>
+          發送表單
+        </button>
+      );
+    }
+
     // Add tab-specific buttons
     if (activeTab === 'records' && canEdit) {
       buttons.push(
@@ -167,7 +185,7 @@ const PatientDetailPage: React.FC = () => {
     if (buttons.length === 1) return buttons[0];
 
     return (
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {buttons}
       </div>
     );
@@ -220,7 +238,7 @@ const PatientDetailPage: React.FC = () => {
 
       {/* Tab Navigation */}
       <div className="border-b border-gray-200 mb-6">
-        <nav className="-mb-px flex space-x-8">
+        <nav className="-mb-px flex space-x-4 md:space-x-8 overflow-x-auto no-scrollbar">
           <button
             onClick={() => setActiveTab('info')}
             className={`py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${activeTab === 'info'
@@ -381,6 +399,18 @@ const PatientDetailPage: React.FC = () => {
           onSuccess={(recordId) => {
             setIsCreateRecordModalOpen(false);
             navigate(`/admin/clinic/patients/${patientId}/records/${recordId}`);
+          }}
+        />
+      )}
+
+      {/* Send Patient Form Dialog */}
+      {isSendFormModalOpen && patientId !== undefined && (
+        <SendPatientFormDialog
+          patientId={patientId}
+          onClose={() => setIsSendFormModalOpen(false)}
+          onSuccess={() => {
+            setIsSendFormModalOpen(false);
+            // The list update is handled by mutation invalidation in the hook
           }}
         />
       )}
