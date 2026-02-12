@@ -185,7 +185,7 @@ describe('PatientMedicalRecordPage', () => {
         expect(screen.getByText('填寫完成')).toBeInTheDocument();
     });
 
-    it('shows "儲存修改" label for returning patients', async () => {
+    it('shows "儲存更動" label for returning patients', async () => {
         const mockRecord = {
             id: 123,
             patient_id: 1,
@@ -211,7 +211,7 @@ describe('PatientMedicalRecordPage', () => {
 
         render(<PatientMedicalRecordPage />, { wrapper });
 
-        expect(screen.getByText('儲存修改')).toBeInTheDocument();
+        expect(screen.getByText('儲存更動')).toBeInTheDocument();
     });
 
 

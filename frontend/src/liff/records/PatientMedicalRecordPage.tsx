@@ -149,11 +149,16 @@ const PatientMedicalRecordPage: React.FC = () => {
 
     return (
         <div className="min-h-screen bg-white pb-20">
-            <div className="bg-white border-b border-gray-100 sticky top-0 z-10">
-                <div className="px-4 py-4 flex items-center justify-between">
-                    <h1 className="text-lg font-bold text-gray-900 truncate pr-4">
+            <div className="bg-white border-b border-gray-100">
+                <div className="px-4 py-4">
+                    <h1 className="text-lg font-bold text-gray-900 truncate">
                         {record.template_name}
                     </h1>
+                    {record.template_snapshot?.description && (
+                        <p className="text-sm text-gray-500 mt-1 whitespace-pre-wrap">
+                            {record.template_snapshot.description}
+                        </p>
+                    )}
                 </div>
             </div>
 
@@ -180,9 +185,9 @@ const PatientMedicalRecordPage: React.FC = () => {
                             >
                                 {updateMutation.isPending
                                     ? '送出中...'
-                                    : (record.patient_last_edited_at ? '儲存修改' : '確認送出')}
+                                    : (record.patient_last_edited_at ? '儲存更動' : '確認送出')}
                             </button>
-                            <p className="text-center text-xs text-gray-400 mt-4">
+                            <p className="text-center text-sm text-gray-600 mt-4">
                                 送出後診所將會收到您的回覆
                             </p>
                         </div>
