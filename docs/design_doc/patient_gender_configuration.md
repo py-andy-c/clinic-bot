@@ -68,9 +68,9 @@ Make patient gender (生理性別) configurable as a required field during patie
 #### 2. Type Definitions (`frontend/src/types/index.ts`)
 - Add `gender?: string | null` to `Patient` interface
 
-#### 3. Patient Forms
+#### 3. Patient Profile Forms
 
-**LIFF Patient Form** (`frontend/src/liff/components/PatientForm.tsx`):
+**LIFF Patient Profile Form** (`frontend/src/liff/components/PatientProfileForm.tsx`):
 - Add gender dropdown field
 - Show conditionally when `requireGender` prop is true
 - Dropdown options:
@@ -100,9 +100,9 @@ Make patient gender (生理性別) configurable as a required field during patie
 - **No changes needed**: Birthday and gender columns removed from patient list
 - Simplifies rendering (no clinic settings query required)
 
-#### 4. Validation Utilities (`frontend/src/utils/patientFormValidation.ts`)
-- Update `validateLiffPatientForm` to validate gender when required
-- Update `validateClinicPatientForm` to validate gender when required
+#### 4. Validation Utilities (`frontend/src/utils/patientProfileFormValidation.ts`)
+- Update `validateLiffPatientProfileForm` to validate gender when required
+- Update `validateClinicPatientProfileForm` to validate gender when required
 - Gender must be one of: `'male'`, `'female'`, `'other'`
 
 #### 5. API Service (`frontend/src/services/api.ts` and `liffApi.ts`)

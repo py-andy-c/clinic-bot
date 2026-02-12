@@ -9,7 +9,7 @@ import { ApiErrorType, getErrorMessage, AxiosErrorResponse } from '../../types';
 import { useAppointmentStore } from '../../stores/appointmentStore';
 import { liffApiService } from '../../services/liffApi';
 import { useModal } from '../../contexts/ModalContext';
-import { PatientForm, PatientFormData } from '../components/PatientForm';
+import { PatientProfileForm, PatientProfileFormData } from '../components/PatientProfileForm';
 import { useLiffBackButton } from '../../hooks/useLiffBackButton';
 import { LanguageSelector } from '../components/LanguageSelector';
 import { PageInstructions } from '../components/PageInstructions';
@@ -54,7 +54,7 @@ const PatientManagement: React.FC = () => {
   };
 
 
-  const handleAddPatient = async (formData: PatientFormData) => {
+  const handleAddPatient = async (formData: PatientProfileFormData) => {
     try {
       setIsAdding(true);
       setError(null);
@@ -66,7 +66,7 @@ const PatientManagement: React.FC = () => {
     } catch (err: ApiErrorType) {
       logger.error('Failed to add patient:', err);
       setError(getErrorMessage(err));
-      throw err; // Re-throw so PatientForm can handle it
+      throw err; // Re-throw so PatientProfileForm can handle it
     } finally {
       setIsAdding(false);
     }
@@ -383,7 +383,7 @@ const PatientManagement: React.FC = () => {
           {showAddForm && (
             <div className="border border-gray-200 rounded-md p-4">
               <h3 className="font-medium text-gray-900 mb-3">{t('patient.management.addPatient')}</h3>
-              <PatientForm
+              <PatientProfileForm
                 clinicId={clinicId}
                 requireBirthday={requireBirthday}
                 requireGender={requireGender}

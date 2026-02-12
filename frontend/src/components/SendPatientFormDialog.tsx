@@ -139,8 +139,16 @@ const AppointmentSelector: React.FC<{ appointments: any[]; setHasUserInteracted:
 // --- Main Component ---
 
 /**
- * Dialog for sending a patient form via Line.
- * Filters templates for those marked as patient forms.
+ * Dialog for sending a medical record form to a patient via Line.
+ * 
+ * This component allows clinic staff to send medical record templates (marked as
+ * is_patient_form=true) to patients for completion. Examples include intake forms,
+ * health questionnaires, and pre-visit assessments.
+ * 
+ * Note: This is distinct from the PatientProfileForm component, which is used for
+ * patient registration/profile creation in LIFF.
+ * 
+ * Filters templates to only show those marked as patient forms.
  */
 export const SendPatientFormDialog: React.FC<SendPatientFormDialogProps> = ({
     patientId,

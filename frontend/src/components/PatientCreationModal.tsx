@@ -4,7 +4,7 @@ import { BaseModal } from './shared/BaseModal';
 import { Button } from './shared/Button';
 import { DateInput } from './shared';
 import { ModalHeader, ModalBody, ModalFooter } from './shared/ModalParts';
-import { validateClinicPatientForm } from '../utils/patientFormValidation';
+import { validateClinicPatientProfileForm } from '../utils/patientProfileFormValidation';
 import { formatDateForApi } from '../utils/dateFormat';
 import { apiService } from '../services/api';
 import { useDebounce } from '../hooks/useDebounce';
@@ -78,7 +78,7 @@ export const PatientCreationModal: React.FC<PatientCreationModalProps> = ({
   const handleSubmit = async () => {
     // Validate using shared validation utility
     // Note: All fields except name are optional for clinic-created patients
-    const validation = validateClinicPatientForm(fullName, phoneNumber, birthday, gender);
+    const validation = validateClinicPatientProfileForm(fullName, phoneNumber, birthday, gender);
     if (!validation.isValid) {
       setError(validation.error || '驗證失敗');
       return;

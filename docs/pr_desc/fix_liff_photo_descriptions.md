@@ -1,7 +1,7 @@
-# Fix: Missing Photo Descriptions in LIFF Patient Form
+# Fix: Missing Photo Descriptions in LIFF Patient Medical Record Form
 
 ## Summary
-Fixed an issue where photo descriptions were not displaying in the LIFF patient form. This was due to the `description` field being missing from the photo response models in both the backend and frontend.
+Fixed an issue where photo descriptions were not displaying in the LIFF patient medical record form (forms sent to patients for completion). This was due to the `description` field being missing from the photo response models in both the backend and frontend.
 
 ## Changes
 - **Backend**: Added `description` field to `PatientPhotoResponse` Pydantic model in `liff.py` and ensured it is populated in `get_patient_medical_record` and `upload_patient_photo` endpoints.
@@ -10,4 +10,4 @@ Fixed an issue where photo descriptions were not displaying in the LIFF patient 
 
 ## Test Plan
 - Run `./run_tests.sh` to ensure all backend and frontend tests pass.
-- Verify that previously uploaded photos in the LIFF patient form now correctly display their descriptions instead of default labels.
+- Verify that previously uploaded photos in the LIFF patient medical record form now correctly display their descriptions instead of default labels.

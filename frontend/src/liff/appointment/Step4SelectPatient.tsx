@@ -6,7 +6,7 @@ import { ApiErrorType, getErrorMessage } from '../../types';
 import { useAppointmentStore } from '../../stores/appointmentStore';
 import { PatientSummary } from '../../services/liffApi';
 import { liffApiService } from '../../services/liffApi';
-import { PatientForm, PatientFormData } from '../components/PatientForm';
+import { PatientProfileForm, PatientProfileFormData } from '../components/PatientProfileForm';
 
 const Step4SelectPatient: React.FC = () => {
   const { t } = useTranslation();
@@ -65,7 +65,7 @@ const Step4SelectPatient: React.FC = () => {
   };
 
 
-  const handleAddPatient = async (formData: PatientFormData) => {
+  const handleAddPatient = async (formData: PatientProfileFormData) => {
     try {
       setIsAdding(true);
       setError(null);
@@ -91,7 +91,7 @@ const Step4SelectPatient: React.FC = () => {
     } catch (err: ApiErrorType) {
       logger.error('Failed to add patient:', err);
       setError(getErrorMessage(err));
-      throw err; // Re-throw so PatientForm can handle it
+      throw err; // Re-throw so PatientProfileForm can handle it
     } finally {
       setIsAdding(false);
     }
@@ -166,7 +166,7 @@ const Step4SelectPatient: React.FC = () => {
         {showAddForm && (
           <div className="bg-white border border-gray-200 rounded-lg p-4">
             <h3 className="font-medium text-gray-900 mb-3">{t('patient.management.addPatient')}</h3>
-            <PatientForm
+            <PatientProfileForm
               clinicId={clinicId}
               requireBirthday={requireBirthday}
               requireGender={requireGender}

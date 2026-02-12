@@ -1,25 +1,34 @@
+/**
+ * Patient Profile Form Component
+ * 
+ * This form is used for patient registration/profile creation in LIFF.
+ * It collects basic patient information (name, phone, birthday, gender).
+ * 
+ * Note: This is distinct from "patient forms" (medical record templates sent to patients).
+ */
+
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { logger } from '../../utils/logger';
 import { NameWarning, DateInput } from '../../components/shared';
-import { validateLiffPatientForm } from '../../utils/patientFormValidation';
+import { validateLiffPatientProfileForm } from '../../utils/patientProfileFormValidation';
 import { formatDateForApi, convertApiDateToDisplay } from '../../utils/dateFormat';
 import { GENDER_OPTIONS } from '../../utils/genderUtils';
 
-export interface PatientFormData {
+export interface PatientProfileFormData {
   full_name: string;
   phone_number: string;
   birthday?: string;
   gender?: string;
 }
 
-export interface PatientFormProps {
+export interface PatientProfileFormProps {
   clinicId: number | null;
   requireBirthday?: boolean;
   requireGender?: boolean;
-  onSubmit: (data: PatientFormData) => Promise<void>;
+  onSubmit: (data: PatientProfileFormData) => Promise<void>;
   onCancel?: () => void;
-  initialData?: Partial<PatientFormData>;
+  initialData?: Partial<PatientProfileFormData>;
   submitButtonText?: string;
   cancelButtonText?: string;
   showCancelButton?: boolean;
@@ -27,7 +36,7 @@ export interface PatientFormProps {
   isLoading?: boolean;
 }
 
-export const PatientForm: React.FC<PatientFormProps> = ({
+export const PatientProfileForm: React.FC<PatientProfileFormProps> = ({
   clinicId,
   requireBirthday: requireBirthdayProp,
   requireGender: requireGenderProp,
@@ -85,7 +94,7 @@ export const PatientForm: React.FC<PatientFormProps> = ({
     if (!fullName.trim() || !clinicId) return;
 
     // Validate using shared validation utility
-    const validation = validateLiffPatientForm(fullName, phoneNumber, birthday, requireBirthday, gender, requireGender);
+    const validation = validateLiffPatientProfileForm(fullName, phoneNumber, birthday, requireBirthday, gender, requireGender);
     if (!validation.isValid) {
       setError(validation.error || t('patient.form.error.generic'));
       return;
@@ -94,7 +103,7 @@ export const PatientForm: React.FC<PatientFormProps> = ({
     try {
       setIsSubmitting(true);
       setError(null);
-      const formData: PatientFormData = {
+      const formData: PatientProfileFormData = {
         full_name: validation.normalizedData!.full_name,
         phone_number: validation.normalizedData!.phone_number!,
       };
@@ -106,7 +115,7 @@ export const PatientForm: React.FC<PatientFormProps> = ({
       }
       await onSubmit(formData);
     } catch (err) {
-      logger.error('Failed to submit patient form:', err);
+      logger.error('Failed to submit patient profile form:', err);
       // Error handling is done by parent component
     } finally {
       setIsSubmitting(false);
