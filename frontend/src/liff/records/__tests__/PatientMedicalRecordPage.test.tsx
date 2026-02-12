@@ -12,6 +12,8 @@ import React from 'react';
 vi.mock('../../hooks/medicalRecordHooks', () => ({
     useLiffMedicalRecord: vi.fn(),
     useLiffUpdateMedicalRecord: vi.fn(),
+    useLiffUploadPatientPhoto: vi.fn(() => ({ mutateAsync: vi.fn(), isPending: false })),
+    useLiffUpdatePatientPhoto: vi.fn(() => ({ mutateAsync: vi.fn(), isPending: false })),
 }));
 
 vi.mock('../../../contexts/ModalContext', () => ({
@@ -37,8 +39,8 @@ vi.mock('../../../components/MedicalRecordDynamicForm', () => ({
     ),
 }));
 
-vi.mock('../LiffMedicalRecordPhotoSelector', () => ({
-    LiffMedicalRecordPhotoSelector: () => <div data-testid="photo-selector" />,
+vi.mock('../../../components/MedicalRecordPhotoSelector', () => ({
+    MedicalRecordPhotoSelector: () => <div data-testid="photo-selector" />,
 }));
 
 describe('PatientMedicalRecordPage', () => {

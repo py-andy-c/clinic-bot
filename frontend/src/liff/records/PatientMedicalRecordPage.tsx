@@ -5,7 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { LoadingSpinner, ErrorMessage } from '../../components/shared';
 import { MedicalRecordDynamicForm } from '../../components/MedicalRecordDynamicForm';
-import { LiffMedicalRecordPhotoSelector } from './LiffMedicalRecordPhotoSelector';
+import { MedicalRecordPhotoSelector } from '../../components/MedicalRecordPhotoSelector';
 import { useLiffMedicalRecord, useLiffUpdateMedicalRecord } from '../hooks/medicalRecordHooks';
 import { TemplateField } from '../../types/medicalRecord';
 import { createMedicalRecordDynamicSchema, isStructuredError } from '../../utils/medicalRecordUtils';
@@ -168,11 +168,18 @@ const PatientMedicalRecordPage: React.FC = () => {
                         <MedicalRecordDynamicForm fields={record.template_snapshot.fields || []} />
 
                         <div className="pt-8 border-t border-gray-100">
-                            <LiffMedicalRecordPhotoSelector
+                            <MedicalRecordPhotoSelector
+                                variant="liff"
+                                clinicId={null}
                                 patientId={record.patient_id}
                                 recordId={record.id}
-                                photos={record.photos}
-                                onPhotosChange={setSelectedPhotoIds}
+                                initialPhotos={record.photos}
+                                selectedPhotoIds={selectedPhotoIds}
+                                onPhotoIdsChange={setSelectedPhotoIds}
+                                onPhotoUpdate={(photoId, updates) => {
+                                    // Handle local description updates if needed
+                                    logger.info('Photo updated:', photoId, updates);
+                                }}
                             />
                         </div>
 

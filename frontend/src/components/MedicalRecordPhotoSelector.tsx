@@ -1,7 +1,9 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { usePatientPhotos, useUploadPatientPhoto } from '../hooks/usePatientPhotos';
+import { usePatientPhotos, useUploadPatientPhoto, useUpdatePatientPhoto } from '../hooks/usePatientPhotos';
+import { useLiffUploadPatientPhoto, useLiffUpdatePatientPhoto } from '../liff/hooks/medicalRecordHooks';
 import { PatientPhoto } from '../types/medicalRecord';
+import { PatientPhotoResponse } from '../services/liffApi';
 import { logger } from '../utils/logger';
 import { useModal } from '../contexts/ModalContext';
 import { PhotoLightbox } from './PhotoLightbox';
@@ -33,6 +35,8 @@ interface MedicalRecordPhotoSelectorProps {
   onPhotoIdsChange: (photoIds: number[]) => void;
   onPhotoUpdate?: (photoId: number, updates: Partial<PatientPhoto>) => void; // For description edits
   recordId?: number | null; // For edit mode
+  variant?: 'clinic' | 'liff';
+  initialPhotos?: PatientPhotoResponse[];
 }
 
 export const MedicalRecordPhotoSelector: React.FC<MedicalRecordPhotoSelectorProps> = ({
@@ -42,6 +46,8 @@ export const MedicalRecordPhotoSelector: React.FC<MedicalRecordPhotoSelectorProp
   onPhotoIdsChange,
   onPhotoUpdate,
   recordId,
+  variant = 'clinic',
+  initialPhotos,
 }) => {
   const { t } = useTranslation();
   const { confirm } = useModal();
@@ -77,23 +83,43 @@ export const MedicalRecordPhotoSelector: React.FC<MedicalRecordPhotoSelectorProp
   }, [pendingPreview]);
 
   // Fetch photos already linked to this record (for edit mode)
-  const { data: linkedPhotosResponse } = usePatientPhotos(
-    clinicId,
+  const { data: linkedPhotosResponseClinic } = usePatientPhotos(
+    variant === 'clinic' ? clinicId : null,
     patientId,
     recordId ? { medical_record_id: recordId } : undefined
   );
 
   // Fetch unlinked photos (for new records - these are staged photos)
-  const { data: unlinkedPhotosResponse } = usePatientPhotos(
-    clinicId,
+  const { data: unlinkedPhotosResponseClinic } = usePatientPhotos(
+    variant === 'clinic' ? clinicId : null,
     patientId,
     { unlinked_only: true }
   );
 
-  const uploadMutation = useUploadPatientPhoto(clinicId!, patientId);
+  const linkedPhotos = useMemo(() => {
+    if (variant === 'liff') {
+      return (initialPhotos || []).map(p => ({
+        ...p,
+        patient_id: patientId,
+        clinic_id: 0,
+        is_pending: false,
+        url: p.url || '',
+        thumbnail_url: p.thumbnail_url || '',
+        description: (p as any).description || '',
+      }));
+    }
+    return linkedPhotosResponseClinic?.items || [];
+  }, [variant, initialPhotos, linkedPhotosResponseClinic, patientId]);
 
-  const linkedPhotos = linkedPhotosResponse?.items || [];
-  const unlinkedPhotos = unlinkedPhotosResponse?.items || [];
+  const uploadMutationClinic = useUploadPatientPhoto(clinicId!, patientId);
+  const uploadMutationLiff = useLiffUploadPatientPhoto(patientId);
+  const uploadMutation = variant === 'liff' ? uploadMutationLiff : uploadMutationClinic;
+
+  const updateMutationClinic = useUpdatePatientPhoto(clinicId!, patientId);
+  const updateMutationLiff = useLiffUpdatePatientPhoto(patientId, recordId || undefined);
+  const updateMutation = variant === 'liff' ? updateMutationLiff : updateMutationClinic;
+
+  const unlinkedPhotos = variant === 'liff' ? [] : (unlinkedPhotosResponseClinic?.items || []);
 
   // Merge and deduplicate photos: server photos + local photos, filtered by selectedPhotoIds
   const visiblePhotos = useMemo(() => {
@@ -173,22 +199,45 @@ export const MedicalRecordPhotoSelector: React.FC<MedicalRecordPhotoSelectorProp
     try {
       setUploadProgress(0);
 
-      const uploadedPhoto = await uploadMutation.mutateAsync({
+      const uploadParams: any = {
         file: pendingFile,
         description: photoDescription,
-        is_pending: true, // Stage the photo
-        ...(recordId && { medical_record_id: recordId }), // Link to record if exists
-        onUploadProgress: (progressEvent: any) => {
+        ...(variant === 'clinic' && { is_pending: true }),
+        ...(recordId && { 
+          [variant === 'liff' ? 'medicalRecordId' : 'medical_record_id']: recordId 
+        }),
+      };
+
+      // Progress only supported in clinic variant for now
+      if (variant === 'clinic') {
+        uploadParams.onUploadProgress = (progressEvent: any) => {
           const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
           setUploadProgress(percentCompleted);
-        },
-      });
+        };
+      }
+
+      const uploadedPhoto = await uploadMutation.mutateAsync(uploadParams);
+
+      // Normalize the response to PatientPhoto type
+      const normalizedPhoto: PatientPhoto = {
+        id: uploadedPhoto.id,
+        filename: uploadedPhoto.filename,
+        content_type: uploadedPhoto.content_type || 'image/jpeg',
+        size_bytes: uploadedPhoto.size_bytes || 0,
+        created_at: uploadedPhoto.created_at || new Date().toISOString(),
+        url: uploadedPhoto.url || '',
+        thumbnail_url: uploadedPhoto.thumbnail_url || '',
+        description: (uploadedPhoto as any).description || photoDescription,
+        patient_id: patientId,
+        clinic_id: clinicId || 0,
+        is_pending: variant === 'clinic',
+      };
 
       // Add to local photos state (for immediate visibility)
-      setLocalPhotos(prev => [...prev, uploadedPhoto]);
+      setLocalPhotos(prev => [...prev, normalizedPhoto]);
 
       // Add newly uploaded photo ID to selection
-      onPhotoIdsChange([...selectedPhotoIds, uploadedPhoto.id]);
+      onPhotoIdsChange([...selectedPhotoIds, normalizedPhoto.id]);
 
       // Clean up object URL to free memory
       if (pendingPreview) {
@@ -226,6 +275,9 @@ export const MedicalRecordPhotoSelector: React.FC<MedicalRecordPhotoSelectorProp
     // Confirm before removing
     const confirmed = await confirm(t('確定要移除此照片嗎？'), t('移除照片'));
     if (confirmed) {
+      // For LIFF, we might want to actually delete the photo from server if it's unlinked
+      // but for now, we just remove it from the selection list like the clinic does.
+      // The actual deletion is usually handled by a separate cleanup or explicit delete button.
       onPhotoIdsChange(selectedPhotoIds.filter(id => id !== photoId));
     }
   };
@@ -238,19 +290,27 @@ export const MedicalRecordPhotoSelector: React.FC<MedicalRecordPhotoSelectorProp
     setEditingPhoto(null);
   };
 
-  const handlePhotoEditSave = (photoId: number, description: string) => {
-    // Store the description override locally (for immediate UI update)
-    setDescriptionOverrides(prev => ({
-      ...prev,
-      [photoId]: description
-    }));
+  const handlePhotoEditSave = async (photoId: number, description: string) => {
+    try {
+      await updateMutation.mutateAsync({ photoId, data: { description } });
 
-    // Notify parent of the change (triggers unsaved changes detection)
-    if (onPhotoUpdate) {
-      onPhotoUpdate(photoId, { description });
+      // Store the description override locally (for immediate UI update)
+      setDescriptionOverrides(prev => ({
+        ...prev,
+        [photoId]: description
+      }));
+
+      // Notify parent of the change (triggers unsaved changes detection)
+      if (onPhotoUpdate) {
+        onPhotoUpdate(photoId, { description });
+      }
+
+      setEditingPhoto(null);
+    } catch (error) {
+      logger.error('Failed to update photo description:', error);
+      // Show error feedback to user (using alert as fallback if toast not available)
+      alert(t('更新照片描述失敗，請稍後再試'));
     }
-
-    setEditingPhoto(null);
   };
 
   return (

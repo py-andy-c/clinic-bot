@@ -91,7 +91,7 @@ describe('medicalRecordHooks', () => {
             const file = new File([''], 'test.jpg', { type: 'image/jpeg' });
             await result.current.mutateAsync({ file, medicalRecordId: 1 });
 
-            expect(liffApiService.uploadPatientPhoto).toHaveBeenCalledWith(1, file, 1);
+            expect(liffApiService.uploadPatientPhoto).toHaveBeenCalledWith(1, file, 1, {});
         });
     });
 

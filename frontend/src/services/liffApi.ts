@@ -418,17 +418,28 @@ class LiffApiService {
   }
 
   // Patient Photos
-  async uploadPatientPhoto(patientId: number, file: File, medicalRecordId?: number): Promise<PatientPhotoResponse> {
+  async uploadPatientPhoto(patientId: number, file: File, medicalRecordId?: number, options?: { description?: string, onUploadProgress?: (progressEvent: any) => void }): Promise<PatientPhotoResponse> {
     const formData = new FormData();
     formData.append('patient_id', patientId.toString());
     if (medicalRecordId) formData.append('medical_record_id', medicalRecordId.toString());
+    if (options?.description) formData.append('description', options.description);
     formData.append('file', file);
 
-    const response = await this.client.post('/liff/patient-photos', formData, {
+    const config: any = {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
-    });
+    };
+    if (options?.onUploadProgress) {
+      config.onUploadProgress = options.onUploadProgress;
+    }
+
+    const response = await this.client.post('/liff/patient-photos', formData, config);
+    return response.data;
+  }
+
+  async updatePatientPhoto(photoId: number, data: { description?: string, medical_record_id?: number }): Promise<PatientPhotoResponse> {
+    const response = await this.client.put(`/liff/patient-photos/${photoId}`, data);
     return response.data;
   }
 

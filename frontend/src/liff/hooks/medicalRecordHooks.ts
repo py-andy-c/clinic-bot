@@ -53,10 +53,32 @@ export function useLiffUploadPatientPhoto(patientId: number) {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: ({ file, medicalRecordId }: { file: File; medicalRecordId?: number }) =>
-            liffApiService.uploadPatientPhoto(patientId, file, medicalRecordId),
+        mutationFn: ({ file, medicalRecordId, description, onUploadProgress }: { file: File; medicalRecordId?: number; description?: string; onUploadProgress?: (event: any) => void }) => {
+            const options: { description?: string; onUploadProgress?: (event: any) => void } = {};
+            if (description) options.description = description;
+            if (onUploadProgress) options.onUploadProgress = onUploadProgress;
+            return liffApiService.uploadPatientPhoto(patientId, file, medicalRecordId, options);
+        },
         onSuccess: (_, variables) => {
             queryClient.invalidateQueries({ queryKey: liffMedicalRecordKeys.photos(patientId, variables.medicalRecordId) });
+        },
+    });
+}
+
+/**
+ * Hook to update a patient photo description from LIFF.
+ * @param patientId - The ID of the patient.
+ * @param recordId - The ID of the medical record.
+ */
+export function useLiffUpdatePatientPhoto(patientId: number, recordId?: number) {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ photoId, data }: { photoId: number; data: { description?: string; medical_record_id?: number } }) => {
+            return liffApiService.updatePatientPhoto(photoId, data);
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: liffMedicalRecordKeys.photos(patientId, recordId) });
         },
     });
 }

@@ -253,6 +253,12 @@ class UpdatePatientMedicalRecordRequest(BaseModel):
     photo_ids: Optional[List[int]] = None
 
 
+class PatientPhotoUpdateRequest(BaseModel):
+    """Request model for updating a patient photo in LIFF."""
+    description: Optional[str] = None
+    medical_record_id: Optional[int] = None
+
+
 class PatientCreateRequest(BaseModel):
     """Request model for creating patient."""
     full_name: str
@@ -2173,6 +2179,7 @@ async def update_patient_medical_record(
 async def upload_patient_photo(
     patient_id: int = Form(...),
     medical_record_id: Optional[int] = Form(None),
+    description: Optional[str] = Form(None),
     file: UploadFile = File(...),
     line_user_clinic: tuple[LineUser, Clinic] = Depends(get_current_line_user_with_clinic),
     db: Session = Depends(get_db)
@@ -2216,6 +2223,7 @@ async def upload_patient_photo(
         clinic_id=clinic.id,
         patient_id=patient_id,
         file=file,
+        description=description,
         medical_record_id=medical_record_id,
         # Photos uploaded for a medical record are created as pending.
         # They become non-pending when the medical record is saved/submitted.
@@ -2271,6 +2279,63 @@ async def delete_patient_photo(
         )
         
     return {"success": True}
+
+
+@router.put("/patient-photos/{photo_id}", response_model=PatientPhotoResponse)
+async def update_patient_photo(
+    photo_id: int,
+    request: PatientPhotoUpdateRequest,
+    line_user_clinic: tuple[LineUser, Clinic] = Depends(get_current_line_user_with_clinic),
+    db: Session = Depends(get_db)
+):
+    """
+    Update a patient photo (e.g., description).
+    
+    Verifies that the photo belongs to a patient owned by the LINE user.
+    """
+    line_user, clinic = line_user_clinic
+    
+    photo_service = PatientPhotoService()
+    photo = photo_service.get_photo(db, photo_id, clinic.id)
+    
+    if not photo:
+        raise HTTPException(
+            status_code=404,
+            detail={"error_code": "PHOTO_NOT_FOUND", "message": "照片不存在"}
+        )
+        
+    # Security check: Photo belongs to a patient owned by the line user
+    if photo.patient.line_user_id != line_user.id:
+        raise HTTPException(
+            status_code=403,
+            detail={"error_code": "ACCESS_DENIED", "message": "您沒有權限修改此照片"}
+        )
+        
+    # Update photo
+    updated_photo = photo_service.update_photo(
+        db=db,
+        photo_id=photo_id,
+        clinic_id=clinic.id,
+        description=request.description,
+        medical_record_id=request.medical_record_id,
+        updated_by_user_id=None  # LIFF doesn't have user_id
+    )
+    
+    if not updated_photo:
+        raise HTTPException(
+            status_code=404,
+            detail={"error_code": "PHOTO_NOT_FOUND", "message": "照片不存在"}
+        )
+        
+    return PatientPhotoResponse(
+        id=updated_photo.id,
+        filename=updated_photo.filename,
+        content_type=updated_photo.content_type,
+        size_bytes=updated_photo.size_bytes,
+        created_at=updated_photo.created_at,
+        url=photo_service.get_photo_url(updated_photo.storage_key),
+        thumbnail_url=photo_service.get_photo_url(updated_photo.thumbnail_key) if updated_photo.thumbnail_key else None
+    )
 
 
 @router.put("/language-preference", response_model=LanguagePreferenceResponse)
