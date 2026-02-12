@@ -129,6 +129,37 @@ export interface ClinicInfoResponse {
   notifications_page_instructions?: string | null;
 }
 
+export interface PatientPhotoResponse {
+  id: number;
+  filename: string;
+  content_type: string;
+  size_bytes: number;
+  description?: string;
+  created_at: string;
+  url?: string;
+  thumbnail_url?: string;
+}
+
+export interface PatientMedicalRecordResponse {
+  id: number;
+  patient_id: number;
+  patient_name: string;
+  template_name: string;
+  template_snapshot: any;
+  values: any;
+  is_submitted: boolean;
+  patient_last_edited_at?: string;
+  photos: PatientPhotoResponse[];
+  version: number;
+}
+
+export interface UpdatePatientMedicalRecordRequest {
+  values: any;
+  is_submitted?: boolean;
+  version: number;
+  photo_ids?: number[];
+}
+
 class LiffApiService {
   private client: AxiosInstance;
 
@@ -374,6 +405,48 @@ class LiffApiService {
   // Language Preference
   async updateLanguagePreference(language: string): Promise<{ preferred_language: string }> {
     const response = await this.client.put('/liff/language-preference', { language });
+    return response.data;
+  }
+
+  // Medical Records
+  async getMedicalRecord(recordId: number): Promise<PatientMedicalRecordResponse> {
+    const response = await this.client.get(`/liff/medical-records/${recordId}`);
+    return response.data;
+  }
+
+  async updateMedicalRecord(recordId: number, request: UpdatePatientMedicalRecordRequest): Promise<PatientMedicalRecordResponse> {
+    const response = await this.client.put(`/liff/medical-records/${recordId}`, request);
+    return response.data;
+  }
+
+  // Patient Photos
+  async uploadPatientPhoto(patientId: number, file: File, medicalRecordId?: number, options?: { description?: string, onUploadProgress?: (progressEvent: any) => void }): Promise<PatientPhotoResponse> {
+    const formData = new FormData();
+    formData.append('patient_id', patientId.toString());
+    if (medicalRecordId) formData.append('medical_record_id', medicalRecordId.toString());
+    if (options?.description) formData.append('description', options.description);
+    formData.append('file', file);
+
+    const config: any = {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    };
+    if (options?.onUploadProgress) {
+      config.onUploadProgress = options.onUploadProgress;
+    }
+
+    const response = await this.client.post('/liff/patient-photos', formData, config);
+    return response.data;
+  }
+
+  async updatePatientPhoto(photoId: number, data: { description?: string, medical_record_id?: number }): Promise<PatientPhotoResponse> {
+    const response = await this.client.put(`/liff/patient-photos/${photoId}`, data);
+    return response.data;
+  }
+
+  async deletePatientPhoto(photoId: number): Promise<{ success: boolean }> {
+    const response = await this.client.delete(`/liff/patient-photos/${photoId}`);
     return response.data;
   }
 }

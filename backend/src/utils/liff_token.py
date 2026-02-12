@@ -5,6 +5,7 @@ This module provides secure token generation for clinic identification in LIFF U
 replacing the insecure clinic_id parameter with cryptographically secure tokens.
 """
 
+from typing import Optional
 import secrets
 import re
 import logging
@@ -114,7 +115,7 @@ def validate_liff_id_format(liff_id: str) -> bool:
     return bool(LIFF_ID_PATTERN.match(liff_id))
 
 
-def generate_liff_url(clinic: Clinic, mode: str = "book") -> str:
+def generate_liff_url(clinic: Clinic, mode: str = "book", path: Optional[str] = None) -> str:
     """
     Generate LIFF URL for a clinic.
 
@@ -124,6 +125,7 @@ def generate_liff_url(clinic: Clinic, mode: str = "book") -> str:
     Args:
         clinic: Clinic model instance
         mode: LIFF mode (default: "book")
+        path: Optional path to append to base URL (e.g., "records/123")
 
     Returns:
         Complete LIFF URL with query parameters
@@ -133,15 +135,17 @@ def generate_liff_url(clinic: Clinic, mode: str = "book") -> str:
                     if LIFF_ID not configured (for shared LIFF)
 
     Example (clinic-specific):
-        https://liff.line.me/{clinic.liff_id}?mode=book
+        https://liff.line.me/{clinic.liff_id}/{path}?mode=book
 
     Example (shared LIFF):
-        https://liff.line.me/{SHARED_LIFF_ID}?mode=book&clinic_token=...
+        https://liff.line.me/{SHARED_LIFF_ID}/{path}?mode=book&clinic_token=...
     """
     # Clinic-specific LIFF app (has liff_id registered)
     if clinic.liff_id:
         base_url = f"https://liff.line.me/{clinic.liff_id}"
         params = {"mode": mode}
+        if path:
+            params["path"] = path
         # Note: No clinic_token needed - liff_id identifies the clinic
     else:
         # Shared LIFF app (uses token-based identification)
@@ -159,6 +163,8 @@ def generate_liff_url(clinic: Clinic, mode: str = "book") -> str:
             "mode": mode,
             "clinic_token": clinic.liff_access_token,
         }
+        if path:
+            params["path"] = path
 
     query_string = "&".join([f"{k}={v}" for k, v in params.items()])
     return f"{base_url}?{query_string}"

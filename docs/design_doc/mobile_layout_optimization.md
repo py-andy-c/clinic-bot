@@ -81,6 +81,11 @@ This strikes the best balance:
 2. **Aesthetic:** It looks deliberate and premium, similar to how Instagram or Twitter feeds work (content flows edge-to-edge).
 3. **Implementation:** It is purely a CSS/Tailwind class change (`sm:rounded-lg`, `sm:shadow-md`, `sm:mx-auto`, `w-full`).
 
+**Key Applications:**
+
+* **Patient Detail Sections**: Medical records, Appointment history, Photo gallery.
+* **Administrative Modals**: `ServiceItemEditModal` and `MedicalRecordTemplateEditorModal` use this pattern to maximize editing space and eliminate side-margin waste on mobile.
+
 ### Implementation Plan
 
 Refactor `PatientDetailSection` wrappers to use:

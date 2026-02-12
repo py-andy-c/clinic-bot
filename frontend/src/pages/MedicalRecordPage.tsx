@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useForm, FormProvider } from 'react-hook-form';
+import { FieldValues, useForm, FormProvider, SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useQueryClient } from '@tanstack/react-query';
@@ -23,74 +23,17 @@ import { getErrorMessage } from '../types/api';
 import { logger } from '../utils/logger';
 import { AxiosError } from 'axios';
 import { getGenderLabel } from '../utils/genderUtils';
-import { TemplateField, PatientPhoto } from '../types/medicalRecord';
 import { formatAppointmentTimeRange } from '../utils/calendarUtils';
-import { apiService } from '../services/api';
+import { createMedicalRecordDynamicSchema } from '../utils/medicalRecordUtils';
 
 /**
  * Generate dynamic Zod schema based on template fields.
  * Modified to mark ALL fields as optional regardless of template's required flag.
  */
-const createDynamicSchema = (fields: TemplateField[] | undefined) => {
-  if (!fields || fields.length === 0) {
-    return z.object({
-      values: z.record(z.any()),
-    });
-  }
-
-  const valuesShape: Record<string, z.ZodTypeAny> = {};
-
-  fields.forEach((field) => {
-    const fieldId = field.id;
-
-    // All fields are optional for validation purposes
-    let fieldSchema: z.ZodTypeAny;
-
-    switch (field.type) {
-      case 'text':
-      case 'textarea':
-      case 'dropdown':
-      case 'radio':
-      case 'date':
-        fieldSchema = z.string()
-          .transform(val => (val === '' ? null : val))
-          .nullable()
-          .optional();
-        break;
-      case 'number':
-        fieldSchema = z.union([
-          z.number(),
-          z.string().transform(val => val === '' ? undefined : Number(val)),
-          z.null()
-        ]).optional();
-        break;
-      case 'checkbox':
-        fieldSchema = z.preprocess(
-          (val) => {
-            if (Array.isArray(val)) return val;
-            if (val === null || val === undefined) return [];
-            if (typeof val === 'boolean') return [];
-            return [String(val)];
-          },
-          z.array(z.string())
-        ).optional();
-        break;
-      default:
-        fieldSchema = z.any().optional();
-    }
-
-    valuesShape[fieldId] = fieldSchema;
-  });
-
-  return z.object({
-    values: z.object(valuesShape),
-    appointment_id: z.number().nullable().optional(),
-  });
-};
 
 type RecordFormData = {
   values: Record<string, any>;
-  appointment_id?: number | null;
+  appointment_id?: number | null | undefined;
 };
 
 /**
@@ -112,8 +55,7 @@ const MedicalRecordPage: React.FC = () => {
   const recordId = recordIdParam ? parseInt(recordIdParam, 10) : undefined;
 
   const [selectedPhotoIds, setSelectedPhotoIds] = useState<number[]>([]);
-  const [initialPhotoIds, setInitialPhotoIds] = useState<number[]>([]); // Track initial state
-  const [photoUpdates, setPhotoUpdates] = useState<Record<number, Partial<PatientPhoto>>>({}); // Track photo description changes
+  const [initialPhotoIds, setInitialPhotoIds] = useState<number[]>([]); // Track initial state for dirty detection
   const [isSelectAppointmentModalOpen, setIsSelectAppointmentModalOpen] = useState(false);
   const [conflictState, setConflictState] = useState<{
     show: boolean;
@@ -147,7 +89,10 @@ const MedicalRecordPage: React.FC = () => {
 
   // Generate dynamic schema based on template fields
   const dynamicSchema = useMemo(
-    () => createDynamicSchema(record?.template_snapshot?.fields),
+    () => z.object({
+      values: createMedicalRecordDynamicSchema(record?.template_snapshot?.fields),
+      appointment_id: z.number().nullable().optional(),
+    }),
     [record?.template_snapshot?.fields]
   );
 
@@ -207,24 +152,16 @@ const MedicalRecordPage: React.FC = () => {
     }
   }, [record, methods]);
 
-  // Calculate if there are unsaved changes (form + photos)
+  // Calculate if photos have changed (for dirty state detection)
+  // Note: Photo descriptions are saved immediately by MedicalRecordPhotoSelector,
+  // so we only track photo selection changes (add/remove) here
   const photosDirty = useMemo(() => {
-    const idsChanged = JSON.stringify([...selectedPhotoIds].sort()) !== JSON.stringify([...initialPhotoIds].sort());
-    const descriptionsChanged = Object.keys(photoUpdates).length > 0;
-    return idsChanged || descriptionsChanged;
-  }, [selectedPhotoIds, initialPhotoIds, photoUpdates]);
+    return JSON.stringify([...selectedPhotoIds].sort()) !== JSON.stringify([...initialPhotoIds].sort());
+  }, [selectedPhotoIds, initialPhotoIds]);
 
   const hasUnsavedChanges = useCallback(() => {
     return isDirty || photosDirty;
   }, [isDirty, photosDirty]);
-
-  // Handle photo description updates
-  const handlePhotoUpdate = useCallback((photoId: number, updates: Partial<PatientPhoto>) => {
-    setPhotoUpdates(prev => ({
-      ...prev,
-      [photoId]: { ...prev[photoId], ...updates }
-    }));
-  }, []);
 
   // Setup unsaved changes detection
   useUnsavedChangesDetection({
@@ -236,7 +173,8 @@ const MedicalRecordPage: React.FC = () => {
     navigate(`/admin/clinic/patients/${patientId}`);
   };
 
-  const onSubmit = async (data: RecordFormData) => {
+  const onSubmit: SubmitHandler<FieldValues> = async (formData) => {
+    const data = formData as RecordFormData;
     if (!record) return;
 
     try {
@@ -258,52 +196,32 @@ const MedicalRecordPage: React.FC = () => {
         data: updateData,
       });
 
-      // Save photo description updates with better error handling
-      let photoUpdatesFailed = false;
-      const failedPhotoIds: number[] = [];
-      
-      if (Object.keys(photoUpdates).length > 0) {
-        const photoUpdatePromises = Object.entries(photoUpdates).map(([photoIdStr, updates]) => {
-          const photoId = parseInt(photoIdStr, 10);
-          return { photoId, promise: apiService.updatePatientPhoto(photoId, updates) };
-        });
-        
-        const results = await Promise.allSettled(photoUpdatePromises.map(p => p.promise));
-        
-        results.forEach((result, index) => {
-          if (result.status === 'rejected') {
-            photoUpdatesFailed = true;
-            const photoId = photoUpdatePromises[index]?.photoId;
-            if (photoId) {
-              failedPhotoIds.push(photoId);
-              logger.error(`Photo ${photoId} description update failed:`, result.reason);
-            }
-          }
-        });
-      }
-
       // Reset states after successful save
       methods.reset(methods.getValues()); // Use raw values for cleaner reset
       setInitialPhotoIds([...selectedPhotoIds]); // Reset photo state
-      
-      // Only clear successful photo updates, keep failed ones for retry
-      if (photoUpdatesFailed) {
-        const failedUpdates: Record<number, Partial<PatientPhoto>> = {};
-        failedPhotoIds.forEach(photoId => {
-          if (photoUpdates[photoId]) {
-            failedUpdates[photoId] = photoUpdates[photoId];
-          }
-        });
-        setPhotoUpdates(failedUpdates);
-      } else {
-        setPhotoUpdates({}); // Clear all if everything succeeded
-      }
-      
+
       setIsSelectAppointmentModalOpen(false); // Close modal if open
-      
-      // Show appropriate success message
-      if (photoUpdatesFailed) {
-        await alert('病歷記錄已更新，但部分照片說明更新失敗。請再次點擊儲存以重試。', '部分成功');
+
+      // Check for missing required fields to show a warning
+      const missingRequiredFields = (record.template_snapshot.fields || [])
+        .filter(field => {
+          if (!field.required) return false;
+          const value = data.values[field.id];
+
+          if (field.type === 'checkbox') {
+            return !Array.isArray(value) || value.length === 0;
+          }
+
+          return value === null || value === undefined || value === '';
+        })
+        .map(field => field.label);
+
+      // Show appropriate success/warning message
+      if (missingRequiredFields.length > 0) {
+        await alert(
+          `病歷記錄已成功儲存，但下列必填欄位尚未填寫：\n\n${missingRequiredFields.map(label => `• ${label}`).join('\n')}`,
+          '⚠️ 儲存成功'
+        );
       } else {
         await alert('病歷記錄已成功更新', '更新成功');
       }
@@ -335,7 +253,6 @@ const MedicalRecordPage: React.FC = () => {
     queryClient.invalidateQueries({
       queryKey: medicalRecordKeys.detail(activeClinicId, recordId)
     });
-    setPhotoUpdates({}); // Clear pending photo description edits
     setConflictState(null);
     // The useEffect will handle resetting form and photo state when fresh data arrives
   };
@@ -362,47 +279,8 @@ const MedicalRecordPage: React.FC = () => {
         data: forceSaveData,
       });
 
-      // Save photo description updates with better error handling
-      let photoUpdatesFailed = false;
-      const failedPhotoIds: number[] = [];
-      
-      if (Object.keys(photoUpdates).length > 0) {
-        const photoUpdatePromises = Object.entries(photoUpdates).map(([photoIdStr, updates]) => {
-          const photoId = parseInt(photoIdStr, 10);
-          return { photoId, promise: apiService.updatePatientPhoto(photoId, updates) };
-        });
-        
-        const results = await Promise.allSettled(photoUpdatePromises.map(p => p.promise));
-        
-        results.forEach((result, index) => {
-          if (result.status === 'rejected') {
-            photoUpdatesFailed = true;
-            const photoId = photoUpdatePromises[index]?.photoId;
-            if (photoId) {
-              failedPhotoIds.push(photoId);
-              logger.error(`Photo ${photoId} description update failed:`, result.reason);
-            }
-          }
-        });
-      }
+      await alert('病歷記錄已強制儲存', '儲存成功');
 
-      // Show appropriate success message
-      if (photoUpdatesFailed) {
-        await alert('病歷記錄已強制儲存，但部分照片說明更新失敗。請再次點擊儲存以重試。', '部分成功');
-        
-        // Only clear successful photo updates, keep failed ones for retry
-        const failedUpdates: Record<number, Partial<PatientPhoto>> = {};
-        failedPhotoIds.forEach(photoId => {
-          if (photoUpdates[photoId]) {
-            failedUpdates[photoId] = photoUpdates[photoId];
-          }
-        });
-        setPhotoUpdates(failedUpdates);
-      } else {
-        await alert('病歷記錄已強制儲存', '儲存成功');
-        setPhotoUpdates({}); // Clear all if everything succeeded
-      }
-      
       setConflictState(null);
       methods.reset(conflictState.userChanges);
     } catch (forceSaveError) {
@@ -471,9 +349,16 @@ const MedicalRecordPage: React.FC = () => {
           {/* Record Title & Metadata Block */}
           <div className="px-5 py-6 md:px-12 md:pt-12 md:pb-10 bg-gray-50/5 border-b border-gray-100">
             <div className="flex justify-between items-start mb-10">
-              <h1 className="text-2xl md:text-3xl lg:text-4xl font-extrabold text-blue-900 tracking-tight">
-                {record.template_snapshot.name}
-              </h1>
+              <div className="flex flex-col gap-2">
+                <h1 className="text-2xl md:text-3xl lg:text-4xl font-extrabold text-blue-900 tracking-tight">
+                  {record.template_snapshot.name}
+                </h1>
+                {record.template_snapshot.description && (
+                  <p className="text-sm md:text-base text-gray-500 max-w-2xl">
+                    {record.template_snapshot.description}
+                  </p>
+                )}
+              </div>
               <div className="text-right no-print">
                 <button
                   onClick={methods.handleSubmit(onSubmit)}
@@ -513,18 +398,7 @@ const MedicalRecordPage: React.FC = () => {
                     <span className="font-bold text-gray-900">{patient.phone_number}</span>
                   </div>
                 )}
-                {record.created_at && (
-                  <div className="flex items-center gap-3">
-                    <span className="text-gray-500 font-bold uppercase tracking-wider text-sm">診次日期</span>
-                    <span className="font-bold text-gray-900">
-                      {new Date(record.created_at).toLocaleDateString('zh-TW', {
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric'
-                      })}
-                    </span>
-                  </div>
-                )}
+
               </div>
 
               {/* Appointment Context Row */}
@@ -579,7 +453,6 @@ const MedicalRecordPage: React.FC = () => {
                       patientId={patientId}
                       selectedPhotoIds={selectedPhotoIds}
                       onPhotoIdsChange={setSelectedPhotoIds}
-                      onPhotoUpdate={handlePhotoUpdate}
                       recordId={recordId ?? null}
                     />
                   </div>

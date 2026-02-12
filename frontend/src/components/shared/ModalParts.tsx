@@ -13,7 +13,7 @@ interface ModalHeaderProps {
 export const ModalHeader: React.FC<ModalHeaderProps> = ({ title, children, onClose, showClose = false, className = '', style }) => {
   const { t } = useTranslation();
   return (
-    <div className={`px-6 py-3 border-b flex items-center ${className}`} style={style}>
+    <div className={`px-4 md:px-6 py-3 border-b flex items-center ${className}`} style={style}>
       {title ? (
         <h2 className="text-lg font-semibold text-gray-900">
           {title}
@@ -45,7 +45,7 @@ interface ModalBodyProps {
 
 export const ModalBody: React.FC<ModalBodyProps> = ({ className = '', style, children }) => {
   return (
-    <div className={`px-6 py-4 flex-1 min-h-0 overflow-y-auto ${className}`} style={style}>
+    <div className={`px-4 md:px-6 py-4 flex-1 min-h-0 overflow-y-auto ${className}`} style={style}>
       {children}
     </div>
   );
@@ -61,7 +61,7 @@ interface ModalFooterProps {
 
 export const ModalFooter: React.FC<ModalFooterProps> = ({ className = '', style, children, loading = false }) => {
   return (
-    <div className={`px-6 py-3 border-t flex justify-end space-x-3 ${loading ? 'opacity-70 pointer-events-none' : ''} ${className}`} style={style}>
+    <div className={`px-4 md:px-6 py-3 border-t flex justify-end space-x-3 ${loading ? 'opacity-70 pointer-events-none' : ''} ${className}`} style={style}>
       {children}
     </div>
   );

@@ -105,8 +105,8 @@ The system is built to minimize the risk of data leakage or accidental mis-assoc
 * Each medical record belongs to exactly one patient
 * Each medical record uses exactly one template (at creation time)
 * Each medical record can optionally be linked to an appointment
-* Template changes DO NOT affect existing records (record stores snapshot of template structure)
-* Records store the template structure and values together for data integrity
+* Template changes DO NOT affect existing records (record stores snapshot of template structure and description)
+* Records store the template structure, description, and values together for data integrity
 
 **Appointment Linking**:
 
@@ -140,6 +140,7 @@ The system is built to minimize the risk of data leakage or accidental mis-assoc
 **Save Behavior (V0)**:
 
 * Manual save only (user clicks "儲存" button)
+* **Post-Save Validation**: After a successful save, the system checks for missing required fields. If any are missing, a "Success with Warning" modal (⚠️) lists the incomplete fields. This provides guidance without blocking the save process.
 * **Optimistic Locking**: Basic conflict detection on save (version check)
 * **Navigation Guard**: Frontend warns user before leaving page with unsaved changes.
 * No auto-save, no local draft backup.
@@ -796,78 +797,81 @@ AppointmentModal (existing, enhanced)
 
 ### Phase 1: Core Infrastructure (Week 1-2)
 
-* [x] Database migrations for all 3 tables
-* [x] Backend models and basic CRUD services (Include `libheif-dev`, `libde265-dev` dependencies)
-* [x] File upload/download endpoints
-* [x] Basic API endpoints
+* \[x] Database migrations for all 3 tables
+* \[x] Backend models and basic CRUD services (Include `libheif-dev`, `libde265-dev` dependencies)
+* \[x] File upload/download endpoints
+* \[x] Basic API endpoints
 
 ### Phase 2: Template System (Week 2-3) ✅ **COMPLETE**
 
-* [x] Template CRUD API endpoints
-* [x] Template editor frontend (Settings page)
-* [x] Field builder component
-* [x] Template list and management
-* [x] API response format (wrapped with total count)
-* [x] Field ID preservation (hidden input for UUID stability)
-* [x] Unsaved changes detection and confirmation
-* [x] Options cleanup for non-select field types
-* [x] Pagination support with accurate total count
+* \[x] Template CRUD API endpoints
+* \[x] Template editor frontend (Settings page)
+* \[x] Field builder component
+* \[x] Template list and management
+* \[x] API response format (wrapped with total count)
+* \[x] Field ID preservation (hidden input for UUID stability)
+* \[x] Unsaved changes detection and confirmation
+* \[x] Options cleanup for non-select field types
+* \[x] Pagination support with accurate total count
 
 ### Phase 3: Medical Records (Week 3-4) ✅ **COMPLETE**
 
 **Backend:**
-* [x] Medical record CRUD API endpoints
-* [x] Duplicate photo ID handling in create_record
-* [x] API route structure: `/patients/{patient_id}/medical-records`
-* [x] API response format: `{ records, total }` with pagination
-* [x] Trash logic with `include_deleted` parameter
-* [x] Template snapshot includes `{"name": ..., "fields": ...}`
-* [x] Optimistic locking with enriched 409 conflict response
+
+* \[x] Medical record CRUD API endpoints
+* \[x] Duplicate photo ID handling in create\_record
+* \[x] API route structure: `/patients/{patient_id}/medical-records`
+* \[x] API response format: `{ records, total }` with pagination
+* \[x] Trash logic with `include_deleted` parameter
+* \[x] Template snapshot includes `{"name": ..., "fields": ...}`
+* \[x] Optimistic locking with enriched 409 conflict response
 
 **Frontend:**
-* [x] Medical record types and API methods
-* [x] React Query hooks for medical records (useMedicalRecords)
-* [x] Dynamic form generation from template (MedicalRecordDynamicForm)
-* [x] Medical records section in PatientDetailPage (PatientMedicalRecordsSection)
-* [x] Create/edit/view record modals (MedicalRecordModal)
-* [x] Version conflict handling UI (409 conflict with reload option)
-* [x] "Recently Deleted" (Trash) management UI with restore/hard-delete actions
-* [x] Full CRUD operations with proper error handling
-* [x] Unsaved changes detection and confirmation
+
+* \[x] Medical record types and API methods
+* \[x] React Query hooks for medical records (useMedicalRecords)
+* \[x] Dynamic form generation from template (MedicalRecordDynamicForm)
+* \[x] Medical records section in PatientDetailPage (PatientMedicalRecordsSection)
+* \[x] Create/edit/view record modals (MedicalRecordModal)
+* \[x] Version conflict handling UI (409 conflict with reload option)
+* \[x] "Recently Deleted" (Trash) management UI with restore/hard-delete actions
+* \[x] Full CRUD operations with proper error handling
+* \[x] Unsaved changes detection and confirmation
 
 **P2 Fixes (Data Integrity & UX):**
-* [x] Checkbox implementation: Produces clean array format `["val1", "val2"]`
-* [x] Required field validation: Dynamic Zod schema enforces required fields
-* [x] Appointment linking UI: Dropdown selector for patient appointments
-* [x] Validation error display: Shows field-level errors on submit
+
+* \[x] Checkbox implementation: Produces clean array format `["val1", "val2"]`
+* \[x] Required field validation: Dynamic Zod schema enforces required fields
+* \[x] Appointment linking UI: Dropdown selector for patient appointments
+* \[x] Validation error display: Shows field-level errors on submit
 
 ### Phase 4: Photo Gallery (Week 4-5) ✅ **COMPLETE**
 
-* [x] Photo upload/download API endpoints (Backend already implemented)
-* [x] Photo gallery section in PatientDetailPage (PatientPhotoGallery component)
-* [x] Upload component with progress (Integrated in PatientPhotoGallery)
-* [x] Drag-and-drop upload zone (Visual drop zone with hover states)
-* [x] Parallel file uploads (Multiple files upload concurrently)
-* [x] Upload error feedback (Shows which specific files failed)
-* [x] Lightbox viewer (PhotoLightbox component with keyboard navigation)
-* [x] Photo-to-record association (Backend logic implemented)
-* [x] Photo edit modal (PhotoEditModal for description updates)
-* [x] React Query hooks for photo management (usePatientPhotos)
-* [x] Photo API integration (apiService methods)
-* [x] **Photo integration in MedicalRecordModal** (MedicalRecordPhotoSelector component)
-  - Select existing unlinked photos
-  - Upload new photos (staged as `is_pending=true`)
-  - Photos committed when record is saved
-  - Supports both create and edit modes
+* \[x] Photo upload/download API endpoints (Backend already implemented)
+* \[x] Photo gallery section in PatientDetailPage (PatientPhotoGallery component)
+* \[x] Upload component with progress (Integrated in PatientPhotoGallery)
+* \[x] Drag-and-drop upload zone (Visual drop zone with hover states)
+* \[x] Parallel file uploads (Multiple files upload concurrently)
+* \[x] Upload error feedback (Shows which specific files failed)
+* \[x] Lightbox viewer (PhotoLightbox component with keyboard navigation)
+* \[x] Photo-to-record association (Backend logic implemented)
+* \[x] Photo edit modal (PhotoEditModal for description updates)
+* \[x] React Query hooks for photo management (usePatientPhotos)
+* \[x] Photo API integration (apiService methods)
+* \[x] **Photo integration in MedicalRecordModal** (MedicalRecordPhotoSelector component)
+  * Select existing unlinked photos
+  * Upload new photos (staged as `is_pending=true`)
+  * Photos committed when record is saved
+  * Supports both create and edit modes
 
 **Integration Complete**: Users can now attach photos to medical records during creation/editing, implementing the "Atomic Record Lifecycle" principle.
 
 ### Phase 5: Polish & Testing (Week 5-6) ✅ **COMPLETE**
 
-* [x] Responsive design refinements (Gallery uses responsive grid: 2/3/4 columns)
-* [x] Performance optimization (S3 GC & List Enrichment)
-* [x] Documentation (Design doc updated with all phases)
-* [ ] E2E tests for key flows (Deferred - can be added incrementally)
+* \[x] Responsive design refinements (Gallery uses responsive grid: 2/3/4 columns)
+* \[x] Performance optimization (S3 GC & List Enrichment)
+* \[x] Documentation (Design doc updated with all phases)
+* \[ ] E2E tests for key flows (Deferred - can be added incrementally)
 
 **Testing Note**: E2E tests for medical records and photo gallery can be added incrementally as the feature is used in production. The backend has comprehensive integration tests covering all CRUD operations.
 

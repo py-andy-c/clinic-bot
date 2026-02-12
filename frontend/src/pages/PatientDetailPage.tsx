@@ -21,6 +21,8 @@ import { CreateAppointmentModal } from '../components/calendar/CreateAppointment
 import { PatientMedicalRecordsSection } from '../components/PatientMedicalRecordsSection';
 import { RecentPhotosRibbon } from '../components/RecentPhotosRibbon';
 import { CreateMedicalRecordDialog } from '../components/CreateMedicalRecordDialog';
+import { SendPatientFormDialog } from '../components/SendPatientFormDialog';
+import { ActionMenu, ActionMenuItem } from '../components/ActionMenu';
 
 type TabType = 'info' | 'appointments' | 'records' | 'photos';
 
@@ -37,6 +39,7 @@ const PatientDetailPage: React.FC = () => {
   const [isEditingPractitioners, setIsEditingPractitioners] = useState(false);
   const [isAppointmentModalOpen, setIsAppointmentModalOpen] = useState(false);
   const [isCreateRecordModalOpen, setIsCreateRecordModalOpen] = useState(false);
+  const [isSendFormModalOpen, setIsSendFormModalOpen] = useState(false);
   const appointmentsListRefetchRef = useRef<(() => Promise<void>) | null>(null);
 
   const patientId = id ? parseInt(id, 10) : undefined;
@@ -56,7 +59,6 @@ const PatientDetailPage: React.FC = () => {
   const { data: patient, isLoading: loading, error, refetch } = usePatientDetail(patientId);
 
   const canEdit = hasRole && (hasRole('admin') || hasRole('practitioner'));
-  const canCreateAppointment = canEdit; // Same permissions as editing
 
   // Fetch clinic settings for appointment types (only when needed)
   const { data: clinicSettings } = useClinicSettings(
@@ -113,64 +115,66 @@ const PatientDetailPage: React.FC = () => {
 
   // Determine action button based on active tab
   const getHeaderAction = () => {
-    const buttons = [];
+    if (!canEdit) return undefined;
 
-    // Always show "+ 預約" button if user has permission
-    if (canCreateAppointment) {
-      buttons.push(
-        <button
-          key="create-appointment"
-          onClick={() => setIsAppointmentModalOpen(true)}
-          className="btn btn-primary whitespace-nowrap flex items-center gap-1 text-sm px-3 py-2"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          預約
-        </button>
-      );
-    }
+    const items: ActionMenuItem[] = [];
 
-    // Add tab-specific buttons
-    if (activeTab === 'records' && canEdit) {
-      buttons.push(
-        <button
-          key="create-record"
-          onClick={handleCreateMedicalRecord}
-          className="btn btn-primary whitespace-nowrap flex items-center gap-1 text-sm px-3 py-2"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          病歷
-        </button>
-      );
-    }
+    // 1. Appointment
+    items.push({
+      label: '新增預約',
+      icon: (
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+        </svg>
+      ),
+      onClick: () => setIsAppointmentModalOpen(true),
+      variant: 'primary',
+    });
 
-    if (activeTab === 'photos') {
-      buttons.push(
-        <button
-          key="upload-photo"
-          onClick={() => setShowPhotoUpload(true)}
-          className="btn btn-primary whitespace-nowrap flex items-center gap-1 text-sm px-3 py-2"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          照片
-        </button>
-      );
-    }
+    // 2. Send Form
+    items.push({
+      label: '發送表單',
+      icon: (
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+        </svg>
+      ),
+      onClick: () => setIsSendFormModalOpen(true),
+      variant: 'secondary',
+    });
 
-    // Return buttons wrapped in a flex container if multiple buttons
-    if (buttons.length === 0) return undefined;
-    if (buttons.length === 1) return buttons[0];
+    // 3. Medical Record
+    items.push({
+      label: '新增病歷',
+      icon: (
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+      ),
+      onClick: handleCreateMedicalRecord,
+    });
 
-    return (
-      <div className="flex items-center gap-2">
-        {buttons}
-      </div>
-    );
+    // 4. Photo
+    items.push({
+      label: '上傳照片',
+      icon: (
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+        </svg>
+      ),
+      onClick: () => {
+        if (activeTab !== 'photos') {
+          setActiveTab('photos');
+          // Give a tiny delay for the tab to switch and RecentPhotosRibbon to mount
+          setTimeout(() => setShowPhotoUpload(true), 100);
+        } else {
+          setShowPhotoUpload(true);
+        }
+      },
+    });
+
+    return <ActionMenu items={items} />;
   };
 
   if (loading) {
@@ -220,7 +224,7 @@ const PatientDetailPage: React.FC = () => {
 
       {/* Tab Navigation */}
       <div className="border-b border-gray-200 mb-6">
-        <nav className="-mb-px flex space-x-8">
+        <nav className="-mb-px flex space-x-4 md:space-x-8 overflow-x-auto no-scrollbar">
           <button
             onClick={() => setActiveTab('info')}
             className={`py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${activeTab === 'info'
@@ -246,7 +250,7 @@ const PatientDetailPage: React.FC = () => {
               : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
           >
-            病歷記錄
+            病歷與表單
           </button>
           <button
             onClick={() => setActiveTab('photos')}
@@ -381,6 +385,18 @@ const PatientDetailPage: React.FC = () => {
           onSuccess={(recordId) => {
             setIsCreateRecordModalOpen(false);
             navigate(`/admin/clinic/patients/${patientId}/records/${recordId}`);
+          }}
+        />
+      )}
+
+      {/* Send Patient Form Dialog */}
+      {isSendFormModalOpen && patientId !== undefined && (
+        <SendPatientFormDialog
+          patientId={patientId}
+          onClose={() => setIsSendFormModalOpen(false)}
+          onSuccess={() => {
+            setIsSendFormModalOpen(false);
+            // The list update is handled by mutation invalidation in the hook
           }}
         />
       )}

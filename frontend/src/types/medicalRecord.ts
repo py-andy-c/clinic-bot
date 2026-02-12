@@ -28,6 +28,7 @@ export interface MedicalRecordTemplate {
   name: string;
   description?: string;
   fields: TemplateField[];
+  is_patient_form: boolean;
   version: number;
   is_deleted: boolean;
   deleted_at?: string;
@@ -41,6 +42,7 @@ export interface MedicalRecordTemplateCreateRequest {
   name: string;
   description?: string | undefined;
   fields: Omit<TemplateField, 'id'>[]; // Frontend doesn't provide IDs
+  is_patient_form?: boolean;
 }
 
 export interface MedicalRecordTemplateUpdateRequest {
@@ -48,6 +50,7 @@ export interface MedicalRecordTemplateUpdateRequest {
   name?: string | undefined;
   description?: string | undefined;
   fields?: TemplateField[]; // Must include existing IDs for persistent fields
+  is_patient_form?: boolean;
 }
 
 export interface MedicalRecordTemplatesListResponse {
@@ -85,9 +88,12 @@ export interface MedicalRecord {
   appointment_id?: number;
   template_snapshot: {
     name: string;
+    description?: string;
     fields: TemplateField[];
   };
   values: Record<string, any>;
+  patient_last_edited_at?: string;
+  is_submitted: boolean;
   version: number;
   is_deleted: boolean;
   deleted_at?: string;
@@ -95,6 +101,7 @@ export interface MedicalRecord {
   created_by_user_id?: number;
   updated_at?: string;
   updated_by_user_id?: number;
+  is_patient_form: boolean;
   photos?: PatientPhoto[]; // Photos attached to this record
 
   // Enriched fields from backend
@@ -130,4 +137,10 @@ export interface MedicalRecordsListResponse {
 export interface PatientPhotoUpdateRequest {
   description?: string;
   medical_record_id?: number;
+}
+
+export interface SendPatientFormRequest {
+  template_id: number;
+  appointment_id?: number;
+  message_override?: string;
 }

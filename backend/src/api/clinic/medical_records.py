@@ -49,6 +49,8 @@ class MedicalRecordResponse(BaseModel):
     template_snapshot: Dict[str, Any]
     values: Dict[str, Any]
     appointment_id: Optional[int]
+    patient_last_edited_at: Optional[datetime] = None
+    is_submitted: bool = False
     version: int
     is_deleted: bool
     deleted_at: Optional[Any]
@@ -56,6 +58,7 @@ class MedicalRecordResponse(BaseModel):
     updated_at: Any
     created_by_user_id: Optional[int] = None
     updated_by_user_id: Optional[int] = None
+    is_patient_form: bool
     photos: List[PatientPhotoResponse] = Field(default_factory=list)  # type: ignore[reportUnknownVariableType]
     
     # Enriched fields (populated manually by _enrich_record_with_photos)
@@ -97,6 +100,8 @@ def _enrich_record_with_photos(
         'template_snapshot': record.template_snapshot,
         'values': record.values,
         'appointment_id': record.appointment_id,
+        'patient_last_edited_at': record.patient_last_edited_at,
+        'is_submitted': record.is_submitted,
         'version': record.version,
         'is_deleted': record.is_deleted,
         'deleted_at': record.deleted_at,
@@ -104,6 +109,7 @@ def _enrich_record_with_photos(
         'updated_at': record.updated_at,
         'created_by_user_id': record.created_by_user_id,
         'updated_by_user_id': record.updated_by_user_id,
+        'is_patient_form': record.template.is_patient_form if record.template else False,
     }
     
     # Process photos
@@ -178,6 +184,42 @@ def create_record(
     user_names_map = _batch_fetch_user_names(db, clinic_id, user_ids)
     
     return _enrich_record_with_photos(created_record, photo_service, user_names_map)
+
+class SendPatientFormRequest(BaseModel):
+    template_id: int
+    appointment_id: Optional[int] = None
+    message_override: Optional[str] = None
+
+@router.post("/patients/{patient_id}/medical-records/send-form", response_model=MedicalRecordResponse)
+def send_patient_form(
+    patient_id: int,
+    request: SendPatientFormRequest,
+    user: UserContext = Depends(require_authenticated),
+    db: Session = Depends(get_db),
+    photo_service: PatientPhotoService = Depends(get_photo_service)
+):
+    ensure_clinic_access(user)
+    if user.active_clinic_id is None:
+        raise HTTPException(status_code=400, detail="Clinic context required")
+    if user.user_id is None:
+        raise HTTPException(status_code=400, detail="User ID required")
+    clinic_id = user.active_clinic_id
+    
+    record = MedicalRecordService.send_patient_form(
+        db=db,
+        clinic_id=clinic_id,
+        patient_id=patient_id,
+        template_id=request.template_id,
+        created_by_user_id=user.user_id,
+        appointment_id=request.appointment_id,
+        message_override=request.message_override
+    )
+    
+    # Batch fetch user names
+    user_ids = [uid for uid in [record.created_by_user_id, record.updated_by_user_id] if uid]
+    user_names_map = _batch_fetch_user_names(db, clinic_id, user_ids)
+    
+    return _enrich_record_with_photos(record, photo_service, user_names_map)
 
 @router.get("/patients/{patient_id}/medical-records", response_model=MedicalRecordsListResponse)
 def list_records(
@@ -256,7 +298,10 @@ def get_record(
     clinic_id = user.active_clinic_id
     record = MedicalRecordService.get_record(db, record_id, clinic_id)
     if not record:
-        raise HTTPException(status_code=404, detail="Record not found")
+        raise HTTPException(
+            status_code=404, 
+            detail={"error_code": "RECORD_NOT_FOUND", "message": "Record not found"}
+        )
     
     # Batch fetch user names
     user_ids = [uid for uid in [record.created_by_user_id, record.updated_by_user_id] if uid]
@@ -339,7 +384,10 @@ def delete_record(
         deleted_by_user_id=user.user_id
     )
     if not success:
-        raise HTTPException(status_code=404, detail="Record not found")
+        raise HTTPException(
+            status_code=404, 
+            detail={"error_code": "RECORD_NOT_FOUND", "message": "Record not found"}
+        )
     return {"status": "success"}
 
 @router.post("/medical-records/{record_id}/restore", response_model=MedicalRecordResponse)
@@ -360,7 +408,10 @@ def restore_record(
         clinic_id=clinic_id
     )
     if not record:
-        raise HTTPException(status_code=404, detail="Record not found or not deleted")
+        raise HTTPException(
+            status_code=404, 
+            detail={"error_code": "RECORD_NOT_FOUND", "message": "Record not found or not deleted"}
+        )
     
     # Batch fetch user names
     user_ids = [uid for uid in [record.created_by_user_id, record.updated_by_user_id] if uid]
@@ -385,5 +436,8 @@ def hard_delete_record(
         clinic_id=clinic_id
     )
     if not success:
-        raise HTTPException(status_code=404, detail="Record not found")
+        raise HTTPException(
+            status_code=404, 
+            detail={"error_code": "RECORD_NOT_FOUND", "message": "Record not found"}
+        )
     return {"status": "success"}

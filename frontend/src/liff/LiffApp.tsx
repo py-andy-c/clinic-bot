@@ -13,9 +13,10 @@ import AppointmentList from './query/AppointmentList';
 import PatientManagement from './settings/PatientManagement';
 import NotificationsFlow from './notifications/NotificationsFlow';
 import RescheduleFlow from './appointment/RescheduleFlow';
+import PatientMedicalRecordPage from './records/PatientMedicalRecordPage';
 
-type AppMode = 'home' | 'book' | 'query' | 'settings' | 'notifications' | 'reschedule';
-const VALID_MODES: AppMode[] = ['home', 'book', 'query', 'settings', 'notifications', 'reschedule'];
+type AppMode = 'home' | 'book' | 'query' | 'settings' | 'notifications' | 'reschedule' | 'form';
+const VALID_MODES: AppMode[] = ['home', 'book', 'query', 'settings', 'notifications', 'reschedule', 'form'];
 const DEFAULT_MODE: AppMode = 'home';
 
 const MODE_COMPONENTS: Record<AppMode, FC> = {
@@ -25,6 +26,7 @@ const MODE_COMPONENTS: Record<AppMode, FC> = {
   settings: PatientManagement,
   notifications: NotificationsFlow,
   reschedule: RescheduleFlow,
+  form: PatientMedicalRecordPage,
 };
 
 const LiffApp: FC = () => {

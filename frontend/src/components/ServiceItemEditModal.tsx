@@ -459,20 +459,20 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
         showCloseButton={false}
         fullScreen={true}
       >
-        <form onSubmit={handleSubmit(handleSave)} className="flex flex-col h-full bg-gray-50/50">
+        <form onSubmit={handleSubmit(handleSave)} className="flex flex-col h-full bg-white md:bg-gray-50/50">
           <ModalHeader
             title={serviceItemId ? '編輯服務項目' : '新增服務項目'}
             showClose
             onClose={() => onClose()}
           />
 
-          <ModalBody className="p-0">
+          <ModalBody className="!p-0 bg-white md:bg-transparent">
             {/* Scrollable Content inside ModalBody */}
-            <div className="p-3 md:p-8">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 md:gap-8 max-w-7xl mx-auto w-full">
+            <div className="p-0 md:p-8">
+              <div className="grid grid-cols-1 lg:grid-cols-2 md:gap-8 max-w-7xl mx-auto w-full">
                 {/* Left Column: Basic Info & Restrictions */}
-                <div className="space-y-3 md:space-y-8">
-                  <section className="bg-white rounded-xl md:rounded-2xl p-4 md:p-6 shadow-sm border border-gray-100">
+                <div className="space-y-0 md:space-y-8">
+                  <section className="bg-white md:rounded-2xl p-5 md:p-6 md:shadow-sm border-b md:border border-gray-100 border-x-0">
                     <h3 className="text-lg font-semibold text-gray-900 mb-4 md:mb-6 flex items-center gap-2">
                       <span className="w-1.5 h-6 bg-blue-500 rounded-full"></span>
                       基本資訊
@@ -558,7 +558,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                     </div>
                   </section>
 
-                  <section className="bg-white rounded-xl md:rounded-2xl p-4 md:p-6 shadow-sm border border-gray-100">
+                  <section className="bg-white md:rounded-2xl p-5 md:p-6 md:shadow-sm border-b md:border border-gray-100 border-x-0">
                     <h3 className="text-lg font-semibold text-gray-900 mb-4 md:mb-6 flex items-center gap-2">
                       <span className="w-1.5 h-6 bg-purple-500 rounded-full"></span>
                       預約規則
@@ -628,7 +628,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                     </div>
                   </section>
 
-                  <section className="bg-white rounded-xl md:rounded-2xl p-4 md:p-6 shadow-sm border border-gray-100">
+                  <section className="bg-white md:rounded-2xl p-5 md:p-6 md:shadow-sm border-b md:border border-gray-100 border-x-0">
                     <h3 className="text-lg font-semibold text-gray-900 mb-4 md:mb-6 flex items-center gap-2">
                       <span className="w-1.5 h-6 bg-teal-500 rounded-full"></span>
                       預約備註
@@ -670,9 +670,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                     </div>
                   </section>
 
-
-
-                  <section className="bg-white rounded-xl md:rounded-2xl p-4 md:p-6 shadow-sm border border-gray-100">
+                  <section className="bg-white md:rounded-2xl p-5 md:p-6 md:shadow-sm border-b md:border border-gray-100 border-x-0">
                     <h3 className="text-lg font-semibold text-gray-900 mb-2 flex items-center gap-2">
                       <span className="w-1.5 h-6 bg-pink-500 rounded-full"></span>
                       資源需求
@@ -688,8 +686,8 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                 </div>
 
                 {/* Right Column: Practitioners & Others */}
-                <div className="space-y-3 md:space-y-8">
-                  <section className="bg-white rounded-xl md:rounded-2xl p-4 md:p-6 shadow-sm border border-gray-100">
+                <div className="space-y-0 md:space-y-8">
+                  <section className="bg-white md:rounded-2xl p-5 md:p-6 md:shadow-sm border-b md:border border-gray-100 border-x-0">
                     <h3 className="text-lg font-semibold text-gray-900 mb-4 md:mb-6 flex items-center gap-2">
                       <span className="w-1.5 h-6 bg-indigo-500 rounded-full"></span>
                       治療師指派
@@ -703,8 +701,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                         const scenarios = billingScenarios.filter(s => s.practitioner_id === m.id);
 
                         return (
-
-                          <div key={m.id} className={`p-4 rounded-xl border transition-all ${isAssigned ? 'bg-blue-50/50 border-blue-200 ring-1 ring-blue-100' : 'bg-white border-gray-200 hover:border-gray-300'}`}>
+                          <div key={m.id} className={`p-4 md:rounded-xl border-b md:border transition-all ${isAssigned ? 'bg-blue-50/50 border-blue-200' : 'bg-white border-gray-100 md:border-gray-200'} border-x-0`}>
                             <div className="flex items-center justify-between mb-3 gap-2">
                               <label className="flex items-center cursor-pointer min-w-0">
                                 <input
@@ -773,7 +770,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                     </div>
                   </section>
 
-                  <section className="bg-white rounded-xl md:rounded-2xl p-4 md:p-6 shadow-sm border border-gray-100">
+                  <section className="bg-white md:rounded-2xl p-5 md:p-6 md:shadow-sm border-b md:border border-gray-100 border-x-0">
                     <h3 className="text-lg font-semibold text-gray-900 mb-4 md:mb-6 flex items-center gap-2">
                       <span className="w-1.5 h-6 bg-orange-500 rounded-full"></span>
                       訊息設定
@@ -798,7 +795,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                     )}
                   </section>
 
-                  <section className="bg-white rounded-xl md:rounded-2xl p-4 md:p-6 shadow-sm border border-gray-100">
+                  <section className="bg-white md:rounded-2xl p-5 md:p-6 md:shadow-sm border-b md:border border-gray-100 border-x-0">
                     <div className="mb-4 md:mb-6">
                       <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
                         <span className="w-1.5 h-6 bg-cyan-500 rounded-full"></span>

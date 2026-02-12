@@ -13,12 +13,14 @@ class MedicalRecordTemplateCreate(BaseModel):
     name: str
     fields: List[Dict[str, Any]]
     description: Optional[str] = None
+    is_patient_form: bool = False
 
 class MedicalRecordTemplateUpdate(BaseModel):
     version: int
     name: Optional[str] = None
     fields: Optional[List[Dict[str, Any]]] = None
     description: Optional[str] = None
+    is_patient_form: Optional[bool] = None
 
 class MedicalRecordTemplateResponse(BaseModel):
     id: int
@@ -26,6 +28,7 @@ class MedicalRecordTemplateResponse(BaseModel):
     name: str
     fields: List[Dict[str, Any]]
     description: Optional[str]
+    is_patient_form: bool
     version: int
     created_at: Any
     updated_at: Optional[Any]
@@ -59,6 +62,7 @@ def create_template(
         name=template.name,
         fields=template.fields,
         description=template.description,
+        is_patient_form=template.is_patient_form,
         created_by_user_id=user.user_id
     )
 
@@ -134,6 +138,7 @@ def update_template(
         name=update_data.name,
         fields=update_data.fields,
         description=update_data.description,
+        is_patient_form=update_data.is_patient_form,
         updated_by_user_id=user.user_id
     )
 

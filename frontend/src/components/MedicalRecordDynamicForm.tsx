@@ -16,7 +16,11 @@ export const MedicalRecordDynamicForm: React.FC<MedicalRecordDynamicFormProps> =
 
   const renderField = (field: TemplateField) => {
     const fieldName = `values.${field.id}`;
-    const label = field.required ? `${field.label} *` : field.label;
+    const label = field.required ? (
+      <>
+        {field.label} <span className="text-red-500">*</span>
+      </>
+    ) : field.label;
 
     switch (field.type) {
       case 'text':
@@ -125,7 +129,7 @@ export const MedicalRecordDynamicForm: React.FC<MedicalRecordDynamicFormProps> =
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {fields
         .sort((a, b) => a.order - b.order)
         .map((field) => renderField(field))}

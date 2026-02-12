@@ -19,12 +19,21 @@ export const medicalRecordKeys = {
 export function usePatientMedicalRecords(
   clinicId: number | null,
   patientId: number | null,
-  options?: { include_deleted?: boolean; appointment_id?: number; status?: 'active' | 'deleted' | 'all' },
+  options?: {
+    /** @deprecated Use status: 'all' instead */
+    include_deleted?: boolean;
+    appointment_id?: number;
+    status?: 'active' | 'deleted' | 'all'
+  },
   queryOptions?: { enabled?: boolean }
 ) {
-  // Determine cache key suffix based on status or include_deleted
-  const statusKey = options?.status || (options?.include_deleted ? 'with-deleted' : 'active');
-  
+  // Determine cache key suffix based on status (deprecated include_deleted mapping)
+  let statusKey = options?.status;
+  if (!statusKey && options?.include_deleted !== undefined) {
+    statusKey = options.include_deleted ? 'all' : 'active';
+  }
+  statusKey = statusKey || 'active';
+
   return useQuery({
     queryKey: options?.appointment_id
       ? [...medicalRecordKeys.patient(clinicId, patientId!), 'appointment', options.appointment_id, statusKey] as const
@@ -154,6 +163,37 @@ export function useHardDeleteMedicalRecord(clinicId: number | null, patientId: n
     },
     onError: (error) => {
       logger.error('Failed to permanently delete medical record:', error);
+    },
+  });
+}
+
+// Send patient form
+export function useSendPatientForm(clinicId: number | null, patientId: number) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: import('../types/medicalRecord').SendPatientFormRequest) => {
+      return apiService.sendPatientForm(patientId, data);
+    },
+    onSuccess: (newRecord) => {
+      // Invalidate the main patient records list (active, with-deleted, etc.)
+      // React Query's invalidateQueries with queryKey automatically invalidates all queries 
+      // that start with that key prefix.
+      queryClient.invalidateQueries({
+        queryKey: medicalRecordKeys.patient(clinicId, patientId),
+      });
+
+      // If associated with an appointment, specifically invalidate that list too
+      if (newRecord.appointment_id) {
+        queryClient.invalidateQueries({
+          queryKey: [...medicalRecordKeys.patient(clinicId, patientId), 'appointment', newRecord.appointment_id],
+        });
+      }
+
+      logger.info('Patient form sent successfully');
+    },
+    onError: (error) => {
+      logger.error('Failed to send patient form:', error);
     },
   });
 }
