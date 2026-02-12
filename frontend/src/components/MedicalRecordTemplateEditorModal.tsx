@@ -17,6 +17,7 @@ import { useUnsavedChangesDetection } from '../hooks/useUnsavedChangesDetection'
 import { TemplateFieldType } from '../types/medicalRecord';
 import { getErrorMessage } from '../types/api';
 import { logger } from '../utils/logger';
+import { processFieldOptions } from '../utils/templateFieldUtils';
 
 interface MedicalRecordTemplateEditorModalProps {
   templateId: number | null; // null for new template
@@ -145,25 +146,6 @@ export const MedicalRecordTemplateEditorModal: React.FC<MedicalRecordTemplateEdi
 
   const onSubmit = async (data: TemplateFormData) => {
     try {
-      // Helper function to convert options string to array
-      const processFieldOptions = (field: any) => {
-        // Only process options for field types that support them
-        const supportsOptions = ['dropdown', 'radio', 'checkbox'].includes(field.type);
-
-        if (!supportsOptions) {
-          return undefined; // Clear options for non-select field types
-        }
-
-        if (field.options && typeof field.options === 'string') {
-          // Split by newline and filter out empty lines
-          return field.options
-            .split('\n')
-            .map((opt: string) => opt.trim())
-            .filter((opt: string) => opt.length > 0);
-        }
-        return field.options || undefined;
-      };
-
       if (isEdit && template) {
         // Update existing template
         await updateMutation.mutateAsync({
@@ -370,7 +352,7 @@ export const MedicalRecordTemplateEditorModal: React.FC<MedicalRecordTemplateEdi
                   </div>
                 )}
 
-                {/* Preview Tab Content */}
+                {/* Preview Tab Content - Only render when active to avoid unnecessary watch() subscriptions */}
                 {activeTab === 'preview' && (
                   <FormPreview />
                 )}
@@ -407,29 +389,34 @@ export const MedicalRecordTemplateEditorModal: React.FC<MedicalRecordTemplateEdi
 // Form Preview Component
 const FormPreview: React.FC = () => {
   const { watch } = useFormContext<TemplateFormData>();
-  const formData = watch();
-  const fields = formData.fields || [];
+  
+  // Only watch specific fields needed for preview (performance optimization)
+  const name = watch('name');
+  const description = watch('description');
+  const fields = watch('fields') || [];
 
   // Local state for preview form values
-  const [previewValues, setPreviewValues] = React.useState<Record<string, any>>({});
+  type PreviewValue = string | string[] | number | undefined;
+  const [previewValues, setPreviewValues] = React.useState<Record<string, PreviewValue>>({});
+
+  // Type for processed fields with options as array
+  type ProcessedField = z.infer<typeof TemplateFieldSchema> & {
+    options?: string[] | undefined;
+  };
 
   // Convert options string to array for preview
-  const processedFields = fields.map((field) => {
-    if (['dropdown', 'radio', 'checkbox'].includes(field.type)) {
-      let options: string[] = [];
-      
-      if (typeof field.options === 'string' && field.options.trim()) {
-        options = field.options.split('\n').map(opt => opt.trim()).filter(opt => opt.length > 0);
-      } else if (Array.isArray(field.options)) {
-        options = field.options;
+  const processedFields = React.useMemo(() => {
+    return fields.map((field): ProcessedField => {
+      if (['dropdown', 'radio', 'checkbox'].includes(field.type)) {
+        return { ...field, options: processFieldOptions(field) };
       }
-      
-      return { ...field, options };
-    }
-    return field;
-  });
+      // For non-option fields, ensure options is undefined
+      const { options, ...rest } = field;
+      return rest as ProcessedField;
+    });
+  }, [fields]);
 
-  const handleInputChange = (fieldId: string, value: any) => {
+  const handleInputChange = (fieldId: string, value: PreviewValue) => {
     setPreviewValues(prev => ({ ...prev, [fieldId]: value }));
   };
 
@@ -444,7 +431,7 @@ const FormPreview: React.FC = () => {
     });
   };
 
-  const renderPreviewField = (field: any, index: number) => {
+  const renderPreviewField = (field: ProcessedField, index: number) => {
     const fieldId = field.id || `field-${index}`;
     const label = field.required ? (
       <>
@@ -632,10 +619,10 @@ const FormPreview: React.FC = () => {
           {/* Preview Header */}
           <div className="mb-8 pb-6 border-b border-gray-200">
             <h2 className="text-2xl font-bold text-gray-900">
-              {formData.name || '未命名模板'}
+              {name || '未命名模板'}
             </h2>
-            {formData.description && (
-              <p className="text-sm text-gray-600 mt-2">{formData.description}</p>
+            {description && (
+              <p className="text-sm text-gray-600 mt-2">{description}</p>
             )}
           </div>
 
