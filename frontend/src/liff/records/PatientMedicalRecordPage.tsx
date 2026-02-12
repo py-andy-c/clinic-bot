@@ -48,7 +48,7 @@ const PatientMedicalRecordPage: React.FC = () => {
 
     const dynamicSchema = useMemo(
         () => z.object({
-            values: createMedicalRecordDynamicSchema(record?.template_snapshot?.fields),
+            values: createMedicalRecordDynamicSchema(record?.template_snapshot?.fields, true), // Enforce required fields for patient forms
         }),
         [record?.template_snapshot?.fields]
     );
@@ -127,6 +127,40 @@ const PatientMedicalRecordPage: React.FC = () => {
             } else {
                 const message = (isStructuredError(errorDetail) ? errorDetail.message : null) || '儲存失敗，請重試';
                 await alert(message, '錯誤');
+            }
+        }
+    };
+
+    const handleValidationError = (errors: any) => {
+        // Handle validation errors - scroll to first error and focus
+        const firstErrorField = Object.keys(errors.values || {})[0];
+        if (firstErrorField) {
+            logger.info('Validation failed, scrolling to first error field:', firstErrorField);
+            
+            const fieldElement = document.querySelector(`[name="values.${firstErrorField}"]`);
+            if (fieldElement) {
+                try {
+                    fieldElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                } catch (e) {
+                    // Fallback for browsers that don't support smooth scrolling
+                    fieldElement.scrollIntoView();
+                }
+                
+                // Wait for scroll animation to complete before focusing
+                setTimeout(() => {
+                    if (fieldElement instanceof HTMLInputElement || 
+                        fieldElement instanceof HTMLTextAreaElement ||
+                        fieldElement instanceof HTMLSelectElement) {
+                        fieldElement.focus();
+                        
+                        // Verify focus succeeded
+                        if (document.activeElement !== fieldElement) {
+                            logger.warn('Failed to focus field after scroll:', firstErrorField);
+                        }
+                    }
+                }, 300); // Match smooth scroll duration
+            } else {
+                logger.warn('Failed to find field element for validation error:', firstErrorField);
             }
         }
     };
@@ -215,7 +249,10 @@ const PatientMedicalRecordPage: React.FC = () => {
                         <div className="pt-4">
                             <button
                                 type="button"
-                                onClick={methods.handleSubmit((data) => onSubmit(data, true))}
+                                onClick={methods.handleSubmit(
+                                    (data) => onSubmit(data, true),
+                                    handleValidationError
+                                )}
                                 disabled={updateMutation.isPending}
                                 className="w-full py-4 bg-primary-600 text-white rounded-xl font-bold text-lg shadow-lg active:scale-[0.98] disabled:opacity-50 transition-all"
                             >

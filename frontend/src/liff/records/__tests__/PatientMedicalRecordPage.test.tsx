@@ -259,26 +259,18 @@ describe('PatientMedicalRecordPage', () => {
         expect(mockReload).toHaveBeenCalled();
     });
 
-    it('validates required fields', async () => {
+    it('validates required fields and blocks submission when empty', async () => {
         const mockRecord = {
             id: 123,
+            patient_id: 1,
+            template_name: 'Test Template',
             template_snapshot: {
-                fields: [{ id: 'q1', label: 'Question 1', type: 'text', required: true }]
+                fields: [{ id: 'q1', label: 'Question 1', type: 'text', required: true, order: 1 }]
             },
             values: { q1: '' },
             version: 1,
             photos: []
         };
-
-        // Even though we made fields optional in the schema for draft saving,
-        // we might want to test that the form handles validation if we were strictly enforcing it.
-        // However, the current requirement says "Modified to mark ALL fields as optional".
-        // So checking for validation error might actually fail if we expect it to NOT validate.
-        // Let's verify that it DOES NOT block submission for empty required fields (as per design for drafts)
-        // OR if there is client-side validation logic logic implemented in the form itself.
-
-        // Reviewing the code, `createMedicalRecordDynamicSchema` makes everything optional.
-        // So this test confirms that optional fields are indeed valid.
 
         const mockMutateAsync = vi.fn().mockResolvedValue({});
 
@@ -296,8 +288,51 @@ describe('PatientMedicalRecordPage', () => {
         const submitButton = screen.getByText('確認送出');
         fireEvent.click(submitButton);
 
+        // Should NOT call the mutation because validation failed
         await waitFor(() => {
-            expect(mockMutateAsync).toHaveBeenCalled();
+            expect(mockMutateAsync).not.toHaveBeenCalled();
+        });
+    });
+
+    it('allows submission when all required fields are filled', async () => {
+        const mockRecord = {
+            id: 123,
+            patient_id: 1,
+            template_name: 'Test Template',
+            template_snapshot: {
+                fields: [{ id: 'q1', label: 'Question 1', type: 'text', required: true, order: 1 }]
+            },
+            values: { q1: 'filled answer' },
+            version: 1,
+            photos: []
+        };
+
+        const mockMutateAsync = vi.fn().mockResolvedValue({});
+
+        (useLiffMedicalRecord as any).mockReturnValue({
+            isLoading: false,
+            data: mockRecord,
+        });
+        (useLiffUpdateMedicalRecord as any).mockReturnValue({
+            mutateAsync: mockMutateAsync,
+            isPending: false,
+        });
+
+        render(<PatientMedicalRecordPage />, { wrapper });
+
+        const submitButton = screen.getByText('確認送出');
+        fireEvent.click(submitButton);
+
+        // Should call the mutation because validation passed
+        await waitFor(() => {
+            expect(mockMutateAsync).toHaveBeenCalledWith({
+                recordId: 123,
+                data: expect.objectContaining({
+                    is_submitted: true,
+                    version: 1,
+                    values: expect.objectContaining({ q1: 'filled answer' })
+                })
+            });
         });
     });
 });

@@ -184,6 +184,100 @@ describe('medicalRecordUtils', () => {
                 expect(schema.safeParse({ q1: 'a' }).data.q1).toEqual(['a']);
                 expect(schema.safeParse({ q1: null }).data.q1).toEqual([]);
             });
+
+            describe('with enforceRequired=true', () => {
+                it('should enforce required text fields', () => {
+                    const fields = [{ id: 'q1', type: 'text', label: 'Question 1', required: true }] as any;
+                    const schema = createMedicalRecordDynamicSchema(fields, true);
+
+                    expect(schema.safeParse({ q1: 'hello' }).success).toBe(true);
+                    const emptyResult = schema.safeParse({ q1: '' });
+                    expect(emptyResult.success).toBe(false);
+                    if (!emptyResult.success) {
+                        expect(emptyResult.error.issues[0].message).toBe('此為必填欄位');
+                    }
+                });
+
+                it('should enforce required number fields', () => {
+                    const fields = [{ id: 'q1', type: 'number', label: 'Question 1', required: true }] as any;
+                    const schema = createMedicalRecordDynamicSchema(fields, true);
+
+                    expect(schema.safeParse({ q1: 123 }).success).toBe(true);
+                    expect(schema.safeParse({ q1: '123' }).success).toBe(true);
+                    expect(schema.safeParse({ q1: '' }).success).toBe(false);
+                    expect(schema.safeParse({ q1: null }).success).toBe(false);
+                    expect(schema.safeParse({ q1: undefined }).success).toBe(false);
+                });
+
+                it('should handle number field with zero value', () => {
+                    const fields = [{ id: 'q1', type: 'number', label: 'Question 1', required: true }] as any;
+                    const schema = createMedicalRecordDynamicSchema(fields, true);
+
+                    // Zero is a valid number
+                    expect(schema.safeParse({ q1: 0 }).success).toBe(true);
+                    expect(schema.safeParse({ q1: '0' }).success).toBe(true);
+                });
+
+                it('should enforce required checkbox fields', () => {
+                    const fields = [{ id: 'q1', type: 'checkbox', label: 'Question 1', required: true }] as any;
+                    const schema = createMedicalRecordDynamicSchema(fields, true);
+
+                    expect(schema.safeParse({ q1: ['a'] }).success).toBe(true);
+                    const emptyResult = schema.safeParse({ q1: [] });
+                    expect(emptyResult.success).toBe(false);
+                    if (!emptyResult.success) {
+                        expect(emptyResult.error.issues[0].message).toBe('此為必填欄位');
+                    }
+                });
+
+                it('should enforce required dropdown fields', () => {
+                    const fields = [{ id: 'q1', type: 'dropdown', label: 'Question 1', required: true }] as any;
+                    const schema = createMedicalRecordDynamicSchema(fields, true);
+
+                    expect(schema.safeParse({ q1: 'option1' }).success).toBe(true);
+                    expect(schema.safeParse({ q1: '' }).success).toBe(false);
+                });
+
+                it('should enforce required radio fields', () => {
+                    const fields = [{ id: 'q1', type: 'radio', label: 'Question 1', required: true }] as any;
+                    const schema = createMedicalRecordDynamicSchema(fields, true);
+
+                    expect(schema.safeParse({ q1: 'option1' }).success).toBe(true);
+                    expect(schema.safeParse({ q1: '' }).success).toBe(false);
+                });
+
+                it('should enforce required date fields', () => {
+                    const fields = [{ id: 'q1', type: 'date', label: 'Question 1', required: true }] as any;
+                    const schema = createMedicalRecordDynamicSchema(fields, true);
+
+                    expect(schema.safeParse({ q1: '2024-01-01' }).success).toBe(true);
+                    expect(schema.safeParse({ q1: '' }).success).toBe(false);
+                });
+
+                it('should not enforce non-required fields', () => {
+                    const fields = [{ id: 'q1', type: 'text', label: 'Question 1', required: false }] as any;
+                    const schema = createMedicalRecordDynamicSchema(fields, true);
+
+                    expect(schema.safeParse({ q1: '' }).success).toBe(true);
+                    expect(schema.safeParse({ q1: null }).success).toBe(true);
+                });
+
+                it('should handle mixed required and optional fields', () => {
+                    const fields = [
+                        { id: 'q1', type: 'text', label: 'Question 1', required: true },
+                        { id: 'q2', type: 'text', label: 'Question 2', required: false },
+                        { id: 'q3', type: 'number', label: 'Question 3', required: true }
+                    ] as any;
+                    const schema = createMedicalRecordDynamicSchema(fields, true);
+
+                    // All required fields filled, optional empty - should pass
+                    expect(schema.safeParse({ q1: 'answer', q2: '', q3: 42 }).success).toBe(true);
+                    
+                    // Missing required field - should fail
+                    expect(schema.safeParse({ q1: '', q2: 'answer', q3: 42 }).success).toBe(false);
+                    expect(schema.safeParse({ q1: 'answer', q2: '', q3: '' }).success).toBe(false);
+                });
+            });
         });
     });
 });

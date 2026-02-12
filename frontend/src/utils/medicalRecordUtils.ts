@@ -150,10 +150,12 @@ export const selectDefaultAppointment = (
  * Validates medical record values based on their field types.
  * 
  * @param fields - The template fields to generate schema for
+ * @param enforceRequired - If true, required fields will be validated (for patient-facing forms)
  * @returns A Zod schema for the values object
  */
 export const createMedicalRecordDynamicSchema = (
-    fields: TemplateField[] | undefined
+    fields: TemplateField[] | undefined,
+    enforceRequired: boolean = false
 ): z.ZodObject<any> | z.ZodRecord<z.ZodString, z.ZodAny> => {
     if (!fields || fields.length === 0) {
         return z.record(z.any());
@@ -162,6 +164,7 @@ export const createMedicalRecordDynamicSchema = (
     const valuesShape: Record<string, z.ZodTypeAny> = {};
     fields.forEach((field) => {
         const fieldId = field.id;
+        const isRequired = enforceRequired && field.required;
         let fieldSchema: z.ZodTypeAny;
 
         switch (field.type) {
@@ -170,28 +173,64 @@ export const createMedicalRecordDynamicSchema = (
             case 'dropdown':
             case 'radio':
             case 'date':
-                fieldSchema = z.string()
-                    .transform(val => (val === '' ? null : val))
-                    .nullable()
-                    .optional();
+                if (isRequired) {
+                    fieldSchema = z.string()
+                        .min(1, { message: '此為必填欄位' })
+                        .transform(val => (val === '' ? null : val));
+                } else {
+                    fieldSchema = z.string()
+                        .transform(val => (val === '' ? null : val))
+                        .nullable()
+                        .optional();
+                }
                 break;
             case 'number':
-                fieldSchema = z.union([
-                    z.number(),
-                    z.string().transform(val => val === '' ? undefined : Number(val)),
-                    z.null()
-                ]).optional();
+                if (isRequired) {
+                    fieldSchema = z.preprocess(
+                        (val) => {
+                            if (val === '' || val === null || val === undefined) {
+                                return undefined; // Will fail the required check
+                            }
+                            if (typeof val === 'string') {
+                                return Number(val);
+                            }
+                            return val;
+                        },
+                        z.number({ 
+                            required_error: '此為必填欄位',
+                            invalid_type_error: '此為必填欄位'
+                        })
+                    );
+                } else {
+                    fieldSchema = z.union([
+                        z.number(),
+                        z.string().transform(val => val === '' ? undefined : Number(val)),
+                        z.null()
+                    ]).optional();
+                }
                 break;
             case 'checkbox':
-                fieldSchema = z.preprocess(
-                    (val) => {
-                        if (Array.isArray(val)) return val;
-                        if (val === null || val === undefined) return [];
-                        if (typeof val === 'boolean') return [];
-                        return [String(val)];
-                    },
-                    z.array(z.string())
-                ).optional();
+                if (isRequired) {
+                    fieldSchema = z.preprocess(
+                        (val) => {
+                            if (Array.isArray(val)) return val;
+                            if (val === null || val === undefined) return [];
+                            if (typeof val === 'boolean') return [];
+                            return [String(val)];
+                        },
+                        z.array(z.string()).min(1, { message: '此為必填欄位' })
+                    );
+                } else {
+                    fieldSchema = z.preprocess(
+                        (val) => {
+                            if (Array.isArray(val)) return val;
+                            if (val === null || val === undefined) return [];
+                            if (typeof val === 'boolean') return [];
+                            return [String(val)];
+                        },
+                        z.array(z.string())
+                    ).optional();
+                }
                 break;
             default:
                 fieldSchema = z.any().optional();
