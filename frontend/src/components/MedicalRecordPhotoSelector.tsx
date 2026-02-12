@@ -384,7 +384,7 @@ export const MedicalRecordPhotoSelector: React.FC<MedicalRecordPhotoSelectorProp
 
                 {/* Image Container - Clickable for full-screen view */}
                 <div
-                  className="mb-3 flex justify-center cursor-pointer group/image"
+                  className="mb-3 flex justify-center cursor-pointer group/image bg-gray-50 rounded-lg overflow-hidden h-[300px] sm:h-[400px]"
                   onClick={() => setSelectedPhotoIndex(index)}
                   title={t('點擊查看大圖')}
                 >
@@ -392,8 +392,7 @@ export const MedicalRecordPhotoSelector: React.FC<MedicalRecordPhotoSelectorProp
                     src={imageSrc || ''}
                     alt={photo.description || photo.filename}
                     loading="lazy"
-                    className="h-auto rounded border border-gray-100 group-hover/image:border-blue-300 transition-colors"
-                    style={{ maxWidth: '300px', maxHeight: '400px', objectFit: 'contain' }}
+                    className="w-full h-full object-contain rounded border border-gray-100 group-hover/image:border-blue-300 transition-colors"
                     onLoad={() => {
                       // Progressive loading: after thumbnail loads, preload full image
                       if (!showFullImage && photo.thumbnail_url && photo.url && photo.url !== photo.thumbnail_url) {
