@@ -1,10 +1,8 @@
-# PR Description: Refine Patient Medical Record Form Workflow
+# PR Description: Refine Patient Form Workflow
 
 ## Summary
 
 This PR refines the patient medical record form lifecycle and status management system to be more intuitive, predictable, and aligned with standard form submission patterns. It eliminates the confusing "Draft" state, simplifies clinic-facing statuses, and improves metadata attribution for better accountability.
-
-**Note**: This refers to medical record forms sent to patients for completion (e.g., intake forms), not the patient profile registration form.
 
 ## Key Changes
 
@@ -19,8 +17,8 @@ This PR refines the patient medical record form lifecycle and status management 
 ### 2. Clinic Dashboard & Status Logic
 
 * **Simplified Status System**: Replaced the previous 4-stage status logic with a focused 3-state system:
-  * 🟡 **待填寫 (Pending)**: Patient medical record forms that have been issued but not yet saved by the patient.
-  * 🟢 **病患已填寫 (Patient Filled)**: Patient medical record forms that have been saved or updated at least once.
+  * 🟡 **待填寫 (Pending)**: Patient forms that have been issued but not yet saved by the patient.
+  * 🟢 **病患已填寫 (Patient Filled)**: Patient forms that have been saved or updated at least once.
   * 🔵 **Clinic Internal**: Removed the "診所建立" (Clinic Created) badge to reduce visual noise on standard internal records.
 * **Explicit Accountability**: Updated the medical record card in the clinic dashboard to clearly attribute edits. It now shows:
   * `編輯：[时间] 由 [診所人員姓名]` (for clinic staff edits)

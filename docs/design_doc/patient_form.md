@@ -6,8 +6,6 @@ The "Patient Form" (病患表單) feature allows clinics to send digital forms t
 
 Fundamentally, a patient form is a variant of a **Medical Record Template**. It uses the same field definitions but is marked as "open for patient completion". When sent, it creates a **Medical Record** that can be edited by both the clinic and the patient.
 
-**Terminology Note**: In this codebase, "patient form" refers to medical record templates sent to patients for completion (e.g., intake forms, health questionnaires). This is distinct from the "patient profile form" (`PatientProfileForm` component) which is used for patient registration/profile creation in LIFF (collecting name, phone, birthday, gender).
-
 ## Goals
 
 * Allow clinic admins to mark certain medical record templates as patient forms.

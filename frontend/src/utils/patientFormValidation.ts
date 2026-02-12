@@ -1,16 +1,12 @@
 /**
- * Shared validation utilities for patient profile forms (LIFF and clinic-side).
- * 
- * These utilities validate patient registration/profile data (name, phone, birthday, gender).
- * 
- * Note: This is distinct from "patient forms" (medical record templates sent to patients).
+ * Shared validation utilities for patient forms (LIFF and clinic-side).
  */
 
 import { validatePhoneNumber, validateOptionalPhoneNumber } from './phoneValidation';
 import { validateAndNormalizeDate } from './dateFormat';
 import { isValidGenderValue, GenderValue } from './genderUtils';
 
-export interface PatientProfileFormValidationResult {
+export interface PatientFormValidationResult {
   isValid: boolean;
   error?: string | undefined;
   normalizedData?: {
@@ -22,15 +18,15 @@ export interface PatientProfileFormValidationResult {
 }
 
 /**
- * Validate patient profile form data for clinic-side creation (optional phone/birthday/gender).
+ * Validate patient form data for clinic-side creation (optional phone/birthday/gender).
  * All fields except name are optional for clinic-created patients.
  */
-export const validateClinicPatientProfileForm = (
+export const validateClinicPatientForm = (
   fullName: string,
   phoneNumber: string,
   birthday: string,
   gender?: string
-): PatientProfileFormValidationResult => {
+): PatientFormValidationResult => {
   // Validate name
   const trimmedName = fullName.trim();
   if (!trimmedName) {
@@ -95,16 +91,16 @@ export const validateClinicPatientProfileForm = (
 };
 
 /**
- * Validate patient profile form data for LIFF creation (required phone, optional birthday/gender).
+ * Validate patient form data for LIFF creation (required phone, optional birthday/gender).
  */
-export const validateLiffPatientProfileForm = (
+export const validateLiffPatientForm = (
   fullName: string,
   phoneNumber: string,
   birthday: string,
   requireBirthday: boolean,
   gender?: string,
   requireGender?: boolean
-): PatientProfileFormValidationResult => {
+): PatientFormValidationResult => {
   // Validate name
   const trimmedName = fullName.trim();
   if (!trimmedName) {
@@ -170,8 +166,6 @@ export const validateLiffPatientProfileForm = (
   
   return {
     isValid: true,
-    // Note: phone_number is string (not null) for LIFF validation since it's required.
-    // The cast to string | null is for interface compatibility with clinic validation.
     normalizedData: normalizedData as {
       full_name: string;
       phone_number: string | null;

@@ -186,12 +186,6 @@ def create_record(
     return _enrich_record_with_photos(created_record, photo_service, user_names_map)
 
 class SendPatientFormRequest(BaseModel):
-    """
-    Request to send a medical record form to a patient via Line.
-    
-    Note: "Patient form" here refers to a medical record template sent to patients
-    for completion (e.g., intake forms), not the patient profile registration form.
-    """
     template_id: int
     appointment_id: Optional[int] = None
     message_override: Optional[str] = None
@@ -204,15 +198,6 @@ def send_patient_form(
     db: Session = Depends(get_db),
     photo_service: PatientPhotoService = Depends(get_photo_service)
 ):
-    """
-    Send a medical record form to a patient via Line.
-    
-    Creates an empty medical record from a template marked as is_patient_form=True
-    and sends a Line message with a LIFF link for the patient to fill it out.
-    
-    Note: This is for medical record forms (intake forms, questionnaires), not
-    patient profile registration.
-    """
     ensure_clinic_access(user)
     if user.active_clinic_id is None:
         raise HTTPException(status_code=400, detail="Clinic context required")

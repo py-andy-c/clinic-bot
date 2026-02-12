@@ -5,7 +5,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useClinicSettings } from '../../hooks/queries';
 import { DateInput } from '../shared/DateInput';
 import { formatDateForApi, convertApiDateToDisplay } from '../../utils/dateFormat';
-import { validateClinicPatientProfileForm } from '../../utils/patientProfileFormValidation';
+import { validateClinicPatientForm } from '../../utils/patientFormValidation';
 import { formatDateOnly } from '../../utils/calendarUtils';
 import { GENDER_OPTIONS, getGenderLabel } from '../../utils/genderUtils';
 
@@ -65,7 +65,7 @@ export const PatientInfoSection: React.FC<PatientInfoSectionProps> = ({
     setError(null);
 
     // Validate using shared validation utility (same as patient creation modal)
-    const validation = validateClinicPatientProfileForm(fullName, phoneNumber, birthday, gender);
+    const validation = validateClinicPatientForm(fullName, phoneNumber, birthday, gender);
     if (!validation.isValid) {
       setError(validation.error || '驗證失敗');
       return;
