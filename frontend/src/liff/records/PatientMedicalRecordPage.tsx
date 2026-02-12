@@ -8,7 +8,7 @@ import { MedicalRecordDynamicForm } from '../../components/MedicalRecordDynamicF
 import { LiffMedicalRecordPhotoSelector } from './LiffMedicalRecordPhotoSelector';
 import { useLiffMedicalRecord, useLiffUpdateMedicalRecord } from '../hooks/medicalRecordHooks';
 import { TemplateField } from '../../types/medicalRecord';
-import { createMedicalRecordDynamicSchema } from '../../utils/medicalRecordUtils';
+import { createMedicalRecordDynamicSchema, isStructuredError } from '../../utils/medicalRecordUtils';
 import { useModal } from '../../contexts/ModalContext';
 import { logger } from '../../utils/logger';
 
@@ -105,14 +105,14 @@ const PatientMedicalRecordPage: React.FC = () => {
 
             // Handle structured error responses
             const errorDetail = error.response?.data?.detail;
-            const errorCode = typeof errorDetail === 'object' ? errorDetail.error_code : null;
+            const errorCode = isStructuredError(errorDetail) ? errorDetail.error_code : null;
 
             if (error.response?.status === 409 || errorCode === 'RECORD_MODIFIED') {
-                const message = errorDetail?.message || '此紀錄已被其他使用者修改，請重新整理後再試';
+                const message = (isStructuredError(errorDetail) ? errorDetail.message : null) || '此紀錄已被其他使用者修改，請重新整理後再試';
                 await alert(message, '紀錄已更新');
                 window.location.reload();
             } else {
-                const message = errorDetail?.message || '儲存失敗，請重試';
+                const message = (isStructuredError(errorDetail) ? errorDetail.message : null) || '儲存失敗，請重試';
                 await alert(message, '錯誤');
             }
         }
@@ -154,13 +154,6 @@ const PatientMedicalRecordPage: React.FC = () => {
                     <h1 className="text-lg font-bold text-gray-900 truncate pr-4">
                         {record.template_name}
                     </h1>
-                    <button
-                        onClick={methods.handleSubmit((data) => onSubmit(data, false))}
-                        disabled={updateMutation.isPending}
-                        className="text-sm font-medium text-primary-600 active:bg-primary-50 px-3 py-1.5 rounded-lg transition-colors"
-                    >
-                        暫存
-                    </button>
                 </div>
             </div>
 
@@ -187,7 +180,9 @@ const PatientMedicalRecordPage: React.FC = () => {
                                 disabled={updateMutation.isPending}
                                 className="w-full py-4 bg-primary-600 text-white rounded-2xl font-bold text-lg shadow-xl shadow-primary-200 active:scale-[0.98] active:shadow-lg disabled:opacity-50 transition-all"
                             >
-                                {updateMutation.isPending ? '送出中...' : '確認送出'}
+                                {updateMutation.isPending
+                                    ? '送出中...'
+                                    : (record.patient_last_edited_at ? '儲存修改' : '確認送出')}
                             </button>
                             <p className="text-center text-xs text-gray-400 mt-4">
                                 送出後診所將會收到您的回覆

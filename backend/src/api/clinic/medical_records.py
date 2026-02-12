@@ -58,6 +58,7 @@ class MedicalRecordResponse(BaseModel):
     updated_at: Any
     created_by_user_id: Optional[int] = None
     updated_by_user_id: Optional[int] = None
+    is_patient_form: bool
     photos: List[PatientPhotoResponse] = Field(default_factory=list)  # type: ignore[reportUnknownVariableType]
     
     # Enriched fields (populated manually by _enrich_record_with_photos)
@@ -108,6 +109,7 @@ def _enrich_record_with_photos(
         'updated_at': record.updated_at,
         'created_by_user_id': record.created_by_user_id,
         'updated_by_user_id': record.updated_by_user_id,
+        'is_patient_form': record.template.is_patient_form if record.template else False,
     }
     
     # Process photos

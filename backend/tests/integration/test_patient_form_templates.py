@@ -116,3 +116,4 @@ def test_medical_record_patient_fields(client, test_clinic_setup, db_session):
     assert data["patient_last_edited_at"] is None
     assert "is_submitted" in data
     assert data["is_submitted"] is False
+    assert "is_patient_form" in data

@@ -36,60 +36,49 @@ describe('medicalRecordUtils', () => {
     });
 
     describe('getMedicalRecordStatus', () => {
-        it('should return "submitted" status if is_submitted is true', () => {
-            const record = { is_submitted: true } as MedicalRecord;
-            const status = getMedicalRecordStatus(record);
-            expect(status.label).toBe('病患已提交');
-            expect(status.color).toBe('green');
-        });
-
-        it('should return "editing" status if patient_last_edited_at exists', () => {
+        it('should return "待填寫" for new patient forms', () => {
             const record = {
-                is_submitted: false,
-                patient_last_edited_at: '2026-01-01T00:00:00Z'
-            } as MedicalRecord;
+                template_snapshot: {},
+                is_patient_form: true,
+                patient_last_edited_at: null
+            } as any;
             const status = getMedicalRecordStatus(record);
-            expect(status.label).toBe('病患填寫中');
+            expect(status.label).toBe('待填寫');
             expect(status.color).toBe('yellow');
         });
 
-        it('should return "empty" status if record is empty', () => {
+        it('should return "病患已填寫" for edited patient forms', () => {
             const record = {
-                is_submitted: false,
+                template_snapshot: {},
+                is_patient_form: true,
+                patient_last_edited_at: '2026-01-01T00:00:00Z'
+            } as any;
+            const status = getMedicalRecordStatus(record);
+            expect(status!.label).toBe('病患已填寫');
+            expect(status!.color).toBe('green');
+        });
+
+        it('should return "空" status if internal record is empty', () => {
+            const record = {
+                template_snapshot: {},
+                is_patient_form: false,
                 patient_last_edited_at: null,
                 values: {}
-            } as MedicalRecord;
+            } as any;
             const status = getMedicalRecordStatus(record);
             expect(status.label).toBe('空');
             expect(status.color).toBe('gray');
         });
 
-        it('should return "clinic" status as default', () => {
+        it('should return null as default for internal records', () => {
             const record = {
-                is_submitted: false,
+                template_snapshot: {},
+                is_patient_form: false,
                 patient_last_edited_at: null,
                 values: { field: 'value' }
-            } as MedicalRecord;
+            } as any;
             const status = getMedicalRecordStatus(record);
-            expect(status.label).toBe('診所建立');
-            expect(status.color).toBe('blue');
-        });
-
-        it('should respect priority order', () => {
-            // Submitted > Editing
-            const record1 = {
-                is_submitted: true,
-                patient_last_edited_at: '2026-01-01T00:00:00Z'
-            } as MedicalRecord;
-            expect(getMedicalRecordStatus(record1).label).toBe('病患已提交');
-
-            // Editing > Empty
-            const record2 = {
-                is_submitted: false,
-                patient_last_edited_at: '2026-01-01T00:00:00Z',
-                values: {}
-            } as MedicalRecord;
-            expect(getMedicalRecordStatus(record2).label).toBe('病患填寫中');
+            expect(status).toBe(null);
         });
     });
 

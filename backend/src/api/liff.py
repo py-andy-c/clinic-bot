@@ -242,6 +242,7 @@ class PatientMedicalRecordResponse(BaseModel):
     patient_last_edited_at: Optional[datetime] = None
     photos: List[PatientPhotoResponse] = []
     version: int
+    is_patient_form: bool = False
 
 
 class UpdatePatientMedicalRecordRequest(BaseModel):
@@ -2087,7 +2088,8 @@ async def get_patient_medical_record(
         is_submitted=record.is_submitted,
         patient_last_edited_at=record.patient_last_edited_at,
         photos=photos,
-        version=record.version
+        version=record.version,
+        is_patient_form=record.template.is_patient_form if record.template else False
     )
 
 
@@ -2162,7 +2164,8 @@ async def update_patient_medical_record(
         is_submitted=updated_record.is_submitted,
         patient_last_edited_at=updated_record.patient_last_edited_at,
         photos=photos,
-        version=updated_record.version
+        version=updated_record.version,
+        is_patient_form=updated_record.template.is_patient_form if updated_record.template else False
     )
 
 

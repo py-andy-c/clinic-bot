@@ -123,7 +123,8 @@ class MedicalRecordService:
             joinedload(MedicalRecord.appointment).joinedload(Appointment.calendar_event),
             joinedload(MedicalRecord.appointment).joinedload(Appointment.appointment_type),
             joinedload(MedicalRecord.created_by_user),
-            joinedload(MedicalRecord.updated_by_user)
+            joinedload(MedicalRecord.updated_by_user),
+            joinedload(MedicalRecord.template)
         ).first()
 
     @staticmethod
@@ -169,7 +170,8 @@ class MedicalRecordService:
             joinedload(MedicalRecord.appointment).joinedload(Appointment.calendar_event),
             joinedload(MedicalRecord.appointment).joinedload(Appointment.appointment_type),
             joinedload(MedicalRecord.created_by_user),
-            joinedload(MedicalRecord.updated_by_user)
+            joinedload(MedicalRecord.updated_by_user),
+            joinedload(MedicalRecord.template)
         )
         
         return query.order_by(desc(MedicalRecord.created_at)).offset(skip).limit(limit).all()

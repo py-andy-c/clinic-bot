@@ -118,6 +118,7 @@ describe('PatientMedicalRecordPage', () => {
                     { id: 'q1', label: 'Question 1', type: 'text' }
                 ]
             },
+            is_patient_form: true,
             values: { q1: 'initial value' },
             version: 1,
             photos: []
@@ -140,7 +141,7 @@ describe('PatientMedicalRecordPage', () => {
         expect(screen.getByTestId('photo-selector')).toBeInTheDocument();
     });
 
-    it('submits form successfully', async () => {
+    it('submits form successfully (first time)', async () => {
         const mockRecord = {
             id: 123,
             patient_id: 1,
@@ -148,9 +149,11 @@ describe('PatientMedicalRecordPage', () => {
             template_snapshot: {
                 fields: [{ id: 'q1', label: 'Question 1', type: 'text' }]
             },
+            is_patient_form: true,
             values: { q1: '' },
             version: 1,
-            photos: []
+            photos: [],
+            patient_last_edited_at: null
         };
 
         const mockMutateAsync = vi.fn().mockResolvedValue({});
@@ -182,7 +185,7 @@ describe('PatientMedicalRecordPage', () => {
         expect(screen.getByText('填寫完成')).toBeInTheDocument();
     });
 
-    it('saves draft successfully', async () => {
+    it('shows "儲存修改" label for returning patients', async () => {
         const mockRecord = {
             id: 123,
             patient_id: 1,
@@ -190,38 +193,27 @@ describe('PatientMedicalRecordPage', () => {
             template_snapshot: {
                 fields: [{ id: 'q1', label: 'Question 1', type: 'text' }]
             },
-            values: { q1: '' },
+            is_patient_form: true,
+            values: { q1: 'previous content' },
             version: 1,
-            photos: []
+            photos: [],
+            patient_last_edited_at: '2026-01-01T00:00:00Z'
         };
-
-        const mockMutateAsync = vi.fn().mockResolvedValue({});
 
         (useLiffMedicalRecord as any).mockReturnValue({
             isLoading: false,
             data: mockRecord,
         });
         (useLiffUpdateMedicalRecord as any).mockReturnValue({
-            mutateAsync: mockMutateAsync,
+            mutateAsync: vi.fn(),
             isPending: false,
         });
 
         render(<PatientMedicalRecordPage />, { wrapper });
 
-        const draftButton = screen.getByText('暫存');
-        fireEvent.click(draftButton);
-
-        await waitFor(() => {
-            expect(mockMutateAsync).toHaveBeenCalledWith({
-                recordId: 123,
-                data: expect.objectContaining({
-                    is_submitted: false,
-                })
-            });
-        });
-
-        expect(mockAlert).toHaveBeenCalledWith('已儲存變更', '儲存成功');
+        expect(screen.getByText('儲存修改')).toBeInTheDocument();
     });
+
 
     it('handles 409 conflict and reloads page', async () => {
         const mockRecord = {
@@ -252,8 +244,8 @@ describe('PatientMedicalRecordPage', () => {
 
         render(<PatientMedicalRecordPage />, { wrapper });
 
-        const draftButton = screen.getByText('暫存');
-        fireEvent.click(draftButton);
+        const submitButton = screen.getByText('確認送出');
+        fireEvent.click(submitButton);
 
         await waitFor(() => {
             expect(mockAlert).toHaveBeenCalledWith(
@@ -262,9 +254,6 @@ describe('PatientMedicalRecordPage', () => {
             );
         });
 
-        // Simulate user clicking OK on alert (though useModal's alert is usually void, 
-        // the component logic calls reload after alert resolves)
-        // Since mockAlert mock returns undefined instantly, reload should be called.
         expect(mockReload).toHaveBeenCalled();
     });
 

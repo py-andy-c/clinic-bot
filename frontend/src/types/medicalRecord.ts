@@ -101,6 +101,7 @@ export interface MedicalRecord {
   created_by_user_id?: number;
   updated_at?: string;
   updated_by_user_id?: number;
+  is_patient_form: boolean;
   photos?: PatientPhoto[]; // Photos attached to this record
 
   // Enriched fields from backend

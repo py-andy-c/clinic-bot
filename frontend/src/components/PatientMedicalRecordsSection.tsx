@@ -277,6 +277,7 @@ const MedicalRecordCard: React.FC<MedicalRecordCardProps> = ({
             </h4>
             {!isDeletedLocally && (() => {
               const status = getMedicalRecordStatus(record);
+              if (!status) return null;
               return (
                 <span
                   className={`px-2 py-0.5 text-xs font-medium rounded-full ${status.className}`}
@@ -362,7 +363,11 @@ const MedicalRecordCard: React.FC<MedicalRecordCardProps> = ({
             </svg>
             <span className="break-words">
               編輯：{formatAppointmentDateTime(new Date(record.updated_at))}
-              {record.updated_by_user_name && ` 由 ${record.updated_by_user_name}`}
+              {record.updated_by_user_name
+                ? ` 由 ${record.updated_by_user_name}`
+                : record.patient_last_edited_at
+                  ? ' 由 病患'
+                  : ''}
             </span>
           </div>
         )}

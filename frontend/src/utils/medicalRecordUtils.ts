@@ -59,49 +59,38 @@ export function isStructuredError(detail: any): detail is StructuredError {
  * 4. Clinic created (default) - Created by clinic staff
  * 
  * @param record - The medical record to get status for
- * @returns An object containing the label, color type, and CSS classes
+ * @returns An object containing the label, color type, and CSS classes, or null if no status badge should be shown
  */
-export const getMedicalRecordStatus = (record: MedicalRecord): MedicalRecordStatus => {
-    const statuses: Record<'submitted' | 'editing' | 'empty' | 'clinic', MedicalRecordStatus> = {
-        submitted: {
-            label: '病患已提交',
-            color: 'green',
-            className: 'bg-green-100 text-green-600',
-            ariaLabel: '病歷狀態: 病患已提交'
-        },
-        editing: {
-            label: '病患填寫中',
+export const getMedicalRecordStatus = (record: MedicalRecord): MedicalRecordStatus | null => {
+    // 1. Patient-facing Form Logic
+    if (record.is_patient_form) {
+        if (record.patient_last_edited_at) {
+            return {
+                label: '病患已填寫',
+                color: 'green',
+                className: 'bg-green-100 text-green-600',
+                ariaLabel: '病歷狀態: 病患已填寫'
+            };
+        }
+        return {
+            label: '待填寫',
             color: 'yellow',
             className: 'bg-yellow-100 text-yellow-600',
-            ariaLabel: '病歷狀態: 病患填寫中'
-        },
-        empty: {
+            ariaLabel: '病歷狀態: 待填寫'
+        };
+    }
+
+    // 2. Internal Clinic Record Logic (Stable)
+    if (isMedicalRecordEmpty(record)) {
+        return {
             label: '空',
             color: 'gray',
             className: 'bg-gray-100 text-gray-500',
             ariaLabel: '病歷狀態: 空'
-        },
-        clinic: {
-            label: '診所建立',
-            color: 'blue',
-            className: 'bg-blue-50 text-blue-600',
-            ariaLabel: '病歷狀態: 診所建立'
-        }
-    };
-
-    if (record.is_submitted) {
-        return statuses.submitted;
+        };
     }
 
-    if (record.patient_last_edited_at) {
-        return statuses.editing;
-    }
-
-    if (isMedicalRecordEmpty(record)) {
-        return statuses.empty;
-    }
-
-    return statuses.clinic;
+    return null;
 };
 
 /**
