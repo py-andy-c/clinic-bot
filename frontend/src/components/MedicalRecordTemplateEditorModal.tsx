@@ -62,6 +62,7 @@ export const MedicalRecordTemplateEditorModal: React.FC<MedicalRecordTemplateEdi
   const { user } = useAuth();
   const activeClinicId = user?.active_clinic_id;
   const { alert, confirm } = useModal();
+  const [activeTab, setActiveTab] = React.useState<'edit' | 'preview'>('edit');
 
   const isEdit = templateId !== null;
   const { data: template, isLoading } = useMedicalRecordTemplate(
@@ -225,115 +226,155 @@ export const MedicalRecordTemplateEditorModal: React.FC<MedicalRecordTemplateEdi
             showClose
           />
 
+          {/* Tab Navigation */}
+          <div className="border-b border-gray-200 bg-white">
+            <div className="max-w-7xl mx-auto px-5 md:px-8">
+              <nav className="flex gap-8" aria-label="Tabs">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('edit')}
+                  className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                    activeTab === 'edit'
+                      ? 'border-primary-600 text-primary-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  編輯模板
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('preview')}
+                  className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                    activeTab === 'preview'
+                      ? 'border-primary-600 text-primary-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  預覽表單
+                </button>
+              </nav>
+            </div>
+          </div>
+
           <ModalBody className="!p-0 bg-white md:bg-transparent">
             {isLoading ? (
               <div className="flex justify-center items-center h-64">
                 <LoadingSpinner size="lg" />
               </div>
             ) : (
-              <div className="p-0 md:p-8">
-                <div className="grid grid-cols-1 lg:grid-cols-12 md:gap-8 max-w-7xl mx-auto w-full">
-                  {/* Left Column: Basic Info - Spans 4 columns on LG */}
-                  <div className="lg:col-span-4 space-y-0 md:space-y-6">
-                    <section className="bg-white md:rounded-2xl p-5 md:p-6 md:shadow-sm border-b md:border border-gray-100 border-x-0">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                        <span className="w-1.5 h-6 bg-blue-500 rounded-full"></span>
-                        基本資訊
-                      </h3>
-                      <div className="space-y-5">
-                        <FormField name="name" label="模板名稱">
-                          <FormInput
-                            name="name"
-                            placeholder="例如：一般檢查、初診記錄"
-                            className="w-full"
-                          />
-                        </FormField>
-                        <FormField name="description" label="模板說明">
-                          <FormTextarea
-                            name="description"
-                            placeholder="描述此模板的用途（選填）"
-                            rows={4}
-                            className="w-full"
-                          />
-                        </FormField>
-                        <div className="pt-2">
-                          <label className="flex items-center gap-3 cursor-pointer select-none group">
-                            <input
-                              type="checkbox"
-                              {...methods.register('is_patient_form')}
-                              className="w-5 h-5 border-gray-300 rounded text-blue-600 focus:ring-blue-500 transition-colors"
-                            />
-                            <div className="flex flex-col">
-                              <span className="text-sm font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">
-                                開放病患填寫
-                              </span>
-                              <span className="text-xs text-gray-500">
-                                開啟後，此模板可作為病患表單發送給病患填寫。
-                              </span>
+              <>
+                {/* Edit Tab Content */}
+                {activeTab === 'edit' && (
+                  <div className="p-0 md:p-8">
+                    <div className="grid grid-cols-1 lg:grid-cols-12 md:gap-8 max-w-7xl mx-auto w-full">
+                      {/* Left Column: Basic Info - Spans 4 columns on LG */}
+                      <div className="lg:col-span-4 space-y-0 md:space-y-6">
+                        <section className="bg-white md:rounded-2xl p-5 md:p-6 md:shadow-sm border-b md:border border-gray-100 border-x-0">
+                          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                            <span className="w-1.5 h-6 bg-blue-500 rounded-full"></span>
+                            基本資訊
+                          </h3>
+                          <div className="space-y-5">
+                            <FormField name="name" label="模板名稱">
+                              <FormInput
+                                name="name"
+                                placeholder="例如：一般檢查、初診記錄"
+                                className="w-full"
+                              />
+                            </FormField>
+                            <FormField name="description" label="模板說明">
+                              <FormTextarea
+                                name="description"
+                                placeholder="描述此模板的用途（選填）"
+                                rows={4}
+                                className="w-full"
+                              />
+                            </FormField>
+                            <div className="pt-2">
+                              <label className="flex items-center gap-3 cursor-pointer select-none group">
+                                <input
+                                  type="checkbox"
+                                  {...methods.register('is_patient_form')}
+                                  className="w-5 h-5 border-gray-300 rounded text-blue-600 focus:ring-blue-500 transition-colors"
+                                />
+                                <div className="flex flex-col">
+                                  <span className="text-sm font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">
+                                    開放病患填寫
+                                  </span>
+                                  <span className="text-xs text-gray-500">
+                                    開啟後，此模板可作為病患表單發送給病患填寫。
+                                  </span>
+                                </div>
+                              </label>
                             </div>
-                          </label>
+                          </div>
+                        </section>
+
+                        <div className="hidden lg:block bg-blue-50 rounded-xl p-5 border border-blue-100">
+                          <h4 className="text-sm font-semibold text-blue-900 mb-2 flex items-center gap-2">
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            小提示
+                          </h4>
+                          <p className="text-xs text-blue-700 leading-relaxed">
+                            您可以在右側新增不同類型的欄位。建議將相關的欄位放在一起，病歷記錄時會更流暢。
+                          </p>
                         </div>
                       </div>
-                    </section>
 
-                    <div className="hidden lg:block bg-blue-50 rounded-xl p-5 border border-blue-100">
-                      <h4 className="text-sm font-semibold text-blue-900 mb-2 flex items-center gap-2">
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        小提示
-                      </h4>
-                      <p className="text-xs text-blue-700 leading-relaxed">
-                        您可以在右側新增不同類型的欄位。建議將相關的欄位放在一起，病歷記錄時會更流暢。
-                      </p>
+                      {/* Right Column: Fields Section - Spans 8 columns on LG */}
+                      <div className="lg:col-span-8 space-y-0 md:space-y-6">
+                        <section className="bg-white md:rounded-2xl p-5 md:p-6 md:shadow-sm border-b md:border border-gray-100 border-x-0">
+                          <div className="flex items-center justify-between mb-6">
+                            <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                              <span className="w-1.5 h-6 bg-purple-500 rounded-full"></span>
+                              表單欄位
+                            </h3>
+                            <span className="text-xs font-medium px-2.5 py-1 bg-gray-100 text-gray-600 rounded-full">
+                              共 {fields.length} 個欄位
+                            </span>
+                          </div>
+
+                          <div className="space-y-4">
+                            {fields.map((field, index) => (
+                              <FieldEditor
+                                key={field.id}
+                                index={index}
+                                field={field}
+                                onRemove={() => handleRemoveField(index)}
+                                onMoveUp={() => handleMoveField(index, 'up')}
+                                onMoveDown={() => handleMoveField(index, 'down')}
+                                canMoveUp={index > 0}
+                                canMoveDown={index < fields.length - 1}
+                              />
+                            ))}
+
+                            <div className="px-4 md:px-0">
+                              <button
+                                type="button"
+                                onClick={handleAddField}
+                                className="w-full py-6 border-2 border-dashed border-gray-200 rounded-xl text-gray-500 hover:text-blue-600 hover:border-blue-300 hover:bg-blue-50/50 transition-all flex flex-col items-center justify-center gap-2 group"
+                              >
+                                <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center group-hover:bg-blue-100 transition-colors">
+                                  <span className="text-2xl group-hover:scale-110 transition-transform">+</span>
+                                </div>
+                                <span className="font-semibold">新增欄位</span>
+                                <span className="text-xs text-gray-400 font-normal">點擊此處為您的模板添加新的資料項目</span>
+                              </button>
+                            </div>
+                          </div>
+                        </section>
+                      </div>
                     </div>
                   </div>
+                )}
 
-                  {/* Right Column: Fields Section - Spans 8 columns on LG */}
-                  <div className="lg:col-span-8 space-y-0 md:space-y-6">
-                    <section className="bg-white md:rounded-2xl p-5 md:p-6 md:shadow-sm border-b md:border border-gray-100 border-x-0">
-                      <div className="flex items-center justify-between mb-6">
-                        <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                          <span className="w-1.5 h-6 bg-purple-500 rounded-full"></span>
-                          表單欄位
-                        </h3>
-                        <span className="text-xs font-medium px-2.5 py-1 bg-gray-100 text-gray-600 rounded-full">
-                          共 {fields.length} 個欄位
-                        </span>
-                      </div>
-
-                      <div className="space-y-4">
-                        {fields.map((field, index) => (
-                          <FieldEditor
-                            key={field.id}
-                            index={index}
-                            field={field}
-                            onRemove={() => handleRemoveField(index)}
-                            onMoveUp={() => handleMoveField(index, 'up')}
-                            onMoveDown={() => handleMoveField(index, 'down')}
-                            canMoveUp={index > 0}
-                            canMoveDown={index < fields.length - 1}
-                          />
-                        ))}
-
-                        <div className="px-4 md:px-0">
-                          <button
-                            type="button"
-                            onClick={handleAddField}
-                            className="w-full py-6 border-2 border-dashed border-gray-200 rounded-xl text-gray-500 hover:text-blue-600 hover:border-blue-300 hover:bg-blue-50/50 transition-all flex flex-col items-center justify-center gap-2 group"
-                          >
-                            <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center group-hover:bg-blue-100 transition-colors">
-                              <span className="text-2xl group-hover:scale-110 transition-transform">+</span>
-                            </div>
-                            <span className="font-semibold">新增欄位</span>
-                            <span className="text-xs text-gray-400 font-normal">點擊此處為您的模板添加新的資料項目</span>
-                          </button>
-                        </div>
-                      </div>
-                    </section>
-                  </div>
-                </div>
-              </div>
+                {/* Preview Tab Content */}
+                {activeTab === 'preview' && (
+                  <FormPreview />
+                )}
+              </>
             )}
           </ModalBody>
 
@@ -360,6 +401,297 @@ export const MedicalRecordTemplateEditorModal: React.FC<MedicalRecordTemplateEdi
         </form>
       </FormProvider>
     </BaseModal>
+  );
+};
+
+// Form Preview Component
+const FormPreview: React.FC = () => {
+  const { watch } = useFormContext<TemplateFormData>();
+  const formData = watch();
+  const fields = formData.fields || [];
+
+  // Local state for preview form values
+  const [previewValues, setPreviewValues] = React.useState<Record<string, any>>({});
+
+  // Convert options string to array for preview
+  const processedFields = fields.map((field) => {
+    if (['dropdown', 'radio', 'checkbox'].includes(field.type)) {
+      let options: string[] = [];
+      
+      if (typeof field.options === 'string' && field.options.trim()) {
+        options = field.options.split('\n').map(opt => opt.trim()).filter(opt => opt.length > 0);
+      } else if (Array.isArray(field.options)) {
+        options = field.options;
+      }
+      
+      return { ...field, options };
+    }
+    return field;
+  });
+
+  const handleInputChange = (fieldId: string, value: any) => {
+    setPreviewValues(prev => ({ ...prev, [fieldId]: value }));
+  };
+
+  const handleCheckboxChange = (fieldId: string, value: string, checked: boolean) => {
+    setPreviewValues(prev => {
+      const currentValues = Array.isArray(prev[fieldId]) ? prev[fieldId] : [];
+      if (checked) {
+        return { ...prev, [fieldId]: [...currentValues, value] };
+      } else {
+        return { ...prev, [fieldId]: currentValues.filter((v: string) => v !== value) };
+      }
+    });
+  };
+
+  const renderPreviewField = (field: any, index: number) => {
+    const fieldId = field.id || `field-${index}`;
+    const label = field.required ? (
+      <>
+        {field.label || `欄位 ${index + 1}`} <span className="text-red-500">*</span>
+      </>
+    ) : (field.label || `欄位 ${index + 1}`);
+
+    switch (field.type) {
+      case 'text':
+        return (
+          <div key={index} className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700">
+              {label}
+            </label>
+            {field.description && (
+              <p className="text-xs text-gray-500">{field.description}</p>
+            )}
+            <input
+              type="text"
+              value={previewValues[fieldId] || ''}
+              onChange={(e) => handleInputChange(fieldId, e.target.value)}
+              placeholder={field.placeholder || ''}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            />
+          </div>
+        );
+
+      case 'textarea':
+        return (
+          <div key={index} className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700">
+              {label}
+            </label>
+            {field.description && (
+              <p className="text-xs text-gray-500">{field.description}</p>
+            )}
+            <textarea
+              value={previewValues[fieldId] || ''}
+              onChange={(e) => handleInputChange(fieldId, e.target.value)}
+              placeholder={field.placeholder || ''}
+              rows={4}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
+            />
+          </div>
+        );
+
+      case 'number':
+        return (
+          <div key={index} className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700">
+              {label}
+            </label>
+            {field.description && (
+              <p className="text-xs text-gray-500">{field.description}</p>
+            )}
+            <input
+              type="number"
+              value={previewValues[fieldId] || ''}
+              onChange={(e) => handleInputChange(fieldId, e.target.value)}
+              placeholder={field.placeholder || ''}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            />
+          </div>
+        );
+
+      case 'date':
+        return (
+          <div key={index} className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700">
+              {label}
+            </label>
+            {field.description && (
+              <p className="text-xs text-gray-500">{field.description}</p>
+            )}
+            <input
+              type="date"
+              value={previewValues[fieldId] || ''}
+              onChange={(e) => handleInputChange(fieldId, e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            />
+          </div>
+        );
+
+      case 'dropdown':
+        return (
+          <div key={index} className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700">
+              {label}
+            </label>
+            {field.description && (
+              <p className="text-xs text-gray-500">{field.description}</p>
+            )}
+            <select
+              value={previewValues[fieldId] || ''}
+              onChange={(e) => handleInputChange(fieldId, e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            >
+              <option value="">請選擇...</option>
+              {field.options && Array.isArray(field.options) && field.options.length > 0 ? (
+                field.options.map((option: string, idx: number) => (
+                  <option key={idx} value={option}>
+                    {option}
+                  </option>
+                ))
+              ) : (
+                <option disabled className="text-gray-400">尚未設定選項</option>
+              )}
+            </select>
+          </div>
+        );
+
+      case 'radio':
+        return (
+          <div key={index} className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700">
+              {label}
+            </label>
+            {field.description && (
+              <p className="text-xs text-gray-500 mb-2">{field.description}</p>
+            )}
+            <div className="space-y-2">
+              {field.options && Array.isArray(field.options) && field.options.length > 0 ? (
+                field.options.map((option: string, idx: number) => (
+                  <label key={idx} className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name={fieldId}
+                      value={option}
+                      checked={previewValues[fieldId] === option}
+                      onChange={(e) => handleInputChange(fieldId, e.target.value)}
+                      className="rounded-full border-gray-300 text-primary-600 focus:ring-primary-500"
+                    />
+                    <span className="text-sm text-gray-700">{option}</span>
+                  </label>
+                ))
+              ) : (
+                <p className="text-xs text-gray-400 italic">尚未設定選項</p>
+              )}
+            </div>
+          </div>
+        );
+
+      case 'checkbox':
+        return (
+          <div key={index} className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700">
+              {label}
+            </label>
+            {field.description && (
+              <p className="text-xs text-gray-500 mb-2">{field.description}</p>
+            )}
+            <div className="space-y-2">
+              {field.options && Array.isArray(field.options) && field.options.length > 0 ? (
+                field.options.map((option: string, idx: number) => {
+                  const currentValues = Array.isArray(previewValues[fieldId]) ? previewValues[fieldId] : [];
+                  return (
+                    <label key={idx} className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        value={option}
+                        checked={currentValues.includes(option)}
+                        onChange={(e) => handleCheckboxChange(fieldId, option, e.target.checked)}
+                        className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                      />
+                      <span className="text-sm text-gray-700">{option}</span>
+                    </label>
+                  );
+                })
+              ) : (
+                <p className="text-xs text-gray-400 italic">尚未設定選項</p>
+              )}
+            </div>
+          </div>
+        );
+
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <div className="p-0 md:p-8">
+      <div className="max-w-4xl mx-auto">
+        <div className="bg-white md:rounded-2xl p-5 md:p-8 md:shadow-sm md:border border-gray-100">
+          {/* Preview Header */}
+          <div className="mb-8 pb-6 border-b border-gray-200">
+            <h2 className="text-2xl font-bold text-gray-900">
+              {formData.name || '未命名模板'}
+            </h2>
+            {formData.description && (
+              <p className="text-sm text-gray-600 mt-2">{formData.description}</p>
+            )}
+          </div>
+
+          {/* Preview Fields */}
+          {processedFields.length === 0 ? (
+            <div className="text-center py-16">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gray-100 flex items-center justify-center">
+                <svg className="w-8 h-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">尚未新增欄位</h3>
+              <p className="text-sm text-gray-500">
+                請切換到「編輯模板」頁籤新增表單欄位
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="space-y-6">
+                {processedFields
+                  .sort((a, b) => a.order - b.order)
+                  .map((field, index) => renderPreviewField(field, index))}
+              </div>
+
+              {/* Photo Upload Section */}
+              <div className="mt-8 pt-8 border-t border-gray-100">
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <label className="block text-sm font-medium text-gray-700">
+                      附錄 (選填)
+                    </label>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        // No-op: dummy button for preview only
+                      }}
+                      className="cursor-pointer inline-flex items-center px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                      </svg>
+                      <span className="ml-1.5">上傳照片</span>
+                    </button>
+                  </div>
+                  <div className="text-center py-12 text-gray-500 text-sm border-2 border-dashed border-gray-200 rounded-lg">
+                    <p>尚無附錄照片</p>
+                    <p className="text-xs mt-2 text-gray-400">點擊上方按鈕上傳照片</p>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
   );
 };
 
