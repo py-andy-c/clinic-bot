@@ -196,14 +196,14 @@ export const MedicalRecordTemplateEditorModal: React.FC<MedicalRecordTemplateEdi
   return (
     <BaseModal
       onClose={handleClose}
-      aria-label={isEdit ? '編輯病歷模板' : '新增病歷模板'}
+      aria-label={isEdit ? '編輯模板' : '新增模板'}
       showCloseButton={false}
       fullScreen={true}
     >
       <FormProvider {...methods}>
         <form onSubmit={methods.handleSubmit(onSubmit)} className="flex flex-col h-full bg-white md:bg-gray-50/50">
           <ModalHeader
-            title={isEdit ? '編輯病歷模板' : '新增病歷模板'}
+            title={isEdit ? '編輯模板' : '新增模板'}
             onClose={handleClose}
             showClose
           />
@@ -281,7 +281,7 @@ export const MedicalRecordTemplateEditorModal: React.FC<MedicalRecordTemplateEdi
                                 />
                                 <div className="flex flex-col">
                                   <span className="text-sm font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">
-                                    開放病患填寫
+                                    設定為病患表單
                                   </span>
                                   <span className="text-xs text-gray-500">
                                     開啟後，此模板可作為病患表單發送給病患填寫。
@@ -291,18 +291,6 @@ export const MedicalRecordTemplateEditorModal: React.FC<MedicalRecordTemplateEdi
                             </div>
                           </div>
                         </section>
-
-                        <div className="hidden lg:block bg-blue-50 rounded-xl p-5 border border-blue-100">
-                          <h4 className="text-sm font-semibold text-blue-900 mb-2 flex items-center gap-2">
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            小提示
-                          </h4>
-                          <p className="text-xs text-blue-700 leading-relaxed">
-                            您可以在右側新增不同類型的欄位。建議將相關的欄位放在一起，病歷記錄時會更流暢。
-                          </p>
-                        </div>
                       </div>
 
                       {/* Right Column: Fields Section - Spans 8 columns on LG */}

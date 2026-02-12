@@ -78,7 +78,7 @@ describe('CreateMedicalRecordDialog', () => {
         expect(screen.getByText('新增病歷記錄')).toBeInTheDocument();
 
         // Should ONLY show 'Clinic Record' which has is_patient_form: false
-        const select = screen.getByLabelText(/病歷模板/i);
+        const select = screen.getByLabelText(/模板/i);
         expect(select).toBeInTheDocument();
 
         const templateOptions = Array.from(select.querySelectorAll('option'));
@@ -98,7 +98,7 @@ describe('CreateMedicalRecordDialog', () => {
         );
 
         // Select the internal template (id: 2)
-        const select = screen.getByLabelText(/病歷模板/i);
+        const select = screen.getByLabelText(/模板/i);
         fireEvent.change(select, { target: { value: '2' } });
 
         // Wait for the button to be enabled

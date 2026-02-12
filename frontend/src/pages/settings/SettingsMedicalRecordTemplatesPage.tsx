@@ -30,7 +30,7 @@ const SettingsMedicalRecordTemplatesPage: React.FC = () => {
   const handleDeleteTemplate = async (template: MedicalRecordTemplate) => {
     const confirmed = await confirm(
       `確定要刪除「${template.name}」模板嗎？此動作不可復原。`,
-      '刪除病歷模板'
+      '刪除模板'
     );
     if (!confirmed) return;
 
@@ -59,7 +59,7 @@ const SettingsMedicalRecordTemplatesPage: React.FC = () => {
     <div className="max-w-6xl mx-auto">
       <SettingsBackButton />
       
-      <PageHeader title="病歷模板" />
+      <PageHeader title="病例與表單" />
 
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         {/* Header with Add Button */}
@@ -79,7 +79,7 @@ const SettingsMedicalRecordTemplatesPage: React.FC = () => {
         {!templates || templates.length === 0 ? (
           <div className="px-6 py-12 text-center">
             <div className="text-gray-400 text-5xl mb-4">📋</div>
-            <p className="text-gray-600 mb-4">尚未建立任何病歷模板</p>
+            <p className="text-gray-600 mb-4">尚未建立任何模板</p>
             {isClinicAdmin && (
               <button
                 onClick={handleAddTemplate}
@@ -98,9 +98,16 @@ const SettingsMedicalRecordTemplatesPage: React.FC = () => {
               >
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <h4 className="text-base font-semibold text-gray-900">
-                      {template.name}
-                    </h4>
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-base font-semibold text-gray-900">
+                        {template.name}
+                      </h4>
+                      {template.is_patient_form && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                          病患表單
+                        </span>
+                      )}
+                    </div>
                     {template.description && (
                       <p className="text-sm text-gray-600 mt-1">
                         {template.description}

@@ -145,11 +145,11 @@ export const CreateMedicalRecordDialog: React.FC<CreateMedicalRecordDialogProps>
                   <svg className="w-12 h-12 mx-auto text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
-                  <p className="mt-2 text-lg font-medium text-gray-900">尚無病歷模板</p>
+                  <p className="mt-2 text-lg font-medium text-gray-900">尚無模板</p>
                   <p className="mt-1 text-sm text-gray-500">
                     {isAdmin
-                      ? '請先建立病歷模板，才能夠新增病歷記錄。'
-                      : '請聯絡管理員建立病歷模板，才能夠新增病歷記錄。'}
+                      ? '請先建立模板，才能夠新增病歷記錄。'
+                      : '請聯絡管理員建立模板，才能夠新增病歷記錄。'}
                   </p>
                 </div>
                 {isAdmin && (
@@ -165,7 +165,7 @@ export const CreateMedicalRecordDialog: React.FC<CreateMedicalRecordDialogProps>
             ) : (
               <div className="space-y-6">
                 {/* Template Selector */}
-                <FormField name="template_id" label={<>病歷模板 <span className="text-red-500">*</span></>}>
+                <FormField name="template_id" label={<>模板 <span className="text-red-500">*</span></>}>
                   <select
                     {...methods.register('template_id', { valueAsNumber: true })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
