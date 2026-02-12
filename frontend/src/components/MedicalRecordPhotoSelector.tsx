@@ -105,7 +105,7 @@ export const MedicalRecordPhotoSelector: React.FC<MedicalRecordPhotoSelectorProp
         is_pending: false,
         url: p.url || '',
         thumbnail_url: p.thumbnail_url || '',
-        description: (p as any).description || '',
+        description: p.description || '',
       }));
     }
     return linkedPhotosResponseClinic?.items || [];

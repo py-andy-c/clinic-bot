@@ -134,6 +134,7 @@ export interface PatientPhotoResponse {
   filename: string;
   content_type: string;
   size_bytes: number;
+  description?: string;
   created_at: string;
   url?: string;
   thumbnail_url?: string;

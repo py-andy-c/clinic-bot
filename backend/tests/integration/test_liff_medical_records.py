@@ -177,6 +177,7 @@ def test_upload_patient_photo_success(mock_upload, client, liff_test_setup, db_s
         storage_key="photos/test.jpg",
         content_type="image/jpeg",
         size_bytes=1024,
+        description="Test description",
         created_at=datetime.now(timezone.utc)
     )
     mock_upload.return_value = expected_photo
@@ -185,13 +186,15 @@ def test_upload_patient_photo_success(mock_upload, client, liff_test_setup, db_s
         "/api/liff/patient-photos",
         data={
             "patient_id": patient1.id,
-            "medical_record_id": record.id
+            "medical_record_id": record.id,
+            "description": "Test description"
         },
         files={"file": ("test.jpg", b"fake-content", "image/jpeg")}
     )
     
     assert resp.status_code == 200
     assert resp.json()["id"] == 101
+    assert resp.json()["description"] == "Test description"
 
 def test_delete_patient_photo_success(client, liff_test_setup, db_session):
     clinic, line_user1, _, patient1, _, record = liff_test_setup
@@ -253,16 +256,18 @@ def test_upload_photo_staging_lifecycle(client, liff_test_setup, db_session):
             medical_record_id=record.id, filename="pending.jpg", storage_key="k", 
             content_type="image/jpeg", size_bytes=100,
             is_pending=True, 
+            description="Pending photo",
             created_at=datetime.now(timezone.utc)
         )
         resp = client.post(
             "/api/liff/patient-photos",
-            data={"patient_id": patient1.id, "medical_record_id": record.id},
+            data={"patient_id": patient1.id, "medical_record_id": record.id, "description": "Pending photo"},
             files={"file": ("pending.jpg", b"...", "image/jpeg")}
         )
         if resp.status_code != 200:
             print(resp.json())
         assert resp.status_code == 200
+        assert resp.json()["description"] == "Pending photo"
         
     # Check it's pending in DB (simulate DB commit by service)
     photo = PatientPhoto(

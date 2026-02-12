@@ -226,6 +226,7 @@ class PatientPhotoResponse(BaseModel):
     filename: str
     content_type: str
     size_bytes: int
+    description: Optional[str] = None
     created_at: datetime
     url: Optional[str] = None
     thumbnail_url: Optional[str] = None
@@ -2079,6 +2080,7 @@ async def get_patient_medical_record(
             filename=photo.filename,
             content_type=photo.content_type,
             size_bytes=photo.size_bytes,
+            description=photo.description,
             created_at=photo.created_at,
             url=photo_service.get_photo_url(photo.storage_key),
             thumbnail_url=photo_service.get_photo_url(photo.thumbnail_key) if photo.thumbnail_key else None
@@ -2155,6 +2157,7 @@ async def update_patient_medical_record(
             filename=photo.filename,
             content_type=photo.content_type,
             size_bytes=photo.size_bytes,
+            description=photo.description,
             created_at=photo.created_at,
             url=photo_service.get_photo_url(photo.storage_key),
             thumbnail_url=photo_service.get_photo_url(photo.thumbnail_key) if photo.thumbnail_key else None
@@ -2236,6 +2239,7 @@ async def upload_patient_photo(
         filename=photo.filename,
         content_type=photo.content_type,
         size_bytes=photo.size_bytes,
+        description=photo.description,
         created_at=photo.created_at,
         url=photo_service.get_photo_url(photo.storage_key),
         thumbnail_url=photo_service.get_photo_url(photo.thumbnail_key) if photo.thumbnail_key else None
@@ -2332,6 +2336,7 @@ async def update_patient_photo(
         filename=updated_photo.filename,
         content_type=updated_photo.content_type,
         size_bytes=updated_photo.size_bytes,
+        description=updated_photo.description,
         created_at=updated_photo.created_at,
         url=photo_service.get_photo_url(updated_photo.storage_key),
         thumbnail_url=photo_service.get_photo_url(updated_photo.thumbnail_key) if updated_photo.thumbnail_key else None
