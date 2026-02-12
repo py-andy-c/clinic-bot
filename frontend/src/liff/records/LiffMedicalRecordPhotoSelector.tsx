@@ -79,7 +79,7 @@ export const LiffMedicalRecordPhotoSelector: React.FC<LiffMedicalRecordPhotoSele
     };
 
     return (
-        <div className="space-y-4">
+        <div className="space-y-6">
             <div className="flex justify-between items-center">
                 <label className="block text-sm font-medium text-gray-700">
                     附圖 (選填)

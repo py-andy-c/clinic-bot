@@ -129,7 +129,7 @@ export const MedicalRecordDynamicForm: React.FC<MedicalRecordDynamicFormProps> =
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {fields
         .sort((a, b) => a.order - b.order)
         .map((field) => renderField(field))}

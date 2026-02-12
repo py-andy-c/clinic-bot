@@ -148,23 +148,21 @@ const PatientMedicalRecordPage: React.FC = () => {
     }
 
     return (
-        <div className="min-h-screen bg-gray-50 pb-20">
-            <div className="bg-white shadow-sm sticky top-0 z-10">
-                <div className="px-5 py-4 flex items-center justify-between">
+        <div className="min-h-screen bg-white pb-20">
+            <div className="bg-white border-b border-gray-100 sticky top-0 z-10">
+                <div className="px-4 py-4 flex items-center justify-between">
                     <h1 className="text-lg font-bold text-gray-900 truncate pr-4">
                         {record.template_name}
                     </h1>
                 </div>
             </div>
 
-            <div className="px-5 py-6">
+            <div className="px-4 py-6">
                 <FormProvider {...methods}>
-                    <form className="space-y-10">
-                        <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
-                            <MedicalRecordDynamicForm fields={record.template_snapshot.fields || []} />
-                        </div>
+                    <form className="space-y-8">
+                        <MedicalRecordDynamicForm fields={record.template_snapshot.fields || []} />
 
-                        <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+                        <div className="pt-8 border-t border-gray-100">
                             <LiffMedicalRecordPhotoSelector
                                 patientId={record.patient_id}
                                 recordId={record.id}
@@ -178,7 +176,7 @@ const PatientMedicalRecordPage: React.FC = () => {
                                 type="button"
                                 onClick={methods.handleSubmit((data) => onSubmit(data, true))}
                                 disabled={updateMutation.isPending}
-                                className="w-full py-4 bg-primary-600 text-white rounded-2xl font-bold text-lg shadow-xl shadow-primary-200 active:scale-[0.98] active:shadow-lg disabled:opacity-50 transition-all"
+                                className="w-full py-4 bg-primary-600 text-white rounded-xl font-bold text-lg shadow-lg active:scale-[0.98] disabled:opacity-50 transition-all"
                             >
                                 {updateMutation.isPending
                                     ? '送出中...'
