@@ -108,11 +108,11 @@ class PractitionerDailyNotificationService:
                 # All time comparisons are done in Taiwan time
                 current_time = taiwan_now()
                 current_hour = current_time.hour
-                next_day = (current_time + timedelta(days=1)).date()
+                today = current_time.date()
                 
                 logger.info(
                     f"Checking for practitioners needing daily notifications at "
-                    f"{current_time.strftime('%H:%M')} for appointments on {next_day}"
+                    f"{current_time.strftime('%H:%M')}"
                 )
 
                 # Get all active practitioner associations
@@ -142,16 +142,17 @@ class PractitionerDailyNotificationService:
                         )
                         continue
 
-                    # Get practitioner settings
-                    # Notification time is stored as "HH:MM" string and interpreted as Taiwan time
+                    # Parse notification time (interpreted as Taiwan time, e.g., "21:00" = 9 PM)
                     try:
                         settings = association.get_validated_settings()
                         notification_time_str = settings.next_day_notification_time
+                        reminder_days_ahead = settings.reminder_days_ahead
                     except Exception as e:
-                        logger.warning(f"Error getting settings for association {association.id}: {e}, using default 21:00")
+                        logger.warning(f"Error getting settings for association {association.id}: {e}, using defaults (21:00, 1 day)")
                         notification_time_str = "21:00"
+                        reminder_days_ahead = 1
 
-                    # Parse notification time (interpreted as Taiwan time, e.g., "21:00" = 9 PM)
+                    # Parse notification hour
                     try:
                         notification_hour, _ = map(int, notification_time_str.split(':'))
                     except (ValueError, AttributeError):
@@ -184,19 +185,22 @@ class PractitionerDailyNotificationService:
                         total_skipped += 1
                         continue
 
-                    # Get appointments for this practitioner for next day
-                    appointments = self._get_practitioner_appointments_for_date(
-                        db, association.user_id, association.clinic_id, next_day
+                    # Get appointments for this practitioner for the date range
+                    start_date = today + timedelta(days=1)
+                    end_date = today + timedelta(days=reminder_days_ahead)
+                    
+                    appointments = self._get_practitioner_appointments_for_date_range(
+                        db, association.user_id, association.clinic_id, start_date, end_date
                     )
 
                     if not appointments:
-                        logger.debug(f"No appointments found for practitioner {association.user_id} on {next_day}")
+                        logger.debug(f"No appointments found for practitioner {association.user_id} from {start_date} to {end_date}")
                         total_skipped += 1
                         continue
 
                     # Send notification
                     if await self._send_notification_for_practitioner(
-                        db, association, appointments, next_day
+                        db, association, appointments, start_date, end_date
                     ):
                         total_sent += 1
                     else:
@@ -210,24 +214,26 @@ class PractitionerDailyNotificationService:
             except Exception as e:
                 logger.exception(f"Error sending daily notifications: {e}")
 
-    def _get_practitioner_appointments_for_date(
+    def _get_practitioner_appointments_for_date_range(
         self,
         db: Session,
         practitioner_id: int,
         clinic_id: int,
-        target_date: date
+        start_date: date,
+        end_date: date
     ) -> List[Appointment]:
         """
-        Get confirmed appointments for a practitioner on a specific date.
+        Get confirmed appointments for a practitioner within a specific date range.
         
         Args:
             db: Database session
             practitioner_id: ID of the practitioner
             clinic_id: ID of the clinic
-            target_date: Date to get appointments for
+            start_date: Start date of the range
+            end_date: End date of the range
             
         Returns:
-            List of appointments for the practitioner on the target date
+            List of appointments for the practitioner in the target range
         """
         # Filter out appointments with deleted appointment types (edge case #10)
         appointments = db.query(Appointment).join(CalendarEvent).outerjoin(
@@ -237,7 +243,8 @@ class PractitionerDailyNotificationService:
             Appointment.is_auto_assigned == False,  # Practitioners don't see auto-assigned appointments
             CalendarEvent.user_id == practitioner_id,
             CalendarEvent.clinic_id == clinic_id,
-            CalendarEvent.date == target_date,
+            CalendarEvent.date >= start_date,
+            CalendarEvent.date <= end_date,
             # Filter out appointments with deleted appointment types
             # If appointment_type is None, include it (legacy data)
             # If appointment_type exists, only include if not deleted
@@ -249,7 +256,7 @@ class PractitionerDailyNotificationService:
             joinedload(Appointment.patient),
             joinedload(Appointment.appointment_type),
             joinedload(Appointment.calendar_event)
-        ).order_by(CalendarEvent.start_time).all()
+        ).order_by(CalendarEvent.date, CalendarEvent.start_time).all()
         
         return appointments
 
@@ -258,7 +265,8 @@ class PractitionerDailyNotificationService:
         db: Session,
         association: UserClinicAssociation,
         appointments: List[Appointment],
-        target_date: date
+        start_date: date,
+        end_date: date
     ) -> bool:
         """
         Send daily notification to a practitioner about their appointments.
@@ -266,8 +274,9 @@ class PractitionerDailyNotificationService:
         Args:
             db: Database session
             association: UserClinicAssociation for the practitioner
-            appointments: List of appointments for the next day
-            target_date: Date of the appointments
+            appointments: List of appointments for the range
+            start_date: Start date of the range
+            end_date: End date of the range
             
         Returns:
             True if notification was sent successfully, False otherwise
@@ -283,21 +292,102 @@ class PractitionerDailyNotificationService:
                 db, practitioner.id, clinic.id
             )
             
-            # Build message header
-            message = DailyNotificationMessageBuilder.build_message_header(
-                target_date, is_clinic_wide=False
-            )
+            # Group appointments by date
+            from itertools import groupby
+            # Ensure appointments are sorted by date for groupby
+            appointments.sort(key=lambda a: a.calendar_event.date)
+            appointments_by_date = {
+                d: list(g) for d, g in groupby(appointments, key=lambda a: a.calendar_event.date)
+            }
             
-            # Build practitioner section
-            message += DailyNotificationMessageBuilder.build_practitioner_section(
-                practitioner_name, appointments, is_clinic_wide=False
-            )
+            # Sort dates for consistent ordering
+            sorted_dates = sorted(appointments_by_date.keys())
             
-            # Build appointment lines
-            for i, appointment in enumerate(appointments, 1):
-                message += DailyNotificationMessageBuilder.build_appointment_line(
-                    appointment, i
+            from services.admin_daily_reminder_service import LINE_MESSAGE_TARGET_CHARS
+            
+            messages: List[str] = []
+            current_message_parts: List[str] = []
+            current_length = 0
+            
+            for target_date in sorted_dates:
+                date_appointments = appointments_by_date[target_date]
+                
+                # Build date section header
+                date_header = DailyNotificationMessageBuilder.build_date_section_header(target_date)
+                
+                # Check if adding date header exceeds limit
+                if current_length + len(date_header) > LINE_MESSAGE_TARGET_CHARS and current_message_parts:
+                    messages.append("".join(current_message_parts))
+                    current_message_parts = []
+                    current_length = 0
+                    date_header = DailyNotificationMessageBuilder.build_date_section_header(target_date, is_continuation=True)
+                
+                current_message_parts.append(date_header)
+                current_length += len(date_header)
+                
+                # Build practitioner section
+                practitioner_header = DailyNotificationMessageBuilder.build_practitioner_section(
+                    practitioner_name, date_appointments, is_clinic_wide=False
                 )
+                
+                appointment_lines: List[str] = []
+                for i, appointment in enumerate(date_appointments, 1):
+                    line = DailyNotificationMessageBuilder.build_appointment_line(appointment, i)
+                    appointment_lines.append(line)
+                
+                practitioner_text = practitioner_header + "".join(appointment_lines)
+                
+                # Check if adding this practitioner section exceeds limit
+                if current_length + len(practitioner_text) > LINE_MESSAGE_TARGET_CHARS and current_message_parts:
+                    # If we already have content, save it and start new message
+                    if len(current_message_parts) > 1: # More than just the date header
+                        messages.append("".join(current_message_parts))
+                        current_message_parts = [
+                            DailyNotificationMessageBuilder.build_date_section_header(target_date, is_continuation=True)
+                        ]
+                        current_length = sum(len(p) for p in current_message_parts)
+                    
+                    # Split appointment lines if needed
+                    current_message_parts.append(practitioner_header)
+                    current_length += len(practitioner_header)
+                    
+                    for line in appointment_lines:
+                        if current_length + len(line) > LINE_MESSAGE_TARGET_CHARS:
+                            messages.append("".join(current_message_parts))
+                            current_message_parts = [
+                                DailyNotificationMessageBuilder.build_date_section_header(target_date, is_continuation=True),
+                                f"治療師：{practitioner_name} (續上頁)\n",
+                                f"您有 {len(date_appointments)} 個預約：\n\n"
+                            ]
+                            current_length = sum(len(p) for p in current_message_parts)
+                        current_message_parts.append(line)
+                        current_length += len(line)
+                else:
+                    current_message_parts.append(practitioner_text)
+                    current_length += len(practitioner_text)
+                
+                # Add a separator between days if not the last day
+                if target_date != sorted_dates[-1]:
+                    separator = "--------------------\n\n"
+                    if current_length + len(separator) < LINE_MESSAGE_TARGET_CHARS:
+                        current_message_parts.append(separator)
+                        current_length += len(separator)
+
+            # Add final message
+            if current_message_parts:
+                messages.append("".join(current_message_parts))
+
+            # Add headers to all messages
+            total_parts = len(messages)
+            final_messages: List[str] = []
+            for i, msg in enumerate(messages, 1):
+                header = DailyNotificationMessageBuilder.build_message_header(
+                    start_date, end_date,
+                    is_clinic_wide=False,
+                    part_number=i if total_parts > 1 else None,
+                    total_parts=total_parts if total_parts > 1 else None
+                )
+                final_messages.append(header + msg)
 
             # Send notification via LINE with labels for tracking
             line_service = LINEService(
@@ -310,20 +400,20 @@ class PractitionerDailyNotificationService:
                 'trigger_source': 'system_triggered',
                 'notification_context': 'daily_summary'
             }
-            # Type safety check: association.line_user_id is filtered to be non-null before calling this method,
-            # but type system doesn't know this, so we check here for type safety
+            
             if association.line_user_id:
-                line_service.send_text_message(
-                    association.line_user_id, 
-                    message,
-                    db=db,
-                    clinic_id=clinic.id,
-                    labels=labels
-                )
+                for message in final_messages:
+                    line_service.send_text_message(
+                        association.line_user_id, 
+                        message,
+                        db=db,
+                        clinic_id=clinic.id,
+                        labels=labels
+                    )
 
             logger.info(
                 f"Sent daily notification to practitioner {practitioner.id} "
-                f"for {len(appointments)} appointment(s) on {target_date}"
+                f"for {len(appointments)} appointment(s) from {start_date} to {end_date}"
             )
             return True
 

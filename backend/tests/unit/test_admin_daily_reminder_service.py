@@ -269,9 +269,9 @@ class TestAdminDailyNotificationService:
         db_session.flush()
 
         service = AdminDailyNotificationService()
-        appointments_by_practitioner = {practitioner.id: [appointment]}
-        messages = service._build_clinic_wide_message(
-            db_session, appointments_by_practitioner, appointment_date, clinic.id
+        appointments_by_date = {appointment_date: [appointment]}
+        messages = service._build_clinic_wide_message_for_range(
+            db_session, appointments_by_date, appointment_date, appointment_date, clinic.id
         )
 
         # Should return single message
@@ -279,7 +279,7 @@ class TestAdminDailyNotificationService:
         message = messages[0]
         
         # Check message format
-        assert "📅 明日預約總覽" in message
+        assert "預約總覽" in message
         assert "治療師：" in message
         assert "共有 1 個預約" in message
         assert "Test Patient" in message or "病患：" in message
@@ -378,12 +378,9 @@ class TestAdminDailyNotificationService:
         db_session.flush()
 
         service = AdminDailyNotificationService()
-        appointments_by_practitioner = {
-            practitioner1.id: [appointment1],
-            practitioner2.id: [appointment2]
-        }
-        messages = service._build_clinic_wide_message(
-            db_session, appointments_by_practitioner, appointment_date, clinic.id
+        appointments_by_date = {appointment_date: [appointment1, appointment2]}
+        messages = service._build_clinic_wide_message_for_range(
+            db_session, appointments_by_date, appointment_date, appointment_date, clinic.id
         )
 
         # Should return single message (both practitioners fit)
@@ -488,12 +485,9 @@ class TestAdminDailyNotificationService:
         db_session.flush()
 
         service = AdminDailyNotificationService()
-        appointments_by_practitioner = {
-            practitioner1.id: appointments1,
-            practitioner2.id: [appointment2]
-        }
-        messages = service._build_clinic_wide_message(
-            db_session, appointments_by_practitioner, appointment_date, clinic.id
+        appointments_by_date = {appointment_date: appointments1}
+        messages = service._build_clinic_wide_message_for_range(
+            db_session, appointments_by_date, appointment_date, appointment_date, clinic.id
         )
 
         # Should split into multiple messages
@@ -572,9 +566,9 @@ class TestAdminDailyNotificationService:
         db_session.flush()
 
         service = AdminDailyNotificationService()
-        appointments_by_practitioner = {practitioner.id: appointments}
-        messages = service._build_clinic_wide_message(
-            db_session, appointments_by_practitioner, appointment_date, clinic.id
+        appointments_by_date = {appointment_date: appointments}
+        messages = service._build_clinic_wide_message_for_range(
+            db_session, appointments_by_date, appointment_date, appointment_date, clinic.id
         )
 
         # Should split into multiple messages (fallback: mid-practitioner split)
@@ -655,12 +649,11 @@ class TestAdminDailyNotificationService:
         db_session.flush()
 
         service = AdminDailyNotificationService()
-        # Test with None key to simulate "不指定" grouping
-        # In actual code, this would be handled by checking originally_auto_assigned
-        # For this test, we'll directly test the None grouping
-        appointments_by_practitioner = {None: [appointment]}
-        messages = service._build_clinic_wide_message(
-            db_session, appointments_by_practitioner, appointment_date, clinic.id
+        appointments_by_date = {appointment_date: [appointment]}
+        # We need to make sure the practitioner_id is None for the appointment
+        appointment.calendar_event.user_id = None
+        messages = service._build_clinic_wide_message_for_range(
+            db_session, appointments_by_date, appointment_date, appointment_date, clinic.id
         )
 
         assert len(messages) == 1
@@ -685,9 +678,9 @@ class TestAdminDailyNotificationService:
         appointment_date = (taiwan_now() + timedelta(days=1)).date()
 
         service = AdminDailyNotificationService()
-        appointments_by_practitioner: Dict[Optional[int], List[Appointment]] = {}
-        messages = service._build_clinic_wide_message(
-            db_session, appointments_by_practitioner, appointment_date, clinic.id
+        appointments_by_date: Dict[date, List[Appointment]] = {}
+        messages = service._build_clinic_wide_message_for_range(
+            db_session, appointments_by_date, appointment_date, appointment_date, clinic.id
         )
 
         # Should return empty list
@@ -753,9 +746,9 @@ class TestAdminDailyNotificationService:
         db_session.flush()
 
         service = AdminDailyNotificationService()
-        appointments_by_practitioner = {practitioner.id: [appointment]}
-        messages = service._build_clinic_wide_message(
-            db_session, appointments_by_practitioner, appointment_date, clinic.id
+        appointments_by_date = {appointment_date: [appointment]}
+        messages = service._build_clinic_wide_message_for_range(
+            db_session, appointments_by_date, appointment_date, appointment_date, clinic.id
         )
 
         # Should still work and stay under limit
@@ -993,9 +986,9 @@ class TestAdminDailyNotificationService:
         db_session.flush()
 
         service = AdminDailyNotificationService()
-        appointments_by_practitioner = {practitioner.id: appointments}
-        messages = service._build_clinic_wide_message(
-            db_session, appointments_by_practitioner, appointment_date, clinic.id
+        appointments_by_date = {appointment_date: appointments}
+        messages = service._build_clinic_wide_message_for_range(
+            db_session, appointments_by_date, appointment_date, appointment_date, clinic.id
         )
 
         # All messages should be under 5000 chars (including headers)

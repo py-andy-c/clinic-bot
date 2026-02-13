@@ -8,7 +8,9 @@ describe('PractitionerNotificationTimeSettings', () => {
     render(
       <PractitionerNotificationTimeSettings
         notificationTime="21:00"
+        reminderDaysAhead={1}
         onNotificationTimeChange={mockOnChange}
+        onReminderDaysAheadChange={vi.fn()}
       />
     );
 
@@ -36,7 +38,9 @@ describe('PractitionerNotificationTimeSettings', () => {
     rerender(
       <PractitionerNotificationTimeSettings
         notificationTime="20:00"
+        reminderDaysAhead={1}
         onNotificationTimeChange={mockOnChange}
+        onReminderDaysAheadChange={vi.fn()}
       />
     );
     
@@ -51,7 +55,9 @@ describe('PractitionerNotificationTimeSettings', () => {
     render(
       <PractitionerNotificationTimeSettings
         notificationTime="21:00"
+        reminderDaysAhead={1}
         onNotificationTimeChange={mockOnChange}
+        onReminderDaysAheadChange={vi.fn()}
       />
     );
 

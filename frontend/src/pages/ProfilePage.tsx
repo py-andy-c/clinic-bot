@@ -155,6 +155,7 @@ const LineLinkingSection: React.FC<LineLinkingSectionProps> = ({ lineLinked, onR
 interface PractitionerSettings {
   compact_schedule_enabled: boolean;
   next_day_notification_time?: string;
+  reminder_days_ahead?: number;
   auto_assigned_notification_time?: string;
   step_size_minutes?: number | null;
   // Admin-only fields
@@ -199,6 +200,8 @@ const ProfilePage: React.FC = () => {
         schedule: {},
         settings: {
           compact_schedule_enabled: false,
+          next_day_notification_time: '21:00',
+          reminder_days_ahead: 1,
           step_size_minutes: null,
         },
         clinicDefaultStep: 30,
@@ -223,6 +226,7 @@ const ProfilePage: React.FC = () => {
           result.settings = {
             compact_schedule_enabled: Boolean(settings?.compact_schedule_enabled),
             next_day_notification_time: settings?.next_day_notification_time || '21:00',
+            reminder_days_ahead: settings?.reminder_days_ahead ?? 1,
             auto_assigned_notification_time: settings?.auto_assigned_notification_time || '21:00',
             step_size_minutes: settings?.step_size_minutes ?? null,
             subscribe_to_appointment_changes: settings?.subscribe_to_appointment_changes ?? false,
@@ -233,6 +237,7 @@ const ProfilePage: React.FC = () => {
           result.settings = {
             compact_schedule_enabled: false,
             next_day_notification_time: '21:00',
+            reminder_days_ahead: 1,
             auto_assigned_notification_time: '21:00',
             step_size_minutes: null,
             subscribe_to_appointment_changes: false,
@@ -282,6 +287,7 @@ const ProfilePage: React.FC = () => {
         const currentSettings = (profile?.settings as PractitionerSettings | undefined) || {
           compact_schedule_enabled: false,
           next_day_notification_time: '21:00',
+          reminder_days_ahead: 1,
           auto_assigned_notification_time: '21:00',
           step_size_minutes: null,
           subscribe_to_appointment_changes: false,
@@ -293,6 +299,7 @@ const ProfilePage: React.FC = () => {
         const settingsChanged =
           currentSettings.compact_schedule_enabled !== newSettings.compact_schedule_enabled ||
           (currentSettings.next_day_notification_time || '21:00') !== (newSettings.next_day_notification_time || '21:00') ||
+          (Number(currentSettings.reminder_days_ahead ?? 1)) !== (Number(newSettings.reminder_days_ahead ?? 1)) ||
           (currentSettings.auto_assigned_notification_time || '21:00') !== (newSettings.auto_assigned_notification_time || '21:00') ||
           currentSettings.step_size_minutes !== newSettings.step_size_minutes ||
           (currentSettings.subscribe_to_appointment_changes ?? false) !== (newSettings.subscribe_to_appointment_changes ?? false) ||
@@ -398,6 +405,7 @@ const ProfilePage: React.FC = () => {
     const currentSettings: PractitionerSettings = profileData?.settings || {
       compact_schedule_enabled: false,
       next_day_notification_time: '21:00',
+      reminder_days_ahead: 1,
       auto_assigned_notification_time: '21:00',
       step_size_minutes: null,
       subscribe_to_appointment_changes: false,
@@ -407,6 +415,7 @@ const ProfilePage: React.FC = () => {
       settings: {
         compact_schedule_enabled: currentSettings.compact_schedule_enabled ?? false,
         next_day_notification_time: currentSettings.next_day_notification_time || '21:00',
+        reminder_days_ahead: currentSettings.reminder_days_ahead ?? 1,
         auto_assigned_notification_time: currentSettings.auto_assigned_notification_time || '21:00',
         step_size_minutes: currentSettings.step_size_minutes ?? null,
         subscribe_to_appointment_changes: currentSettings.subscribe_to_appointment_changes ?? false,
@@ -531,8 +540,12 @@ const ProfilePage: React.FC = () => {
               {profile?.roles?.includes('practitioner') && (
                 <PractitionerNotificationTimeSettings
                   notificationTime={profileData?.settings?.next_day_notification_time || '21:00'}
+                  reminderDaysAhead={profileData?.settings?.reminder_days_ahead ?? 1}
                   onNotificationTimeChange={(time) => updateSettings({
                     next_day_notification_time: time
+                  })}
+                  onReminderDaysAheadChange={(days) => updateSettings({
+                    reminder_days_ahead: days
                   })}
                 />
               )}

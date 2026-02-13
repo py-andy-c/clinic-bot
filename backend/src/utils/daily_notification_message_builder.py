@@ -16,17 +16,40 @@ class DailyNotificationMessageBuilder:
     """Shared message building utilities for daily notifications."""
 
     @staticmethod
-    def format_date(target_date: date) -> str:
+    def format_date(target_date: date, include_day_of_week: bool = False) -> str:
         """
-        Format date as 'YYYY年MM月DD日'.
+        Format date as 'YYYY年MM月DD日' or 'YYYY年MM月DD日 (週X)'.
         
         Args:
             target_date: Date to format
+            include_day_of_week: Whether to include day of week in Chinese
             
         Returns:
             Formatted date string
         """
-        return target_date.strftime("%Y年%m月%d日")
+        date_str = target_date.strftime("%Y年%m月%d日")
+        if include_day_of_week:
+            days = ["一", "二", "三", "四", "五", "六", "日"]
+            day_of_week = days[target_date.weekday()]
+            date_str += f" ({day_of_week})"
+        return date_str
+
+    @staticmethod
+    def build_date_section_header(target_date: date, is_continuation: bool = False) -> str:
+        """
+        Build a section header for a specific date.
+        
+        Args:
+            target_date: The date for this section
+            is_continuation: Whether this is a continuation of the same date from a previous message
+            
+        Returns:
+            Formatted date section header
+        """
+        date_str = DailyNotificationMessageBuilder.format_date(target_date, include_day_of_week=True)
+        if is_continuation:
+            return f"【{date_str} (續上頁)】\n"
+        return f"【{date_str}】\n"
 
     @staticmethod
     def build_appointment_line(
@@ -102,32 +125,40 @@ class DailyNotificationMessageBuilder:
 
     @staticmethod
     def build_message_header(
-        target_date: date,
+        start_date: date,
+        end_date: Optional[date] = None,
         is_clinic_wide: bool = False,
         part_number: Optional[int] = None,
         total_parts: Optional[int] = None
     ) -> str:
         """
-        Build message header (明日預約提醒 or 明日預約總覽).
+        Build message header (預約提醒 or 預約總覽).
         
         Args:
-            target_date: Date of the appointments
-            is_clinic_wide: If True, use "明日預約總覽", else "明日預約提醒"
+            start_date: Start date of the range
+            end_date: End date of the range (if different from start_date)
+            is_clinic_wide: If True, use "預約總覽", else "預約提醒"
             part_number: Part number for multi-part messages (1-based)
             total_parts: Total number of parts
             
         Returns:
             Message header string
         """
-        date_str = DailyNotificationMessageBuilder.format_date(target_date)
+        start_date_str = DailyNotificationMessageBuilder.format_date(start_date)
         
-        if is_clinic_wide:
-            if part_number and total_parts and total_parts > 1:
-                header = f"📅 明日預約總覽 ({date_str}) - 第 {part_number}/{total_parts} 部分\n\n"
-            else:
-                header = f"📅 明日預約總覽 ({date_str})\n\n"
+        if end_date and end_date > start_date:
+            date_range_str = f"{start_date_str} - {DailyNotificationMessageBuilder.format_date(end_date)}"
+            title = "預約總覽" if is_clinic_wide else "預約提醒"
         else:
-            header = f"📅 明日預約提醒 ({date_str})\n\n"
+            date_range_str = start_date_str
+            title = "明日預約總覽" if is_clinic_wide else "明日預約提醒"
+            
+        header = f"📅 {title} ({date_range_str})"
+        
+        if part_number and total_parts and total_parts > 1:
+            header += f" - 第 {part_number}/{total_parts} 部分"
+            
+        header += "\n\n"
         
         return header
 

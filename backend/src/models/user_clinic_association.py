@@ -29,6 +29,12 @@ class PractitionerSettings(BaseModel):
         default="21:00",
         description="Time to send auto-assigned appointment notifications to admins (HH:MM format, 24-hour)"
     )
+    reminder_days_ahead: int = Field(
+        default=1,
+        ge=1,
+        le=14,
+        description="Number of days ahead to include in daily appointment notifications (1-14)"
+    )
     patient_booking_allowed: bool = Field(
         default=True,
         description="Whether patients are allowed to schedule appointments with this practitioner. Only clinic users can book if False."

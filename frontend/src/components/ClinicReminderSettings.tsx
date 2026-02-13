@@ -91,7 +91,8 @@ const ClinicReminderSettings: React.FC<ClinicReminderSettingsProps> = ({
         </div>
       </div>
 
-
+      {/* Reminder Days Ahead */}
+      {/* Moved to per-practitioner profile settings */}
 
       {/* Info Modal */}
       <InfoModal

@@ -5,12 +5,16 @@ import { TimeInput } from './shared/TimeInput';
 
 interface PractitionerNotificationTimeSettingsProps {
   notificationTime: string; // HH:MM format
+  reminderDaysAhead: number;
   onNotificationTimeChange: (time: string) => void;
+  onReminderDaysAheadChange: (days: number) => void;
 }
 
 const PractitionerNotificationTimeSettings: React.FC<PractitionerNotificationTimeSettingsProps> = ({
   notificationTime,
+  reminderDaysAhead,
   onNotificationTimeChange,
+  onReminderDaysAheadChange,
 }) => {
   const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
 
@@ -36,6 +40,30 @@ const PractitionerNotificationTimeSettings: React.FC<PractitionerNotificationTim
           value={notificationTime}
           onChange={onNotificationTimeChange}
           className="w-full max-w-xs"
+        />
+      </div>
+
+      <div className="mt-4">
+        <div className="flex items-center gap-2 mb-2">
+          <label className="block text-sm font-medium text-gray-700">
+            預約提醒天數
+          </label>
+        </div>
+        <p className="text-xs text-gray-500 mb-2">
+          設定每日預約提醒中要包含未來幾天的預約資訊（1-14 天）。
+        </p>
+        <input
+          type="number"
+          min="1"
+          max="14"
+          value={reminderDaysAhead}
+          onChange={(e) => {
+            const value = parseInt(e.target.value, 10);
+            if (!isNaN(value)) {
+              onReminderDaysAheadChange(Math.min(14, Math.max(1, value)));
+            }
+          }}
+          className="block w-full max-w-[120px] rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
         />
       </div>
 

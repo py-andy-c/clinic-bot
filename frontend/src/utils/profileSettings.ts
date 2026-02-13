@@ -3,6 +3,7 @@ import { DefaultScheduleResponse } from '../types';
 interface PractitionerSettings {
   compact_schedule_enabled: boolean;
   next_day_notification_time?: string;
+  reminder_days_ahead?: number;
   auto_assigned_notification_time?: string;
   step_size_minutes?: number | null;
   // Admin-only fields
@@ -80,12 +81,13 @@ export const validateProfileSettings = (data: ProfileSettingsData): string | nul
 
 // Get section-specific changes for profile settings
 export const getProfileSectionChanges = (current: ProfileSettingsData, original: ProfileSettingsData): Record<string, boolean> => {
-  const currentSettings = current.settings || { compact_schedule_enabled: false, next_day_notification_time: '21:00', auto_assigned_notification_time: '21:00' };
-  const originalSettings = original.settings || { compact_schedule_enabled: false, next_day_notification_time: '21:00', auto_assigned_notification_time: '21:00' };
+  const currentSettings = current.settings || { compact_schedule_enabled: false, next_day_notification_time: '21:00', reminder_days_ahead: 1, auto_assigned_notification_time: '21:00' };
+  const originalSettings = original.settings || { compact_schedule_enabled: false, next_day_notification_time: '21:00', reminder_days_ahead: 1, auto_assigned_notification_time: '21:00' };
 
   const settingsChanged =
     currentSettings.compact_schedule_enabled !== originalSettings.compact_schedule_enabled ||
     (currentSettings.next_day_notification_time || '21:00') !== (originalSettings.next_day_notification_time || '21:00') ||
+    (Number(currentSettings.reminder_days_ahead ?? 1)) !== (Number(originalSettings.reminder_days_ahead ?? 1)) ||
     (currentSettings.auto_assigned_notification_time || '21:00') !== (originalSettings.auto_assigned_notification_time || '21:00') ||
     currentSettings.step_size_minutes !== originalSettings.step_size_minutes ||
     (currentSettings.subscribe_to_appointment_changes ?? false) !== (originalSettings.subscribe_to_appointment_changes ?? false) ||

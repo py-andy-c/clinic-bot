@@ -123,7 +123,7 @@ class TestPractitionerDailyNotificationService:
             call_args = mock_line_service.send_text_message.call_args
             assert call_args[0][0] == "test_line_user_id"
             message = call_args[0][1]
-            assert "明日預約提醒" in message
+            assert "預約提醒" in message
             assert "Test Patient" in message
             assert "Test Type" in message
 
@@ -598,8 +598,8 @@ class TestPractitionerDailyNotificationService:
             assert "Patient One" in message
             assert "Patient Two" in message
 
-    def test_get_practitioner_appointments_for_date(self, db_session):
-        """Test that appointments are correctly retrieved for a specific date."""
+    def test_get_practitioner_appointments_for_date_range(self, db_session):
+        """Test that appointments are correctly retrieved for a specific date range."""
         # Create test data
         clinic = Clinic(
             name="Test Clinic",
@@ -640,6 +640,7 @@ class TestPractitionerDailyNotificationService:
         current_time = taiwan_now()
         target_date = (current_time + timedelta(days=1)).date()
         other_date = (current_time + timedelta(days=2)).date()
+        far_date = (current_time + timedelta(days=5)).date()
 
         # Appointment on target date
         calendar_event1 = create_calendar_event_with_clinic(
@@ -657,6 +658,14 @@ class TestPractitionerDailyNotificationService:
             start_time=time(14, 0),
             end_time=time(15, 0)
         )
+        # Appointment on far date
+        calendar_event3 = create_calendar_event_with_clinic(
+            db_session, user, clinic,
+            event_type="appointment",
+            event_date=far_date,
+            start_time=time(16, 0),
+            end_time=time(17, 0)
+        )
         db_session.flush()
 
         appointment1 = Appointment(
@@ -671,19 +680,40 @@ class TestPractitionerDailyNotificationService:
             appointment_type_id=appointment_type.id,
             status="confirmed"
         )
+        appointment3 = Appointment(
+            calendar_event_id=calendar_event3.id,
+            patient_id=patient.id,
+            appointment_type_id=appointment_type.id,
+            status="confirmed"
+        )
         db_session.add(appointment1)
         db_session.add(appointment2)
+        db_session.add(appointment3)
         db_session.commit()
 
         # Test the method
         service = PractitionerDailyNotificationService()
-        appointments = service._get_practitioner_appointments_for_date(
-            db_session, user.id, clinic.id, target_date
+        
+        # Test single day range
+        appointments = service._get_practitioner_appointments_for_date_range(
+            db_session, user.id, clinic.id, target_date, target_date
         )
-
-        # Should only return appointment on target date
         assert len(appointments) == 1
         assert appointments[0].calendar_event_id == calendar_event1.id
+
+        # Test multi-day range (2 days)
+        appointments = service._get_practitioner_appointments_for_date_range(
+            db_session, user.id, clinic.id, target_date, other_date
+        )
+        assert len(appointments) == 2
+        assert {a.calendar_event_id for a in appointments} == {calendar_event1.id, calendar_event2.id}
+
+        # Test large range (7 days)
+        appointments = service._get_practitioner_appointments_for_date_range(
+            db_session, user.id, clinic.id, target_date, far_date
+        )
+        assert len(appointments) == 3
+        assert {a.calendar_event_id for a in appointments} == {calendar_event1.id, calendar_event2.id, calendar_event3.id}
 
     def test_scheduler_timezone_is_taiwan(self):
         """Test that scheduler is configured with Taiwan timezone."""

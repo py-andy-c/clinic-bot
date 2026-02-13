@@ -111,10 +111,11 @@ class AdminDailyNotificationService:
                 # All time comparisons are done in Taiwan time
                 current_time = taiwan_now()
                 current_hour = current_time.hour
+                today = current_time.date()
                 
                 logger.info(
                     f"Checking for clinics needing admin daily reminders at "
-                    f"{current_time.strftime('%H:%M')} for next day appointments"
+                    f"{current_time.strftime('%H:%M')}"
                 )
 
                 # Get all clinics
@@ -136,19 +137,21 @@ class AdminDailyNotificationService:
                         logger.debug(f"No admins found for clinic {clinic.id}")
                         continue
 
-                    # Group admins by their notification time (using next_day_notification_time)
-                    admins_by_time: Dict[int, List[UserClinicAssociation]] = {}
+                    # Group admins by their notification time and reminder_days_ahead
+                    admins_by_config: Dict[tuple[int, int], List[UserClinicAssociation]] = {}
                     for admin_association in all_admins:
                         # Get admin's notification time setting (same as practitioners)
                         try:
                             admin_settings = admin_association.get_validated_settings()
                             notification_time_str = admin_settings.next_day_notification_time
+                            reminder_days_ahead = admin_settings.reminder_days_ahead
                         except Exception as e:
                             logger.warning(
                                 f"Error getting notification settings for admin {admin_association.user_id} "
-                                f"in clinic {clinic.id}: {e}, using default 21:00"
+                                f"in clinic {clinic.id}: {e}, using defaults (21:00, 1 day)"
                             )
                             notification_time_str = "21:00"
+                            reminder_days_ahead = 1
 
                         # Parse notification time (interpreted as Taiwan time, e.g., "21:00" = 9 PM)
                         try:
@@ -164,41 +167,47 @@ class AdminDailyNotificationService:
                         if notification_hour != current_hour:
                             continue
 
-                        if notification_hour not in admins_by_time:
-                            admins_by_time[notification_hour] = []
-                        admins_by_time[notification_hour].append(admin_association)
+                        config_key = (notification_hour, reminder_days_ahead)
+                        if config_key not in admins_by_config:
+                            admins_by_config[config_key] = []
+                        admins_by_config[config_key].append(admin_association)
 
                     # If no admins match current hour, skip this clinic
-                    if not admins_by_time:
+                    if not admins_by_config:
                         continue
 
-                    # Get appointments for next day (once per clinic)
-                    next_day_appointments = self._get_next_day_appointments(db, clinic.id)
+                    # Process each unique configuration
+                    for (notification_hour, reminder_days_ahead), admins in admins_by_config.items():
+                        # Get appointments for the date range
+                        start_date = today + timedelta(days=1)
+                        end_date = today + timedelta(days=reminder_days_ahead)
+                        
+                        appointments = self._get_appointments_for_date_range(db, clinic.id, start_date, end_date)
 
-                    if not next_day_appointments:
-                        logger.debug(
-                            f"No appointments for next day found for clinic {clinic.id}"
+                        if not appointments:
+                            logger.debug(
+                                f"No appointments found for clinic {clinic.id} from {start_date} to {end_date}"
+                            )
+                            continue
+
+                        # Group appointments by date, then by practitioner
+                        from itertools import groupby
+                        # Ensure appointments are sorted by date for groupby
+                        appointments.sort(key=lambda a: a.calendar_event.date)
+                        appointments_by_date = {
+                            d: list(g) for d, g in groupby(appointments, key=lambda a: a.calendar_event.date)
+                        }
+
+                        # Build message(s) with splitting
+                        messages = self._build_clinic_wide_message_for_range(
+                            db, appointments_by_date, start_date, end_date, clinic.id
                         )
-                        continue
 
-                    # Group appointments by practitioner
-                    appointments_by_practitioner = self._group_appointments_by_practitioner(
-                        next_day_appointments
-                    )
+                        if not messages:
+                            logger.warning(f"Failed to build messages for clinic {clinic.id}")
+                            continue
 
-                    # Build message(s) with splitting
-                    target_date = (current_time.date() + timedelta(days=1))
-                    messages = self._build_clinic_wide_message(
-                        db, appointments_by_practitioner, target_date, clinic.id
-                    )
-
-                    if not messages:
-                        logger.warning(f"Failed to build messages for clinic {clinic.id}")
-                        continue
-
-                    # Send to all admins who match current hour (batched)
-                    # All admins in admins_by_time[current_hour] get the same message(s)
-                    for notification_hour, admins in admins_by_time.items():
+                        # Send to all admins who match this configuration
                         labels = {
                             'recipient_type': 'admin',
                             'event_type': 'daily_appointment_reminder',
@@ -222,30 +231,26 @@ class AdminDailyNotificationService:
             except Exception as e:
                 logger.exception(f"Error sending admin daily reminders: {e}")
 
-    def _get_next_day_appointments(
+    def _get_appointments_for_date_range(
         self,
         db: Session,
-        clinic_id: int
+        clinic_id: int,
+        start_date: date,
+        end_date: date
     ) -> List[Appointment]:
         """
-        Get all confirmed appointments for the next day (from Taiwan timezone perspective).
-        
-        "Next day" is defined as: appointments with date = notification_date + 1 day
-        (00:00 to 23:59 Taiwan time).
+        Get all confirmed appointments for a date range (from Taiwan timezone perspective).
         
         Args:
             db: Database session
             clinic_id: ID of the clinic
+            start_date: Start date of the range
+            end_date: End date of the range
             
         Returns:
-            List of confirmed appointments for next day
+            List of confirmed appointments for the range
         """
-        # Get current Taiwan time
-        now = taiwan_now()
-        # Next day is current date + 1 day
-        next_day = (now.date() + timedelta(days=1))
-        
-        # Query confirmed appointments for next day
+        # Query confirmed appointments for the range
         # Filter out appointments with deleted appointment types (edge case #10)
         appointments = db.query(Appointment).join(
             CalendarEvent, Appointment.calendar_event_id == CalendarEvent.id
@@ -254,7 +259,8 @@ class AdminDailyNotificationService:
         ).filter(
             Appointment.status == 'confirmed',
             CalendarEvent.clinic_id == clinic_id,
-            CalendarEvent.date == next_day,
+            CalendarEvent.date >= start_date,
+            CalendarEvent.date <= end_date,
             CalendarEvent.start_time.isnot(None),
             # Filter out appointments with deleted appointment types
             # If appointment_type is None, include it (legacy data)
@@ -267,9 +273,40 @@ class AdminDailyNotificationService:
             joinedload(Appointment.patient),
             joinedload(Appointment.appointment_type),
             joinedload(Appointment.calendar_event).joinedload(CalendarEvent.user)
-        ).order_by(CalendarEvent.start_time).all()
+        ).order_by(CalendarEvent.date, CalendarEvent.start_time).all()
         
         return appointments
+
+    def _get_next_day_appointments(
+        self,
+        db: Session,
+        clinic_id: int
+    ) -> List[Appointment]:
+        """
+        DEPRECATED: Use _get_appointments_for_date_range instead.
+        
+        Get all confirmed appointments for the next day (from Taiwan timezone perspective).
+        
+        "Next day" is defined as: appointments with date = notification_date + 1 day
+        (00:00 to 23:59 Taiwan time).
+        
+        Args:
+            db: Database session
+            clinic_id: ID of the clinic
+            
+        Returns:
+            List of confirmed appointments for next day
+        """
+        logger.warning(
+            "DEPRECATED: _get_next_day_appointments is deprecated. "
+            "Use _get_appointments_for_date_range instead."
+        )
+        # Get current Taiwan time
+        now = taiwan_now()
+        # Next day is current date + 1 day
+        next_day = (now.date() + timedelta(days=1))
+        
+        return self._get_appointments_for_date_range(db, clinic_id, next_day, next_day)
 
     def _get_clinic_admins_with_daily_reminder(
         self,
@@ -320,6 +357,144 @@ class AdminDailyNotificationService:
             appointments_by_practitioner[practitioner_id].append(appointment)
         return appointments_by_practitioner
 
+    def _build_clinic_wide_message_for_range(
+        self,
+        db: Session,
+        appointments_by_date: Dict[date, List[Appointment]],
+        start_date: date,
+        end_date: date,
+        clinic_id: int
+    ) -> List[str]:
+        """
+        Build clinic-wide reminder message(s) for a date range with splitting if needed.
+        
+        Args:
+            db: Database session
+            appointments_by_date: Dictionary mapping date to list of appointments
+            start_date: Start date of the range
+            end_date: End date of the range
+            clinic_id: ID of the clinic
+            
+        Returns:
+            List of message strings (may be multiple if splitting occurred)
+        """
+        messages: List[str] = []
+        current_message_parts: List[str] = []
+        current_length = 0
+        
+        # Sort dates for consistent ordering
+        sorted_dates = sorted(appointments_by_date.keys())
+        
+        for target_date in sorted_dates:
+            date_appointments = appointments_by_date[target_date]
+            
+            # Group appointments by practitioner for this date
+            appointments_by_practitioner = self._group_appointments_by_practitioner(date_appointments)
+            
+            # Sort practitioners by ID for consistent ordering
+            practitioner_ids_only = [
+                pid for pid in appointments_by_practitioner.keys() if pid is not None
+            ]
+            sorted_practitioner_ids: List[int] = sorted(practitioner_ids_only)
+            
+            all_practitioner_ids: List[Optional[int]] = [pid for pid in sorted_practitioner_ids]
+            if None in appointments_by_practitioner:
+                all_practitioner_ids.append(None)
+            
+            # Build date section header
+            date_header = DailyNotificationMessageBuilder.build_date_section_header(target_date)
+            
+            # Check if adding date header exceeds limit
+            if current_length + len(date_header) > LINE_MESSAGE_TARGET_CHARS and current_message_parts:
+                messages.append("".join(current_message_parts))
+                current_message_parts = []
+                current_length = 0
+                # Add continuation header if we're splitting mid-range
+                date_header = DailyNotificationMessageBuilder.build_date_section_header(target_date, is_continuation=True)
+            
+            current_message_parts.append(date_header)
+            current_length += len(date_header)
+            
+            for practitioner_id in all_practitioner_ids:
+                practitioner_appointments = appointments_by_practitioner[practitioner_id]
+                
+                # Get practitioner name
+                if practitioner_id is None:
+                    practitioner_name = "不指定"
+                else:
+                    from utils.practitioner_helpers import get_practitioner_display_name_with_title
+                    practitioner_name = get_practitioner_display_name_with_title(
+                        db, practitioner_id, clinic_id
+                    )
+                
+                # Build practitioner section
+                practitioner_section = DailyNotificationMessageBuilder.build_practitioner_section(
+                    practitioner_name, practitioner_appointments, is_clinic_wide=True
+                )
+                
+                appointment_lines: List[str] = []
+                for i, appointment in enumerate(practitioner_appointments, 1):
+                    appointment_line = DailyNotificationMessageBuilder.build_appointment_line(appointment, i)
+                    appointment_lines.append(appointment_line)
+                
+                practitioner_text = practitioner_section + "".join(appointment_lines)
+                
+                # Check if adding this practitioner section exceeds limit
+                if current_length + len(practitioner_text) > LINE_MESSAGE_TARGET_CHARS and current_message_parts:
+                    messages.append("".join(current_message_parts))
+                    # Start new message with continuation headers
+                    current_message_parts = [
+                        DailyNotificationMessageBuilder.build_date_section_header(target_date, is_continuation=True),
+                        f"治療師：{practitioner_name} (續上頁)\n",
+                        f"共有 {len(practitioner_appointments)} 個預約：\n\n"
+                    ]
+                    current_length = sum(len(p) for p in current_message_parts)
+                    
+                    # If the practitioner section itself is still too long, we need to split it further
+                    if current_length + len(practitioner_text) > LINE_MESSAGE_TARGET_CHARS:
+                        # Split appointment lines
+                        for line in appointment_lines:
+                            if current_length + len(line) > LINE_MESSAGE_TARGET_CHARS:
+                                messages.append("".join(current_message_parts))
+                                current_message_parts = [
+                                    DailyNotificationMessageBuilder.build_date_section_header(target_date, is_continuation=True),
+                                    f"治療師：{practitioner_name} (續上頁)\n",
+                                    f"共有 {len(practitioner_appointments)} 個預約：\n\n"
+                                ]
+                                current_length = sum(len(p) for p in current_message_parts)
+                            current_message_parts.append(line)
+                            current_length += len(line)
+                    else:
+                        current_message_parts.append(practitioner_text)
+                        current_length += len(practitioner_text)
+                else:
+                    current_message_parts.append(practitioner_text)
+                    current_length += len(practitioner_text)
+            
+            # Add separator between days
+            if target_date != sorted_dates[-1]:
+                separator = "--------------------\n\n"
+                if current_length + len(separator) < LINE_MESSAGE_TARGET_CHARS:
+                    current_message_parts.append(separator)
+                    current_length += len(separator)
+
+        # Add final message
+        if current_message_parts:
+            messages.append("".join(current_message_parts))
+
+        # Add headers to all messages
+        total_parts = len(messages)
+        for i, msg in enumerate(messages, 1):
+            header = DailyNotificationMessageBuilder.build_message_header(
+                start_date, end_date,
+                is_clinic_wide=True,
+                part_number=i if total_parts > 1 else None,
+                total_parts=total_parts if total_parts > 1 else None
+            )
+            messages[i - 1] = header + msg
+            
+        return messages
+
     def _build_clinic_wide_message(
         self,
         db: Session,
@@ -329,132 +504,15 @@ class AdminDailyNotificationService:
     ) -> List[str]:
         """
         Build clinic-wide reminder message(s) with splitting if needed.
-        
-        Uses practitioner-style format but includes all practitioners' appointments.
-        Splits messages if they exceed LINE_MESSAGE_TARGET_CHARS (4500).
-        
-        Args:
-            db: Database session
-            appointments_by_practitioner: Dictionary mapping practitioner_id to appointments
-            target_date: Date of the appointments
-            clinic_id: ID of the clinic
-            
-        Returns:
-            List of message strings (may be multiple if splitting occurred)
+        (Legacy method for single date)
         """
-        # Sort practitioners by ID for consistent ordering
-        # Separate None (auto-assigned) from actual practitioner IDs
-        practitioner_ids_only = [
-            pid for pid in appointments_by_practitioner.keys() if pid is not None
-        ]
-        sorted_practitioner_ids: List[Optional[int]] = sorted(practitioner_ids_only)  # type: ignore[assignment]
-        
-        # Handle None practitioner_id separately (auto-assigned) - append at end
-        if None in appointments_by_practitioner:
-            sorted_practitioner_ids.append(None)
-
-        messages: List[str] = []
-        current_message_parts: List[str] = []
-        current_length = 0
-
-        for practitioner_id in sorted_practitioner_ids:
-            practitioner_appointments = appointments_by_practitioner[practitioner_id]
+        appointments_by_date: Dict[date, List[Appointment]] = {target_date: []}
+        for appts in appointments_by_practitioner.values():
+            appointments_by_date[target_date].extend(appts)
             
-            # Get practitioner name
-            if practitioner_id is None:
-                practitioner_name = "不指定"
-            else:
-                from utils.practitioner_helpers import get_practitioner_display_name_with_title
-                practitioner_name = get_practitioner_display_name_with_title(
-                    db, practitioner_id, clinic_id
-                )
-            
-            # Build practitioner section using shared utility
-            practitioner_section = DailyNotificationMessageBuilder.build_practitioner_section(
-                practitioner_name, practitioner_appointments, is_clinic_wide=True
-            )
-            
-            appointment_lines: List[str] = []
-            for i, appointment in enumerate(practitioner_appointments, 1):
-                # Build appointment line using shared utility
-                appointment_line = DailyNotificationMessageBuilder.build_appointment_line(
-                    appointment, i
-                )
-                appointment_lines.append(appointment_line)
-            
-            # Check if adding this practitioner would exceed limit
-            practitioner_text = practitioner_section + "".join(appointment_lines)
-            practitioner_length = len(practitioner_text)
-            
-            # If single practitioner exceeds limit, split mid-practitioner
-            if practitioner_length > LINE_MESSAGE_TARGET_CHARS and len(appointment_lines) > 1:
-                # Split mid-practitioner (fallback case)
-                remaining_in_current = LINE_MESSAGE_TARGET_CHARS - current_length - len(practitioner_section) - 50  # Buffer
-                split_index = 0
-                accumulated_length = 0
-                
-                for idx, line in enumerate(appointment_lines):
-                    if accumulated_length + len(line) > remaining_in_current and idx > 0:
-                        split_index = idx
-                        break
-                    accumulated_length += len(line)
-                
-                if split_index > 0:
-                    # Split the practitioner's appointments
-                    first_part = appointment_lines[:split_index]
-                    second_part = appointment_lines[split_index:]
-                    
-                    # Add first part to current message
-                    if current_message_parts:
-                        messages.append("".join(current_message_parts) + practitioner_section + "".join(first_part))
-                    else:
-                        messages.append(practitioner_section + "".join(first_part))
-                    
-                    # Start new message with continuation
-                    continuation_section = f"治療師：{practitioner_name} (續上頁)\n"
-                    continuation_section += f"共有 {len(practitioner_appointments)} 個預約：\n\n"
-                    current_message_parts = [continuation_section] + second_part
-                    current_length = len(continuation_section) + sum(len(line) for line in second_part)
-                    continue
-            
-            # Check if adding this practitioner would exceed limit
-            if current_length + len(practitioner_text) > LINE_MESSAGE_TARGET_CHARS and current_message_parts:
-                # Save current message and start new one
-                messages.append("".join(current_message_parts))
-                current_message_parts = []
-                current_length = 0
-            
-            # Add practitioner section to current message
-            current_message_parts.append(practitioner_text)
-            current_length += len(practitioner_text)
-
-        # Add final message if there are remaining parts
-        if current_message_parts:
-            messages.append("".join(current_message_parts))
-
-        # Add headers to all messages using shared utility
-        total_parts = len(messages)
-        for i, msg in enumerate(messages, 1):
-            header = DailyNotificationMessageBuilder.build_message_header(
-                target_date,
-                is_clinic_wide=True,
-                part_number=i if total_parts > 1 else None,
-                total_parts=total_parts if total_parts > 1 else None
-            )
-            full_message = header + msg
-            
-            # Validate final message length (including header) stays under limit
-            if len(full_message) > LINE_MESSAGE_MAX_CHARS:
-                logger.warning(
-                    f"Message part {i}/{total_parts} exceeds LINE limit: {len(full_message)} chars "
-                    f"(limit: {LINE_MESSAGE_MAX_CHARS}). This should not happen with current splitting logic."
-                )
-                # Truncate if somehow we exceeded (shouldn't happen, but safety check)
-                full_message = full_message[:LINE_MESSAGE_MAX_CHARS - 3] + "..."
-            
-            messages[i - 1] = full_message
-
-        return messages
+        return self._build_clinic_wide_message_for_range(
+            db, appointments_by_date, target_date, target_date, clinic_id
+        )
 
 
 # Global service instance

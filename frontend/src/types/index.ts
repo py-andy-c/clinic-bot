@@ -101,6 +101,11 @@ export interface PractitionerSettings {
   patient_booking_allowed: boolean;
   step_size_minutes: number | null;
   compact_schedule_enabled?: boolean;
+  next_day_notification_time?: string;
+  reminder_days_ahead?: number;
+  auto_assigned_notification_time?: string;
+  subscribe_to_appointment_changes?: boolean;
+  auto_assigned_notification_mode?: 'immediate' | 'scheduled';
 }
 
 export interface Practitioner {
