@@ -4,23 +4,26 @@ Practitioner Management API endpoints.
 """
 
 import logging
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from fastapi import status as http_status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy import func
 
 from core.database import get_db
+from core.sentinels import MISSING
 from auth.dependencies import require_authenticated, require_admin_role, UserContext, ensure_clinic_access
 from models import User, AppointmentType, PractitionerAvailability, UserClinicAssociation
 from services import PractitionerService, AppointmentTypeService
 from utils.appointment_type_queries import count_active_appointment_types_for_practitioner
 from utils.datetime_utils import taiwan_now
+from utils.dict_utils import deep_merge
 from api.responses import (
     AppointmentTypeResponse, PractitionerAppointmentTypesResponse, PractitionerStatusResponse,
-    PractitionerFullResponse, PractitionerListResponse
+    PractitionerListResponse
 )
 
 logger = logging.getLogger(__name__)
@@ -277,15 +280,24 @@ async def update_practitioner_settings(
         from models.user_clinic_association import PractitionerSettings
         
         try:
-            # Get current settings and merge with new settings
-            current_settings = association.get_validated_settings()
-            # Merge: update only provided fields, keep existing values for others
-            merged_settings_dict = current_settings.model_dump()
-            merged_settings_dict.update(request.settings)
-            # Validate merged settings
-            validated_settings = PractitionerSettings.model_validate(merged_settings_dict)
-            association.set_validated_settings(validated_settings)
-            association.updated_at = taiwan_now()
+            # Check if settings were provided in the request
+            # Use the MISSING sentinel pattern for application-wide consistency
+            incoming_settings = request.settings if 'settings' in request.model_fields_set else MISSING
+            
+            if incoming_settings is not MISSING:
+                # Get current settings and merge with new settings
+                current_settings = association.get_validated_settings()
+                # Merge: update only provided fields, keep existing values for others
+                # Use deep_merge for recursive safety
+                # Use cast to satisfy Pyright
+                incoming_settings_dict = cast(Dict[str, Any], incoming_settings)
+                merged_settings_dict = deep_merge(current_settings.model_dump(), incoming_settings_dict)
+                # Validate merged settings
+                validated_settings = PractitionerSettings.model_validate(merged_settings_dict)
+                association.set_validated_settings(validated_settings)
+                # Force SQLAlchemy to detect the JSONB change
+                flag_modified(association, "settings")
+                association.updated_at = taiwan_now()
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,

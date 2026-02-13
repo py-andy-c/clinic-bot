@@ -6,7 +6,8 @@ from datetime import datetime
 
 from core.database import get_db
 from auth.dependencies import require_authenticated, UserContext, ensure_clinic_access
-from services.medical_record_service import MedicalRecordService, RecordVersionConflictError, MISSING
+from services.medical_record_service import MedicalRecordService, RecordVersionConflictError
+from core.sentinels import MISSING
 from services.patient_photo_service import PatientPhotoService
 from models.user_clinic_association import UserClinicAssociation
 from utils.datetime_utils import ensure_taiwan

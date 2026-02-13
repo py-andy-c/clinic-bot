@@ -32,8 +32,8 @@ from models import (
     LineUser, Clinic, Patient, AvailabilityNotification, AppointmentType, User, Appointment, CalendarEvent, MedicalRecord
 )
 from models.receipt import Receipt
+from core.sentinels import MISSING
 from services import PatientService, AppointmentService, AvailabilityService, PractitionerService, AppointmentTypeService, MedicalRecordService, PatientPhotoService
-from services.medical_record_service import MISSING
 from services import PatientPractitionerAssignmentService
 from models import UserClinicAssociation
 from utils.phone_validator import validate_taiwanese_phone, validate_taiwanese_phone_optional

@@ -124,3 +124,20 @@ We will apply similar fixes to other areas identified as vulnerable:
 * **Integration Test:** Add a test case to `tests/api/test_settings.py` that specifically sends a partial `clinic_info_settings` object (missing `display_name`) and asserts that the `display_name` remains unchanged in the database.
 * **Frontend Schema Audit:** Align the Zod schemas in `frontend/src/schemas/api.ts` to reflect which fields are actually optional/nullable.
 * **Code Review Standard:** Mandate the use of "Merge-by-default" for all `JSONB` columns to prevent data loss.
+
+## Resolution Status (2026-02-13)
+
+The following fixes have been implemented and verified:
+
+1. **Backend Patch (Deep Merge):** Implemented a pure, recursive `deep_merge` utility in `backend/src/utils/dict_utils.py`. This ensures that partial JSONB updates only modify provided fields and preserve all others.
+2. **Sentinel Pattern Unification:** Successfully unified the `MISSING` sentinel pattern across `settings.py`, `practitioners.py`, `profile.py`, and `medical_records.py`. This provides a consistent, application-wide mechanism to distinguish between omitted fields (no change) and fields explicitly set to `null` (clear data).
+3. **Frontend Logic (Lean Schema + Passthrough):**
+   * **Decision:** Adopted a "Lean Frontend" approach for `AppointmentsSettingsFormSchema`.
+   * **Rationale:** Rather than manually including fields the form doesn't manage (like `display_name`), the schema now focuses strictly on managed fields and uses `.passthrough()`. This ensures Zod doesn't strip unknown data, while the backend's deep merge serves as the ultimate "defense-in-depth" to preserve non-managed data. This avoids technical debt and fragility in form state management.
+4. **SQLAlchemy Persistence:** Verified that `flag_modified` is consistently applied to all JSONB column updates, ensuring SQLAlchemy correctly tracks and persists changes.
+5. **Regression Testing:** A comprehensive integration test suite (`test_settings_deep_merge.py`) has been added. It reproduces the original incident conditions and verifies that the fix preserves unmanaged data while correctly handling explicit nulls.
+
+**Next Steps:**
+
+* **Database Audit:** Perform the database audit and recovery for any other affected clinics (Assigned to follow-up task).
+* **Manual Verification:** Perform manual verification on staging/production after deployment.

@@ -14,6 +14,7 @@ from models.user_clinic_association import UserClinicAssociation
 from models.line_user import LineUser
 from models.clinic import Clinic
 from services.line_service import LINEService
+from core.sentinels import MISSING
 
 
 class RecordVersionConflictError(Exception):
@@ -24,8 +25,6 @@ class RecordVersionConflictError(Exception):
         self.updated_by_user_name = updated_by_user_name
         super().__init__(self.message)
 
-# Sentinel for optional parameters not provided in an update
-MISSING = object()
 
 class MedicalRecordService:
     @staticmethod

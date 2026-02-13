@@ -9,19 +9,22 @@ Email cannot be changed as it's tied to the Google account used for signup.
 import logging
 import secrets
 from datetime import datetime, timedelta, timezone
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, field_validator
 from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm.attributes import flag_modified
 
 logger = logging.getLogger(__name__)
 
 from core.database import get_db
+from core.sentinels import MISSING
 from auth.dependencies import get_current_user, UserContext, ensure_clinic_access
 from models import User, PractitionerLinkCode, Clinic
 from models.user_clinic_association import PractitionerSettings
 from utils.datetime_utils import taiwan_now
+from utils.dict_utils import deep_merge
 
 router = APIRouter()
 
@@ -202,57 +205,76 @@ async def update_profile(
                 association.updated_at = taiwan_now()
 
             # Update settings if provided (for practitioners and admins)
-            if profile_data.settings is not None:
-                # Allow both practitioners and admins to update settings
-                # Practitioners can update compact_schedule_enabled and next_day_notification_time
-                # Admins can update auto_assigned_notification_time
-                if not (association.roles or []):
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail="使用者必須有角色才能更新設定"
-                    )
-                try:
-                    # Validate settings schema
-                    validated_settings = PractitionerSettings.model_validate(profile_data.settings)
-                    
-                    # Backend validation: Check if user has admin role before allowing admin-only fields
-                    is_admin = 'admin' in (association.roles or [])
-                    admin_only_fields = [
-                        'subscribe_to_appointment_changes',
-                        'auto_assigned_notification_mode'
-                    ]
-                    
-                    # Check if non-admin is trying to set admin-only fields
-                    settings_dict = profile_data.settings
-                    for field in admin_only_fields:
-                        if field in settings_dict and settings_dict[field] is not None:
-                            # Check if value is different from default (indicates user is trying to set it)
-                            default_value = PractitionerSettings.model_fields[field].default
-                            if settings_dict[field] != default_value:
-                                if not is_admin:
-                                    raise ValueError(f"只有管理員可以設定 {field}")
-                    
-                    # Ensure practitioner step size is not smaller than clinic default
-                    if validated_settings.step_size_minutes is not None:
-                        # Fetch clinic settings
-                        clinic = db.query(Clinic).filter(Clinic.id == current_user.active_clinic_id).first()
-                        if clinic:
-                            clinic_step = clinic.get_validated_settings().booking_restriction_settings.step_size_minutes
-                            if validated_settings.step_size_minutes < clinic_step:
-                                raise ValueError(f"個人預約起始時間間隔不能小於診所預設值 ({clinic_step} 分鐘)")
-
-                    association.set_validated_settings(validated_settings)
-                    association.updated_at = taiwan_now()
-                except Exception as e:
-                    detail = str(e)
-                    if "Validator" in detail or "value_error" in detail:
-                        # Clean up Pydantic error messages if possible or use generic one
-                        detail = "無效的設定格式" if not str(e).startswith("個人") and not str(e).startswith("只有管理員") else str(e)
+            # Use the MISSING sentinel pattern for application-wide consistency
+            incoming_settings = profile_data.settings if 'settings' in profile_data.model_fields_set else MISSING
+            
+            if incoming_settings is not MISSING:
+                if incoming_settings is None:
+                    # If explicitly set to null, we might want to reset to defaults
+                    # but usually for JSONB we want to merge or keep defaults.
+                    # For now, let's treat None as "no update" or "clear"
+                    # depending on business logic. 
+                    # Existing logic was using `is not None` which treats omitted 
+                    # (default None) the same as explicit null.
+                    pass
+                else:
+                    # Allow both practitioners and admins to update settings
+                    # Practitioners can update compact_schedule_enabled and next_day_notification_time
+                    # Admins can update auto_assigned_notification_time
+                    if not (association.roles or []):
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="使用者必須有角色才能更新設定"
+                        )
+                    try:
+                        # Get current settings and merge with incoming data
+                        current_settings_dict = association.get_validated_settings().model_dump()
+                        # Use cast to satisfy Pyright after confirming it's a dict
+                        incoming_settings_dict = cast(Dict[str, Any], incoming_settings)
+                        merged_settings_dict = deep_merge(current_settings_dict, incoming_settings_dict)
                         
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=detail
-                    )
+                        # Validate merged settings schema
+                        validated_settings = PractitionerSettings.model_validate(merged_settings_dict)
+                        
+                        # Backend validation: Check if user has admin role before allowing admin-only fields
+                        is_admin = 'admin' in (association.roles or [])
+                        admin_only_fields = [
+                            'subscribe_to_appointment_changes',
+                            'auto_assigned_notification_mode'
+                        ]
+                        
+                        # Check if non-admin is trying to set admin-only fields
+                        for field in admin_only_fields:
+                            if field in incoming_settings_dict and incoming_settings_dict[field] is not None:
+                                # Check if value is different from default (indicates user is trying to set it)
+                                default_value = PractitionerSettings.model_fields[field].default
+                                if incoming_settings_dict[field] != default_value:
+                                    if not is_admin:
+                                        raise ValueError(f"只有管理員可以設定 {field}")
+                        
+                        # Ensure practitioner step size is not smaller than clinic default
+                        if validated_settings.step_size_minutes is not None:
+                            # Fetch clinic settings
+                            clinic = db.query(Clinic).filter(Clinic.id == current_user.active_clinic_id).first()
+                            if clinic:
+                                clinic_step = clinic.get_validated_settings().booking_restriction_settings.step_size_minutes
+                                if validated_settings.step_size_minutes < clinic_step:
+                                    raise ValueError(f"個人預約起始時間間隔不能小於診所預設值 ({clinic_step} 分鐘)")
+    
+                        association.set_validated_settings(validated_settings)
+                        # Force SQLAlchemy to detect the JSONB change
+                        flag_modified(association, "settings")
+                        association.updated_at = taiwan_now()
+                    except Exception as e:
+                        detail = str(e)
+                        if "Validator" in detail or "value_error" in detail:
+                            # Clean up Pydantic error messages if possible or use generic one
+                            detail = "無效的設定格式" if not str(e).startswith("個人") and not str(e).startswith("只有管理員") else str(e)
+                            
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail=detail
+                        )
         elif current_user.is_system_admin():
             # System admins don't have associations - name is not used
             if profile_data.full_name is not None or profile_data.settings is not None:

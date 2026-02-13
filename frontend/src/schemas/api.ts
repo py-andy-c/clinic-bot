@@ -204,7 +204,7 @@ export const AppointmentsSettingsFormSchema = z.object({
     query_page_instructions: z.string().nullable().optional(),
     settings_page_instructions: z.string().nullable().optional(),
     notifications_page_instructions: z.string().nullable().optional(),
-  }),
+  }).passthrough(),
   booking_restriction_settings: BookingRestrictionFormSchema,
   practitioners: z.array(z.object({
     id: z.number(),

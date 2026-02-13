@@ -7,6 +7,7 @@ import logging
 import secrets
 import os
 import re
+import copy
 from typing import Dict, List, Optional, Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -15,6 +16,7 @@ from pydantic import BaseModel, model_validator, field_validator, Field
 from datetime import time
 from decimal import Decimal
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy import func, or_, text
 
 from core.database import get_db
@@ -32,6 +34,8 @@ from models import (
 from services import AppointmentTypeService
 from services.availability_service import AvailabilityService
 from utils.datetime_utils import taiwan_now
+from utils.dict_utils import deep_merge
+from core.sentinels import MISSING
 from utils.appointment_queries import (
     count_future_appointments_for_appointment_type,
     count_past_appointments_for_appointment_type
@@ -786,12 +790,6 @@ async def update_settings(
     current_user: UserContext = Depends(require_admin_role),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
-    """
-    Update clinic settings including appointment types.
-
-    Only clinic admins can update settings.
-    Prevents deletion of appointment types that are referenced by practitioners.
-    """
     try:
         # Ensure clinic_id is set
         clinic_id = ensure_clinic_access(current_user)
@@ -897,7 +895,7 @@ async def update_settings(
 
         # Update flat settings sections if present (Partial Update Pattern)
         # We merge incoming data into the existing settings dictionary
-        current_settings = dict(clinic.settings)
+        current_settings = copy.deepcopy(clinic.settings)
         settings_sections = [
             "clinic_info_settings", 
             "notification_settings", 
@@ -908,17 +906,24 @@ async def update_settings(
         
         settings_changed = False
         for section in settings_sections:
-            if section in settings:
+            incoming_section = settings.get(section, MISSING)
+            if incoming_section is not MISSING:
                 # Update the section in the current settings
-                # Note: We do a simple override of the section for atomic consistency
+                # We use deep_merge to ensure we don't clear fields omitted by the frontend
                 logger.info(f"Updating settings section '{section}' for clinic {clinic_id}")
                 if section == "chat_settings":
                     logger.debug(f"New chat_settings: {settings[section]}")
-                current_settings[section] = settings[section]
+                
+                # Perform recursive merge
+                current_settings[section] = deep_merge(
+                    current_settings.get(section, {}), 
+                    incoming_section
+                )
                 settings_changed = True
         
         if settings_changed:
             clinic.settings = current_settings
+            flag_modified(clinic, "settings")
             db.flush()
 
         # Process appointment types: update existing, create new, soft delete removed ones
