@@ -51,7 +51,8 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
     const [isNewMessage, setIsNewMessage] = useState(false);
     const [formData, setFormData] = useState<FollowUpMessageFormData>({
         timing_mode: 'hours_after',
-        hours_after: undefined,
+        hours_after: 0,
+        days_after: 0,
         message_template: '',
         is_enabled: true,
         display_order: 0,
@@ -76,7 +77,8 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
             setFormData(prev => ({ ...prev, hours_after: value }));
             if (formErrors.hours_after) {
                 setFormErrors(prev => {
-                    const { hours_after, ...rest } = prev;
+                    const rest = { ...prev };
+                    delete rest.hours_after;
                     return rest;
                 });
             }
@@ -90,7 +92,8 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
             setFormData(prev => ({ ...prev, days_after: value }));
             if (formErrors.days_after) {
                 setFormErrors(prev => {
-                    const { days_after, ...rest } = prev;
+                    const rest = { ...prev };
+                    delete rest.days_after;
                     return rest;
                 });
             }
@@ -115,9 +118,9 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
             setExpandedMessages(new Set(messages.map(m => m.id)));
             // Update parent with loaded messages
             onUpdate({ ...appointmentType, follow_up_messages: messages });
-        } catch (error: any) {
+        } catch (error: unknown) {
             logger.error('Failed to load follow-up messages:', error);
-            const errorMessage = error?.response?.data?.detail || '無法載入追蹤訊息';
+            const errorMessage = (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail || '無法載入追蹤訊息';
             await alert(errorMessage, '載入失敗');
             // Set empty list on error so UI shows empty state
             setFollowUpMessages([]);
@@ -164,7 +167,8 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
         setEditingMessage(null);
         setFormData({
             timing_mode: 'hours_after',
-            hours_after: undefined,
+            hours_after: 0,
+            days_after: 0,
             message_template: '{病患姓名}，感謝您今天的預約！\n\n希望今天的服務對您有幫助。如有任何問題或需要協助，歡迎隨時聯繫我們。\n\n期待下次為您服務！',
             is_enabled: true,
             display_order: followUpMessages.length,
@@ -177,8 +181,8 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
         setEditingMessage(message);
         setFormData({
             timing_mode: message.timing_mode,
-            hours_after: message.hours_after ?? undefined,
-            days_after: message.days_after ?? undefined,
+            hours_after: message.hours_after ?? 0,
+            days_after: message.days_after ?? 0,
             time_of_day: message.time_of_day ?? undefined,
             message_template: message.message_template,
             is_enabled: message.is_enabled,
@@ -325,7 +329,7 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
             }
             const preview = await apiService.previewFollowUpMessage(previewData);
             setPreviewData(preview);
-        } catch (error: any) {
+        } catch (error: unknown) {
             logger.error('Failed to load preview:', error);
             // Keep modal open but show error state (handled by !previewData check in render)
             setPreviewData(null);
@@ -534,7 +538,9 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
                                                     hours_after: prev.hours_after !== undefined ? prev.hours_after : 0,
                                                 }));
                                                 setFormErrors(prev => {
-                                                    const { days_after, time_of_day, ...rest } = prev;
+                                                    const rest = { ...prev };
+                                                    delete rest.days_after;
+                                                    delete rest.time_of_day;
                                                     return rest;
                                                 });
                                             }}
@@ -584,7 +590,8 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
                                                     time_of_day: prev.time_of_day || '21:00',
                                                 }));
                                                 setFormErrors(prev => {
-                                                    const { hours_after, ...rest } = prev;
+                                                    const rest = { ...prev };
+                                                    delete rest.hours_after;
                                                     return rest;
                                                 });
                                             }}
@@ -623,7 +630,8 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
                                                         setFormData(prev => ({ ...prev, time_of_day: value }));
                                                         if (formErrors.time_of_day) {
                                                             setFormErrors(prev => {
-                                                                const { time_of_day, ...rest } = prev;
+                                                                const rest = { ...prev };
+                                                                delete rest.time_of_day;
                                                                 return rest;
                                                             });
                                                         }
@@ -674,7 +682,8 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
                                         setFormData(prev => ({ ...prev, message_template: e.target.value }));
                                         if (formErrors.message_template) {
                                             setFormErrors(prev => {
-                                                const { message_template, ...rest } = prev;
+                                                const rest = { ...prev };
+                                                delete rest.message_template;
                                                 return rest;
                                             });
                                         }

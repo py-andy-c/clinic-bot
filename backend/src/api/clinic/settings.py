@@ -34,6 +34,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy import func, or_, text
 
+from core.constants import TEMPORARY_ID_THRESHOLD
 from core.database import get_db
 from auth.dependencies import require_admin_role, require_authenticated, UserContext, ensure_clinic_access
 from models import (
@@ -71,6 +72,14 @@ from core.message_template_constants import (
     DEFAULT_REMINDER_MESSAGE as _DEFAULT_REMINDER_MESSAGE,
     DEFAULT_RECURRENT_CLINIC_CONFIRMATION_MESSAGE as _DEFAULT_RECURRENT_CLINIC_CONFIRMATION_MESSAGE
 )
+
+
+def _is_real_id(id_value: Optional[int]) -> bool:
+    """
+    Check if an ID is a real database ID (small positive integer).
+    Temporary IDs from the frontend are large timestamps > TEMPORARY_ID_THRESHOLD.
+    """
+    return id_value is not None and 0 < id_value < TEMPORARY_ID_THRESHOLD
 
 
 def _get_message_or_default(raw_message: Any, default_message: str) -> str:
@@ -468,6 +477,49 @@ class ServiceItemData(BaseModel):
                 raise ValueError(f"recurrent_clinic_confirmation_message: {', '.join(errors)}")
                 
         return self
+
+
+def _create_billing_scenario(
+    clinic_id: int,
+    appointment_type_id: int,
+    bs_data: BillingScenarioBundleData
+) -> BillingScenario:
+    """Helper to create a BillingScenario record."""
+    return BillingScenario(
+        clinic_id=clinic_id,
+        appointment_type_id=appointment_type_id,
+        practitioner_id=bs_data.practitioner_id,
+        name=bs_data.name,
+        amount=bs_data.amount,
+        revenue_share=bs_data.revenue_share,
+        is_default=bs_data.is_default,
+        created_at=taiwan_now(),
+        updated_at=taiwan_now()
+    )
+
+
+def _create_follow_up_message(
+    clinic_id: int,
+    appointment_type_id: int,
+    fm_data: FollowUpMessageBundleData
+) -> FollowUpMessage:
+    """Helper to create a FollowUpMessage record."""
+    fm_time = None
+    if fm_data.time_of_day:
+        h, m = map(int, fm_data.time_of_day.split(':'))
+        fm_time = time(h, m)
+
+    return FollowUpMessage(
+        clinic_id=clinic_id,
+        appointment_type_id=appointment_type_id,
+        timing_mode=fm_data.timing_mode,
+        hours_after=fm_data.hours_after,
+        days_after=fm_data.days_after,
+        time_of_day=fm_time,
+        message_template=fm_data.message_template,
+        is_enabled=fm_data.is_enabled,
+        display_order=fm_data.display_order
+    )
 
 
 class ServiceItemBundleRequest(BaseModel):
@@ -1214,12 +1266,20 @@ def _sync_service_item_associations(
         if bs_data.practitioner_id not in valid_practitioner_ids:
             continue
             
-        if bs_data.id:
+        if bs_data.id and bs_data.id >= TEMPORARY_ID_THRESHOLD:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Temporary billing scenario ID {bs_data.id} should not be sent to backend"
+            )
+
+        if _is_real_id(bs_data.id):
             bs = db.query(BillingScenario).filter(
                 BillingScenario.id == bs_data.id,
-                BillingScenario.appointment_type_id == appointment_type_id
+                BillingScenario.appointment_type_id == appointment_type_id,
+                BillingScenario.clinic_id == clinic_id
             ).first()
             if bs:
+                logger.info(f"Updating existing billing scenario {bs.id}")
                 bs.practitioner_id = bs_data.practitioner_id
                 bs.name = bs_data.name
                 bs.amount = bs_data.amount
@@ -1228,18 +1288,13 @@ def _sync_service_item_associations(
                 bs.is_deleted = False
                 bs.deleted_at = None
                 bs.updated_at = taiwan_now()
+            else:
+                logger.warning(f"Billing scenario ID {bs_data.id} provided but not found in DB for AT {appointment_type_id} and clinic {clinic_id}. Treating as new record.")
+                bs = _create_billing_scenario(clinic_id, appointment_type_id, bs_data)
+                db.add(bs)
         else:
-            bs = BillingScenario(
-                clinic_id=clinic_id,
-                appointment_type_id=appointment_type_id,
-                practitioner_id=bs_data.practitioner_id,
-                name=bs_data.name,
-                amount=bs_data.amount,
-                revenue_share=bs_data.revenue_share,
-                is_default=bs_data.is_default,
-                created_at=taiwan_now(),
-                updated_at=taiwan_now()
-            )
+            logger.info(f"Creating new billing scenario for AT {appointment_type_id}")
+            bs = _create_billing_scenario(clinic_id, appointment_type_id, bs_data)
             db.add(bs)
 
     # 3. Resource Requirements (Replace-All Sync)
@@ -1257,21 +1312,32 @@ def _sync_service_item_associations(
 
     # 4. Follow-up Messages (Diff Sync)
     incoming_fm_ids = {fm.id for fm in associations.follow_up_messages if fm.id}
+    logger.info(f"Syncing follow-up messages for AT {appointment_type_id}. Incoming IDs: {incoming_fm_ids}")
+    
     q_fm = db.query(FollowUpMessage).filter(
         FollowUpMessage.appointment_type_id == appointment_type_id
     )
     if incoming_fm_ids:
         q_fm = q_fm.filter(FollowUpMessage.id.not_in(incoming_fm_ids))
         
-    q_fm.delete(synchronize_session='fetch')
+    deleted_count = q_fm.delete(synchronize_session='fetch')
+    logger.info(f"Deleted {deleted_count} follow-up messages not in incoming list")
     
     for fm_data in associations.follow_up_messages:
-        if fm_data.id:
+        if fm_data.id and fm_data.id >= TEMPORARY_ID_THRESHOLD:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Temporary follow-up message ID {fm_data.id} should not be sent to backend"
+            )
+
+        if _is_real_id(fm_data.id):
             fm = db.query(FollowUpMessage).filter(
                 FollowUpMessage.id == fm_data.id,
-                FollowUpMessage.appointment_type_id == appointment_type_id
+                FollowUpMessage.appointment_type_id == appointment_type_id,
+                FollowUpMessage.clinic_id == clinic_id
             ).first()
             if fm:
+                logger.info(f"Updating existing follow-up message {fm.id}")
                 fm.timing_mode = fm_data.timing_mode
                 fm.hours_after = fm_data.hours_after
                 fm.days_after = fm_data.days_after
@@ -1285,23 +1351,13 @@ def _sync_service_item_associations(
                 fm.message_template = fm_data.message_template
                 fm.is_enabled = fm_data.is_enabled
                 fm.display_order = fm_data.display_order
+            else:
+                logger.warning(f"Follow-up message ID {fm_data.id} provided but not found in DB for AT {appointment_type_id} and clinic {clinic_id}. Treating as new record.")
+                fm = _create_follow_up_message(clinic_id, appointment_type_id, fm_data)
+                db.add(fm)
         else:
-            fm_time = None
-            if fm_data.time_of_day:
-                h, m = map(int, fm_data.time_of_day.split(':'))
-                fm_time = time(h, m)
-                
-            fm = FollowUpMessage(
-                clinic_id=clinic_id,
-                appointment_type_id=appointment_type_id,
-                timing_mode=fm_data.timing_mode,
-                hours_after=fm_data.hours_after,
-                days_after=fm_data.days_after,
-                time_of_day=fm_time,
-                message_template=fm_data.message_template,
-                is_enabled=fm_data.is_enabled,
-                display_order=fm_data.display_order
-            )
+            logger.info(f"Creating new follow-up message for AT {appointment_type_id}")
+            fm = _create_follow_up_message(clinic_id, appointment_type_id, fm_data)
             db.add(fm)
 
 

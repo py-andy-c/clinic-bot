@@ -29,7 +29,7 @@ import { MessageSettingsSection } from './MessageSettingsSection';
 import { FollowUpMessagesSection } from './FollowUpMessagesSection';
 import { ResourceRequirementsSection } from './ResourceRequirementsSection';
 import { FormInput } from './forms/FormInput';
-import { generateTemporaryId } from '../utils/idUtils';
+import { generateTemporaryId, isRealId } from '../utils/idUtils';
 import { useUnsavedChangesDetection } from '../hooks/useUnsavedChangesDetection';
 import { formatCurrency } from '../utils/currencyUtils';
 import { useNumberInput } from '../hooks/useNumberInput';
@@ -294,7 +294,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
               revenue_share: bs.revenue_share,
               is_default: bs.is_default
             };
-            if (bs.id && bs.id > 0) scenario.id = bs.id;
+            if (bs.id && isRealId(bs.id)) scenario.id = bs.id;
             return scenario;
           }),
           resource_requirements: (data.resource_requirements || []).map((req): ResourceRequirementBundleData => ({
@@ -311,7 +311,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
               is_enabled: msg.is_enabled !== false, // Default to true if not explicitly false
               display_order: msg.display_order ?? 0,
             };
-            if (msg.id && msg.id > 0) fm.id = msg.id;
+            if (msg.id && isRealId(msg.id)) fm.id = msg.id;
             return fm;
           })
         }
