@@ -1477,7 +1477,7 @@ const LandingPage: React.FC = () => {
         <FeatureSection
           id="emr"
           title="專業病歷系統"
-          valueProp="安全、便利、客製化的雲端病例系統。"
+          valueProp="安全、便利、客製化的雲端病歷系統。"
           features={[
             "診所自定義模板，符合多樣場景。",
             "雲端照片管理，安全存取便利。",

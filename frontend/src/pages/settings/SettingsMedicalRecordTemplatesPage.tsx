@@ -59,7 +59,7 @@ const SettingsMedicalRecordTemplatesPage: React.FC = () => {
     <div className="max-w-6xl mx-auto">
       <SettingsBackButton />
       
-      <PageHeader title="病例與表單" />
+      <PageHeader title="病歷與表單" />
 
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         {/* Header with Add Button */}

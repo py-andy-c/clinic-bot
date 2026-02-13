@@ -11,7 +11,7 @@ test.describe('Medical Record Template Preview', () => {
 
   test('should switch between edit and preview tabs', async ({ page }) => {
     // Navigate to medical record templates section
-    await page.click('text=病例與表單');
+    await page.click('text=病歷與表單');
     
     // Click create new template button
     await page.click('button:has-text("新增模板")');
@@ -40,7 +40,7 @@ test.describe('Medical Record Template Preview', () => {
 
   test('should preview all field types correctly', async ({ page }) => {
     // Navigate to medical record templates section
-    await page.click('text=病例與表單');
+    await page.click('text=病歷與表單');
     
     // Click create new template button
     await page.click('button:has-text("新增模板")');
@@ -96,7 +96,7 @@ test.describe('Medical Record Template Preview', () => {
 
   test('should allow interaction with preview fields', async ({ page }) => {
     // Navigate to medical record templates section
-    await page.click('text=病例與表單');
+    await page.click('text=病歷與表單');
     
     // Click create new template button
     await page.click('button:has-text("新增模板")');
@@ -131,7 +131,7 @@ test.describe('Medical Record Template Preview', () => {
 
   test('should preserve unsaved changes when switching tabs', async ({ page }) => {
     // Navigate to medical record templates section
-    await page.click('text=病例與表單');
+    await page.click('text=病歷與表單');
     
     // Click create new template button
     await page.click('button:has-text("新增模板")');
@@ -159,7 +159,7 @@ test.describe('Medical Record Template Preview', () => {
 
   test('should show photo upload section in preview', async ({ page }) => {
     // Navigate to medical record templates section
-    await page.click('text=病例與表單');
+    await page.click('text=病歷與表單');
     
     // Click create new template button
     await page.click('button:has-text("新增模板")');
@@ -182,7 +182,7 @@ test.describe('Medical Record Template Preview', () => {
 
   test('should update preview when fields are modified', async ({ page }) => {
     // Navigate to medical record templates section
-    await page.click('text=病例與表單');
+    await page.click('text=病歷與表單');
     
     // Click create new template button
     await page.click('button:has-text("新增模板")');
