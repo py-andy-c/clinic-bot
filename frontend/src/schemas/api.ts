@@ -18,7 +18,7 @@ export const NotificationSettingsSchema = createValidatedSchema(
     reminder_hours_before: z.union([z.number(), z.string()]),
     reminder_timing_mode: z.enum(['hours_before', 'previous_day']).optional().default('hours_before'),
     reminder_previous_day_time: z.string().optional().default('21:00'),
-  }),
+  }).catchall(z.unknown()),
   'NotificationSettingsSchema'
 );
 
@@ -33,7 +33,7 @@ export const BookingRestrictionSettingsSchema = createValidatedSchema(
     max_booking_window_days: z.union([z.number(), z.string()]).optional(),
     minimum_cancellation_hours_before: z.union([z.number(), z.string()]).optional(),
     allow_patient_deletion: z.boolean().optional(),
-  }),
+  }).catchall(z.unknown()),
   'BookingRestrictionSettingsSchema'
 );
 
@@ -50,7 +50,7 @@ export const ClinicInfoSettingsSchema = createValidatedSchema(
     query_page_instructions: z.string().nullable().optional(),
     settings_page_instructions: z.string().nullable().optional(),
     notifications_page_instructions: z.string().nullable().optional(),
-  }),
+  }).catchall(z.unknown()),
   'ClinicInfoSettingsSchema'
 );
 
@@ -130,11 +130,19 @@ export const ReceiptsSettingsFormSchema = z.object({
   }),
 });
 
-const validateAISchedule = (data: { ai_reply_schedule_enabled?: boolean, ai_reply_schedule?: any }, ctx: z.RefinementCtx) => {
-  if (data.ai_reply_schedule_enabled && data.ai_reply_schedule) {
+interface AISchedulePeriod {
+  start_time: string;
+  end_time: string;
+}
+
+const validateAISchedule = (data: Record<string, unknown>, ctx: z.RefinementCtx) => {
+  const schedule_enabled = data.ai_reply_schedule_enabled as boolean | undefined;
+  const schedule_data = data.ai_reply_schedule as Record<string, AISchedulePeriod[]> | undefined;
+
+  if (schedule_enabled && schedule_data) {
     const days = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
     days.forEach(day => {
-      const periods: any[] = data.ai_reply_schedule![day];
+      const periods = schedule_data[day];
       if (!periods) return;
 
       // 1. Validate start < end
@@ -151,9 +159,11 @@ const validateAISchedule = (data: { ai_reply_schedule_enabled?: boolean, ai_repl
       // 2. Validate no overlaps
       const sorted = [...periods].sort((a, b) => a.start_time.localeCompare(b.start_time));
       for (let i = 0; i < sorted.length - 1; i++) {
-        if (sorted[i].end_time > sorted[i + 1].start_time) {
+        const current = sorted[i];
+        const next = sorted[i + 1];
+        if (current && next && current.end_time > next.start_time) {
           // Find original index for better error mapping
-          const originalIndex = periods.findIndex(p => p === sorted[i]);
+          const originalIndex = periods.findIndex(p => p === current);
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
             message: '時段不可重疊',
@@ -204,7 +214,7 @@ export const AppointmentsSettingsFormSchema = z.object({
     query_page_instructions: z.string().nullable().optional(),
     settings_page_instructions: z.string().nullable().optional(),
     notifications_page_instructions: z.string().nullable().optional(),
-  }).passthrough(),
+  }).catchall(z.unknown()),
   booking_restriction_settings: BookingRestrictionFormSchema,
   practitioners: z.array(z.object({
     id: z.number(),
@@ -284,10 +294,10 @@ export const AppointmentTypeSchema = createValidatedSchema(
     notes_instructions: z.string().max(1000, '備註指引最長 1000 字元').nullable().optional(),
     // Note: follow_up_messages and resource_requirements are intentionally excluded
     // as they are loaded separately via dedicated API endpoints
-  }).passthrough(), // Preserve unknown fields to prevent silent data loss.
+  }).catchall(z.unknown()), // Preserve unknown fields to prevent silent data loss.
   'AppointmentTypeSchema'
 );
-// WARNING: .passthrough() allows unknown fields through without validation.
+// WARNING: .catchall(z.unknown()) allows unknown fields through without validation.
 // This prevents data loss but is less strict - unknown fields won't be type-checked.
 // All known fields should be explicitly defined in the schema above.
 
@@ -398,7 +408,7 @@ export const BillingScenarioBundleSchema = z.object({
   amount: z.coerce.number().min(0, '金額不能為負數'),
   revenue_share: z.coerce.number().min(0, '分潤不能為負數'),
   is_default: z.boolean(),
-}).refine(data => data.amount >= data.revenue_share, {
+}).catchall(z.unknown()).refine(data => data.amount >= data.revenue_share, {
   message: '金額必須大於或等於分潤',
   path: ['revenue_share'],
 });
@@ -407,7 +417,7 @@ export const ResourceRequirementBundleSchema = z.object({
   resource_type_id: z.number(),
   resource_type_name: z.string().optional(),
   quantity: z.number().min(1),
-});
+}).catchall(z.unknown());
 
 export const FollowUpMessageBundleSchema = z.object({
   id: z.number().optional(),
@@ -418,7 +428,7 @@ export const FollowUpMessageBundleSchema = z.object({
   message_template: z.string().min(1, '請輸入訊息內容').max(3500, '訊息最長 3500 字元'),
   is_enabled: z.boolean().optional(),
   display_order: z.number().optional(),
-}).superRefine((data, ctx) => {
+}).catchall(z.unknown()).superRefine((data, ctx) => {
   if (data.timing_mode === 'hours_after') {
     if (data.hours_after === null || data.hours_after === undefined) {
       ctx.addIssue({
@@ -474,7 +484,7 @@ export const ServiceItemBundleSchema = z.object({
   practitioner_ids: z.array(z.number()).optional(),
   billing_scenarios: z.array(BillingScenarioBundleSchema).optional(),
   resource_requirements: z.array(ResourceRequirementBundleSchema).optional(),
-});
+}).catchall(z.unknown());
 
 export type ClinicSettings = z.infer<typeof ClinicSettingsSchema>;
 export type NotificationSettings = z.infer<typeof NotificationSettingsSchema>;

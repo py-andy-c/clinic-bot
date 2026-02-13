@@ -5,6 +5,7 @@ This module provides utilities to ensure all datetime operations use timezone-aw
 datetimes consistently. All times are in Taiwan timezone (UTC+8) for business logic.
 """
 
+from __future__ import annotations
 import logging
 from datetime import datetime, timezone, timedelta, date, time
 from typing import Optional

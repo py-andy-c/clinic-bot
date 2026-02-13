@@ -634,12 +634,14 @@ export interface BillingScenarioBundleData {
   amount: number;
   revenue_share: number;
   is_default: boolean;
+  [key: string]: unknown;
 }
 
 export interface ResourceRequirementBundleData {
   resource_type_id: number;
   resource_type_name?: string;
   quantity: number;
+  [key: string]: unknown;
 }
 
 export interface FollowUpMessageBundleData {
@@ -651,6 +653,7 @@ export interface FollowUpMessageBundleData {
   message_template: string;
   is_enabled?: boolean;
   display_order?: number;
+  [key: string]: unknown;
 }
 
 export interface ServiceItemBundleAssociations {

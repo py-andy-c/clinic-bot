@@ -8,7 +8,22 @@ import secrets
 import os
 import re
 import copy
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Callable
+
+from core.sentinels import MISSING
+
+
+def _update_field_if_present(obj: Any, field_name: str, data: Dict[str, Any], transform: Optional[Callable[[Any], Any]] = None) -> bool:
+    """
+    Update a field on an object if it exists in the data dictionary.
+    Returns True if the field was updated.
+    """
+    if (val := data.get(field_name, MISSING)) is not MISSING:
+        if transform:
+            val = transform(val)
+        setattr(obj, field_name, val)
+        return True
+    return False
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi import status as http_status
@@ -35,7 +50,6 @@ from services import AppointmentTypeService
 from services.availability_service import AvailabilityService
 from utils.datetime_utils import taiwan_now
 from utils.dict_utils import deep_merge
-from core.sentinels import MISSING
 from utils.appointment_queries import (
     count_future_appointments_for_appointment_type,
     count_past_appointments_for_appointment_type
@@ -59,60 +73,57 @@ from core.message_template_constants import (
 )
 
 
-def _get_message_or_default(raw_message: str | None, default_message: str, toggle_on: bool) -> str:
-    """Get message from request or use default if empty/whitespace."""
-    if toggle_on:
-        if not raw_message or not raw_message.strip():
-            return default_message
-        return raw_message
-    return raw_message if raw_message else default_message
+def _get_message_or_default(raw_message: Any, default_message: str) -> str:
+    """
+    Get message from request or use default if empty/whitespace.
+    Ensures we never store literal "None" string in the database.
+    """
+    # Convert to string and strip if it's not None
+    msg_str = str(raw_message).strip() if raw_message is not None else ""
+    
+    # We don't allow empty messages in the database (they are NOT NULL).
+    # If user provides empty/whitespace, we revert to the system default.
+    return msg_str if msg_str else default_message
 
 
 def _update_notes_fields(appointment_type: AppointmentType, data: Dict[str, Any]) -> None:
     """Update notes customization fields from incoming data."""
-    if "require_notes" in data:
-        appointment_type.require_notes = data.get("require_notes", False)
-    if "notes_instructions" in data:
-        # Normalize empty string to null
-        notes_instructions = data.get("notes_instructions")
-        appointment_type.notes_instructions = notes_instructions if notes_instructions and notes_instructions.strip() else None
+    _update_field_if_present(appointment_type, "require_notes", data, bool)
+    
+    def transform_notes(v: Any) -> Optional[str]:
+        # Notes and instructions ARE nullable in the DB
+        s = str(v).strip() if v is not None else ""
+        return s if s else None
+
+    _update_field_if_present(appointment_type, "notes_instructions", data, transform_notes)
 
 
 def _update_message_fields(appointment_type: AppointmentType, data: Dict[str, Any]) -> None:
     """Update message customization fields from incoming data."""
-    if "send_patient_confirmation" in data:
-        appointment_type.send_patient_confirmation = data.get("send_patient_confirmation", True)
-    if "send_clinic_confirmation" in data:
-        appointment_type.send_clinic_confirmation = data.get("send_clinic_confirmation", True)
-    if "send_reminder" in data:
-        appointment_type.send_reminder = data.get("send_reminder", True)
-    if "send_recurrent_clinic_confirmation" in data:
-        appointment_type.send_recurrent_clinic_confirmation = data.get("send_recurrent_clinic_confirmation", True)
+    # 1. Update messages first using their own intended toggle state (to avoid temporal coupling)
+    # The toggle affects the "Reset to Default" logic (if we had any toggle-dependent logic here).
+    # Currently _get_message_or_default is simple, but we handle messages before toggles to be safe.
     
-    if "patient_confirmation_message" in data:
-        appointment_type.patient_confirmation_message = _get_message_or_default(
-            data.get("patient_confirmation_message"),
-            _DEFAULT_PATIENT_CONFIRMATION_MESSAGE,
-            data.get("send_patient_confirmation", True)
+    message_fields = [
+        ("patient_confirmation_message", _DEFAULT_PATIENT_CONFIRMATION_MESSAGE),
+        ("clinic_confirmation_message", _DEFAULT_CLINIC_CONFIRMATION_MESSAGE),
+        ("reminder_message", _DEFAULT_REMINDER_MESSAGE),
+        ("recurrent_clinic_confirmation_message", _DEFAULT_RECURRENT_CLINIC_CONFIRMATION_MESSAGE),
+    ]
+
+    for field_name, default_val in message_fields:
+        _update_field_if_present(
+            appointment_type, 
+            field_name, 
+            data, 
+            lambda v, d=default_val: _get_message_or_default(v, d)
         )
-    if "clinic_confirmation_message" in data:
-        appointment_type.clinic_confirmation_message = _get_message_or_default(
-            data.get("clinic_confirmation_message"),
-            _DEFAULT_CLINIC_CONFIRMATION_MESSAGE,
-            data.get("send_clinic_confirmation", True)
-        )
-    if "reminder_message" in data:
-        appointment_type.reminder_message = _get_message_or_default(
-            data.get("reminder_message"),
-            _DEFAULT_REMINDER_MESSAGE,
-            data.get("send_reminder", True)
-        )
-    if "recurrent_clinic_confirmation_message" in data:
-        appointment_type.recurrent_clinic_confirmation_message = _get_message_or_default(
-            data.get("recurrent_clinic_confirmation_message"),
-            _DEFAULT_RECURRENT_CLINIC_CONFIRMATION_MESSAGE,
-            data.get("send_recurrent_clinic_confirmation", True)
-        )
+
+    # 2. Update toggles
+    _update_field_if_present(appointment_type, "send_patient_confirmation", data, bool)
+    _update_field_if_present(appointment_type, "send_clinic_confirmation", data, bool)
+    _update_field_if_present(appointment_type, "send_reminder", data, bool)
+    _update_field_if_present(appointment_type, "send_recurrent_clinic_confirmation", data, bool)
 
 
 def _process_existing_appointment_type_update(
@@ -120,43 +131,46 @@ def _process_existing_appointment_type_update(
     incoming_data: Dict[str, Any]
 ) -> None:
     """Process update for an existing appointment type."""
-    # Handle new patient visibility fields
-    if "allow_new_patient_booking" in incoming_data:
-        existing_type.allow_new_patient_booking = incoming_data.get("allow_new_patient_booking", True)
-    if "allow_existing_patient_booking" in incoming_data:
-        existing_type.allow_existing_patient_booking = incoming_data.get("allow_existing_patient_booking", True)
+    # Handle basic identifying fields
+    _update_field_if_present(existing_type, "name", incoming_data, str)
+    _update_field_if_present(existing_type, "duration_minutes", incoming_data, int)
+    _update_field_if_present(existing_type, "receipt_name", incoming_data)
+
+    # Handle visibility fields
+    _update_field_if_present(existing_type, "allow_new_patient_booking", incoming_data, bool)
+    _update_field_if_present(existing_type, "allow_existing_patient_booking", incoming_data, bool)
 
     # Handle multiple time slot selection
-    if "allow_multiple_time_slot_selection" in incoming_data:
-        raw_value = incoming_data.get("allow_multiple_time_slot_selection")
-        if raw_value is not None:
-            existing_type.allow_multiple_time_slot_selection = bool(raw_value)
+    _update_field_if_present(existing_type, "allow_multiple_time_slot_selection", incoming_data, bool)
 
     # Handle practitioner selection
-    if "allow_patient_practitioner_selection" in incoming_data:
-        raw_value = incoming_data.get("allow_patient_practitioner_selection")
-        if raw_value is not None:
-            existing_type.allow_patient_practitioner_selection = bool(raw_value)
+    _update_field_if_present(existing_type, "allow_patient_practitioner_selection", incoming_data, bool)
 
-    # Handle basic fields
-    if "description" in incoming_data:
-        existing_type.description = incoming_data.get("description")
-    if "scheduling_buffer_minutes" in incoming_data:
-        existing_type.scheduling_buffer_minutes = incoming_data.get("scheduling_buffer_minutes", 0)
+    # Handle other basic fields
+    _update_field_if_present(existing_type, "description", incoming_data)
+    _update_field_if_present(existing_type, "scheduling_buffer_minutes", incoming_data, int)
 
     # Update grouping and ordering if provided
-    if "service_type_group_id" in incoming_data:
-        existing_type.service_type_group_id = incoming_data.get("service_type_group_id")
-    if "display_order" in incoming_data:
-        existing_type.display_order = incoming_data.get("display_order", 0)
+    _update_field_if_present(existing_type, "service_type_group_id", incoming_data)
+    _update_field_if_present(existing_type, "display_order", incoming_data, int)
 
     # Update notes and message fields
     _update_notes_fields(existing_type, incoming_data)
     _update_message_fields(existing_type, incoming_data)
 
-    if existing_type.is_deleted:
-        existing_type.is_deleted = False
-        existing_type.deleted_at = None
+    _reactivate_if_soft_deleted(existing_type)
+
+
+def _reactivate_if_soft_deleted(obj: Any) -> None:
+    """Reactivate a soft-deleted object and log the action."""
+    if getattr(obj, "is_deleted", False):
+        obj.is_deleted = False
+        obj.deleted_at = None
+        logger.info(
+            "Reactivated soft-deleted %s (ID: %s)", 
+            obj.__class__.__name__, 
+            getattr(obj, "id", "unknown")
+        )
 
 
 def _create_new_appointment_type(
@@ -180,13 +194,7 @@ def _create_new_appointment_type(
     ).first()
 
     if existing:
-        # Reactivate if it was soft deleted and update fields
-        if existing.is_deleted:
-            existing.is_deleted = False
-            existing.deleted_at = None
-        # Update receipt name and call helper function for other fields
-        if "receipt_name" in at_data:
-            existing.receipt_name = at_data.get("receipt_name")
+        # Update existing type (reactivates if soft-deleted)
         _process_existing_appointment_type_update(existing, at_data)
         return existing
 
@@ -214,18 +222,15 @@ def _create_new_appointment_type(
         send_reminder=at_data.get("send_reminder", True),
         patient_confirmation_message=_get_message_or_default(
             at_data.get("patient_confirmation_message"),
-            _DEFAULT_PATIENT_CONFIRMATION_MESSAGE,
-            at_data.get("send_patient_confirmation", True)
+            _DEFAULT_PATIENT_CONFIRMATION_MESSAGE
         ),
         clinic_confirmation_message=_get_message_or_default(
             at_data.get("clinic_confirmation_message"),
-            _DEFAULT_CLINIC_CONFIRMATION_MESSAGE,
-            at_data.get("send_clinic_confirmation", True)
+            _DEFAULT_CLINIC_CONFIRMATION_MESSAGE
         ),
         reminder_message=_get_message_or_default(
             at_data.get("reminder_message"),
-            _DEFAULT_REMINDER_MESSAGE,
-            at_data.get("send_reminder", True)
+            _DEFAULT_REMINDER_MESSAGE
         )
     )
 
@@ -829,8 +834,12 @@ async def update_settings(
                 if existing_type.id in incoming_by_id:
                     incoming_data = incoming_by_id[existing_type.id]
                     # Check if this is an update (name or duration changed) or just keeping it
-                    if (existing_type.name != incoming_data.get("name") or 
-                        existing_type.duration_minutes != incoming_data.get("duration_minutes")):
+                    # Use MISSING sentinel for safe comparison
+                    incoming_name = incoming_data.get("name", MISSING)
+                    incoming_duration = incoming_data.get("duration_minutes", MISSING)
+                    
+                    if (incoming_name is not MISSING and existing_type.name != incoming_name) or \
+                       (incoming_duration is not MISSING and existing_type.duration_minutes != incoming_duration):
                         types_being_updated[existing_type.id] = incoming_data
                     # Type is being kept (matched by ID), not deleted
                     continue
@@ -932,66 +941,25 @@ async def update_settings(
             # Track which (name, duration) combinations we've processed
             processed_combinations: set[tuple[str, int]] = set()
             
-            # Helper function to update message customization fields
-            def update_message_fields(appointment_type: AppointmentType, incoming_data: Dict[str, Any]) -> None:
-                """Update message customization fields from incoming data if provided."""
-                if "send_patient_confirmation" in incoming_data:
-                    appointment_type.send_patient_confirmation = incoming_data.get("send_patient_confirmation", True)
-                if "send_clinic_confirmation" in incoming_data:
-                    appointment_type.send_clinic_confirmation = incoming_data.get("send_clinic_confirmation", True)
-                if "send_reminder" in incoming_data:
-                    appointment_type.send_reminder = incoming_data.get("send_reminder", True)
-                if "patient_confirmation_message" in incoming_data:
-                    message = incoming_data.get("patient_confirmation_message")
-                    if message is not None:
-                        appointment_type.patient_confirmation_message = str(message)
-                if "clinic_confirmation_message" in incoming_data:
-                    message = incoming_data.get("clinic_confirmation_message")
-                    if message is not None:
-                        appointment_type.clinic_confirmation_message = str(message)
-                if "reminder_message" in incoming_data:
-                    message = incoming_data.get("reminder_message")
-                    if message is not None:
-                        appointment_type.reminder_message = str(message)
-            
             # First, update existing types that are matched by ID
             for existing_type in existing_appointment_types:
                 if existing_type.id in types_being_updated:
                     # Update the existing type with new name/duration and billing fields
                     incoming_data = types_being_updated[existing_type.id]
-                    new_name = incoming_data.get("name")
-                    new_duration = incoming_data.get("duration_minutes")
-                    if new_name is not None and new_duration is not None:
-                        existing_type.name = new_name
-                        existing_type.duration_minutes = new_duration
-                    # Update receipt name and call helper function for other fields
-                    if "receipt_name" in incoming_data:
-                        existing_type.receipt_name = incoming_data.get("receipt_name")
+                    # Helper handles all fields consistently including name/duration
                     _process_existing_appointment_type_update(existing_type, incoming_data)
                     processed_combinations.add((existing_type.name, existing_type.duration_minutes))
                 elif existing_type.id in incoming_by_id:
                     # Type is being kept, but may have billing field updates
                     incoming_data = incoming_by_id[existing_type.id]
-                    # Update receipt name and call helper function for other fields
-                    if "receipt_name" in incoming_data:
-                        existing_type.receipt_name = incoming_data.get("receipt_name")
+                    # Use helper function for all fields
                     _process_existing_appointment_type_update(existing_type, incoming_data)
                     processed_combinations.add((existing_type.name, existing_type.duration_minutes))
                 elif (existing_type.name, existing_type.duration_minutes) in incoming_by_name_duration:
                     # Type is being kept (matched by name+duration, no ID in incoming)
                     incoming_data = incoming_by_name_duration[(existing_type.name, existing_type.duration_minutes)]
-                    # Update grouping and ordering if provided
-                    if "service_type_group_id" in incoming_data:
-                        existing_type.service_type_group_id = incoming_data.get("service_type_group_id")
-                    if "display_order" in incoming_data:
-                        existing_type.display_order = incoming_data.get("display_order", 0)
-                    # Update notes customization fields
-                    _update_notes_fields(existing_type, incoming_data)
-                    # Update message customization fields if provided
-                    update_message_fields(existing_type, incoming_data)
-                    if existing_type.is_deleted:
-                        existing_type.is_deleted = False
-                        existing_type.deleted_at = None
+                    # Use helper function for all fields
+                    _process_existing_appointment_type_update(existing_type, incoming_data)
                     processed_combinations.add((existing_type.name, existing_type.duration_minutes))
                 elif existing_type in types_to_delete:
                     # Type is being deleted - already checked for practitioners above
@@ -1451,28 +1419,9 @@ def update_service_item_bundle(
                 )
 
         # 1. Update Appointment Type
-        at.name = request.item.name
-        at.duration_minutes = request.item.duration_minutes
-        at.receipt_name = request.item.receipt_name
-        at.allow_patient_booking = request.item.allow_patient_booking
-        at.allow_new_patient_booking = request.item.allow_new_patient_booking
-        at.allow_existing_patient_booking = request.item.allow_existing_patient_booking
-        at.allow_patient_practitioner_selection = request.item.allow_patient_practitioner_selection
-        at.allow_multiple_time_slot_selection = request.item.allow_multiple_time_slot_selection
-        at.description = request.item.description
-        at.scheduling_buffer_minutes = request.item.scheduling_buffer_minutes
-        at.service_type_group_id = request.item.service_type_group_id
-        at.display_order = request.item.display_order
-        at.send_patient_confirmation = request.item.send_patient_confirmation
-        at.send_clinic_confirmation = request.item.send_clinic_confirmation
-        at.send_reminder = request.item.send_reminder
-        at.patient_confirmation_message = request.item.patient_confirmation_message or at.patient_confirmation_message
-        at.clinic_confirmation_message = request.item.clinic_confirmation_message or at.clinic_confirmation_message
-        at.reminder_message = request.item.reminder_message or at.reminder_message
-        at.send_recurrent_clinic_confirmation = request.item.send_recurrent_clinic_confirmation
-        at.recurrent_clinic_confirmation_message = request.item.recurrent_clinic_confirmation_message or at.recurrent_clinic_confirmation_message
-        at.require_notes = request.item.require_notes
-        at.notes_instructions = request.item.notes_instructions
+        # Use helper for all fields to ensure consistency and fix "Cannot Clear" bug
+        # Use exclude_unset=True to ensure the MISSING sentinel logic works correctly
+        _process_existing_appointment_type_update(at, request.item.model_dump(exclude_unset=True))
         
         # 2. Sync Associations
         _sync_service_item_associations(db, clinic_id, at.id, request.associations)
