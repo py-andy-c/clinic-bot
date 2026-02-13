@@ -6,8 +6,6 @@ import { CalendarView } from '../../types/calendar';
 import moment from 'moment-timezone';
 import { extractPractitionerAvailability, CalendarPractitionerAvailability } from '../../utils/practitionerAvailability';
 
-const isDevelopment = import.meta.env.DEV;
-
 interface UseCalendarEventsParams {
   selectedPractitioners: number[];
   selectedResources: number[];
@@ -78,7 +76,6 @@ const fetchCalendarEvents = async (params: UseCalendarEventsParams & { currentUs
   try {
     practitionerAvailability = extractPractitionerAvailability(practitionerEvents.results || []);
   } catch (error) {
-    if (isDevelopment) console.error('Error extracting practitioner availability:', error);
     // Continue with empty availability - safer than crashing
     practitionerAvailability = {};
   }

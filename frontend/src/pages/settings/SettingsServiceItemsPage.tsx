@@ -188,7 +188,7 @@ const SettingsServiceItemsPage: React.FC = () => {
 
     // 1. Cancel any outgoing refetches to avoid overwriting our optimistic state
     // Fire and forget, don't await
-    queryClient.cancelQueries({ queryKey }).catch(console.error);
+    queryClient.cancelQueries({ queryKey }).catch(() => {});
 
     // 2. Optimistically update local cache synchronously
     queryClient.setQueryData<ClinicSettings | undefined>(queryKey, (old) => {
@@ -300,7 +300,7 @@ const SettingsServiceItemsPage: React.FC = () => {
     const queryKey = ['settings', 'service-type-groups', activeClinicId];
 
     // 1. Cancel any outgoing refetches
-    queryClient.cancelQueries({ queryKey }).catch(console.error);
+    queryClient.cancelQueries({ queryKey }).catch(() => {});
 
     // 3. Optimistically update local cache
     queryClient.setQueryData<ServiceTypeGroupsData | undefined>(queryKey, (old) => {
