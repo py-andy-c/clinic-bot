@@ -71,7 +71,7 @@ const PractitionerStepSizeSettings: React.FC<PractitionerStepSizeSettingsProps> 
                     <div className="flex items-center gap-3">
                         <input
                             type="number"
-                            value={stepInput.displayValue}
+                            value={stepInput.displayValue ?? ''}
                             onChange={stepInput.onChange}
                             onBlur={stepInput.onBlur}
                             onWheel={preventScrollWheelChange}
