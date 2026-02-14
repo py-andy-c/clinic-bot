@@ -11,7 +11,7 @@ from unittest.mock import Mock, patch
 from models import (
     Appointment, AppointmentType, AppointmentTypePatientFormConfig,
     ScheduledLineMessage, Patient, LineUser, Clinic, CalendarEvent,
-    User, MedicalRecordTemplate
+    User, MedicalRecordTemplate, MedicalRecord
 )
 from services.patient_form_scheduler_service import PatientFormSchedulerService
 from utils.datetime_utils import taiwan_now, ensure_taiwan, TAIWAN_TZ
@@ -256,7 +256,8 @@ class TestPatientFormSchedulerService:
             line_channel_id="test_channel",
             line_channel_secret="test_secret",
             line_channel_access_token="test_token",
-            subscription_status="trial"
+            subscription_status="trial",
+            liff_access_token="test_liff_token"  # Required for immediate send
         )
         db_session.add(clinic)
         db_session.flush()
@@ -341,20 +342,41 @@ class TestPatientFormSchedulerService:
         db_session.flush()
 
         # Schedule patient forms
-        PatientFormSchedulerService.schedule_patient_forms(db_session, appointment)
-        db_session.commit()
+        with patch('services.patient_form_scheduler_service.generate_liff_url') as mock_liff_url, \
+             patch('services.patient_form_scheduler_service.LINEService') as mock_line_service:
+            # Mock LIFF URL generation
+            mock_liff_url.return_value = "https://liff.line.me/test-liff-id/records/1"
+            
+            # Mock the LINE service to avoid actual API calls
+            mock_instance = Mock()
+            mock_line_service.return_value = mock_instance
+            
+            warnings = PatientFormSchedulerService.schedule_patient_forms(db_session, appointment)
+            db_session.commit()
 
-        # Verify scheduled message was created with immediate send time
+        # Verify no warnings (send should succeed)
+        assert warnings == []
+        
+        # Verify LIFF URL was generated
+        assert mock_liff_url.called
+        
+        # Verify LINE service was called (immediate send)
+        assert mock_line_service.called
+
+        # Verify NO scheduled message was created (sent immediately instead)
         scheduled = db_session.query(ScheduledLineMessage).filter(
             ScheduledLineMessage.message_type == 'patient_form',
             ScheduledLineMessage.status == 'pending'
         ).first()
+        assert scheduled is None
 
-        assert scheduled is not None
-        # Should be scheduled for ~1 minute from now (immediate send)
-        current_time = taiwan_now()
-        assert scheduled.scheduled_send_time > current_time
-        assert (scheduled.scheduled_send_time - current_time).total_seconds() < 120  # Within 2 minutes
+        # Verify medical record WAS created (immediate send creates record)
+        medical_record = db_session.query(MedicalRecord).filter(
+            MedicalRecord.appointment_id == appointment.calendar_event_id,
+            MedicalRecord.template_id == template.id
+        ).first()
+        assert medical_record is not None
+        assert medical_record.is_submitted is False
 
     def test_schedule_patient_forms_late_booking_skip(self, db_session):
         """Test late booking with skip option."""

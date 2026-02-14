@@ -117,6 +117,10 @@ class ScheduledMessageService:
                 medical_record = existing_record
             else:
                 # COMMIT-BEFORE-SEND: Create and commit medical record BEFORE sending message
+                # Set status to 'processing' to prevent race condition with other workers
+                # This must be done BEFORE committing the medical record
+                scheduled.status = 'processing'
+                
                 medical_record = MedicalRecord(
                     clinic_id=clinic.id,
                     patient_id=patient.id,
@@ -133,6 +137,7 @@ class ScheduledMessageService:
                 
                 # Commit the medical record BEFORE attempting to send LINE message
                 # This ensures the LIFF link will never be broken
+                # The 'processing' status prevents other workers from picking up this message
                 db.commit()
                 logger.info(
                     f"Created medical record {medical_record.id} for appointment {appointment_id}"

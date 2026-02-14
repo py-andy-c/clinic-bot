@@ -166,3 +166,52 @@ Modify `ScheduledMessageService` to handle `message_type == 'patient_form'`:
 - Tests respect database constraint: `on_impossible` must be NULL for 'after' timing
 - Type checking passes with 0 errors, 4 warnings
 - All 1048 tests passing with 67.81% coverage (exceeds 65% requirement)
+
+
+### Phase 5: Critical Fixes & Enhancements ✅ COMPLETED
+
+Based on technical review feedback, implemented the following critical fixes:
+
+#### 1. Race Condition Fix (CRITICAL)
+**Problem:** When committing MedicalRecord in `_process_patient_form_message`, the row-level lock was released while status was still 'pending', allowing other workers to pick up the same message.
+
+**Solution:**
+- Set status to 'processing' BEFORE committing MedicalRecord
+- Added 'processing' status to database constraint via migration `202602150000`
+- Updated `ScheduledLineMessage` model to include 'processing' in valid statuses
+- Query in `send_pending_messages` already filters by status='pending', so 'processing' messages won't be picked up
+
+#### 2. Duplicate Messaging on Reschedule (IMPORTANT)
+**Problem:** When appointment is rescheduled, patient receives duplicate messages for forms already sent.
+
+**Solution:**
+- Added de-duplication check in `schedule_patient_forms`
+- Checks if `MedicalRecord` already exists for `(appointment_id, template_id)` before scheduling
+- Skips scheduling if form was already sent
+- Prevents spam when appointments are rescheduled
+
+#### 3. Synchronous "Send Immediately" (UX IMPROVEMENT)
+**Problem:** `on_impossible='send_immediately'` scheduled for `now + 1 minute`, but with hourly cron, could be up to 59 minutes late.
+
+**Solution:**
+- Implemented `_send_patient_form_immediately()` method for synchronous sending
+- When `on_impossible='send_immediately'` and timing is impossible:
+  - Creates MedicalRecord immediately (Commit-Before-Send)
+  - Sends LINE message synchronously with timeout
+  - Returns warnings if send fails (doesn't block appointment creation)
+  - No scheduled message created (user can manually send if needed)
+- Updated `schedule_patient_forms` and `reschedule_patient_forms` to return `list[str]` warnings
+- AppointmentService logs warnings but doesn't fail appointment operations
+- True "immediate" sending (within seconds, not minutes/hours)
+
+**Implementation Notes:**
+- Added migration `202602150000_add_processing_status_to_scheduled_messages.py`
+- Updated 1 unit test to verify synchronous send behavior
+- All 1049 tests passing
+- Type checking passes with 0 errors, 4 warnings
+
+**Known Limitations (Documented):**
+1. **Template Reuse:** Same template cannot be used for both 'before' AND 'after' timing (shares same MedicalRecord due to de-duplication key)
+2. **Display Order Reordering:** Unique constraint makes drag-and-drop difficult; future bulk reorder endpoint recommended
+3. **Send Immediately Timeout:** Uses default LINE API timeout; no retry for immediate sends (user must manually resend)
+

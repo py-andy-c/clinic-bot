@@ -54,7 +54,7 @@ class ScheduledLineMessage(Base):
     """When the message was actually sent."""
 
     status: Mapped[str] = mapped_column(String(20), default='pending')
-    """Status: 'pending', 'sent', 'skipped', or 'failed'."""
+    """Status: 'pending', 'processing', 'sent', 'skipped', or 'failed'."""
 
     retry_count: Mapped[int] = mapped_column(Integer, default=0)
     """Number of retry attempts."""
@@ -77,7 +77,7 @@ class ScheduledLineMessage(Base):
 
     # Table constraints
     __table_args__ = (
-        CheckConstraint("status IN ('pending', 'sent', 'skipped', 'failed')", name='check_status'),
+        CheckConstraint("status IN ('pending', 'processing', 'sent', 'skipped', 'failed')", name='check_status'),
         CheckConstraint('retry_count >= 0', name='check_retry_count_non_negative'),
         CheckConstraint('max_retries >= 0', name='check_max_retries_non_negative'),
     )

@@ -301,7 +301,10 @@ class AppointmentService:
                 # Don't fail appointment creation if scheduling fails
             
             try:
-                PatientFormSchedulerService.schedule_patient_forms(db, appointment)
+                warnings = PatientFormSchedulerService.schedule_patient_forms(db, appointment)
+                if warnings:
+                    for warning in warnings:
+                        logger.warning(f"Patient form scheduling warning for appointment {appointment.calendar_event_id}: {warning}")
             except Exception as e:
                 logger.exception(f"Failed to schedule patient forms for appointment {appointment.calendar_event_id}: {e}")
                 # Don't fail appointment creation if scheduling fails
@@ -1577,7 +1580,10 @@ class AppointmentService:
                 # Don't fail update if rescheduling fails
             
             try:
-                PatientFormSchedulerService.reschedule_patient_forms(db, appointment)
+                warnings = PatientFormSchedulerService.reschedule_patient_forms(db, appointment)
+                if warnings:
+                    for warning in warnings:
+                        logger.warning(f"Patient form rescheduling warning for appointment {appointment.calendar_event_id}: {warning}")
             except Exception as e:
                 logger.exception(f"Failed to reschedule patient forms for appointment {appointment.calendar_event_id}: {e}")
                 # Don't fail update if rescheduling fails
