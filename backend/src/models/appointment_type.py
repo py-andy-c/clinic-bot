@@ -156,6 +156,9 @@ class AppointmentType(Base):
     follow_up_messages = relationship("FollowUpMessage", back_populates="appointment_type", cascade="all, delete-orphan")
     """Relationship to follow-up messages configured for this appointment type."""
 
+    patient_form_configs = relationship("AppointmentTypePatientFormConfig", back_populates="appointment_type", cascade="all, delete-orphan")
+    """Relationship to patient form automation configurations for this appointment type."""
+
     # Unique constraint: name + duration must be unique per clinic
     __table_args__ = (
         UniqueConstraint('clinic_id', 'name', 'duration_minutes', name='uq_appointment_type_clinic_name_duration'),

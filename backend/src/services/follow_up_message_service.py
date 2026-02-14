@@ -13,6 +13,7 @@ from sqlalchemy import cast, String
 
 from models import Appointment, FollowUpMessage, ScheduledLineMessage
 from utils.datetime_utils import taiwan_now, ensure_taiwan
+from utils.timing_utils import calculate_follow_up_scheduled_time
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +32,8 @@ class FollowUpMessageService:
         """
         Calculate scheduled send time based on timing mode.
         
+        This method delegates to the shared timing utility for consistency.
+        
         Args:
             appointment_end_time: When the appointment ends
             timing_mode: 'hours_after' or 'specific_time'
@@ -41,41 +44,13 @@ class FollowUpMessageService:
         Returns:
             Scheduled send time
         """
-        end_time = ensure_taiwan(appointment_end_time)
-        if end_time is None:
-            raise ValueError("appointment_end_time cannot be None")
-        
-        if timing_mode == 'hours_after':
-            if hours_after is None:
-                raise ValueError("hours_after is required for timing_mode='hours_after'")
-            return end_time + timedelta(hours=hours_after)
-        
-        elif timing_mode == 'specific_time':
-            if days_after is None or time_of_day is None:
-                raise ValueError("days_after and time_of_day are required for timing_mode='specific_time'")
-            
-            # Calculate target date
-            target_date = end_time.date() + timedelta(days=days_after)
-            
-            # Combine date and time
-            scheduled_time = datetime.combine(target_date, time_of_day)
-            scheduled_time = ensure_taiwan(scheduled_time)
-            if scheduled_time is None:
-                raise ValueError("Failed to ensure timezone for scheduled_time")
-            
-            # Auto-adjust if time is in past (for days_after=0 case)
-            if scheduled_time < end_time:
-                # Move to next day at same time
-                scheduled_time = scheduled_time + timedelta(days=1)
-                logger.info(
-                    f"Auto-adjusted scheduled time from {scheduled_time - timedelta(days=1)} "
-                    f"to {scheduled_time} (time was in past)"
-                )
-            
-            return scheduled_time
-        
-        else:
-            raise ValueError(f"Invalid timing_mode: {timing_mode}")
+        return calculate_follow_up_scheduled_time(
+            appointment_end_time=appointment_end_time,
+            timing_mode=timing_mode,
+            hours_after=hours_after,
+            days_after=days_after,
+            time_of_day=time_of_day
+        )
 
     @staticmethod
     def schedule_follow_up_messages(db: Session, appointment: Appointment) -> None:

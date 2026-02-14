@@ -85,11 +85,20 @@ Modify `ScheduledMessageService` to handle `message_type == 'patient_form'`:
 
 ## Detailed Plan
 
-### Phase 1: Models & Shared Utilities
+### Phase 1: Models & Shared Utilities ✅ COMPLETED
 
-1. Create migration for `appointment_type_patient_form_configs`.
-2. Implement `AppointmentTypePatientFormConfig` model.
-3. Refactor timing calculation logic into a shared utility.
+1. ✅ Created migration for `appointment_type_patient_form_configs`.
+2. ✅ Implemented `AppointmentTypePatientFormConfig` model.
+3. ✅ Refactored timing calculation logic into a shared utility (`timing_utils.py`).
+4. ✅ Updated `FollowUpMessageService` to use the shared timing utility.
+5. ✅ Added comprehensive unit tests for timing utilities and model.
+
+**Implementation Notes:**
+- Migration `202602140000_add_appointment_type_patient_form_configs.py` merges two migration heads and includes idempotency check
+- Model includes all required fields with proper constraints and relationships
+- Shared `timing_utils.py` supports both 'before' and 'after' timing with 'hours' and 'specific_time' modes
+- Backward compatibility maintained through `calculate_follow_up_scheduled_time()` wrapper
+- All 22 unit tests passing
 
 ### Phase 2: Scheduling Service
 
