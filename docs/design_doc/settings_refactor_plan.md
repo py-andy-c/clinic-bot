@@ -65,8 +65,9 @@ Instead of maintaining separate state (`followUpMessages`, `billingScenarios`) a
 
 We will move away from magic number thresholds (`TEMPORARY_ID_THRESHOLD`).
 
-* **New Contract:** The API will treat the presence of a real integer `id` as an **Update** request. The absence or `null` value of the `id` field will be treated as a **Create or Reactivate** request.
-* **Cleanup:** Once the frontend refactor is verified, the `TEMPORARY_ID_THRESHOLD` constants and checks will be removed from the backend.
+* **New Contract:** The API will treat the presence of a real integer `id` (less than `TEMPORARY_ID_THRESHOLD`) as an **Update** request. Items without an `id` or with `null` will be treated as **Create or Reactivate**.
+* **Security:** The `TEMPORARY_ID_THRESHOLD` validation is maintained in the backend as a security measure to prevent malicious submission of extremely large IDs and to clearly separate client-side temporary state from server-side persistent state.
+* **Cleanup:** The `is_real_id` helper has been centralized and used consistently across the backend to enforce this boundary.
 
 ### Comparison
 
@@ -85,20 +86,21 @@ We will move away from magic number thresholds (`TEMPORARY_ID_THRESHOLD`).
 2. **ID Logic Cleanup:** Update `_is_real_id` logic to eventually stop relying on thresholds and strictly use `id is not None`. ✅ (Logic prepared, transitional notes removed from code as per feedback)
 3. **Database Constraints:** Add missing unique constraints to `AppointmentType`. ✅ (Added `uq_appointment_type_clinic_name` and created migration)
 
-### Phase 2: Frontend Refactor
+### Phase 2: Frontend Refactor ✅
 
-1. **Refactor `ServiceItemEditModal`**:
-   * Remove manual array updates for all associations.
+1. **Refactor `ServiceItemEditModal`**: ✅
+   * Removed manual array updates for all associations.
    * Setup `useFieldArray` hooks for `billing_scenarios`, `resource_requirements`, and `follow_up_messages`.
-2. **Refactor Sub-Components**:
-   * **BillingScenarioSection:** Update to receive the flat `fields` and filter them by `practitioner_id` for rendering.
-   * **FollowUpMessagesSection / ResourceRequirementsSection:** Remove internal `useState` that mirrors props; use `fields` from parent.
-3. **UX Improvement:** Add a Toast notification: *"已復原既存的項目「{name}」"* when the backend response indicates a reactivation (ID matched by name).
+2. **Refactor Sub-Components**: ✅
+   * **BillingScenarioSection**: Updated to receive the flat `fields` and filter them by `practitioner_id` for rendering.
+   * **FollowUpMessagesSection / ResourceRequirementsSection**: Removed internal `useState` that mirrors props; used `fields` from parent.
+   * **MessageSettingsSection**: Refactored to use `useFormContext` and unified with RHF state.
+3. **UX Improvement**: ⏳ (Pending: Add Toast notification: *"已復原既存的項目「{name}」"* when reactivation occurs).
 
-### Phase 3: Verification & Cleanup
+### Phase 3: Verification & Cleanup ⏳
 
-1. Verify that "Delete & Add Back" behaves correctly across all entities.
-2. Remove `generateTemporaryId` utility and all references to `TEMPORARY_ID_THRESHOLD`.
+1. **Verification**: ✅ (Frontend tests passing. Manual verification of "Delete & Add Back" in progress).
+2. **Cleanup**: ⏳ (Pending: Remove `generateTemporaryId` utility and all references to `TEMPORARY_ID_THRESHOLD`).
 
 ## 5. Summary
 

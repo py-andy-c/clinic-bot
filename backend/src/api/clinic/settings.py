@@ -34,7 +34,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy import func, or_, text
 
-from core.constants import TEMPORARY_ID_THRESHOLD
+
 from core.database import get_db
 from auth.dependencies import require_admin_role, require_authenticated, UserContext, ensure_clinic_access
 from models import (
@@ -55,6 +55,7 @@ from utils.appointment_queries import (
     count_future_appointments_for_appointment_type,
     count_past_appointments_for_appointment_type
 )
+from utils.id_utils import is_real_id
 from api.responses import (
     AppointmentTypeResponse,
     AppointmentTypeDeletionErrorResponse,
@@ -74,15 +75,6 @@ from core.message_template_constants import (
 )
 
 
-def _is_real_id(id_value: Optional[int]) -> bool:
-    """
-    Check if an ID is a real database ID (small positive integer).
-    Temporary IDs from the frontend are large timestamps > TEMPORARY_ID_THRESHOLD.
-    """
-    if id_value is None:
-        return False
-        
-    return 0 < id_value < TEMPORARY_ID_THRESHOLD
 
 
 def _evict_soft_deleted_appointment_type_name(
@@ -1304,13 +1296,7 @@ def _sync_service_item_associations(
         if bs_data.practitioner_id not in valid_practitioner_ids:
             continue
             
-        if bs_data.id and bs_data.id >= TEMPORARY_ID_THRESHOLD:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Temporary billing scenario ID {bs_data.id} should not be sent to backend"
-            )
-
-        if _is_real_id(bs_data.id):
+        if is_real_id(bs_data.id):
             bs = db.query(BillingScenario).filter(
                 BillingScenario.id == bs_data.id,
                 BillingScenario.appointment_type_id == appointment_type_id,
@@ -1362,13 +1348,7 @@ def _sync_service_item_associations(
     logger.info(f"Deleted {deleted_count} follow-up messages not in incoming list")
     
     for fm_data in associations.follow_up_messages:
-        if fm_data.id and fm_data.id >= TEMPORARY_ID_THRESHOLD:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Temporary follow-up message ID {fm_data.id} should not be sent to backend"
-            )
-
-        if _is_real_id(fm_data.id):
+        if is_real_id(fm_data.id):
             fm = db.query(FollowUpMessage).filter(
                 FollowUpMessage.id == fm_data.id,
                 FollowUpMessage.appointment_type_id == appointment_type_id,

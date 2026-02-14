@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { FollowUpMessage, AppointmentType } from '../types';
+import React, { useState } from 'react';
+import { useFormContext, useFieldArray } from 'react-hook-form';
+import { FollowUpMessageBundleData } from '../types';
 import { apiService } from '../services/api';
 import { PlaceholderHelper } from './PlaceholderHelper';
 import { BaseModal } from './shared/BaseModal';
 import { ModalHeader, ModalBody, ModalFooter } from './shared/ModalParts';
 import { LoadingSpinner, TimeInput } from './shared';
-import { generateTemporaryId } from '../utils/idUtils';
 import { isTemporaryServiceItemId } from '../utils/idUtils';
 import { logger } from '../utils/logger';
 import { useModal } from '../contexts/ModalContext';
@@ -13,8 +13,9 @@ import { preventScrollWheelChange } from '../utils/inputUtils';
 import { useNumberInput } from '../hooks/useNumberInput';
 
 interface FollowUpMessagesSectionProps {
-    appointmentType: AppointmentType;
-    onUpdate: (updated: AppointmentType) => void;
+    appointmentTypeId: number;
+    appointmentTypeName?: string;
+    clinicId?: number;
     disabled?: boolean;
     clinicInfoAvailability?: {
         has_address?: boolean;
@@ -32,23 +33,29 @@ interface FollowUpMessageFormData {
     display_order: number;
 }
 
+const MAX_MESSAGE_LENGTH = 3500;
+const WARNING_THRESHOLD = 3000;
+
+interface FollowUpMessageField extends Omit<FollowUpMessageBundleData, 'id'> {
+    id: string; // Internal ID for useFieldArray
+}
+
 export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = ({
-    appointmentType,
-    onUpdate,
+    appointmentTypeId,
+    appointmentTypeName,
     disabled = false,
     clinicInfoAvailability,
 }) => {
-    const isNewItem = isTemporaryServiceItemId(appointmentType.id);
+    const { control } = useFormContext();
+    const { fields, append, remove, update } = useFieldArray({
+        control,
+        name: 'follow_up_messages',
+    });
 
-    // Initialize from appointmentType.follow_up_messages if available (staged changes)
-    // Otherwise load from API for existing items
-    const [followUpMessages, setFollowUpMessages] = useState<FollowUpMessage[]>(
-        appointmentType.follow_up_messages || []
-    );
-    const [loading, setLoading] = useState(false);
-    const [expandedMessages, setExpandedMessages] = useState<Set<number>>(new Set());
-    const [editingMessage, setEditingMessage] = useState<FollowUpMessage | null>(null);
+    const [expandedMessages, setExpandedMessages] = useState<Set<string>>(new Set());
+    const [editingIndex, setEditingIndex] = useState<number | null>(null);
     const [isNewMessage, setIsNewMessage] = useState(false);
+
     const [formData, setFormData] = useState<FollowUpMessageFormData>({
         timing_mode: 'hours_after',
         hours_after: 0,
@@ -60,7 +67,7 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
     const [formErrors, setFormErrors] = useState<Record<string, string>>({});
     const [previewModal, setPreviewModal] = useState<{
         isOpen: boolean;
-        message: FollowUpMessage | null;
+        message: any;
     }>({ isOpen: false, message: null });
     const [previewData, setPreviewData] = useState<{
         preview_message: string;
@@ -68,7 +75,6 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
         completeness_warnings?: string[];
     } | null>(null);
     const [loadingPreview, setLoadingPreview] = useState(false);
-    const [showInfoModal, setShowInfoModal] = useState(false);
 
     // Number input hooks for hours_after and days_after
     const hoursAfterInput = useNumberInput(
@@ -101,106 +107,46 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
         { fallback: 0, parseFn: 'parseInt', min: 0 }
     );
 
-    const { confirm, alert } = useModal();
+    const { confirm } = useModal();
 
-    // Load follow-up messages when modal opens (only for existing items without staged changes)
-    const loadFollowUpMessages = useCallback(async () => {
-        if (isNewItem || !appointmentType.id) return;
-        // If we already have staged changes, don't reload from API
-        if (appointmentType.follow_up_messages !== undefined) return;
-
-        setLoading(true);
-        try {
-            const response = await apiService.getFollowUpMessages(appointmentType.id);
-            const messages = response.follow_up_messages.sort((a, b) => a.display_order - b.display_order);
-            setFollowUpMessages(messages);
-            // Expand all messages by default
-            setExpandedMessages(new Set(messages.map(m => m.id)));
-            // Update parent with loaded messages
-            onUpdate({ ...appointmentType, follow_up_messages: messages });
-        } catch (error: unknown) {
-            logger.error('Failed to load follow-up messages:', error);
-            const errorMessage = (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail || '無法載入追蹤訊息';
-            await alert(errorMessage, '載入失敗');
-            // Set empty list on error so UI shows empty state
-            setFollowUpMessages([]);
-            onUpdate({ ...appointmentType, follow_up_messages: [] });
-        } finally {
-            setLoading(false);
-        }
-    }, [isNewItem, appointmentType, onUpdate, alert]);
-
-    useEffect(() => {
-        if (!isNewItem && appointmentType.id && appointmentType.follow_up_messages === undefined) {
-            loadFollowUpMessages();
-        } else if (appointmentType.follow_up_messages !== undefined) {
-            // Use staged messages
-            setFollowUpMessages(appointmentType.follow_up_messages);
-            // Only initialize expanded messages if they haven't been set yet
-            if (expandedMessages.size === 0 && appointmentType.follow_up_messages.length > 0) {
-                setExpandedMessages(new Set(appointmentType.follow_up_messages.map(m => m.id)));
-            }
-        } else {
-            // For new items, start with empty list
-            setFollowUpMessages([]);
-        }
-    }, [appointmentType.id, appointmentType.follow_up_messages, isNewItem, loadFollowUpMessages]);
-
-    // Helper function to update parent with staged changes
-    const updateStagedMessages = (messages: FollowUpMessage[]) => {
-        setFollowUpMessages(messages);
-        onUpdate({ ...appointmentType, follow_up_messages: messages });
-    };
-
-    const toggleMessage = (messageId: number) => {
+    const toggleMessage = (fieldId: string) => {
         const newExpanded = new Set(expandedMessages);
-        if (newExpanded.has(messageId)) {
-            newExpanded.delete(messageId);
+        if (newExpanded.has(fieldId)) {
+            newExpanded.delete(fieldId);
         } else {
-            newExpanded.add(messageId);
+            newExpanded.add(fieldId);
         }
         setExpandedMessages(newExpanded);
     };
 
     const handleAddMessage = () => {
         setIsNewMessage(true);
-        setEditingMessage(null);
+        setEditingIndex(null);
         setFormData({
             timing_mode: 'hours_after',
             hours_after: 0,
             days_after: 0,
             message_template: '{病患姓名}，感謝您今天的預約！\n\n希望今天的服務對您有幫助。如有任何問題或需要協助，歡迎隨時聯繫我們。\n\n期待下次為您服務！',
             is_enabled: true,
-            display_order: followUpMessages.length,
+            display_order: fields.length,
         });
         setFormErrors({});
     };
 
-    const handleEditMessage = (message: FollowUpMessage) => {
+    const handleEditMessage = (index: number) => {
+        const message = fields[index] as unknown as FollowUpMessageField;
         setIsNewMessage(false);
-        setEditingMessage(message);
+        setEditingIndex(index);
         setFormData({
             timing_mode: message.timing_mode,
-            hours_after: message.hours_after ?? 0,
-            days_after: message.days_after ?? 0,
-            time_of_day: message.time_of_day ?? undefined,
+            hours_after: (message.hours_after as number) ?? 0,
+            days_after: (message.days_after as number) ?? 0,
+            time_of_day: (message.time_of_day as string) ?? undefined,
             message_template: message.message_template,
-            is_enabled: message.is_enabled,
-            display_order: message.display_order,
+            is_enabled: message.is_enabled !== false,
+            display_order: message.display_order ?? index,
         });
         setFormErrors({});
-    };
-
-    const handleDeleteMessage = async (messageId: number) => {
-        // Stage deletion - remove from local state and re-index display orders
-        const updated = followUpMessages
-            .filter(m => m.id !== messageId)
-            .map((m, index) => ({
-                ...m,
-                display_order: index,
-                updated_at: new Date().toISOString()
-            }));
-        updateStagedMessages(updated);
     };
 
     const validateForm = (): boolean => {
@@ -221,8 +167,8 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
 
         if (!formData.message_template || !formData.message_template.trim()) {
             errors.message_template = '訊息模板為必填';
-        } else if (formData.message_template.length > 3500) {
-            errors.message_template = '訊息模板長度不能超過 3500 字元';
+        } else if (formData.message_template.length > MAX_MESSAGE_LENGTH) {
+            errors.message_template = `訊息模板長度不能超過 ${MAX_MESSAGE_LENGTH} 字元`;
         }
 
         setFormErrors(errors);
@@ -234,124 +180,80 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
             return;
         }
 
+        const dataToSave = {
+            timing_mode: formData.timing_mode,
+            hours_after: formData.timing_mode === 'hours_after' ? (formData.hours_after ?? null) : null,
+            days_after: formData.timing_mode === 'specific_time' ? (formData.days_after ?? null) : null,
+            time_of_day: formData.timing_mode === 'specific_time' ? (formData.time_of_day ?? null) : null,
+            message_template: formData.message_template,
+            is_enabled: formData.is_enabled,
+            display_order: formData.display_order,
+        };
+
         if (isNewMessage) {
-            // Create new message in staging with temporary ID
-            const newMessage: FollowUpMessage = {
-                id: generateTemporaryId(),
-                appointment_type_id: appointmentType.id,
-                clinic_id: appointmentType.clinic_id,
-                timing_mode: formData.timing_mode,
-                hours_after: formData.timing_mode === 'hours_after' ? (formData.hours_after ?? null) : null,
-                days_after: formData.timing_mode === 'specific_time' ? (formData.days_after ?? null) : null,
-                time_of_day: formData.timing_mode === 'specific_time' ? (formData.time_of_day ?? null) : null,
-                message_template: formData.message_template,
-                is_enabled: formData.is_enabled,
-                display_order: followUpMessages.length, // Will be re-indexed
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString(),
-            };
-
-            // Append and re-index all to ensure sequential order
-            const updated = [...followUpMessages, newMessage]
-                .map((m, index) => ({
-                    ...m,
-                    display_order: index
-                }));
-
-            updateStagedMessages(updated);
-            setEditingMessage(null);
+            append(dataToSave);
             setIsNewMessage(false);
-        } else if (editingMessage) {
-            // Update existing message in staging
-            const updated = followUpMessages.map(m =>
-                m.id === editingMessage.id
-                    ? {
-                        ...m,
-                        timing_mode: formData.timing_mode,
-                        hours_after: formData.timing_mode === 'hours_after' ? (formData.hours_after ?? null) : null,
-                        days_after: formData.timing_mode === 'specific_time' ? (formData.days_after ?? null) : null,
-                        time_of_day: formData.timing_mode === 'specific_time' ? (formData.time_of_day ?? null) : null,
-                        message_template: formData.message_template,
-                        is_enabled: formData.is_enabled,
-                        display_order: formData.display_order,
-                        updated_at: new Date().toISOString(),
-                    }
-                    : m
-            ).sort((a, b) => a.display_order - b.display_order);
-            updateStagedMessages(updated);
-            setEditingMessage(null);
+        } else if (editingIndex !== null) {
+            const original = fields[editingIndex] as unknown as FollowUpMessageField;
+            update(editingIndex, {
+                ...original,
+                ...dataToSave
+            });
+            setEditingIndex(null);
         }
     };
 
-    const handleToggleEnabled = (message: FollowUpMessage) => {
-        // Stage toggle change
-        const updated = followUpMessages.map(m =>
-            m.id === message.id ? { ...m, is_enabled: !m.is_enabled, updated_at: new Date().toISOString() } : m
-        );
-        updateStagedMessages(updated);
+    const handleToggleEnabled = (index: number) => {
+        const message = fields[index] as unknown as FollowUpMessageField;
+        update(index, { ...message, is_enabled: !message.is_enabled });
     };
 
-    const handlePreview = async (message: FollowUpMessage) => {
+    const handlePreview = async (message: FollowUpMessageField | FollowUpMessageBundleData) => {
         setPreviewModal({ isOpen: true, message });
         setLoadingPreview(true);
         setPreviewData(null);
         try {
-            const previewData: {
-                appointment_type_id?: number;
-                appointment_type_name?: string;
-                timing_mode: 'hours_after' | 'specific_time';
-                hours_after?: number;
-                days_after?: number;
-                time_of_day?: string;
-                message_template: string;
-            } = {
+            const previewRequest: any = {
                 timing_mode: message.timing_mode,
                 message_template: message.message_template,
             };
 
-            // Handle temporary IDs - send name instead of ID for new items
-            if (isTemporaryServiceItemId(appointmentType.id)) {
-                previewData.appointment_type_name = appointmentType.name || '服務項目';
+            if (isTemporaryServiceItemId(appointmentTypeId)) {
+                previewRequest.appointment_type_name = appointmentTypeName || '服務項目';
             } else {
-                previewData.appointment_type_id = appointmentType.id;
+                previewRequest.appointment_type_id = appointmentTypeId;
             }
 
-            if (message.timing_mode === 'hours_after' && message.hours_after !== null && message.hours_after !== undefined) {
-                previewData.hours_after = message.hours_after;
+            if (message.timing_mode === 'hours_after' && message.hours_after !== null) {
+                previewRequest.hours_after = message.hours_after;
             }
             if (message.timing_mode === 'specific_time') {
-                if (message.days_after !== null && message.days_after !== undefined) {
-                    previewData.days_after = message.days_after;
-                }
-                if (message.time_of_day !== null && message.time_of_day !== undefined) {
-                    previewData.time_of_day = message.time_of_day;
-                }
+                if (message.days_after !== null) previewRequest.days_after = message.days_after;
+                if (message.time_of_day !== null) previewRequest.time_of_day = message.time_of_day;
             }
-            const preview = await apiService.previewFollowUpMessage(previewData);
+            const preview = await apiService.previewFollowUpMessage(previewRequest);
             setPreviewData(preview);
         } catch (error: unknown) {
             logger.error('Failed to load preview:', error);
-            // Keep modal open but show error state (handled by !previewData check in render)
             setPreviewData(null);
         } finally {
             setLoadingPreview(false);
         }
     };
 
-
-    const renderMessageItem = (message: FollowUpMessage, index: number) => {
-        const isExpanded = expandedMessages.has(message.id);
+    const renderMessageItem = (field: FollowUpMessageField, index: number) => {
+        const message = field;
+        const isExpanded = expandedMessages.has(field.id);
         const charCount = message.message_template.length;
-        const isOverLimit = charCount > 3500;
-        const isWarning = charCount > 3000;
+        const isOverLimit = charCount > MAX_MESSAGE_LENGTH;
+        const isWarning = charCount > WARNING_THRESHOLD;
 
         return (
-            <div key={message.id} className="border border-gray-200 rounded-lg overflow-hidden">
-                {/* Message Header */}
+            <div key={field.id} className="border border-gray-200 rounded-lg overflow-hidden">
                 <div className="w-full px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors flex items-center justify-between">
                     <button
                         type="button"
-                        onClick={() => toggleMessage(message.id)}
+                        onClick={() => toggleMessage(field.id)}
                         className="flex items-center gap-3 flex-1 text-left"
                         disabled={disabled}
                     >
@@ -377,22 +279,17 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
                     <div
                         className="flex items-center cursor-pointer ml-4"
                         onClick={(e) => e.stopPropagation()}
-                        onMouseDown={(e) => e.stopPropagation()}
                     >
                         <input
                             type="checkbox"
-                            checked={message.is_enabled}
-                            onChange={() => handleToggleEnabled(message)}
-                            onClick={(e) => e.stopPropagation()}
-                            onMouseDown={(e) => e.stopPropagation()}
+                            checked={message.is_enabled !== false}
+                            onChange={() => handleToggleEnabled(index)}
                             disabled={disabled}
                             className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer disabled:cursor-not-allowed"
-                            aria-label="啟用追蹤訊息"
                         />
                     </div>
                 </div>
 
-                {/* Message Content */}
                 {isExpanded && (
                     <div className="p-4 space-y-3 bg-white">
                         <div className="text-sm text-gray-600">
@@ -420,7 +317,7 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
                                     </button>
                                     <button
                                         type="button"
-                                        onClick={() => handleEditMessage(message)}
+                                        onClick={() => handleEditMessage(index)}
                                         disabled={disabled}
                                         className="text-xs text-blue-600 hover:text-blue-800 disabled:text-gray-400"
                                     >
@@ -431,7 +328,7 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
                                         onClick={async () => {
                                             const confirmed = await confirm('確定要刪除此追蹤訊息嗎？', '刪除追蹤訊息');
                                             if (confirmed) {
-                                                handleDeleteMessage(message.id);
+                                                remove(index);
                                             }
                                         }}
                                         disabled={disabled}
@@ -449,13 +346,8 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
                                     }`}
                             />
                             <div className="flex items-center justify-between mt-1">
-                                <div className="text-xs text-gray-500">
-                                    {!message.message_template.trim() && (
-                                        <span className="text-red-600">訊息模板為必填</span>
-                                    )}
-                                </div>
                                 <div className={`text-xs ${isOverLimit ? 'text-red-600' : isWarning ? 'text-yellow-600' : 'text-gray-500'}`}>
-                                    {charCount} / 3500 {isOverLimit && '(超過限制)'}
+                                    {charCount} / {MAX_MESSAGE_LENGTH} {isOverLimit && '(超過限制)'}
                                 </div>
                             </div>
                         </div>
@@ -468,7 +360,10 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
     return (
         <>
             <div>
-                <div className="flex justify-end mb-4">
+                <div className="flex justify-between items-center mb-4">
+                    <div className="flex items-center gap-2">
+                        {/* Placeholder for optional title or info */}
+                    </div>
                     <button
                         type="button"
                         onClick={handleAddMessage}
@@ -479,26 +374,21 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
                     </button>
                 </div>
 
-                {loading ? (
-                    <div className="flex justify-center py-8">
-                        <LoadingSpinner />
-                    </div>
-                ) : followUpMessages.length === 0 ? (
+                {fields.length === 0 ? (
                     <div className="text-center py-8 text-gray-500 text-sm">
                         尚無追蹤訊息，點擊「新增追蹤訊息」開始設定
                     </div>
                 ) : (
                     <div className="space-y-3">
-                        {followUpMessages.map((message, index) => renderMessageItem(message, index))}
+                        {fields.map((field, index) => renderMessageItem(field as unknown as FollowUpMessageField, index))}
                     </div>
                 )}
             </div>
 
-            {/* Edit/Create Modal */}
-            {editingMessage !== null || isNewMessage ? (
+            {(editingIndex !== null || isNewMessage) && (
                 <BaseModal
                     onClose={() => {
-                        setEditingMessage(null);
+                        setEditingIndex(null);
                         setIsNewMessage(false);
                         setFormErrors({});
                     }}
@@ -509,14 +399,13 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
                         title={isNewMessage ? '新增追蹤訊息' : '編輯追蹤訊息'}
                         showClose
                         onClose={() => {
-                            setEditingMessage(null);
+                            setEditingIndex(null);
                             setIsNewMessage(false);
                             setFormErrors({});
                         }}
                     />
                     <ModalBody>
                         <div className="space-y-4">
-                            {/* Timing Mode Selection */}
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">
                                     發送時機 <span className="text-red-500">*</span>
@@ -534,7 +423,6 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
                                                     timing_mode: 'hours_after',
                                                     days_after: undefined,
                                                     time_of_day: undefined,
-                                                    // Set hours_after to 0 as default for this mode
                                                     hours_after: prev.hours_after !== undefined ? prev.hours_after : 0,
                                                 }));
                                                 setFormErrors(prev => {
@@ -564,12 +452,6 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
                                             {formErrors.hours_after && (
                                                 <p className="text-red-600 text-xs mt-1">{formErrors.hours_after}</p>
                                             )}
-                                            {/* Warning for delays > 90 days (2160 hours) - per design doc recommendation */}
-                                            {(formData.hours_after || 0) > 2160 && (
-                                                <p className="text-yellow-600 text-xs mt-1">
-                                                    ⚠️ 警告：延遲時間超過 90 天，請確認是否正確
-                                                </p>
-                                            )}
                                         </div>
                                     )}
 
@@ -584,9 +466,7 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
                                                     ...prev,
                                                     timing_mode: 'specific_time',
                                                     hours_after: undefined,
-                                                    // Set days_after to 0 as default for this mode
                                                     days_after: prev.days_after !== undefined ? prev.days_after : 0,
-                                                    // Set time_of_day to default if it's undefined
                                                     time_of_day: prev.time_of_day || '21:00',
                                                 }));
                                                 setFormErrors(prev => {
@@ -616,12 +496,6 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
                                                 {formErrors.days_after && (
                                                     <p className="text-red-600 text-xs mt-1">{formErrors.days_after}</p>
                                                 )}
-                                                {/* Warning for delays > 90 days - per design doc recommendation */}
-                                                {(formData.days_after || 0) > 90 && (
-                                                    <p className="text-yellow-600 text-xs mt-1">
-                                                        ⚠️ 警告：延遲時間超過 90 天，請確認是否正確
-                                                    </p>
-                                                )}
                                             </div>
                                             <div>
                                                 <TimeInput
@@ -639,16 +513,12 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
                                                     className="w-32"
                                                     error={formErrors.time_of_day || null}
                                                 />
-                                                {formErrors.time_of_day && (
-                                                    <p className="text-red-600 text-xs mt-1">{formErrors.time_of_day}</p>
-                                                )}
                                             </div>
                                         </div>
                                     )}
                                 </div>
                             </div>
 
-                            {/* Message Template */}
                             <div>
                                 <div className="flex items-center justify-between mb-2">
                                     <label className="text-sm font-medium text-gray-700">
@@ -699,18 +569,17 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
                                             <span className="text-red-600">{formErrors.message_template}</span>
                                         )}
                                     </div>
-                                    <div className={`text-xs ${formData.message_template.length > 3500
+                                    <div className={`text-xs ${formData.message_template.length > MAX_MESSAGE_LENGTH
                                         ? 'text-red-600'
-                                        : formData.message_template.length > 3000
+                                        : formData.message_template.length > WARNING_THRESHOLD
                                             ? 'text-yellow-600'
                                             : 'text-gray-500'
                                         }`}>
-                                        {formData.message_template.length} / 3500
+                                        {formData.message_template.length} / {MAX_MESSAGE_LENGTH}
                                     </div>
                                 </div>
                             </div>
 
-                            {/* Enabled Toggle */}
                             <div>
                                 <label className="flex items-center">
                                     <input
@@ -728,7 +597,7 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
                         <button
                             type="button"
                             onClick={() => {
-                                setEditingMessage(null);
+                                setEditingIndex(null);
                                 setIsNewMessage(false);
                                 setFormErrors({});
                             }}
@@ -745,10 +614,9 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
                         </button>
                     </ModalFooter>
                 </BaseModal>
-            ) : null}
+            )}
 
-            {/* Preview Modal */}
-            {previewModal.isOpen && previewModal.message && (
+            {previewModal.isOpen && (
                 <BaseModal
                     onClose={() => {
                         setPreviewModal({ isOpen: false, message: null });
@@ -762,19 +630,11 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
                         setPreviewData(null);
                     }} />
                     <ModalBody>
-                        {loadingPreview && (
+                        {loadingPreview ? (
                             <div className="flex justify-center py-8">
                                 <LoadingSpinner />
                             </div>
-                        )}
-
-                        {!loadingPreview && !previewData && (
-                            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                                <p className="text-sm text-red-800">無法載入預覽，請稍後再試。</p>
-                            </div>
-                        )}
-
-                        {previewData && !loadingPreview && (
+                        ) : previewData ? (
                             <div className="space-y-4">
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -784,6 +644,20 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
                                         {previewData.preview_message}
                                     </div>
                                 </div>
+
+                                {previewData.completeness_warnings && previewData.completeness_warnings.length > 0 && (
+                                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                                        <div className="text-xs font-medium text-yellow-800 mb-2">建議補充以下資訊以提升訊息完整度：</div>
+                                        <ul className="space-y-1">
+                                            {previewData.completeness_warnings.map((warning, index) => (
+                                                <li key={index} className="text-xs text-yellow-700 flex gap-2">
+                                                    <span>•</span>
+                                                    <span>{warning}</span>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                )}
 
                                 {Object.keys(previewData.used_placeholders).length > 0 && (
                                     <div>
@@ -803,74 +677,21 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
                                         </div>
                                     </div>
                                 )}
-
-                                {previewData.completeness_warnings && previewData.completeness_warnings.length > 0 && (
-                                    <div>
-                                        <label className="block text-sm font-medium text-yellow-700 mb-2">
-                                            注意事項
-                                        </label>
-                                        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                                            <ul className="space-y-1">
-                                                {previewData.completeness_warnings.map((warning, index) => (
-                                                    <li key={index} className="text-sm text-yellow-800">
-                                                        • {warning}
-                                                    </li>
-                                                ))}
-                                            </ul>
-                                        </div>
-                                    </div>
-                                )}
+                            </div>
+                        ) : (
+                            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                                <p className="text-sm text-red-800">無法載入預覽，請稍後再試。</p>
                             </div>
                         )}
                     </ModalBody>
                     <ModalFooter>
                         <button
                             type="button"
-                            onClick={() => {
-                                setPreviewModal({ isOpen: false, message: null });
-                                setPreviewData(null);
-                            }}
-                            className="btn-primary px-4 py-2"
+                            onClick={() => setPreviewModal({ isOpen: false, message: null })}
+                            className="btn-primary"
                         >
                             關閉
                         </button>
-                    </ModalFooter>
-                </BaseModal>
-            )}
-
-            {/* Info Modal for Follow-Up Messages Explanation */}
-            {showInfoModal && (
-                <BaseModal
-                    onClose={() => setShowInfoModal(false)}
-                    aria-label="追蹤訊息設定說明"
-                >
-                    <ModalHeader title="追蹤訊息設定說明" showClose onClose={() => setShowInfoModal(false)} />
-                    <ModalBody>
-                        <div className="space-y-4">
-                            <p>
-                                <strong>什麼是追蹤訊息？</strong>
-                            </p>
-                            <p>
-                                追蹤訊息是在病患完成預約後，系統自動發送的 LINE 訊息。您可以設定多個追蹤訊息，每個訊息可以有不同的發送時機和內容。
-                            </p>
-                            <p>
-                                <strong>發送時機：</strong>
-                            </p>
-                            <ul className="list-disc list-inside space-y-1 ml-2">
-                                <li><strong>預約結束後 X 小時：</strong>在預約結束時間後，延遲指定小時數發送（例如：2 小時後）。X=0 表示預約結束後立即發送。</li>
-                                <li><strong>預約日期後 Y 天的特定時間：</strong>在預約日期後的第 Y 天，於指定時間發送（例如：1 天後的晚上 9 點）。Y=0 表示預約當天的指定時間。</li>
-                            </ul>
-                            <p>
-                                <strong>注意事項：</strong>
-                            </p>
-                            <ul className="list-disc list-inside space-y-1 ml-2">
-                                <li>如果預約被取消，已排程的追蹤訊息將不會發送</li>
-                                <li>如果預約時間變更，系統會自動重新排程追蹤訊息</li>
-                            </ul>
-                        </div>
-                    </ModalBody>
-                    <ModalFooter>
-                        <button type="button" onClick={() => setShowInfoModal(false)} className="btn-secondary">關閉</button>
                     </ModalFooter>
                 </BaseModal>
             )}

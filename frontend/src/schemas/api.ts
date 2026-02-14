@@ -403,12 +403,13 @@ export const ResourcesSettingsFormSchema = z.object({
 // Bundle schemas
 export const BillingScenarioBundleSchema = z.object({
   id: z.number().optional(),
+  db_id: z.number().optional(),
   practitioner_id: z.number(),
   name: z.string().min(1, '請輸入方案名稱').max(255, '名稱最長 255 字元'),
   amount: z.coerce.number().min(0, '金額不能為負數'),
   revenue_share: z.coerce.number().min(0, '分潤不能為負數'),
   is_default: z.boolean(),
-}).catchall(z.unknown()).refine(data => data.amount >= data.revenue_share, {
+}).refine(data => data.amount >= data.revenue_share, {
   message: '金額必須大於或等於分潤',
   path: ['revenue_share'],
 });
@@ -417,7 +418,7 @@ export const ResourceRequirementBundleSchema = z.object({
   resource_type_id: z.number(),
   resource_type_name: z.string().optional(),
   quantity: z.number().min(1),
-}).catchall(z.unknown());
+});
 
 export const FollowUpMessageBundleSchema = z.object({
   id: z.number().optional(),
@@ -428,7 +429,7 @@ export const FollowUpMessageBundleSchema = z.object({
   message_template: z.string().min(1, '請輸入訊息內容').max(3500, '訊息最長 3500 字元'),
   is_enabled: z.boolean().optional(),
   display_order: z.number().optional(),
-}).catchall(z.unknown()).superRefine((data, ctx) => {
+}).superRefine((data, ctx) => {
   if (data.timing_mode === 'hours_after') {
     if (data.hours_after === null || data.hours_after === undefined) {
       ctx.addIssue({

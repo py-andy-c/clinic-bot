@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useForm, FormProvider } from 'react-hook-form';
+import { useForm, FormProvider, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -8,7 +8,7 @@ import { ModalHeader, ModalBody, ModalFooter } from './shared/ModalParts';
 import { apiService } from '../services/api';
 import { logger } from '../utils/logger';
 import { getErrorMessage } from '../types/api';
-import { AppointmentType, Practitioner, ServiceTypeGroup, ResourceRequirement } from '../types';
+import { Practitioner, ServiceTypeGroup } from '../types';
 import { LoadingSpinner, InfoButton, InfoModal, WarningPopover } from './shared';
 import {
   ServiceItemBundleRequest,
@@ -29,7 +29,7 @@ import { MessageSettingsSection } from './MessageSettingsSection';
 import { FollowUpMessagesSection } from './FollowUpMessagesSection';
 import { ResourceRequirementsSection } from './ResourceRequirementsSection';
 import { FormInput } from './forms/FormInput';
-import { generateTemporaryId, isRealId } from '../utils/idUtils';
+import { isRealId } from '../utils/idUtils';
 import { useUnsavedChangesDetection } from '../hooks/useUnsavedChangesDetection';
 import { formatCurrency } from '../utils/currencyUtils';
 import { useNumberInput } from '../hooks/useNumberInput';
@@ -51,6 +51,11 @@ interface ServiceItemEditModalProps {
 }
 
 
+
+interface BillingScenarioField extends Omit<BillingScenarioBundleData, 'id'> {
+  id: string; // Internal ID for useFieldArray
+  db_id?: number; // Preserved DB ID
+}
 
 export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
   serviceItemId,
@@ -142,19 +147,9 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
   // Validation state
   const [messageValidationErrors, setMessageValidationErrors] = useState<string[]>([]);
 
+
   useEffect(() => {
     if (bundle) {
-      // Map resource requirements
-      const requirements = bundle.associations.resource_requirements.map((req) => ({
-        id: generateTemporaryId(), // Unique temp ID for UI key
-        appointment_type_id: bundle.item.id,
-        resource_type_id: req.resource_type_id,
-        resource_type_name: req.resource_type_name || 'Unknown',
-        quantity: req.quantity,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      }));
-
       const formData: ServiceItemBundleFormData = {
         name: bundle.item.name,
         duration_minutes: bundle.item.duration_minutes,
@@ -179,9 +174,10 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
         practitioner_ids: bundle.associations.practitioner_ids,
         billing_scenarios: bundle.associations.billing_scenarios.map(s => ({
           ...s,
-          is_default: s.is_default // Ensure is_default is preserved
+          is_default: s.is_default, // Ensure is_default is preserved
+          db_id: s.id, // Preserve real ID
         })),
-        resource_requirements: requirements,
+        resource_requirements: bundle.associations.resource_requirements,
         follow_up_messages: bundle.associations.follow_up_messages,
       };
 
@@ -217,47 +213,16 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
     }
   }, [bundle, serviceItemId, reset]);
 
-  const onUpdateLocalItem = (updates: Partial<AppointmentType>) => {
-    // Removed setLocalItem
-    Object.entries(updates).forEach(([key, val]) => {
-      // Use cast to any for dynamic key assignment while satisfying RHF Path type
-      setValue(key as any, val, { shouldDirty: true, shouldValidate: true });
-    });
-  };
-
   useUnsavedChangesDetection({
     hasUnsavedChanges: () => methods.formState.isDirty,
   });
 
+  const { fields: billingFields, append: appendScenario, remove: removeScenario, update: updateScenario } = useFieldArray<any, any>({
+    control: methods.control as any,
+    name: 'billing_scenarios',
+  });
+
   const formValues = methods.watch(); // Watch all form values for child components
-
-  /**
-   * Dedicated type for the proxy object that satisfies individual section components.
-   * This allows us to pass the form state as an AppointmentType-compatible object
-   * even though it contains additional bundle-specific fields.
-   */
-  interface FormAppointmentTypeProxy extends AppointmentType {
-    practitioner_ids: any[];
-    billing_scenarios: any[];
-    resource_requirements: any[];
-    follow_up_messages: any[];
-    created_at: string;
-    updated_at: string;
-  }
-
-  const appointmentTypeProxy: FormAppointmentTypeProxy = {
-    ...formValues,
-    id: serviceItemId || 0,
-    clinic_id: 0,
-    is_deleted: false,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    // Explicitly set these to satisfy the proxy interface and resolve type conflicts
-    resource_requirements: formValues.resource_requirements || [],
-    follow_up_messages: formValues.follow_up_messages || [],
-    practitioner_ids: formValues.practitioner_ids || [],
-    billing_scenarios: formValues.billing_scenarios || [],
-  };
 
   const saveMutation = useMutation({
     mutationFn: async (data: ServiceItemBundleFormData) => {
@@ -287,14 +252,18 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
         associations: {
           practitioner_ids: data.practitioner_ids || [],
           billing_scenarios: (data.billing_scenarios || []).map(bs => {
+            const field = bs as unknown as BillingScenarioField;
             const scenario: BillingScenarioBundleData = {
               practitioner_id: bs.practitioner_id,
               name: bs.name,
               amount: bs.amount,
               revenue_share: bs.revenue_share,
-              is_default: bs.is_default
+              is_default: bs.is_default,
             };
-            if (bs.id && isRealId(bs.id)) scenario.id = bs.id;
+            // Use preserved db_id if available
+            if (field.db_id && isRealId(field.db_id)) {
+              scenario.id = field.db_id;
+            }
             return scenario;
           }),
           resource_requirements: (data.resource_requirements || []).map((req): ResourceRequirementBundleData => ({
@@ -344,8 +313,8 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
     saveMutation.mutate(data);
   };
 
-
-  const [editingScenario, setEditingScenario] = useState<{ practitionerId: number, scenario?: BillingScenarioBundleData } | null>(null);
+  // Billing Scenario Local Form State (still needed for the modal)
+  const [editingScenario, setEditingScenario] = useState<{ practitionerId: number; index?: number; scenario?: BillingScenarioBundleData } | null>(null);
   const [scenarioForm, setScenarioForm] = useState<BillingScenarioBundleData>({
     name: '', amount: 0, revenue_share: 0, is_default: false, practitioner_id: 0
   });
@@ -370,16 +339,67 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
     setEditingScenario({ practitionerId });
   };
 
-  const handleEditScenario = (practitionerId: number, scenario: BillingScenarioBundleData) => {
-    setScenarioForm(scenario);
+  const handleEditScenario = (practitionerId: number, index: number, scenario: BillingScenarioField) => {
+    // Convert BillingScenarioField to BillingScenarioBundleData if necessary for form state
+    // But scenario form can just take the field data (minus internal id if needed)
+    // Actually, setScenarioForm takes BundleData. BundleData has optional id: number. Field has id: string.
+    // We should adapt it.
+    const scenarioData: BillingScenarioBundleData = {
+      practitioner_id: scenario.practitioner_id,
+      name: scenario.name,
+      amount: scenario.amount,
+      revenue_share: scenario.revenue_share,
+      is_default: scenario.is_default,
+      // If scenario.id is numeric string, we could parse it, but for UI useFieldArray internal ID is not the DB ID.
+      // It's likely DB ID is not needed for form state unless explicitly tracked differently.
+      // But BundleData expects optional id?: number.
+    };
+    // If the scenario has a real ID from backend, it would be in properties? No, BundleData has id.
+    // When syncing from backend, we map BundleData to Field.
+    // The id in Field is internal string.
+    // If we need the real ID, it should be in the object.
+    // However, BillingScenarioField extends Omit<BundleData, 'id'>. So it LOSES the real ID.
+    // Wait, if we lose the real ID, how do we update it?
+    // We don't. That's a problem.
+    // BillingScenarioBundleData has id?: number.
+    // BillingScenarioField omits it.
+    // So we need to store real ID somewhere if it exists?
+    // Actually, react-hook-form field array item has `id` (internal).
+    // The original data is in standard properties.
+    // If we used Omit<..., 'id'>, we removed the real ID property from the type.
+    // So `field` object does NOT have user's `id`.
+    // We need `real_id` or similar if we want to preserve it.
+    // OR we should have defined `BillingScenarioField` as `BillingScenarioBundleData & { id: string }` but that causes clash.
+    // The standard way is `BillingScenarioBundleData & { key?: string }` or let `id` be string | number.
+    // But `useFieldArray` forces `id` to be string (or whatever keyName is).
+    // If we use keyName='customId', then `id` property is free for our use.
+
+    // Quick Fix: Cast scenario to unknown then BundleData for state, expecting it might have props we need.
+    // But if we Omitted id, we can't access it.
+    // Let's check where `id` comes from.
+    // In `useEffect` (line 174), we map `bundle.associations.billing_scenarios`.
+    // These have `id?: number`.
+    // map(s => ({ ...s })) keeps `id`.
+    // But `useFieldArray` will overwrite `id` with its own unique string if we don't specify keyName.
+    // AND it might strip `id` if passing to `append`.
+    // ACTUALLY `useFieldArray` merges its `id` into the object.
+
+    // If keyName is default 'id', then `item.id` is the hook-form ID. The original `id` is lost or overwritten?
+    // Yes, overwritten.
+    // We should rename the real ID to `original_id` or similar in the map, or use a different keyName for useFieldArray.
+    // Changing keyName requires changing `ServiceItemEditModal` and `useFieldArray` config.
+
+    // Alternate: `BillingScenarioField` should have `db_id?: number`.
+    // And in `useEffect` map, we do `db_id: s.id`.
+    // Then on save, we map `id: db_id`.
+
+    setScenarioForm({ ...scenarioData, id: (scenario as any).db_id }); // optimistic that we have it?
     setScenarioFormErrors({});
-    setEditingScenario({ practitionerId, scenario });
+    setEditingScenario({ practitionerId, index, scenario: { ...scenarioData, id: (scenario as any).db_id } });
   };
 
   const handleConfirmScenario = () => {
     if (!editingScenario) return;
-
-    const currentScenarios = methods.getValues('billing_scenarios') || [];
 
     // Validate required fields
     const errors: { name?: string; amount?: string; revenue_share?: string } = {};
@@ -387,12 +407,13 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
       errors.name = '請輸入方案名稱';
     } else {
       // Check for duplicate name for the same practitioner
-      const duplicateExists = currentScenarios.some(s =>
-        s.practitioner_id === scenarioForm.practitioner_id &&
-        s.name.trim().toLowerCase() === scenarioForm.name.trim().toLowerCase() &&
-        // Exclude the current scenario being edited: by ID if it exists, otherwise by reference
-        (editingScenario.scenario?.id ? s.id !== editingScenario.scenario.id : s !== editingScenario.scenario)
-      );
+      const duplicateExists = billingFields.some((field, idx) => {
+        const s = field as unknown as BillingScenarioField;
+        return s.practitioner_id === scenarioForm.practitioner_id &&
+          s.name.trim().toLowerCase() === scenarioForm.name.trim().toLowerCase() &&
+          // Exclude the current scenario being edited by index
+          idx !== editingScenario.index;
+      });
       if (duplicateExists) {
         errors.name = '此治療師已有相同名稱的方案';
       }
@@ -415,28 +436,36 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
       return;
     }
 
-    if (editingScenario.scenario) {
-      let updated = currentScenarios.map(s => s === editingScenario.scenario ? scenarioForm : s);
+    if (editingScenario.index !== undefined) {
+      // Update existing
+      updateScenario(editingScenario.index, scenarioForm as any);
+
       // If the modified scenario is set as default, unset others for the same practitioner
       if (scenarioForm.is_default) {
-        updated = updated.map(s =>
-          (s !== scenarioForm && s.practitioner_id === scenarioForm.practitioner_id)
-            ? { ...s, is_default: false }
-            : s
-        );
+        billingFields.forEach((field, idx) => {
+          const s = field as unknown as BillingScenarioField;
+          if (idx !== editingScenario.index && s.practitioner_id === scenarioForm.practitioner_id && s.is_default) {
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            const { id, db_id, ...rest } = s;
+            updateScenario(idx, { ...rest, is_default: false, ...(db_id ? { id: db_id } : {}) } as any);
+          }
+        });
       }
-      setValue('billing_scenarios', updated, { shouldDirty: true });
     } else {
-      let updated = [...currentScenarios, scenarioForm];
+      // Append new
+      appendScenario(scenarioForm as any);
+
       // If the new scenario is set as default, unset others for the same practitioner
       if (scenarioForm.is_default) {
-        updated = updated.map(s =>
-          (s !== scenarioForm && s.practitioner_id === scenarioForm.practitioner_id)
-            ? { ...s, is_default: false }
-            : s
-        );
+        billingFields.forEach((field, idx) => {
+          const s = field as unknown as BillingScenarioField;
+          if (s.practitioner_id === scenarioForm.practitioner_id && s.is_default) {
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            const { id, db_id, ...rest } = s;
+            updateScenario(idx, { ...rest, is_default: false, ...(db_id ? { id: db_id } : {}) } as any);
+          }
+        });
       }
-      setValue('billing_scenarios', updated, { shouldDirty: true });
     }
     setEditingScenario(null);
   };
@@ -677,10 +706,8 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                     </h3>
                     <p className="text-sm text-gray-500 mb-4">設定此服務項目需要的資源類型和數量</p>
                     <ResourceRequirementsSection
-                      appointmentTypeId={serviceItemId || 0}
                       isClinicAdmin={isClinicAdmin}
-                      currentResourceRequirements={(formValues.resource_requirements || []) as unknown as ResourceRequirement[]}
-                      updateResourceRequirements={(_id, reqs) => setValue('resource_requirements', reqs as unknown as ResourceRequirementBundleData[], { shouldDirty: true })}
+                      disabled={!isClinicAdmin}
                     />
                   </section>
                 </div>
@@ -696,9 +723,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                     <div className="space-y-4">
                       {practitioners.map(m => {
                         const practitionerIds = formValues.practitioner_ids || [];
-                        const billingScenarios = formValues.billing_scenarios || [];
                         const isAssigned = practitionerIds.includes(m.id);
-                        const scenarios = billingScenarios.filter(s => s.practitioner_id === m.id);
 
                         return (
                           <div key={m.id} className={`p-4 md:rounded-xl border-b md:border transition-all ${isAssigned ? 'bg-blue-50/50 border-blue-200' : 'bg-white border-gray-100 md:border-gray-200'} border-x-0`}>
@@ -727,42 +752,47 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                             </div>
 
                             <div className="space-y-2 pl-8">
-                              {scenarios.length > 0 ? scenarios.map((s, idx) => (
-                                <div key={idx} className="flex items-center justify-between p-3 rounded-lg border border-gray-200 bg-white shadow-sm hover:shadow-md transition-shadow">
-                                  <div className="flex items-center flex-wrap gap-y-1 min-w-0 flex-1 mr-2">
-                                    <span className="font-medium text-gray-900 truncate mr-2" title={s.name}>{s.name}</span>
-                                    {s.is_default && (
-                                      <span className="px-1.5 py-0.5 text-[10px] font-medium text-amber-700 bg-amber-50 rounded border border-amber-200 flex-shrink-0 mr-2">
-                                        預設
-                                      </span>
-                                    )}
-                                    <span className="text-gray-300 mr-2 hidden sm:inline">|</span>
-                                    <span className="text-sm text-gray-600">
-                                      金額: {formatCurrency(s.amount)} <span className="text-gray-300 mx-1">|</span> 診所分潤: {formatCurrency(s.revenue_share)}
-                                    </span>
-                                  </div>
-                                  <div className="flex gap-1 flex-shrink-0">
-                                    <button
-                                      type="button"
-                                      onClick={() => handleEditScenario(m.id, s as BillingScenarioBundleData)}
-                                      className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                      title="編輯方案"
-                                    >
-                                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => setValue('billing_scenarios', (billingScenarios).filter((bs) => bs !== s), { shouldDirty: true })}
-                                      className="p-1.5 text-gray-500 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                                      title="刪除方案"
-                                    >
-                                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                    </button>
-                                  </div>
-                                </div>
-                              )) : (
-                                <p className="text-sm text-gray-400 italic py-1">尚未設定計費方案</p>
-                              )}
+                              {billingFields.filter(f => (f as unknown as BillingScenarioField).practitioner_id === m.id).length > 0 ?
+                                billingFields.map((field, idx) => {
+                                  const s = field as unknown as BillingScenarioField;
+                                  if (s.practitioner_id !== m.id) return null;
+                                  return (
+                                    <div key={s.id} className="flex items-center justify-between p-3 rounded-lg border border-gray-200 bg-white shadow-sm hover:shadow-md transition-shadow">
+                                      <div className="flex items-center flex-wrap gap-y-1 min-w-0 flex-1 mr-2">
+                                        <span className="font-medium text-gray-900 truncate mr-2" title={String(s.name)}>{String(s.name)}</span>
+                                        {s.is_default && (
+                                          <span className="px-1.5 py-0.5 text-[10px] font-medium text-amber-700 bg-amber-50 rounded border border-amber-200 flex-shrink-0 mr-2">
+                                            預設
+                                          </span>
+                                        )}
+                                        <span className="text-gray-300 mr-2 hidden sm:inline">|</span>
+                                        <span className="text-sm text-gray-600">
+                                          金額: {formatCurrency(Number(s.amount))} <span className="text-gray-300 mx-1">|</span> 診所分潤: {formatCurrency(Number(s.revenue_share))}
+                                        </span>
+                                      </div>
+                                      <div className="flex gap-1 flex-shrink-0">
+                                        <button
+                                          type="button"
+                                          onClick={() => handleEditScenario(m.id, idx, s as unknown as BillingScenarioField)}
+                                          className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                          title="編輯方案"
+                                        >
+                                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => removeScenario(idx)}
+                                          className="p-1.5 text-gray-500 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                          title="刪除方案"
+                                        >
+                                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                        </button>
+                                      </div>
+                                    </div>
+                                  );
+                                }) : (
+                                  <p className="text-sm text-gray-400 italic py-1">尚未設定計費方案</p>
+                                )}
                             </div>
                           </div>
                         );
@@ -777,8 +807,8 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                     </h3>
                     {isClinicAdmin && (
                       <MessageSettingsSection
-                        appointmentType={appointmentTypeProxy}
-                        onUpdate={onUpdateLocalItem}
+                        appointmentTypeId={serviceItemId || 0}
+                        appointmentTypeName={name}
                         disabled={!isClinicAdmin}
                         {...(clinicInfoAvailability !== undefined && { clinicInfoAvailability })}
                       />
@@ -808,10 +838,10 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                       </h3>
                     </div>
                     <FollowUpMessagesSection
-                      appointmentType={appointmentTypeProxy}
-                      onUpdate={onUpdateLocalItem}
+                      appointmentTypeId={serviceItemId || 0}
+                      appointmentTypeName={name}
                       disabled={!isClinicAdmin}
-                      clinicInfoAvailability={clinicInfoAvailability || {}}
+                      {...(clinicInfoAvailability !== undefined && { clinicInfoAvailability })}
                     />
                   </section>
                 </div>

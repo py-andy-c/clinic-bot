@@ -16,6 +16,7 @@ from core.database import get_db
 from core.constants import TEMPORARY_ID_THRESHOLD
 from auth.dependencies import require_admin_role, UserContext, ensure_clinic_access
 from models import AppointmentType, FollowUpMessage, Clinic
+from utils.id_utils import is_real_id
 
 logger = logging.getLogger(__name__)
 
@@ -443,13 +444,12 @@ async def preview_follow_up_message(
     try:
         clinic_id = ensure_clinic_access(current_user)
         
-        # Check if appointment_type_id is a temporary ID (large timestamp > TEMPORARY_ID_THRESHOLD)
-        is_temporary_id = request.appointment_type_id and request.appointment_type_id > TEMPORARY_ID_THRESHOLD
+        
         
         appointment_type = None
         appointment_type_name = None
         
-        if request.appointment_type_id and not is_temporary_id:
+        if request.appointment_type_id and is_real_id(request.appointment_type_id):
             # Try to load from database for real IDs
             appointment_type = db.query(AppointmentType).filter(
                 AppointmentType.id == request.appointment_type_id,

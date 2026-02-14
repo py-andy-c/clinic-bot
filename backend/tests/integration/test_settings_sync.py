@@ -110,7 +110,7 @@ def test_sync_rejections_and_creations(db_session, test_clinic, admin_user):
         }
         response = client.put(f"/api/clinic/service-items/{at.id}/bundle", json=payload_temp)
         assert response.status_code == 400
-        assert "Temporary follow-up message ID" in response.json()["detail"]
+        assert "exceeds temporary threshold" in response.json()["detail"]
 
         # 3. Test Rejection: Boundary ID (Exactly at threshold)
         payload_boundary = {
@@ -131,7 +131,7 @@ def test_sync_rejections_and_creations(db_session, test_clinic, admin_user):
         }
         response = client.put(f"/api/clinic/service-items/{at.id}/bundle", json=payload_boundary)
         assert response.status_code == 400
-        assert "Temporary billing scenario ID" in response.json()["detail"]
+        assert "exceeds temporary threshold" in response.json()["detail"]
 
         # 4. Test Success: ID 0 (Should be treated as new, not found in DB)
         payload_zero = {

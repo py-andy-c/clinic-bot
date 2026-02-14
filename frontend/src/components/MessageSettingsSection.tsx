@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { useFormContext } from 'react-hook-form';
 import { PlaceholderHelper } from './PlaceholderHelper';
 import { MessagePreviewModal } from './MessagePreviewModal';
 import {
@@ -10,13 +11,12 @@ import {
   MESSAGE_TYPE_LABELS,
   MESSAGE_TYPE_DESCRIPTIONS,
 } from '../constants/messageTemplates';
-import { AppointmentType } from '../types';
 import { isTemporaryServiceItemId } from '../utils/idUtils';
 import { WarningPopover } from './shared/WarningPopover';
 
 interface MessageSettingsSectionProps {
-  appointmentType: AppointmentType;
-  onUpdate: (updated: AppointmentType) => void;
+  appointmentTypeId: number;
+  appointmentTypeName?: string;
   disabled?: boolean;
   clinicInfoAvailability?: {
     has_address?: boolean;
@@ -24,17 +24,13 @@ interface MessageSettingsSectionProps {
   };
 }
 
-interface MessageFieldState {
-  toggle: boolean;
-  message: string;
-}
-
 export const MessageSettingsSection: React.FC<MessageSettingsSectionProps> = ({
-  appointmentType,
-  onUpdate,
+  appointmentTypeId,
+  appointmentTypeName,
   disabled = false,
   clinicInfoAvailability,
 }) => {
+  const { register, watch, setValue } = useFormContext();
   const [expandedSections, setExpandedSections] = useState<Set<MessageType>>(
     new Set(['patient_confirmation', 'clinic_confirmation', 'reminder', 'recurrent_clinic_confirmation'])
   );
@@ -52,94 +48,10 @@ export const MessageSettingsSection: React.FC<MessageSettingsSectionProps> = ({
     recurrent_clinic_confirmation: null,
   });
 
-  // Check if this is a new item (temporary ID)
-  const isNewItem = isTemporaryServiceItemId(appointmentType.id);
+  const isNewItem = isTemporaryServiceItemId(appointmentTypeId);
 
-  // Initialize message fields with defaults if not present
-  const getMessageField = (type: MessageType): MessageFieldState => {
-    const toggleKey = `send_${type}` as keyof AppointmentType;
-    const messageKey = `${type}_message` as keyof AppointmentType;
-
-    // Get raw toggle value from appointmentType
-    // Check both the direct property and if it exists in the object
-    const rawToggle = appointmentType[toggleKey] as boolean | undefined;
-
-    // Default logic: only use defaults if value is actually undefined
-    // For patient_confirmation on existing items, migration set it to false, but if user changed it to true, respect that
-    let defaultToggle: boolean;
-    if (type === 'patient_confirmation' && !isNewItem) {
-      // For existing items, if value is undefined, default to false (migration behavior)
-      // But if value is explicitly set (true or false), use that value
-      defaultToggle = false;
-    } else {
-      defaultToggle = true;
-    }
-
-    // Use raw value if present (including false), otherwise use default
-    // This ensures that if database has true, we use true, not the default
-    const toggle = rawToggle !== undefined ? rawToggle : defaultToggle;
-    let message = appointmentType[messageKey] as string | undefined;
-
-    if (!message || message.trim() === '') {
-      switch (type) {
-        case 'patient_confirmation':
-          message = DEFAULT_PATIENT_CONFIRMATION_MESSAGE;
-          break;
-        case 'clinic_confirmation':
-          message = DEFAULT_CLINIC_CONFIRMATION_MESSAGE;
-          break;
-        case 'reminder':
-          message = DEFAULT_REMINDER_MESSAGE;
-          break;
-        case 'recurrent_clinic_confirmation':
-          message = DEFAULT_RECURRENT_CLINIC_CONFIRMATION_MESSAGE;
-          break;
-      }
-    }
-
-    return { toggle, message };
-  };
-
-  const patientConfirmation = getMessageField('patient_confirmation');
-  const clinicConfirmation = getMessageField('clinic_confirmation');
-  const reminder = getMessageField('reminder');
-
-  const updateMessageField = (type: MessageType, field: 'toggle' | 'message', value: boolean | string) => {
-    const updated: AppointmentType = { ...appointmentType };
-
-    if (field === 'toggle') {
-      (updated as any)[`send_${type}`] = value as boolean;
-
-      // Safety net: If toggle is turned ON and message is empty, auto-set default
-      if (value === true) {
-        const messageKey = `${type}_message` as keyof AppointmentType;
-        const currentMessage = updated[messageKey] as string | undefined;
-
-        if (!currentMessage || currentMessage.trim() === '') {
-          let defaultMessage = '';
-          switch (type) {
-            case 'patient_confirmation':
-              defaultMessage = DEFAULT_PATIENT_CONFIRMATION_MESSAGE;
-              break;
-            case 'clinic_confirmation':
-              defaultMessage = DEFAULT_CLINIC_CONFIRMATION_MESSAGE;
-              break;
-            case 'reminder':
-              defaultMessage = DEFAULT_REMINDER_MESSAGE;
-              break;
-            case 'recurrent_clinic_confirmation':
-              defaultMessage = DEFAULT_RECURRENT_CLINIC_CONFIRMATION_MESSAGE;
-              break;
-          }
-          (updated as any)[messageKey] = defaultMessage;
-        }
-      }
-    } else {
-      (updated as any)[`${type}_message`] = value as string;
-    }
-
-    onUpdate(updated);
-  };
+  const allow_new_patient_booking = watch('allow_new_patient_booking');
+  const allow_existing_patient_booking = watch('allow_existing_patient_booking');
 
   const handleResetToDefault = (type: MessageType) => {
     let defaultMessage = '';
@@ -157,27 +69,27 @@ export const MessageSettingsSection: React.FC<MessageSettingsSectionProps> = ({
         defaultMessage = DEFAULT_RECURRENT_CLINIC_CONFIRMATION_MESSAGE;
         break;
     }
-    updateMessageField(type, 'message', defaultMessage);
+    setValue(`${type}_message`, defaultMessage, { shouldDirty: true });
   };
 
   const handlePreview = (type: MessageType) => {
-    const field = getMessageField(type);
+    const template = watch(`${type}_message`);
     setPreviewModal({
       isOpen: true,
       messageType: type,
-      template: field.message,
+      template: template || '',
     });
   };
 
   const handleInsertPlaceholder = (type: MessageType, placeholder: string) => {
-    const field = getMessageField(type);
     const textarea = textareaRefs.current[type];
+    const currentMessage = watch(`${type}_message`) || '';
 
     if (textarea) {
       const start = textarea.selectionStart;
       const end = textarea.selectionEnd;
-      const newMessage = field.message.substring(0, start) + placeholder + field.message.substring(end);
-      updateMessageField(type, 'message', newMessage);
+      const newMessage = currentMessage.substring(0, start) + placeholder + currentMessage.substring(end);
+      setValue(`${type}_message`, newMessage, { shouldDirty: true });
 
       // Restore cursor position after placeholder
       setTimeout(() => {
@@ -186,7 +98,7 @@ export const MessageSettingsSection: React.FC<MessageSettingsSectionProps> = ({
       }, 0);
     } else {
       // Fallback: append to end
-      updateMessageField(type, 'message', field.message + placeholder);
+      setValue(`${type}_message`, currentMessage + placeholder, { shouldDirty: true });
     }
   };
 
@@ -200,9 +112,11 @@ export const MessageSettingsSection: React.FC<MessageSettingsSectionProps> = ({
     setExpandedSections(newExpanded);
   };
 
-  const renderMessageSection = (type: MessageType, field: MessageFieldState) => {
+  const renderMessageSection = (type: MessageType) => {
     const isExpanded = expandedSections.has(type);
-    const charCount = field.message.length;
+    const toggleValue = watch(`send_${type}`);
+    const messageValue = watch(`${type}_message`) || '';
+    const charCount = messageValue.length;
     const isOverLimit = charCount > 3500;
     const isWarning = charCount > 3000;
 
@@ -227,7 +141,7 @@ export const MessageSettingsSection: React.FC<MessageSettingsSectionProps> = ({
             <div className="text-left">
               <div className="text-sm font-medium text-gray-900 flex items-center gap-2">
                 <span>{MESSAGE_TYPE_LABELS[type]}</span>
-                {type === 'patient_confirmation' && !appointmentType.allow_new_patient_booking && !appointmentType.allow_existing_patient_booking && (
+                {type === 'patient_confirmation' && !allow_new_patient_booking && !allow_existing_patient_booking && (
                   <WarningPopover message="此服務項目未開放病患自行預約，此設定不會生效。">
                     <span className="text-amber-600 hover:text-amber-700 cursor-pointer">⚠️</span>
                   </WarningPopover>
@@ -245,8 +159,7 @@ export const MessageSettingsSection: React.FC<MessageSettingsSectionProps> = ({
           >
             <input
               type="checkbox"
-              checked={field.toggle}
-              onChange={(e) => updateMessageField(type, 'toggle', e.target.checked)}
+              {...register(`send_${type}`)}
               onClick={(e) => e.stopPropagation()}
               onMouseDown={(e) => e.stopPropagation()}
               disabled={disabled}
@@ -262,7 +175,7 @@ export const MessageSettingsSection: React.FC<MessageSettingsSectionProps> = ({
             <div>
               <div className="flex items-center justify-between mb-2">
                 <label className="text-sm font-medium text-gray-700">
-                  訊息模板 {field.toggle && <span className="text-red-500">*</span>}
+                  訊息模板 {toggleValue && <span className="text-red-500">*</span>}
                 </label>
                 <div className="flex items-center gap-2">
                   <PlaceholderHelper
@@ -290,10 +203,13 @@ export const MessageSettingsSection: React.FC<MessageSettingsSectionProps> = ({
                 </div>
               </div>
               <textarea
-                ref={(el) => { textareaRefs.current[type] = el; }}
-                name={`${type}_message`}
-                value={field.message}
-                onChange={(e) => updateMessageField(type, 'message', e.target.value)}
+                {...register(`${type}_message`)}
+                ref={(el) => {
+                  textareaRefs.current[type] = el;
+                  const { ref } = register(`${type}_message`);
+                  if (typeof ref === 'function') ref(el);
+                  else if (ref) (ref as any).current = el;
+                }}
                 disabled={disabled}
                 rows={8}
                 className={`w-full px-3 py-2 border rounded-lg text-sm resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${isOverLimit ? 'border-red-500' : isWarning ? 'border-yellow-500' : 'border-gray-300'
@@ -302,7 +218,7 @@ export const MessageSettingsSection: React.FC<MessageSettingsSectionProps> = ({
               />
               <div className="flex items-center justify-between mt-1">
                 <div className="text-xs text-gray-500">
-                  {field.toggle && !field.message.trim() && (
+                  {toggleValue && !messageValue.trim() && (
                     <span className="text-red-600">當開關開啟時，訊息模板為必填</span>
                   )}
                 </div>
@@ -320,20 +236,19 @@ export const MessageSettingsSection: React.FC<MessageSettingsSectionProps> = ({
   return (
     <>
       <div className="space-y-3" data-message-settings>
-        {renderMessageSection('patient_confirmation', patientConfirmation)}
-        {renderMessageSection('clinic_confirmation', clinicConfirmation)}
-        {renderMessageSection('recurrent_clinic_confirmation', getMessageField('recurrent_clinic_confirmation'))}
-        {renderMessageSection('reminder', reminder)}
+        {renderMessageSection('patient_confirmation')}
+        {renderMessageSection('clinic_confirmation')}
+        {renderMessageSection('recurrent_clinic_confirmation')}
+        {renderMessageSection('reminder')}
       </div>
 
       <MessagePreviewModal
         isOpen={previewModal.isOpen}
         onClose={() => setPreviewModal({ ...previewModal, isOpen: false })}
-        {...(isNewItem ? { appointmentTypeName: appointmentType.name } : { appointmentTypeId: appointmentType.id })}
+        {...(isNewItem ? { appointmentTypeName: appointmentTypeName || '' } : { appointmentTypeId })}
         messageType={previewModal.messageType}
         template={previewModal.template}
       />
     </>
   );
 };
-
