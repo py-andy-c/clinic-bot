@@ -280,7 +280,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
               is_enabled: msg.is_enabled !== false, // Default to true if not explicitly false
               display_order: msg.display_order ?? 0,
             };
-            if (msg.id && isRealId(msg.id)) fm.id = msg.id;
+            if (msg.id && typeof msg.id === 'number' && isRealId(msg.id)) fm.id = msg.id;
             return fm;
           })
         }

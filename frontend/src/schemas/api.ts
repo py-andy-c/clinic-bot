@@ -402,7 +402,7 @@ export const ResourcesSettingsFormSchema = z.object({
 });
 // Bundle schemas
 export const BillingScenarioBundleSchema = z.object({
-  id: z.number().optional(),
+  id: z.union([z.number(), z.string()]).optional(),
   db_id: z.number().optional(),
   practitioner_id: z.number(),
   name: z.string().min(1, '請輸入方案名稱').max(255, '名稱最長 255 字元'),
@@ -421,7 +421,7 @@ export const ResourceRequirementBundleSchema = z.object({
 });
 
 export const FollowUpMessageBundleSchema = z.object({
-  id: z.number().optional(),
+  id: z.union([z.number(), z.string()]).optional(),
   timing_mode: z.enum(['hours_after', 'specific_time']),
   hours_after: z.coerce.number().min(0, '小時數不能為負數').nullable().optional(),
   days_after: z.coerce.number().min(0, '天數不能為負數').nullable().optional(),
@@ -430,28 +430,30 @@ export const FollowUpMessageBundleSchema = z.object({
   is_enabled: z.boolean().optional(),
   display_order: z.number().optional(),
 }).superRefine((data, ctx) => {
-  if (data.timing_mode === 'hours_after') {
-    if (data.hours_after === null || data.hours_after === undefined) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: '小時數為必填',
-        path: ['hours_after'],
-      });
-    }
-  } else if (data.timing_mode === 'specific_time') {
-    if (data.days_after === null || data.days_after === undefined) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: '天數為必填',
-        path: ['days_after'],
-      });
-    }
-    if (!data.time_of_day || !/^(0[0-9]|1[0-9]|2[0-3]):[0-5][0-9]$/.test(data.time_of_day)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: '時間格式必須為 HH:MM',
-        path: ['time_of_day'],
-      });
+  if (data.is_enabled !== false) {
+    if (data.timing_mode === 'hours_after') {
+      if (data.hours_after === null || data.hours_after === undefined) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: '小時數為必填',
+          path: ['hours_after'],
+        });
+      }
+    } else if (data.timing_mode === 'specific_time') {
+      if (data.days_after === null || data.days_after === undefined) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: '天數為必填',
+          path: ['days_after'],
+        });
+      }
+      if (!data.time_of_day || !/^(0[0-9]|1[0-9]|2[0-3]):[0-5][0-9]$/.test(data.time_of_day)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: '時間格式必須為 HH:MM',
+          path: ['time_of_day'],
+        });
+      }
     }
   }
 });
