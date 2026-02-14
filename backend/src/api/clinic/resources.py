@@ -579,21 +579,24 @@ async def update_resource(
                 detail="資源不存在"
             )
         
-        # Check if new name conflicts with existing active resource of same type
-        existing = db.query(Resource).filter(
-            Resource.resource_type_id == resource.resource_type_id,
-            Resource.name == request.name,
-            Resource.id != resource_id,
-            Resource.is_deleted == False
-        ).first()
-        
-        if existing:
-            raise HTTPException(
-                status_code=http_status.HTTP_409_CONFLICT,
-                detail="資源名稱已存在"
-            )
-        
-        resource.name = request.name
+        if request.name and resource.name != request.name:
+            # First, check if there's an active resource with this name (True Conflict)
+            active_conflict = db.query(Resource).filter(
+                Resource.resource_type_id == resource.resource_type_id,
+                Resource.name == request.name,
+                Resource.is_deleted == False,
+                Resource.id != resource_id
+            ).with_for_update().first()
+            if active_conflict:
+                raise HTTPException(
+                    status_code=http_status.HTTP_409_CONFLICT,
+                    detail="此資源名稱已存在"
+                )
+            
+            # Second, handle "Shadow Conflict" with soft-deleted items
+            _evict_soft_deleted_resource_name(db, clinic_id, resource.resource_type_id, request.name, exclude_id=resource_id)
+            
+            resource.name = request.name
         resource.description = request.description
         db.commit()
         db.refresh(resource)
@@ -943,6 +946,38 @@ async def delete_resource_requirement(
             detail="無法刪除資源需求"
         )
 
+
+def _evict_soft_deleted_resource_name(
+    db: Session, 
+    clinic_id: int, 
+    resource_type_id: int, 
+    name: str, 
+    exclude_id: Optional[int] = None
+) -> None:
+    """
+    If a soft-deleted resource exists with the given name, rename it to a unique name
+    to avoid unique constraint violations when an active resource wants to take the name.
+    """
+    conflict_items = db.query(Resource).filter(
+        Resource.clinic_id == clinic_id,
+        Resource.resource_type_id == resource_type_id,
+        Resource.name == name,
+        Resource.is_deleted == True
+    )
+    if exclude_id is not None:
+        conflict_items = conflict_items.filter(Resource.id != exclude_id)
+    
+    results = conflict_items.all()
+    for conflict_item in results:
+        suffix = datetime.now().strftime("%Y%m%d%H%M%S%f")
+        conflict_item.name = f"{conflict_item.name} (deleted-{suffix})"
+        # Log eviction for audit/debug
+        logger.info(f"Evicted soft-deleted resource name: {name} -> {conflict_item.name} (Resource ID: {conflict_item.id})")
+    
+    if results:
+        db.flush()
+
+
 @router.get("/resource-types/{resource_type_id}/bundle", summary="Get resource type bundle")
 async def get_resource_type_bundle(
     resource_type_id: int,
@@ -1043,31 +1078,24 @@ def _sync_resource_type_resources(
                 Resource.clinic_id == clinic_id
             ).first()
             if resource:
+                # Handle Shadow Conflict if name changed
+                if resource.name != r_data.name:
+                    _evict_soft_deleted_resource_name(db, clinic_id, resource_type_id, r_data.name, exclude_id=resource.id)
                 resource.name = r_data.name
                 resource.description = r_data.description
                 resource.is_deleted = False # Ensure reactivated if it was soft-deleted
         else:
-            # Check if a soft-deleted resource with this name already exists
-            # to avoid unique constraint violations
-            existing_deleted = db.query(Resource).filter(
-                Resource.resource_type_id == resource_type_id,
-                Resource.clinic_id == clinic_id,
-                Resource.name == r_data.name,
-                Resource.is_deleted == True
-            ).first()
-            
-            if existing_deleted:
-                existing_deleted.is_deleted = False
-                existing_deleted.description = r_data.description
-                resource = existing_deleted
-            else:
-                resource = Resource(
-                    resource_type_id=resource_type_id,
-                    clinic_id=clinic_id,
-                    name=r_data.name,
-                    description=r_data.description
-                )
-                db.add(resource)
+            # Before creating a truly new one, evict ANY soft-deleted item with the same name
+            # (This handles cases where the user creates a new record instead of reactivating)
+            _evict_soft_deleted_resource_name(db, clinic_id, resource_type_id, r_data.name)
+
+            resource = Resource(
+                resource_type_id=resource_type_id,
+                clinic_id=clinic_id,
+                name=r_data.name,
+                description=r_data.description
+            )
+            db.add(resource)
 
 
 @router.post("/resource-types/bundle", summary="Create resource type bundle")

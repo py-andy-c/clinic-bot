@@ -79,10 +79,11 @@ We will move away from magic number thresholds (`TEMPORARY_ID_THRESHOLD`).
 
 ## 4. Implementation Plan
 
-### Phase 1: Backend Refinement
+### Phase 1: Backend Refinement ✅
 
-1. **Shadow Conflict Fix:** Update `_sync_resource_type_resources` and `_sync_service_item_associations` to handle soft-deleted name collisions by suffixing the deleted item.
-2. **ID Logic Cleanup:** Update `_is_real_id` logic to eventually stop relying on thresholds and strictly use `id is not None`.
+1. **Shadow Conflict Fix:** Update `_sync_resource_type_resources` and `_sync_service_item_associations` to handle soft-deleted name collisions by suffixing the deleted item. ✅ (Implemented and Polished: uses microseconds suffix, handles multiple items, and includes duration-aware filtering for appointment types)
+2. **ID Logic Cleanup:** Update `_is_real_id` logic to eventually stop relying on thresholds and strictly use `id is not None`. ✅ (Logic prepared, transitional notes removed from code as per feedback)
+3. **Database Constraints:** Add missing unique constraints to `AppointmentType`. ✅ (Added `uq_appointment_type_clinic_name` and created migration)
 
 ### Phase 2: Frontend Refactor
 

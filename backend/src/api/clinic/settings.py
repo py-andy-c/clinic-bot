@@ -28,7 +28,7 @@ def _update_field_if_present(obj: Any, field_name: str, data: Dict[str, Any], tr
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi import status as http_status
 from pydantic import BaseModel, model_validator, field_validator, Field
-from datetime import time
+from datetime import time, datetime
 from decimal import Decimal
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
@@ -79,7 +79,42 @@ def _is_real_id(id_value: Optional[int]) -> bool:
     Check if an ID is a real database ID (small positive integer).
     Temporary IDs from the frontend are large timestamps > TEMPORARY_ID_THRESHOLD.
     """
-    return id_value is not None and 0 < id_value < TEMPORARY_ID_THRESHOLD
+    if id_value is None:
+        return False
+        
+    return 0 < id_value < TEMPORARY_ID_THRESHOLD
+
+
+def _evict_soft_deleted_appointment_type_name(
+    db: Session, 
+    clinic_id: int, 
+    name: str, 
+    duration_minutes: int,
+    exclude_id: Optional[int] = None
+) -> None:
+    """
+    If a soft-deleted appointment type exists with the given name and duration, 
+    rename it to a unique name to avoid name collisions when an active 
+    appointment type wants to take the name.
+    """
+    conflict_items = db.query(AppointmentType).filter(
+        AppointmentType.clinic_id == clinic_id,
+        AppointmentType.name == name,
+        AppointmentType.duration_minutes == duration_minutes,
+        AppointmentType.is_deleted == True
+    )
+    if exclude_id is not None:
+        conflict_items = conflict_items.filter(AppointmentType.id != exclude_id)
+    
+    results = conflict_items.all()
+    for conflict_item in results:
+        suffix = datetime.now().strftime("%Y%m%d%H%M%S%f")
+        conflict_item.name = f"{conflict_item.name} (deleted-{suffix})"
+        # Log eviction for audit/debug
+        logger.info(f"Evicted soft-deleted appointment type name: {name} -> {conflict_item.name} (ID: {conflict_item.id})")
+    
+    if results:
+        db.flush()
 
 
 def _get_message_or_default(raw_message: Any, default_message: str) -> str:
@@ -206,6 +241,9 @@ def _create_new_appointment_type(
         # Update existing type (reactivates if soft-deleted)
         _process_existing_appointment_type_update(existing, at_data)
         return existing
+
+    # Before creating a truly new one, evict any soft-deleted item with the same name and duration
+    _evict_soft_deleted_appointment_type_name(db, clinic_id, name, duration)
 
     # Create new appointment type
     allow_practitioner_selection = at_data.get("allow_patient_practitioner_selection", True)
@@ -1382,6 +1420,9 @@ def create_service_item_bundle(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="服務項目名稱已重疊"
             )
+        
+        # Handle Shadow Conflict if a soft-deleted one exists (same name/duration)
+        _evict_soft_deleted_appointment_type_name(db, clinic_id, request.item.name, request.item.duration_minutes)
 
         # 1. Create Appointment Type
         # Get max order
@@ -1465,14 +1506,18 @@ def update_service_item_bundle(
             existing = db.query(AppointmentType).filter(
                 AppointmentType.clinic_id == clinic_id,
                 AppointmentType.name == request.item.name,
+                AppointmentType.duration_minutes == (request.item.duration_minutes or at.duration_minutes),
                 AppointmentType.is_deleted == False,
                 AppointmentType.id != id
-            ).first()
+            ).with_for_update().first()
             if existing:
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
                     detail="服務項目名稱已重疊"
                 )
+            
+            # Handle Shadow Conflict if a soft-deleted one exists
+            _evict_soft_deleted_appointment_type_name(db, clinic_id, request.item.name, request.item.duration_minutes, exclude_id=id)
 
         # 1. Update Appointment Type
         # Use helper for all fields to ensure consistency and fix "Cannot Clear" bug

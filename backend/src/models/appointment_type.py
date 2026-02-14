@@ -8,7 +8,7 @@ Each type has a specific duration and belongs to a particular clinic.
 
 from datetime import datetime
 from typing import Optional
-from sqlalchemy import String, ForeignKey, TIMESTAMP, Text, Integer
+from sqlalchemy import String, ForeignKey, TIMESTAMP, Text, Integer, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from core.database import Base
@@ -155,3 +155,8 @@ class AppointmentType(Base):
 
     follow_up_messages = relationship("FollowUpMessage", back_populates="appointment_type", cascade="all, delete-orphan")
     """Relationship to follow-up messages configured for this appointment type."""
+
+    # Unique constraint: name + duration must be unique per clinic
+    __table_args__ = (
+        UniqueConstraint('clinic_id', 'name', 'duration_minutes', name='uq_appointment_type_clinic_name_duration'),
+    )
