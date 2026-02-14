@@ -29,6 +29,7 @@ router = APIRouter()
 # Include routers from refactored modules
 from api.clinic.service_groups import router as service_groups_router
 from api.clinic.follow_ups import router as follow_ups_router
+from api.clinic.patient_form_configs import router as patient_form_configs_router
 from api.clinic.line_users import router as line_users_router
 from api.clinic.dashboard import router as dashboard_router
 from api.clinic.patients import router as patients_router
@@ -45,6 +46,7 @@ from api.clinic.patient_photos import router as patient_photos_router
 
 router.include_router(service_groups_router, tags=["service-groups"])
 router.include_router(follow_ups_router, tags=["follow-ups"])
+router.include_router(patient_form_configs_router, tags=["patient-form-configs"])
 router.include_router(line_users_router, tags=["line-users"])
 router.include_router(dashboard_router, tags=["dashboard"])
 router.include_router(patients_router, tags=["patients"])
