@@ -10,7 +10,7 @@ import { getErrorMessage } from '../types/api';
 interface SignupPageProps {
   signupType: 'clinic' | 'member';
   title: string;
-  icon: string;
+  icon: React.ReactNode;
   buttonText: string;
   onSignup: (token: string) => Promise<{ auth_url: string; clinic?: { id: number; name: string; display_name: string } }>;
 }

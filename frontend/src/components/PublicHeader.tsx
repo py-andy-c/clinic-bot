@@ -46,7 +46,7 @@ const PublicHeader: React.FC<PublicHeaderProps> = ({ activePath }) => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           <Link to="/" className="flex items-center">
-            <span className="text-2xl">🏥</span>
+            <img src="/images/logo.svg" alt="Logo" className="h-8 w-8" />
             <span className="ml-2 text-xl font-semibold text-gray-900">診所小幫手</span>
           </Link>
           

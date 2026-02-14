@@ -882,7 +882,7 @@ const SystemClinicsPage: React.FC = () => {
             <div className="p-6">
               <div className="flex items-center">
                 <div className="flex-shrink-0">
-                  <span className="text-3xl">🏥</span>
+                  <img src="/images/logo.svg" alt="Logo" className="h-10 w-10" />
                 </div>
                 <div className="ml-4 flex-1">
                   <h3 className="text-lg font-medium text-gray-900">{clinic.name}</h3>

@@ -6,6 +6,7 @@ interface SettingCard {
   name: string;
   path: string;
   icon: string;
+  customIcon?: React.ReactNode;
   description: string;
   adminOnly?: boolean;
 }
@@ -27,6 +28,7 @@ const settingCards: SettingCard[] = [
     name: '診所資訊',
     path: 'clinic-info',
     icon: '🏥',
+    customIcon: <img src="/images/logo.svg" alt="Logo" className="h-full w-full" />,
     description: '設定診所的基本資訊和顯示名稱',
   },
   {
@@ -82,7 +84,13 @@ const SettingsIndexPage: React.FC = () => {
           >
             <div className="flex items-start">
               <div className="flex-shrink-0">
-                <span className="text-4xl">{card.icon}</span>
+                <span className="text-4xl">
+                  {card.customIcon ? (
+                    <div className="h-10 w-10">{card.customIcon}</div>
+                  ) : (
+                    card.icon
+                  )}
+                </span>
               </div>
               <div className="ml-4 flex-1">
                 <h3 className="text-lg font-semibold text-gray-900 group-hover:text-primary-600 transition-colors">

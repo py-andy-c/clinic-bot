@@ -90,7 +90,7 @@ const GlobalWarnings: React.FC = () => {
       }
 
       // Fetch admin warnings if user is admin - use batch endpoint
-      let adminWarnings: Array<{ id: number; full_name: string; hasAppointmentTypes: boolean; hasAvailability: boolean }> = [];
+      const adminWarnings: Array<{ id: number; full_name: string; hasAppointmentTypes: boolean; hasAvailability: boolean }> = [];
       if (isClinicAdmin && membersData && batchPractitionerStatusData) {
         const practitionerMembers = membersData.filter(
           member => member.roles.includes('practitioner') && member.is_active
@@ -122,13 +122,14 @@ const GlobalWarnings: React.FC = () => {
         practitionerWarnings,
         adminWarnings
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       // Silently handle network/CORS errors during auth recovery
       // These are expected when returning to tab after being in background
-      const isNetworkError = err?.code === 'ERR_NETWORK' ||
-        err?.message?.includes('Network Error') ||
-        err?.message?.includes('Load failed') ||
-        err?.message?.includes('CORS');
+      const error = err as any;
+      const isNetworkError = error?.code === 'ERR_NETWORK' ||
+        error?.message?.includes('Network Error') ||
+        error?.message?.includes('Load failed') ||
+        error?.message?.includes('CORS');
 
       if (!isNetworkError) {
         // Only log non-network errors (actual API failures)
@@ -297,7 +298,7 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
     },
     {
       name: '診所管理',
-      icon: '🏥',
+      icon: <img src="/images/logo.svg" alt="Logo" className="h-5 w-5 inline-block" />,
       items: [
         { name: '儀表板', href: '/admin/clinic/dashboard', icon: '📊', show: true },
         { name: '診所設定', href: '/admin/clinic/settings', icon: '⚙️', show: true },
@@ -359,7 +360,7 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
               {/* Logo */}
               <div className="flex-shrink-0 flex items-center">
                 <div className="flex items-center space-x-2">
-                  <span className="text-2xl">🏥</span>
+                  <img src="/images/logo.svg" alt="Logo" className="h-8 w-8" />
                   <span className="text-xl font-bold text-gray-900">診所小幫手</span>
                 </div>
               </div>

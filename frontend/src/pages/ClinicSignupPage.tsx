@@ -11,7 +11,7 @@ const ClinicSignupPage: React.FC = () => {
     <SignupPage
       signupType="clinic"
       title="加入診所管理系統"
-      icon="🏥"
+      icon={<img src="/images/logo.svg" alt="Logo" className="h-full w-full" />}
       buttonText="使用 Google 帳號註冊"
       onSignup={handleSignup}
     />

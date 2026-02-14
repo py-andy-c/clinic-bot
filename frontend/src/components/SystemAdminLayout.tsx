@@ -22,7 +22,7 @@ const SystemAdminLayout: React.FC<SystemAdminLayoutProps> = ({ children }) => {
   };
 
   const navigation = [
-    { name: '診所管理', href: '/admin/system/clinics', icon: '🏥' },
+    { name: '診所管理', href: '/admin/system/clinics', icon: <img src="/images/logo.svg" alt="Logo" className="h-5 w-5 inline-block" /> },
   ];
 
   const isActive = (href: string) => {
@@ -39,7 +39,7 @@ const SystemAdminLayout: React.FC<SystemAdminLayoutProps> = ({ children }) => {
               {/* Logo */}
               <div className="flex-shrink-0 flex items-center">
                 <div className="flex items-center space-x-2">
-                  <span className="text-2xl">🏥</span>
+                  <img src="/images/logo.svg" alt="Logo" className="h-8 w-8" />
                   <span className="text-xl font-bold text-gray-900">診所小幫手</span>
                   <span className="text-sm bg-red-100 text-red-800 px-2 py-1 rounded-full">系統管理員</span>
                 </div>
