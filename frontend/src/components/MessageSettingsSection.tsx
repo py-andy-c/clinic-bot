@@ -31,9 +31,6 @@ export const MessageSettingsSection: React.FC<MessageSettingsSectionProps> = ({
   clinicInfoAvailability,
 }) => {
   const { register, watch, setValue } = useFormContext();
-  const [expandedSections, setExpandedSections] = useState<Set<MessageType>>(
-    new Set(['patient_confirmation', 'clinic_confirmation', 'reminder', 'recurrent_clinic_confirmation'])
-  );
   const [previewModal, setPreviewModal] = useState<{
     isOpen: boolean;
     messageType: MessageType;
@@ -102,18 +99,7 @@ export const MessageSettingsSection: React.FC<MessageSettingsSectionProps> = ({
     }
   };
 
-  const toggleSection = (type: MessageType) => {
-    const newExpanded = new Set(expandedSections);
-    if (newExpanded.has(type)) {
-      newExpanded.delete(type);
-    } else {
-      newExpanded.add(type);
-    }
-    setExpandedSections(newExpanded);
-  };
-
   const renderMessageSection = (type: MessageType) => {
-    const isExpanded = expandedSections.has(type);
     const toggleValue = watch(`send_${type}`);
     const messageValue = watch(`${type}_message`) || '';
     const charCount = messageValue.length;
@@ -123,21 +109,8 @@ export const MessageSettingsSection: React.FC<MessageSettingsSectionProps> = ({
     return (
       <div key={type} className="border border-gray-200 rounded-lg overflow-hidden" data-message-type={type}>
         {/* Section Header */}
-        <div className="w-full px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors flex items-center justify-between">
-          <button
-            type="button"
-            onClick={() => toggleSection(type)}
-            className="flex items-center gap-3 flex-1 text-left"
-            disabled={disabled}
-          >
-            <svg
-              className={`w-5 h-5 text-gray-500 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
+        <div className="w-full px-4 py-3 bg-gray-50 flex items-center justify-between">
+          <div className="flex items-center gap-3 flex-1 text-left">
             <div className="text-left">
               <div className="text-sm font-medium text-gray-900 flex items-center gap-2">
                 <span>{MESSAGE_TYPE_LABELS[type]}</span>
@@ -151,7 +124,7 @@ export const MessageSettingsSection: React.FC<MessageSettingsSectionProps> = ({
                 {MESSAGE_TYPE_DESCRIPTIONS[type]}
               </div>
             </div>
-          </button>
+          </div>
           <div
             className="flex items-center cursor-pointer ml-4"
             onClick={(e) => e.stopPropagation()}
@@ -169,66 +142,64 @@ export const MessageSettingsSection: React.FC<MessageSettingsSectionProps> = ({
           </div>
         </div>
 
-        {/* Section Content */}
-        {isExpanded && (
-          <div className="p-4 space-y-3 bg-white">
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="text-sm font-medium text-gray-700">
-                  訊息模板 {toggleValue && <span className="text-red-500">*</span>}
-                </label>
-                <div className="flex items-center gap-2">
-                  <PlaceholderHelper
-                    messageType={type}
-                    onInsert={(placeholder) => handleInsertPlaceholder(type, placeholder)}
-                    disabled={disabled}
-                    {...(clinicInfoAvailability !== undefined && { clinicInfoAvailability })}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => handlePreview(type)}
-                    disabled={disabled}
-                    className="text-xs text-blue-600 hover:text-blue-800 disabled:text-gray-400"
-                  >
-                    預覽訊息
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleResetToDefault(type)}
-                    disabled={disabled}
-                    className="text-xs text-blue-600 hover:text-blue-800 disabled:text-gray-400"
-                  >
-                    重設為預設值
-                  </button>
-                </div>
+        {/* Section Content - Always Expanded */}
+        <div className="p-4 space-y-3 bg-white border-t border-gray-100">
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-sm font-medium text-gray-700">
+                訊息模板 {toggleValue && <span className="text-red-500">*</span>}
+              </label>
+              <div className="flex items-center gap-2">
+                <PlaceholderHelper
+                  messageType={type}
+                  onInsert={(placeholder) => handleInsertPlaceholder(type, placeholder)}
+                  disabled={disabled}
+                  {...(clinicInfoAvailability !== undefined && { clinicInfoAvailability })}
+                />
+                <button
+                  type="button"
+                  onClick={() => handlePreview(type)}
+                  disabled={disabled}
+                  className="text-xs text-blue-600 hover:text-blue-800 disabled:text-gray-400"
+                >
+                  預覽訊息
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleResetToDefault(type)}
+                  disabled={disabled}
+                  className="text-xs text-blue-600 hover:text-blue-800 disabled:text-gray-400"
+                >
+                  重設為預設值
+                </button>
               </div>
-              <textarea
-                {...register(`${type}_message`)}
-                ref={(el) => {
-                  textareaRefs.current[type] = el;
-                  const { ref } = register(`${type}_message`);
-                  if (typeof ref === 'function') ref(el);
-                  else if (ref) (ref as any).current = el;
-                }}
-                disabled={disabled}
-                rows={8}
-                className={`w-full px-3 py-2 border rounded-lg text-sm resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${isOverLimit ? 'border-red-500' : isWarning ? 'border-yellow-500' : 'border-gray-300'
-                  } disabled:bg-gray-100 disabled:cursor-not-allowed`}
-                placeholder="輸入訊息模板..."
-              />
-              <div className="flex items-center justify-between mt-1">
-                <div className="text-xs text-gray-500">
-                  {toggleValue && !messageValue.trim() && (
-                    <span className="text-red-600">當開關開啟時，訊息模板為必填</span>
-                  )}
-                </div>
-                <div className={`text-xs ${isOverLimit ? 'text-red-600' : isWarning ? 'text-yellow-600' : 'text-gray-500'}`}>
-                  {charCount} / 3500 {isOverLimit && '(超過限制)'}
-                </div>
+            </div>
+            <textarea
+              {...register(`${type}_message`)}
+              ref={(el) => {
+                textareaRefs.current[type] = el;
+                const { ref } = register(`${type}_message`);
+                if (typeof ref === 'function') ref(el);
+                else if (ref) (ref as any).current = el;
+              }}
+              disabled={disabled}
+              rows={8}
+              className={`w-full px-3 py-2 border rounded-lg text-sm resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${isOverLimit ? 'border-red-500' : isWarning ? 'border-yellow-500' : 'border-gray-300'
+                } disabled:bg-gray-100 disabled:cursor-not-allowed`}
+              placeholder="輸入訊息模板..."
+            />
+            <div className="flex items-center justify-between mt-1">
+              <div className="text-xs text-gray-500">
+                {toggleValue && !messageValue.trim() && (
+                  <span className="text-red-600">當開關開啟時，訊息模板為必填</span>
+                )}
+              </div>
+              <div className={`text-xs ${isOverLimit ? 'text-red-600' : isWarning ? 'text-yellow-600' : 'text-gray-500'}`}>
+                {charCount} / 3500 {isOverLimit && '(超過限制)'}
               </div>
             </div>
           </div>
-        )}
+        </div>
       </div>
     );
   };

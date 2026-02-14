@@ -52,7 +52,6 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
         name: 'follow_up_messages',
     });
 
-    const [expandedMessages, setExpandedMessages] = useState<Set<string>>(new Set());
     const [editingIndex, setEditingIndex] = useState<number | null>(null);
     const [isNewMessage, setIsNewMessage] = useState(false);
 
@@ -109,15 +108,6 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
 
     const { confirm } = useModal();
 
-    const toggleMessage = (fieldId: string) => {
-        const newExpanded = new Set(expandedMessages);
-        if (newExpanded.has(fieldId)) {
-            newExpanded.delete(fieldId);
-        } else {
-            newExpanded.add(fieldId);
-        }
-        setExpandedMessages(newExpanded);
-    };
 
     const handleAddMessage = () => {
         setIsNewMessage(true);
@@ -243,28 +233,14 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
 
     const renderMessageItem = (field: FollowUpMessageField, index: number) => {
         const message = field;
-        const isExpanded = expandedMessages.has(field.id);
         const charCount = message.message_template.length;
         const isOverLimit = charCount > MAX_MESSAGE_LENGTH;
         const isWarning = charCount > WARNING_THRESHOLD;
 
         return (
             <div key={field.id} className="border border-gray-200 rounded-lg overflow-hidden">
-                <div className="w-full px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors flex items-center justify-between">
-                    <button
-                        type="button"
-                        onClick={() => toggleMessage(field.id)}
-                        className="flex items-center gap-3 flex-1 text-left"
-                        disabled={disabled}
-                    >
-                        <svg
-                            className={`w-5 h-5 text-gray-500 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                        >
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                        </svg>
+                <div className="w-full px-4 py-3 bg-gray-50 flex items-center justify-between">
+                    <div className="flex items-center gap-3 flex-1 text-left">
                         <div className="text-left">
                             <div className="text-sm font-medium text-gray-900">
                                 追蹤訊息 #{index + 1}
@@ -275,7 +251,7 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
                                     : `預約日期後 ${message.days_after || 0} 天的 ${message.time_of_day || '21:00'}`}
                             </div>
                         </div>
-                    </button>
+                    </div>
                     <div
                         className="flex items-center cursor-pointer ml-4"
                         onClick={(e) => e.stopPropagation()}
@@ -290,69 +266,67 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
                     </div>
                 </div>
 
-                {isExpanded && (
-                    <div className="p-4 space-y-3 bg-white">
-                        <div className="text-sm text-gray-600">
-                            <div className="mb-2">
-                                <span className="font-medium">發送時機：</span>
-                                {message.timing_mode === 'hours_after'
-                                    ? `預約結束後 ${message.hours_after || 0} 小時`
-                                    : `預約日期後 ${message.days_after || 0} 天的 ${message.time_of_day || '21:00'}`}
+                <div className="p-4 space-y-3 bg-white border-t border-gray-100">
+                    <div className="text-sm text-gray-600">
+                        <div className="mb-2">
+                            <span className="font-medium">發送時機：</span>
+                            {message.timing_mode === 'hours_after'
+                                ? `預約結束後 ${message.hours_after || 0} 小時`
+                                : `預約日期後 ${message.days_after || 0} 天的 ${message.time_of_day || '21:00'}`}
+                        </div>
+                    </div>
+
+                    <div>
+                        <div className="flex items-center justify-between mb-2">
+                            <label className="text-sm font-medium text-gray-700">
+                                訊息模板 <span className="text-red-500">*</span>
+                            </label>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => handlePreview(message)}
+                                    disabled={disabled}
+                                    className="text-xs text-blue-600 hover:text-blue-800 disabled:text-gray-400"
+                                >
+                                    預覽訊息
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleEditMessage(index)}
+                                    disabled={disabled}
+                                    className="text-xs text-blue-600 hover:text-blue-800 disabled:text-gray-400"
+                                >
+                                    編輯
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={async () => {
+                                        const confirmed = await confirm('確定要刪除此追蹤訊息嗎？', '刪除追蹤訊息');
+                                        if (confirmed) {
+                                            remove(index);
+                                        }
+                                    }}
+                                    disabled={disabled}
+                                    className="text-xs text-red-600 hover:text-red-800 disabled:text-gray-400"
+                                >
+                                    刪除
+                                </button>
                             </div>
                         </div>
-
-                        <div>
-                            <div className="flex items-center justify-between mb-2">
-                                <label className="text-sm font-medium text-gray-700">
-                                    訊息模板 <span className="text-red-500">*</span>
-                                </label>
-                                <div className="flex items-center gap-2">
-                                    <button
-                                        type="button"
-                                        onClick={() => handlePreview(message)}
-                                        disabled={disabled}
-                                        className="text-xs text-blue-600 hover:text-blue-800 disabled:text-gray-400"
-                                    >
-                                        預覽訊息
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => handleEditMessage(index)}
-                                        disabled={disabled}
-                                        className="text-xs text-blue-600 hover:text-blue-800 disabled:text-gray-400"
-                                    >
-                                        編輯
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={async () => {
-                                            const confirmed = await confirm('確定要刪除此追蹤訊息嗎？', '刪除追蹤訊息');
-                                            if (confirmed) {
-                                                remove(index);
-                                            }
-                                        }}
-                                        disabled={disabled}
-                                        className="text-xs text-red-600 hover:text-red-800 disabled:text-gray-400"
-                                    >
-                                        刪除
-                                    </button>
-                                </div>
-                            </div>
-                            <textarea
-                                value={message.message_template}
-                                readOnly
-                                rows={6}
-                                className={`w-full px-3 py-2 border rounded-lg text-sm resize-none bg-gray-50 ${isOverLimit ? 'border-red-500' : isWarning ? 'border-yellow-500' : 'border-gray-300'
-                                    }`}
-                            />
-                            <div className="flex items-center justify-between mt-1">
-                                <div className={`text-xs ${isOverLimit ? 'text-red-600' : isWarning ? 'text-yellow-600' : 'text-gray-500'}`}>
-                                    {charCount} / {MAX_MESSAGE_LENGTH} {isOverLimit && '(超過限制)'}
-                                </div>
+                        <textarea
+                            value={message.message_template}
+                            readOnly
+                            rows={6}
+                            className={`w-full px-3 py-2 border rounded-lg text-sm resize-none bg-gray-50 ${isOverLimit ? 'border-red-500' : isWarning ? 'border-yellow-500' : 'border-gray-300'
+                                }`}
+                        />
+                        <div className="flex items-center justify-between mt-1">
+                            <div className={`text-xs ${isOverLimit ? 'text-red-600' : isWarning ? 'text-yellow-600' : 'text-gray-500'}`}>
+                                {charCount} / {MAX_MESSAGE_LENGTH} {isOverLimit && '(超過限制)'}
                             </div>
                         </div>
                     </div>
-                )}
+                </div>
             </div>
         );
     };
