@@ -458,3 +458,74 @@ class TestResourceTypeBundleDeletion:
             
         finally:
             app.dependency_overrides.pop(get_current_user, None)
+
+    def test_bundle_update_delete_and_add_same_name(
+        self, client: TestClient, db_session: Session, test_clinic_and_admin
+    ):
+        """Test that bundle updates handle deleting a resource and adding it back with the same name."""
+        clinic, admin_user = test_clinic_and_admin
+        
+        # Create resource type with resource
+        resource_type = ResourceType(
+            clinic_id=clinic.id,
+            name="治療室"
+        )
+        db_session.add(resource_type)
+        db_session.commit()
+        
+        resource1 = Resource(
+            resource_type_id=resource_type.id,
+            clinic_id=clinic.id,
+            name="治療室1"
+        )
+        db_session.add(resource1)
+        db_session.commit()
+
+        # Mock authentication
+        def override_get_current_user():
+            return UserContext(
+                user_type="clinic_user",
+                user_id=admin_user.id,
+                email=admin_user.email,
+                active_clinic_id=clinic.id,
+                roles=["admin"],
+                google_subject_id="admin_sub",
+                name="Test Admin"
+            )
+        
+        app.dependency_overrides[get_current_user] = override_get_current_user
+        
+        try:
+            # Update bundle: remove resource1 (by omitting its ID) 
+            # and add a "new" resource with the SAME name "治療室1"
+            bundle_update = {
+                "name": "治療室",
+                "resources": [
+                    {
+                        "name": "治療室1",  # Same name, no ID (interpreted as new)
+                        "description": "Re-added"
+                    }
+                ]
+            }
+            
+            response = client.put(
+                f"/api/clinic/resource-types/{resource_type.id}/bundle",
+                json=bundle_update
+            )
+            
+            assert response.status_code == 200
+            data = response.json()
+            
+            # Verify the response contains the new resource
+            assert len(data["resources"]) == 1
+            assert data["resources"][0]["name"] == "治療室1"
+            assert data["resources"][0]["description"] == "Re-added"
+            assert data["resources"][0]["id"] != resource1.id
+            
+            # Verify old resource is deleted and renamed (due to eviction logic)
+            db_session.refresh(resource1)
+            assert resource1.is_deleted is True
+            assert "(deleted-" in resource1.name
+            
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)

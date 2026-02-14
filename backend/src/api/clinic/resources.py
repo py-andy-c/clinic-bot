@@ -1069,6 +1069,9 @@ def _sync_resource_type_resources(
         # Soft delete the resource
         resource.is_deleted = True
     
+    # Flush changes to DB so name conflict checks (eviction) can see the soft-deleted items
+    db.flush()
+    
     # 2. Update or create resources
     for r_data in resources_data:
         if r_data.id:
