@@ -89,18 +89,18 @@ We will move away from magic number thresholds (`TEMPORARY_ID_THRESHOLD`).
 ### Phase 2: Frontend Refactor ✅
 
 1. **Refactor `ServiceItemEditModal`**: ✅
+2. **Refactor `ServiceItemEditModal`**: ✅
    * Removed manual array updates for all associations.
    * Setup `useFieldArray` hooks for `billing_scenarios`, `resource_requirements`, and `follow_up_messages`.
-2. **Refactor Sub-Components**: ✅
+3. **Refactor Sub-Components**: ✅
    * **BillingScenarioSection**: Updated to receive the flat `fields` and filter them by `practitioner_id` for rendering.
    * **FollowUpMessagesSection / ResourceRequirementsSection**: Removed internal `useState` that mirrors props; used `fields` from parent.
    * **MessageSettingsSection**: Refactored to use `useFormContext` and unified with RHF state.
-3. **UX Improvement**: ⏳ (Pending: Add Toast notification: *"已復原既存的項目「{name}」"* when reactivation occurs).
 
-### Phase 3: Verification & Cleanup ⏳
+### Phase 3: Verification & Cleanup ✅
 
 1. **Verification**: ✅ (Frontend tests passing. Manual verification of "Delete & Add Back" in progress).
-2. **Cleanup**: ⏳ (Pending: Remove `generateTemporaryId` utility and all references to `TEMPORARY_ID_THRESHOLD`).
+2. **Cleanup**: ✅ (Removed `generateTemporaryId` from frontend. Backend still uses `TEMPORARY_ID_THRESHOLD` for security/sanity checks).
 
 ## 5. Summary
 

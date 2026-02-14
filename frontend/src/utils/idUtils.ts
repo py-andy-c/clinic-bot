@@ -13,9 +13,10 @@ export const TEMPORARY_ID_THRESHOLD = 1000000000000;
 /**
  * Check if an ID is a temporary ID (for service items)
  * Temporary service item IDs are large timestamps > TEMPORARY_ID_THRESHOLD
+ * OR 0 (which represents a new item not yet saved)
  */
 export const isTemporaryServiceItemId = (id: number): boolean => {
-  return id > TEMPORARY_ID_THRESHOLD;
+  return id <= 0 || id > TEMPORARY_ID_THRESHOLD;
 };
 
 /**
@@ -39,19 +40,5 @@ export const isRealId = (id: number): boolean => {
  */
 export const isTemporaryId = (id: number): boolean => {
   return isTemporaryServiceItemId(id) || isTemporaryGroupId(id);
-};
-
-let lastTempId = Date.now();
-/**
- * Generate a new temporary ID using a timestamp
- */
-export const generateTemporaryId = (): number => {
-  const current = Date.now();
-  if (current <= lastTempId) {
-    lastTempId += 1;
-  } else {
-    lastTempId = current;
-  }
-  return lastTempId;
 };
 
