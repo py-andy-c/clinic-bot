@@ -66,7 +66,7 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
     const [formErrors, setFormErrors] = useState<Record<string, string>>({});
     const [previewModal, setPreviewModal] = useState<{
         isOpen: boolean;
-        message: any;
+        message: FollowUpMessageField | FollowUpMessageBundleData | null;
     }>({ isOpen: false, message: null });
     const [previewData, setPreviewData] = useState<{
         preview_message: string;
@@ -203,7 +203,7 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
         setLoadingPreview(true);
         setPreviewData(null);
         try {
-            const previewRequest: any = {
+            const previewRequest: Parameters<typeof apiService.previewFollowUpMessage>[0] = {
                 timing_mode: message.timing_mode,
                 message_template: message.message_template,
             };
@@ -214,12 +214,12 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
                 previewRequest.appointment_type_id = appointmentTypeId;
             }
 
-            if (message.timing_mode === 'hours_after' && message.hours_after !== null) {
+            if (message.timing_mode === 'hours_after' && typeof message.hours_after === 'number') {
                 previewRequest.hours_after = message.hours_after;
             }
             if (message.timing_mode === 'specific_time') {
-                if (message.days_after !== null) previewRequest.days_after = message.days_after;
-                if (message.time_of_day !== null) previewRequest.time_of_day = message.time_of_day;
+                if (typeof message.days_after === 'number') previewRequest.days_after = message.days_after;
+                if (typeof message.time_of_day === 'string') previewRequest.time_of_day = message.time_of_day;
             }
             const preview = await apiService.previewFollowUpMessage(previewRequest);
             setPreviewData(preview);
