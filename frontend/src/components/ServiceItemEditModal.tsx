@@ -178,7 +178,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
           db_id: s.id, // Preserve real ID
         })),
         resource_requirements: bundle.associations.resource_requirements,
-        follow_up_messages: bundle.associations.follow_up_messages,
+        follow_up_messages: [...bundle.associations.follow_up_messages].sort((a, b) => (a.display_order || 0) - (b.display_order || 0)),
       };
 
       reset(formData);

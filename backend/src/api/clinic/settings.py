@@ -1165,7 +1165,7 @@ def get_service_item_bundle(
             )
             for fm in db.query(FollowUpMessage).filter(
                 FollowUpMessage.appointment_type_id == id
-            ).all()
+            ).order_by(FollowUpMessage.display_order).all()
         ]
         
         return ServiceItemBundleResponse(

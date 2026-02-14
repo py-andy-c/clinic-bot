@@ -193,6 +193,22 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
         }
     };
 
+    const handleRemoveMessage = (index: number) => {
+        remove(index);
+        // Re-index remaining messages to ensure consistent display_order
+        // Note: useFieldArray's fields might not be updated immediately after remove()
+        // so we need to be careful. However, since we're using React Hook Form,
+        // it's better to update all remaining fields to ensure display_order is sequential.
+        setTimeout(() => {
+             const currentFields = (control._formValues.follow_up_messages || []) as FollowUpMessageField[];
+             currentFields.forEach((field, idx) => {
+                 if (field.display_order !== idx) {
+                     update(idx, { ...field, display_order: idx });
+                 }
+             });
+         }, 0);
+    };
+
     const handleToggleEnabled = (index: number) => {
         const message = fields[index] as unknown as FollowUpMessageField;
         update(index, { ...message, is_enabled: !message.is_enabled });
@@ -303,7 +319,7 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
                                     onClick={async () => {
                                         const confirmed = await confirm('確定要刪除此追蹤訊息嗎？', '刪除追蹤訊息');
                                         if (confirmed) {
-                                            remove(index);
+                                            handleRemoveMessage(index);
                                         }
                                     }}
                                     disabled={disabled}
