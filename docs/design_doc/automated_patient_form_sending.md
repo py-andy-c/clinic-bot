@@ -124,10 +124,22 @@ Modify `ScheduledMessageService` to handle `message_type == 'patient_form'`:
 - Type safety maintained with proper type casting for Literal types
 - All 162 tests passing (154 run + 8 new patient form tests)
 
-### Phase 3: Robust Message Processing
+### Phase 3: Robust Message Processing ✅ COMPLETED
 
-1. Update `ScheduledMessageService` with the "Commit-Before-Send" flow.
-2. Implement the de-duplication check and audit trail linkage.
+1. ✅ Updated `ScheduledMessageService` with the "Commit-Before-Send" flow.
+2. ✅ Implemented the de-duplication check and audit trail linkage.
+
+**Implementation Notes:**
+- Added `_process_patient_form_message()` method to handle patient form messages
+- Implemented de-duplication check: Checks if medical record already exists for appointment + template
+- Implemented Commit-Before-Send: Creates and commits medical record BEFORE sending LINE message
+- Added audit trail: Updates `message_context` with `medical_record_id` after successful send
+- Used `flag_modified()` to ensure SQLAlchemy detects JSONB changes
+- Added validation for patient form messages in `validate_appointment_for_message()`
+- Added context building for patient form messages in `build_message_context()`
+- Integrated with `send_pending_messages()` to call `_process_patient_form_message()` for patient_form messages
+- Added 4 comprehensive unit tests covering all scenarios
+- All 166 tests passing (162 existing + 4 new patient form tests)
 
 ### Phase 4: API & Quality Assurance
 
