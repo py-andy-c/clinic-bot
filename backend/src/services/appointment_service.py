@@ -26,6 +26,7 @@ from services.appointment_type_service import AppointmentTypeService
 # Import follow_up_message_service here to avoid circular imports
 # (follow_up_message_service imports Appointment, but we need it here)
 from services.follow_up_message_service import FollowUpMessageService
+from services.patient_form_scheduler_service import PatientFormSchedulerService
 from utils.datetime_utils import taiwan_now, TAIWAN_TZ
 from utils.appointment_type_queries import get_appointment_type_by_id_with_soft_delete_check
 from utils.appointment_queries import filter_future_appointments
@@ -297,6 +298,12 @@ class AppointmentService:
                 FollowUpMessageService.schedule_follow_up_messages(db, appointment)
             except Exception as e:
                 logger.exception(f"Failed to schedule follow-up messages for appointment {appointment.calendar_event_id}: {e}")
+                # Don't fail appointment creation if scheduling fails
+            
+            try:
+                PatientFormSchedulerService.schedule_patient_forms(db, appointment)
+            except Exception as e:
+                logger.exception(f"Failed to schedule patient forms for appointment {appointment.calendar_event_id}: {e}")
                 # Don't fail appointment creation if scheduling fails
             
             try:
@@ -1048,6 +1055,12 @@ class AppointmentService:
             # Don't fail cancellation if follow-up message cancellation fails
         
         try:
+            PatientFormSchedulerService.cancel_pending_patient_forms(db, appointment_id)
+        except Exception as e:
+            logger.exception(f"Failed to cancel patient forms for appointment {appointment_id}: {e}")
+            # Don't fail cancellation if patient form cancellation fails
+        
+        try:
             from services.reminder_scheduling_service import ReminderSchedulingService
             ReminderSchedulingService.cancel_pending_reminder(db, appointment_id)
         except Exception as e:
@@ -1561,6 +1574,12 @@ class AppointmentService:
                 FollowUpMessageService.reschedule_follow_up_messages(db, appointment)
             except Exception as e:
                 logger.exception(f"Failed to reschedule follow-up messages for appointment {appointment.calendar_event_id}: {e}")
+                # Don't fail update if rescheduling fails
+            
+            try:
+                PatientFormSchedulerService.reschedule_patient_forms(db, appointment)
+            except Exception as e:
+                logger.exception(f"Failed to reschedule patient forms for appointment {appointment.calendar_event_id}: {e}")
                 # Don't fail update if rescheduling fails
             
             try:

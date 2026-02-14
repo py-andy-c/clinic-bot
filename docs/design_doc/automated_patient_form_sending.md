@@ -100,11 +100,29 @@ Modify `ScheduledMessageService` to handle `message_type == 'patient_form'`:
 - Backward compatibility maintained through `calculate_follow_up_scheduled_time()` wrapper
 - All 22 unit tests passing
 
-### Phase 2: Scheduling Service
+### Phase 2: Scheduling Service ✅ COMPLETED
 
-1. Implement `PatientFormSchedulerService`.
-2. Integrate with `AppointmentService` for lifecycle events (create, update, cancel).
-3. Enforce the "Skip Past Appointments" logic.
+1. ✅ Implemented `PatientFormSchedulerService` with three main methods:
+   - `schedule_patient_forms()` - schedules forms when appointment is created
+   - `cancel_pending_patient_forms()` - cancels forms when appointment is canceled
+   - `reschedule_patient_forms()` - reschedules forms when appointment is edited
+2. ✅ Integrated with `AppointmentService` for lifecycle events:
+   - Added patient form scheduling after appointment creation
+   - Added patient form rescheduling when appointment time/type changes
+   - Added patient form cancellation when appointment is canceled
+3. ✅ Enforced "Skip Past Appointments" logic:
+   - Past appointments (recorded walk-ins) always skip sending, even with `send_immediately`
+   - Late bookings with `on_impossible='skip'` skip sending
+   - Late bookings with `on_impossible='send_immediately'` send within 1 minute
+4. ✅ Added comprehensive unit tests (8 tests covering all edge cases)
+
+**Implementation Notes:**
+- Service follows same pattern as `FollowUpMessageService` for consistency
+- Uses `ScheduledLineMessage` with `message_type='patient_form'`
+- Handles late booking edge cases according to design spec
+- All error handling prevents appointment operations from failing
+- Type safety maintained with proper type casting for Literal types
+- All 162 tests passing (154 run + 8 new patient form tests)
 
 ### Phase 3: Robust Message Processing
 
