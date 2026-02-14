@@ -18,6 +18,11 @@ import { TemplateFieldType } from '../types/medicalRecord';
 import { getErrorMessage } from '../types/api';
 import { logger } from '../utils/logger';
 import { processFieldOptions } from '../utils/templateFieldUtils';
+import { PlaceholderHelper } from './PlaceholderHelper';
+import { MessagePreviewModal } from './MessagePreviewModal';
+import {
+  DEFAULT_MEDICAL_RECORD_FORM_MESSAGE
+} from '../constants/messageTemplates';
 
 interface MedicalRecordTemplateEditorModalProps {
   templateId: number | null; // null for new template
@@ -41,6 +46,7 @@ const TemplateSchema = z.object({
   name: z.string().min(1, '模板名稱不可為空'),
   description: z.string().optional(),
   is_patient_form: z.boolean(),
+  message_template: z.string().optional().or(z.literal('')),
   fields: z.array(TemplateFieldSchema),
 });
 
@@ -64,6 +70,8 @@ export const MedicalRecordTemplateEditorModal: React.FC<MedicalRecordTemplateEdi
   const activeClinicId = user?.active_clinic_id;
   const { alert, confirm } = useModal();
   const [activeTab, setActiveTab] = React.useState<'edit' | 'preview'>('edit');
+  const [isPreviewModalOpen, setIsPreviewModalOpen] = React.useState(false);
+  const messageTextareaRef = React.useRef<HTMLTextAreaElement | null>(null);
 
   const isEdit = templateId !== null;
   const { data: template, isLoading } = useMedicalRecordTemplate(
@@ -79,6 +87,7 @@ export const MedicalRecordTemplateEditorModal: React.FC<MedicalRecordTemplateEdi
       name: '',
       description: '',
       is_patient_form: false,
+      message_template: DEFAULT_MEDICAL_RECORD_FORM_MESSAGE,
       fields: [],
     },
   });
@@ -111,6 +120,7 @@ export const MedicalRecordTemplateEditorModal: React.FC<MedicalRecordTemplateEdi
         name: template.name,
         description: template.description || '',
         is_patient_form: template.is_patient_form,
+        message_template: template.message_template || DEFAULT_MEDICAL_RECORD_FORM_MESSAGE,
         fields: template.fields.map((field, index) => ({
           ...field,
           // Convert options array to newline-separated string for textarea
@@ -144,6 +154,35 @@ export const MedicalRecordTemplateEditorModal: React.FC<MedicalRecordTemplateEdi
     }
   };
 
+
+  const isPatientForm = methods.watch('is_patient_form');
+  const messageTemplate = methods.watch('message_template') || '';
+  const templateName = methods.watch('name');
+
+  const handleResetMessage = () => {
+    methods.setValue('message_template', DEFAULT_MEDICAL_RECORD_FORM_MESSAGE, { shouldDirty: true });
+  };
+
+  const handleInsertPlaceholder = (placeholder: string) => {
+    const textarea = messageTextareaRef.current;
+    if (!textarea) return;
+
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const text = messageTemplate;
+    const before = text.substring(0, start);
+    const after = text.substring(end);
+
+    const newValue = before + placeholder + after;
+    methods.setValue('message_template', newValue, { shouldDirty: true });
+
+    // Restore focus and cursor position after React update
+    setTimeout(() => {
+      textarea.focus();
+      textarea.setSelectionRange(start + placeholder.length, start + placeholder.length);
+    }, 0);
+  };
+
   const onSubmit = async (data: TemplateFormData) => {
     try {
       if (isEdit && template) {
@@ -155,6 +194,7 @@ export const MedicalRecordTemplateEditorModal: React.FC<MedicalRecordTemplateEdi
             name: data.name,
             description: data.description,
             is_patient_form: data.is_patient_form,
+            message_template: data.message_template || undefined,
             fields: data.fields.map((field, index) => ({
               ...field,
               id: field.id || '', // Backend will generate ID if empty
@@ -172,6 +212,7 @@ export const MedicalRecordTemplateEditorModal: React.FC<MedicalRecordTemplateEdi
           name: data.name,
           description: data.description,
           is_patient_form: data.is_patient_form,
+          message_template: data.message_template || undefined,
           fields: data.fields.map((field, index) => ({
             label: field.label,
             type: field.type,
@@ -215,22 +256,20 @@ export const MedicalRecordTemplateEditorModal: React.FC<MedicalRecordTemplateEdi
                 <button
                   type="button"
                   onClick={() => setActiveTab('edit')}
-                  className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-                    activeTab === 'edit'
-                      ? 'border-primary-600 text-primary-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
+                  className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'edit'
+                    ? 'border-primary-600 text-primary-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    }`}
                 >
                   編輯模板
                 </button>
                 <button
                   type="button"
                   onClick={() => setActiveTab('preview')}
-                  className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-                    activeTab === 'preview'
-                      ? 'border-primary-600 text-primary-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
+                  className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'preview'
+                    ? 'border-primary-600 text-primary-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    }`}
                 >
                   預覽表單
                 </button>
@@ -288,6 +327,55 @@ export const MedicalRecordTemplateEditorModal: React.FC<MedicalRecordTemplateEdi
                                   </span>
                                 </div>
                               </label>
+
+                              {isPatientForm && (
+                                <div className="pt-4 border-t border-gray-100 mt-4 space-y-3">
+                                  <div className="flex items-center justify-between">
+                                    <label className="text-sm font-medium text-gray-700">
+                                      訊息模板 <span className="text-red-500">*</span>
+                                    </label>
+                                    <div className="flex items-center gap-2">
+                                      <PlaceholderHelper
+                                        messageType="medical_record_form"
+                                        onInsert={handleInsertPlaceholder}
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() => setIsPreviewModalOpen(true)}
+                                        className="text-xs text-blue-600 hover:text-blue-800 transition-colors"
+                                      >
+                                        預覽訊息
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={handleResetMessage}
+                                        className="text-xs text-blue-600 hover:text-blue-800 transition-colors"
+                                      >
+                                        重設為預設值
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  <div className="space-y-1">
+                                    <textarea
+                                      {...methods.register('message_template')}
+                                      ref={(e) => {
+                                        methods.register('message_template').ref(e);
+                                        messageTextareaRef.current = e;
+                                      }}
+                                      rows={5}
+                                      className={`w-full px-3 py-2 border rounded-lg text-sm resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-gray-50 ${messageTemplate.length > 160 ? 'border-red-500' : 'border-gray-300'
+                                        }`}
+                                      placeholder="輸入發送給病患的 LINE 訊息內容..."
+                                    />
+                                    <div className="flex justify-end">
+                                      <div className={`text-xs ${messageTemplate.length > 160 ? 'text-red-600' : 'text-gray-500'}`}>
+                                        {messageTemplate.length} / 160 {messageTemplate.length > 160 && '(超過限制)'}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           </div>
                         </section>
@@ -370,6 +458,15 @@ export const MedicalRecordTemplateEditorModal: React.FC<MedicalRecordTemplateEdi
           </ModalFooter>
         </form>
       </FormProvider>
+
+      <MessagePreviewModal
+        isOpen={isPreviewModalOpen}
+        onClose={() => setIsPreviewModalOpen(false)}
+        messageType="medical_record_form"
+        template={messageTemplate}
+        // Use current form template name for preview
+        template_name={templateName}
+      />
     </BaseModal>
   );
 };
@@ -377,7 +474,7 @@ export const MedicalRecordTemplateEditorModal: React.FC<MedicalRecordTemplateEdi
 // Form Preview Component
 const FormPreview: React.FC = () => {
   const { watch } = useFormContext<TemplateFormData>();
-  
+
   // Only watch specific fields needed for preview (performance optimization)
   const name = watch('name');
   const description = watch('description');

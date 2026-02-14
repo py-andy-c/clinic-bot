@@ -12,6 +12,7 @@ interface MessagePreviewModalProps {
     appointmentTypeName?: string;
     messageType: MessageType;
     template: string;
+    template_name?: string;
 }
 
 export const MessagePreviewModal: React.FC<MessagePreviewModalProps> = ({
@@ -21,6 +22,7 @@ export const MessagePreviewModal: React.FC<MessagePreviewModalProps> = ({
     appointmentTypeName,
     messageType,
     template,
+    template_name,
 }) => {
     const [preview, setPreview] = useState<{
         preview_message: string;
@@ -41,7 +43,7 @@ export const MessagePreviewModal: React.FC<MessagePreviewModalProps> = ({
             setPreview(null);
             setError(null);
         }
-    }, [isOpen, template, appointmentTypeId, messageType]);
+    }, [isOpen, template, appointmentTypeId, messageType, template_name]);
 
     const loadPreview = async () => {
         setLoading(true);
@@ -52,6 +54,7 @@ export const MessagePreviewModal: React.FC<MessagePreviewModalProps> = ({
                 ...(appointmentTypeName ? { appointment_type_name: appointmentTypeName } : {}),
                 message_type: messageType,
                 template,
+                template_name,
             });
             setPreview(result);
         } catch (err: any) {

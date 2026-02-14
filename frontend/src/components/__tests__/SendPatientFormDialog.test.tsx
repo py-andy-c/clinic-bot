@@ -118,9 +118,6 @@ describe('SendPatientFormDialog', () => {
         // Select appointment
         fireEvent.change(screen.getByLabelText(/關聯預約/i), { target: { value: '1' } });
 
-        // Add message override
-        fireEvent.change(screen.getByLabelText(/自訂訊息/i), { target: { value: 'Please fill this.' } });
-
         // Submit
         fireEvent.click(screen.getByRole('button', { name: '確認發送' }));
 
@@ -129,7 +126,6 @@ describe('SendPatientFormDialog', () => {
             expect(mockMutateAsync).toHaveBeenCalledWith({
                 template_id: 1,
                 appointment_id: 1,
-                message_override: 'Please fill this.'
             });
             expect(mockAlert).toHaveBeenCalledWith(expect.stringContaining('成功'), '發送成功');
         });

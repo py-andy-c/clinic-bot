@@ -38,7 +38,6 @@ interface SendPatientFormDialogProps {
 const schema = z.object({
     template_id: z.number().min(1, '請選擇模板'),
     appointment_id: z.number().nullable().optional(),
-    message_override: z.string().optional(),
 });
 
 type FormData = z.infer<typeof schema>;
@@ -180,7 +179,6 @@ export const SendPatientFormDialog: React.FC<SendPatientFormDialogProps> = ({
         defaultValues: {
             template_id: NO_TEMPLATE_SELECTED,
             appointment_id: null,
-            message_override: '',
         },
     });
 
@@ -224,7 +222,6 @@ export const SendPatientFormDialog: React.FC<SendPatientFormDialogProps> = ({
             const sendData: SendPatientFormRequest = {
                 template_id: data.template_id,
                 ...(data.appointment_id ? { appointment_id: data.appointment_id } : {}),
-                ...(data.message_override ? { message_override: data.message_override } : {}),
             };
 
             const newRecord = await sendMutation.mutateAsync(sendData);
@@ -315,15 +312,6 @@ export const SendPatientFormDialog: React.FC<SendPatientFormDialogProps> = ({
                                     appointments={appointments?.appointments || []}
                                     setHasUserInteracted={setHasUserInteracted}
                                 />
-
-                                <FormField name="message_override" label="自訂訊息 (選填)">
-                                    <textarea
-                                        {...methods.register('message_override')}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                                        placeholder="輸入要併同表單連結發送的額外說明訊息..."
-                                        rows={3}
-                                    />
-                                </FormField>
                             </div>
                         )}
                     </ModalBody>

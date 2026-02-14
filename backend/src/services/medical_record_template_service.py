@@ -22,6 +22,7 @@ class MedicalRecordTemplateService:
         fields: List[Dict[str, Any]],
         description: Optional[str] = None,
         is_patient_form: bool = False,
+        message_template: Optional[str] = None,
         created_by_user_id: Optional[int] = None
     ) -> MedicalRecordTemplate:
         # Ensure fields have stable IDs
@@ -33,6 +34,7 @@ class MedicalRecordTemplateService:
             fields=fields,
             description=description,
             is_patient_form=is_patient_form,
+            message_template=message_template if message_template else None,
             created_by_user_id=created_by_user_id,
             updated_by_user_id=created_by_user_id,
             version=1
@@ -87,6 +89,7 @@ class MedicalRecordTemplateService:
         fields: Optional[List[Dict[str, Any]]] = None,
         description: Optional[str] = None,
         is_patient_form: Optional[bool] = None,
+        message_template: Optional[str] = None,
         updated_by_user_id: Optional[int] = None
     ) -> MedicalRecordTemplate:
         template = MedicalRecordTemplateService.get_template(db, template_id, clinic_id)
@@ -105,6 +108,8 @@ class MedicalRecordTemplateService:
             template.description = description
         if is_patient_form is not None:
             template.is_patient_form = is_patient_form
+        if message_template is not None:
+            template.message_template = message_template if message_template else None
             
         template.version += 1
         template.updated_by_user_id = updated_by_user_id

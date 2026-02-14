@@ -14,6 +14,7 @@ from models.user_clinic_association import UserClinicAssociation
 from models.line_user import LineUser
 from models.clinic import Clinic
 from services.line_service import LINEService
+from services.message_template_service import MessageTemplateService
 from core.sentinels import MISSING
 
 
@@ -540,12 +541,25 @@ class MedicalRecordService:
                     }
                 )
             
-            # 6. Send Message
-            line_service = LINEService(clinic.line_channel_secret, clinic.line_channel_access_token)
+            # 6. Prepare Message
+            # Default message if none configured
+            default_template = (
+                "{病患姓名}，您好：\n"
+                "請填寫「{模板名稱}」，謝謝您。"
+            )
+            message_template_str = template.message_template or default_template
             
-            # Default message in Traditional Chinese
-            default_message = f"請填寫{template.name}表單。\n\nPlease fill out the {template.name} form."
-            text_message = message_override or default_message
+            context = {
+                "病患姓名": patient.full_name,
+                "模板名稱": template.name,
+                "診所名稱": clinic.effective_display_name or ""
+            }
+            
+            # message_override is still respected if provided (though frontend won't send it)
+            text_message = message_override or MessageTemplateService.render_message(message_template_str, context)
+            
+            # 7. Send Message
+            line_service = LINEService(clinic.line_channel_secret, clinic.line_channel_access_token)
             
             line_service.send_template_message_with_button(
                 line_user_id=line_user.line_user_id,
@@ -560,7 +574,7 @@ class MedicalRecordService:
                 }
             )
             
-            # 7. Final Commit on success
+            # 8. Final Commit on success
             db.commit()
             db.refresh(record)
             return record

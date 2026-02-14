@@ -43,6 +43,7 @@ export const MessageSettingsSection: React.FC<MessageSettingsSectionProps> = ({
     clinic_confirmation: null,
     reminder: null,
     recurrent_clinic_confirmation: null,
+    medical_record_form: null,
   });
 
   const isNewItem = isTemporaryServiceItemId(appointmentTypeId);
@@ -177,11 +178,11 @@ export const MessageSettingsSection: React.FC<MessageSettingsSectionProps> = ({
             <textarea
               {...register(`${type}_message`)}
               ref={(el) => {
-                  textareaRefs.current[type] = el;
-                  const { ref } = register(`${type}_message`);
-                  if (typeof ref === 'function') ref(el);
-                  else if (ref) (ref as React.MutableRefObject<HTMLTextAreaElement | null>).current = el;
-                }}
+                textareaRefs.current[type] = el;
+                const { ref } = register(`${type}_message`);
+                if (typeof ref === 'function') ref(el);
+                else if (ref) (ref as React.MutableRefObject<HTMLTextAreaElement | null>).current = el;
+              }}
               disabled={disabled}
               rows={8}
               className={`w-full px-3 py-2 border rounded-lg text-sm resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${isOverLimit ? 'border-red-500' : isWarning ? 'border-yellow-500' : 'border-gray-300'

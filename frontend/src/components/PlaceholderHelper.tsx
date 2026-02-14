@@ -67,10 +67,12 @@ export const PlaceholderHelper: React.FC<PlaceholderHelperProps> = ({
     };
   }, [isOpen]);
 
-  const allPlaceholders = [
-    ...PLACEHOLDERS.common,
-    ...(messageType === 'recurrent_clinic_confirmation' ? PLACEHOLDERS.recurrent : PLACEHOLDERS.standard),
-  ];
+  const allPlaceholders = messageType === 'medical_record_form'
+    ? [...PLACEHOLDERS.medical_record]
+    : [
+      ...PLACEHOLDERS.common,
+      ...(messageType === 'recurrent_clinic_confirmation' ? PLACEHOLDERS.recurrent : PLACEHOLDERS.standard),
+    ];
 
   const handleInsert = (placeholder: string) => {
     onInsert(placeholder);
@@ -142,8 +144,8 @@ export const PlaceholderHelper: React.FC<PlaceholderHelperProps> = ({
                     onClick={() => !isUnavailable && handleInsert(placeholder.key)}
                     disabled={isUnavailable}
                     className={`w-full text-left px-2 py-1.5 text-xs rounded transition-colors ${isUnavailable
-                        ? 'opacity-75 cursor-not-allowed'
-                        : 'hover:bg-blue-50 cursor-pointer'
+                      ? 'opacity-75 cursor-not-allowed'
+                      : 'hover:bg-blue-50 cursor-pointer'
                       }`}
                     data-placeholder-key={placeholder.key}
                     data-placeholder-index={index}

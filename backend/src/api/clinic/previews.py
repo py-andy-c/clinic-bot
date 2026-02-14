@@ -47,9 +47,10 @@ class CancellationPreviewRequest(BaseModel):
 class MessagePreviewRequest(BaseModel):
     """Request model for appointment message preview."""
     appointment_type_id: Optional[int] = Field(None, description="Appointment type ID (optional for new items)")
-    message_type: Literal["patient_confirmation", "clinic_confirmation", "reminder", "recurrent_clinic_confirmation"] = Field(..., description="Message type")
+    message_type: Literal["patient_confirmation", "clinic_confirmation", "reminder", "recurrent_clinic_confirmation", "medical_record_form"] = Field(..., description="Message type")
     template: str = Field(..., description="Template to preview")
     appointment_type_name: Optional[str] = Field(None, description="Appointment type name (required if appointment_type_id is not provided)")
+    template_name: Optional[str] = Field(None, description="Medical record template name (for medical_record_form type)")
 
 
 class ReceiptPreviewRequest(BaseModel):
@@ -271,6 +272,13 @@ async def preview_appointment_message(
                 appointment_count=sample_count,
                 appointment_list_text=sample_list
             )
+        elif request.message_type == "medical_record_form":
+            # Context for medical record form preview
+            context = {
+                "病患姓名": "王小明",
+                "模板名稱": request.template_name or "評估表單",
+                "診所名稱": clinic.effective_display_name or "我的診所"
+            }
         else:
             # For other message types, use existing preview context
             if appointment_type:

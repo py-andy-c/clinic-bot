@@ -26,31 +26,34 @@ export interface MedicalRecordTemplate {
   id: number;
   clinic_id: number;
   name: string;
-  description?: string;
+  description?: string | undefined;
   fields: TemplateField[];
   is_patient_form: boolean;
+  message_template?: string | undefined;
   version: number;
   is_deleted: boolean;
-  deleted_at?: string;
+  deleted_at?: string | undefined;
   created_at: string;
-  created_by_user_id?: number;
-  updated_at?: string;
-  updated_by_user_id?: number;
+  created_by_user_id?: number | undefined;
+  updated_at?: string | undefined;
+  updated_by_user_id?: number | undefined;
 }
 
 export interface MedicalRecordTemplateCreateRequest {
   name: string;
   description?: string | undefined;
   fields: Omit<TemplateField, 'id'>[]; // Frontend doesn't provide IDs
-  is_patient_form?: boolean;
+  is_patient_form?: boolean | undefined;
+  message_template?: string | undefined;
 }
 
 export interface MedicalRecordTemplateUpdateRequest {
   version: number;
   name?: string | undefined;
   description?: string | undefined;
-  fields?: TemplateField[]; // Must include existing IDs for persistent fields
-  is_patient_form?: boolean;
+  fields?: TemplateField[] | undefined; // Must include existing IDs for persistent fields
+  is_patient_form?: boolean | undefined;
+  message_template?: string | undefined;
 }
 
 export interface MedicalRecordTemplatesListResponse {
@@ -141,6 +144,5 @@ export interface PatientPhotoUpdateRequest {
 
 export interface SendPatientFormRequest {
   template_id: number;
-  appointment_id?: number;
-  message_override?: string;
+  appointment_id?: number | undefined;
 }

@@ -55,6 +55,7 @@ import {
   MedicalRecordTemplateCreateRequest,
   MedicalRecordTemplateUpdateRequest,
 } from '../types/medicalRecord';
+import { MessageType } from '../constants/messageTemplates';
 import {
   validateClinicSettings,
   ClinicSettings
@@ -1009,11 +1010,13 @@ export class ApiService {
 
   async previewAppointmentMessage(data: {
     appointment_type_id?: number;
-    message_type: 'patient_confirmation' | 'clinic_confirmation' | 'reminder' | 'recurrent_clinic_confirmation';
+    message_type: MessageType;
     template: string;
-    sample_patient_name?: string;
-    sample_appointment_time?: string;
-    sample_appointment_type_name?: string;
+    template_name?: string | undefined;
+    appointment_type_name?: string | undefined;
+    sample_patient_name?: string | undefined;
+    sample_appointment_time?: string | undefined;
+    sample_appointment_type_name?: string | undefined;
   }): Promise<{
     preview_message: string;
     used_placeholders: Record<string, string>;

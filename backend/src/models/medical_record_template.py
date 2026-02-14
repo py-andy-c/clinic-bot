@@ -28,6 +28,10 @@ class MedicalRecordTemplate(Base):
     # When True, this template can be used to create patient-facing forms
     is_patient_form: Mapped[bool] = mapped_column(Boolean, server_default='false', nullable=False)
     
+    # Custom message template for sending this form via Line
+    # Supports variables like {病患姓名}, {模板名稱}, {診所名稱}
+    message_template: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    
     version: Mapped[int] = mapped_column(Integer, server_default='1', nullable=False)
     
     is_deleted: Mapped[bool] = mapped_column(Boolean, server_default='false', nullable=False)
