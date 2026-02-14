@@ -215,3 +215,24 @@ Based on technical review feedback, implemented the following critical fixes:
 2. **Display Order Reordering:** Unique constraint makes drag-and-drop difficult; future bulk reorder endpoint recommended
 3. **Send Immediately Timeout:** Uses default LINE API timeout; no retry for immediate sends (user must manually resend)
 
+### Phase 6: Scheduler Frequency Optimization ✅ COMPLETED
+
+**Change:** Increased scheduled message processing frequency from hourly to every 10 minutes.
+
+**Rationale:**
+- Improves message delivery responsiveness (messages arrive within 10 min of scheduled time)
+- Better user experience for time-sensitive notifications
+- Reduces perceived delay for follow-ups, reminders, and patient forms
+- Keeps synchronous "send immediately" logic for true immediate cases (late bookings)
+
+**Performance Impact:**
+- Minimal database load increase (6x more queries, but lightweight indexed queries)
+- Well within LINE API rate limits
+- Cron job completes quickly (<10 seconds expected)
+- Room to scale to hundreds of clinics
+
+**Implementation:**
+- Updated `scheduled_message_scheduler.py` cron trigger from `hour="*", minute=0` to `minute="*/10"`
+- Applies to all scheduled message types: follow-ups, reminders, patient forms, practitioner notifications
+- No changes to message processing logic or batch size (still 100 messages per run)
+

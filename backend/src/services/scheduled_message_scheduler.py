@@ -1,8 +1,8 @@
 """
 Scheduled message scheduler for sending scheduled LINE messages.
 
-This scheduler runs hourly to send all pending scheduled messages
-(follow-ups, reminders, etc.) that are due to be sent.
+This scheduler runs every 10 minutes to send all pending scheduled messages
+(follow-ups, reminders, patient forms, etc.) that are due to be sent.
 """
 
 import logging
@@ -23,7 +23,8 @@ class ScheduledMessageScheduler:
     Scheduler for sending scheduled LINE messages.
     
     This service schedules and sends all scheduled LINE messages (follow-ups,
-    reminders, practitioner notifications, etc.) via hourly cron job.
+    reminders, patient forms, practitioner notifications, etc.) via cron job
+    that runs every 10 minutes.
     """
 
     def __init__(self):
@@ -47,10 +48,10 @@ class ScheduledMessageScheduler:
             logger.warning("Scheduled message scheduler is already started")
             return
 
-        # Schedule to run every hour
+        # Schedule to run every 10 minutes
         self.scheduler.add_job(  # type: ignore
             self._send_pending_messages,
-            CronTrigger(hour="*", minute=0),  # Run every hour at :00
+            CronTrigger(minute="*/10"),  # Run every 10 minutes
             id="send_scheduled_messages",
             name="Send scheduled LINE messages",
             max_instances=REMINDER_SCHEDULER_MAX_INSTANCES,  # Prevent overlapping runs
@@ -80,7 +81,7 @@ class ScheduledMessageScheduler:
         """
         Send all pending scheduled messages.
         
-        This method is called by the scheduler every hour to send
+        This method is called by the scheduler every 10 minutes to send
         all scheduled messages that are due.
         
         Uses a fresh database session for each run to avoid stale session issues.
