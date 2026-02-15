@@ -46,11 +46,21 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
     disabled = false,
     clinicInfoAvailability,
 }) => {
-    const { control } = useFormContext();
+    const { control, formState: { errors } } = useFormContext();
     const { fields, append, remove, update } = useFieldArray({
         control,
         name: 'follow_up_messages',
     });
+
+    // Re-index display_order when fields change
+    React.useEffect(() => {
+        fields.forEach((field, idx) => {
+            const f = field as any;
+            if (f.display_order !== idx) {
+                update(idx, { ...f, display_order: idx });
+            }
+        });
+    }, [fields.length, update]);
 
     const [editingIndex, setEditingIndex] = useState<number | null>(null);
     const [isNewMessage, setIsNewMessage] = useState(false);
@@ -195,18 +205,6 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
 
     const handleRemoveMessage = (index: number) => {
         remove(index);
-        // Re-index remaining messages to ensure consistent display_order
-        // Note: useFieldArray's fields might not be updated immediately after remove()
-        // so we need to be careful. However, since we're using React Hook Form,
-        // it's better to update all remaining fields to ensure display_order is sequential.
-        setTimeout(() => {
-            const currentFields = (control._formValues.follow_up_messages || []) as FollowUpMessageField[];
-            currentFields.forEach((field, idx) => {
-                if (field.display_order !== idx) {
-                    update(idx, { ...field, display_order: idx });
-                }
-            });
-        }, 0);
     };
 
     const handleToggleEnabled = (index: number) => {
@@ -266,6 +264,14 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
                                     ? `預約結束後 ${message.hours_after || 0} 小時`
                                     : `預約日期後 ${message.days_after || 0} 天的 ${message.time_of_day || '21:00'}`}
                             </div>
+                            {(errors.follow_up_messages as any)?.[index] && (
+                                <div className="mt-1 text-xs text-red-500 font-medium flex items-center gap-1">
+                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                    </svg>
+                                    資料格式錯誤
+                                </div>
+                            )}
                         </div>
                     </div>
                     <div

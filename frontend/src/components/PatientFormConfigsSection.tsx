@@ -27,13 +27,23 @@ interface PatientFormConfigFormData {
 export const PatientFormConfigsSection: React.FC<PatientFormConfigsSectionProps> = ({
     disabled = false,
 }) => {
-    const { control, watch } = useFormContext();
+    const { control, watch, formState: { errors } } = useFormContext();
     const { user } = useAuth();
     const { confirm } = useModal();
     const { fields, append, remove, update } = useFieldArray({
         control,
         name: 'patient_form_configs',
     });
+
+    // Re-index display_order when fields change
+    React.useEffect(() => {
+        fields.forEach((field, idx) => {
+            const f = field as any;
+            if (f.display_order !== idx) {
+                update(idx, { ...f, display_order: idx });
+            }
+        });
+    }, [fields.length, update]);
 
     const { data: templates = [] } = useMedicalRecordTemplates(user?.active_clinic_id);
 
@@ -105,15 +115,6 @@ export const PatientFormConfigsSection: React.FC<PatientFormConfigsSectionProps>
         const confirmed = await confirm('確定要刪除此自動發送設定嗎？', '刪除設定');
         if (confirmed) {
             remove(index);
-            // Re-index remaining configs to ensure consistent display_order
-            setTimeout(() => {
-                const currentFields = (control._formValues.patient_form_configs || []) as any[];
-                currentFields.forEach((field, idx) => {
-                    if (field.display_order !== idx) {
-                        update(idx, { ...field, display_order: idx });
-                    }
-                });
-            }, 0);
         }
     };
 
@@ -153,6 +154,14 @@ export const PatientFormConfigsSection: React.FC<PatientFormConfigsSectionProps>
                                         : `${config.days} 天 ${config.time_of_day}`}
                                 </span>
                             </div>
+                            {(errors.patient_form_configs as any)?.[index] && (
+                                <div className="flex items-center gap-1.5 text-xs text-red-500 font-medium">
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                    </svg>
+                                    <span>資料格式錯誤</span>
+                                </div>
+                            )}
                             {config.timing_type === 'before' && (
                                 <div className="flex items-center gap-1.5">
                                     <svg className="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">

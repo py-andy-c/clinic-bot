@@ -360,6 +360,11 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
     saveMutation.mutate(data);
   };
 
+  const onInvalid = async (errors: any) => {
+    console.warn('Form validation failed:', errors);
+    await alert('部分欄位內容有誤，請檢查紅線標示處或自動發送設定。', '驗證失敗');
+  };
+
   // Billing Scenario Local Form State (still needed for the modal)
   const [editingScenario, setEditingScenario] = useState<{ practitionerId: number; index?: number; scenario?: BillingScenarioBundleData } | null>(null);
   const [scenarioForm, setScenarioForm] = useState<BillingScenarioBundleData>({
@@ -535,7 +540,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
         showCloseButton={false}
         fullScreen={true}
       >
-        <form onSubmit={handleSubmit(handleSave)} className="flex flex-col h-full bg-white md:bg-gray-50/50">
+        <form onSubmit={handleSubmit(handleSave, onInvalid)} className="flex flex-col h-full bg-white md:bg-gray-50/50">
           <ModalHeader
             title={serviceItemId ? '編輯服務項目' : '新增服務項目'}
             showClose
