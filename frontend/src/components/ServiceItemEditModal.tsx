@@ -361,7 +361,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
   };
 
   const onInvalid = async (errors: any) => {
-    console.warn('Form validation failed:', errors);
+    logger.warn('Form validation failed:', errors);
     await alert('部分欄位內容有誤，請檢查紅線標示處或自動發送設定。', '驗證失敗');
   };
 
