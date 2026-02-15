@@ -45,8 +45,10 @@ from models import (
     BillingScenario,
     AppointmentResourceRequirement,
     FollowUpMessage,
-    ResourceType
+    ResourceType,
+    AppointmentTypePatientFormConfig
 )
+from typing import Literal
 from services import AppointmentTypeService
 from services.availability_service import AvailabilityService
 from utils.datetime_utils import taiwan_now
@@ -436,7 +438,6 @@ class ResourceRequirementBundleData(BaseModel):
     resource_type_name: Optional[str] = None
     quantity: int
 
-
 class FollowUpMessageBundleData(BaseModel):
     id: Optional[int] = None
     timing_mode: str
@@ -448,11 +449,25 @@ class FollowUpMessageBundleData(BaseModel):
     display_order: int = 0
 
 
+class PatientFormConfigBundleData(BaseModel):
+    id: Optional[int] = None
+    medical_record_template_id: int
+    timing_type: str
+    timing_mode: str
+    hours: Optional[int] = None
+    days: Optional[int] = None
+    time_of_day: Optional[str] = None
+    on_impossible: Optional[str] = None
+    is_enabled: bool = True
+    display_order: int = 0
+
+
 class ServiceItemBundleAssociations(BaseModel):
     practitioner_ids: List[int] = []
     billing_scenarios: List[BillingScenarioBundleData] = []
     resource_requirements: List[ResourceRequirementBundleData] = []
     follow_up_messages: List[FollowUpMessageBundleData] = []
+    patient_form_configs: List[PatientFormConfigBundleData] = []
 
 
 class ServiceItemData(BaseModel):
@@ -549,6 +564,32 @@ def _create_follow_up_message(
         message_template=fm_data.message_template,
         is_enabled=fm_data.is_enabled,
         display_order=fm_data.display_order
+    )
+
+
+def _create_patient_form_config(
+    clinic_id: int,
+    appointment_type_id: int,
+    pfc_data: PatientFormConfigBundleData
+) -> AppointmentTypePatientFormConfig:
+    """Helper to create an AppointmentTypePatientFormConfig record."""
+    pfc_time = None
+    if pfc_data.time_of_day:
+        h, m = map(int, pfc_data.time_of_day.split(':'))
+        pfc_time = time(h, m)
+
+    return AppointmentTypePatientFormConfig(
+        clinic_id=clinic_id,
+        appointment_type_id=appointment_type_id,
+        medical_record_template_id=pfc_data.medical_record_template_id,
+        timing_type=pfc_data.timing_type,
+        timing_mode=pfc_data.timing_mode,
+        hours=pfc_data.hours,
+        days=pfc_data.days,
+        time_of_day=pfc_time,
+        on_impossible=pfc_data.on_impossible if pfc_data.timing_type == 'before' else None,
+        is_enabled=pfc_data.is_enabled,
+        display_order=pfc_data.display_order
     )
 
 
@@ -1168,6 +1209,25 @@ def get_service_item_bundle(
             ).order_by(FollowUpMessage.display_order).all()
         ]
         
+        # Get patient form configs
+        patient_form_configs: List[PatientFormConfigBundleData] = [
+            PatientFormConfigBundleData(
+                id=pfc.id,
+                medical_record_template_id=pfc.medical_record_template_id,
+                timing_type=pfc.timing_type,
+                timing_mode=pfc.timing_mode,
+                hours=pfc.hours,
+                days=pfc.days,
+                time_of_day=pfc.time_of_day.strftime("%H:%M") if pfc.time_of_day else None,
+                on_impossible=pfc.on_impossible,
+                is_enabled=pfc.is_enabled,
+                display_order=pfc.display_order
+            )
+            for pfc in db.query(AppointmentTypePatientFormConfig).filter(
+                AppointmentTypePatientFormConfig.appointment_type_id == id
+            ).order_by(AppointmentTypePatientFormConfig.display_order).all()
+        ]
+        
         return ServiceItemBundleResponse(
             item=AppointmentTypeResponse(
                 id=at.id,
@@ -1199,7 +1259,8 @@ def get_service_item_bundle(
                 practitioner_ids=practitioner_ids,
                 billing_scenarios=billing_scenarios,
                 resource_requirements=resource_requirements,
-                follow_up_messages=follow_up_messages
+                follow_up_messages=follow_up_messages,
+                patient_form_configs=patient_form_configs
             )
         )
     except HTTPException:
@@ -1357,14 +1418,18 @@ def _sync_service_item_associations(
             if fm:
                 logger.info(f"Updating existing follow-up message {fm.id}")
                 fm.timing_mode = fm_data.timing_mode
-                fm.hours_after = fm_data.hours_after
-                fm.days_after = fm_data.days_after
-                
-                if fm_data.time_of_day:
-                    h, m = map(int, fm_data.time_of_day.split(':'))
-                    fm.time_of_day = time(h, m)
-                else:
+                if fm_data.timing_mode == 'hours_after':
+                    fm.hours_after = fm_data.hours_after
+                    fm.days_after = None
                     fm.time_of_day = None
+                else:  # specific_time
+                    fm.hours_after = None
+                    fm.days_after = fm_data.days_after
+                    if fm_data.time_of_day:
+                        h, m = map(int, fm_data.time_of_day.split(':'))
+                        fm.time_of_day = time(h, m)
+                    else:
+                        fm.time_of_day = None
                     
                 fm.message_template = fm_data.message_template
                 fm.is_enabled = fm_data.is_enabled
@@ -1377,6 +1442,56 @@ def _sync_service_item_associations(
             logger.info(f"Creating new follow-up message for AT {appointment_type_id}")
             fm = _create_follow_up_message(clinic_id, appointment_type_id, fm_data)
             db.add(fm)
+
+    # 5. Patient Form Configs (Diff Sync)
+    incoming_pfc_ids = {pfc.id for pfc in associations.patient_form_configs if pfc.id}
+    logger.info(f"Syncing patient form configs for AT {appointment_type_id}. Incoming IDs: {incoming_pfc_ids}")
+    
+    q_pfc = db.query(AppointmentTypePatientFormConfig).filter(
+        AppointmentTypePatientFormConfig.appointment_type_id == appointment_type_id
+    )
+    if incoming_pfc_ids:
+        q_pfc = q_pfc.filter(AppointmentTypePatientFormConfig.id.not_in(incoming_pfc_ids))
+        
+    deleted_pfc_count = q_pfc.delete(synchronize_session='fetch')
+    logger.info(f"Deleted {deleted_pfc_count} patient form configs not in incoming list")
+    
+    for pfc_data in associations.patient_form_configs:
+        if is_real_id(pfc_data.id):
+            pfc = db.query(AppointmentTypePatientFormConfig).filter(
+                AppointmentTypePatientFormConfig.id == pfc_data.id,
+                AppointmentTypePatientFormConfig.appointment_type_id == appointment_type_id,
+                AppointmentTypePatientFormConfig.clinic_id == clinic_id
+            ).first()
+            if pfc:
+                logger.debug(f"Updating existing patient form config {pfc.id}")
+                pfc.medical_record_template_id = pfc_data.medical_record_template_id
+                pfc.timing_type = pfc_data.timing_type
+                pfc.timing_mode = pfc_data.timing_mode
+                if pfc_data.timing_mode == 'hours':
+                    pfc.hours = pfc_data.hours
+                    pfc.days = None
+                    pfc.time_of_day = None
+                else:  # specific_time
+                    pfc.hours = None
+                    pfc.days = pfc_data.days
+                    if pfc_data.time_of_day:
+                        h, m = map(int, pfc_data.time_of_day.split(':'))
+                        pfc.time_of_day = time(h, m)
+                    else:
+                        pfc.time_of_day = None
+                    
+                pfc.on_impossible = pfc_data.on_impossible if pfc_data.timing_type == 'before' else None
+                pfc.is_enabled = pfc_data.is_enabled
+                pfc.display_order = pfc_data.display_order
+            else:
+                logger.warning(f"Patient form config ID {pfc_data.id} provided but not found in DB for AT {appointment_type_id} and clinic {clinic_id}. Treating as new record.")
+                pfc = _create_patient_form_config(clinic_id, appointment_type_id, pfc_data)
+                db.add(pfc)
+        else:
+            logger.info(f"Creating new patient form config for AT {appointment_type_id}")
+            pfc = _create_patient_form_config(clinic_id, appointment_type_id, pfc_data)
+            db.add(pfc)
 
 
 @router.post("/service-items/bundle", summary="Create service item bundle")

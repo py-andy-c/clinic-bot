@@ -653,11 +653,25 @@ export interface FollowUpMessageBundleData {
   display_order?: number;
 }
 
+export interface PatientFormConfigBundleData {
+  id?: number | string | undefined;
+  medical_record_template_id: number;
+  timing_type: 'before' | 'after';
+  timing_mode: 'hours' | 'specific_time';
+  hours?: number | null | undefined;
+  days?: number | null | undefined;
+  time_of_day?: string | null | undefined;
+  on_impossible?: 'send_immediately' | 'skip' | null | undefined;
+  is_enabled: boolean;
+  display_order: number;
+}
+
 export interface ServiceItemBundleAssociations {
   practitioner_ids: number[];
   billing_scenarios: BillingScenarioBundleData[];
   resource_requirements: ResourceRequirementBundleData[];
   follow_up_messages: FollowUpMessageBundleData[];
+  patient_form_configs: PatientFormConfigBundleData[];
 }
 
 export interface ServiceItemBundleRequest {

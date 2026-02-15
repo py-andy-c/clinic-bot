@@ -424,7 +424,7 @@ export const FollowUpMessageBundleSchema = z.object({
   id: z.union([z.number(), z.string()]).optional(),
   timing_mode: z.enum(['hours_after', 'specific_time']),
   hours_after: z.coerce.number().min(0, '小時數不能為負數').nullable().optional(),
-  days_after: z.coerce.number().min(0, '天數不能為負數').nullable().optional(),
+  days_after: z.coerce.number().min(1, '天數必須至少為 1 天').nullable().optional(),
   time_of_day: z.string().nullable().optional(), // Regex validation logic moved to refine/superRefine for better error mapping
   message_template: z.string().min(1, '請輸入訊息內容').max(3500, '訊息最長 3500 字元'),
   is_enabled: z.boolean().optional(),
@@ -458,6 +458,54 @@ export const FollowUpMessageBundleSchema = z.object({
   }
 });
 
+export const PatientFormConfigBundleSchema = z.object({
+  id: z.union([z.number(), z.string()]).optional(),
+  medical_record_template_id: z.coerce.number().min(1, '請選擇病歷模板'),
+  timing_type: z.enum(['before', 'after']),
+  timing_mode: z.enum(['hours', 'specific_time']),
+  hours: z.coerce.number().min(0, '小時數不能為負數').nullable().optional(),
+  days: z.coerce.number().min(1, '天數必須至少為 1 天').nullable().optional(),
+  time_of_day: z.string().nullable().optional(),
+  on_impossible: z.enum(['send_immediately', 'skip']).nullable().optional(),
+  is_enabled: z.boolean().default(true),
+  display_order: z.number().default(0),
+}).superRefine((data, ctx) => {
+  if (data.timing_mode === 'hours') {
+    if (data.hours === null || data.hours === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: '小時數為必填',
+        path: ['hours'],
+      });
+    }
+  } else if (data.timing_mode === 'specific_time') {
+    if (data.days === null || data.days === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: '天數為必填',
+        path: ['days'],
+      });
+    }
+    if (!data.time_of_day || !/^(0[0-9]|1[0-9]|2[0-3]):[0-5][0-9]$/.test(data.time_of_day)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: '時間格式必須為 HH:MM',
+        path: ['time_of_day'],
+      });
+    }
+  }
+
+  if (data.timing_type === 'before') {
+    if (!data.on_impossible) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: '請選擇無法及時發送時的處理方式',
+        path: ['on_impossible'],
+      });
+    }
+  }
+});
+
 export const ServiceItemBundleSchema = z.object({
   name: z.string().min(1, '請輸入項目名稱').max(255, '名稱最長 255 字元'),
   duration_minutes: z.coerce.number().min(1, '服務時長必須大於 0'),
@@ -484,6 +532,7 @@ export const ServiceItemBundleSchema = z.object({
 
   // Staged associations (for validation only, not part of AppointmentType strictly)
   follow_up_messages: z.array(FollowUpMessageBundleSchema).optional(),
+  patient_form_configs: z.array(PatientFormConfigBundleSchema).optional(),
   practitioner_ids: z.array(z.number()).optional(),
   billing_scenarios: z.array(BillingScenarioBundleSchema).optional(),
   resource_requirements: z.array(ResourceRequirementBundleSchema).optional(),

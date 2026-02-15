@@ -103,7 +103,7 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
                 });
             }
         },
-        { fallback: 0, parseFn: 'parseInt', min: 0 }
+        { fallback: 1, parseFn: 'parseInt', min: 1 }
     );
 
     const { confirm } = useModal();
@@ -115,7 +115,7 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
         setFormData({
             timing_mode: 'hours_after',
             hours_after: 0,
-            days_after: 0,
+            days_after: 1,
             message_template: '{病患姓名}，感謝您今天的預約！\n\n希望今天的服務對您有幫助。如有任何問題或需要協助，歡迎隨時聯繫我們。\n\n期待下次為您服務！',
             is_enabled: true,
             display_order: fields.length,
@@ -200,13 +200,13 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
         // so we need to be careful. However, since we're using React Hook Form,
         // it's better to update all remaining fields to ensure display_order is sequential.
         setTimeout(() => {
-             const currentFields = (control._formValues.follow_up_messages || []) as FollowUpMessageField[];
-             currentFields.forEach((field, idx) => {
-                 if (field.display_order !== idx) {
-                     update(idx, { ...field, display_order: idx });
-                 }
-             });
-         }, 0);
+            const currentFields = (control._formValues.follow_up_messages || []) as FollowUpMessageField[];
+            currentFields.forEach((field, idx) => {
+                if (field.display_order !== idx) {
+                    update(idx, { ...field, display_order: idx });
+                }
+            });
+        }, 0);
     };
 
     const handleToggleEnabled = (index: number) => {
@@ -456,7 +456,7 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
                                                     ...prev,
                                                     timing_mode: 'specific_time',
                                                     hours_after: undefined,
-                                                    days_after: prev.days_after !== undefined ? prev.days_after : 0,
+                                                    days_after: prev.days_after ? Math.max(1, prev.days_after) : 1,
                                                     time_of_day: prev.time_of_day || '21:00',
                                                 }));
                                                 setFormErrors(prev => {
@@ -474,7 +474,7 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
                                             <div>
                                                 <input
                                                     type="number"
-                                                    min="0"
+                                                    min="1"
                                                     step="1"
                                                     value={daysAfterInput.displayValue}
                                                     onChange={daysAfterInput.onChange}

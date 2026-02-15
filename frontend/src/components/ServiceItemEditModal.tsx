@@ -13,8 +13,9 @@ import { LoadingSpinner, InfoButton, InfoModal, WarningPopover } from './shared'
 import {
   ServiceItemBundleRequest,
   BillingScenarioBundleData,
+  FollowUpMessageBundleData,
   ResourceRequirementBundleData,
-  FollowUpMessageBundleData
+  PatientFormConfigBundleData
 } from '../types';
 import { ServiceItemBundleSchema, ServiceItemBundleFormData } from '../schemas/api';
 import { useModal } from '../contexts/ModalContext';
@@ -27,6 +28,7 @@ import {
 } from '../constants/messageTemplates';
 import { MessageSettingsSection } from './MessageSettingsSection';
 import { FollowUpMessagesSection } from './FollowUpMessagesSection';
+import { PatientFormConfigsSection } from './PatientFormConfigsSection';
 import { ResourceRequirementsSection } from './ResourceRequirementsSection';
 import { FormInput } from './forms/FormInput';
 import { isRealId } from '../utils/idUtils';
@@ -53,6 +55,16 @@ interface ServiceItemEditModalProps {
 
 
 interface BillingScenarioField extends Omit<BillingScenarioBundleData, 'id'> {
+  id: string; // Internal ID for useFieldArray
+  db_id?: number; // Preserved DB ID
+}
+
+interface FollowUpMessageField extends Omit<FollowUpMessageBundleData, 'id'> {
+  id: string; // Internal ID for useFieldArray
+  db_id?: number; // Preserved DB ID
+}
+
+interface PatientFormConfigField extends Omit<PatientFormConfigBundleData, 'id'> {
   id: string; // Internal ID for useFieldArray
   db_id?: number; // Preserved DB ID
 }
@@ -99,7 +111,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
   );
 
   const methods = useForm<ServiceItemBundleFormData>({
-    resolver: zodResolver(refinedSchema),
+    resolver: zodResolver(refinedSchema) as any,
     defaultValues: {
       name: '',
       duration_minutes: 30,
@@ -125,6 +137,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
       billing_scenarios: [],
       resource_requirements: [],
       follow_up_messages: [],
+      patient_form_configs: [],
     }
   });
 
@@ -143,6 +156,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
   const [showBillingScenarioModal, setShowBillingScenarioModal] = useState(false);
   const [showMultipleTimeSlotModal, setShowMultipleTimeSlotModal] = useState(false);
   const [showFollowUpInfoModal, setShowFollowUpInfoModal] = useState(false);
+  const [showPatientFormInfoModal, setShowPatientFormInfoModal] = useState(false);
 
   // Validation state
   const [messageValidationErrors, setMessageValidationErrors] = useState<string[]>([]);
@@ -178,7 +192,12 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
           db_id: s.id, // Preserve real ID
         })),
         resource_requirements: bundle.associations.resource_requirements,
-        follow_up_messages: [...bundle.associations.follow_up_messages].sort((a, b) => (a.display_order || 0) - (b.display_order || 0)),
+        follow_up_messages: [...bundle.associations.follow_up_messages]
+          .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
+          .map(m => ({ ...m, db_id: m.id })),
+        patient_form_configs: [...(bundle.associations.patient_form_configs || [])]
+          .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
+          .map(p => ({ ...p, db_id: p.id })),
       };
 
       reset(formData);
@@ -208,6 +227,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
         billing_scenarios: [],
         resource_requirements: [],
         follow_up_messages: [],
+        patient_form_configs: [],
       };
       reset(newItem);
     }
@@ -271,17 +291,44 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
             quantity: req.quantity
           })),
           follow_up_messages: (data.follow_up_messages || []).map((msg): FollowUpMessageBundleData => {
+            const field = msg as unknown as FollowUpMessageField;
             const fm: FollowUpMessageBundleData = {
               timing_mode: msg.timing_mode,
               hours_after: msg.hours_after ?? null,
               days_after: msg.days_after ?? null,
               time_of_day: msg.time_of_day ?? null,
               message_template: msg.message_template,
-              is_enabled: msg.is_enabled !== false, // Default to true if not explicitly false
+              is_enabled: msg.is_enabled !== false,
               display_order: msg.display_order ?? 0,
             };
-            if (msg.id && typeof msg.id === 'number' && isRealId(msg.id)) fm.id = msg.id;
+            // Prioritize db_id for ID preservation
+            if (field.db_id && isRealId(field.db_id)) {
+              fm.id = field.db_id;
+            } else if (typeof msg.id === 'number' && isRealId(msg.id)) {
+              fm.id = msg.id;
+            }
             return fm;
+          }),
+          patient_form_configs: (data.patient_form_configs || []).map((pfc): PatientFormConfigBundleData => {
+            const field = pfc as unknown as PatientFormConfigField;
+            const config: PatientFormConfigBundleData = {
+              medical_record_template_id: pfc.medical_record_template_id,
+              timing_type: pfc.timing_type,
+              timing_mode: pfc.timing_mode,
+              hours: pfc.hours,
+              days: pfc.days,
+              time_of_day: pfc.time_of_day,
+              on_impossible: pfc.on_impossible,
+              is_enabled: pfc.is_enabled !== false,
+              display_order: pfc.display_order ?? 0,
+            };
+            // Prioritize db_id for ID preservation
+            if (field.db_id && isRealId(field.db_id)) {
+              config.id = field.db_id;
+            } else if (typeof pfc.id === 'number' && isRealId(pfc.id)) {
+              config.id = pfc.id;
+            }
+            return config;
           })
         }
       };
@@ -844,6 +891,22 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                       {...(clinicInfoAvailability !== undefined && { clinicInfoAvailability })}
                     />
                   </section>
+
+                  <section className="bg-white md:rounded-2xl p-5 md:p-6 md:shadow-sm border-b md:border border-gray-100 border-x-0">
+                    <div className="mb-4 md:mb-6">
+                      <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                        <span className="w-1.5 h-6 bg-cyan-500 rounded-full"></span>
+                        自動發送表單設定
+                        <InfoButton
+                          ariaLabel="自動發送表單設定"
+                          onClick={() => setShowPatientFormInfoModal(true)}
+                        />
+                      </h3>
+                    </div>
+                    <PatientFormConfigsSection
+                      disabled={!isClinicAdmin}
+                    />
+                  </section>
                 </div>
               </div>
             </div>
@@ -1034,6 +1097,31 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
           <ul className="list-disc list-inside space-y-1 ml-2">
             <li>如果預約被取消，已排程的追蹤訊息將不會發送</li>
             <li>如果預約時間變更，系統會自動重新排程追蹤訊息</li>
+          </ul>
+        </InfoModal>
+        <InfoModal isOpen={showPatientFormInfoModal} onClose={() => setShowPatientFormInfoModal(false)} title="自動發送病患表單說明">
+          <p>
+            <strong>什麼是自動發送表單？</strong>
+          </p>
+          <p>
+            系統會根據您設定的時機，自動發送 LINE 訊息給病患，邀請他們填寫指定的表單（如初診單、同意書等）。
+          </p>
+          <p className="mt-4">
+            <strong>發送時機：</strong>
+          </p>
+          <ul className="list-disc list-inside space-y-1 ml-2">
+            <li><strong>預約開始前：</strong>在看診前提前收集資訊。</li>
+            <li><strong>預約結束後：</strong>看診後收集回饋或發送衛教單張。</li>
+          </ul>
+          <p className="mt-4">
+            <strong>特殊處理機制（預約開始前）：</strong>
+          </p>
+          <p className="text-sm text-gray-600 mb-2">
+            若病患預約的時間很近，導致預約建立時已超過原本設定的發送時機：
+          </p>
+          <ul className="list-disc list-inside space-y-1 ml-2">
+            <li><strong>立即補發：</strong>預約一旦建立，系統會立刻補發該表單。</li>
+            <li><strong>直接跳過：</strong>系統將不會發送該表單。</li>
           </ul>
         </InfoModal>
       </BaseModal>
